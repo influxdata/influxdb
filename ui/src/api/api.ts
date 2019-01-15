@@ -4646,6 +4646,12 @@ export interface TelegrafRequest {
      * @memberof TelegrafRequest
      */
     plugins?: Array<TelegrafRequestPlugin>;
+    /**
+     * 
+     * @type {string}
+     * @memberof TelegrafRequest
+     */
+    organizationID?: string;
 }
 
 /**
@@ -12727,16 +12733,11 @@ export const TelegrafsApiAxiosParamCreator = function (configuration?: Configura
         /**
          * 
          * @summary Create a telegraf config
-         * @param {string} org specifies the organization of the resource
          * @param {TelegrafRequest} telegrafRequest telegraf config to create
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        telegrafsPost(org: string, telegrafRequest: TelegrafRequest, options: any = {}): RequestArgs {
-            // verify required parameter 'org' is not null or undefined
-            if (org === null || org === undefined) {
-                throw new RequiredError('org','Required parameter org was null or undefined when calling telegrafsPost.');
-            }
+        telegrafsPost(telegrafRequest: TelegrafRequest, options: any = {}): RequestArgs {
             // verify required parameter 'telegrafRequest' is not null or undefined
             if (telegrafRequest === null || telegrafRequest === undefined) {
                 throw new RequiredError('telegrafRequest','Required parameter telegrafRequest was null or undefined when calling telegrafsPost.');
@@ -12750,10 +12751,6 @@ export const TelegrafsApiAxiosParamCreator = function (configuration?: Configura
             const localVarRequestOptions = Object.assign({ method: 'POST' }, baseOptions, options);
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
-
-            if (org !== undefined) {
-                localVarQueryParameter['org'] = org;
-            }
 
             localVarHeaderParameter['Content-Type'] = 'application/json';
 
@@ -13097,13 +13094,12 @@ export const TelegrafsApiFp = function(configuration?: Configuration) {
         /**
          * 
          * @summary Create a telegraf config
-         * @param {string} org specifies the organization of the resource
          * @param {TelegrafRequest} telegrafRequest telegraf config to create
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        telegrafsPost(org: string, telegrafRequest: TelegrafRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Telegraf> {
-            const localVarAxiosArgs = TelegrafsApiAxiosParamCreator(configuration).telegrafsPost(org, telegrafRequest, options);
+        telegrafsPost(telegrafRequest: TelegrafRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Telegraf> {
+            const localVarAxiosArgs = TelegrafsApiAxiosParamCreator(configuration).telegrafsPost(telegrafRequest, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -13247,13 +13243,12 @@ export const TelegrafsApiFactory = function (configuration?: Configuration, base
         /**
          * 
          * @summary Create a telegraf config
-         * @param {string} org specifies the organization of the resource
          * @param {TelegrafRequest} telegrafRequest telegraf config to create
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        telegrafsPost(org: string, telegrafRequest: TelegrafRequest, options?: any) {
-            return TelegrafsApiFp(configuration).telegrafsPost(org, telegrafRequest, options)(axios, basePath);
+        telegrafsPost(telegrafRequest: TelegrafRequest, options?: any) {
+            return TelegrafsApiFp(configuration).telegrafsPost(telegrafRequest, options)(axios, basePath);
         },
         /**
          * 
@@ -13364,14 +13359,13 @@ export class TelegrafsApi extends BaseAPI {
     /**
      * 
      * @summary Create a telegraf config
-     * @param {string} org specifies the organization of the resource
      * @param {TelegrafRequest} telegrafRequest telegraf config to create
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof TelegrafsApi
      */
-    public telegrafsPost(org: string, telegrafRequest: TelegrafRequest, options?: any) {
-        return TelegrafsApiFp(this.configuration).telegrafsPost(org, telegrafRequest, options)(this.axios, this.basePath);
+    public telegrafsPost(telegrafRequest: TelegrafRequest, options?: any) {
+        return TelegrafsApiFp(this.configuration).telegrafsPost(telegrafRequest, options)(this.axios, this.basePath);
     }
 
     /**

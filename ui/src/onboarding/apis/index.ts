@@ -125,11 +125,10 @@ export const writeLineProtocol = async (
 }
 
 export const createTelegrafConfig = async (
-  org: string,
   telegrafConfig: TelegrafRequest
 ): Promise<Telegraf> => {
   try {
-    const {data} = await telegrafsAPI.telegrafsPost(org, telegrafConfig)
+    const {data} = await telegrafsAPI.telegrafsPost(telegrafConfig)
 
     return data
   } catch (error) {

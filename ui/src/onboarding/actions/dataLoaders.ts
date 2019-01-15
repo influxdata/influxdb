@@ -30,8 +30,11 @@ import {
 } from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
-import {WritePrecision} from 'src/api'
-import {TelegrafPluginOutputInfluxDBV2} from 'src/api'
+import {
+  WritePrecision,
+  TelegrafRequest,
+  TelegrafPluginOutputInfluxDBV2,
+} from 'src/api'
 
 type GetState = () => AppState
 
@@ -320,27 +323,22 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     }
   })
 
-  let body = {
+  const telegrafRequest: TelegrafRequest = {
     name: 'new config',
     agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
+    organizationID: orgID,
     plugins,
-    orgID,
   }
 
   if (telegrafConfigsFromServer.length) {
     const id = _.get(telegrafConfigsFromServer, '0.id', '')
 
-    await updateTelegrafConfig(id, body)
+    await updateTelegrafConfig(id, telegrafRequest)
     dispatch(setTelegrafConfigID(id))
     return
   }
 
-  body = {
-    ...body,
-    plugins,
-  }
-
-  const created = await createTelegrafConfig(orgID, body)
+  const created = await createTelegrafConfig(telegrafRequest)
   dispatch(setTelegrafConfigID(created.id))
 }
 
