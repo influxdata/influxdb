@@ -147,10 +147,15 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     return dashboard.name || DEFAULT_DASHBOARD_NAME
   }
 
-  private get ownerName(): string {
+  private get ownerName(): JSX.Element {
     const {dashboard, orgs} = this.props
     const ownerOrg = orgs.find(o => o.id === dashboard.orgID)
-    return ownerOrg.name
+
+    return (
+      <Link to={`/organizations/${dashboard.orgID}/members_tab`}>
+        {ownerOrg.name}
+      </Link>
+    )
   }
 
   private get nameClassName(): string {
