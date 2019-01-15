@@ -254,11 +254,17 @@ func validateBucket(ctx context.Context, script string, preAuth query.PreAuthori
 
 	spec, err := flux.Compile(ctx, script, time.Now())
 	if err != nil {
-		return err
+		return platform.NewError(
+			platform.WithErrorErr(err),
+			platform.WithErrorMsg("Failed to parse flux script."),
+			platform.WithErrorCode(platform.EInvalid))
 	}
 
 	if err := preAuth.PreAuthorize(ctx, spec, auth); err != nil {
-		return err
+		return platform.NewError(
+			platform.WithErrorErr(err),
+			platform.WithErrorMsg("Failed to authorize."),
+			platform.WithErrorCode(platform.EInvalid))
 	}
 
 	return nil
