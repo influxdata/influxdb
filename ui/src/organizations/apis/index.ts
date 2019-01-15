@@ -169,3 +169,20 @@ export const getCollectors = async (org: Organization): Promise<Telegraf[]> => {
     console.error(error)
   }
 }
+
+export const getTelegrafConfigTOML = async (
+  telegrafID: string
+): Promise<string> => {
+  const options = {
+    headers: {
+      Accept: 'application/toml',
+    },
+  }
+
+  const response = await telegrafsAPI.telegrafsTelegrafIDGet(
+    telegrafID,
+    options
+  )
+
+  return response.data as string // response.data is string with 'application/toml' header
+}

@@ -13,6 +13,7 @@ import {getDeep} from 'src/utils/wrappers'
 interface Props {
   collectors: Telegraf[]
   emptyState: JSX.Element
+  onDownloadConfig: (telegrafID: string) => void
 }
 
 export default class BucketList extends PureComponent<Props> {
@@ -35,13 +36,15 @@ export default class BucketList extends PureComponent<Props> {
   }
 
   public get collectorsList(): JSX.Element[] {
-    const {collectors} = this.props
+    const {collectors, onDownloadConfig} = this.props
 
     if (collectors !== undefined) {
       return collectors.map(collector => (
         <CollectorRow
+          key={collector.id}
           collector={collector}
           bucket={getDeep<string>(collector, 'plugins.0.config.bucket', '')}
+          onDownloadConfig={onDownloadConfig}
         />
       ))
     }

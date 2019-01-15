@@ -9,12 +9,14 @@ import {
   Alignment,
   Button,
   ComponentColor,
+  ComponentSpacer,
 } from 'src/clockface'
 import {Telegraf} from 'src/api'
 
 interface Props {
   collector: Telegraf
   bucket: string
+  onDownloadConfig: (telegrafID: string) => void
 }
 
 export default class BucketRow extends PureComponent<Props> {
@@ -25,22 +27,27 @@ export default class BucketRow extends PureComponent<Props> {
         <IndexList.Row>
           <IndexList.Cell>{collector.name}</IndexList.Cell>
           <IndexList.Cell>{bucket}</IndexList.Cell>
-          <IndexList.Cell>
-            <Button
-              size={ComponentSize.Small}
-              color={ComponentColor.Secondary}
-              text={'Download Config'}
-            />
-          </IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-            <ConfirmationButton
-              size={ComponentSize.ExtraSmall}
-              text="Delete"
-              confirmText="Confirm"
-            />
+            <ComponentSpacer align={Alignment.Right}>
+              <Button
+                size={ComponentSize.ExtraSmall}
+                color={ComponentColor.Secondary}
+                text={'Download Config'}
+                onClick={this.handleDownloadConfig}
+              />
+              <ConfirmationButton
+                size={ComponentSize.ExtraSmall}
+                text="Delete"
+                confirmText="Confirm"
+              />
+            </ComponentSpacer>
           </IndexList.Cell>
         </IndexList.Row>
       </>
     )
+  }
+
+  private handleDownloadConfig = (): void => {
+    this.props.onDownloadConfig(this.props.collector.id)
   }
 }

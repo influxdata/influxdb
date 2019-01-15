@@ -16,6 +16,7 @@ import {
 
 // Actions
 import {updateOrg} from 'src/organizations/actions'
+import * as notifyActions from 'src/shared/actions/notifications'
 
 // Components
 import {Page} from 'src/pageLayout'
@@ -34,6 +35,7 @@ import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 // Types
 import {AppState, Dashboard} from 'src/types/v2'
 import {ResourceOwner, Bucket, Organization, Task, Telegraf} from 'src/api'
+import * as NotificationsActions from 'src/types/actions/notifications'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -44,6 +46,7 @@ interface StateProps {
 
 interface DispatchProps {
   onUpdateOrg: typeof updateOrg
+  notify: NotificationsActions.PublishNotificationActionCreator
 }
 
 type Props = StateProps & WithRouterProps & DispatchProps
@@ -51,7 +54,7 @@ type Props = StateProps & WithRouterProps & DispatchProps
 @ErrorHandling
 class OrganizationView extends PureComponent<Props> {
   public render() {
-    const {org, params} = this.props
+    const {org, params, notify} = this.props
 
     return (
       <Page titleTag={org.name}>
@@ -143,9 +146,13 @@ class OrganizationView extends PureComponent<Props> {
                   organization={org}
                   fetcher={getCollectors}
                 >
-                  {(collectors, loading) => (
+                  {(collectors, loading, fetch) => (
                     <Spinner loading={loading}>
-                      <Collectors collectors={collectors} />
+                      <Collectors
+                        collectors={collectors}
+                        onChange={fetch}
+                        notify={notify}
+                      />
                     </Spinner>
                   )}
                 </GetOrgResources>
@@ -189,6 +196,7 @@ const mstp = (state: AppState, props: WithRouterProps) => {
 
 const mdtp: DispatchProps = {
   onUpdateOrg: updateOrg,
+  notify: notifyActions.notify,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
