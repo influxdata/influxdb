@@ -8,8 +8,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 )
@@ -206,7 +206,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to evaluate condition")
 		}
-		id := t.op("filter", &transformations.FilterOpSpec{
+		id := t.op("filter", &universe.FilterOpSpec{
 			Fn: &semantic.FunctionExpression{
 				Block: &semantic.FunctionBlock{
 					Parameters: &semantic.FunctionParameters{
@@ -245,7 +245,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		// so they stay in the same table and are joined in the correct order.
 		if interval > 0 {
 			cur = &groupCursor{
-				id: t.op("window", &transformations.WindowOpSpec{
+				id: t.op("window", &universe.WindowOpSpec{
 					Every:       flux.Duration(math.MaxInt64),
 					Period:      flux.Duration(math.MaxInt64),
 					TimeColumn:  execute.DefaultTimeColLabel,
@@ -365,13 +365,13 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	// Perform the grouping by the tags we found. There is always a group by because
 	// there is always something to group in influxql.
 	// TODO(jsternberg): A wildcard will skip this step.
-	id := t.op("group", &transformations.GroupOpSpec{
+	id := t.op("group", &universe.GroupOpSpec{
 		Columns: tags,
 		Mode:    "by",
 	}, in.ID())
 
 	if windowEvery > 0 {
-		windowOp := &transformations.WindowOpSpec{
+		windowOp := &universe.WindowOpSpec{
 			Every:       flux.Duration(windowEvery),
 			Period:      flux.Duration(windowEvery),
 			TimeColumn:  execute.DefaultTimeColLabel,

@@ -214,12 +214,6 @@ func (t *tableNoPoints) Close() {}
 func (t *tableNoPoints) Statistics() flux.Statistics { return flux.Statistics{} }
 
 func (t *tableNoPoints) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *tableNoPoints) DoArrow(f func(flux.ArrowColReader) error) error {
 	if t.isCancelled() {
 		return nil
 	}
@@ -249,12 +243,6 @@ func newGroupTableNoPoints(
 func (t *groupTableNoPoints) Close() {}
 
 func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
-	return t.DoArrow(func(cr flux.ArrowColReader) error {
-		return f(arrow.ColReader(cr))
-	})
-}
-
-func (t *groupTableNoPoints) DoArrow(f func(flux.ArrowColReader) error) error {
 	if t.isCancelled() {
 		return nil
 	}

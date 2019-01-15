@@ -16,6 +16,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/http"
+	_ "github.com/influxdata/influxdb/query/builtin"
 )
 
 // Default context.

@@ -7,8 +7,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxql"
 )
 
@@ -67,7 +67,7 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 			Value: value,
 		})
 	}
-	id := t.op("map", &transformations.MapOpSpec{
+	id := t.op("map", &universe.MapOpSpec{
 		Fn: &semantic.FunctionExpression{
 			Block: &semantic.FunctionBlock{
 				Parameters: &semantic.FunctionParameters{

@@ -4,14 +4,12 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/influxdata/flux/functions/inputs"
-	"github.com/influxdata/flux/functions/transformations"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxql"
 )
 
@@ -23,13 +21,13 @@ func init() {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &inputs.FromOpSpec{
+						Spec: &influxdb.FromOpSpec{
 							BucketID: bucketID.String(),
 						},
 					},
 					{
 						ID: "range0",
-						Spec: &transformations.RangeOpSpec{
+						Spec: &universe.RangeOpSpec{
 							Start:       flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
 							Stop:        flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
 							TimeColumn:  execute.DefaultTimeColLabel,
@@ -39,7 +37,7 @@ func init() {
 					},
 					{
 						ID: "filter0",
-						Spec: &transformations.FilterOpSpec{
+						Spec: &universe.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Block: &semantic.FunctionBlock{
 									Parameters: &semantic.FunctionParameters{
@@ -80,7 +78,7 @@ func init() {
 					},
 					{
 						ID: "filter1",
-						Spec: &transformations.FilterOpSpec{
+						Spec: &universe.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Block: &semantic.FunctionBlock{
 									Parameters: &semantic.FunctionParameters{
@@ -106,14 +104,14 @@ func init() {
 					},
 					{
 						ID: "group0",
-						Spec: &transformations.GroupOpSpec{
+						Spec: &universe.GroupOpSpec{
 							Columns: []string{"_measurement", "_start"},
 							Mode:    "by",
 						},
 					},
 					{
 						ID: "map0",
-						Spec: &transformations.MapOpSpec{
+						Spec: &universe.MapOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Block: &semantic.FunctionBlock{
 									Parameters: &semantic.FunctionParameters{
@@ -150,7 +148,7 @@ func init() {
 					},
 					{
 						ID: "yield0",
-						Spec: &transformations.YieldOpSpec{
+						Spec: &universe.YieldOpSpec{
 							Name: "0",
 						},
 					},
@@ -175,13 +173,13 @@ func init() {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &inputs.FromOpSpec{
+						Spec: &influxdb.FromOpSpec{
 							BucketID: bucketID.String(),
 						},
 					},
 					{
 						ID: "range0",
-						Spec: &transformations.RangeOpSpec{
+						Spec: &universe.RangeOpSpec{
 							Start:       flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
 							Stop:        flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
 							TimeColumn:  execute.DefaultTimeColLabel,
@@ -191,7 +189,7 @@ func init() {
 					},
 					{
 						ID: "filter0",
-						Spec: &transformations.FilterOpSpec{
+						Spec: &universe.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Block: &semantic.FunctionBlock{
 									Parameters: &semantic.FunctionParameters{
@@ -232,7 +230,7 @@ func init() {
 					},
 					{
 						ID: "filter1",
-						Spec: &transformations.FilterOpSpec{
+						Spec: &universe.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Block: &semantic.FunctionBlock{
 									Parameters: &semantic.FunctionParameters{
@@ -258,14 +256,14 @@ func init() {
 					},
 					{
 						ID: "group0",
-						Spec: &transformations.GroupOpSpec{
+						Spec: &universe.GroupOpSpec{
 							Columns: []string{"_measurement", "_start"},
 							Mode:    "by",
 						},
 					},
 					{
 						ID: "map0",
-						Spec: &transformations.MapOpSpec{
+						Spec: &universe.MapOpSpec{
 							Fn: &semantic.FunctionExpression{
 								Block: &semantic.FunctionBlock{
 									Parameters: &semantic.FunctionParameters{
@@ -302,7 +300,7 @@ func init() {
 					},
 					{
 						ID: "yield0",
-						Spec: &transformations.YieldOpSpec{
+						Spec: &universe.YieldOpSpec{
 							Name: "0",
 						},
 					},

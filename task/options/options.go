@@ -77,14 +77,14 @@ func FromScript(script string) (Options, error) {
 
 	opt := Options{Retry: 1, Concurrency: 1}
 
-	inter := flux.NewInterpreter()
-	if err := flux.Eval(inter, script); err != nil {
+	_, scope, err := flux.Eval(script)
+	if err != nil {
 		return opt, err
 	}
 
-	// pull options from interpreter
-	task := inter.Option("task")
-	if task == nil {
+	// pull options from the program scope
+	task, ok := scope.Lookup("task")
+	if !ok {
 		return opt, errors.New("task not defined")
 	}
 	optObject := task.Object()

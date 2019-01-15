@@ -6,7 +6,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/transformations"
+	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxql"
 )
 
@@ -113,7 +113,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("count", &transformations.CountOpSpec{
+		cur.id = t.op("count", &universe.CountOpSpec{
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{value},
 			},
@@ -125,7 +125,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("min", &transformations.MinOpSpec{
+		cur.id = t.op("min", &universe.MinOpSpec{
 			SelectorConfig: execute.SelectorConfig{
 				Column: value,
 			},
@@ -137,7 +137,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("max", &transformations.MaxOpSpec{
+		cur.id = t.op("max", &universe.MaxOpSpec{
 			SelectorConfig: execute.SelectorConfig{
 				Column: value,
 			},
@@ -149,7 +149,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("sum", &transformations.SumOpSpec{
+		cur.id = t.op("sum", &universe.SumOpSpec{
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{value},
 			},
@@ -161,7 +161,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("first", &transformations.FirstOpSpec{
+		cur.id = t.op("first", &universe.FirstOpSpec{
 			SelectorConfig: execute.SelectorConfig{
 				Column: value,
 			},
@@ -173,7 +173,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("last", &transformations.LastOpSpec{
+		cur.id = t.op("last", &universe.LastOpSpec{
 			SelectorConfig: execute.SelectorConfig{
 				Column: value,
 			},
@@ -185,7 +185,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("mean", &transformations.MeanOpSpec{
+		cur.id = t.op("mean", &universe.MeanOpSpec{
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{value},
 			},
@@ -197,7 +197,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("median", &transformations.PercentileOpSpec{
+		cur.id = t.op("median", &universe.PercentileOpSpec{
 			Percentile:  0.5,
 			Compression: 0,
 			Method:      "exact_mean",
@@ -231,7 +231,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 			return nil, errors.New("argument N must be between 0 and 100")
 		}
 
-		cur.id = t.op("percentile", &transformations.PercentileOpSpec{
+		cur.id = t.op("percentile", &universe.PercentileOpSpec{
 			Percentile:  percentile,
 			Compression: 0,
 			Method:      "exact_selector",
@@ -248,11 +248,11 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 	// If we have been told to normalize the time, we do it here.
 	if normalize {
 		if influxql.IsSelector(call) {
-			cur.id = t.op("drop", &transformations.DropOpSpec{
+			cur.id = t.op("drop", &universe.DropOpSpec{
 				Columns: []string{execute.DefaultTimeColLabel},
 			}, cur.id)
 		}
-		cur.id = t.op("duplicate", &transformations.DuplicateOpSpec{
+		cur.id = t.op("duplicate", &universe.DuplicateOpSpec{
 			Column: execute.DefaultStartColLabel,
 			As:     execute.DefaultTimeColLabel,
 		}, cur.id)

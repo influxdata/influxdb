@@ -10,8 +10,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/functions/transformations"
 	"github.com/influxdata/flux/semantic/semantictest"
+	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 )
@@ -28,9 +28,9 @@ type BucketAwareQueryTestCase struct {
 var opts = append(
 	semantictest.CmpOptions,
 	cmp.AllowUnexported(flux.Spec{}),
-	cmp.AllowUnexported(transformations.JoinOpSpec{}),
+	cmp.AllowUnexported(universe.JoinOpSpec{}),
 	cmpopts.IgnoreUnexported(flux.Spec{}),
-	cmpopts.IgnoreUnexported(transformations.JoinOpSpec{}),
+	cmpopts.IgnoreUnexported(universe.JoinOpSpec{}),
 )
 
 func BucketAwareQueryTestHelper(t *testing.T, tc BucketAwareQueryTestCase) {

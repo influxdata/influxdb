@@ -116,28 +116,46 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (i
 					// Fill in the values for each column.
 					switch c.Type {
 					case flux.TFloat:
-						for i, v := range cr.Floats(idx) {
-							values[i][j] = v
+						vs := cr.Floats(idx)
+						for i := 0; i < vs.Len(); i++ {
+							if vs.IsValid(i) {
+								values[i][j] = vs.Value(i)
+							}
 						}
 					case flux.TInt:
-						for i, v := range cr.Ints(idx) {
-							values[i][j] = v
+						vs := cr.Ints(idx)
+						for i := 0; i < vs.Len(); i++ {
+							if vs.IsValid(i) {
+								values[i][j] = vs.Value(i)
+							}
 						}
 					case flux.TString:
-						for i, v := range cr.Strings(idx) {
-							values[i][j] = v
+						vs := cr.Strings(idx)
+						for i := 0; i < vs.Len(); i++ {
+							if vs.IsValid(i) {
+								values[i][j] = vs.ValueString(i)
+							}
 						}
 					case flux.TUInt:
-						for i, v := range cr.UInts(idx) {
-							values[i][j] = v
+						vs := cr.UInts(idx)
+						for i := 0; i < vs.Len(); i++ {
+							if vs.IsValid(i) {
+								values[i][j] = vs.Value(i)
+							}
 						}
 					case flux.TBool:
-						for i, v := range cr.Bools(idx) {
-							values[i][j] = v
+						vs := cr.Bools(idx)
+						for i := 0; i < vs.Len(); i++ {
+							if vs.IsValid(i) {
+								values[i][j] = vs.Value(i)
+							}
 						}
 					case flux.TTime:
-						for i, v := range cr.Times(idx) {
-							values[i][j] = v.Time().Format(time.RFC3339Nano)
+						vs := cr.Times(idx)
+						for i := 0; i < vs.Len(); i++ {
+							if vs.IsValid(i) {
+								values[i][j] = execute.Time(vs.Value(i)).Time().Format(time.RFC3339Nano)
+							}
 						}
 					default:
 						return fmt.Errorf("unsupported column type: %s", c.Type)
