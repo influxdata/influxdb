@@ -55,7 +55,14 @@ class AdminStep extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {username, password, confirmPassword, org, bucket} = this.state
+    const {
+      username,
+      password,
+      confirmPassword,
+      org,
+      bucket,
+      isPassMismatched,
+    } = this.state
     const icon = this.InputIcon
     const status = this.InputStatus
     return (
@@ -108,7 +115,12 @@ class AdminStep extends PureComponent<Props, State> {
                       </Form.Element>
                     </Grid.Column>
                     <Grid.Column widthXS={Columns.Six} widthMD={Columns.Five}>
-                      <Form.Element label="Confirm Password">
+                      <Form.Element
+                        label="Confirm Password"
+                        errorMessage={
+                          isPassMismatched && 'Passwords do not match'
+                        }
+                      >
                         <Input
                           type={InputType.Password}
                           value={confirmPassword}
