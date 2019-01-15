@@ -3,13 +3,14 @@ package influxdb
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 )
 
 var (
 	// ErrAuthorizerNotSupported notes that the provided authorizer is not supported for the action you are trying to perform.
 	ErrAuthorizerNotSupported = errors.New("your authorizer is not supported, please use *platform.Authorization as authorizer")
-	// ErrInvalidResource notes that the provided resource is invalid
-	ErrInvalidResource = errors.New("unknown resource for permission")
+	// ErrInvalidResourceType notes that the provided resource is invalid
+	ErrInvalidResourceType = errors.New("unknown resource type for permission")
 	// ErrInvalidAction notes that the provided action is invalid
 	ErrInvalidAction = errors.New("unknown action for permission")
 )
@@ -30,28 +31,10 @@ type Authorizer interface {
 }
 
 // PermissionAllowed determines if a permission is allowed.
-func PermissionAllowed(p Permission, ps []Permission) bool {
-	if !p.OrgID.Valid() {
-		return false
-	}
-
-	pID := ID(0)
-	if p.ID != nil {
-		pID = *p.ID
-		if !pID.Valid() {
-			return false
-		}
-	}
-
-	for _, perm := range ps {
-		if perm.ID == nil {
-			if perm.Action == p.Action && perm.Resource == p.Resource && perm.OrgID == p.OrgID {
-				return true
-			}
-		} else {
-			if *perm.ID == pID && perm.Action == p.Action && perm.Resource == p.Resource && perm.OrgID == p.OrgID {
-				return true
-			}
+func PermissionAllowed(perm Permission, ps []Permission) bool {
+	for _, p := range ps {
+		if p.Matches(perm) {
+			return true
 		}
 	}
 	return false
@@ -84,63 +67,91 @@ func (a Action) Valid() (err error) {
 	return err
 }
 
-// Resource is an enum defining all resources that have a permission model in platform
-type Resource string
+// ResourceType is an enum defining all resource types that have a permission model in platform
+type ResourceType string
 
-const (
-	// AuthorizationsResource gives permissions to one or more authorizations.
-	AuthorizationsResource = Resource("authorizations") // 0
-	// BucketsResource gives permissions to one or more buckets.
-	BucketsResource = Resource("buckets") // 1
-	// DashboardsResource gives permissions to one or more dashboards.
-	DashboardsResource = Resource("dashboards") // 2
-	// OrgsResource gives permissions to one or more orgs.
-	OrgsResource = Resource("orgs") // 3
-	// SourcesResource gives permissions to one or more sources.
-	SourcesResource = Resource("sources") // 4
-	// TasksResource gives permissions to one or more tasks.
-	TasksResource = Resource("tasks") // 5
-	// TelegrafsResource type gives permissions to a one or more telegrafs.
-	TelegrafsResource = Resource("telegrafs") // 6
-	// UsersResource gives permissions to one or more users.
-	UsersResource = Resource("users") // 7
-)
-
-// AllResources is the list of all known resource types.
-var AllResources = []Resource{
-	AuthorizationsResource, // 0
-	BucketsResource,        // 1
-	DashboardsResource,     // 2
-	OrgsResource,           // 3
-	SourcesResource,        // 4
-	TasksResource,          // 5
-	TelegrafsResource,      // 6
-	UsersResource,          // 7
+// Resource is an authorizable resource.
+type Resource struct {
+	Type  ResourceType `json:"type"`
+	ID    *ID          `json:"id,omitempty"`
+	OrgID *ID          `json:"orgID,omitempty"`
 }
 
-// OrgResources is the list of all known resource types that belong to an organization.
-var OrgResources = []Resource{
-	BucketsResource,    // 1
-	DashboardsResource, // 2
-	SourcesResource,    // 4
-	TasksResource,      // 5
-	TelegrafsResource,  // 6
-	UsersResource,      // 7
+// String stringifies a resource
+func (r Resource) String() string {
+	if r.OrgID != nil && r.ID != nil {
+		return filepath.Join(string(OrgsResourceType), r.OrgID.String(), string(r.Type), r.ID.String())
+	}
+
+	if r.OrgID != nil {
+		return filepath.Join(string(OrgsResourceType), r.OrgID.String(), string(r.Type))
+	}
+
+	if r.ID != nil {
+		return filepath.Join(string(r.Type), r.ID.String())
+	}
+
+	return string(r.Type)
+}
+
+const (
+	// AuthorizationsResourceType gives permissions to one or more authorizations.
+	AuthorizationsResourceType = ResourceType("authorizations") // 0
+	// BucketsResourceType gives permissions to one or more buckets.
+	BucketsResourceType = ResourceType("buckets") // 1
+	// DashboardsResourceType gives permissions to one or more dashboards.
+	DashboardsResourceType = ResourceType("dashboards") // 2
+	// OrgsResourceType gives permissions to one or more orgs.
+	OrgsResourceType = ResourceType("orgs") // 3
+	// SourcesResourceType gives permissions to one or more sources.
+	SourcesResourceType = ResourceType("sources") // 4
+	// TasksResourceType gives permissions to one or more tasks.
+	TasksResourceType = ResourceType("tasks") // 5
+	// TelegrafsResourceType type gives permissions to a one or more telegrafs.
+	TelegrafsResourceType = ResourceType("telegrafs") // 6
+	// UsersResourceType gives permissions to one or more users.
+	UsersResourceType = ResourceType("users") // 7
+)
+
+// AllResourceTypes is the list of all known resource types.
+var AllResourceTypes = []ResourceType{
+	AuthorizationsResourceType, // 0
+	BucketsResourceType,        // 1
+	DashboardsResourceType,     // 2
+	OrgsResourceType,           // 3
+	SourcesResourceType,        // 4
+	TasksResourceType,          // 5
+	TelegrafsResourceType,      // 6
+	UsersResourceType,          // 7
+}
+
+// OrgResourceTypes is the list of all known resource types that belong to an organization.
+var OrgResourceTypes = []ResourceType{
+	BucketsResourceType,    // 1
+	DashboardsResourceType, // 2
+	SourcesResourceType,    // 4
+	TasksResourceType,      // 5
+	TelegrafsResourceType,  // 6
+	UsersResourceType,      // 7
 }
 
 // Valid checks if the resource is a member of the Resource enum.
 func (r Resource) Valid() (err error) {
-	switch r {
-	case AuthorizationsResource: // 0
-	case BucketsResource: // 1
-	case DashboardsResource: // 2
-	case OrgsResource: // 3
-	case TasksResource: // 4
-	case TelegrafsResource: // 5
-	case SourcesResource: // 6
-	case UsersResource: //7
+	return r.Type.Valid()
+}
+
+func (t ResourceType) Valid() (err error) {
+	switch t {
+	case AuthorizationsResourceType: // 0
+	case BucketsResourceType: // 1
+	case DashboardsResourceType: // 2
+	case OrgsResourceType: // 3
+	case TasksResourceType: // 4
+	case TelegrafsResourceType: // 5
+	case SourcesResourceType: // 6
+	case UsersResourceType: //7
 	default:
-		err = ErrInvalidResource
+		err = ErrInvalidResourceType
 	}
 
 	return err
@@ -150,17 +161,47 @@ func (r Resource) Valid() (err error) {
 type Permission struct {
 	Action   Action   `json:"action"`
 	Resource Resource `json:"resource"`
-	OrgID    ID       `json:"orgID"`
-	ID       *ID      `json:"id,omitempty"`
+}
+
+// Matches returns whether or not one permission matches the other.
+func (p Permission) Matches(perm Permission) bool {
+	if p.Action != perm.Action {
+		return false
+	}
+
+	if p.Resource.Type != perm.Resource.Type {
+		return false
+	}
+
+	if p.Resource.OrgID == nil && p.Resource.ID == nil {
+		return true
+	}
+
+	if p.Resource.OrgID != nil && p.Resource.ID == nil {
+		pOrgID := *p.Resource.OrgID
+		if perm.Resource.OrgID != nil {
+			permOrgID := *perm.Resource.OrgID
+			if pOrgID == permOrgID {
+				return true
+			}
+		}
+	}
+
+	if p.Resource.ID != nil {
+		pID := *p.Resource.ID
+		if perm.Resource.ID != nil {
+			permID := *perm.Resource.ID
+			if pID == permID {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (p Permission) String() string {
-	str := fmt.Sprintf("%s:orgs/%s/%s", p.Action, p.OrgID, p.Resource)
-	if p.ID != nil {
-		str += fmt.Sprintf("/%s", (*p.ID).String())
-	}
-
-	return str
+	return fmt.Sprintf("%s:%s", p.Action, p.Resource)
 }
 
 // Valid checks if there the resource and action provided is known.
@@ -181,7 +222,7 @@ func (p *Permission) Valid() error {
 		}
 	}
 
-	if !p.OrgID.Valid() {
+	if p.Resource.OrgID != nil && !(*p.Resource.OrgID).Valid() {
 		return &Error{
 			Code: EInvalid,
 			Err:  ErrInvalidID,
@@ -189,7 +230,7 @@ func (p *Permission) Valid() error {
 		}
 	}
 
-	if p.ID != nil && !(*p.ID).Valid() {
+	if p.Resource.ID != nil && !(*p.Resource.ID).Valid() {
 		return &Error{
 			Code: EInvalid,
 			Err:  ErrInvalidID,
@@ -201,23 +242,38 @@ func (p *Permission) Valid() error {
 }
 
 // NewPermission returns a permission with provided arguments.
-func NewPermission(a Action, r Resource, orgID ID) (*Permission, error) {
+func NewPermission(a Action, rt ResourceType, orgID ID) (*Permission, error) {
 	p := &Permission{
-		Action:   a,
-		Resource: r,
-		OrgID:    orgID,
+		Action: a,
+		Resource: Resource{
+			Type:  rt,
+			OrgID: &orgID,
+		},
 	}
 
 	return p, p.Valid()
 }
 
-// NewPermissionAtID creates a permission with the provided arguments.
-func NewPermissionAtID(id ID, a Action, r Resource, orgID ID) (*Permission, error) {
+// NewGlobalPermission constructs a global permission capable of accessing any resource of type rt.
+func NewGlobalPermission(a Action, rt ResourceType) (*Permission, error) {
 	p := &Permission{
-		Action:   a,
-		Resource: r,
-		OrgID:    orgID,
-		ID:       &id,
+		Action: a,
+		Resource: Resource{
+			Type: rt,
+		},
+	}
+	return p, p.Valid()
+}
+
+// NewPermissionAtID creates a permission with the provided arguments.
+func NewPermissionAtID(id ID, a Action, rt ResourceType, orgID ID) (*Permission, error) {
+	p := &Permission{
+		Action: a,
+		Resource: Resource{
+			Type:  rt,
+			OrgID: &orgID,
+			ID:    &id,
+		},
 	}
 
 	return p, p.Valid()
@@ -226,20 +282,32 @@ func NewPermissionAtID(id ID, a Action, r Resource, orgID ID) (*Permission, erro
 // OperPermissions are the default permissions for those who setup the application.
 func OperPermissions(orgID ID) []Permission {
 	ps := []Permission{}
-	for _, r := range AllResources {
+	for _, r := range AllResourceTypes {
 		for _, a := range actions {
-			ps = append(ps, Permission{Action: a, Resource: r, OrgID: orgID})
+			ps = append(ps, Permission{Action: a, Resource: Resource{Type: r}})
 		}
 	}
 
 	return ps
 }
 
-// MemberPermissions are the default permissions for those members.
+// OwnerPermissions are the default permissions for those who own a resource.
+func OwnerPermissions(orgID ID) []Permission {
+	ps := []Permission{}
+	for _, r := range AllResourceTypes {
+		for _, a := range actions {
+			ps = append(ps, Permission{Action: a, Resource: Resource{Type: r, OrgID: &orgID}})
+		}
+	}
+
+	return ps
+}
+
+// MemberPermissions are the default permissions for those who can see a resource.
 func MemberPermissions(orgID ID) []Permission {
 	ps := []Permission{}
-	for _, r := range AllResources {
-		ps = append(ps, Permission{Action: ReadAction, Resource: r, OrgID: orgID})
+	for _, r := range AllResourceTypes {
+		ps = append(ps, Permission{Action: ReadAction, Resource: Resource{Type: r, OrgID: &orgID}})
 	}
 
 	return ps

@@ -372,8 +372,8 @@ func (c *Client) PutBucket(ctx context.Context, b *platform.Bucket) error {
 
 func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) *platform.Error {
 	ms, err := c.findUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
-		Resource:   platform.OrgsResource,
-		ResourceID: b.OrganizationID,
+		ResourceType: platform.OrgsResourceType,
+		ResourceID:   b.OrganizationID,
 	})
 	if err != nil {
 		return &platform.Error{
@@ -383,10 +383,10 @@ func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.
 
 	for _, m := range ms {
 		if err := c.createUserResourceMapping(ctx, tx, &platform.UserResourceMapping{
-			Resource:   platform.BucketsResource,
-			ResourceID: b.ID,
-			UserID:     m.UserID,
-			UserType:   m.UserType,
+			ResourceType: platform.BucketsResourceType,
+			ResourceID:   b.ID,
+			UserID:       m.UserID,
+			UserType:     m.UserType,
 		}); err != nil {
 			return &platform.Error{
 				Err: err,
@@ -564,8 +564,8 @@ func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 		}
 	}
 	if err := c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
-		ResourceID: id,
-		Resource:   platform.BucketsResource,
+		ResourceID:   id,
+		ResourceType: platform.BucketsResourceType,
 	}); err != nil {
 		return &platform.Error{
 			Err: err,

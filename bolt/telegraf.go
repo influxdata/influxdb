@@ -165,10 +165,10 @@ func (c *Client) CreateTelegrafConfig(ctx context.Context, tc *platform.Telegraf
 		}
 
 		urm := &platform.UserResourceMapping{
-			ResourceID: tc.ID,
-			UserID:     userID,
-			UserType:   platform.Owner,
-			Resource:   platform.TelegrafsResource,
+			ResourceID:   tc.ID,
+			UserID:       userID,
+			UserType:     platform.Owner,
+			ResourceType: platform.TelegrafsResourceType,
 		}
 		if err := c.createUserResourceMapping(ctx, tx, urm); err != nil {
 			return err
@@ -219,8 +219,8 @@ func (c *Client) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error
 			return err
 		}
 		return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
-			ResourceID: id,
-			Resource:   platform.TelegrafsResource,
+			ResourceID:   id,
+			ResourceType: platform.TelegrafsResourceType,
 		})
 	})
 	if err != nil {

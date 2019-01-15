@@ -87,7 +87,10 @@ func newOnboardingResponse(results *platform.OnboardingResults) *onboardingRespo
 	ps := make([]permissionResponse, len(results.Auth.Permissions))
 	for i, p := range results.Auth.Permissions {
 		ps[i] = permissionResponse{
-			Permission: p,
+			Action: p.Action,
+			Resource: resourceResponse{
+				Resource: p.Resource,
+			},
 		}
 	}
 	return &onboardingResponse{

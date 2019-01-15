@@ -107,10 +107,10 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
 	}
 	if err := c.CreateUserResourceMapping(ctx, &platform.UserResourceMapping{
-		Resource:   platform.OrgsResource,
-		ResourceID: o.ID,
-		UserID:     u.ID,
-		UserType:   platform.Owner,
+		ResourceType: platform.OrgsResourceType,
+		ResourceID:   o.ID,
+		UserID:       u.ID,
+		UserType:     platform.Owner,
 	}); err != nil {
 		return nil, err
 	}

@@ -50,10 +50,10 @@ type UserResourceMappingService interface {
 
 // UserResourceMapping represents a mapping of a resource to its user.
 type UserResourceMapping struct {
-	UserID     ID       `json:"userID"`
-	UserType   UserType `json:"userType"`
-	Resource   Resource `json:"resource"`
-	ResourceID ID       `json:"resourceID"`
+	UserID       ID           `json:"userID"`
+	UserType     UserType     `json:"userType"`
+	ResourceType ResourceType `json:"resourceType"`
+	ResourceID   ID           `json:"resourceID"`
 }
 
 // Validate reports any validation errors for the mapping.
@@ -70,7 +70,7 @@ func (m UserResourceMapping) Validate() error {
 		return err
 	}
 
-	if err := m.Resource.Valid(); err != nil {
+	if err := m.ResourceType.Valid(); err != nil {
 		return err
 	}
 
@@ -79,18 +79,18 @@ func (m UserResourceMapping) Validate() error {
 
 // UserResourceMappingFilter represents a set of filters that restrict the returned results.
 type UserResourceMappingFilter struct {
-	ResourceID ID
-	Resource   Resource
-	UserID     ID
-	UserType   UserType
+	ResourceID   ID
+	ResourceType ResourceType
+	UserID       ID
+	UserType     UserType
 }
 
 func (m *UserResourceMapping) ownerPerms() ([]Permission, error) {
 	ps := []Permission{}
 	// TODO(desa): how to grant access to specific resources.
 
-	if m.Resource == OrgsResource {
-		ps = append(ps, OperPermissions(m.ResourceID)...)
+	if m.ResourceType == OrgsResourceType {
+		ps = append(ps, OwnerPermissions(m.ResourceID)...)
 	}
 
 	return ps, nil
@@ -100,7 +100,7 @@ func (m *UserResourceMapping) memberPerms() ([]Permission, error) {
 	ps := []Permission{}
 	// TODO(desa): how to grant access to specific resources.
 
-	if m.Resource == OrgsResource {
+	if m.ResourceType == OrgsResourceType {
 		ps = append(ps, MemberPermissions(m.ResourceID)...)
 	}
 

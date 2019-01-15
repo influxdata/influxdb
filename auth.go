@@ -27,7 +27,7 @@ type Authorization struct {
 // Valid ensures that the authorization is valid.
 func (a *Authorization) Valid() error {
 	for _, p := range a.Permissions {
-		if p.OrgID != a.OrgID {
+		if p.Resource.OrgID != nil && *p.Resource.OrgID != a.OrgID {
 			return &Error{
 				Msg:  fmt.Sprintf("permisson %s is not for org id %s", p, a.OrgID),
 				Code: EInvalid,
