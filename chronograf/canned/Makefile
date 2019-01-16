@@ -1,7 +1,7 @@
 # List any generated files here
 TARGETS = bin_gen.go
 # List any source files used to generate the targets here
-SOURCES = bin.go $(shell find . -name *.json)
+SOURCES = bin.go $(shell find . -name '*.json')
 # List any directories that have their own Makefile here
 SUBDIRS =
 
