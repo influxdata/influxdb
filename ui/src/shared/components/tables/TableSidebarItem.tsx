@@ -11,7 +11,7 @@ interface Props {
   id: string
   isSelected: boolean
   groupKey: GroupKey
-  onSelect: (id: string) => void
+  onSelect: (name: string) => void
 }
 
 @ErrorHandling

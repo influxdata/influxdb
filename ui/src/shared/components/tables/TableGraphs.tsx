@@ -14,10 +14,7 @@ import {setFieldOptions as setFieldOptionsAction} from 'src/shared/actions/v2/ti
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
-import {
-  excludeNoisyColumns,
-  findTableNameHeaders,
-} from 'src/dashboards/utils/tableGraph'
+import {findTableNameHeaders} from 'src/dashboards/utils/tableGraph'
 
 // Types
 import {TableView, FieldOption} from 'src/types/v2/dashboards'
@@ -41,7 +38,7 @@ interface State {
 @ErrorHandling
 class TableGraphs extends PureComponent<Props, State> {
   public state = {
-    selectedTableName: this.defaultTableName,
+    selectedTableName: getDeep<string>(this, 'props.tables[0].name', null),
   }
 
   public componentDidMount() {
@@ -71,13 +68,13 @@ class TableGraphs extends PureComponent<Props, State> {
         {this.showSidebar && (
           <TableSidebar
             data={tables}
-            selectedTableName={this.selectedTableName}
+            selectedTableName={this.nameOfSelectedTable}
             onSelectTable={this.handleSelectTable}
           />
         )}
         {this.shouldShowTable && (
           <TableGraph
-            key={this.selectedTableName}
+            key={this.nameOfSelectedTable}
             table={this.selectedTable}
             properties={properties}
           />
@@ -89,11 +86,11 @@ class TableGraphs extends PureComponent<Props, State> {
     )
   }
 
-  private get selectedTableName(): string {
+  private get nameOfSelectedTable(): string {
     const {tables} = this.props
 
     const isNameInTables = tables.find(
-      t => (t.name = this.state.selectedTableName)
+      t => t.name === this.state.selectedTableName
     )
 
     if (!isNameInTables) {
@@ -127,14 +124,7 @@ class TableGraphs extends PureComponent<Props, State> {
 
   private get selectedTable(): FluxTable {
     const {tables} = this.props
-    const {selectedTableName} = this
-    const selectedTable = tables.find(t => t.name === selectedTableName)
-    const data = excludeNoisyColumns(selectedTable.data)
-
-    return {
-      ...selectedTable,
-      data,
-    }
+    return tables.find(t => t.name === this.nameOfSelectedTable)
   }
 
   private updateFieldOptions() {
