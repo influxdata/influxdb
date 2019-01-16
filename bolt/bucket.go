@@ -298,7 +298,7 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 			if count >= offset {
 				bs = append(bs, b)
 			}
-			count += 1
+			count++
 		}
 
 		if limit > 0 && len(bs) >= limit {
