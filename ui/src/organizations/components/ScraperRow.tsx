@@ -8,19 +8,20 @@ import {
   ConfirmationButton,
   Alignment,
 } from 'src/clockface'
-import {ResourceOwner} from 'src/api'
+import {ScraperTargetResponse} from 'src/api'
 
 interface Props {
-  scraper: ResourceOwner
+  scraper: ScraperTargetResponse
 }
 
 export default class BucketRow extends PureComponent<Props> {
   public render() {
+    const {scraper} = this.props
     return (
       <>
         <IndexList.Row>
-          <IndexList.Cell>name</IndexList.Cell>
-          <IndexList.Cell>bucket</IndexList.Cell>
+          <IndexList.Cell>{scraper.name}</IndexList.Cell>
+          <IndexList.Cell>{scraper.bucket}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
               size={ComponentSize.ExtraSmall}

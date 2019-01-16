@@ -10,10 +10,18 @@ import {
   dashboardsAPI,
   taskAPI,
   telegrafsAPI,
+  scraperTargetsApi,
 } from 'src/utils/api'
 
 // Types
-import {Bucket, Task, Organization, ResourceOwner, Telegraf} from 'src/api'
+import {
+  Bucket,
+  Task,
+  Organization,
+  ResourceOwner,
+  Telegraf,
+  ScraperTargetResponses,
+} from 'src/api'
 import {Dashboard} from 'src/types/v2'
 
 // CRUD APIs for Organizations and Organization resources
@@ -192,6 +200,16 @@ export const deleteTelegrafConfig = async (
 ): Promise<Telegraf> => {
   try {
     const response = await telegrafsAPI.telegrafsTelegrafIDDelete(telegrafID)
+
+    return response.data
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const getScrapers = async (): Promise<ScraperTargetResponses> => {
+  try {
+    const response = await scraperTargetsApi.scrapertargetsGet()
 
     return response.data
   } catch (error) {
