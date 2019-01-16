@@ -92,9 +92,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	userBackend.UserService = authorizer.NewUserService(b.UserService)
 	h.UserHandler = NewUserHandler(userBackend)
 
-	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.DashboardHandler.DashboardService = authorizer.NewDashboardService(b.DashboardService)
-	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
+	dashboardBackend := NewDashboardBackend(b)
+	dashboardBackend.DashboardService = authorizer.NewDashboardService(b.DashboardService)
+	h.DashboardHandler = NewDashboardHandler(dashboardBackend)
 
 	h.MacroHandler = NewMacroHandler()
 	h.MacroHandler.MacroService = authorizer.NewMacroService(b.MacroService)
