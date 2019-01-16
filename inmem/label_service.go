@@ -122,6 +122,7 @@ func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd platform.
 			Code: platform.ENotFound,
 			Op:   OpPrefix + platform.OpUpdateLabel,
 			Err:  err,
+			Msg:  "label not found",
 		}
 	}
 
@@ -165,6 +166,7 @@ func (s *Service) DeleteLabel(ctx context.Context, id platform.ID) error {
 			Code: platform.ENotFound,
 			Op:   OpPrefix + platform.OpDeleteLabel,
 			Err:  platform.ErrLabelNotFound,
+			Msg:  "label not found",
 		}
 	}
 
