@@ -88,9 +88,9 @@ var DefaultDashboardFindOptions = FindOptions{
 }
 
 // SortDashboards sorts a slice of dashboards by a field.
-func SortDashboards(by string, ds []*Dashboard) {
+func SortDashboards(opts FindOptions, ds []*Dashboard) {
 	var sorter func(i, j int) bool
-	switch by {
+	switch opts.SortBy {
 	case "CreatedAt":
 		sorter = func(i, j int) bool {
 			return ds[j].Meta.CreatedAt.After(ds[i].Meta.CreatedAt)
@@ -105,6 +105,9 @@ func SortDashboards(by string, ds []*Dashboard) {
 		}
 	default:
 		sorter = func(i, j int) bool {
+			if opts.Descending {
+				return ds[i].ID > ds[j].ID
+			}
 			return ds[i].ID < ds[j].ID
 		}
 	}
@@ -129,7 +132,9 @@ type DashboardFilter struct {
 }
 
 // QueryParams turns a dashboard filter into query params
-func (f DashboardFilter) QueryParams() url.Values {
+//
+// It implements PagingFilter.
+func (f DashboardFilter) QueryParams() map[string][]string {
 	qp := url.Values{}
 	for _, id := range f.IDs {
 		if id != nil {
@@ -139,6 +144,10 @@ func (f DashboardFilter) QueryParams() url.Values {
 
 	if f.OrganizationID != nil {
 		qp.Add("orgID", f.OrganizationID.String())
+	}
+
+	if f.Organization != nil {
+		qp.Add("org", *f.Organization)
 	}
 
 	return qp
