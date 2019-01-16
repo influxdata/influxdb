@@ -95,7 +95,7 @@ func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform
 }
 
 // FindDashboard retrieves a dashboard using an arbitrary dashboard filter.
-func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFilter) (*platform.Dashboard, error) {
+func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFilter, opts ...platform.FindOptions) (*platform.Dashboard, error) {
 	if len(filter.IDs) == 1 {
 		return c.FindDashboardByID(ctx, *filter.IDs[0])
 	}
@@ -103,7 +103,7 @@ func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFil
 	var d *platform.Dashboard
 	err := c.db.View(func(tx *bolt.Tx) error {
 		filterFn := filterDashboardsFn(filter)
-		return c.forEachDashboard(ctx, tx, func(dash *platform.Dashboard) bool {
+		return c.forEachDashboard(ctx, tx, opts[0].Descending, func(dash *platform.Dashboard) bool {
 			if filterFn(dash) {
 				d = dash
 				return false
@@ -158,7 +158,7 @@ func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFi
 		return []*platform.Dashboard{d}, 1, nil
 	}
 	err := c.db.View(func(tx *bolt.Tx) error {
-		dashs, err := c.findDashboards(ctx, tx, filter)
+		dashs, err := c.findDashboards(ctx, tx, filter, opts)
 		if err != nil && platform.ErrorCode(err) != platform.ENotFound {
 			return err
 		}
@@ -173,7 +173,7 @@ func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFi
 		}
 	}
 
-	platform.SortDashboards(opts.SortBy, ds)
+	platform.SortDashboards(opts, ds)
 
 	return ds, len(ds), nil
 }
@@ -220,7 +220,7 @@ func decodeOrgDashboardIndexKey(indexKey []byte) (orgID platform.ID, dashID plat
 	return orgID, dashID, nil
 }
 
-func (c *Client) findDashboards(ctx context.Context, tx *bolt.Tx, filter platform.DashboardFilter) ([]*platform.Dashboard, error) {
+func (c *Client) findDashboards(ctx context.Context, tx *bolt.Tx, filter platform.DashboardFilter, opts ...platform.FindOptions) ([]*platform.Dashboard, error) {
 	if filter.OrganizationID != nil {
 		return c.findOrganizationDashboards(ctx, tx, *filter.OrganizationID)
 	}
@@ -233,12 +233,25 @@ func (c *Client) findDashboards(ctx context.Context, tx *bolt.Tx, filter platfor
 		return c.findOrganizationDashboards(ctx, tx, o.ID)
 	}
 
-	ds := []*platform.Dashboard{}
+	var offset, limit, count int
+	var descending bool
+	if len(opts) > 0 {
+		offset = opts[0].Offset
+		limit = opts[0].Limit
+		descending = opts[0].Descending
+	}
 
+	ds := []*platform.Dashboard{}
 	filterFn := filterDashboardsFn(filter)
-	err := c.forEachDashboard(ctx, tx, func(d *platform.Dashboard) bool {
+	err := c.forEachDashboard(ctx, tx, descending, func(d *platform.Dashboard) bool {
 		if filterFn(d) {
-			ds = append(ds, d)
+			if count >= offset {
+				ds = append(ds, d)
+			}
+			count++
+		}
+		if limit > 0 && len(ds) >= limit {
+			return false
 		}
 		return true
 	})
@@ -689,15 +702,30 @@ func (c *Client) putDashboardWithMeta(ctx context.Context, tx *bolt.Tx, d *platf
 }
 
 // forEachDashboard will iterate through all dashboards while fn returns true.
-func (c *Client) forEachDashboard(ctx context.Context, tx *bolt.Tx, fn func(*platform.Dashboard) bool) error {
+func (c *Client) forEachDashboard(ctx context.Context, tx *bolt.Tx, descending bool, fn func(*platform.Dashboard) bool) error {
 	cur := tx.Bucket(dashboardBucket).Cursor()
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+
+	var k, v []byte
+	if descending {
+		k, v = cur.Last()
+	} else {
+		k, v = cur.First()
+	}
+
+	for k != nil {
 		d := &platform.Dashboard{}
 		if err := json.Unmarshal(v, d); err != nil {
 			return err
 		}
+
 		if !fn(d) {
 			break
+		}
+
+		if descending {
+			k, v = cur.Prev()
+		} else {
+			k, v = cur.Next()
 		}
 	}
 
