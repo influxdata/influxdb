@@ -33,7 +33,8 @@ export class Signin extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    await this.checkForLogin()
+    this.setState({loading: RemoteDataState.Done})
+    this.checkForLogin()
     this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
   }
 
@@ -60,16 +61,12 @@ export class Signin extends PureComponent<Props, State> {
   private checkForLogin = async () => {
     try {
       await getMe()
-      this.setState({loading: RemoteDataState.Done})
     } catch (error) {
       clearInterval(this.intervalID)
       const {location} = this.props
       const returnTo = location.pathname
 
-      this.props.router.push({
-        pathname: '/signin',
-        query: {returnTo},
-      })
+      this.props.router.push(`/signin?${returnTo}`)
     }
   }
 }
