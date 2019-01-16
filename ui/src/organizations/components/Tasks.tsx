@@ -10,10 +10,12 @@ import FilterList from 'src/shared/components/Filter'
 
 // Types
 import {Task} from 'src/api'
+import {deleteTask} from 'src/tasks/api/v2/index'
 
 interface Props {
   tasks: Task[]
   orgName: string
+  onChange: () => void
 }
 
 interface State {
@@ -46,10 +48,16 @@ export default class Tasks extends PureComponent<Props, State> {
         </TabbedPageHeader>
         <FilterList<Task>
           searchTerm={searchTerm}
-          searchKeys={['name', 'owner.name']}
+          searchKeys={['name']}
           list={tasks}
         >
-          {ts => <TaskList tasks={ts} emptyState={this.emptyState} />}
+          {ts => (
+            <TaskList
+              tasks={ts}
+              emptyState={this.emptyState}
+              onDelete={this.handleDeleteTask}
+            />
+          )}
         </FilterList>
       </>
     )
@@ -83,5 +91,10 @@ export default class Tasks extends PureComponent<Props, State> {
         <EmptyState.Text text="No Tasks match your query" />
       </EmptyState>
     )
+  }
+
+  private handleDeleteTask = async (taskID: string) => {
+    await deleteTask(taskID)
+    this.props.onChange()
   }
 }

@@ -138,9 +138,13 @@ class OrganizationView extends PureComponent<Props> {
                 title="Tasks"
               >
                 <GetOrgResources<Task[]> organization={org} fetcher={getTasks}>
-                  {(tasks, loading) => (
+                  {(tasks, loading, fetch) => (
                     <Spinner loading={loading}>
-                      <Tasks tasks={tasks} orgName={org.name} />
+                      <Tasks
+                        tasks={tasks}
+                        orgName={org.name}
+                        onChange={fetch}
+                      />
                     </Spinner>
                   )}
                 </GetOrgResources>
