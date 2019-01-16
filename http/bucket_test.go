@@ -16,7 +16,22 @@ import (
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
+
+// NewMockBucketBackend returns a BucketBackend with mock services.
+func NewMockBucketBackend() *BucketBackend {
+	return &BucketBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "bucket")),
+
+		BucketService:              mock.NewBucketService(),
+		BucketOperationLogService:  mock.NewBucketOperationLogService(),
+		UserResourceMappingService: mock.NewUserResourceMappingService(),
+		LabelService:               mock.NewLabelService(),
+		UserService:                mock.NewUserService(),
+		OrganizationService:        &mock.OrganizationService{},
+	}
+}
 
 func TestService_handleGetBuckets(t *testing.T) {
 	type fields struct {
@@ -167,11 +182,10 @@ func TestService_handleGetBuckets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := tt.fields.LabelService
-			userService := mock.NewUserService()
-			h := NewBucketHandler(mappingService, labelService, userService)
-			h.BucketService = tt.fields.BucketService
+			bucketBackend := NewMockBucketBackend()
+			bucketBackend.BucketService = tt.fields.BucketService
+			bucketBackend.LabelService = tt.fields.LabelService
+			h := NewBucketHandler(bucketBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -287,11 +301,9 @@ func TestService_handleGetBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewBucketHandler(mappingService, labelService, userService)
-			h.BucketService = tt.fields.BucketService
+			bucketBackend := NewMockBucketBackend()
+			bucketBackend.BucketService = tt.fields.BucketService
+			h := NewBucketHandler(bucketBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -392,12 +404,10 @@ func TestService_handlePostBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewBucketHandler(mappingService, labelService, userService)
-			h.BucketService = tt.fields.BucketService
-			h.OrganizationService = tt.fields.OrganizationService
+			bucketBackend := NewMockBucketBackend()
+			bucketBackend.BucketService = tt.fields.BucketService
+			bucketBackend.OrganizationService = tt.fields.OrganizationService
+			h := NewBucketHandler(bucketBackend)
 
 			b, err := json.Marshal(newBucket(tt.args.bucket))
 			if err != nil {
@@ -488,11 +498,9 @@ func TestService_handleDeleteBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewBucketHandler(mappingService, labelService, userService)
-			h.BucketService = tt.fields.BucketService
+			bucketBackend := NewMockBucketBackend()
+			bucketBackend.BucketService = tt.fields.BucketService
+			h := NewBucketHandler(bucketBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -770,11 +778,9 @@ func TestService_handlePatchBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewBucketHandler(mappingService, labelService, userService)
-			h.BucketService = tt.fields.BucketService
+			bucketBackend := NewMockBucketBackend()
+			bucketBackend.BucketService = tt.fields.BucketService
+			h := NewBucketHandler(bucketBackend)
 
 			upd := platform.BucketUpdate{}
 			if tt.args.name != "" {
@@ -881,7 +887,9 @@ func TestService_handlePostBucketMember(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), tt.fields.UserService)
+			bucketBackend := NewMockBucketBackend()
+			bucketBackend.UserService = tt.fields.UserService
+			h := NewBucketHandler(bucketBackend)
 
 			b, err := json.Marshal(tt.args.user)
 			if err != nil {
@@ -969,7 +977,9 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), tt.fields.UserService)
+			bucketBackend := NewMockBucketBackend()
+			bucketBackend.UserService = tt.fields.UserService
+			h := NewBucketHandler(bucketBackend)
 
 			b, err := json.Marshal(tt.args.user)
 			if err != nil {
@@ -1015,13 +1025,10 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 		}
 	}
 
-	mappingService := mock.NewUserResourceMappingService()
-	labelService := mock.NewLabelService()
-	userService := mock.NewUserService()
-	handler := NewBucketHandler(mappingService, labelService, userService)
-	handler.BucketService = svc
-	handler.OrganizationService = svc
-
+	bucketBackend := NewMockBucketBackend()
+	bucketBackend.BucketService = svc
+	bucketBackend.OrganizationService = svc
+	handler := NewBucketHandler(bucketBackend)
 	server := httptest.NewServer(handler)
 	client := BucketService{
 		Addr:     server.URL,
