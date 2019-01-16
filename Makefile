@@ -124,7 +124,8 @@ nightly:
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
-	rm -rf bin
+	$(RM) -r bin
+	$(RM) -r dist
 
 generate-typescript-client:
 	make -C http

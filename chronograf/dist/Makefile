@@ -1,7 +1,7 @@
 # List any generated files here
 TARGETS = dist_gen.go
 # List any source files used to generate the targets here
-SOURCES = dist.go
+SOURCES = dist.go $(shell find ../../ui/build -type f)
 # List any directories that have their own Makefile here
 SUBDIRS =
 
