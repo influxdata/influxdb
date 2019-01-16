@@ -126,7 +126,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: "Docker Login"
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+          command: echo "$QUAY_USER" && docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run:
           name: "Tag commit for goreleaser semantic versioning"
           command: git tag v0.0.0
