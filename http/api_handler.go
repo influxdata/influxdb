@@ -127,7 +127,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 		b.Logger.With(zap.String("handler", "telegraf")),
 		b.UserResourceMappingService,
 		b.LabelService,
-		b.TelegrafService,
+		authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService),
 		b.UserService,
 		b.OrganizationService,
 	)
