@@ -5,18 +5,22 @@ import React, {PureComponent} from 'react'
 import {IndexList} from 'src/clockface'
 import ScraperRow from 'src/organizations/components/ScraperRow'
 
-// DummyData
+// Types
 import {ScraperTargetResponses, ScraperTargetResponse} from 'src/api'
+
+// Utils
 import {getDeep} from 'src/utils/wrappers'
 
 interface Props {
   scrapers: ScraperTargetResponses
   emptyState: JSX.Element
+  onDeleteScraper: (scraper) => void
 }
 
-export default class BucketList extends PureComponent<Props> {
+export default class ScraperList extends PureComponent<Props> {
   public render() {
     const {emptyState} = this.props
+
     return (
       <>
         <IndexList>
@@ -31,8 +35,9 @@ export default class BucketList extends PureComponent<Props> {
       </>
     )
   }
+
   public get scrapersList(): JSX.Element[] {
-    const {scrapers} = this.props
+    const {scrapers, onDeleteScraper} = this.props
     const scraperTargets = getDeep<ScraperTargetResponse[]>(
       scrapers,
       'scraper_targets',
@@ -41,7 +46,11 @@ export default class BucketList extends PureComponent<Props> {
 
     if (scraperTargets !== undefined) {
       return scraperTargets.map(scraper => (
-        <ScraperRow key={scraper.id} scraper={scraper} />
+        <ScraperRow
+          key={scraper.id}
+          scraper={scraper}
+          onDeleteScraper={onDeleteScraper}
+        />
       ))
     }
     return

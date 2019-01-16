@@ -12,11 +12,12 @@ import {ScraperTargetResponse} from 'src/api'
 
 interface Props {
   scraper: ScraperTargetResponse
+  onDeleteScraper: (scraper) => void
 }
 
-export default class BucketRow extends PureComponent<Props> {
+export default class ScraperRow extends PureComponent<Props> {
   public render() {
-    const {scraper} = this.props
+    const {scraper, onDeleteScraper} = this.props
     return (
       <>
         <IndexList.Row>
@@ -27,6 +28,8 @@ export default class BucketRow extends PureComponent<Props> {
               size={ComponentSize.ExtraSmall}
               text="Delete"
               confirmText="Confirm"
+              returnValue={scraper}
+              onConfirm={onDeleteScraper}
             />
           </IndexList.Cell>
         </IndexList.Row>
