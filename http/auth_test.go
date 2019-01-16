@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,18 @@ import (
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
+
+// NewMockAuthorizationBackend returns a AuthorizationBackend with mock services.
+func NewMockAuthorizationBackend() *AuthorizationBackend {
+	return &AuthorizationBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "authorization")),
+
+		AuthorizationService: mock.NewAuthorizationService(),
+		OrganizationService:  mock.NewOrganizationService(),
+		UserService:          mock.NewUserService(),
+		LookupService:        mock.NewLookupService(),
+	}
+}
 
 func TestService_handleGetAuthorizations(t *testing.T) {
 	type fields struct {
@@ -156,10 +169,11 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewAuthorizationHandler(mock.NewUserService())
-			h.AuthorizationService = tt.fields.AuthorizationService
-			h.UserService = tt.fields.UserService
-			h.OrganizationService = tt.fields.OrganizationService
+			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
+			authorizationBackend.UserService = tt.fields.UserService
+			authorizationBackend.OrganizationService = tt.fields.OrganizationService
+			h := NewAuthorizationHandler(authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -335,11 +349,12 @@ func TestService_handleGetAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewAuthorizationHandler(mock.NewUserService())
-			h.AuthorizationService = tt.fields.AuthorizationService
-			h.UserService = tt.fields.UserService
-			h.OrganizationService = tt.fields.OrganizationService
-			h.LookupService = tt.fields.LookupService
+			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
+			authorizationBackend.UserService = tt.fields.UserService
+			authorizationBackend.OrganizationService = tt.fields.OrganizationService
+			authorizationBackend.LookupService = tt.fields.LookupService
+			h := NewAuthorizationHandler(authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -624,11 +639,12 @@ func TestService_handlePostAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewAuthorizationHandler(tt.fields.UserService)
-			h.AuthorizationService = tt.fields.AuthorizationService
-			h.UserService = tt.fields.UserService
-			h.OrganizationService = tt.fields.OrganizationService
-			h.LookupService = tt.fields.LookupService
+			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
+			authorizationBackend.UserService = tt.fields.UserService
+			authorizationBackend.OrganizationService = tt.fields.OrganizationService
+			authorizationBackend.LookupService = tt.fields.LookupService
+			h := NewAuthorizationHandler(authorizationBackend)
 
 			req, err := newPostAuthorizationRequest(tt.args.authorization)
 			if err != nil {
@@ -734,10 +750,11 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewAuthorizationHandler(mock.NewUserService())
-			h.AuthorizationService = tt.fields.AuthorizationService
-			h.UserService = tt.fields.UserService
-			h.OrganizationService = tt.fields.OrganizationService
+			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
+			authorizationBackend.UserService = tt.fields.UserService
+			authorizationBackend.OrganizationService = tt.fields.OrganizationService
+			h := NewAuthorizationHandler(authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -815,11 +832,11 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		token = a.Token
 	}
 
-	authZ := NewAuthorizationHandler(mock.NewUserService())
-	authZ.AuthorizationService = svc
-	authZ.UserService = svc
-	authZ.OrganizationService = svc
-	authZ.LookupService = &mock.LookupService{
+	authorizationBackend := NewMockAuthorizationBackend()
+	authorizationBackend.AuthorizationService = svc
+	authorizationBackend.UserService = svc
+	authorizationBackend.OrganizationService = svc
+	authorizationBackend.LookupService = &mock.LookupService{
 		NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
 			switch resource {
 			case platform.BucketsResourceType:
@@ -831,6 +848,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		},
 	}
 
+	authZ := NewAuthorizationHandler(authorizationBackend)
 	authN := NewAuthenticationHandler()
 	authN.AuthorizationService = svc
 	authN.Handler = authZ

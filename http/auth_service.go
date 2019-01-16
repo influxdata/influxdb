@@ -16,6 +16,29 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// AuthorizationBackend is all services and associated parameters required to construct
+// the AuthorizationHandler.
+type AuthorizationBackend struct {
+	Logger *zap.Logger
+
+	AuthorizationService platform.AuthorizationService
+	OrganizationService  platform.OrganizationService
+	UserService          platform.UserService
+	LookupService        platform.LookupService
+}
+
+// NewAuthorizationBackend returns a new instance of AuthorizationBackend.
+func NewAuthorizationBackend(b *APIBackend) *AuthorizationBackend {
+	return &AuthorizationBackend{
+		Logger: b.Logger.With(zap.String("handler", "authorization")),
+
+		AuthorizationService: b.AuthorizationService,
+		OrganizationService:  b.OrganizationService,
+		UserService:          b.UserService,
+		LookupService:        b.LookupService,
+	}
+}
+
 // AuthorizationHandler represents an HTTP API handler for authorizations.
 type AuthorizationHandler struct {
 	*httprouter.Router
@@ -28,11 +51,15 @@ type AuthorizationHandler struct {
 }
 
 // NewAuthorizationHandler returns a new instance of AuthorizationHandler.
-func NewAuthorizationHandler(userService platform.UserService) *AuthorizationHandler {
+func NewAuthorizationHandler(b *AuthorizationBackend) *AuthorizationHandler {
 	h := &AuthorizationHandler{
-		Router:      NewRouter(),
-		Logger:      zap.NewNop(),
-		UserService: userService,
+		Router: NewRouter(),
+		Logger: b.Logger,
+
+		AuthorizationService: b.AuthorizationService,
+		OrganizationService:  b.OrganizationService,
+		UserService:          b.UserService,
+		LookupService:        b.LookupService,
 	}
 
 	h.HandlerFunc("POST", "/api/v2/authorizations", h.handlePostAuthorization)
