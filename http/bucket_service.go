@@ -16,6 +16,32 @@ import (
 	"go.uber.org/zap"
 )
 
+// BucketBackend is all services and associated parameters required to construct
+// the BucketHandler.
+type BucketBackend struct {
+	Logger *zap.Logger
+
+	BucketService              platform.BucketService
+	BucketOperationLogService  platform.BucketOperationLogService
+	UserResourceMappingService platform.UserResourceMappingService
+	LabelService               platform.LabelService
+	UserService                platform.UserService
+	OrganizationService        platform.OrganizationService
+}
+
+func NewBucketBackend(b *APIBackend) *BucketBackend {
+	return &BucketBackend{
+		Logger: b.Logger.With(zap.String("handler", "bucket")),
+
+		BucketService:              b.BucketService,
+		BucketOperationLogService:  b.BucketOperationLogService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
+		OrganizationService:        b.OrganizationService,
+	}
+}
+
 // BucketHandler represents an HTTP API handler for buckets.
 type BucketHandler struct {
 	*httprouter.Router
@@ -43,14 +69,17 @@ const (
 )
 
 // NewBucketHandler returns a new instance of BucketHandler.
-func NewBucketHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, userService platform.UserService) *BucketHandler {
+func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h := &BucketHandler{
 		Router: NewRouter(),
-		Logger: zap.NewNop(),
+		Logger: b.Logger,
 
-		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
-		UserService:                userService,
+		BucketService:              b.BucketService,
+		BucketOperationLogService:  b.BucketOperationLogService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
+		OrganizationService:        b.OrganizationService,
 	}
 
 	h.HandlerFunc("POST", bucketsPath, h.handlePostBucket)

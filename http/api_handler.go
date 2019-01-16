@@ -76,10 +76,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	sessionBackend := NewSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
 
-	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.BucketHandler.BucketService = authorizer.NewBucketService(b.BucketService)
-	h.BucketHandler.OrganizationService = b.OrganizationService
-	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
+	bucketBackend := NewBucketBackend(b)
+	h.BucketHandler = NewBucketHandler(bucketBackend)
 
 	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.OrgHandler.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
