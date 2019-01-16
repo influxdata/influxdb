@@ -43,9 +43,9 @@ async function findKeys(
   |> distinct()
   |> keep(columns: ["_value"])${searchFilter}${previousKeyFilter}
   |> filter(fn: (r) =>
-        r._value != "_time" or
-        r._value != "_start" or
-        r._value !=  "_stop" or
+        r._value != "_time" and
+        r._value != "_start" and
+        r._value !=  "_stop" and
         r._value != "_value")
   |> sort()
   |> limit(n: ${LIMIT})`
