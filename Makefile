@@ -119,6 +119,9 @@ bench:
 
 build: all
 
+dist:
+	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist
+
 nightly:
 	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
 
@@ -149,4 +152,4 @@ run: chronogiraffe
 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe
+.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist
