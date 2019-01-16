@@ -17,6 +17,20 @@ const (
 	macroPath = "/api/v2/macros"
 )
 
+// MacroBackend is all services and associated parameters required to construct
+// the MacroHandler.
+type MacroBackend struct {
+	Logger       *zap.Logger
+	MacroService platform.MacroService
+}
+
+func NewMacroBackend(b *APIBackend) *MacroBackend {
+	return &MacroBackend{
+		Logger:       b.Logger.With(zap.String("handler", "macro")),
+		MacroService: b.MacroService,
+	}
+}
+
 // MacroHandler is the handler for the macro service
 type MacroHandler struct {
 	*httprouter.Router
@@ -27,10 +41,12 @@ type MacroHandler struct {
 }
 
 // NewMacroHandler creates a new MacroHandler
-func NewMacroHandler() *MacroHandler {
+func NewMacroHandler(b *MacroBackend) *MacroHandler {
 	h := &MacroHandler{
 		Router: NewRouter(),
-		Logger: zap.NewNop(),
+		Logger: b.Logger,
+
+		MacroService: b.MacroService,
 	}
 
 	entityPath := fmt.Sprintf("%s/:id", macroPath)

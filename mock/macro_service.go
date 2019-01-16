@@ -17,6 +17,22 @@ type MacroService struct {
 	DeleteMacroF   func(context.Context, platform.ID) error
 }
 
+// NewMacroService returns a mock of MacroService where its methods will return zero values.
+func NewMacroService() *MacroService {
+	return &MacroService{
+		FindMacrosF: func(context.Context, platform.MacroFilter, ...platform.FindOptions) ([]*platform.Macro, error) {
+			return nil, nil
+		},
+		FindMacroByIDF: func(context.Context, platform.ID) (*platform.Macro, error) { return nil, nil },
+		CreateMacroF:   func(context.Context, *platform.Macro) error { return nil },
+		UpdateMacroF: func(ctx context.Context, id platform.ID, update *platform.MacroUpdate) (*platform.Macro, error) {
+			return nil, nil
+		},
+		ReplaceMacroF: func(context.Context, *platform.Macro) error { return nil },
+		DeleteMacroF:  func(context.Context, platform.ID) error { return nil },
+	}
+}
+
 func (s *MacroService) CreateMacro(ctx context.Context, macro *platform.Macro) error {
 	return s.CreateMacroF(ctx, macro)
 }
