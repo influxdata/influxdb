@@ -29,7 +29,7 @@ export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
 
 # All go source files
-SOURCES := $(shell find . -name '*.go' -not -name '*_test.go')
+SOURCES := $(shell find . -name '*.go' -not -name '*_test.go') go.mod go.sum
 
 # All go source files excluding the vendored sources.
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
