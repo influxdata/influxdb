@@ -38,8 +38,10 @@ async function findKeys(
 
   const query = `from(bucket: "${bucket}")
   |> range(start: -${SEARCH_DURATION})${tagFilters}
-  |> group(columns:["_measurement"])
-  |> distinct(column: "_measurement")
+  |> drop(columns: ["_time", "_start", "_stop", "_value"])
+  |> keys()
+  |> group()
+  |> distinct()
   |> keep(columns: ["_value"])${searchFilter}${previousKeyFilter}
   |> sort()
   |> limit(n: ${LIMIT})`
