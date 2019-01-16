@@ -296,6 +296,10 @@ func OwnerPermissions(orgID ID) []Permission {
 	ps := []Permission{}
 	for _, r := range AllResourceTypes {
 		for _, a := range actions {
+			if r == OrgsResourceType {
+				ps = append(ps, Permission{Action: a, Resource: Resource{Type: r, ID: &orgID}})
+				continue
+			}
 			ps = append(ps, Permission{Action: a, Resource: Resource{Type: r, OrgID: &orgID}})
 		}
 	}
@@ -307,6 +311,10 @@ func OwnerPermissions(orgID ID) []Permission {
 func MemberPermissions(orgID ID) []Permission {
 	ps := []Permission{}
 	for _, r := range AllResourceTypes {
+		if r == OrgsResourceType {
+			ps = append(ps, Permission{Action: ReadAction, Resource: Resource{Type: r, ID: &orgID}})
+			continue
+		}
 		ps = append(ps, Permission{Action: ReadAction, Resource: Resource{Type: r, OrgID: &orgID}})
 	}
 
