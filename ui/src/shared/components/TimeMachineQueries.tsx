@@ -114,13 +114,13 @@ class TimeMachineQueries extends PureComponent<Props> {
                 onChange={this.handleToggleIsViewingRawData}
                 size={ComponentSize.ExtraSmall}
               />
+              <CSVExportButton files={files} />
               <TimeMachineRefreshDropdown />
               <TimeRangeDropdown
                 timeRange={timeRange}
                 onSetTimeRange={onSetTimeRange}
               />
               <TimeMachineQueriesSwitcher />
-              <CSVExportButton files={files} />
               <SubmitQueryButton queryStatus={queriesState.loading} />
             </ComponentSpacer>
           </div>
