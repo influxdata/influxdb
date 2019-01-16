@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -19,25 +20,34 @@ import (
 	"github.com/influxdata/influxdb/task/backend"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap/zaptest"
 )
 
-func mockOrgService() platform.OrganizationService {
-	return &mock.OrganizationService{
-		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
-			return &platform.Organization{ID: id, Name: "test"}, nil
-		},
-		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-			org := &platform.Organization{}
-			if filter.Name != nil {
-				org.Name = *filter.Name
-			}
-			if filter.ID != nil {
-				org.ID = *filter.ID
-			}
+// NewMockTaskBackend returns a TaskBackend with mock services.
+func NewMockTaskBackend() *TaskBackend {
+	return &TaskBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "task")),
 
-			return org, nil
+		AuthorizationService: mock.NewAuthorizationService(),
+		TaskService:          &mock.TaskService{},
+		OrganizationService: &mock.OrganizationService{
+			FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+				return &platform.Organization{ID: id, Name: "test"}, nil
+			},
+			FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+				org := &platform.Organization{}
+				if filter.Name != nil {
+					org.Name = *filter.Name
+				}
+				if filter.ID != nil {
+					org.ID = *filter.ID
+				}
+
+				return org, nil
+			},
 		},
+		UserResourceMappingService: mock.NewUserResourceMappingService(),
+		LabelService:               mock.NewLabelService(),
+		UserService:                mock.NewUserService(),
 	}
 }
 
@@ -164,10 +174,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), zaptest.NewLogger(t), mock.NewUserService())
-			h.OrganizationService = mockOrgService()
-			h.TaskService = tt.fields.taskService
-			h.LabelService = tt.fields.labelService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			taskBackend.LabelService = tt.fields.labelService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetTasks(w, r)
 
 			res := w.Result()
@@ -265,9 +275,9 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), zaptest.NewLogger(t), mock.NewUserService())
-			h.OrganizationService = mockOrgService()
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handlePostTask(w, r)
 
 			res := w.Result()
@@ -370,9 +380,9 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), zaptest.NewLogger(t), mock.NewUserService())
-			h.OrganizationService = mockOrgService()
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetRun(w, r)
 
 			res := w.Result()
@@ -479,9 +489,9 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), zaptest.NewLogger(t), mock.NewUserService())
-			h.OrganizationService = mockOrgService()
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetRuns(w, r)
 
 			res := w.Result()
@@ -505,7 +515,11 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	// Ensure that the HTTP handlers return 404s for missing resources, and OKs for matching.
 
 	im := inmem.NewService()
-	h := NewTaskHandler(im, im, zaptest.NewLogger(t), im)
+	taskBackend := NewMockTaskBackend()
+	h := NewTaskHandler(taskBackend)
+	h.UserResourceMappingService = im
+	h.LabelService = im
+	h.UserService = im
 	h.OrganizationService = im
 
 	o := platform.Organization{Name: "o"}

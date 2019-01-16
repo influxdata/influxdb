@@ -8,13 +8,11 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	tmock "github.com/influxdata/influxdb/task/mock"
 	"github.com/influxdata/influxdb/task/servicetest"
-	"go.uber.org/zap/zaptest"
 )
 
 func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
@@ -30,23 +28,7 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 
 	h := http.NewAuthenticationHandler()
 	h.AuthorizationService = i
-	th := http.NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), zaptest.NewLogger(t), mock.NewUserService())
-	th.OrganizationService = &mock.OrganizationService{
-		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
-			return &platform.Organization{ID: id, Name: "test"}, nil
-		},
-		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-			org := &platform.Organization{}
-			if filter.Name != nil {
-				org.Name = *filter.Name
-			}
-			if filter.ID != nil {
-				org.ID = *filter.ID
-			}
-
-			return org, nil
-		},
-	}
+	th := http.NewTaskHandler(http.NewMockTaskBackend())
 	th.TaskService = backingTS
 	th.AuthorizationService = i
 	h.Handler = th

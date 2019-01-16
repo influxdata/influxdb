@@ -20,6 +20,33 @@ import (
 	"go.uber.org/zap"
 )
 
+// TaskBackend is all services and associated parameters required to construct
+// the TaskHandler.
+type TaskBackend struct {
+	Logger *zap.Logger
+
+	TaskService                platform.TaskService
+	AuthorizationService       platform.AuthorizationService
+	OrganizationService        platform.OrganizationService
+	UserResourceMappingService platform.UserResourceMappingService
+	LabelService               platform.LabelService
+	UserService                platform.UserService
+}
+
+// NewTaskBackend returns a new instance of TaskBackend.
+func NewTaskBackend(b *APIBackend) *TaskBackend {
+	return &TaskBackend{
+		Logger: b.Logger.With(zap.String("handler", "task")),
+
+		TaskService:                b.TaskService,
+		AuthorizationService:       b.AuthorizationService,
+		OrganizationService:        b.OrganizationService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
+	}
+}
+
 // TaskHandler represents an HTTP API handler for tasks.
 type TaskHandler struct {
 	*httprouter.Router
@@ -50,14 +77,17 @@ const (
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
-func NewTaskHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, logger *zap.Logger, userService platform.UserService) *TaskHandler {
+func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h := &TaskHandler{
-		logger: logger,
 		Router: NewRouter(),
+		logger: b.Logger,
 
-		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
-		UserService:                userService,
+		TaskService:                b.TaskService,
+		AuthorizationService:       b.AuthorizationService,
+		OrganizationService:        b.OrganizationService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
 	}
 
 	h.HandlerFunc("GET", tasksPath, h.handleGetTasks)
