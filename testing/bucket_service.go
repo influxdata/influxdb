@@ -512,10 +512,7 @@ func FindBuckets(
 		name           string
 		organization   string
 		organizationID platform.ID
-
-		offset     int
-		limit      int
-		descending bool
+		findOptions    platform.FindOptions
 	}
 
 	type wants struct {
@@ -600,8 +597,10 @@ func FindBuckets(
 				},
 			},
 			args: args{
-				offset: 1,
-				limit:  1,
+				findOptions: platform.FindOptions{
+					Offset: 1,
+					Limit:  1,
+				},
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
@@ -642,8 +641,10 @@ func FindBuckets(
 				},
 			},
 			args: args{
-				offset:     1,
-				descending: true,
+				findOptions: platform.FindOptions{
+					Offset:     1,
+					Descending: true,
+				},
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
@@ -838,18 +839,7 @@ func FindBuckets(
 				filter.Name = &tt.args.name
 			}
 
-			opt := platform.FindOptions{}
-			if tt.args.offset > 0 {
-				opt.Offset = tt.args.offset
-			}
-			if tt.args.limit > 0 {
-				opt.Limit = tt.args.limit
-			}
-			if tt.args.descending {
-				opt.Descending = tt.args.descending
-			}
-
-			buckets, _, err := s.FindBuckets(ctx, filter, opt)
+			buckets, _, err := s.FindBuckets(ctx, filter, tt.args.findOptions)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
