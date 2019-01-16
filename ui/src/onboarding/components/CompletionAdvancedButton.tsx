@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import {Button, ComponentColor, ComponentSize} from 'src/clockface'
@@ -30,8 +31,12 @@ class CompletionAdvancedButton extends PureComponent<Props> {
 
   private handleAdvanced = (): void => {
     const {router, orgs} = this.props
-    const id = orgs[0].id
-    router.push(`/organizations/${id}/buckets_tab`)
+    const id = _.get(orgs, 0, 'id')
+    if (id) {
+      router.push(`/organizations/${id}/buckets_tab`)
+    } else {
+      router.push('/organizations/')
+    }
   }
 }
 
