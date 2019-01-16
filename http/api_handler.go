@@ -114,8 +114,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	sourceBackend.NewQueryService = b.NewQueryService
 	h.SourceHandler = NewSourceHandler(sourceBackend)
 
-	h.SetupHandler = NewSetupHandler()
-	h.SetupHandler.OnboardingService = b.OnboardingService
+	setupBackend := NewSetupBackend(b)
+	h.SetupHandler = NewSetupHandler(setupBackend)
 
 	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.LabelService, b.Logger, b.UserService)
 	h.TaskHandler.TaskService = b.TaskService
