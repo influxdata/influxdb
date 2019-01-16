@@ -61,6 +61,31 @@ func filterDashboardFn(filter platform.DashboardFilter) func(d *platform.Dashboa
 	return func(d *platform.Dashboard) bool { return true }
 }
 
+func (s *Service) forEachDashboard(ctx context.Context, opts platform.FindOptions, fn func(d *platform.Dashboard) bool) error {
+	var err error
+	ds := make([]*platform.Dashboard, 0)
+	s.dashboardKV.Range(func(k, v interface{}) bool {
+		d, ok := v.(*platform.Dashboard)
+		if !ok {
+			err = fmt.Errorf("type %T is not a dashboard", v)
+			return false
+		}
+		ds = append(ds, d)
+
+		return true
+	})
+
+	platform.SortDashboards(opts, ds)
+
+	for _, d := range ds {
+		if !fn(d) {
+			return nil
+		}
+	}
+
+	return err
+}
+
 // FindDashboards implements platform.DashboardService interface.
 func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
 	var ds []*platform.Dashboard
@@ -79,21 +104,24 @@ func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardF
 		return []*platform.Dashboard{d}, 1, nil
 	}
 
-	var err error
-	filterF := filterDashboardFn(filter)
-	s.dashboardKV.Range(func(k, v interface{}) bool {
-		d, ok := v.(*platform.Dashboard)
-		if !ok {
-			return false
+	var count int
+	filterFn := filterDashboardFn(filter)
+	err := s.forEachDashboard(ctx, opts, func(d *platform.Dashboard) bool {
+		if filterFn(d) {
+			if count >= opts.Offset {
+				ds = append(ds, d)
+			}
+			count++
 		}
-
-		if filterF(d) {
-			ds = append(ds, d)
+		if opts.Limit > 0 && len(ds) >= opts.Limit {
+			return false
 		}
 		return true
 	})
 
-	platform.SortDashboards(opts.SortBy, ds)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	return ds, len(ds), err
 }
