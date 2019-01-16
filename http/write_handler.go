@@ -98,7 +98,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &req.Org})
 		if err != nil {
 			logger.Info("Failed to find organization", zap.Error(err))
-			EncodeError(ctx, fmt.Errorf("organization %q not found", req.Org), w)
+			EncodeError(ctx, err, w)
 			return
 		}
 
@@ -127,10 +127,8 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			EncodeError(ctx, &platform.Error{
-				Code: platform.ENotFound,
-				Op:   "http/handleWrite",
-				Err:  err,
-				Msg:  fmt.Sprintf("bucket %q not found", req.Bucket),
+				Op:  "http/handleWrite",
+				Err: err,
 			}, w)
 			return
 		}
