@@ -5,8 +5,6 @@
 
 @import 'src/style/modules';
 
-$time-machine--controls-height: 62px;
-
 .time-machine {
   height: 100%;
   @include no-user-select();
@@ -38,22 +36,9 @@ $time-machine--controls-height: 62px;
   flex: 0 0 100%;
 }
 
-.time-machine--controls {
-  height: $time-machine--controls-height;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  padding: $ix-marg-c;
-  justify-content: space-between;
-}
-
-.time-machine--controls .slide-toggle {
-  margin-right: $ix-marg-b;
-}
-
 .time-machine--view {
   position: absolute;
-  top: $time-machine--controls-height;
+  top: 0;
   right: 0;
   bottom: 0;
   left: 0;
