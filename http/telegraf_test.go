@@ -10,12 +10,26 @@ import (
 	"strings"
 	"testing"
 
+	"go.uber.org/zap"
+
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
 	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
-	"go.uber.org/zap/zaptest"
 )
+
+// NewMockTelegrafBackend returns a TelegrafBackend with mock services.
+func NewMockTelegrafBackend() *TelegrafBackend {
+	return &TelegrafBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "telegraf")),
+
+		TelegrafService:            &mock.TelegrafConfigStore{},
+		UserResourceMappingService: mock.NewUserResourceMappingService(),
+		LabelService:               mock.NewLabelService(),
+		UserService:                mock.NewUserService(),
+		OrganizationService:        mock.NewOrganizationService(),
+	}
+}
 
 func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 	type wants struct {
@@ -155,7 +169,9 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			h := NewTelegrafHandler(zaptest.NewLogger(t), mock.NewUserResourceMappingService(), mock.NewLabelService(), tt.svc, mock.NewUserService(), &mock.OrganizationService{})
+			telegrafBackend := NewMockTelegrafBackend()
+			telegrafBackend.TelegrafService = tt.svc
+			h := NewTelegrafHandler(telegrafBackend)
 			h.ServeHTTP(w, tt.r)
 
 			res := w.Result()
@@ -674,15 +690,11 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger := zaptest.NewLogger(t)
-			mapping := mock.NewUserResourceMappingService()
-			labels := mock.NewLabelService()
-			users := mock.NewUserService()
-			orgs := &mock.OrganizationService{}
-
 			tt.r.Header.Set("Accept", tt.acceptHeader)
 			w := httptest.NewRecorder()
-			h := NewTelegrafHandler(logger, mapping, labels, tt.svc, users, orgs)
+			telegrafBackend := NewMockTelegrafBackend()
+			telegrafBackend.TelegrafService = tt.svc
+			h := NewTelegrafHandler(telegrafBackend)
 
 			h.ServeHTTP(w, tt.r)
 

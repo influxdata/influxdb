@@ -15,6 +15,31 @@ import (
 	"go.uber.org/zap"
 )
 
+// TelegrafBackend is all services and associated parameters required to construct
+// the TelegrafHandler.
+type TelegrafBackend struct {
+	Logger *zap.Logger
+
+	TelegrafService            platform.TelegrafConfigStore
+	UserResourceMappingService platform.UserResourceMappingService
+	LabelService               platform.LabelService
+	UserService                platform.UserService
+	OrganizationService        platform.OrganizationService
+}
+
+// NewTelegrafBackend returns a new instance of TelegrafBackend.
+func NewTelegrafBackend(b *APIBackend) *TelegrafBackend {
+	return &TelegrafBackend{
+		Logger: b.Logger.With(zap.String("handler", "telegraf")),
+
+		TelegrafService:            b.TelegrafService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
+		OrganizationService:        b.OrganizationService,
+	}
+}
+
 // TelegrafHandler is the handler for the telegraf service
 type TelegrafHandler struct {
 	*httprouter.Router
@@ -39,23 +64,16 @@ const (
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
-func NewTelegrafHandler(
-	logger *zap.Logger,
-	mappingService platform.UserResourceMappingService,
-	labelService platform.LabelService,
-	telegrafSvc platform.TelegrafConfigStore,
-	userService platform.UserService,
-	orgService platform.OrganizationService,
-) *TelegrafHandler {
+func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 	h := &TelegrafHandler{
 		Router: NewRouter(),
+		Logger: b.Logger,
 
-		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
-		TelegrafService:            telegrafSvc,
-		Logger:                     logger,
-		UserService:                userService,
-		OrganizationService:        orgService,
+		TelegrafService:            b.TelegrafService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
+		OrganizationService:        b.OrganizationService,
 	}
 	h.HandlerFunc("POST", telegrafsPath, h.handlePostTelegraf)
 	h.HandlerFunc("GET", telegrafsPath, h.handleGetTelegrafs)
