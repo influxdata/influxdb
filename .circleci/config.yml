@@ -143,13 +143,6 @@ workflows:
       - build
 
   nightly:
-    triggers:
-      - schedule:
-          cron: "0 * * * *"
-          filters:
-            branches:
-              only:
-                - master
     jobs:
       - gotest
       - jstest
@@ -157,6 +150,3 @@ workflows:
           requires:
             - gotest
             - jstest
-          filters:
-            branches:
-              only: master
