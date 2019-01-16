@@ -11,6 +11,21 @@ import (
 	"go.uber.org/zap"
 )
 
+// SetupBackend is all services and associated parameters required to construct
+// the SetupHandler.
+type SetupBackend struct {
+	Logger            *zap.Logger
+	OnboardingService platform.OnboardingService
+}
+
+// NewSetupBackend returns a new instance of SetupBackend.
+func NewSetupBackend(b *APIBackend) *SetupBackend {
+	return &SetupBackend{
+		Logger:            b.Logger.With(zap.String("handler", "setup")),
+		OnboardingService: b.OnboardingService,
+	}
+}
+
 // SetupHandler represents an HTTP API handler for onboarding setup.
 type SetupHandler struct {
 	*httprouter.Router
@@ -25,10 +40,11 @@ const (
 )
 
 // NewSetupHandler returns a new instance of SetupHandler.
-func NewSetupHandler() *SetupHandler {
+func NewSetupHandler(b *SetupBackend) *SetupHandler {
 	h := &SetupHandler{
-		Router: NewRouter(),
-		Logger: zap.NewNop(),
+		Router:            NewRouter(),
+		Logger:            b.Logger,
+		OnboardingService: b.OnboardingService,
 	}
 	h.HandlerFunc("POST", setupPath, h.handlePostSetup)
 	h.HandlerFunc("GET", setupPath, h.isOnboarding)
