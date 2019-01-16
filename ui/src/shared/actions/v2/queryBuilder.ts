@@ -4,6 +4,8 @@ import {
   CancellationError,
 } from 'src/shared/apis/v2/queryBuilder'
 
+import {bucketsAPI} from 'src/utils/api'
+
 // Utils
 import {
   getActiveQuerySource,
@@ -202,12 +204,11 @@ export const loadBuckets = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const queryURL = getActiveQuerySource(getState()).links.query
-
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    const buckets = await fetcher.findBuckets(queryURL)
+    const {data} = await bucketsAPI.bucketsGet('')
+    const buckets = data.buckets.map(b => b.name)
     const selectedBucket = getActiveQuery(getState()).builderConfig.buckets[0]
 
     dispatch(setBuilderBuckets(buckets))
