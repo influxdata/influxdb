@@ -1,3 +1,4 @@
+// Libraries
 import React, {Component, ChangeEvent} from 'react'
 import {findDOMNode} from 'react-dom'
 import {
@@ -11,9 +12,17 @@ import {
   ConnectDropTarget,
   ConnectDragPreview,
 } from 'react-dnd'
+
+// Components
+import {Input, ComponentStatus} from 'src/clockface'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Types
 import {LogsTableColumn} from 'src/types/logs'
 
+// Constants
 const columnType = 'column'
 
 interface Props {
@@ -123,7 +132,6 @@ export default class DraggableColumn extends Component<Props> {
       displayName,
       connectDragPreview,
       connectDropTarget,
-      visible,
     } = this.props
 
     return connectDragPreview(
@@ -134,19 +142,27 @@ export default class DraggableColumn extends Component<Props> {
             {this.visibilityToggle}
             <div className="customizable-field--name">{internalName}</div>
           </div>
-          <input
-            className="form-control input-sm customizable-field--input"
-            type="text"
-            spellCheck={false}
+          <Input
+            customClass="customizable-field--input"
             id="internalName"
             value={displayName}
             onChange={this.handleColumnRename}
             placeholder={`Rename ${internalName}`}
-            disabled={!visible}
+            status={this.inputStatus}
           />
         </div>
       )
     )
+  }
+
+  private get inputStatus(): ComponentStatus {
+    const {visible} = this.props
+
+    if (visible) {
+      return ComponentStatus.Default
+    }
+
+    return ComponentStatus.Disabled
   }
 
   private get dragHandle(): JSX.Element {
