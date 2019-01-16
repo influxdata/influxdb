@@ -186,6 +186,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Telegrafs
+      summary: delete a telegraf config
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of telegraf config
+      responses:
+        '200':
+          description: An updated telegraf
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Telegraf"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/members':
     get:
       tags:

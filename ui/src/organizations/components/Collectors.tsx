@@ -24,7 +24,10 @@ import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Telegraf} from 'src/api'
-import {getTelegrafConfigTOML} from 'src/organizations/apis/index'
+import {
+  getTelegrafConfigTOML,
+  deleteTelegrafConfig,
+} from 'src/organizations/apis/index'
 import {notify} from 'src/shared/actions/notifications'
 
 interface Props {
@@ -51,6 +54,7 @@ export default class OrgOptions extends PureComponent<Props> {
           collectors={collectors}
           emptyState={this.emptyState}
           onDownloadConfig={this.handleDownloadConfig}
+          onDelete={this.handleDeleteTelegraf}
         />
       </>
     )
@@ -70,5 +74,9 @@ export default class OrgOptions extends PureComponent<Props> {
     } catch (error) {
       notify(getTelegrafConfigFailed())
     }
+  }
+  private handleDeleteTelegraf = async (telegrafID: string) => {
+    await deleteTelegrafConfig(telegrafID)
+    this.props.onChange()
   }
 }

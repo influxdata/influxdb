@@ -17,9 +17,10 @@ interface Props {
   collector: Telegraf
   bucket: string
   onDownloadConfig: (telegrafID: string) => void
+  onDelete: (telegrafID: string) => void
 }
 
-export default class BucketRow extends PureComponent<Props> {
+export default class CollectorRow extends PureComponent<Props> {
   public render() {
     const {collector, bucket} = this.props
     return (
@@ -39,6 +40,7 @@ export default class BucketRow extends PureComponent<Props> {
                 size={ComponentSize.ExtraSmall}
                 text="Delete"
                 confirmText="Confirm"
+                onConfirm={this.handleDeleteConfig}
               />
             </ComponentSpacer>
           </IndexList.Cell>
@@ -49,5 +51,8 @@ export default class BucketRow extends PureComponent<Props> {
 
   private handleDownloadConfig = (): void => {
     this.props.onDownloadConfig(this.props.collector.id)
+  }
+  private handleDeleteConfig = (): void => {
+    this.props.onDelete(this.props.collector.id)
   }
 }
