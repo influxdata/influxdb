@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"context"
-	"fmt"
 	"time"
 )
 
@@ -12,6 +11,9 @@ const ErrSessionNotFound = "session not found"
 // ErrSessionExpired is the error message for expired sessions.
 const ErrSessionExpired = "session has expired"
 
+// RenewSessionTime is the the time to extend session, currently set to 5min.
+var RenewSessionTime = time.Duration(time.Second * 300)
+
 var (
 	// OpFindSession represents the operation that looks for sessions.
 	OpFindSession = "FindSession"
@@ -19,6 +21,8 @@ var (
 	OpExpireSession = "ExpireSession"
 	// OpCreateSession represents the operation that creates a session for a given user.
 	OpCreateSession = "CreateSession"
+	// OpRenewSession = "RenewSession"
+	OpRenewSession = "RenewSession"
 )
 
 // Session is a user session.
@@ -35,7 +39,10 @@ type Session struct {
 // Expired returns an error if the session is expired.
 func (s *Session) Expired() error {
 	if time.Now().After(s.ExpiresAt) {
-		return fmt.Errorf(ErrSessionExpired)
+		return &Error{
+			Code: EForbidden,
+			Msg:  ErrSessionExpired,
+		}
 	}
 
 	return nil
@@ -67,4 +74,5 @@ type SessionService interface {
 	FindSession(ctx context.Context, key string) (*Session, error)
 	ExpireSession(ctx context.Context, key string) error
 	CreateSession(ctx context.Context, user string) (*Session, error)
+	RenewSession(ctx context.Context, session *Session, newExpiration time.Time) error
 }

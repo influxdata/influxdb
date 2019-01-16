@@ -66,6 +66,10 @@ func SessionService(
 			name: "ExpireSession",
 			fn:   ExpireSession,
 		},
+		{
+			name: "RenewSession",
+			fn:   RenewSession,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -268,6 +272,116 @@ func ExpireSession(
 			session, err := s.FindSession(ctx, tt.args.key)
 			if err == nil {
 				t.Errorf("expected session to be expired got %v", err)
+			}
+
+			if diff := cmp.Diff(session, tt.wants.session, sessionCmpOptions...); diff != "" {
+				t.Errorf("session is different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// RenewSession testing
+func RenewSession(
+	init func(SessionFields, *testing.T) (platform.SessionService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		session  *platform.Session
+		key      string
+		expireAt time.Time
+	}
+
+	type wants struct {
+		err     error
+		session *platform.Session
+	}
+
+	tests := []struct {
+		name   string
+		fields SessionFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "basic renew session",
+			fields: SessionFields{
+				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
+				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
+				Sessions: []*platform.Session{
+					{
+						ID:        MustIDBase16(sessionOneID),
+						UserID:    MustIDBase16(sessionTwoID),
+						Key:       "abc123xyz",
+						ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+			args: args{
+				session: &platform.Session{
+					ID:        MustIDBase16(sessionOneID),
+					UserID:    MustIDBase16(sessionTwoID),
+					Key:       "abc123xyz",
+					ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
+				},
+				key:      "abc123xyz",
+				expireAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
+			},
+			wants: wants{
+				session: &platform.Session{
+					ID:        MustIDBase16(sessionOneID),
+					UserID:    MustIDBase16(sessionTwoID),
+					Key:       "abc123xyz",
+					ExpiresAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
+				},
+			},
+		},
+		{
+			name: "renew nil session",
+			fields: SessionFields{
+				IDGenerator:    mock.NewIDGenerator(sessionTwoID, t),
+				TokenGenerator: mock.NewTokenGenerator("abc123xyz", nil),
+				Sessions: []*platform.Session{
+					{
+						ID:        MustIDBase16(sessionOneID),
+						UserID:    MustIDBase16(sessionTwoID),
+						Key:       "abc123xyz",
+						ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+			args: args{
+				key:      "abc123xyz",
+				expireAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EInternal,
+					Msg:  "session is nil",
+					Op:   platform.OpRenewSession,
+				},
+				session: &platform.Session{
+					ID:        MustIDBase16(sessionOneID),
+					UserID:    MustIDBase16(sessionTwoID),
+					Key:       "abc123xyz",
+					ExpiresAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			err := s.RenewSession(ctx, tt.args.session, tt.args.expireAt)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			session, err := s.FindSession(ctx, tt.args.key)
+			if err != nil {
+				t.Errorf("err in find session %v", err)
 			}
 
 			if diff := cmp.Diff(session, tt.wants.session, sessionCmpOptions...); diff != "" {

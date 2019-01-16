@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
@@ -118,6 +119,12 @@ func (h *AuthenticationHandler) extractSession(ctx context.Context, r *http.Requ
 	}
 
 	s, e := h.SessionService.FindSession(ctx, k)
+	if e != nil {
+		return ctx, e
+	}
+
+	// if the session is not expired, renew the session
+	e = h.SessionService.RenewSession(ctx, s, time.Now().Add(platform.RenewSessionTime))
 	if e != nil {
 		return ctx, e
 	}
