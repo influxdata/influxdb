@@ -3,17 +3,12 @@ package inmem
 import (
 	"context"
 	"fmt"
-	"path"
 
 	platform "github.com/influxdata/influxdb"
 )
 
-func encodeLabelKey(resourceID platform.ID, name string) string {
-	return path.Join(resourceID.String(), name)
-}
-
-func (s *Service) loadLabel(ctx context.Context, resourceID platform.ID, name string) (*platform.Label, error) {
-	i, ok := s.labelKV.Load(encodeLabelKey(resourceID, name))
+func (s *Service) loadLabel(ctx context.Context, id platform.ID) (*platform.Label, error) {
+	i, ok := s.labelKV.Load(id.String())
 	if !ok {
 		return nil, platform.ErrLabelNotFound
 	}
@@ -24,10 +19,6 @@ func (s *Service) loadLabel(ctx context.Context, resourceID platform.ID, name st
 	}
 
 	return &l, nil
-}
-
-func (s *Service) FindLabelBy(ctx context.Context, resourceID platform.ID, name string) (*platform.Label, error) {
-	return s.loadLabel(ctx, resourceID, name)
 }
 
 func (s *Service) forEachLabel(ctx context.Context, fn func(m *platform.Label) bool) error {
@@ -60,14 +51,17 @@ func (s *Service) filterLabels(ctx context.Context, fn func(m *platform.Label) b
 	return labels, nil
 }
 
+// FindLabelByID returns a single user by ID.
 func (s *Service) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
-	return nil, nil
+	return s.loadLabel(ctx, id)
 }
 
+// FindLabels will retrieve a list of labels from storage.
 func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
 	return nil, nil
 }
 
+// FindResourceLabels returns a list of labels that are mapped to a resource.
 func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
 	// if filter.ResourceID.Valid() && filter.Name != "" {
 	// 	l, err := s.FindLabelBy(ctx, filter.ResourceID, filter.Name)
@@ -91,6 +85,7 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelM
 	return nil, nil
 }
 
+// CreateLabel creates a new label.
 func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
 	l.ID = s.IDGenerator.ID()
 	// label, _ := s.FindLabelBy(ctx, l.ResourceID, l.Name)
@@ -107,10 +102,12 @@ func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
 	return nil
 }
 
+// CreateLabelMapping creates a mapping that associates a label to a resource.
 func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
 	return nil
 }
 
+// UpdateLabel updates a label.
 func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
 	// label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
 	// if err != nil {
