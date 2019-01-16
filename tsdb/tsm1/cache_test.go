@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/influxdata/influxdb/storage/wal"
+
 	"github.com/golang/snappy"
 )
 
@@ -604,7 +606,7 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	dir := mustTempDir()
 	defer os.RemoveAll(dir)
 	f := mustTempFile(dir)
-	w := NewWALSegmentWriter(f)
+	w := wal.NewWALSegmentWriter(f)
 
 	p1 := NewValue(1, 1.1)
 	p2 := NewValue(1, int64(1))
@@ -616,7 +618,7 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 		"baz": {p3},
 	}
 
-	entry := &WriteWALEntry{
+	entry := &wal.WriteWALEntry{
 		Values: values,
 	}
 
@@ -676,7 +678,7 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 	dir := mustTempDir()
 	defer os.RemoveAll(dir)
 	f1, f2 := mustTempFile(dir), mustTempFile(dir)
-	w1, w2 := NewWALSegmentWriter(f1), NewWALSegmentWriter(f2)
+	w1, w2 := wal.NewWALSegmentWriter(f1), wal.NewWALSegmentWriter(f2)
 
 	p1 := NewValue(1, 1.1)
 	p2 := NewValue(1, int64(1))
@@ -685,8 +687,8 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 
 	// Write first and second segment.
 
-	segmentWrite := func(w *WALSegmentWriter, values map[string][]Value) {
-		entry := &WriteWALEntry{
+	segmentWrite := func(w *wal.WALSegmentWriter, values map[string][]Value) {
+		entry := &wal.WriteWALEntry{
 			Values: values,
 		}
 		if err := w1.Write(mustMarshalEntry(entry)); err != nil {
@@ -741,7 +743,7 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 	dir := mustTempDir()
 	defer os.RemoveAll(dir)
 	f := mustTempFile(dir)
-	w := NewWALSegmentWriter(f)
+	w := wal.NewWALSegmentWriter(f)
 
 	p1 := NewValue(1, 1.0)
 	p2 := NewValue(2, 2.0)
@@ -751,7 +753,7 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 		"foo": {p1, p2, p3},
 	}
 
-	entry := &WriteWALEntry{
+	entry := &wal.WriteWALEntry{
 		Values: values,
 	}
 
@@ -763,7 +765,7 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 		t.Fatalf("flush error: %v", err)
 	}
 
-	dentry := &DeleteRangeWALEntry{
+	dentry := &wal.DeleteRangeWALEntry{
 		Keys: [][]byte{[]byte("foo")},
 		Min:  2,
 		Max:  3,
@@ -857,7 +859,7 @@ func mustTempFile(dir string) *os.File {
 	return f
 }
 
-func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
+func mustMarshalEntry(entry wal.WALEntry) (wal.WalEntryType, []byte) {
 	bytes := make([]byte, 1024<<2)
 
 	b, err := entry.Encode(bytes)

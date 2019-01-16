@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
@@ -31,6 +32,7 @@ import (
 	"go.uber.org/zap"
 )
 
+//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@array_cursor.gen.go.tmpldata array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/influxdata/influxdb/tools/tmpl -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
 //go:generate env GO111MODULE=on go run github.com/influxdata/influxdb/tools/tmpl -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
@@ -78,15 +80,15 @@ const (
 type EngineOption func(i *Engine)
 
 // WithWAL sets the WAL for the Engine
-var WithWAL = func(wal Log) EngineOption {
+var WithWAL = func(w Log) EngineOption {
 	// be defensive: it's very easy to pass in a nil WAL here
 	// which will panic. Set any nil WALs to the NopWAL.
-	if pwal, _ := wal.(*WAL); pwal == nil {
-		wal = NopWAL{}
+	if pwal, _ := w.(*wal.WAL); pwal == nil {
+		w = NopWAL{}
 	}
 
 	return func(e *Engine) {
-		e.WAL = wal
+		e.WAL = w
 	}
 }
 
@@ -512,10 +514,6 @@ func (e *Engine) initTrackers() {
 	e.FileStore.tracker = newFileTracker(bms.fileMetrics, e.defaultMetricLabels)
 	e.Cache.tracker = newCacheTracker(bms.cacheMetrics, e.defaultMetricLabels)
 
-	// Set default metrics on WAL if enabled.
-	if wal, ok := e.WAL.(*WAL); ok {
-		wal.tracker = newWALTracker(bms.walMetrics, e.defaultMetricLabels)
-	}
 	e.scheduler.setCompactionTracker(e.compactionTracker)
 }
 
@@ -575,10 +573,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 		e.traceLogger = e.logger
 	}
 
-	if wal, ok := e.WAL.(*WAL); ok {
-		wal.WithLogger(e.logger)
-	}
-
+	e.WAL.WithLogger(e.logger)
 	e.FileStore.WithLogger(e.logger)
 }
 
@@ -1571,7 +1566,7 @@ func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *c
 // reloadCache reads the WAL segment files and loads them into the cache.
 func (e *Engine) reloadCache() error {
 	now := time.Now()
-	files, err := segmentFileNames(e.WAL.Path())
+	files, err := wal.SegmentFileNames(e.WAL.Path())
 	if err != nil {
 		return err
 	}

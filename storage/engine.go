@@ -12,6 +12,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
@@ -38,7 +39,7 @@ type Engine struct {
 	index             *tsi1.Index
 	sfile             *tsdb.SeriesFile
 	engine            *tsm1.Engine
-	wal               *tsm1.WAL
+	wal               *wal.WAL
 	retentionEnforcer *retentionEnforcer
 
 	defaultMetricLabels prometheus.Labels
@@ -119,17 +120,17 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		tsi1.WithPath(c.GetIndexPath(path)))
 
 	// Initialize WAL
-	var wal tsm1.Log = new(tsm1.NopWAL)
+	var w tsm1.Log = new(tsm1.NopWAL)
 	if c.WAL.Enabled {
-		e.wal = tsm1.NewWAL(c.GetWALPath(path))
+		e.wal = wal.NewWAL(c.GetWALPath(path))
 		e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
 		e.wal.EnableTraceLogging(c.TraceLoggingEnabled)
-		wal = e.wal
+		w = e.wal
 	}
 
 	// Initialise Engine
 	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine,
-		tsm1.WithWAL(wal),
+		tsm1.WithWAL(w),
 		tsm1.WithTraceLogging(c.TraceLoggingEnabled))
 
 	// Apply options.

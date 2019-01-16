@@ -1,4 +1,4 @@
-package tsm1_test
+package wal
 
 import (
 	"fmt"
@@ -9,30 +9,30 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/pkg/slices"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/tsdb/tsm1/value"
 )
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	p1 := tsm1.NewValue(1, 1.1)
-	p2 := tsm1.NewValue(1, int64(1))
-	p3 := tsm1.NewValue(1, true)
-	p4 := tsm1.NewValue(1, "string")
-	p5 := tsm1.NewValue(1, ^uint64(0))
+	p1 := value.NewValue(1, 1.1)
+	p2 := value.NewValue(1, int64(1))
+	p3 := value.NewValue(1, true)
+	p4 := value.NewValue(1, "string")
+	p5 := value.NewValue(1, ^uint64(0))
 
-	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#float":    []tsm1.Value{p1},
-		"cpu,host=A#!~#int":      []tsm1.Value{p2},
-		"cpu,host=A#!~#bool":     []tsm1.Value{p3},
-		"cpu,host=A#!~#string":   []tsm1.Value{p4},
-		"cpu,host=A#!~#unsigned": []tsm1.Value{p5},
+	values := map[string][]value.Value{
+		"cpu,host=A#!~#float":    []value.Value{p1},
+		"cpu,host=A#!~#int":      []value.Value{p2},
+		"cpu,host=A#!~#bool":     []value.Value{p3},
+		"cpu,host=A#!~#string":   []value.Value{p4},
+		"cpu,host=A#!~#unsigned": []value.Value{p5},
 	}
 
-	entry := &tsm1.WriteWALEntry{
+	entry := &WriteWALEntry{
 		Values: values,
 	}
 
@@ -48,7 +48,7 @@ func TestWALWriter_WriteMulti_Single(t *testing.T) {
 		fatal(t, "seek", err)
 	}
 
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 
 	if !r.Next() {
 		t.Fatalf("expected next, got false")
@@ -59,7 +59,7 @@ func TestWALWriter_WriteMulti_Single(t *testing.T) {
 		fatal(t, "read entry", err)
 	}
 
-	e, ok := we.(*tsm1.WriteWALEntry)
+	e, ok := we.(*WriteWALEntry)
 	if !ok {
 		t.Fatalf("expected WriteWALEntry: got %#v", e)
 	}
@@ -81,19 +81,19 @@ func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	var points []tsm1.Value
+	var points []value.Value
 	for i := 0; i < 100000; i++ {
-		points = append(points, tsm1.NewValue(int64(i), int64(1)))
+		points = append(points, value.NewValue(int64(i), int64(1)))
 	}
 
-	values := map[string][]tsm1.Value{
+	values := map[string][]value.Value{
 		"cpu,host=A,server=01,foo=bar,tag=really-long#!~#float": points,
 		"mem,host=A,server=01,foo=bar,tag=really-long#!~#float": points,
 	}
 
-	entry := &tsm1.WriteWALEntry{
+	entry := &WriteWALEntry{
 		Values: values,
 	}
 
@@ -109,7 +109,7 @@ func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 		fatal(t, "seek", err)
 	}
 
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 
 	if !r.Next() {
 		t.Fatalf("expected next, got false")
@@ -120,7 +120,7 @@ func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 		fatal(t, "read entry", err)
 	}
 
-	e, ok := we.(*tsm1.WriteWALEntry)
+	e, ok := we.(*WriteWALEntry)
 	if !ok {
 		t.Fatalf("expected WriteWALEntry: got %#v", e)
 	}
@@ -141,22 +141,22 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	p1 := tsm1.NewValue(1, int64(1))
-	p2 := tsm1.NewValue(1, int64(2))
+	p1 := value.NewValue(1, int64(1))
+	p2 := value.NewValue(1, int64(2))
 
 	exp := []struct {
 		key    string
-		values []tsm1.Value
+		values []value.Value
 	}{
-		{"cpu,host=A#!~#value", []tsm1.Value{p1}},
-		{"cpu,host=B#!~#value", []tsm1.Value{p2}},
+		{"cpu,host=A#!~#value", []value.Value{p1}},
+		{"cpu,host=B#!~#value", []value.Value{p2}},
 	}
 
 	for _, v := range exp {
-		entry := &tsm1.WriteWALEntry{
-			Values: map[string][]tsm1.Value{v.key: v.values},
+		entry := &WriteWALEntry{
+			Values: map[string][]value.Value{v.key: v.values},
 		}
 
 		if err := w.Write(mustMarshalEntry(entry)); err != nil {
@@ -172,7 +172,7 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 		fatal(t, "seek", err)
 	}
 
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 
 	for _, ep := range exp {
 		if !r.Next() {
@@ -184,7 +184,7 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 			fatal(t, "read entry", err)
 		}
 
-		e, ok := we.(*tsm1.WriteWALEntry)
+		e, ok := we.(*WriteWALEntry)
 		if !ok {
 			t.Fatalf("expected WriteWALEntry: got %#v", e)
 		}
@@ -215,9 +215,9 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	entry := &tsm1.DeleteWALEntry{
+	entry := &DeleteWALEntry{
 		Keys: [][]byte{[]byte("cpu")},
 	}
 
@@ -233,7 +233,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 		fatal(t, "seek", err)
 	}
 
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 
 	if !r.Next() {
 		t.Fatalf("expected next, got false")
@@ -244,7 +244,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 		fatal(t, "read entry", err)
 	}
 
-	e, ok := we.(*tsm1.DeleteWALEntry)
+	e, ok := we.(*DeleteWALEntry)
 	if !ok {
 		t.Fatalf("expected WriteWALEntry: got %#v", e)
 	}
@@ -262,14 +262,14 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	p1 := tsm1.NewValue(1, true)
-	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{p1},
+	p1 := value.NewValue(1, true)
+	values := map[string][]value.Value{
+		"cpu,host=A#!~#value": []value.Value{p1},
 	}
 
-	writeEntry := &tsm1.WriteWALEntry{
+	writeEntry := &WriteWALEntry{
 		Values: values,
 	}
 
@@ -282,7 +282,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 	}
 
 	// Write the delete entry
-	deleteEntry := &tsm1.DeleteWALEntry{
+	deleteEntry := &DeleteWALEntry{
 		Keys: [][]byte{[]byte("cpu,host=A#!~value")},
 	}
 
@@ -299,7 +299,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 		fatal(t, "seek", err)
 	}
 
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 
 	// Read the write points first
 	if !r.Next() {
@@ -311,7 +311,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 		fatal(t, "read entry", err)
 	}
 
-	e, ok := we.(*tsm1.WriteWALEntry)
+	e, ok := we.(*WriteWALEntry)
 	if !ok {
 		t.Fatalf("expected WriteWALEntry: got %#v", e)
 	}
@@ -338,7 +338,7 @@ func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
 		fatal(t, "read entry", err)
 	}
 
-	de, ok := we.(*tsm1.DeleteWALEntry)
+	de, ok := we.(*DeleteWALEntry)
 	if !ok {
 		t.Fatalf("expected DeleteWALEntry: got %#v", e)
 	}
@@ -356,17 +356,17 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	p1 := tsm1.NewValue(1, 1.0)
-	p2 := tsm1.NewValue(2, 2.0)
-	p3 := tsm1.NewValue(3, 3.0)
+	p1 := value.NewValue(1, 1.0)
+	p2 := value.NewValue(2, 2.0)
+	p3 := value.NewValue(3, 3.0)
 
-	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{p1, p2, p3},
+	values := map[string][]value.Value{
+		"cpu,host=A#!~#value": []value.Value{p1, p2, p3},
 	}
 
-	writeEntry := &tsm1.WriteWALEntry{
+	writeEntry := &WriteWALEntry{
 		Values: values,
 	}
 
@@ -379,7 +379,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 	}
 
 	// Write the delete entry
-	deleteEntry := &tsm1.DeleteRangeWALEntry{
+	deleteEntry := &DeleteRangeWALEntry{
 		Keys: [][]byte{[]byte("cpu,host=A#!~value")},
 		Min:  2,
 		Max:  3,
@@ -398,7 +398,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 		fatal(t, "seek", err)
 	}
 
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 
 	// Read the write points first
 	if !r.Next() {
@@ -410,7 +410,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 		fatal(t, "read entry", err)
 	}
 
-	e, ok := we.(*tsm1.WriteWALEntry)
+	e, ok := we.(*WriteWALEntry)
 	if !ok {
 		t.Fatalf("expected WriteWALEntry: got %#v", e)
 	}
@@ -437,7 +437,7 @@ func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
 		fatal(t, "read entry", err)
 	}
 
-	de, ok := we.(*tsm1.DeleteRangeWALEntry)
+	de, ok := we.(*DeleteRangeWALEntry)
 	if !ok {
 		t.Fatalf("expected DeleteWALEntry: got %#v", e)
 	}
@@ -464,7 +464,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	w := tsm1.NewWAL(dir)
+	w := NewWAL(dir)
 	if err := w.Open(); err != nil {
 		t.Fatalf("error opening WAL: %v", err)
 	}
@@ -478,9 +478,9 @@ func TestWAL_ClosedSegments(t *testing.T) {
 		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if _, err := w.WriteMulti(map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{
-			tsm1.NewValue(1, 1.1),
+	if _, err := w.WriteMulti(map[string][]value.Value{
+		"cpu,host=A#!~#value": []value.Value{
+			value.NewValue(1, 1.1),
 		},
 	}); err != nil {
 		t.Fatalf("error writing points: %v", err)
@@ -491,7 +491,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 	}
 
 	// Re-open the WAL
-	w = tsm1.NewWAL(dir)
+	w = NewWAL(dir)
 	defer w.Close()
 	if err := w.Open(); err != nil {
 		t.Fatalf("error opening WAL: %v", err)
@@ -510,7 +510,7 @@ func TestWAL_Delete(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	w := tsm1.NewWAL(dir)
+	w := NewWAL(dir)
 	if err := w.Open(); err != nil {
 		t.Fatalf("error opening WAL: %v", err)
 	}
@@ -533,7 +533,7 @@ func TestWAL_Delete(t *testing.T) {
 	}
 
 	// Re-open the WAL
-	w = tsm1.NewWAL(dir)
+	w = NewWAL(dir)
 	defer w.Close()
 	if err := w.Open(); err != nil {
 		t.Fatalf("error opening WAL: %v", err)
@@ -552,15 +552,15 @@ func TestWALWriter_Corrupt(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 	corruption := []byte{1, 4, 0, 0, 0}
 
-	p1 := tsm1.NewValue(1, 1.1)
-	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#float": []tsm1.Value{p1},
+	p1 := value.NewValue(1, 1.1)
+	values := map[string][]value.Value{
+		"cpu,host=A#!~#float": []value.Value{p1},
 	}
 
-	entry := &tsm1.WriteWALEntry{
+	entry := &WriteWALEntry{
 		Values: values,
 	}
 	if err := w.Write(mustMarshalEntry(entry)); err != nil {
@@ -580,7 +580,7 @@ func TestWALWriter_Corrupt(t *testing.T) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		fatal(t, "seek", err)
 	}
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 
 	// Try to decode two entries.
 
@@ -611,15 +611,15 @@ func TestWALSegmentReader_Corrupt(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	p4 := tsm1.NewValue(1, "string")
+	p4 := value.NewValue(1, "string")
 
-	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#string": []tsm1.Value{p4, p4},
+	values := map[string][]value.Value{
+		"cpu,host=A#!~#string": []value.Value{p4, p4},
 	}
 
-	entry := &tsm1.WriteWALEntry{
+	entry := &WriteWALEntry{
 		Values: values,
 	}
 
@@ -642,7 +642,7 @@ func TestWALSegmentReader_Corrupt(t *testing.T) {
 		fatal(t, "seek", err)
 	}
 
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 	defer r.Close()
 
 	// Try to decode two entries.
@@ -652,21 +652,21 @@ func TestWALSegmentReader_Corrupt(t *testing.T) {
 }
 
 func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
-	p1 := tsm1.NewValue(1, 1.1)
-	p2 := tsm1.NewValue(1, int64(1))
-	p3 := tsm1.NewValue(1, true)
-	p4 := tsm1.NewValue(1, "string")
-	p5 := tsm1.NewValue(1, uint64(1))
+	p1 := value.NewValue(1, 1.1)
+	p2 := value.NewValue(1, int64(1))
+	p3 := value.NewValue(1, true)
+	p4 := value.NewValue(1, "string")
+	p5 := value.NewValue(1, uint64(1))
 
-	values := map[string][]tsm1.Value{
-		"cpu,host=A#!~#float":    []tsm1.Value{p1, p1},
-		"cpu,host=A#!~#int":      []tsm1.Value{p2, p2},
-		"cpu,host=A#!~#bool":     []tsm1.Value{p3, p3},
-		"cpu,host=A#!~#string":   []tsm1.Value{p4, p4},
-		"cpu,host=A#!~#unsigned": []tsm1.Value{p5, p5},
+	values := map[string][]value.Value{
+		"cpu,host=A#!~#float":    []value.Value{p1, p1},
+		"cpu,host=A#!~#int":      []value.Value{p2, p2},
+		"cpu,host=A#!~#bool":     []value.Value{p3, p3},
+		"cpu,host=A#!~#string":   []value.Value{p4, p4},
+		"cpu,host=A#!~#unsigned": []value.Value{p5, p5},
 	}
 
-	w := &tsm1.WriteWALEntry{
+	w := &WriteWALEntry{
 		Values: values,
 	}
 
@@ -681,7 +681,7 @@ func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 		truncated := make([]byte, i)
 		copy(truncated, b[:i])
 		err := w.UnmarshalBinary(truncated)
-		if err != nil && err != tsm1.ErrWALCorrupt {
+		if err != nil && err != ErrWALCorrupt {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
@@ -715,13 +715,13 @@ func TestDeleteWALEntry_UnmarshalBinary(t *testing.T) {
 	}
 
 	for i, example := range examples {
-		w := &tsm1.DeleteWALEntry{Keys: slices.StringsToBytes(example.In...)}
+		w := &DeleteWALEntry{Keys: slices.StringsToBytes(example.In...)}
 		b, err := w.MarshalBinary()
 		if err != nil {
 			t.Fatalf("[example %d] unexpected error, got %v", i, err)
 		}
 
-		out := &tsm1.DeleteWALEntry{}
+		out := &DeleteWALEntry{}
 		if err := out.UnmarshalBinary(b); err != nil {
 			t.Fatalf("[example %d] %v", i, err)
 		}
@@ -733,7 +733,7 @@ func TestDeleteWALEntry_UnmarshalBinary(t *testing.T) {
 }
 
 func TestWriteWALSegment_UnmarshalBinary_DeleteWALCorrupt(t *testing.T) {
-	w := &tsm1.DeleteWALEntry{
+	w := &DeleteWALEntry{
 		Keys: [][]byte{[]byte("foo"), []byte("bar")},
 	}
 
@@ -748,14 +748,14 @@ func TestWriteWALSegment_UnmarshalBinary_DeleteWALCorrupt(t *testing.T) {
 		truncated := make([]byte, i)
 		copy(truncated, b[:i])
 		err := w.UnmarshalBinary(truncated)
-		if err != nil && err != tsm1.ErrWALCorrupt {
+		if err != nil && err != ErrWALCorrupt {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 }
 
 func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
-	w := &tsm1.DeleteRangeWALEntry{
+	w := &DeleteRangeWALEntry{
 		Keys: [][]byte{[]byte("foo"), []byte("bar")},
 		Min:  1,
 		Max:  2,
@@ -772,26 +772,26 @@ func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
 		truncated := make([]byte, i)
 		copy(truncated, b[:i])
 		err := w.UnmarshalBinary(truncated)
-		if err != nil && err != tsm1.ErrWALCorrupt {
+		if err != nil && err != ErrWALCorrupt {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 }
 
 func BenchmarkWALSegmentWriter(b *testing.B) {
-	points := map[string][]tsm1.Value{}
+	points := map[string][]value.Value{}
 	for i := 0; i < 5000; i++ {
 		k := "cpu,host=A#!~#value"
-		points[k] = append(points[k], tsm1.NewValue(int64(i), 1.1))
+		points[k] = append(points[k], value.NewValue(int64(i), 1.1))
 	}
 
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	write := &tsm1.WriteWALEntry{
+	write := &WriteWALEntry{
 		Values: points,
 	}
 
@@ -804,19 +804,19 @@ func BenchmarkWALSegmentWriter(b *testing.B) {
 }
 
 func BenchmarkWALSegmentReader(b *testing.B) {
-	points := map[string][]tsm1.Value{}
+	points := map[string][]value.Value{}
 	for i := 0; i < 5000; i++ {
 		k := "cpu,host=A#!~#value"
-		points[k] = append(points[k], tsm1.NewValue(int64(i), 1.1))
+		points[k] = append(points[k], value.NewValue(int64(i), 1.1))
 	}
 
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
 	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
+	w := NewWALSegmentWriter(f)
 
-	write := &tsm1.WriteWALEntry{
+	write := &WriteWALEntry{
 		Values: points,
 	}
 
@@ -826,7 +826,7 @@ func BenchmarkWALSegmentReader(b *testing.B) {
 		}
 	}
 
-	r := tsm1.NewWALSegmentReader(f)
+	r := NewWALSegmentReader(f)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -852,7 +852,7 @@ func MustReadFileSize(f *os.File) int64 {
 	return stat.Size()
 }
 
-func mustMarshalEntry(entry tsm1.WALEntry) (tsm1.WalEntryType, []byte) {
+func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 	bytes := make([]byte, 1024<<2)
 
 	b, err := entry.Encode(bytes)

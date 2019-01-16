@@ -14,7 +14,7 @@ func makeIntegerValues(count int, min, max int64) IntegerValues {
 	inc := (max - min) / int64(count)
 
 	for i := 0; i < count; i++ {
-		vals[i].unixnano = ts
+		vals[i] = NewRawIntegerValue(ts, 0)
 		ts += inc
 	}
 
@@ -24,7 +24,7 @@ func makeIntegerValues(count int, min, max int64) IntegerValues {
 func makeIntegerValuesFromSlice(t []int64) IntegerValues {
 	iv := make(IntegerValues, len(t))
 	for i, v := range t {
-		iv[i].unixnano = v
+		iv[i] = NewRawIntegerValue(v, 0)
 	}
 	return iv
 }
@@ -91,7 +91,7 @@ func TestIntegerValues_Exclude(t *testing.T) {
 			vals = vals.Exclude(tc.min, tc.max)
 			var got []int64
 			for _, v := range vals {
-				got = append(got, v.unixnano)
+				got = append(got, v.UnixNano())
 			}
 			opt := cmp.AllowUnexported(IntegerValue{})
 			if !cmp.Equal(tc.exp, got, opt) {
@@ -122,7 +122,7 @@ func TestIntegerValues_Include(t *testing.T) {
 			vals = vals.Include(tc.min, tc.max)
 			var got []int64
 			for _, v := range vals {
-				got = append(got, v.unixnano)
+				got = append(got, v.UnixNano())
 			}
 			opt := cmp.AllowUnexported(IntegerValue{})
 			if !cmp.Equal(tc.exp, got, opt) {

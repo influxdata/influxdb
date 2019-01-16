@@ -1,4 +1,4 @@
-package tsm1
+package wal
 
 import "sync"
 

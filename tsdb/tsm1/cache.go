@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -646,7 +647,7 @@ func NewCacheLoader(files []string) *CacheLoader {
 // continues with the next segment file.
 func (cl *CacheLoader) Load(cache *Cache) error {
 
-	var r *WALSegmentReader
+	var r *wal.WALSegmentReader
 	for _, fn := range cl.files {
 		if err := func() error {
 			f, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0666)
@@ -668,7 +669,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			}
 
 			if r == nil {
-				r = NewWALSegmentReader(f)
+				r = wal.NewWALSegmentReader(f)
 				defer r.Close()
 			} else {
 				r.Reset(f)
@@ -686,13 +687,13 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 				}
 
 				switch t := entry.(type) {
-				case *WriteWALEntry:
+				case *wal.WriteWALEntry:
 					if err := cache.WriteMulti(t.Values); err != nil {
 						return err
 					}
-				case *DeleteRangeWALEntry:
+				case *wal.DeleteRangeWALEntry:
 					cache.DeleteRange(t.Keys, t.Min, t.Max)
-				case *DeleteWALEntry:
+				case *wal.DeleteWALEntry:
 					cache.Delete(t.Keys)
 				}
 			}
