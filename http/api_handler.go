@@ -94,11 +94,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	macroBackend.MacroService = authorizer.NewMacroService(b.MacroService)
 	h.MacroHandler = NewMacroHandler(macroBackend)
 
-	h.AuthorizationHandler = NewAuthorizationHandler(b.UserService)
-	h.AuthorizationHandler.OrganizationService = b.OrganizationService
-	h.AuthorizationHandler.AuthorizationService = b.AuthorizationService
-	h.AuthorizationHandler.LookupService = b.LookupService
-	h.AuthorizationHandler.Logger = b.Logger.With(zap.String("handler", "auth"))
+	authorizationBackend := NewAuthorizationBackend(b)
+	h.AuthorizationHandler = NewAuthorizationHandler(authorizationBackend)
 
 	h.ScraperHandler = NewScraperHandler()
 	h.ScraperHandler.ScraperStorageService = b.ScraperTargetStoreService
