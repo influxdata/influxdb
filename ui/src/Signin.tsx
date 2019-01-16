@@ -63,7 +63,10 @@ export class Signin extends PureComponent<Props, State> {
       await getMe()
     } catch (error) {
       clearInterval(this.intervalID)
-      this.props.router.push('/signin')
+      this.props.router.push({
+        pathname: '/signin',
+        state: {from: this.props.location.pathname},
+      })
     }
   }
 }
