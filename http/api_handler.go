@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
@@ -79,7 +80,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
 
 	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.OrgHandler.OrganizationService = b.OrganizationService
+	h.OrgHandler.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
 	h.OrgHandler.BucketService = b.BucketService
 	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
 	h.OrgHandler.SecretService = b.SecretService
