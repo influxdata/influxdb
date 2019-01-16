@@ -8,6 +8,7 @@ import {getMe} from 'src/shared/apis/v2/user'
 
 // Types
 import {RemoteDataState} from 'src/types'
+import {Actions} from 'history'
 
 interface State {
   loading: RemoteDataState
@@ -63,9 +64,17 @@ export class Signin extends PureComponent<Props, State> {
       await getMe()
     } catch (error) {
       clearInterval(this.intervalID)
+      const {location} = this.props
+      let from = '/me'
+
+      // record pathname on page load pop event
+      if (location.action === Actions.POP) {
+        from = location.pathname
+      }
+
       this.props.router.push({
         pathname: '/signin',
-        state: {from: this.props.location.pathname},
+        state: {from},
       })
     }
   }

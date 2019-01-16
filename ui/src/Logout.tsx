@@ -22,7 +22,7 @@ export class Logout extends PureComponent<Props> {
 
   private handleSignOut = async () => {
     await logout()
-    this.props.router.push('/me')
+    this.props.router.push('/')
   }
 }
 
