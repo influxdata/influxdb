@@ -4,11 +4,11 @@ import "github.com/influxdata/influxdb"
 
 // Authorizer is mock authorizer that can be used in testing.
 type Authorizer struct {
-	Permission influxdb.Permission
+	Permissions []influxdb.Permission
 }
 
 func (a *Authorizer) Allowed(p influxdb.Permission) bool {
-	return influxdb.PermissionAllowed(p, []influxdb.Permission{a.Permission})
+	return influxdb.PermissionAllowed(p, a.Permissions)
 }
 
 func (a *Authorizer) Identifier() influxdb.ID {

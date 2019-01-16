@@ -105,7 +105,7 @@ func TestOrgService_FindOrganizationByID(t *testing.T) {
 			s := authorizer.NewOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permission})
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
 			_, err := s.FindOrganizationByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -188,7 +188,7 @@ func TestOrgService_FindOrganization(t *testing.T) {
 			s := authorizer.NewOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permission})
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
 			_, err := s.FindOrganization(ctx, influxdb.OrganizationFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -298,7 +298,7 @@ func TestOrgService_FindOrganizations(t *testing.T) {
 			s := authorizer.NewOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permission})
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
 			orgs, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -388,7 +388,7 @@ func TestOrgService_UpdateOrganization(t *testing.T) {
 			s := authorizer.NewOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permission})
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
 			_, err := s.UpdateOrganization(ctx, tt.args.id, influxdb.OrganizationUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -470,7 +470,7 @@ func TestOrgService_DeleteOrganization(t *testing.T) {
 			s := authorizer.NewOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permission})
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
 			err := s.DeleteOrganization(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
@@ -548,7 +548,7 @@ func TestOrgService_CreateOrganization(t *testing.T) {
 			s := authorizer.NewOrgService(tt.fields.OrgService)
 
 			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permission})
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
 			err := s.CreateOrganization(ctx, &influxdb.Organization{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
