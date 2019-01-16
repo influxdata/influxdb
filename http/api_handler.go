@@ -72,6 +72,9 @@ type APIBackend struct {
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
 func NewAPIHandler(b *APIBackend) *APIHandler {
 	h := &APIHandler{}
+	b.BucketService = authorizer.NewBucketService(b.BucketService)
+	b.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
+
 	sessionBackend := NewSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
 
@@ -80,7 +83,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
 
 	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.OrgHandler.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
+	h.OrgHandler.OrganizationService = b.OrganizationService
 	h.OrgHandler.BucketService = b.BucketService
 	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
 	h.OrgHandler.SecretService = b.SecretService
