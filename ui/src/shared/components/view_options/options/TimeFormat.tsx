@@ -1,8 +1,17 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Form, Grid, Input, InputType, Dropdown, Columns} from 'src/clockface'
-import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
+import {
+  ComponentSpacer,
+  Stack,
+  Alignment,
+  Form,
+  Grid,
+  Input,
+  InputType,
+  Dropdown,
+  Columns,
+} from 'src/clockface'
 
 // Constants
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
@@ -11,6 +20,9 @@ import {
   TIME_FORMAT_CUSTOM,
   TIME_FORMAT_TOOLTIP_LINK,
 } from 'src/dashboards/constants'
+
+// Styles
+import 'src/shared/components/view_options/options/TimeFormat.scss'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -36,9 +48,9 @@ class TimeFormat extends PureComponent<Props, State> {
     const {format} = this.state
 
     return (
-      <Grid.Column widthXS={Columns.Twelve}>
-        <Form.Element label="Time Format" labelAddOn={this.timeFormatTooltip}>
-          <>
+      <Grid.Column widthSM={Columns.Six}>
+        <Form.Element label="Time Format">
+          <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
             <Dropdown
               selectedID={this.showCustom ? TIME_FORMAT_CUSTOM : format}
               onChange={this.handleChooseFormat}
@@ -50,18 +62,9 @@ class TimeFormat extends PureComponent<Props, State> {
                 </Dropdown.Item>
               ))}
             </Dropdown>
-            {this.showCustom && (
-              <Input
-                type={InputType.Text}
-                spellCheck={false}
-                placeholder="Enter custom format..."
-                value={format}
-                data-test="custom-time-format"
-                customClass="custom-time-format"
-                onChange={this.handleChangeFormat}
-              />
-            )}
-          </>
+            {this.customTimeInput}
+            {this.helpBox}
+          </ComponentSpacer>
         </Form.Element>
       </Grid.Column>
     )
@@ -72,21 +75,6 @@ class TimeFormat extends PureComponent<Props, State> {
 
     const formatOption = FORMAT_OPTIONS.find(op => op.text === format)
     return !formatOption || customFormat
-  }
-
-  private timeFormatTooltip = (): JSX.Element => {
-    const tipContent = `For information on formatting, see <br/><a href="#">${TIME_FORMAT_TOOLTIP_LINK}</a>`
-
-    if (this.showCustom) {
-      return (
-        <a href={TIME_FORMAT_TOOLTIP_LINK} target="_blank">
-          <QuestionMarkTooltip
-            tipID="Time Axis Format"
-            tipContent={tipContent}
-          />
-        </a>
-      )
-    }
   }
 
   private get onTimeFormatChange() {
@@ -105,6 +93,39 @@ class TimeFormat extends PureComponent<Props, State> {
     } else {
       this.onTimeFormatChange(format)
       this.setState({format, customFormat: false})
+    }
+  }
+
+  private get customTimeInput(): JSX.Element {
+    const {format} = this.state
+
+    if (this.showCustom) {
+      return (
+        <Input
+          type={InputType.Text}
+          spellCheck={false}
+          placeholder="Enter custom format..."
+          value={format}
+          data-test="custom-time-format"
+          customClass="custom-time-format"
+          onChange={this.handleChangeFormat}
+        />
+      )
+    }
+  }
+
+  private get helpBox(): JSX.Element {
+    if (this.showCustom) {
+      return (
+        <Form.Box>
+          <p className="time-format--helper">
+            For help with formatting time, see{' '}
+            <a href={TIME_FORMAT_TOOLTIP_LINK} target="_blank">
+              MomentJS Docs
+            </a>
+          </p>
+        </Form.Box>
+      )
     }
   }
 }
