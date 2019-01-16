@@ -3,6 +3,7 @@
   ------------------------------------------------------------------------------
 */
 
+/* First & Last Steps */
 .wizard--bookend-step {
   display: inline-flex;
   flex-direction: column;
@@ -32,8 +33,12 @@
   &.secondary {
     background-image: url('../../assets/images/cubo_doodle_green.svg');
   }
+  &.secondary + h3 {
+    margin-top: $ix-marg-d;
+  }
 }
 
+/* General */
 .wizard-contents {
   display: flex;
   align-items: stretch;
@@ -64,6 +69,57 @@
   flex: 1 0 calc(100% - 240px);
 }
 
+
+.onboarding-step {
+  min-width: 100%;
+  min-height: 100%;
+  text-align: center;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  transition: max-width .4s ease-in-out;
+}
+
+.wizard-step--scroll-area {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(100% - 102px);
+  border: $ix-border solid $g5-pepper;
+  border-radius: $ix-radius;
+}
+
+.wizard--skippable {
+  .wizard-step--scroll-area {
+    height: calc(100% - 147px);
+  }
+}
+
+.wizard-step--scroll-content {
+  width: 100%;
+  max-width: 90%;
+  min-height: 100%;
+  margin: o auto $ix-marg-d auto;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.wizard-step--grid-container {
+  width: 90%;
+  display: block;
+  margin: 0 auto;
+}
+
+.wizard-step--filter {
+  float:right;
+  padding-bottom: 15px;
+}
+
+/* Buttons */
 .wizard--button-container {
   position: absolute;
   bottom: $ix-marg-d;
@@ -101,6 +157,31 @@
   }
 }
 
+.wizard-step--footer {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: $radius;
+  height: 50px;
+  width: 100%;
+  margin-top: 10px;
+  background-color: $g6-smoke;
+  text-align: center;
+
+  > label {
+    font-size: small;
+    color: $g11-sidewalk;
+    margin: 10px;
+  }
+
+  &.dropdown {
+    justify-content: left;
+    align-items: left;
+    text-align: left;
+  }
+}
+
+/* Titles */
 .wizard-step--title {
   font-size: 32px;
   font-weight: 300;
@@ -118,6 +199,7 @@
   @include no-user-select();
 }
 
+/* Streaming */
 .wizard-step--body,
 .wizard-step--body-streaming {
   background-color: $g2-kevlar;
@@ -168,6 +250,7 @@
   margin-left: 10px;
 }
 
+/* Line Protocol */
 .wizard-step--lp-body {
   height: 280px;
   flex-shrink: 1;
@@ -192,77 +275,25 @@
   margin-top: 20px;
 }
 
-.wizard-step--footer {
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: $radius;
-  height: 50px;
-  width: 100%;
-  margin-top: 10px;
-  background-color: $g6-smoke;
-  text-align: center;
+/* Completion */
 
-  > label {
-    font-size: small;
+.wizard-completion--options {
+  font-size: 16px;
+
+  .wizard-completion--option {
+    margin: $ix-marg-c 0;
+  }
+
+  dt {
+    margin: $ix-marg-c 0;
+    font-weight: 700;
+    color: $g15-platinum;
+  }
+
+  dd {
+    font-weight: 400;
     color: $g11-sidewalk;
-    margin: 10px;
   }
-
-  &.dropdown {
-    justify-content: left;
-    align-items: left;
-    text-align: left;
-  }
-}
-
-.onboarding-step {
-  min-width: 100%;
-  min-height: 100%;
-  text-align: center;
-  position: relative;
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  transition: max-width .4s ease-in-out;
-}
-
-.wizard-step--scroll-area {
-  display: block;
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: calc(100% - 102px);
-  border: $ix-border solid $g5-pepper;
-  border-radius: $ix-radius;
-}
-
-.wizard--skippable {
-  .wizard-step--scroll-area {
-    height: calc(100% - 147px);
-  }
-}
-
-.wizard-step--scroll-content {
-  width: 100%;
-  max-width: 90%;
-  min-height: 100%;
-  margin: o auto $ix-marg-d auto;
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.wizard-step--grid-container {
-  width: 90%;
-  display: block;
-  margin: 0 auto;
-}
-
-.wizard-step--filter {
-  float:right;
-  padding-bottom: 15px;
 }
 
 @media screen and (min-width: $grid--breakpoint-md) {
