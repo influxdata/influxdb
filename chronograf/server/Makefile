@@ -1,7 +1,7 @@
 # List any generated files here
 TARGETS = swagger_gen.go
 # List any source files used to generate the targets here
-SOURCES = swagger.json
+SOURCES = swagger.json swagger.go
 # List any directories that have their own Makefile here
 SUBDIRS =
 
