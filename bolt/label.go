@@ -9,16 +9,23 @@ import (
 )
 
 var (
-	labelBucket = []byte("labelsv1")
+	labelBucket        = []byte("labelsv1")
+	labelMappingBucket = []byte("labelmappingsv1")
 )
 
 func (c *Client) initializeLabels(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(labelBucket)); err != nil {
 		return err
 	}
+
+	if _, err := tx.CreateBucketIfNotExists([]byte(labelMappingBucket)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
+// FindLabelByID finds a label by its ID
 func (c *Client) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
 	var l *platform.Label
 
@@ -115,6 +122,17 @@ func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMa
 }
 
 func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		return c.putLabelMapping(ctx, tx, m)
+	})
+
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpCreateLabel),
+		}
+	}
+
 	return nil
 }
 
@@ -149,8 +167,8 @@ func (c *Client) PutLabel(ctx context.Context, l *platform.Label) error {
 	})
 }
 
-func labelKey(l *platform.Label) ([]byte, error) {
-	encodedID, err := l.ID.Encode()
+func labelMappingKey(m *platform.LabelMapping) ([]byte, error) {
+	lid, err := m.LabelID.Encode()
 	if err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,
@@ -158,9 +176,17 @@ func labelKey(l *platform.Label) ([]byte, error) {
 		}
 	}
 
-	key := make([]byte, len(encodedID)+len(l.Name))
-	copy(key, encodedID)
-	copy(key[len(encodedID):], l.Name)
+	rid, err := m.ResourceID.Encode()
+	if err != nil {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
+	}
+
+	key := make([]byte, len(lid)+len(rid))
+	copy(key, lid)
+	copy(key[len(lid):], rid)
 
 	return key, nil
 }
@@ -257,6 +283,30 @@ func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) e
 	return nil
 }
 
+func (c *Client) putLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.LabelMapping) error {
+	v, err := json.Marshal(m)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	key, err := labelMappingKey(m)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	if err := tx.Bucket(labelBucket).Put(key, v); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // DeleteLabel deletes a label.
 func (c *Client) DeleteLabel(ctx context.Context, id platform.ID) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
@@ -286,19 +336,22 @@ func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, id platform.ID) e
 	return tx.Bucket(labelBucket).Delete(encodedID)
 }
 
-func (c *Client) deleteLabels(ctx context.Context, tx *bolt.Tx, filter platform.LabelFilter) error {
-	ls, err := c.findLabels(ctx, tx, filter)
-	if err != nil {
-		return err
-	}
-	for _, l := range ls {
-		key, err := labelKey(l)
-		if err != nil {
-			return err
-		}
-		if err = tx.Bucket(labelBucket).Delete(key); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+// func (c *Client) deleteLabels(ctx context.Context, tx *bolt.Tx, filter platform.LabelFilter) error {
+// 	ls, err := c.findLabels(ctx, tx, filter)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	for _, l := range ls {
+// 		encodedID, idErr := l.ID.Encode()
+// 		if idErr != nil {
+// 			return &platform.Error{
+// 				Err: idErr,
+// 			}
+// 		}
+//
+// 		if err = tx.Bucket(labelBucket).Delete(encodedID); err != nil {
+// 			return err
+// 		}
+// 	}
+// 	return nil
+// }

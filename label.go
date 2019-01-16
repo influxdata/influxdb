@@ -8,11 +8,12 @@ import (
 const ErrLabelNotFound = ChronografError("label not found")
 
 const (
-	OpFindLabels    = "FindLabels"
-	OpFindLabelByID = "FindLabelByID"
-	OpCreateLabel   = "CreateLabel"
-	OpUpdateLabel   = "UpdateLabel"
-	OpDeleteLabel   = "DeleteLabel"
+	OpFindLabels         = "FindLabels"
+	OpFindLabelByID      = "FindLabelByID"
+	OpCreateLabel        = "CreateLabel"
+	OpCreateLabelMapping = "CreateLabelMapping"
+	OpUpdateLabel        = "UpdateLabel"
+	OpDeleteLabel        = "DeleteLabel"
 )
 
 // LabelService represents a service for managing resource labels
