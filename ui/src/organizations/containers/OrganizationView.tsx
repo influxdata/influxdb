@@ -176,7 +176,11 @@ class OrganizationView extends PureComponent<Props> {
                 >
                   {(scrapers, loading, fetch) => (
                     <Spinner loading={loading}>
-                      <Scrapers scrapers={scrapers} onChange={fetch} />
+                      <Scrapers
+                        scrapers={scrapers}
+                        onChange={fetch}
+                        orgName={org.name}
+                      />
                     </Spinner>
                   )}
                 </GetOrgResources>
