@@ -27,6 +27,7 @@ type BucketBackend struct {
 	OrganizationService        platform.OrganizationService
 }
 
+// NewBucketBackend returns a new instance of BucketBackend.
 func NewBucketBackend(b *APIBackend) *BucketBackend {
 	return &BucketBackend{
 		Logger: b.Logger.With(zap.String("handler", "bucket")),

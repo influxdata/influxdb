@@ -18,6 +18,27 @@ import (
 	"go.uber.org/zap"
 )
 
+// WriteBackend is all services and associated parameters required to construct
+// the WriteHandler.
+type WriteBackend struct {
+	Logger *zap.Logger
+
+	PointsWriter        storage.PointsWriter
+	BucketService       platform.BucketService
+	OrganizationService platform.OrganizationService
+}
+
+// NewWriteBackend returns a new instance of WriteBackend.
+func NewWriteBackend(b *APIBackend) *WriteBackend {
+	return &WriteBackend{
+		Logger: b.Logger.With(zap.String("handler", "write")),
+
+		PointsWriter:        b.PointsWriter,
+		BucketService:       b.BucketService,
+		OrganizationService: b.OrganizationService,
+	}
+}
+
 // WriteHandler receives line protocol and sends to a publish function.
 type WriteHandler struct {
 	*httprouter.Router
@@ -37,11 +58,14 @@ const (
 )
 
 // NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
-func NewWriteHandler(writer storage.PointsWriter) *WriteHandler {
+func NewWriteHandler(b *WriteBackend) *WriteHandler {
 	h := &WriteHandler{
-		Router:       NewRouter(),
-		Logger:       zap.NewNop(),
-		PointsWriter: writer,
+		Router: NewRouter(),
+		Logger: b.Logger,
+
+		PointsWriter:        b.PointsWriter,
+		BucketService:       b.BucketService,
+		OrganizationService: b.OrganizationService,
 	}
 
 	h.HandlerFunc("POST", writePath, h.handleWrite)
