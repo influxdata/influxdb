@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"path"
 	"strconv"
 
@@ -263,7 +262,7 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newGetDashboardsResponse(ctx, dashboards, req.filter, h.LabelService)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newGetDashboardsResponse(ctx, dashboards, req.filter, req.opts, h.LabelService)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -278,6 +277,12 @@ type getDashboardsRequest struct {
 func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashboardsRequest, error) {
 	qp := r.URL.Query()
 	req := &getDashboardsRequest{}
+
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	req.opts = *opts
 
 	initialID := platform.InvalidID()
 	if ids, ok := qp["id"]; ok {
@@ -303,12 +308,6 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 		req.filter.Organization = &org
 	}
 
-	req.opts = platform.DefaultDashboardFindOptions
-
-	if sortBy := qp.Get("sortBy"); sortBy != "" {
-		req.opts.SortBy = sortBy
-	}
-
 	return req, nil
 }
 
@@ -317,8 +316,8 @@ type getDashboardsLinks struct {
 }
 
 type getDashboardsResponse struct {
-	Links      getDashboardsLinks  `json:"links"`
-	Dashboards []dashboardResponse `json:"dashboards"`
+	Links      *platform.PagingLinks `json:"links"`
+	Dashboards []dashboardResponse   `json:"dashboards"`
 }
 
 func (d getDashboardsResponse) toPlatform() []*platform.Dashboard {
@@ -329,29 +328,9 @@ func (d getDashboardsResponse) toPlatform() []*platform.Dashboard {
 	return res
 }
 
-func newGetDashboardsResponse(ctx context.Context, dashboards []*platform.Dashboard, filter platform.DashboardFilter, labelService platform.LabelService) getDashboardsResponse {
-	qp := url.Values{}
-	for _, id := range filter.IDs {
-		qp.Add("id", id.String())
-	}
-
-	if filter.OrganizationID != nil {
-		qp.Add("orgID", filter.OrganizationID.String())
-	}
-
-	if filter.Organization != nil {
-		qp.Add("org", *filter.Organization)
-	}
-
-	self := "/api/v2/dashboards"
-	if len(qp) > 0 {
-		self = self + "?" + qp.Encode()
-	}
-
+func newGetDashboardsResponse(ctx context.Context, dashboards []*platform.Dashboard, filter platform.DashboardFilter, opts platform.FindOptions, labelService platform.LabelService) getDashboardsResponse {
 	res := getDashboardsResponse{
-		Links: getDashboardsLinks{
-			Self: self,
-		},
+		Links:      newPagingLinks(dashboardsPath, opts, filter, len(dashboards)),
 		Dashboards: make([]dashboardResponse, 0, len(dashboards)),
 	}
 
@@ -992,12 +971,19 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 	}
 
 	qp := url.Query()
-	qp.Add("sortBy", opts.SortBy)
 	for _, id := range filter.IDs {
 		qp.Add("id", id.String())
 	}
 	if filter.OrganizationID != nil {
 		qp.Add("orgID", filter.OrganizationID.String())
+	}
+	if filter.Organization != nil {
+		qp.Add("org", *filter.Organization)
+	}
+	for k, vs := range opts.QueryParams() {
+		for _, v := range vs {
+			qp.Add(k, v)
+		}
 	}
 	url.RawQuery = qp.Encode()
 
