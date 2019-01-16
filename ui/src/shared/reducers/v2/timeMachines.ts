@@ -688,6 +688,8 @@ const convertView = (
 
   newView.properties.queries = cloneDeep(view.properties.queries)
   newView.name = view.name
+  newView.cellID = view.cellID
+  newView.dashboardID = view.dashboardID
   newView.id = (view as any).id
   newView.links = (view as any).links
 
