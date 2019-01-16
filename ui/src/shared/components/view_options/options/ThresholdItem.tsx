@@ -8,6 +8,7 @@ import {
   InputType,
   ComponentStatus,
   ButtonType,
+  ComponentSize,
 } from 'src/clockface'
 
 import ColorDropdown from 'src/shared/components/ColorDropdown'
@@ -62,6 +63,7 @@ class Threshold extends PureComponent<Props, State> {
           {isDeletable &&
             !isBase && (
               <Button
+                size={ComponentSize.ExtraSmall}
                 shape={ButtonShape.Square}
                 onClick={this.handleDelete}
                 icon={IconFont.Remove}
