@@ -31,7 +31,7 @@ class CompletionQuickStartButton extends PureComponent<Props> {
 
   private handleAdvanced = (): void => {
     const {router, dashboards} = this.props
-    const id = _.get(dashboards, 0, 'id')
+    const id = _.get(dashboards, '[0].id', null)
     if (id) {
       router.push(`/dashboards/${id}`)
     } else {
