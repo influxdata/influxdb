@@ -16,6 +16,30 @@ import (
 	"go.uber.org/zap"
 )
 
+// DashboardBackend is all services and associated parameters required to construct
+// the DashboardHandler.
+type DashboardBackend struct {
+	Logger *zap.Logger
+
+	DashboardService             platform.DashboardService
+	DashboardOperationLogService platform.DashboardOperationLogService
+	UserResourceMappingService   platform.UserResourceMappingService
+	LabelService                 platform.LabelService
+	UserService                  platform.UserService
+}
+
+func NewDashboardBackend(b *APIBackend) *DashboardBackend {
+	return &DashboardBackend{
+		Logger: b.Logger.With(zap.String("handler", "dashboard")),
+
+		DashboardService:             b.DashboardService,
+		DashboardOperationLogService: b.DashboardOperationLogService,
+		UserResourceMappingService:   b.UserResourceMappingService,
+		LabelService:                 b.LabelService,
+		UserService:                  b.UserService,
+	}
+}
+
 // DashboardHandler is the handler for the dashboard service
 type DashboardHandler struct {
 	*httprouter.Router
@@ -45,14 +69,16 @@ const (
 )
 
 // NewDashboardHandler returns a new instance of DashboardHandler.
-func NewDashboardHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, userService platform.UserService) *DashboardHandler {
+func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h := &DashboardHandler{
 		Router: NewRouter(),
-		Logger: zap.NewNop(),
+		Logger: b.Logger,
 
-		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
-		UserService:                userService,
+		DashboardService:             b.DashboardService,
+		DashboardOperationLogService: b.DashboardOperationLogService,
+		UserResourceMappingService:   b.UserResourceMappingService,
+		LabelService:                 b.LabelService,
+		UserService:                  b.UserService,
 	}
 
 	h.HandlerFunc("POST", dashboardsPath, h.handlePostDashboard)

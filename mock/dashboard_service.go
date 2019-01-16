@@ -24,6 +24,39 @@ type DashboardService struct {
 	ReplaceDashboardCellsF   func(ctx context.Context, id platform.ID, cs []*platform.Cell) error
 }
 
+// NewDashboardService returns a mock of DashboardService where its methods will return zero values.
+func NewDashboardService() *DashboardService {
+	return &DashboardService{
+		CreateDashboardF:   func(context.Context, *platform.Dashboard) error { return nil },
+		FindDashboardByIDF: func(context.Context, platform.ID) (*platform.Dashboard, error) { return nil, nil },
+		FindDashboardsF: func(context.Context, platform.DashboardFilter, platform.FindOptions) ([]*platform.Dashboard, int, error) {
+			return nil, 0, nil
+		},
+		UpdateDashboardF: func(context.Context, platform.ID, platform.DashboardUpdate) (*platform.Dashboard, error) {
+			return nil, nil
+		},
+		DeleteDashboardF: func(context.Context, platform.ID) error { return nil },
+
+		AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opts platform.AddDashboardCellOptions) error {
+			return nil
+		},
+		RemoveDashboardCellF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) error { return nil },
+		GetDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*platform.View, error) {
+			return nil, nil
+		},
+		UpdateDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
+			return nil, nil
+		},
+		UpdateDashboardCellF: func(ctx context.Context, dashbaordID platform.ID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+			return nil, nil
+		},
+		CopyDashboardCellF: func(ctx context.Context, dashbaordID platform.ID, cellID platform.ID) (*platform.Cell, error) {
+			return nil, nil
+		},
+		ReplaceDashboardCellsF: func(ctx context.Context, id platform.ID, cs []*platform.Cell) error { return nil },
+	}
+}
+
 func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
 	return s.FindDashboardByIDF(ctx, id)
 }
