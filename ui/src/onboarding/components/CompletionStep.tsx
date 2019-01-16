@@ -52,7 +52,7 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
                       <CompletionQuickStartButton dashboards={dashboards} />
                     )}
                   </ResourceFetcher>
-                  <dt>Time is of the Essence!</dt>
+                  <dt>Time is of the essence!</dt>
                   <dd>
                     This will set up local metric collection and allow you to
                     explore the features of InfluxDB 2.0 quickly.

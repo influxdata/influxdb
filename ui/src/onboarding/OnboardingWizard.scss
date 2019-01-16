@@ -33,6 +33,9 @@
   &.secondary {
     background-image: url('../../assets/images/cubo_doodle_green.svg');
   }
+  &.secondary + h3 {
+    margin-top: $ix-marg-d;
+  }
 }
 
 /* General */
@@ -284,7 +287,7 @@
   dt {
     margin: $ix-marg-c 0;
     font-weight: 700;
-    color: $g11-sidewalk;
+    color: $g15-platinum;
   }
 
   dd {
