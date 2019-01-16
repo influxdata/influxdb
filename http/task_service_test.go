@@ -4,19 +4,32 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/julienschmidt/httprouter"
 )
+
+// NewMockTaskBackend returns a TaskBackend with mock services.
+func NewMockTaskBackend() *TaskBackend {
+	return &TaskBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "task")),
+
+		TaskService:                &mock.TaskService{},
+		AuthorizationService:       mock.NewAuthorizationService(),
+		OrganizationService:        mock.NewOrganizationService(),
+		UserResourceMappingService: mock.NewUserResourceMappingService(),
+		LabelService:               mock.NewLabelService(),
+		UserService:                mock.NewUserService(),
+	}
+}
 
 func TestTaskHandler_handleGetTasks(t *testing.T) {
 	type fields struct {
@@ -147,9 +160,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
-			h.TaskService = tt.fields.taskService
-			h.LabelService = tt.fields.labelService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			taskBackend.LabelService = tt.fields.labelService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetTasks(w, r)
 
 			res := w.Result()
@@ -250,8 +264,9 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handlePostTask(w, r)
 
 			res := w.Result()
@@ -354,8 +369,9 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetRun(w, r)
 
 			res := w.Result()
@@ -462,8 +478,9 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetRuns(w, r)
 
 			res := w.Result()
