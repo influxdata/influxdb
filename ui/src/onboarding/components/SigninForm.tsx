@@ -122,10 +122,10 @@ class SigninForm extends PureComponent<Props, State> {
 
   private handleRedirect() {
     const {router} = this.props
-    const {state} = this.props.location
+    const {query} = this.props.location
 
-    if (state && state.from) {
-      router.push(state.from)
+    if (query && query.returnTo) {
+      router.push(query.returnTo)
     } else {
       router.push('/me')
     }
