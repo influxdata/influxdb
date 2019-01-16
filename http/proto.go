@@ -122,6 +122,7 @@ func (h *ProtoHandler) handleGetProtos(w http.ResponseWriter, r *http.Request) {
 type createProtoResourcesRequest struct {
 	ProtoID        platform.ID `json:"-"`
 	OrganizationID platform.ID `json:"orgID"`
+	opts           platform.FindOptions
 }
 
 // Decode turns an http request into a createProtoResourceRequest.
@@ -131,6 +132,12 @@ func (r *createProtoResourcesRequest) Decode(req *http.Request) error {
 	if err != nil {
 		return err
 	}
+
+	opts, err := decodeFindOptions(ctx, req)
+	if err != nil {
+		return err
+	}
+	r.opts = *opts
 
 	r.ProtoID = id
 
@@ -157,7 +164,7 @@ func (h *ProtoHandler) handlePostProtosDashboards(w http.ResponseWriter, r *http
 	}
 
 	filter := platform.DashboardFilter{OrganizationID: &req.OrganizationID}
-	if err := encodeResponse(ctx, w, http.StatusCreated, newGetDashboardsResponse(ctx, ds, filter, h.LabelService)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newGetDashboardsResponse(ctx, ds, filter, req.opts, h.LabelService)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
