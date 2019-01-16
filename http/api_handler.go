@@ -127,10 +127,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	writeBackend := NewWriteBackend(b)
 	h.WriteHandler = NewWriteHandler(writeBackend)
 
-	h.QueryHandler = NewFluxHandler()
-	h.QueryHandler.OrganizationService = b.OrganizationService
-	h.QueryHandler.Logger = b.Logger.With(zap.String("handler", "query"))
-	h.QueryHandler.ProxyQueryService = b.ProxyQueryService
+	fluxBackend := NewFluxBackend(b)
+	h.QueryHandler = NewFluxHandler(fluxBackend)
 
 	h.ProtoHandler = NewProtoHandler(NewProtoBackend(b))
 
