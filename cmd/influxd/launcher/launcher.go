@@ -75,16 +75,18 @@ type Launcher struct {
 	natsServer *nats.Server
 
 	scheduler *taskbackend.TickScheduler
+	taskStore taskbackend.Store
 
 	logger *zap.Logger
 	reg    *prom.Registry
 
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
-
 	// BuildInfo contains commit, version and such of influxdb.
 	BuildInfo platform.BuildInfo
+
+	Stdin      io.Reader
+	Stdout     io.Writer
+	Stderr     io.Writer
+	apibackend *http.APIBackend
 }
 
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
@@ -402,6 +404,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		lr := taskbackend.NewQueryLogReader(queryService)
 		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler)
 		taskSvc = task.NewValidator(taskSvc, bucketSvc)
+		m.taskStore = boltStore
 	}
 
 	// NATS streaming server
@@ -450,7 +453,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		Addr: m.httpBindAddress,
 	}
 
-	handlerConfig := &http.APIBackend{
+	m.apibackend = &http.APIBackend{
 		DeveloperMode:        m.developerMode,
 		Logger:               m.logger,
 		NewBucketService:     source.NewBucketService,
@@ -486,7 +489,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	// HTTP server
 	httpLogger := m.logger.With(zap.String("service", "http"))
-	platformHandler := http.NewPlatformHandler(handlerConfig)
+	platformHandler := http.NewPlatformHandler(m.apibackend)
 	m.reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
 	h := http.NewHandlerFromRegistry("platform", m.reg)
@@ -519,4 +522,36 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}(httpLogger)
 
 	return nil
+}
+
+func (m *Launcher) OrganizationService() platform.OrganizationService {
+	return m.apibackend.OrganizationService
+}
+
+func (m *Launcher) QueryController() *pcontrol.Controller {
+	return m.queryController
+}
+
+func (m *Launcher) BucketService() platform.BucketService {
+	return m.apibackend.BucketService
+}
+
+func (m *Launcher) UserService() platform.UserService {
+	return m.apibackend.UserService
+}
+
+func (m *Launcher) AuthorizationService() platform.AuthorizationService {
+	return m.apibackend.AuthorizationService
+}
+
+func (m *Launcher) TaskService() platform.TaskService {
+	return m.apibackend.TaskService
+}
+
+func (m *Launcher) TaskStore() taskbackend.Store {
+	return m.taskStore
+}
+
+func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
+	return m.scheduler
 }
