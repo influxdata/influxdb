@@ -8,6 +8,11 @@ import (
 
 // TODO(goller): remove opPrefix argument
 func diffPlatformErrors(name string, actual, expected error, opPrefix string, t *testing.T) {
+	ErrorsEqual(t, actual, expected)
+}
+
+// ErrorsEqual checks to see if the provided errors are equivalent.
+func ErrorsEqual(t *testing.T, actual, expected error) {
 	if expected == nil && actual == nil {
 		return
 	}
