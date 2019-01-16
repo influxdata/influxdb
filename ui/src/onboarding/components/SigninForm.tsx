@@ -108,7 +108,7 @@ class SigninForm extends PureComponent<Props, State> {
 
     try {
       await signin({username, password})
-      this.redirectToPrevious()
+      this.handleRedirect()
     } catch (error) {
       const message = get(error, 'data.msg', '')
 
@@ -120,14 +120,14 @@ class SigninForm extends PureComponent<Props, State> {
     }
   }
 
-  private redirectToPrevious() {
+  private handleRedirect() {
     const {router} = this.props
     const {state} = this.props.location
 
     if (state && state.from) {
       router.push(state.from)
     } else {
-      router.push('/me')
+      router.push('/')
     }
   }
 }
