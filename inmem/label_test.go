@@ -10,9 +10,10 @@ import (
 
 func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, string, func()) {
 	s := NewService()
-	ctx := context.TODO()
-	for _, m := range f.Labels {
-		if err := s.CreateLabel(ctx, m); err != nil {
+	s.IDGenerator = f.IDGenerator
+	ctx := context.Background()
+	for _, l := range f.Labels {
+		if err := s.PutLabel(ctx, l); err != nil {
 			t.Fatalf("failed to populate labels")
 		}
 	}
@@ -21,5 +22,6 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 }
 
 func TestLabelService(t *testing.T) {
+	t.Parallel()
 	platformtesting.LabelService(initLabelService, t)
 }

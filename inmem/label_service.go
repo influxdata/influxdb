@@ -58,7 +58,24 @@ func (s *Service) FindLabelByID(ctx context.Context, id platform.ID) (*platform.
 
 // FindLabels will retrieve a list of labels from storage.
 func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
-	return nil, nil
+	if filter.ID.Valid() {
+		l, err := s.FindLabelByID(ctx, filter.ID)
+		if err != nil {
+			return nil, err
+		}
+		return []*platform.Label{l}, nil
+	}
+
+	filterFunc := func(label *platform.Label) bool {
+		return (filter.Name == "" || (filter.Name == label.Name))
+	}
+
+	labels, err := s.filterLabels(ctx, filterFunc)
+	if err != nil {
+		return nil, err
+	}
+
+	return labels, nil
 }
 
 // FindResourceLabels returns a list of labels that are mapped to a resource.
@@ -88,17 +105,7 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelM
 // CreateLabel creates a new label.
 func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
 	l.ID = s.IDGenerator.ID()
-	// label, _ := s.FindLabelBy(ctx, l.ResourceID, l.Name)
-	// if label != nil {
-	// 	return &platform.Error{
-	// 		Code: platform.EConflict,
-	// 		Op:   OpPrefix + platform.OpCreateLabel,
-	// 		Msg:  fmt.Sprintf("label %s already exists", l.Name),
-	// 	}
-	// }
-	//
-	// s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
-	// return nil
+	s.labelKV.Store(l.ID, *l)
 	return nil
 }
 
@@ -109,47 +116,59 @@ func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMappi
 
 // UpdateLabel updates a label.
 func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
-	// label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
-	// if err != nil {
-	// 	return nil, &platform.Error{
-	// 		Code: platform.ENotFound,
-	// 		Op:   OpPrefix + platform.OpUpdateLabel,
-	// 		Err:  err,
-	// 	}
-	// }
-	//
-	// if label.Properties == nil {
-	// 	label.Properties = make(map[string]string)
-	// }
-	//
-	// for k, v := range upd.Properties {
-	// 	if v == "" {
-	// 		delete(label.Properties, k)
-	// 	} else {
-	// 		label.Properties[k] = v
-	// 	}
-	// }
-	//
-	// if err := label.Validate(); err != nil {
-	// 	return nil, &platform.Error{
-	// 		Code: platform.EInvalid,
-	// 		Op:   OpPrefix + platform.OpUpdateLabel,
-	// 		Err:  err,
-	// 	}
-	// }
-	//
-	// s.labelKV.Store(encodeLabelKey(label.ResourceID, label.Name), *label)
-	//
-	// return label, nil
-	return nil, nil
+	label, err := s.FindLabelByID(ctx, id)
+	if err != nil {
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Op:   OpPrefix + platform.OpUpdateLabel,
+			Err:  err,
+		}
+	}
+
+	if label.Properties == nil {
+		label.Properties = make(map[string]string)
+	}
+
+	for k, v := range upd.Properties {
+		if v == "" {
+			delete(label.Properties, k)
+		} else {
+			label.Properties[k] = v
+		}
+	}
+
+	if err := label.Validate(); err != nil {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   OpPrefix + platform.OpUpdateLabel,
+			Err:  err,
+		}
+	}
+
+	s.labelKV.Store(label.ID.String(), *label)
+
+	return label, nil
 }
 
+// PutLabel writes a label directly to the database without generating IDs
+// or making checks.
 func (s *Service) PutLabel(ctx context.Context, l *platform.Label) error {
-	s.labelKV.Store(l.ID.String, *l)
+	s.labelKV.Store(l.ID.String(), *l)
 	return nil
 }
 
+// DeleteLabel deletes a label.
 func (s *Service) DeleteLabel(ctx context.Context, id platform.ID) error {
+	label, err := s.FindLabelByID(ctx, id)
+	if label == nil && err != nil {
+		return &platform.Error{
+			Code: platform.ENotFound,
+			Op:   OpPrefix + platform.OpDeleteLabel,
+			Err:  platform.ErrLabelNotFound,
+		}
+	}
+
+	s.labelKV.Delete(id.String())
 	return nil
 }
 
