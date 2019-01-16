@@ -511,6 +511,7 @@ func FindDashboards(
 		dashboards []*platform.Dashboard
 		err        error
 	}
+
 	tests := []struct {
 		name   string
 		fields DashboardFields
@@ -547,6 +548,116 @@ func FindDashboards(
 						ID:             MustIDBase16(dashTwoID),
 						OrganizationID: 1,
 						Name:           "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find all dashboards by offset and limit",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+					},
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+					{
+						ID:             MustIDBase16(dashThreeID),
+						OrganizationID: 1,
+						Name:           "321",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Limit:  1,
+					Offset: 1,
+				},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find all dashboards with limit",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+					},
+					{
+						ID:             MustIDBase16(dashThreeID),
+						OrganizationID: 2,
+						Name:           "321",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Limit: 1,
+				},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+					},
+				},
+			},
+		},
+		{
+			name: "find all dashboards by descending",
+			fields: DashboardFields{
+				Dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
+					},
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+					{
+						ID:             MustIDBase16(dashThreeID),
+						OrganizationID: 1,
+						Name:           "321",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Descending: true,
+					Offset:     1,
+				},
+			},
+			wants: wants{
+				dashboards: []*platform.Dashboard{
+					{
+						ID:             MustIDBase16(dashTwoID),
+						OrganizationID: 1,
+						Name:           "xyz",
+					},
+					{
+						ID:             MustIDBase16(dashOneID),
+						OrganizationID: 1,
+						Name:           "abc",
 					},
 				},
 			},
