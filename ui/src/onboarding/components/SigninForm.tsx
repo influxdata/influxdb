@@ -127,7 +127,7 @@ class SigninForm extends PureComponent<Props, State> {
     if (state && state.from) {
       router.push(state.from)
     } else {
-      router.push('/')
+      router.push('/me')
     }
   }
 }
