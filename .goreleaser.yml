@@ -49,12 +49,13 @@ s3:
     folder: "platform/nightlies/"
 
 dockers:
-  -
+  - goos: linux
+    goarch: amd64
     binaries:
-     - influxd
-     - influx
+    - influxd
+    - influx
     image_templates:
-      - quay.io/influxdb/influx
+      - 'quay.io/influxdb/influx:{{ .Version }}'
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
@@ -62,4 +63,3 @@ dockers:
 # Do not make github release
 release:
   disable: true
-
