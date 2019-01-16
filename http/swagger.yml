@@ -1734,6 +1734,16 @@ paths:
               type: array
               items:
                 type: string
+          - in: query
+            name: orgID
+            description: specifies the organization id of the resource
+            schema:
+              type: string
+          - in: query
+            name: org
+            description: specifies the organization name of the resource
+            schema:
+              type: string
       responses:
         '200':
           description: all dashboards
