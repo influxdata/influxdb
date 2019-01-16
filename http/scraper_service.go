@@ -13,6 +13,30 @@ import (
 	"go.uber.org/zap"
 )
 
+// ScraperBackend is all services and associated parameters required to construct
+// the ScraperHandler.
+type ScraperBackend struct {
+	Logger *zap.Logger
+
+	ScraperStorageService      influxdb.ScraperTargetStoreService
+	BucketService              influxdb.BucketService
+	OrganizationService        influxdb.OrganizationService
+	UserService                influxdb.UserService
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
+}
+
+// NewScraperBackend returns a new instance of ScraperBackend.
+func NewScraperBackend(b *APIBackend) *ScraperBackend {
+	return &ScraperBackend{
+		Logger: b.Logger.With(zap.String("handler", "scraper")),
+
+		ScraperStorageService: b.ScraperTargetStoreService,
+		BucketService:         b.BucketService,
+		OrganizationService:   b.OrganizationService,
+	}
+}
+
 // ScraperHandler represents an HTTP API handler for scraper targets.
 type ScraperHandler struct {
 	*httprouter.Router
@@ -36,24 +60,16 @@ const (
 )
 
 // NewScraperHandler returns a new instance of ScraperHandler.
-func NewScraperHandler(
-	logger *zap.Logger,
-	userService influxdb.UserService,
-	userResourceMappingService influxdb.UserResourceMappingService,
-	labelService influxdb.LabelService,
-	scraperStorageService influxdb.ScraperTargetStoreService,
-	bucketService influxdb.BucketService,
-	organizationService influxdb.OrganizationService,
-) *ScraperHandler {
+func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	h := &ScraperHandler{
 		Router:                     NewRouter(),
-		Logger:                     logger,
-		UserService:                userService,
-		UserResourceMappingService: userResourceMappingService,
-		LabelService:               labelService,
-		ScraperStorageService:      scraperStorageService,
-		BucketService:              bucketService,
-		OrganizationService:        organizationService,
+		Logger:                     b.Logger,
+		UserService:                b.UserService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		ScraperStorageService:      b.ScraperStorageService,
+		BucketService:              b.BucketService,
+		OrganizationService:        b.OrganizationService,
 	}
 	h.HandlerFunc("POST", targetsPath, h.handlePostScraperTarget)
 	h.HandlerFunc("GET", targetsPath, h.handleGetScraperTargets)
