@@ -311,10 +311,6 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	return req, nil
 }
 
-type getDashboardsLinks struct {
-	Self string `json:"self"`
-}
-
 type getDashboardsResponse struct {
 	Links      *platform.PagingLinks `json:"links"`
 	Dashboards []dashboardResponse   `json:"dashboards"`
