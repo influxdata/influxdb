@@ -1,20 +1,17 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Link} from 'react-router'
-import moment from 'moment'
 
 // Components
 import {IndexList} from 'src/clockface'
+import DashboardRow from 'src/organizations/components/DashboardRow'
 
 // Types
 import {Dashboard} from 'src/types/v2'
 
-// Constants
-import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
-
 interface Props {
   dashboards: Dashboard[]
   emptyState: JSX.Element
+  onDeleteDashboard: (dashboard: Dashboard) => void
 }
 
 export default class DashboardList extends PureComponent<Props> {
@@ -33,15 +30,14 @@ export default class DashboardList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
+    const {onDeleteDashboard} = this.props
+
     return this.props.dashboards.map(d => (
-      <IndexList.Row key={d.id}>
-        <IndexList.Cell>
-          <Link to={`/dashboards/${d.id}`}>{d.name}</Link>
-        </IndexList.Cell>
-        <IndexList.Cell revealOnHover={true}>
-          {moment(d.meta.updatedAt).format(UPDATED_AT_TIME_FORMAT)}
-        </IndexList.Cell>
-      </IndexList.Row>
+      <DashboardRow
+        dashboard={d}
+        key={d.id}
+        onDeleteDashboard={onDeleteDashboard}
+      />
     ))
   }
 }
