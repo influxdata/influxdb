@@ -113,10 +113,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	telegrafBackend.TelegrafService = authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)
 	h.TelegrafHandler = NewTelegrafHandler(telegrafBackend)
 
-	h.WriteHandler = NewWriteHandler(b.PointsWriter)
-	h.WriteHandler.OrganizationService = b.OrganizationService
-	h.WriteHandler.BucketService = b.BucketService
-	h.WriteHandler.Logger = b.Logger.With(zap.String("handler", "write"))
+	writeBackend := NewWriteBackend(b)
+	h.WriteHandler = NewWriteHandler(writeBackend)
 
 	h.QueryHandler = NewFluxHandler()
 	h.QueryHandler.OrganizationService = b.OrganizationService
