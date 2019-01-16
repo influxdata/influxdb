@@ -18,7 +18,7 @@
   
     &.dragging {
       border-radius: 4px;
-      opacity: 0.25;
+      opacity: 0.4;
       @include gradient-h($c-pool, $c-star);
   
       > * {

@@ -78,40 +78,48 @@ export class TableOptions extends Component<Props, {}> {
       <>
         <Grid.Column widthSM={Columns.Four}>
           <h4 className="view-options--header">Table Formatting</h4>
-          {!!fieldOptions.length && (
-            <SortBy
-              selected={sortBy}
-              fieldOptions={fieldOptions}
-              onChange={this.handleChangeSortBy}
-            />
-          )}
-          <TimeFormat
-            timeFormat={timeFormat}
-            onTimeFormatChange={onSetTimeFormat}
-          />
-          {decimalPlaces && (
-            <DecimalPlacesOption
-              digits={decimalPlaces.digits}
-              isEnforced={decimalPlaces.isEnforced}
-              onDecimalPlacesChange={onSetDecimalPlaces}
-            />
-          )}
+          <Grid>
+            <Grid.Row>
+              {!!fieldOptions.length && (
+                <SortBy
+                  selected={sortBy}
+                  fieldOptions={fieldOptions}
+                  onChange={this.handleChangeSortBy}
+                />
+              )}
+              <TimeFormat
+                timeFormat={timeFormat}
+                onTimeFormatChange={onSetTimeFormat}
+              />
+              {decimalPlaces && (
+                <DecimalPlacesOption
+                  digits={decimalPlaces.digits}
+                  isEnforced={decimalPlaces.isEnforced}
+                  onDecimalPlacesChange={onSetDecimalPlaces}
+                />
+              )}
+            </Grid.Row>
+          </Grid>
         </Grid.Column>
         <Grid.Column widthSM={Columns.Four}>
           <h4 className="view-options--header">Column Settings</h4>
-          <TimeAxis
-            verticalTimeAxis={verticalTimeAxis}
-            onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
-          />
-          <FixFirstColumn
-            fixed={fixFirstColumn}
-            onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
-          />
-          <ColumnOptions
-            columns={fieldOptions}
-            onMoveColumn={this.handleMoveColumn}
-            onUpdateColumn={this.handleUpdateColumn}
-          />
+          <Grid>
+            <Grid.Row>
+              <TimeAxis
+                verticalTimeAxis={verticalTimeAxis}
+                onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
+              />
+              <FixFirstColumn
+                fixed={fixFirstColumn}
+                onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
+              />
+              <ColumnOptions
+                columns={fieldOptions}
+                onMoveColumn={this.handleMoveColumn}
+                onUpdateColumn={this.handleUpdateColumn}
+              />
+            </Grid.Row>
+          </Grid>
         </Grid.Column>
         <Grid.Column widthSM={Columns.Four}>
           <h4 className="view-options--header">Colorized Thresholds</h4>

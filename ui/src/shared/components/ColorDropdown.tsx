@@ -2,7 +2,7 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Dropdown, ComponentStatus} from 'src/clockface'
+import {Dropdown, ComponentStatus, DropdownMenuColors} from 'src/clockface'
 
 // Types
 import {ColorLabel} from 'src/types/colors'
@@ -29,6 +29,7 @@ const ColorDropdown: SFC<Props> = props => {
       onChange={onChoose}
       status={status}
       widthPixels={widthPixels}
+      menuColor={DropdownMenuColors.Onyx}
     >
       {colors.map(color => (
         <Dropdown.Item id={color.name} key={color.name} value={color}>

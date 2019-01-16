@@ -28,22 +28,22 @@
 }
 
 .threshold-item--label {
+  flex: 0 0 120px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 30px;
   font-weight: 600;
   font-size: 13px;
-  padding-left: 11px;
+  padding-left: $ix-marg-b;
+  padding-right: $ix-marg-a;
   border-radius: 4px;
   @include no-user-select();
-  width: 120px;
   background-color: $g4-onyx;
-  color: $g11-sidewalk;
+  color: $g9-mountain;
 
   &.threshold-item--label__editable  {
-    color: $g16-pearl;
-    background-color: initial;
+    color: $g13-mist;
   }
 }
 

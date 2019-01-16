@@ -6,6 +6,7 @@ import _ from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import TableSidebarItem from 'src/shared/components/tables/TableSidebarItem'
+import {Input, IconFont} from 'src/clockface'
 
 // Types
 import {FluxTable} from 'src/types'
@@ -34,12 +35,12 @@ export default class TableSidebar extends PureComponent<Props, State> {
       <div className="time-machine-sidebar">
         {!this.isDataEmpty && (
           <div className="time-machine-sidebar--heading">
-            <input
-              type="text"
-              className="form-control input-xs time-machine-sidebar--filter"
+            <Input
+              icon={IconFont.Search}
               onChange={this.handleSearch}
-              placeholder="Filter tables"
+              placeholder="Filter tables..."
               value={searchTerm}
+              customClass="time-machine-sidebar--filter"
             />
           </div>
         )}
