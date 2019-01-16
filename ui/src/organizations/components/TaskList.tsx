@@ -1,16 +1,17 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Link} from 'react-router'
 
 // Components
 import {IndexList} from 'src/clockface'
 
 // Types
 import {Task} from 'src/api'
+import TaskRow from 'src/organizations/components/TaskRow'
 
 interface Props {
   tasks: Task[]
   emptyState: JSX.Element
+  onDelete: (taskID: string) => void
 }
 
 export default class TaskList extends PureComponent<Props> {
@@ -30,14 +31,9 @@ export default class TaskList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    return this.props.tasks.map(task => (
-      <IndexList.Row key={task.id}>
-        <IndexList.Cell>
-          <Link to={`/tasks/${task.id}`}>{task.name}</Link>
-        </IndexList.Cell>
-        <IndexList.Cell>{task.owner.name}</IndexList.Cell>
-        <IndexList.Cell revealOnHover={true}>DELETE</IndexList.Cell>
-      </IndexList.Row>
+    const {tasks, onDelete} = this.props
+    return tasks.map(task => (
+      <TaskRow key={task.id} task={task} onDelete={onDelete} />
     ))
   }
 }
