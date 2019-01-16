@@ -29,7 +29,7 @@ func NewMockBucketBackend() *BucketBackend {
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
 		LabelService:               mock.NewLabelService(),
 		UserService:                mock.NewUserService(),
-		OrganizationService:        &mock.OrganizationService{},
+		OrganizationService:        mock.NewOrganizationService(),
 	}
 }
 

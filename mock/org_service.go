@@ -2,7 +2,6 @@ package mock
 
 import (
 	"context"
-
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -16,6 +15,25 @@ type OrganizationService struct {
 	CreateOrganizationF   func(ctx context.Context, b *platform.Organization) error
 	UpdateOrganizationF   func(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error)
 	DeleteOrganizationF   func(ctx context.Context, id platform.ID) error
+}
+
+// NewOrganizationService returns a mock OrganizationService where its methods will return
+// zero values.
+func NewOrganizationService() *OrganizationService {
+	return &OrganizationService{
+		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) { return nil, nil },
+		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+			return nil, nil
+		},
+		FindOrganizationsF: func(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
+			return nil, 0, nil
+		},
+		CreateOrganizationF: func(ctx context.Context, b *platform.Organization) error { return nil },
+		UpdateOrganizationF: func(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error) {
+			return nil, nil
+		},
+		DeleteOrganizationF: func(ctx context.Context, id platform.ID) error { return nil },
+	}
 }
 
 //FindOrganizationByID calls FindOrganizationByIDF.

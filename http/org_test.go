@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,20 @@ import (
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
+
+// NewMockOrgBackend returns a OrgBackend with mock services.
+func NewMockOrgBackend() *OrgBackend {
+	return &OrgBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "org")),
+
+		OrganizationService:             mock.NewOrganizationService(),
+		OrganizationOperationLogService: mock.NewOrganizationOperationLogService(),
+		UserResourceMappingService:      mock.NewUserResourceMappingService(),
+		SecretService:                   mock.NewSecretService(),
+		LabelService:                    mock.NewLabelService(),
+		UserService:                     mock.NewUserService(),
+	}
+}
 
 func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T) (platform.OrganizationService, string, func()) {
 	t.Helper()
@@ -28,8 +43,9 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 		}
 	}
 
-	handler := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-	handler.OrganizationService = svc
+	orgBackend := NewMockOrgBackend()
+	orgBackend.OrganizationService = svc
+	handler := NewOrgHandler(orgBackend)
 	server := httptest.NewServer(handler)
 	client := OrganizationService{
 		Addr:     server.URL,
@@ -122,8 +138,9 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-			h.SecretService = tt.fields.SecretService
+			orgBackend := NewMockOrgBackend()
+			orgBackend.SecretService = tt.fields.SecretService
+			h := NewOrgHandler(orgBackend)
 
 			u := fmt.Sprintf("http://any.url/api/v2/orgs/%s/secrets", tt.args.orgID)
 			r := httptest.NewRequest("GET", u, nil)
@@ -192,8 +209,9 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-			h.SecretService = tt.fields.SecretService
+			orgBackend := NewMockOrgBackend()
+			orgBackend.SecretService = tt.fields.SecretService
+			h := NewOrgHandler(orgBackend)
 
 			b, err := json.Marshal(tt.args.secrets)
 			if err != nil {
@@ -268,8 +286,9 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-			h.SecretService = tt.fields.SecretService
+			orgBackend := NewMockOrgBackend()
+			orgBackend.SecretService = tt.fields.SecretService
+			h := NewOrgHandler(orgBackend)
 
 			b, err := json.Marshal(tt.args.secrets)
 			if err != nil {

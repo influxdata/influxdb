@@ -15,6 +15,32 @@ import (
 	"go.uber.org/zap"
 )
 
+// OrgBackend is all services and associated parameters required to construct
+// the OrgHandler.
+type OrgBackend struct {
+	Logger *zap.Logger
+
+	OrganizationService             platform.OrganizationService
+	OrganizationOperationLogService platform.OrganizationOperationLogService
+	UserResourceMappingService      platform.UserResourceMappingService
+	SecretService                   platform.SecretService
+	LabelService                    platform.LabelService
+	UserService                     platform.UserService
+}
+
+func NewOrgBackend(b *APIBackend) *OrgBackend {
+	return &OrgBackend{
+		Logger: b.Logger.With(zap.String("handler", "org")),
+
+		OrganizationService:             b.OrganizationService,
+		OrganizationOperationLogService: b.OrganizationOperationLogService,
+		UserResourceMappingService:      b.UserResourceMappingService,
+		SecretService:                   b.SecretService,
+		LabelService:                    b.LabelService,
+		UserService:                     b.UserService,
+	}
+}
+
 // OrgHandler represents an HTTP API handler for orgs.
 type OrgHandler struct {
 	*httprouter.Router
@@ -45,15 +71,17 @@ const (
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
-func NewOrgHandler(mappingService platform.UserResourceMappingService,
-	labelService platform.LabelService, userService platform.UserService) *OrgHandler {
+func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h := &OrgHandler{
 		Router: NewRouter(),
 		Logger: zap.NewNop(),
 
-		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
-		UserService:                userService,
+		OrganizationService:             b.OrganizationService,
+		OrganizationOperationLogService: b.OrganizationOperationLogService,
+		UserResourceMappingService:      b.UserResourceMappingService,
+		SecretService:                   b.SecretService,
+		LabelService:                    b.LabelService,
+		UserService:                     b.UserService,
 	}
 
 	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
