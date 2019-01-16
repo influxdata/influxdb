@@ -1179,6 +1179,26 @@ export interface InlineResponse2004 {
 /**
  * 
  * @export
+ * @interface InlineResponse2005
+ */
+export interface InlineResponse2005 {
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof InlineResponse2005
+     */
+    labels?: Array<string>;
+    /**
+     * 
+     * @type {Links}
+     * @memberof InlineResponse2005
+     */
+    links?: Links;
+}
+
+/**
+ * 
+ * @export
  * @interface IsOnboarding
  */
 export interface IsOnboarding {
@@ -1212,6 +1232,32 @@ export interface Label {
      * Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
      * @type {any}
      * @memberof Label
+     */
+    properties?: any;
+}
+
+/**
+ * 
+ * @export
+ * @interface LabelRequest
+ */
+export interface LabelRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof LabelRequest
+     */
+    resourceID?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof LabelRequest
+     */
+    name?: string;
+    /**
+     * Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
+     * @type {any}
+     * @memberof LabelRequest
      */
     properties?: any;
 }
@@ -12048,6 +12094,188 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
         },
         /**
          * 
+         * @summary list all labels for a task
+         * @param {string} taskID ID of the task
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsGet(taskID: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'taskID' is not null or undefined
+            if (taskID === null || taskID === undefined) {
+                throw new RequiredError('taskID','Required parameter taskID was null or undefined when calling tasksTaskIDLabelsGet.');
+            }
+            const localVarPath = `/tasks/{taskID}/labels`
+                .replace(`{${"taskID"}}`, encodeURIComponent(String(taskID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary delete a label from a task
+         * @param {string} taskID ID of the task
+         * @param {string} label the label name
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsLabelDelete(taskID: string, label: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'taskID' is not null or undefined
+            if (taskID === null || taskID === undefined) {
+                throw new RequiredError('taskID','Required parameter taskID was null or undefined when calling tasksTaskIDLabelsLabelDelete.');
+            }
+            // verify required parameter 'label' is not null or undefined
+            if (label === null || label === undefined) {
+                throw new RequiredError('label','Required parameter label was null or undefined when calling tasksTaskIDLabelsLabelDelete.');
+            }
+            const localVarPath = `/tasks/{taskID}/labels/{label}`
+                .replace(`{${"taskID"}}`, encodeURIComponent(String(taskID)))
+                .replace(`{${"label"}}`, encodeURIComponent(String(label)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'DELETE' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary update a label from a task
+         * @param {string} taskID ID of the task
+         * @param {string} label the label name
+         * @param {LabelRequest} labelRequest label update to apply
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsLabelPatch(taskID: string, label: string, labelRequest: LabelRequest, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'taskID' is not null or undefined
+            if (taskID === null || taskID === undefined) {
+                throw new RequiredError('taskID','Required parameter taskID was null or undefined when calling tasksTaskIDLabelsLabelPatch.');
+            }
+            // verify required parameter 'label' is not null or undefined
+            if (label === null || label === undefined) {
+                throw new RequiredError('label','Required parameter label was null or undefined when calling tasksTaskIDLabelsLabelPatch.');
+            }
+            // verify required parameter 'labelRequest' is not null or undefined
+            if (labelRequest === null || labelRequest === undefined) {
+                throw new RequiredError('labelRequest','Required parameter labelRequest was null or undefined when calling tasksTaskIDLabelsLabelPatch.');
+            }
+            const localVarPath = `/tasks/{taskID}/labels/{label}`
+                .replace(`{${"taskID"}}`, encodeURIComponent(String(taskID)))
+                .replace(`{${"label"}}`, encodeURIComponent(String(label)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'PATCH' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"LabelRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(labelRequest || {}) : (labelRequest || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary add a label to a task
+         * @param {string} taskID ID of the task
+         * @param {Label} label label to add
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsPost(taskID: string, label: Label, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'taskID' is not null or undefined
+            if (taskID === null || taskID === undefined) {
+                throw new RequiredError('taskID','Required parameter taskID was null or undefined when calling tasksTaskIDLabelsPost.');
+            }
+            // verify required parameter 'label' is not null or undefined
+            if (label === null || label === undefined) {
+                throw new RequiredError('label','Required parameter label was null or undefined when calling tasksTaskIDLabelsPost.');
+            }
+            const localVarPath = `/tasks/{taskID}/labels`
+                .replace(`{${"taskID"}}`, encodeURIComponent(String(taskID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'POST' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"Label" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(label || {}) : (label || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary Retrieve all logs for a task
          * @param {string} taskID ID of task to get logs for
          * @param {*} [options] Override http request option.
@@ -12588,6 +12816,70 @@ export const TasksApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary list all labels for a task
+         * @param {string} taskID ID of the task
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsGet(taskID: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse200> {
+            const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDLabelsGet(taskID, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary delete a label from a task
+         * @param {string} taskID ID of the task
+         * @param {string} label the label name
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsLabelDelete(taskID: string, label: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDLabelsLabelDelete(taskID, label, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary update a label from a task
+         * @param {string} taskID ID of the task
+         * @param {string} label the label name
+         * @param {LabelRequest} labelRequest label update to apply
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsLabelPatch(taskID: string, label: string, labelRequest: LabelRequest, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDLabelsLabelPatch(taskID, label, labelRequest, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary add a label to a task
+         * @param {string} taskID ID of the task
+         * @param {Label} label label to add
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsPost(taskID: string, label: Label, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<InlineResponse2005> {
+            const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDLabelsPost(taskID, label, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
          * @summary Retrieve all logs for a task
          * @param {string} taskID ID of task to get logs for
          * @param {*} [options] Override http request option.
@@ -12819,6 +13111,54 @@ export const TasksApiFactory = function (configuration?: Configuration, basePath
         },
         /**
          * 
+         * @summary list all labels for a task
+         * @param {string} taskID ID of the task
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsGet(taskID: string, zapTraceSpan?: string, options?: any) {
+            return TasksApiFp(configuration).tasksTaskIDLabelsGet(taskID, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary delete a label from a task
+         * @param {string} taskID ID of the task
+         * @param {string} label the label name
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsLabelDelete(taskID: string, label: string, zapTraceSpan?: string, options?: any) {
+            return TasksApiFp(configuration).tasksTaskIDLabelsLabelDelete(taskID, label, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary update a label from a task
+         * @param {string} taskID ID of the task
+         * @param {string} label the label name
+         * @param {LabelRequest} labelRequest label update to apply
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsLabelPatch(taskID: string, label: string, labelRequest: LabelRequest, zapTraceSpan?: string, options?: any) {
+            return TasksApiFp(configuration).tasksTaskIDLabelsLabelPatch(taskID, label, labelRequest, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary add a label to a task
+         * @param {string} taskID ID of the task
+         * @param {Label} label label to add
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        tasksTaskIDLabelsPost(taskID: string, label: Label, zapTraceSpan?: string, options?: any) {
+            return TasksApiFp(configuration).tasksTaskIDLabelsPost(taskID, label, zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
          * @summary Retrieve all logs for a task
          * @param {string} taskID ID of task to get logs for
          * @param {*} [options] Override http request option.
@@ -13007,6 +13347,62 @@ export class TasksApi extends BaseAPI {
      */
     public tasksTaskIDGet(taskID: string, options?: any) {
         return TasksApiFp(this.configuration).tasksTaskIDGet(taskID, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary list all labels for a task
+     * @param {string} taskID ID of the task
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApi
+     */
+    public tasksTaskIDLabelsGet(taskID: string, zapTraceSpan?: string, options?: any) {
+        return TasksApiFp(this.configuration).tasksTaskIDLabelsGet(taskID, zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary delete a label from a task
+     * @param {string} taskID ID of the task
+     * @param {string} label the label name
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApi
+     */
+    public tasksTaskIDLabelsLabelDelete(taskID: string, label: string, zapTraceSpan?: string, options?: any) {
+        return TasksApiFp(this.configuration).tasksTaskIDLabelsLabelDelete(taskID, label, zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary update a label from a task
+     * @param {string} taskID ID of the task
+     * @param {string} label the label name
+     * @param {LabelRequest} labelRequest label update to apply
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApi
+     */
+    public tasksTaskIDLabelsLabelPatch(taskID: string, label: string, labelRequest: LabelRequest, zapTraceSpan?: string, options?: any) {
+        return TasksApiFp(this.configuration).tasksTaskIDLabelsLabelPatch(taskID, label, labelRequest, zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary add a label to a task
+     * @param {string} taskID ID of the task
+     * @param {Label} label label to add
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApi
+     */
+    public tasksTaskIDLabelsPost(taskID: string, label: Label, zapTraceSpan?: string, options?: any) {
+        return TasksApiFp(this.configuration).tasksTaskIDLabelsPost(taskID, label, zapTraceSpan, options)(this.axios, this.basePath);
     }
 
     /**

@@ -17,25 +17,21 @@ import {
 } from 'src/clockface'
 import FetchLabels from 'src/shared/components/FetchLabels'
 
-// Actions
-import {
-  addDashboardLabelsAsync,
-  removeDashboardLabelsAsync,
-} from 'src/dashboards/actions/v2'
-
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Dashboard} from 'src/types/v2'
 import {Label} from 'src/api'
 import {RemoteDataState} from 'src/types'
 
-interface Props {
-  dashboard: Dashboard
+// Utils
+import {getDeep} from 'src/utils/wrappers'
+
+interface Props<T> {
+  resource: T
   onDismissOverlay: () => void
-  onAddDashboardLabels: typeof addDashboardLabelsAsync
-  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
+  onAddLabels: (resourceID: string, labels: Label[]) => void
+  onRemoveLabels: (resourceID: string, labels: Label[]) => void
 }
 
 interface State {
@@ -44,18 +40,18 @@ interface State {
 }
 
 @ErrorHandling
-class EditDashboardLabelsOverlay extends PureComponent<Props, State> {
-  constructor(props: Props) {
+class EditLabelsOverlay<T> extends PureComponent<Props<T>, State> {
+  constructor(props: Props<T>) {
     super(props)
 
     this.state = {
-      selectedLabels: props.dashboard.labels,
+      selectedLabels: _.get(props, 'resource.labels'),
       loading: RemoteDataState.NotStarted,
     }
   }
 
   public render() {
-    const {onDismissOverlay, dashboard} = this.props
+    const {onDismissOverlay, resource} = this.props
     const {selectedLabels} = this.state
 
     return (
@@ -73,7 +69,7 @@ class EditDashboardLabelsOverlay extends PureComponent<Props, State> {
                           <LabelSelector
                             inputSize={ComponentSize.Medium}
                             allLabels={labels}
-                            resourceType={dashboard.name}
+                            resourceType={_.get(resource, 'name')}
                             selectedLabels={selectedLabels}
                             onAddLabel={this.handleAddLabel}
                             onRemoveLabel={this.handleRemoveLabel}
@@ -118,15 +114,12 @@ class EditDashboardLabelsOverlay extends PureComponent<Props, State> {
     removedLabels: Label[]
     addedLabels: Label[]
   } {
-    const {dashboard} = this.props
+    const {resource} = this.props
     const {selectedLabels} = this.state
+    const labels = getDeep<Label[]>(resource, 'labels', [])
 
-    const intersection = _.intersectionBy(
-      dashboard.labels,
-      selectedLabels,
-      'name'
-    )
-    const removedLabels = _.differenceBy(dashboard.labels, intersection, 'name')
+    const intersection = _.intersectionBy(labels, selectedLabels, 'name')
+    const removedLabels = _.differenceBy(labels, intersection, 'name')
     const addedLabels = _.differenceBy(selectedLabels, intersection, 'name')
 
     return {
@@ -155,23 +148,19 @@ class EditDashboardLabelsOverlay extends PureComponent<Props, State> {
   }
 
   private handleSaveLabels = async (): Promise<void> => {
-    const {
-      onAddDashboardLabels,
-      onRemoveDashboardLabels,
-      dashboard,
-      onDismissOverlay,
-    } = this.props
+    const {onAddLabels, onRemoveLabels, resource, onDismissOverlay} = this.props
 
     const {addedLabels, removedLabels} = this.changes
+    const resourceID = _.get(resource, 'id')
 
     this.setState({loading: RemoteDataState.Loading})
 
     if (addedLabels.length) {
-      await onAddDashboardLabels(dashboard.id, addedLabels)
+      await onAddLabels(resourceID, addedLabels)
     }
 
     if (removedLabels.length) {
-      await onRemoveDashboardLabels(dashboard.id, removedLabels)
+      await onRemoveLabels(resourceID, removedLabels)
     }
 
     this.setState({loading: RemoteDataState.Done})
@@ -180,4 +169,4 @@ class EditDashboardLabelsOverlay extends PureComponent<Props, State> {
   }
 }
 
-export default EditDashboardLabelsOverlay
+export default EditLabelsOverlay

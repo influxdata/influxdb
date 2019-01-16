@@ -16,7 +16,7 @@ import {
   IconFont,
 } from 'src/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
-import EditDashboardLabelsOverlay from 'src/dashboards/components/EditDashboardLabelsOverlay'
+import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -288,11 +288,11 @@ class DashboardIndex extends PureComponent<Props, State> {
 
     return (
       <OverlayTechnology visible={isEditingDashboardLabels}>
-        <EditDashboardLabelsOverlay
-          dashboard={dashboardLabelsEdit}
+        <EditLabelsOverlay<Dashboard>
+          resource={dashboardLabelsEdit}
           onDismissOverlay={this.handleStopEditingLabels}
-          onAddDashboardLabels={onAddDashboardLabels}
-          onRemoveDashboardLabels={onRemoveDashboardLabels}
+          onAddLabels={onAddDashboardLabels}
+          onRemoveLabels={onRemoveDashboardLabels}
         />
       </OverlayTechnology>
     )

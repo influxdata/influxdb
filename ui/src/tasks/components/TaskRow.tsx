@@ -31,6 +31,7 @@ interface Props {
   onActivate: (task: Task) => void
   onDelete: (task: Task) => void
   onSelect: (task: Task) => void
+  onEditLabels: (task: Task) => void
 }
 
 export class TaskRow extends PureComponent<Props & WithRouterProps> {
@@ -99,15 +100,26 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
 
   private get labels(): JSX.Element {
     const {task} = this.props
+
     if (!task.labels.length) {
-      return
+      return (
+        <Label.Container
+          limitChildCount={4}
+          className="index-list--labels"
+          onEdit={this.handleEditLabels}
+        />
+      )
     }
 
     return (
-      <Label.Container limitChildCount={4} resourceName="this Task">
+      <Label.Container
+        limitChildCount={4}
+        resourceName="this Task"
+        onEdit={this.handleEditLabels}
+      >
         {task.labels.map(label => (
           <Label
-            key={label.resourceID}
+            key={label.name}
             id={label.resourceID}
             colorHex={label.properties.color}
             name={label.name}
@@ -124,6 +136,12 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
       return true
     }
     return false
+  }
+
+  private handleEditLabels = () => {
+    const {task, onEditLabels} = this.props
+
+    onEditLabels(task)
   }
 
   private changeToggle = () => {
