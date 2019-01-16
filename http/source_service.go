@@ -74,6 +74,27 @@ func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 	return res
 }
 
+// SourceBackend is all services and associated parameters required to construct
+// the SourceHandler.
+type SourceBackend struct {
+	Logger *zap.Logger
+
+	SourceService    platform.SourceService
+	NewBucketService func(s *platform.Source) (platform.BucketService, error)
+	NewQueryService  func(s *platform.Source) (query.ProxyQueryService, error)
+}
+
+// NewSourceBackend returns a new instance of SourceBackend.
+func NewSourceBackend(b *APIBackend) *SourceBackend {
+	return &SourceBackend{
+		Logger: b.Logger.With(zap.String("handler", "source")),
+
+		SourceService:    b.SourceService,
+		NewBucketService: b.NewBucketService,
+		NewQueryService:  b.NewQueryService,
+	}
+}
+
 // SourceHandler is a handler for sources
 type SourceHandler struct {
 	*httprouter.Router
@@ -87,16 +108,14 @@ type SourceHandler struct {
 }
 
 // NewSourceHandler returns a new instance of SourceHandler.
-func NewSourceHandler() *SourceHandler {
+func NewSourceHandler(b *SourceBackend) *SourceHandler {
 	h := &SourceHandler{
 		Router: NewRouter(),
-		Logger: zap.NewNop(),
-		NewBucketService: func(s *platform.Source) (platform.BucketService, error) {
-			return nil, fmt.Errorf("bucket service not set")
-		},
-		NewQueryService: func(s *platform.Source) (query.ProxyQueryService, error) {
-			return nil, fmt.Errorf("query service not set")
-		},
+		Logger: b.Logger,
+
+		SourceService:    b.SourceService,
+		NewBucketService: b.NewBucketService,
+		NewQueryService:  b.NewQueryService,
 	}
 
 	h.HandlerFunc("POST", "/api/v2/sources", h.handlePostSource)
