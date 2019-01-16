@@ -55,6 +55,10 @@ func LabelService(
 			fn:   CreateLabel,
 		},
 		{
+			name: "CreateLabelMapping",
+			fn:   CreateLabelMapping,
+		},
+		{
 			name: "FindLabels",
 			fn:   FindLabels,
 		},
@@ -159,6 +163,102 @@ func CreateLabel(
 			defer s.DeleteLabel(ctx, tt.args.label.ID)
 
 			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
+			if err != nil {
+				t.Fatalf("failed to retrieve labels: %v", err)
+			}
+			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
+				t.Errorf("labels are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+func CreateLabelMapping(
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		mapping *platform.LabelMapping
+		filter  platform.LabelMappingFilter
+	}
+	type wants struct {
+		err    error
+		labels []*platform.Label
+	}
+
+	tests := []struct {
+		name   string
+		fields LabelFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "create label mapping",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
+					},
+				},
+			},
+			args: args{
+				mapping: &platform.LabelMapping{
+					LabelID:    MustIDBase16(labelOneID),
+					ResourceID: MustIDBase16(bucketOneID),
+				},
+				filter: platform.LabelMappingFilter{
+					ResourceID: MustIDBase16(bucketOneID),
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
+					},
+				},
+			},
+		},
+		// {
+		// 	name: "mapping to a non-existing label",
+		// 	fields: LabelFields{
+		// 		IDGenerator: mock.NewIDGenerator(labelOneID, t),
+		// 		Labels:      []*platform.Label{},
+		// 	},
+		// 	args: args{
+		// 		label: &platform.Label{
+		// 			Name: "Tag2",
+		// 			Properties: map[string]string{
+		// 				"color": "fff000",
+		// 			},
+		// 		},
+		// 	},
+		// 	wants: wants{
+		// 		labels: []*platform.Label{
+		// 			{
+		// 				ID:   MustIDBase16(labelOneID),
+		// 				Name: "Tag2",
+		// 				Properties: map[string]string{
+		// 					"color": "fff000",
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+			err := s.CreateLabelMapping(ctx, tt.args.mapping)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			defer s.DeleteLabelMapping(ctx, tt.args.mapping)
+
+			labels, err := s.FindResourceLabels(ctx, platform.LabelMappingFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve labels: %v", err)
 			}
