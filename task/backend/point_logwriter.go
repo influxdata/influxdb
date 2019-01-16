@@ -14,9 +14,9 @@ const (
 	runIDField        = "runID"
 	scheduledForField = "scheduledFor"
 	requestedAtField  = "requestedAt"
+	statusField       = "status"
 
 	taskIDTag = "taskID"
-	statusTag = "status"
 
 	// Fixed system bucket ID for task and run logs.
 	taskSystemBucketID platform.ID = 10
@@ -40,10 +40,10 @@ func NewPointLogWriter(pw PointsWriter) *PointLogWriter {
 
 func (p *PointLogWriter) UpdateRunState(ctx context.Context, rlb RunLogBase, when time.Time, status RunStatus) error {
 	tags := models.Tags{
-		models.NewTag([]byte(statusTag), []byte(status.String())),
 		models.NewTag([]byte(taskIDTag), []byte(rlb.Task.ID.String())),
 	}
-	fields := make(map[string]interface{}, 3)
+	fields := make(map[string]interface{}, 4)
+	fields[statusField] = status.String()
 	fields[runIDField] = rlb.RunID.String()
 	fields[scheduledForField] = time.Unix(rlb.RunScheduledFor, 0).UTC().Format(time.RFC3339)
 	if rlb.RequestedAt != 0 {
