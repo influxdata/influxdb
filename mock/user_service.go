@@ -20,7 +20,7 @@ type UserService struct {
 	UpdateUserFn   func(context.Context, platform.ID, platform.UserUpdate) (*platform.User, error)
 }
 
-// NewUserService returns a mock of NewUserService where its methods will return zero values.
+// NewUserService returns a mock of UserService where its methods will return zero values.
 func NewUserService() *UserService {
 	return &UserService{
 		FindUserByIDFn: func(context.Context, platform.ID) (*platform.User, error) { return nil, nil },
