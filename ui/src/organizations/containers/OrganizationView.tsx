@@ -12,6 +12,7 @@ import {
   getTasks,
   getOwners,
   getCollectors,
+  getScrapers,
 } from 'src/organizations/apis'
 
 // Actions
@@ -34,7 +35,14 @@ import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 
 // Types
 import {AppState, Dashboard} from 'src/types/v2'
-import {ResourceOwner, Bucket, Organization, Task, Telegraf} from 'src/api'
+import {
+  ResourceOwner,
+  Bucket,
+  Organization,
+  Task,
+  Telegraf,
+  ScraperTargetResponses,
+} from 'src/api'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
 // Decorators
@@ -162,7 +170,16 @@ class OrganizationView extends PureComponent<Props> {
                 url="scrapers_tab"
                 title="Scrapers"
               >
-                <Scrapers />
+                <GetOrgResources<ScraperTargetResponses>
+                  organization={org}
+                  fetcher={getScrapers}
+                >
+                  {(scrapers, loading, fetch) => (
+                    <Spinner loading={loading}>
+                      <Scrapers scrapers={scrapers} onChange={fetch} />
+                    </Spinner>
+                  )}
+                </GetOrgResources>
               </TabbedPageSection>
             </TabbedPage>
           </div>

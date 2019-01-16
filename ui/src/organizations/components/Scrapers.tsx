@@ -15,12 +15,17 @@ import {
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {ScraperTargetResponses} from 'src/api'
 
-interface Props {}
+interface Props {
+  scrapers: ScraperTargetResponses
+  onChange: () => void
+}
 
 @ErrorHandling
 export default class OrgOptions extends PureComponent<Props> {
   public render() {
+    const {scrapers} = this.props
     return (
       <>
         <TabbedPageHeader>
@@ -31,7 +36,7 @@ export default class OrgOptions extends PureComponent<Props> {
             color={ComponentColor.Primary}
           />
         </TabbedPageHeader>
-        <ScraperList emptyState={this.emptyState} />
+        <ScraperList scrapers={scrapers} emptyState={this.emptyState} />
       </>
     )
   }
