@@ -120,17 +120,15 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		tsi1.WithPath(c.GetIndexPath(path)))
 
 	// Initialize WAL
-	var w tsm1.Log = new(tsm1.NopWAL)
 	if c.WAL.Enabled {
 		e.wal = wal.NewWAL(c.GetWALPath(path))
 		e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
 		e.wal.EnableTraceLogging(c.TraceLoggingEnabled)
-		w = e.wal
 	}
 
 	// Initialise Engine
 	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine,
-		tsm1.WithWAL(w),
+		tsm1.WithWAL(e.wal),
 		tsm1.WithTraceLogging(c.TraceLoggingEnabled))
 
 	// Apply options.

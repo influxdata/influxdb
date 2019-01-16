@@ -101,8 +101,10 @@ func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
 
 	// Delete from the cache and WAL.
 	e.Cache.DeleteRange(deleteKeys, min, max)
-	if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
-		return err
+	if e.WAL != nil {
+		if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
+			return err
+		}
 	}
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
