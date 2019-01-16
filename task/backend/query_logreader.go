@@ -108,26 +108,17 @@ func (qlr *QueryLogReader) ListRuns(ctx context.Context, runFilter platform.RunF
 		scheduledBefore = runFilter.BeforeTime
 	}
 
-	listScript := fmt.Sprintf(`supl = from(bucketID: "000000000000000a")
+	listScript := fmt.Sprintf(`
+from(bucketID: "000000000000000a")
   |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == "records" and r.taskID == %q)
-  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-  |> group(columns: ["scheduledFor"])
-  |> filter(fn: (r) => r.scheduledFor < %q and r.scheduledFor > %q)
-  |> sort(desc: true, columns: ["_start"]) |> limit(n: 1)
-
-main = from(bucketID: "000000000000000a")
-  |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == "records" and r.taskID == %q)
-  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-  |> pivot(rowKey:["runID"], columnKey: ["status"], valueColumn: "_time")
-  |> filter(fn: (r) => r.runID > %q)
-
-join(tables: {main: main, supl: supl}, on: ["_start", "_stop", "orgID", "taskID", "runID", "_measurement"])
-  |> group(columns: ["_measurement"])
-  %s
-  |> yield(name: "result")
-  `, runFilter.Task.String(), scheduledBefore, scheduledAfter, runFilter.Task.String(), afterID, limit)
+	|> filter(fn: (r) => r._measurement == "records" and r.taskID == %q)
+	|> drop(columns: ["_start", "_stop"])
+	|> group(columns: ["_measurement", "taskID", "scheduledFor", "status", "runID"])
+	|> influxFieldsAsCols()
+	|> filter(fn: (r) => r.scheduledFor < %q and r.scheduledFor > %q and r.runID > %q)
+	|> pivot(rowKey:["runID", "scheduledFor"], columnKey: ["status"], valueColumn: "_time")
+	%s
+	`, runFilter.Task.String(), scheduledBefore, scheduledAfter, afterID, limit)
 
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
@@ -147,35 +138,25 @@ join(tables: {main: main, supl: supl}, on: ["_start", "_stop", "orgID", "taskID"
 }
 
 func (qlr *QueryLogReader) FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error) {
-	// TODO: sort |> limit will be replaced with last once last is working.
-	showScript := fmt.Sprintf(`supl = from(bucketID: "000000000000000a")
-  |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == "records")
-  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-  |> filter(fn: (r) => r.runID == %q)
-  |> group(columns: ["scheduledFor"])
-  |> sort(desc: true, columns: ["_start"]) |> limit(n: 1)
-
+	showScript := fmt.Sprintf(`
 logs = from(bucketID: "000000000000000a")
-  |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == "logs")
-  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+	|> range(start: -24h)
+	|> filter(fn: (r) => r._measurement == "logs")
+	|> drop(columns: ["_start", "_stop"])
+	|> influxFieldsAsCols()
 	|> filter(fn: (r) => r.runID == %q)
+	|> yield(name: "logs")
 
-main = from(bucketID: "000000000000000a")
+from(bucketID: "000000000000000a")
   |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == "records")
-  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-  |> filter(fn: (r) => r.runID == %q)
-  |> pivot(rowKey:["runID"], columnKey: ["status"], valueColumn: "_time")
-
-join(
-	tables: {main: main, supl: supl},
-	on: ["_start", "_stop", "orgID", "taskID", "runID", "_measurement"],
-) |> yield(name: "result")
-
-logs |> yield(name: "logs")
-  `, runID.String(), runID.String(), runID.String())
+	|> filter(fn: (r) => r._measurement == "records")
+	|> drop(columns: ["_start", "_stop"])
+	|> group(columns: ["_measurement", "taskID", "scheduledFor", "status", "runID"])
+	|> influxFieldsAsCols()
+	|> filter(fn: (r) => r.runID == %q)
+	|> pivot(rowKey:["runID", "scheduledFor"], columnKey: ["status"], valueColumn: "_time")
+	|> yield(name: "result")
+  `, runID.String(), runID.String())
 
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
@@ -270,8 +251,6 @@ func (re *runExtractor) extractRecord(cr flux.ColReader) error {
 				r.RequestedAt = cr.Strings(j).ValueString(i)
 			case scheduledForField:
 				r.ScheduledFor = cr.Strings(j).ValueString(i)
-			case "status":
-				r.Status = cr.Strings(j).ValueString(i)
 			case "runID":
 				id, err := platform.IDFromString(cr.Strings(j).ValueString(i))
 				if err != nil {
@@ -286,8 +265,15 @@ func (re *runExtractor) extractRecord(cr flux.ColReader) error {
 				r.TaskID = *id
 			case RunStarted.String():
 				r.StartedAt = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
+				if r.Status == "" {
+					// Only set status if it wasn't already set.
+					r.Status = col.Label
+				}
 			case RunSuccess.String(), RunFail.String(), RunCanceled.String():
 				r.FinishedAt = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
+				// Finished can be set unconditionally;
+				// it's fine to overwrite if the status was already set to started.
+				r.Status = col.Label
 			}
 		}
 
