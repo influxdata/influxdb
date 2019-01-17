@@ -32,7 +32,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
 
     const openDataLoaderOverlay = _.get(
       this,
-      'props.location.state.openDataLoaderOverlay',
+      'props.location.query.openDataLoaderOverlay',
       false
     )
     const firstBucketID = _.get(this, 'props.buckets.0.id', null)
@@ -41,11 +41,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     this.state = {
       bucketID,
       bucketOverlayState: OverlayState.Closed,
-      dataLoadersOverlayState: _.get(
-        this,
-        'props.location.state.openDataLoaderOverlay',
-        false
-      )
+      dataLoadersOverlayState: openDataLoaderOverlay
         ? OverlayState.Open
         : OverlayState.Closed,
     }
