@@ -5,9 +5,6 @@ import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 // Utils
 import {humanizeNote} from 'src/dashboards/utils/notes'
 
-// Styles
-import 'src/dashboards/components/NoteEditorText.scss'
-
 const OPTIONS = {
   mode: 'markdown',
   theme: 'markdown',
@@ -32,15 +29,13 @@ class NoteEditorText extends PureComponent<Props, {}> {
     const {note} = this.props
 
     return (
-      <div className="note-editor-text">
-        <ReactCodeMirror
-          autoCursor={true}
-          value={humanizeNote(note)}
-          options={OPTIONS}
-          onBeforeChange={this.handleChange}
-          onTouchStart={noOp}
-        />
-      </div>
+      <ReactCodeMirror
+        autoCursor={true}
+        value={humanizeNote(note)}
+        options={OPTIONS}
+        onBeforeChange={this.handleChange}
+        onTouchStart={noOp}
+      />
     )
   }
 
