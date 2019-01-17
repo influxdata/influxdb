@@ -337,7 +337,7 @@ func TestService_handlePostLabel(t *testing.T) {
 	}
 }
 
-func handleDeleteLabel(t *testing.T) {
+func TestService_handleDeleteLabel(t *testing.T) {
 	type fields struct {
 		LabelService platform.LabelService
 	}
@@ -430,6 +430,152 @@ func handleDeleteLabel(t *testing.T) {
 			}
 			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostLabel() = ***%v***", tt.name, diff)
+			}
+		})
+	}
+}
+
+func TestService_handlePatchLabel(t *testing.T) {
+	type fields struct {
+		LabelService platform.LabelService
+	}
+	type args struct {
+		id         string
+		properties map[string]string
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "update label properties",
+			fields: fields{
+				&mock.LabelService{
+					UpdateLabelFn: func(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							l := &platform.Label{
+								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
+								Name: "mylabel",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							}
+
+							for k, v := range upd.Properties {
+								if v == "" {
+									delete(l.Properties, k)
+								} else {
+									l.Properties[k] = v
+								}
+							}
+
+							return l, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id: "020f755c3c082000",
+				properties: map[string]string{
+					"color": "aaabbb",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "self": "/api/v2/labels/020f755c3c082000"
+  },
+  "label": {
+    "id": "020f755c3c082000",
+    "name": "mylabel",
+		"properties": {
+			"color": "aaabbb"
+		}
+  }
+}
+`,
+			},
+		},
+		{
+			name: "label not found",
+			fields: fields{
+				&mock.LabelService{
+					UpdateLabelFn: func(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "label not found",
+						}
+					},
+				},
+			},
+			args: args{
+				id: "020f755c3c082000",
+				properties: map[string]string{
+					"color": "aaabbb",
+				},
+			},
+			wants: wants{
+				statusCode: http.StatusNotFound,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewLabelHandler()
+			h.LabelService = tt.fields.LabelService
+
+			upd := platform.LabelUpdate{}
+			if len(tt.args.properties) > 0 {
+				upd.Properties = tt.args.properties
+			}
+
+			l, err := json.Marshal(upd)
+			if err != nil {
+				t.Fatalf("failed to marshal label update: %v", err)
+			}
+
+			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(l))
+
+			r = r.WithContext(context.WithValue(
+				context.Background(),
+				httprouter.ParamsKey,
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.args.id,
+					},
+				}))
+
+			w := httptest.NewRecorder()
+
+			h.handlePatchLabel(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handlePatchLabel() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handlePatchLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePatchLabel() = ***%v***", tt.name, diff)
 			}
 		})
 	}

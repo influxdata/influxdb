@@ -40,7 +40,7 @@ func NewLabelHandler() *LabelHandler {
 	h.HandlerFunc("GET", labelsPath, h.handleGetLabels)
 
 	h.HandlerFunc("GET", labelsIDPath, h.handleGetLabel)
-	// h.HandlerFunc("PATCH", labelsIDPath, h.handlePatchLabel)
+	h.HandlerFunc("PATCH", labelsIDPath, h.handlePatchLabel)
 	h.HandlerFunc("DELETE", labelsIDPath, h.handleDeleteLabel)
 
 	return h
@@ -192,9 +192,55 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 	return req, nil
 }
 
-// func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
-//
-// }
+// handlePatchLabel is the HTTP handler for the PATCH /api/v2/labels route.
+func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodePatchLabelRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	l, err := h.LabelService.UpdateLabel(ctx, req.LabelID, req.Update)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(l)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
+type patchLabelRequest struct {
+	Update  platform.LabelUpdate
+	LabelID platform.ID
+}
+
+func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	upd := &platform.LabelUpdate{}
+	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
+		return nil, err
+	}
+
+	return &patchLabelRequest{
+		Update:  *upd,
+		LabelID: i,
+	}, nil
+}
 
 // LabelService connects to Influx via HTTP using tokens to manage labels
 type LabelService struct {
@@ -353,72 +399,6 @@ func decodePostLabelMappingRequest(ctx context.Context, r *http.Request) (*postL
 	return req, nil
 }
 
-type patchLabelRequest struct {
-	label *platform.Label
-	upd   platform.LabelUpdate
-}
-
-func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelRequest, error) {
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
-			Msg:  "url missing label id",
-		}
-	}
-
-	name := params.ByName("lid")
-	if name == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
-			Msg:  "label name is missing",
-		}
-	}
-
-	var rid platform.ID
-	if err := rid.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-
-	upd := &platform.LabelUpdate{}
-	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
-		return nil, err
-	}
-
-	return &patchLabelRequest{
-		label: &platform.Label{ID: rid, Name: name},
-		upd:   *upd,
-	}, nil
-}
-
-// newPatchLabelHandler returns a handler func for a PATCH to /labels endpoints
-func newPatchLabelHandler(s platform.LabelService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		req, err := decodePatchLabelRequest(ctx, r)
-		if err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-
-		label, err := s.UpdateLabel(ctx, req.label.ID, req.upd)
-		if err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-
-		if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(label)); err != nil {
-			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
-			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
-			// is called is distinct from the time that a potential logger is set.
-			EncodeError(ctx, err, w)
-			return
-		}
-	}
-}
-
 // newDeleteLabelHandler returns a handler func for a DELETE to /labels endpoints
 func newDeleteLabelHandler(s platform.LabelService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -521,7 +501,7 @@ func (s *LabelService) FindLabels(ctx context.Context, filter platform.LabelFilt
 	return nil, nil
 }
 
-// FindLabels returns a slice of labels
+// FindResourceLabels returns a list of labels, derived from a label mapping filter.
 func (s *LabelService) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
 	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, filter.ResourceID))
 	if err != nil {
@@ -554,6 +534,7 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter platform.L
 	return r.Labels, nil
 }
 
+// CreateLabel creates a new label.
 func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error {
 	u, err := newURL(s.Addr, labelsPath)
 	if err != nil {

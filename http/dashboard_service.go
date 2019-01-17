@@ -81,7 +81,6 @@ func NewDashboardHandler(mappingService platform.UserResourceMappingService, lab
 	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(h.LabelService))
 	h.HandlerFunc("DELETE", dashboardsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", dashboardsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
 
 	return h
 }

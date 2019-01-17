@@ -71,7 +71,6 @@ func NewBucketHandler(mappingService platform.UserResourceMappingService, labelS
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(h.LabelService))
 	h.HandlerFunc("DELETE", bucketsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", bucketsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
 
 	return h
 }
@@ -436,7 +435,7 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	return req, nil
 }
 
-// handlePatchBucket is the HTTP handler for the PATH /api/v2/buckets route.
+// handlePatchBucket is the HTTP handler for the PATCH /api/v2/buckets route.
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
