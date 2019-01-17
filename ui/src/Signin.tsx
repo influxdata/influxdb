@@ -62,13 +62,22 @@ export class Signin extends PureComponent<Props, State> {
     try {
       await getMe()
     } catch (error) {
+      const {
+        location: {pathname},
+      } = this.props
       clearInterval(this.intervalID)
-      const {location} = this.props
-      const returnTo = location.pathname
 
-      if (!returnTo.startsWith('/signin')) {
-        this.props.router.push(`/signin?returnTo=${returnTo}`)
+      if (pathname.startsWith('/signin')) {
+        return
       }
+
+      let returnTo = ''
+
+      if (pathname !== '/') {
+        returnTo = `?returnTo=${pathname}`
+      }
+
+      this.props.router.push(`/signin${returnTo}`)
     }
   }
 }

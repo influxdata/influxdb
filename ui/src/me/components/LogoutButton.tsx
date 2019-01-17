@@ -12,4 +12,4 @@ const LogoutButton: SFC<WithRouterProps> = props => (
   </Link>
 )
 
-export default withRouter(LogoutButton)
+export default withRouter<{}>(LogoutButton)
