@@ -1,6 +1,7 @@
 // Libraries
 import React, {Component, ComponentClass} from 'react'
 import _ from 'lodash'
+import classnames from 'classnames'
 
 // Components
 import PanelHeader from 'src/clockface/components/panel/PanelHeader'
@@ -11,6 +12,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element[] | JSX.Element
+  className?: string
 }
 
 @ErrorHandling
@@ -35,11 +37,15 @@ class Panel extends Component<Props> {
   ).join(', ')
 
   public render() {
-    const {children} = this.props
+    const {children, className} = this.props
 
     this.validateChildren()
 
-    return <div className="panel">{children}</div>
+    return (
+      <div className={classnames('panel', {[`${className}`]: className})}>
+        {children}
+      </div>
+    )
   }
 
   private validateChildren = (): void => {
