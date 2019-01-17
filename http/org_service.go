@@ -115,9 +115,14 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	// TODO(desa): need a way to specify which secrets to delete. this should work for now
 	h.HandlerFunc("POST", organizationsIDSecretsDeletePath, h.handleDeleteSecrets)
 
-	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", organizationsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", organizationsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.HandlerFunc("PATCH", organizationsIDLabelsIDPath, newPatchLabelHandler(labelBackend))
 
 	return h
 }
