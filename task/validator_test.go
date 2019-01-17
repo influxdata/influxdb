@@ -32,7 +32,7 @@ func TestOnboardingValidation(t *testing.T) {
 	ctx := pctx.SetAuthorizer(context.Background(), r.Auth)
 
 	err = validator.CreateTask(ctx, &influxdb.Task{
-		Organization: r.Org.ID,
+		OrganizationID: r.Org.ID,
 		Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -46,10 +46,10 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 
 func mockTaskService() influxdb.TaskService {
 	task := influxdb.Task{
-		ID:           influxdb.ID(2),
-		Organization: influxdb.ID(1),
-		Name:         "cows",
-		Owner:        influxdb.User{ID: influxdb.ID(3), Name: "farmer"},
+		ID:             influxdb.ID(2),
+		OrganizationID: influxdb.ID(1),
+		Name:           "cows",
+		Owner:          influxdb.User{ID: influxdb.ID(3), Name: "farmer"},
 		Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -136,9 +136,9 @@ func TestValidations(t *testing.T) {
 			name: "create failure",
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				err := svc.CreateTask(ctx, &influxdb.Task{
-					Organization: r.Org.ID,
-					Name:         "cows",
-					Owner:        influxdb.User{ID: influxdb.ID(2), Name: "farmer"},
+					OrganizationID: r.Org.ID,
+					Name:           "cows",
+					Owner:          influxdb.User{ID: influxdb.ID(2), Name: "farmer"},
 					Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -158,9 +158,9 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			auth: r.Auth,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				err := svc.CreateTask(ctx, &influxdb.Task{
-					Organization: r.Org.ID,
-					Name:         "cows",
-					Owner:        *r.User,
+					OrganizationID: r.Org.ID,
+					Name:           "cows",
+					Owner:          *r.User,
 					Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -176,9 +176,9 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			auth: r.Auth,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				err := svc.CreateTask(ctx, &influxdb.Task{
-					Organization: r.Org.ID,
-					Name:         "cows",
-					Owner:        *r.User,
+					OrganizationID: r.Org.ID,
+					Name:           "cows",
+					Owner:          *r.User,
 					Flux: `option task = {
  name: "my_task",
  every: 1s,

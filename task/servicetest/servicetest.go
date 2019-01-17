@@ -112,7 +112,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	userID := idGen.ID()
 
 	// Create a task.
-	task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+	task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
 	if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 		t.Fatal(err)
 	}
@@ -150,8 +150,8 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	found["FindTasks with User filter"] = fs[0]
 
 	for fn, f := range found {
-		if f.Organization != orgID {
-			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, orgID.String(), f.Organization.String())
+		if f.OrganizationID != orgID {
+			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, orgID.String(), f.OrganizationID.String())
 		}
 		if f.Owner.ID != userID {
 			t.Fatalf("%s: wrong user returned; want %s, got %s", fn, userID.String(), f.Owner.ID.String())
@@ -248,7 +248,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 func testMetaUpdate(t *testing.T, sys *System) {
 	orgID, userID, _ := creds(t, sys)
 
-	task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+	task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
 	if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
 		// which makes timing of runs somewhat difficult.
-		task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+		task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
 		if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 			t.Fatal(err)
 		}
@@ -423,7 +423,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
 		// which makes timing of runs somewhat difficult.
-		task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+		task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
 		if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 			t.Fatal(err)
 		}
@@ -514,7 +514,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 	t.Run("ForceRun", func(t *testing.T) {
 		t.Parallel()
 
-		task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+		task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
 		if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 			t.Fatal(err)
 		}
@@ -555,7 +555,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 	t.Run("FindLogs", func(t *testing.T) {
 		t.Parallel()
 
-		task := &platform.Task{Organization: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
+		task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
 		if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 			t.Fatal(err)
 		}
@@ -791,9 +791,9 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 	// Start adding tasks.
 	for i := 0; i < numTasks; i++ {
 		taskCh <- &platform.Task{
-			Organization: orgID,
-			Owner:        platform.User{ID: userID},
-			Flux:         fmt.Sprintf(scriptFmt, i),
+			OrganizationID: orgID,
+			Owner:          platform.User{ID: userID},
+			Flux:           fmt.Sprintf(scriptFmt, i),
 		}
 	}
 
