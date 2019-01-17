@@ -94,13 +94,27 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h.HandlerFunc("GET", dashboardsIDCellsIDViewPath, h.handleGetDashboardCellView)
 	h.HandlerFunc("PATCH", dashboardsIDCellsIDViewPath, h.handlePatchDashboardCellView)
 
-	h.HandlerFunc("POST", dashboardsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Member))
-	h.HandlerFunc("GET", dashboardsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Member))
-	h.HandlerFunc("DELETE", dashboardsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+	memberBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               platform.DashboardsResourceType,
+		UserType:                   platform.Member,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", dashboardsIDMembersPath, newPostMemberHandler(memberBackend))
+	h.HandlerFunc("GET", dashboardsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("DELETE", dashboardsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
-	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Owner))
-	h.HandlerFunc("GET", dashboardsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Owner))
-	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+	ownerBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               platform.DashboardsResourceType,
+		UserType:                   platform.Owner,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(ownerBackend))
+	h.HandlerFunc("GET", dashboardsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(h.LabelService))
