@@ -15,11 +15,11 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  height: 30px;
-  margin-top: 8px;
+  height: $form-sm-height;
+  margin-top: $ix-marg-b;
 
   > * {
-    margin-left: 4px;
+    margin-left: $ix-marg-a;
 
     &:first-child {
       margin-left: 0;
@@ -28,16 +28,16 @@
 }
 
 .threshold-item--label {
-  flex: 0 0 120px;
+  flex: 0 0 106px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 30px;
+  height: $form-sm-height;
   font-weight: 600;
-  font-size: 13px;
+  font-size: $form-xs-font;
   padding-left: $ix-marg-b;
   padding-right: $ix-marg-a;
-  border-radius: 4px;
+  border-radius: $radius;
   @include no-user-select();
   background-color: $g4-onyx;
   color: $g9-mountain;
