@@ -66,7 +66,9 @@ export class Signin extends PureComponent<Props, State> {
       const {location} = this.props
       const returnTo = location.pathname
 
-      this.props.router.push(`/signin?${returnTo}`)
+      if (!returnTo.startsWith('/signin')) {
+        this.props.router.push(`/signin?returnTo=${returnTo}`)
+      }
     }
   }
 }

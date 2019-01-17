@@ -32,7 +32,7 @@ class SideNav extends PureComponent<Props> {
 
   public render() {
     const {isHidden, me} = this.props
-
+    const {location} = this.props
     if (isHidden) {
       return null
     }
@@ -48,7 +48,7 @@ class SideNav extends PureComponent<Props> {
         >
           <NavMenu.SubItem
             title="Logout"
-            link="/logout"
+            link={`/logout?returnTo=${location.pathname}`}
             location={location.pathname}
             highlightWhen={[]}
           />
