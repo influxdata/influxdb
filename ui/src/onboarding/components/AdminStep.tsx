@@ -298,12 +298,12 @@ class AdminStep extends PureComponent<Props, State> {
     }
 
     try {
-      onSetupAdmin(setupParams)
-      onSetStepStatus(currentStepIndex, StepStatus.Complete)
-      onIncrementCurrentStepIndex()
+      await onSetupAdmin(setupParams)
     } catch (error) {
       notify(copy.SetupError)
     }
+    onSetStepStatus(currentStepIndex, StepStatus.Complete)
+    onIncrementCurrentStepIndex()
   }
 }
 

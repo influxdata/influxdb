@@ -1,5 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import UpdateBucketOverlay from 'src/organizations/components/UpdateBucketOverlay'
@@ -24,14 +26,24 @@ interface State {
   dataLoadersOverlayState: OverlayState
 }
 
-export default class BucketList extends PureComponent<Props, State> {
+class BucketList extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
 
+    const openDataLoaderOverlay = _.get(
+      this,
+      'props.location.query.openDataLoaderOverlay',
+      false
+    )
+    const firstBucketID = _.get(this, 'props.buckets.0.id', null)
+    const bucketID = openDataLoaderOverlay ? firstBucketID : null
+
     this.state = {
-      bucketID: null,
+      bucketID,
       bucketOverlayState: OverlayState.Closed,
-      dataLoadersOverlayState: OverlayState.Closed,
+      dataLoadersOverlayState: openDataLoaderOverlay
+        ? OverlayState.Open
+        : OverlayState.Closed,
     }
   }
 
@@ -119,3 +131,5 @@ export default class BucketList extends PureComponent<Props, State> {
     this.setState({bucketOverlayState: OverlayState.Closed})
   }
 }
+
+export default withRouter<Props>(BucketList)

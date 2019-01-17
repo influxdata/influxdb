@@ -28,7 +28,13 @@ export default class ResourceFetcher<T> extends PureComponent<
 
   public async componentDidMount() {
     const {fetcher} = this.props
-    const resources = await fetcher()
+    let resources
+    try {
+      resources = await fetcher()
+    } catch (error) {
+      console.error(error)
+    }
+
     this.setState({resources, loading: RemoteDataState.Done})
   }
 
