@@ -12,6 +12,7 @@ import {Dashboard} from 'src/api'
 
 interface OwnProps {
   dashboards: Dashboard[]
+  onExit: () => void
 }
 
 type Props = OwnProps & WithRouterProps
@@ -30,12 +31,12 @@ class CompletionQuickStartButton extends PureComponent<Props> {
   }
 
   private handleAdvanced = (): void => {
-    const {router, dashboards} = this.props
+    const {router, dashboards, onExit} = this.props
     const id = _.get(dashboards, '[0].id', null)
     if (id) {
       router.push(`/dashboards/${id}`)
     } else {
-      router.push('/dashboards/')
+      onExit()
     }
   }
 }

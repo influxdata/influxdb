@@ -12,6 +12,7 @@ import {Organization} from 'src/api'
 
 interface OwnProps {
   orgs: Organization[]
+  onExit: () => void
 }
 
 type Props = OwnProps & WithRouterProps
@@ -30,12 +31,12 @@ class CompletionAdvancedButton extends PureComponent<Props> {
   }
 
   private handleAdvanced = (): void => {
-    const {router, orgs} = this.props
+    const {router, orgs, onExit} = this.props
     const id = _.get(orgs, '[0].id', null)
     if (id) {
       router.push(`/organizations/${id}/buckets_tab`)
     } else {
-      router.push('/organizations/')
+      onExit()
     }
   }
 }

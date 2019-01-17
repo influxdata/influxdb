@@ -5,6 +5,7 @@ import classnames from 'classnames'
 // Components
 import SideBarTab from 'src/onboarding/components/side_bar/SideBarTab'
 import SideBarButton from 'src/onboarding/components/side_bar/SideBarButton'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import {ComponentSpacer, Stack, Alignment} from 'src/clockface'
 
 // Styles
@@ -35,16 +36,13 @@ class SideBar extends Component<Props> {
       <div className={this.containerClassName}>
         <div className="side-bar--container">
           <h3 className="side-bar--title">{title}</h3>
-          <div className="side-bar--contents">
+          <FancyScrollbar autoHide={false}>
             <div className="side-bar--tabs">{this.childTabs}</div>
-            <div className="side-bar--buttons">
-              <ComponentSpacer
-                stackChildren={Stack.Rows}
-                align={Alignment.Left}
-              >
-                {this.childButtons}
-              </ComponentSpacer>
-            </div>
+          </FancyScrollbar>
+          <div className="side-bar--buttons">
+            <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
+              {this.childButtons}
+            </ComponentSpacer>
           </div>
         </div>
       </div>
