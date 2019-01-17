@@ -63,6 +63,7 @@
   padding: $ix-marg-c;
   padding-bottom: 0;
   flex: 1 0 100%;
+  transition: flex 0.4s ease-in-out;
 }
 
 .side-bar.show + .wizard-step--container {
@@ -90,6 +91,12 @@
   height: calc(100% - 102px);
   border: $ix-border solid $g5-pepper;
   border-radius: $ix-radius;
+}
+
+.buttonless {
+  .wizard-step--scroll-area {
+    height: calc(100% - 16px);
+  }
 }
 
 .wizard--skippable {
@@ -328,6 +335,13 @@
 
   .onboarding-step {
     max-width: 60vw;
+  }
+
+
+  .buttonless {
+    .wizard-step--scroll-area {
+      height: calc(100% - 32px);
+    }
   }
 
   .wizard--bookend-step {
