@@ -74,7 +74,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/%ss/0000000000000099/members"
+    "self": "/api/v2/%s/0000000000000099/members"
   },
   "users": [
     {
@@ -138,7 +138,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/%ss/0000000000000099/owners"
+    "self": "/api/v2/%s/0000000000000099/owners"
   },
   "users": [
     {
