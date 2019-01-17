@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	http "net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/julienschmidt/httprouter"
 )
 
 func TestService_handleGetLabels(t *testing.T) {
@@ -214,6 +216,125 @@ func TestService_handlePostLabel(t *testing.T) {
 					t.Errorf("%q. handlePostLabel() = ***%v***", tt.name, err)
 				}
 				t.Errorf("%q. handlePostLabel() = ***%v***", tt.name, diff)
+			}
+		})
+	}
+}
+
+func TestService_handleGetLabel(t *testing.T) {
+	type fields struct {
+		LabelService platform.LabelService
+	}
+	type args struct {
+		id string
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "get a label by id",
+			fields: fields{
+				&mock.LabelService{
+					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							return &platform.Label{
+								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
+								Name: "mylabel",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							}, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id: "020f755c3c082000",
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "self": "/api/v2/labels/020f755c3c082000"
+  },
+  "label": {
+    "id": "020f755c3c082000",
+    "name": "mylabel",
+    "properties": {
+      "color": "fff000"
+    }
+  }
+}
+`,
+			},
+		},
+		{
+			name: "not found",
+			fields: fields{
+				&mock.LabelService{
+					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "label not found",
+						}
+					},
+				},
+			},
+			args: args{
+				id: "020f755c3c082000",
+			},
+			wants: wants{
+				statusCode: http.StatusNotFound,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewLabelHandler()
+			h.LabelService = tt.fields.LabelService
+
+			r := httptest.NewRequest("GET", "http://any.url", nil)
+
+			r = r.WithContext(context.WithValue(
+				context.Background(),
+				httprouter.ParamsKey,
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.args.id,
+					},
+				}))
+
+			w := httptest.NewRecorder()
+
+			h.handleGetLabel(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handleGetLabel() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handleGetLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetLabel() = ***%v***", tt.name, diff)
 			}
 		})
 	}

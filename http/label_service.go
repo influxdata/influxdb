@@ -9,6 +9,7 @@ import (
 	"path"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/errors"
 	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
@@ -38,9 +39,9 @@ func NewLabelHandler() *LabelHandler {
 	h.HandlerFunc("POST", labelsPath, h.handlePostLabel)
 	h.HandlerFunc("GET", labelsPath, h.handleGetLabels)
 
-	// h.HandlerFunc("GET", labelsIDPath, h.handleGetLabel)
-	h.HandlerFunc("PATCH", labelsIDPath, h.handlePatchLabel)
-	h.HandlerFunc("DELETE", labelsIDPath, h.handleDeleteLabel)
+	h.HandlerFunc("GET", labelsIDPath, h.handleGetLabel)
+	// h.HandlerFunc("PATCH", labelsIDPath, h.handlePatchLabel)
+	// h.HandlerFunc("DELETE", labelsIDPath, h.handleDeleteLabel)
 
 	return h
 }
@@ -90,6 +91,7 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 	return req, req.Validate()
 }
 
+// handleGetLabels is the HTTP handler for the GET /api/v2/labels route.
 func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -106,15 +108,57 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {}
+// handleGetLabel is the HTTP handler for the GET /api/v2/labels/id route.
+func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeGetLabelRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
 
+	l, err := h.LabelService.FindLabelByID(ctx, req.LabelID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(l)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
 }
 
-func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
-
+type getLabelRequest struct {
+	LabelID platform.ID
 }
+
+func decodeGetLabelRequest(ctx context.Context, r *http.Request) (*getLabelRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req := &getLabelRequest{
+		LabelID: i,
+	}
+
+	return req, nil
+}
+
+// func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
+//
+// }
+//
+// func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
+//
+// }
 
 // LabelService connects to Influx via HTTP using tokens to manage labels
 type LabelService struct {
