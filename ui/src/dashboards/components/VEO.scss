@@ -15,14 +15,16 @@
   border-radius: 0 0 $radius $radius;
 
   .page-header--container,
-  .time-machine {
+  .veo-contents {
     padding-left: $ix-marg-d;
     padding-right: $ix-marg-d;
   }
+}
 
-  .time-machine {
-    padding-top: 0;
-    padding-bottom: $ix-marg-c;
-    height: calc(100% - #{$page-header-size});
-  }
+.veo-contents {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  flex: 0 0 calc(100% - #{$page-header-size}); 
+  padding-bottom: $ix-marg-c;
 }

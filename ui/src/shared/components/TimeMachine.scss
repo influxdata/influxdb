@@ -7,7 +7,12 @@
 
 .time-machine {
   height: 100%;
+  flex: 0 0 100%;
   @include no-user-select();
+}
+
+.time-machine--split {
+  flex: 0 0 calc(100% - 420px);
 }
 
 .time-machine--top,
