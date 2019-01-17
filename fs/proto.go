@@ -41,7 +41,7 @@ func (s *ProtoService) WithProtos(ps []*platform.Proto) {
 // Open loads the protos from the file system and sets them on the service.
 func (s *ProtoService) Open(ctx context.Context) error {
 	if _, err := os.Stat(s.Dir); os.IsNotExist(err) {
-		if err := os.Mkdir(s.Dir, 0600); err != nil {
+		if err := os.Mkdir(s.Dir, 0700); err != nil {
 			return err
 		}
 	}
