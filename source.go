@@ -75,6 +75,9 @@ type SourceService interface {
 	DeleteSource(ctx context.Context, id ID) error
 }
 
+// DefaultSourceFindOptions are the default find options for sources
+var DefaultSourceFindOptions = FindOptions{}
+
 // SourceUpdate represents updates to a source.
 type SourceUpdate struct {
 	Name               *string     `json:"name"`
