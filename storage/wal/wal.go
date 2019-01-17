@@ -82,7 +82,8 @@ type WAL struct {
 	mu            sync.RWMutex
 	lastWriteTime time.Time
 
-	path string
+	path    string
+	enabled bool
 
 	// write variables
 	currentSegmentID     int
@@ -115,7 +116,8 @@ type WAL struct {
 func NewWAL(path string) *WAL {
 	logger := zap.NewNop()
 	return &WAL{
-		path: path,
+		path:    path,
+		enabled: true,
 
 		// these options should be overriden by any options in the config
 		SegmentSize: DefaultSegmentSize,
@@ -138,6 +140,11 @@ func (l *WAL) EnableTraceLogging(enabled bool) {
 // WithFsyncDelay sets the fsync delay and should be called before the WAL is opened.
 func (l *WAL) WithFsyncDelay(delay time.Duration) {
 	l.syncDelay = delay
+}
+
+// SetEnabled sets if the WAL is enabled and should be called before the WAL is opened.
+func (l *WAL) SetEnabled(enabled bool) {
+	l.enabled = enabled
 }
 
 // WithLogger sets the WAL's logger.
@@ -169,6 +176,10 @@ func (l *WAL) Path() string {
 func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if !l.enabled {
+		return nil
+	}
 
 	// Initialise metrics for trackers.
 	mmu.Lock()
@@ -527,6 +538,10 @@ func (l *WAL) DeleteRange(keys [][]byte, min, max int64) (int, error) {
 func (l *WAL) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if !l.enabled {
+		return nil
+	}
 
 	l.once.Do(func() {
 		// Close, but don't set to nil so future goroutines can still be signaled

@@ -120,11 +120,10 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 		tsi1.WithPath(c.GetIndexPath(path)))
 
 	// Initialize WAL
-	if c.WAL.Enabled {
-		e.wal = wal.NewWAL(c.GetWALPath(path))
-		e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
-		e.wal.EnableTraceLogging(c.TraceLoggingEnabled)
-	}
+	e.wal = wal.NewWAL(c.GetWALPath(path))
+	e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
+	e.wal.EnableTraceLogging(c.TraceLoggingEnabled)
+	e.wal.SetEnabled(c.WAL.Enabled)
 
 	// Initialise Engine
 	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine,
@@ -162,9 +161,7 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	e.sfile.WithLogger(e.logger)
 	e.index.WithLogger(e.logger)
 	e.engine.WithLogger(e.logger)
-	if e.wal != nil {
-		e.wal.WithLogger(e.logger)
-	}
+	e.wal.WithLogger(e.logger)
 	e.retentionEnforcer.WithLogger(e.logger)
 }
 
@@ -182,7 +179,7 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 
 // Open opens the store and all underlying resources. It returns an error if
 // any of the underlying systems fail to open.
-func (e *Engine) Open() error {
+func (e *Engine) Open() (err error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -190,23 +187,20 @@ func (e *Engine) Open() error {
 		return nil // Already open
 	}
 
-	if err := e.sfile.Open(); err != nil {
+	// Open the services in order and clean up if any fail.
+	var oh openHelper
+	oh.Open(e.sfile)
+	oh.Open(e.index)
+	oh.Open(e.wal)
+	oh.Open(e.engine)
+	if err := oh.Done(); err != nil {
 		return err
 	}
 
-	if err := e.index.Open(); err != nil {
+	if err := e.reloadCache(); err != nil {
 		return err
 	}
 
-	if e.wal != nil {
-		if err := e.wal.Open(); err != nil {
-			return err
-		}
-	}
-
-	if err := e.engine.Open(); err != nil {
-		return err
-	}
 	e.engine.SetCompactionsEnabled(true) // TODO(edd):is this needed?
 
 	e.closing = make(chan struct{})
@@ -216,6 +210,36 @@ func (e *Engine) Open() error {
 	// policy enforcer.
 	e.runRetentionEnforcer()
 
+	return nil
+}
+
+// reloadCache reads the WAL segment files and loads them into the cache.
+func (e *Engine) reloadCache() error {
+	if !e.config.WAL.Enabled {
+		return nil
+	}
+
+	now := time.Now()
+	files, err := wal.SegmentFileNames(e.wal.Path())
+	if err != nil {
+		return err
+	}
+
+	limit := e.engine.Cache.MaxSize()
+	defer func() {
+		e.engine.Cache.SetMaxSize(limit)
+	}()
+
+	// Disable the max size during loading
+	e.engine.Cache.SetMaxSize(0)
+
+	loader := tsm1.NewCacheLoader(files)
+	loader.WithLogger(e.logger)
+	if err := loader.Load(e.engine.Cache); err != nil {
+		return err
+	}
+
+	e.logger.Info("Reloaded WAL cache", zap.String("path", e.wal.Path()), zap.Duration("duration", time.Since(now)))
 	return nil
 }
 
@@ -279,25 +303,12 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.closing = nil
 
-	if err := e.engine.Close(); err != nil {
-		return err
-	}
-
-	if e.wal != nil {
-		if err := e.wal.Close(); err != nil {
-			return err
-		}
-	}
-
-	if err := e.index.Close(); err != nil {
-		return err
-	}
-
-	if err := e.sfile.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	var ch closeHelper
+	ch.Close(e.engine)
+	ch.Close(e.wal)
+	ch.Close(e.index)
+	ch.Close(e.sfile)
+	return ch.Done()
 }
 
 func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest, cond influxql.Expr) (SeriesCursor, error) {
