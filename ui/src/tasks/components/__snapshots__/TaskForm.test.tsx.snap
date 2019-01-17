@@ -56,12 +56,12 @@ exports[`TaskForm rendering renders 1`] = `
                 active={false}
                 disabled={false}
                 disabledTitleText="This option is disabled"
-                id="interval"
+                id="every"
                 onClick={[Function]}
-                titleText="Interval"
+                titleText="Every"
                 value="interval"
               >
-                Interval
+                Every
               </RadioButton>
               <RadioButton
                 active={false}

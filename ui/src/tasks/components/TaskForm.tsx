@@ -97,13 +97,13 @@ export default class TaskForm extends PureComponent<Props, State> {
                 >
                   <Radio shape={ButtonShape.StretchToFit}>
                     <Radio.Button
-                      id="interval"
+                      id="every"
                       active={taskScheduleType === TaskSchedule.interval}
                       value={TaskSchedule.interval}
-                      titleText="Interval"
+                      titleText="Every"
                       onClick={this.handleChangeScheduleType}
                     >
-                      Interval
+                      Every
                     </Radio.Button>
                     <Radio.Button
                       id="cron"

@@ -23,7 +23,7 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
       <>
         <Grid.Column widthXS={Columns.Six}>
           <Form.Element
-            label={schedule === TaskSchedule.interval ? 'Interval' : 'Cron'}
+            label={schedule === TaskSchedule.interval ? 'Every' : 'Cron'}
           >
             <Input
               name={schedule}
