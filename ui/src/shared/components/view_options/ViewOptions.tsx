@@ -32,15 +32,17 @@ type Props = DispatchProps & StateProps
 class ViewOptions extends PureComponent<Props> {
   public render() {
     return (
-      <FancyScrollbar autoHide={false}>
-        <div className="view-options">
-          <Grid>
-            <Grid.Row>
-              <OptionsSwitcher view={this.props.view} />
-            </Grid.Row>
-          </Grid>
-        </div>
-      </FancyScrollbar>
+      <div className="view-options">
+        <FancyScrollbar autoHide={false}>
+          <div className="view-options--container">
+            <Grid>
+              <Grid.Row>
+                <OptionsSwitcher view={this.props.view} />
+              </Grid.Row>
+            </Grid>
+          </div>
+        </FancyScrollbar>
+      </div>
     )
   }
 }

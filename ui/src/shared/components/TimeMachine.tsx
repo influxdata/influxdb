@@ -2,12 +2,14 @@
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
+import classnames from 'classnames'
 
 // Components
 import {DraggableResizer, Stack} from 'src/clockface'
 import TimeMachineBottom from 'src/shared/components/TimeMachineBottom'
 import TimeMachineVis from 'src/shared/components/TimeMachineVis'
 import TimeSeries from 'src/shared/components/TimeSeries'
+import ViewOptions from 'src/shared/components/view_options/ViewOptions'
 
 // Constants
 const INITIAL_RESIZER_HANDLE = 0.5
@@ -17,6 +19,7 @@ import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 import {timeRangeVariables} from 'src/shared/utils/queryBuilder'
 
 // Types
+import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {AppState, DashboardQuery, TimeRange} from 'src/types/v2'
 
 // Styles
@@ -26,6 +29,7 @@ interface StateProps {
   queries: DashboardQuery[]
   submitToken: number
   timeRange: TimeRange
+  activeTab: TimeMachineTab
 }
 
 interface State {
@@ -48,46 +52,66 @@ class TimeMachine extends Component<Props, State> {
     const {resizerHandlePosition} = this.state
 
     return (
-      <div className="time-machine">
-        <TimeSeries
-          queries={queries}
-          submitToken={submitToken}
-          implicitSubmit={false}
-          variables={{...timeRangeVariables(timeRange)}}
-        >
-          {queriesState => (
-            <DraggableResizer
-              stackPanels={Stack.Rows}
-              handlePositions={resizerHandlePosition}
-              onChangePositions={this.handleResizerChange}
-            >
-              <DraggableResizer.Panel>
-                <div className="time-machine--top">
-                  <TimeMachineVis queriesState={queriesState} />
-                </div>
-              </DraggableResizer.Panel>
-              <DraggableResizer.Panel>
-                <TimeMachineBottom queriesState={queriesState} />
-              </DraggableResizer.Panel>
-            </DraggableResizer>
-          )}
-        </TimeSeries>
-      </div>
+      <>
+        <div className={this.containerClassName}>
+          <TimeSeries
+            queries={queries}
+            submitToken={submitToken}
+            implicitSubmit={false}
+            variables={{...timeRangeVariables(timeRange)}}
+          >
+            {queriesState => (
+              <DraggableResizer
+                stackPanels={Stack.Rows}
+                handlePositions={resizerHandlePosition}
+                onChangePositions={this.handleResizerChange}
+              >
+                <DraggableResizer.Panel>
+                  <div className="time-machine--top">
+                    <TimeMachineVis queriesState={queriesState} />
+                  </div>
+                </DraggableResizer.Panel>
+                <DraggableResizer.Panel>
+                  <TimeMachineBottom queriesState={queriesState} />
+                </DraggableResizer.Panel>
+              </DraggableResizer>
+            )}
+          </TimeSeries>
+        </div>
+        {this.viewOptions}
+      </>
     )
+  }
+
+  private get viewOptions(): JSX.Element {
+    const {activeTab} = this.props
+
+    if (activeTab === TimeMachineTab.Visualization) {
+      return <ViewOptions />
+    }
   }
 
   private handleResizerChange = resizerHandlePosition => {
     this.setState({resizerHandlePosition})
   }
+
+  private get containerClassName(): string {
+    const {activeTab} = this.props
+
+    return classnames('time-machine', {
+      'time-machine--split': activeTab === TimeMachineTab.Visualization,
+    })
+  }
 }
 
 const mstp = (state: AppState) => {
   const timeMachine = getActiveTimeMachine(state)
+  const {activeTab} = getActiveTimeMachine(state)
   const {timeRange} = timeMachine
   const queries = get(timeMachine, 'view.properties.queries', [])
   const submitToken = timeMachine.submitToken
 
-  return {queries, submitToken, timeRange}
+  return {queries, submitToken, timeRange, activeTab}
 }
 
 export default connect<StateProps, {}, {}>(
