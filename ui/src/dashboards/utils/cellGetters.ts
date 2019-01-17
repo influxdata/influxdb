@@ -53,7 +53,10 @@ const getNextAvailablePosition = (dashboard, newCell) => {
       }
 }
 
-export const getNewDashboardCell = (dashboard: Dashboard): NewCell => {
+export const getNewDashboardCell = (
+  dashboard: Dashboard,
+  clonedCell?: Cell
+): NewCell => {
   const defaultCell = {
     x: 0,
     y: 0,
@@ -76,10 +79,18 @@ export const getNewDashboardCell = (dashboard: Dashboard): NewCell => {
   const mostCommonCellWidth = getMostCommonValue(existingCellWidths)
   const mostCommonCellHeight = getMostCommonValue(existingCellHeights)
 
-  const newCell = {
+  let newCell = {
     ...defaultCell,
     w: mostCommonCellWidth,
     h: mostCommonCellHeight,
+  }
+
+  if (clonedCell) {
+    newCell = {
+      ...defaultCell,
+      w: clonedCell.w,
+      h: clonedCell.h,
+    }
   }
 
   const {x, y} = getNextAvailablePosition(dashboard, newCell)
