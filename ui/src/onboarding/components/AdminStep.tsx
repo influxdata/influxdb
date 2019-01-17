@@ -157,7 +157,7 @@ class AdminStep extends PureComponent<Props, State> {
                           size={ComponentSize.Medium}
                           icon={icon}
                           status={ComponentStatus.Default}
-                          placeholder="An organization is where everything you create lives"
+                          placeholder="An organization is a workspace for storing data, dashboards, and other related resources."
                           disabledTitleText="Initial organization name has been set"
                         />
                       </Form.Element>
@@ -178,7 +178,7 @@ class AdminStep extends PureComponent<Props, State> {
                           size={ComponentSize.Medium}
                           icon={icon}
                           status={status}
-                          placeholder="A bucket is where your time series data is stored with a retention policy"
+                          placeholder="A bucket is where your time series data is stored with a retention policy."
                           disabledTitleText="Initial bucket name has been set"
                         />
                       </Form.Element>
@@ -230,7 +230,8 @@ class AdminStep extends PureComponent<Props, State> {
     return (
       <QuestionMarkTooltip
         tipID="admin_org_tooltip"
-        tipContent="An organization is where everything you create lives"
+        tipContent={`An organization is a workspace for storing data, dashboards, and other related resources.
+        You can create organizations for different functional groups, teams, or projects.`}
       />
     )
   }
@@ -239,7 +240,7 @@ class AdminStep extends PureComponent<Props, State> {
     return (
       <QuestionMarkTooltip
         tipID="admin_bucket_tooltip"
-        tipContent="A bucket is where your time series data is stored with a retention policy"
+        tipContent="A bucket is where your time series data is stored with a retention policy."
       />
     )
   }
