@@ -29,10 +29,6 @@ type ViewHandler struct {
 const (
 	viewsPath             = "/api/v2/views"
 	viewsIDPath           = "/api/v2/views/:id"
-	viewsIDMembersPath    = "/api/v2/views/:id/members"
-	viewsIDMembersIDPath  = "/api/v2/views/:id/members/:userID"
-	viewsIDOwnersPath     = "/api/v2/views/:id/owners"
-	viewsIDOwnersIDPath   = "/api/v2/views/:id/owners/:userID"
 	viewsIDLabelsPath     = "/api/v2/views/:id/labels"
 	viewsIDLabelsNamePath = "/api/v2/views/:id/labels/:name"
 )
@@ -54,14 +50,6 @@ func NewViewHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("GET", viewsIDPath, h.handleGetView)
 	h.HandlerFunc("DELETE", viewsIDPath, h.handleDeleteView)
 	h.HandlerFunc("PATCH", viewsIDPath, h.handlePatchView)
-
-	h.HandlerFunc("POST", viewsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Member))
-	h.HandlerFunc("GET", viewsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Member))
-	h.HandlerFunc("DELETE", viewsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
-
-	h.HandlerFunc("POST", viewsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Owner))
-	h.HandlerFunc("GET", viewsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Owner))
-	h.HandlerFunc("DELETE", viewsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 
 	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", viewsIDLabelsPath, newPostLabelHandler(h.LabelService))

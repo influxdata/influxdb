@@ -101,13 +101,27 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("GET", tasksIDLogsPath, h.handleGetLogs)
 	h.HandlerFunc("GET", tasksIDRunsIDLogsPath, h.handleGetLogs)
 
-	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TasksResourceType, platform.Member))
-	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TasksResourceType, platform.Member))
-	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+	memberBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               platform.TasksResourceType,
+		UserType:                   platform.Member,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(memberBackend))
+	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
-	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TasksResourceType, platform.Owner))
-	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TasksResourceType, platform.Owner))
-	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+	ownerBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               platform.TasksResourceType,
+		UserType:                   platform.Owner,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(ownerBackend))
+	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", tasksIDRunsPath, h.handleGetRuns)
 	h.HandlerFunc("POST", tasksIDRunsPath, h.handleForceRun)

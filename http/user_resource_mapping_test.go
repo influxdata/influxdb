@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -190,7 +191,14 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 					}))
 
 				w := httptest.NewRecorder()
-				h := newGetMembersHandler(tt.fields.userResourceMappingService, tt.fields.userService, resourceType, tt.args.userType)
+				memberBackend := MemberBackend{
+					Logger:                     zap.NewNop().With(zap.String("handler", "member")),
+					ResourceType:               resourceType,
+					UserType:                   tt.args.userType,
+					UserResourceMappingService: tt.fields.userResourceMappingService,
+					UserService:                tt.fields.userService,
+				}
+				h := newGetMembersHandler(memberBackend)
 				h.ServeHTTP(w, r)
 
 				res := w.Result()
@@ -340,7 +348,14 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 					}))
 
 				w := httptest.NewRecorder()
-				h := newPostMemberHandler(tt.fields.userResourceMappingService, tt.fields.userService, resourceType, tt.args.userType)
+				memberBackend := MemberBackend{
+					Logger:                     zap.NewNop().With(zap.String("handler", "member")),
+					ResourceType:               resourceType,
+					UserType:                   tt.args.userType,
+					UserResourceMappingService: tt.fields.userResourceMappingService,
+					UserService:                tt.fields.userService,
+				}
+				h := newPostMemberHandler(memberBackend)
 				h.ServeHTTP(w, r)
 
 				res := w.Result()
