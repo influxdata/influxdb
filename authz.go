@@ -113,6 +113,8 @@ const (
 	UsersResourceType = ResourceType("users") // 7
 	// MacrosResourceType gives permission to one or more macros.
 	MacrosResourceType = ResourceType("macros") // 8
+	// ScraperResourceType gives permission to one or more scrapers.
+	ScraperResourceType = ResourceType("scrapers") // 9
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -126,6 +128,7 @@ var AllResourceTypes = []ResourceType{
 	TelegrafsResourceType,      // 6
 	UsersResourceType,          // 7
 	MacrosResourceType,         // 8
+	ScraperResourceType,        // 9
 }
 
 // OrgResourceTypes is the list of all known resource types that belong to an organization.
@@ -155,6 +158,7 @@ func (t ResourceType) Valid() (err error) {
 	case SourcesResourceType: // 6
 	case UsersResourceType: // 7
 	case MacrosResourceType: // 8
+	case ScraperResourceType: // 9
 	default:
 		err = ErrInvalidResourceType
 	}
