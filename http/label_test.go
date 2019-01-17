@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
@@ -129,29 +128,4 @@ func TestService_handleGetLabels(t *testing.T) {
 			}
 		})
 	}
-}
-
-func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, string, func()) {
-	t.Helper()
-	svc := inmem.NewService()
-	svc.IDGenerator = f.IDGenerator
-
-	ctx := context.Background()
-	for _, u := range f.Labels {
-		if err := svc.PutLabel(ctx, u); err != nil {
-			t.Fatalf("failed to populate labels")
-		}
-	}
-
-	handler := NewLabelHandler()
-	handler.LabelService = svc
-	server := httptest.NewServer(handler)
-	client := LabelService{
-		Addr:     server.URL,
-		OpPrefix: inmem.OpPrefix,
-	}
-
-	done := server.Close
-
-	return &client, inmem.OpPrefix, done
 }

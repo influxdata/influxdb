@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	labelOneID   = "41a9f7288d4e2d64"
-	labelTwoID   = "b7c5355e1134b11c"
-	labelThreeID = "52ec3216eaf647e4"
+	labelOneID = "41a9f7288d4e2d64"
+	labelTwoID = "b7c5355e1134b11c"
 )
 
 var labelCmpOptions = cmp.Options{
