@@ -41,8 +41,15 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
     return (
       <IndexList.Row disabled={!this.isTaskActive}>
         <IndexList.Cell>
-          <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
-            <a href="#" onClick={this.handleClick}>
+          <ComponentSpacer
+            stackChildren={Stack.Columns}
+            align={Alignment.Right}
+          >
+            <a
+              href="#"
+              onClick={this.handleClick}
+              className="index-list--resource-name"
+            >
               {task.name}
             </a>
             {this.labels}
