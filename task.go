@@ -23,7 +23,7 @@ const (
 type Task struct {
 	ID              ID     `json:"id,omitempty"`
 	OrganizationID  ID     `json:"orgID"`
-	Organization    string `json:"organization"`
+	Organization    string `json:"org"`
 	Name            string `json:"name"`
 	Status          string `json:"status"`
 	Owner           User   `json:"owner"`

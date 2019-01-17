@@ -120,7 +120,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
         }
       ],
       "orgID": "0000000000000001",
-      "organization": "test",
+      "org": "test",
       "status": "",
       "flux": "",
       "owner": {
@@ -149,7 +149,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
         }
       ],
 	  "orgID": "0000000000000002",
-	  "organization": "test",
+	  "org": "test",
       "status": "",
       "flux": "",
       "owner": {
@@ -247,7 +247,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
   "name": "task1",
   "labels": [],
   "orgID": "0000000000000001",
-  "organization": "test",
+  "org": "test",
   "status": "",
   "flux": "",
   "owner": {
