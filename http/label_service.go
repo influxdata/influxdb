@@ -357,8 +357,38 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 	}, nil
 }
 
+func labelIDPath(id platform.ID) string {
+	return path.Join(labelsPath, id.String())
+}
+
+// FindLabelByID returns a single label by ID.
 func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
-	return nil, nil
+	u, err := newURL(s.Addr, labelIDPath(id))
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp, true); err != nil {
+		return nil, err
+	}
+
+	var lr labelResponse
+	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+		return nil, err
+	}
+	return &lr.Label, nil
 }
 
 func (s *LabelService) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
@@ -399,6 +429,41 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter platform.L
 }
 
 func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error {
+	u, err := newURL(s.Addr, labelsPath)
+	if err != nil {
+		return err
+	}
+
+	octets, err := json.Marshal(l)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(octets))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	// TODO(jsternberg): Should this check for a 201 explicitly?
+	if err := CheckError(resp, true); err != nil {
+		return err
+	}
+
+	var lr labelResponse
+	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -443,29 +508,63 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.Label
 	return nil
 }
 
+// UpdateLabel updates a label and returns the updated label.
 func (s *LabelService) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
-	return nil, nil
+	u, err := newURL(s.Addr, labelIDPath(id))
+	if err != nil {
+		return nil, err
+	}
+
+	octets, err := json.Marshal(upd)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp, true); err != nil {
+		return nil, err
+	}
+
+	var lr labelResponse
+	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+		return nil, err
+	}
+	return &lr.Label, nil
 }
 
+// DeleteLabel removes a label by ID.
 func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
-	// url, err := newURL(s.Addr, labelIDPath(s.BasePath, m.ResourceID, m.LabelID))
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// req, err := http.NewRequest("DELETE", url.String(), nil)
-	// if err != nil {
-	// 	return err
-	// }
-	// SetToken(s.Token, req)
-	//
-	// hc := newClient(url.Scheme, s.InsecureSkipVerify)
-	// resp, err := hc.Do(req)
-	// if err != nil {
-	// 	return err
-	// }
-	// return CheckError(resp)
-	return nil
+	u, err := newURL(s.Addr, labelIDPath(id))
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	SetToken(s.Token, req)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	return CheckError(resp, true)
 }
 
 func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
