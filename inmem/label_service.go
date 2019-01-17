@@ -11,7 +11,10 @@ import (
 func (s *Service) loadLabel(ctx context.Context, id platform.ID) (*platform.Label, error) {
 	i, ok := s.labelKV.Load(id.String())
 	if !ok {
-		return nil, platform.ErrLabelNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "label not found",
+		}
 	}
 
 	l, ok := i.(platform.Label)

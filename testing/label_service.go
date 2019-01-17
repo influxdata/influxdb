@@ -62,10 +62,10 @@ func LabelService(
 			name: "FindLabels",
 			fn:   FindLabels,
 		},
-		// {
-		// name: "FindLabelByID",
-		// fn: FindLabelByID,
-		// }
+		{
+			name: "FindLabelByID",
+			fn:   FindLabelByID,
+		},
 		{
 			name: "UpdateLabel",
 			fn:   UpdateLabel,
@@ -268,6 +268,81 @@ func FindLabels(
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
+				t.Errorf("labels are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+func FindLabelByID(
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		id platform.ID
+	}
+	type wants struct {
+		err   error
+		label *platform.Label
+	}
+
+	tests := []struct {
+		name   string
+		fields LabelFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "find label by ID",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
+					},
+					{
+						ID:   MustIDBase16(labelTwoID),
+						Name: "Tag2",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(labelOneID),
+			},
+			wants: wants{
+				label: &platform.Label{
+					ID:   MustIDBase16(labelOneID),
+					Name: "Tag1",
+				},
+			},
+		},
+		{
+			name: "label does not exist",
+			fields: LabelFields{
+				Labels: []*platform.Label{},
+			},
+			args: args{
+				id: MustIDBase16(labelOneID),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindLabelByID,
+					Msg:  "label not found",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+			label, err := s.FindLabelByID(ctx, tt.args.id)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			if diff := cmp.Diff(label, tt.wants.label, labelCmpOptions...); diff != "" {
 				t.Errorf("labels are different -got/+want\ndiff %s", diff)
 			}
 		})
