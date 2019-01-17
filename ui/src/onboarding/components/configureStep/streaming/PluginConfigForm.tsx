@@ -52,6 +52,15 @@ class PluginConfigForm extends PureComponent<Props> {
           <FancyScrollbar autoHide={false}>
             <div className="wizard-step--scroll-content">
               <h3 className="wizard-step--title">{_.startCase(name)}</h3>
+              <h5 className="wizard-step--sub-title">
+                For more information about this plugin, see{' '}
+                <a
+                  target="_blank"
+                  href={`https://github.com/influxdata/telegraf/tree/master/plugins/inputs/${name}`}
+                >
+                  Documentation
+                </a>
+              </h5>
               <ConfigFieldHandler
                 configFields={configFields}
                 telegrafPlugin={telegrafPlugin}
