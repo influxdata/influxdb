@@ -5629,7 +5629,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/TelegrafRequestPlugin"
         - $ref: "#/components/schemas/TelegrafPluginInputNet"
-    TelegrafPluginInputNgnix:
+    TelegrafPluginInputNginx:
       type:
         object
       required:
@@ -5639,7 +5639,7 @@ components:
       properties:
         name:
           type: string
-          enum: ["ngnix"]
+          enum: ["nginx"]
         type:
           type: string
           enum: ["input"]
@@ -5647,11 +5647,11 @@ components:
           type: string
         config:
           $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputNgnixRequest:
+    TelegrafPluginInputNginxRequest:
       type: object
       allOf:
         - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputNgnix"
+        - $ref: "#/components/schemas/TelegrafPluginInputNginx"
     TelegrafPluginInputProcesses:
       type:
         object

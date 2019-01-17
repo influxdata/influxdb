@@ -370,7 +370,7 @@ var availableInputPlugins = map[string](func() plugins.Config){
 	"mem":          func() plugins.Config { return &inputs.MemStats{} },
 	"net_response": func() plugins.Config { return &inputs.NetResponse{} },
 	"net":          func() plugins.Config { return &inputs.NetIOStats{} },
-	"ngnix":        func() plugins.Config { return &inputs.Nginx{} },
+	"nginx":        func() plugins.Config { return &inputs.Nginx{} },
 	"processes":    func() plugins.Config { return &inputs.Processes{} },
 	"procstat":     func() plugins.Config { return &inputs.Procstat{} },
 	"prometheus":   func() plugins.Config { return &inputs.Prometheus{} },
