@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"mime"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -330,23 +332,32 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 
 func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*QueryRequest, error) {
 	var req QueryRequest
-	// TODO(desa): I'm not sure I like this kind of conditional logic, but it feels better than
-	// introducing another method that does this exact thing.
-	if r.Method == http.MethodGet {
-		qp := r.URL.Query()
-		req.Query = qp.Get("query")
-		if req.Query == "" {
-			return nil, errors.New("query param \"query\" is required")
+
+	var contentType = "application/json"
+	if ct := r.Header.Get("Content-Type"); ct != "" {
+		contentType = ct
+	}
+	mt, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return nil, err
+	}
+	switch mt {
+	case "application/vnd.flux":
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return nil, err
 		}
-	} else {
+		req.Query = string(body)
+	case "application/json":
+		fallthrough
+	default:
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			return nil, err
 		}
 	}
 
 	req = req.WithDefaults()
-	err := req.Validate()
-	if err != nil {
+	if err := req.Validate(); err != nil {
 		return nil, err
 	}
 
