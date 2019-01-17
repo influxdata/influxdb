@@ -122,7 +122,7 @@ class OnboardingWizard extends PureComponent<Props> {
   private handleExit = () => {
     const {router, onCompleteSetup} = this.props
     onCompleteSetup()
-    router.push(`/`)
+    router.push(`/me`)
   }
 
   private get onboardingStepProps(): OnboardingStepProps {

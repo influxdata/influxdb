@@ -103,12 +103,12 @@ class SigninForm extends PureComponent<Props, State> {
   }
 
   private handleSignIn = async (): Promise<void> => {
-    const {notify, router} = this.props
+    const {notify} = this.props
     const {username, password} = this.state
 
     try {
       await signin({username, password})
-      router.push('/dashboards')
+      this.handleRedirect()
     } catch (error) {
       const message = get(error, 'data.msg', '')
 
@@ -117,6 +117,17 @@ class SigninForm extends PureComponent<Props, State> {
       }
 
       notify({...copy.SigninError, message})
+    }
+  }
+
+  private handleRedirect() {
+    const {router} = this.props
+    const {query} = this.props.location
+
+    if (query && query.returnTo) {
+      router.push(query.returnTo)
+    } else {
+      router.push('/me')
     }
   }
 }
