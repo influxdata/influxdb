@@ -31,6 +31,23 @@ func TestMetricsReader(t *testing.T) {
 			wants: "cpu_load_short value=0.64 1422568543702900257",
 		},
 		{
+			name: "gauge with type label produces lineprotocol with one type",
+			ms: []Metrics{
+				{
+					Name: "error_metric",
+					Tags: map[string]string{
+						"type": "gauge",
+					},
+					Fields: map[string]interface{}{
+						"value": "yes",
+					},
+					Type:      MetricTypeGauge,
+					Timestamp: time.Unix(0, 1422568543702900257),
+				},
+			},
+			wants: `error_metric,type=gauge value="yes" 1422568543702900257`,
+		},
+		{
 			name: "single regular metrics",
 			ms: []Metrics{
 				{
@@ -46,7 +63,7 @@ func TestMetricsReader(t *testing.T) {
 					Timestamp: time.Unix(0, 1422568543702900257),
 				},
 			},
-			wants: "cpu_load_short,host=server01,region=us-west,type=GAUGE value=0.64 1422568543702900257",
+			wants: "cpu_load_short,host=server01,region=us-west value=0.64 1422568543702900257",
 		},
 		{
 			name: "multiple value only",
