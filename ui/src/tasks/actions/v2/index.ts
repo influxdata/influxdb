@@ -35,6 +35,7 @@ import {getDeep} from 'src/utils/wrappers'
 import {
   taskOptionsToFluxScript,
   TaskOptionKeys,
+  TaskOptions,
 } from 'src/utils/taskOptionsToFluxScript'
 
 export type Action =
@@ -318,18 +319,15 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
   }
 }
 
-export const saveNewScript = () => async (
-  dispatch,
-  getState: GetStateFunc
-): Promise<void> => {
+export const saveNewScript = (
+  script: string,
+  taskOptions: TaskOptions
+) => async (dispatch, getState: GetStateFunc): Promise<void> => {
   try {
-    const {
-      orgs,
-      tasks: {newScript: script, taskOptions},
-    } = await getState()
+    const {orgs} = await getState()
 
     const fluxTaskOptions = taskOptionsToFluxScript(taskOptions)
-    const scriptWithOptions = `${fluxTaskOptions}\n${script}`
+    const scriptWithOptions = `${fluxTaskOptions}\n\n${script}`
 
     let org = orgs.find(org => {
       return org.id === taskOptions.orgID

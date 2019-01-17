@@ -14,8 +14,13 @@ import {
   setNewScript,
 } from 'src/tasks/actions/v2'
 
+// Utils
+import {timeRangeVariables} from 'src/shared/utils/queryBuilder'
+import {renderQuery} from 'src/shared/utils/renderQuery'
+import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+
 // Types
-import {AppState, Organization} from 'src/types/v2'
+import {AppState, Organization, InfluxLanguage, TimeRange} from 'src/types/v2'
 import {
   TaskSchedule,
   TaskOptions,
@@ -39,6 +44,8 @@ interface StateProps {
   taskOptions: TaskOptions
   draftQueries: DashboardDraftQuery[]
   activeQueryIndex: number
+  newScript: string
+  timeRange: TimeRange
 }
 
 type Props = StateProps & OwnProps & DispatchProps
@@ -60,6 +67,7 @@ class SaveAsTaskForm extends PureComponent<Props> {
 
     clearTask()
   }
+
   public render() {
     const {orgs, taskOptions, dismiss} = this.props
 
@@ -93,9 +101,16 @@ class SaveAsTaskForm extends PureComponent<Props> {
     return _.get(draftQueries, `${activeQueryIndex}.text`)
   }
 
-  private handleSubmit = () => {
-    const {saveNewScript} = this.props
-    saveNewScript()
+  private handleSubmit = async () => {
+    const {saveNewScript, newScript, taskOptions, timeRange} = this.props
+
+    const script = await renderQuery(
+      newScript,
+      InfluxLanguage.Flux,
+      timeRangeVariables(timeRange)
+    )
+
+    saveNewScript(script, taskOptions)
   }
 
   private handleChangeTaskOrgID = (orgID: string) => {
@@ -123,15 +138,21 @@ class SaveAsTaskForm extends PureComponent<Props> {
 const mstp = (state: AppState): StateProps => {
   const {
     orgs,
-    tasks,
-    timeMachines: {
-      timeMachines: {de},
-    },
+    tasks: {newScript, taskOptions},
   } = state
 
-  const {draftQueries, activeQueryIndex} = de
+  const {draftQueries, activeQueryIndex, timeRange} = getActiveTimeMachine(
+    state
+  )
 
-  return {orgs, taskOptions: tasks.taskOptions, draftQueries, activeQueryIndex}
+  return {
+    orgs,
+    newScript,
+    taskOptions,
+    timeRange,
+    draftQueries,
+    activeQueryIndex,
+  }
 }
 
 const mdtp: DispatchProps = {
