@@ -72,7 +72,7 @@ export function formatFunctionCall(fn: BuilderConfig['functions'][0]) {
   return fnCall
 }
 
-export function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
+function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
   if (!tagsSelections.length) {
     return ''
   }
