@@ -19,7 +19,7 @@ import {
   updateDashboardLinks,
 } from 'src/dashboards/utils/dashboardSwitcherLinks'
 
-const addDashboardIDToCells = (
+export const addDashboardIDToCells = (
   cells: CellTypeAPI[],
   dashboardID: string
 ): Cell[] => {

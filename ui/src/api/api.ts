@@ -597,6 +597,20 @@ export interface CreateCell {
 /**
  * 
  * @export
+ * @interface CreateProtoResourcesRequest
+ */
+export interface CreateProtoResourcesRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof CreateProtoResourcesRequest
+     */
+    orgID?: string;
+}
+
+/**
+ * 
+ * @export
  * @interface Dashboard
  */
 export interface Dashboard {
@@ -1988,6 +2002,72 @@ export namespace PermissionResource {
         Telegrafs = 'telegrafs',
         Users = 'users'
     }
+}
+
+/**
+ * 
+ * @export
+ * @interface Proto
+ */
+export interface Proto {
+    /**
+     * 
+     * @type {ProtoLinks}
+     * @memberof Proto
+     */
+    links?: ProtoLinks;
+    /**
+     * 
+     * @type {string}
+     * @memberof Proto
+     */
+    id?: string;
+    /**
+     * user-facing name of the proto
+     * @type {string}
+     * @memberof Proto
+     */
+    name?: string;
+    /**
+     * 
+     * @type {Array<Dashboard>}
+     * @memberof Proto
+     */
+    dashboards?: Array<Dashboard>;
+    /**
+     * 
+     * @type {{ [key: string]: View; }}
+     * @memberof Proto
+     */
+    views?: { [key: string]: View; };
+}
+
+/**
+ * 
+ * @export
+ * @interface ProtoLinks
+ */
+export interface ProtoLinks {
+    /**
+     * 
+     * @type {string}
+     * @memberof ProtoLinks
+     */
+    dashboard?: string;
+}
+
+/**
+ * 
+ * @export
+ * @interface Protos
+ */
+export interface Protos {
+    /**
+     * 
+     * @type {Array<Proto>}
+     * @memberof Protos
+     */
+    protos?: Array<Proto>;
 }
 
 /**
@@ -10282,6 +10362,199 @@ export class OrganizationsApi extends BaseAPI {
      */
     public orgsPost(organization: Organization, options?: any) {
         return OrganizationsApiFp(this.configuration).orgsPost(organization, options)(this.axios, this.basePath);
+    }
+
+}
+
+/**
+ * ProtosApi - axios parameter creator
+ * @export
+ */
+export const ProtosApiAxiosParamCreator = function (configuration?: Configuration) {
+    return {
+        /**
+         * 
+         * @summary List of available protos (templates of tasks/dashboards/etc)
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        protosGet(zapTraceSpan?: string, options: any = {}): RequestArgs {
+            const localVarPath = `/protos`;
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Create instance of a proto dashboard
+         * @param {string} protoID ID of proto
+         * @param {CreateProtoResourcesRequest} createProtoResourcesRequest organization that the dashboard will be created as
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        protosProtoIDDashboardsPost(protoID: string, createProtoResourcesRequest: CreateProtoResourcesRequest, zapTraceSpan?: string, options: any = {}): RequestArgs {
+            // verify required parameter 'protoID' is not null or undefined
+            if (protoID === null || protoID === undefined) {
+                throw new RequiredError('protoID','Required parameter protoID was null or undefined when calling protosProtoIDDashboardsPost.');
+            }
+            // verify required parameter 'createProtoResourcesRequest' is not null or undefined
+            if (createProtoResourcesRequest === null || createProtoResourcesRequest === undefined) {
+                throw new RequiredError('createProtoResourcesRequest','Required parameter createProtoResourcesRequest was null or undefined when calling protosProtoIDDashboardsPost.');
+            }
+            const localVarPath = `/protos/{protoID}/dashboards`
+                .replace(`{${"protoID"}}`, encodeURIComponent(String(protoID)));
+            const localVarUrlObj = url.parse(localVarPath, true);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+            const localVarRequestOptions = Object.assign({ method: 'POST' }, baseOptions, options);
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (zapTraceSpan !== undefined && zapTraceSpan !== null) {
+                localVarHeaderParameter['Zap-Trace-Span'] = String(zapTraceSpan);
+            }
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
+            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
+            delete localVarUrlObj.search;
+            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
+            const needsSerialization = (<any>"CreateProtoResourcesRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(createProtoResourcesRequest || {}) : (createProtoResourcesRequest || "");
+
+            return {
+                url: url.format(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+    }
+};
+
+/**
+ * ProtosApi - functional programming interface
+ * @export
+ */
+export const ProtosApiFp = function(configuration?: Configuration) {
+    return {
+        /**
+         * 
+         * @summary List of available protos (templates of tasks/dashboards/etc)
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        protosGet(zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Protos> {
+            const localVarAxiosArgs = ProtosApiAxiosParamCreator(configuration).protosGet(zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+        /**
+         * 
+         * @summary Create instance of a proto dashboard
+         * @param {string} protoID ID of proto
+         * @param {CreateProtoResourcesRequest} createProtoResourcesRequest organization that the dashboard will be created as
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        protosProtoIDDashboardsPost(protoID: string, createProtoResourcesRequest: CreateProtoResourcesRequest, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Dashboards> {
+            const localVarAxiosArgs = ProtosApiAxiosParamCreator(configuration).protosProtoIDDashboardsPost(protoID, createProtoResourcesRequest, zapTraceSpan, options);
+            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
+                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
+                return axios.request(axiosRequestArgs);                
+            };
+        },
+    }
+};
+
+/**
+ * ProtosApi - factory interface
+ * @export
+ */
+export const ProtosApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
+    return {
+        /**
+         * 
+         * @summary List of available protos (templates of tasks/dashboards/etc)
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        protosGet(zapTraceSpan?: string, options?: any) {
+            return ProtosApiFp(configuration).protosGet(zapTraceSpan, options)(axios, basePath);
+        },
+        /**
+         * 
+         * @summary Create instance of a proto dashboard
+         * @param {string} protoID ID of proto
+         * @param {CreateProtoResourcesRequest} createProtoResourcesRequest organization that the dashboard will be created as
+         * @param {string} [zapTraceSpan] OpenTracing span context
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        protosProtoIDDashboardsPost(protoID: string, createProtoResourcesRequest: CreateProtoResourcesRequest, zapTraceSpan?: string, options?: any) {
+            return ProtosApiFp(configuration).protosProtoIDDashboardsPost(protoID, createProtoResourcesRequest, zapTraceSpan, options)(axios, basePath);
+        },
+    };
+};
+
+/**
+ * ProtosApi - object-oriented interface
+ * @export
+ * @class ProtosApi
+ * @extends {BaseAPI}
+ */
+export class ProtosApi extends BaseAPI {
+    /**
+     * 
+     * @summary List of available protos (templates of tasks/dashboards/etc)
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProtosApi
+     */
+    public protosGet(zapTraceSpan?: string, options?: any) {
+        return ProtosApiFp(this.configuration).protosGet(zapTraceSpan, options)(this.axios, this.basePath);
+    }
+
+    /**
+     * 
+     * @summary Create instance of a proto dashboard
+     * @param {string} protoID ID of proto
+     * @param {CreateProtoResourcesRequest} createProtoResourcesRequest organization that the dashboard will be created as
+     * @param {string} [zapTraceSpan] OpenTracing span context
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ProtosApi
+     */
+    public protosProtoIDDashboardsPost(protoID: string, createProtoResourcesRequest: CreateProtoResourcesRequest, zapTraceSpan?: string, options?: any) {
+        return ProtosApiFp(this.configuration).protosProtoIDDashboardsPost(protoID, createProtoResourcesRequest, zapTraceSpan, options)(this.axios, this.basePath);
     }
 
 }
