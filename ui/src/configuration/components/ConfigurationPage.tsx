@@ -59,7 +59,7 @@ class ConfigurationPage extends Component<Props> {
               <TabbedPageSection
                 id="settings_tab"
                 url="settings_tab"
-                title="Account"
+                title="Profile"
               >
                 <Settings />
               </TabbedPageSection>

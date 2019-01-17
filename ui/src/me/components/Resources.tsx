@@ -34,7 +34,7 @@ class ResourceLists extends PureComponent<Props> {
           <Panel.Body>
             <ul className="link-list">
               <li>
-                <Link to={`/configuration/settings_tab`}>Account</Link>
+                <Link to={`/configuration/settings_tab`}>Profile</Link>
               </li>
               <li>
                 <Link to={`/configuration/tokens_tab`}>Tokens</Link>
