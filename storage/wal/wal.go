@@ -105,7 +105,9 @@ type WAL struct {
 	// SegmentSize is the file size at which a segment file will be rotated
 	SegmentSize int
 
-	tracker *walTracker
+	tracker             *walTracker
+	defaultMetricLabels prometheus.Labels // N.B this must not be mutated after Open is called.
+
 	limiter limiter.Fixed
 }
 
@@ -122,7 +124,6 @@ func NewWAL(path string) *WAL {
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
 		traceLogger: logger,
-		tracker:     newWALTracker(newWALMetrics(nil), nil),
 	}
 }
 
@@ -148,6 +149,15 @@ func (l *WAL) WithLogger(log *zap.Logger) {
 	}
 }
 
+// SetDefaultMetricLabels sets the default labels for metrics on the engine.
+// It must be called before the Engine is opened.
+func (l *WAL) SetDefaultMetricLabels(labels prometheus.Labels) {
+	l.defaultMetricLabels = make(prometheus.Labels, len(labels))
+	for k, v := range labels {
+		l.defaultMetricLabels[k] = v
+	}
+}
+
 // Path returns the directory the log was initialized with.
 func (l *WAL) Path() string {
 	l.mu.RLock()
@@ -159,6 +169,16 @@ func (l *WAL) Path() string {
 func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	// Initialise metrics for trackers.
+	mmu.Lock()
+	if wms == nil {
+		wms = newWALMetrics(l.defaultMetricLabels)
+	}
+	mmu.Unlock()
+
+	// Set the shared metrics for the tracker
+	l.tracker = newWALTracker(wms, l.defaultMetricLabels)
 
 	l.traceLogger.Info("tsm1 WAL starting", zap.Int("segment_size", l.SegmentSize))
 	l.traceLogger.Info("tsm1 WAL writing", zap.String("path", l.path))

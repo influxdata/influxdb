@@ -2,9 +2,31 @@ package wal
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// The following package variables act as singletons, to be shared by all
+// storage.Engine instantiations. This allows multiple WALs to be monitored
+// within the same process.
+var (
+	wms *walMetrics // main metrics
+	mmu sync.RWMutex
+)
+
+// PrometheusCollectors returns all the metrics associated with the tsdb package.
+func PrometheusCollectors() []prometheus.Collector {
+	mmu.RLock()
+	defer mmu.RUnlock()
+
+	var collectors []prometheus.Collector
+	if wms != nil {
+		collectors = append(collectors, wms.PrometheusCollectors()...)
+	}
+
+	return collectors
+}
 
 // namespace is the leading part of all published metrics for the Storage service.
 const namespace = "storage"

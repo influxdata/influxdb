@@ -24,7 +24,6 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
@@ -79,13 +78,6 @@ const (
 // an Engine.
 type EngineOption func(i *Engine)
 
-// WithWAL sets the WAL for the Engine
-var WithWAL = func(w *wal.WAL) EngineOption {
-	return func(e *Engine) {
-		e.WAL = w
-	}
-}
-
 // WithTraceLogging sets if trace logging is enabled for the engine.
 var WithTraceLogging = func(logging bool) EngineOption {
 	return func(e *Engine) {
@@ -128,7 +120,6 @@ type Engine struct {
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
-	WAL            *wal.WAL
 	Cache          *Cache
 	Compactor      *Compactor
 	CompactionPlan CompactionPlanner
@@ -472,29 +463,9 @@ func (e *Engine) SeriesN() int64 {
 	return e.index.SeriesN()
 }
 
-// LastModified returns the time when this shard was last modified.
-func (e *Engine) LastModified() time.Time {
-	fsTime := e.FileStore.LastModified()
-
-	if e.WAL != nil && e.WAL.LastWriteTime().After(fsTime) {
-		return e.WAL.LastWriteTime()
-	}
-	return fsTime
-}
-
 // MeasurementStats returns the current measurement stats for the engine.
 func (e *Engine) MeasurementStats() (MeasurementStats, error) {
 	return e.FileStore.MeasurementStats()
-}
-
-// DiskSize returns the total size in bytes of all TSM and WAL segments on disk.
-func (e *Engine) DiskSize() int64 {
-	var walDiskSizeBytes int64
-	if e.WAL != nil {
-		walDiskSizeBytes = e.WAL.DiskSizeBytes()
-	}
-
-	return e.FileStore.DiskSizeBytes() + walDiskSizeBytes
 }
 
 func (e *Engine) initTrackers() {
@@ -526,17 +497,7 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	if e.WAL != nil {
-		if err := e.WAL.Open(); err != nil {
-			return err
-		}
-	}
-
 	if err := e.FileStore.Open(); err != nil {
-		return err
-	}
-
-	if err := e.reloadCache(); err != nil {
 		return err
 	}
 
@@ -562,12 +523,6 @@ func (e *Engine) Close() error {
 		return err
 	}
 
-	if e.WAL != nil {
-		if err := e.WAL.Close(); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -579,9 +534,6 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 		e.traceLogger = e.logger
 	}
 
-	if e.WAL != nil {
-		e.WAL.WithLogger(e.logger)
-	}
 	e.FileStore.WithLogger(e.logger)
 }
 
@@ -654,16 +606,8 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	// first try to write to the cache
 	if err := e.Cache.WriteMulti(values); err != nil {
 		return err
-	}
-
-	// Then make the write durable in the cache.
-	if e.WAL != nil {
-		if _, err := e.WAL.WriteMulti(values); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -874,13 +818,6 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	bytesutil.Sort(deleteKeys)
 
 	e.Cache.DeleteRange(deleteKeys, min, max)
-
-	// delete from the WAL
-	if e.WAL != nil {
-		if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
-			return err
-		}
-	}
 
 	// The series are deleted on disk, but the index may still say they exist.
 	// Depending on the the min,max time passed in, the series may or not actually
@@ -1201,24 +1138,9 @@ func (e *Engine) WriteSnapshot() error {
 		logEnd()
 	}()
 
-	closedFiles, snapshot, err := func() (segments []string, snapshot *Cache, err error) {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-
-		if e.WAL != nil {
-			if err = e.WAL.CloseSegment(); err != nil {
-				return nil, nil, err
-			}
-			segments, err = e.WAL.ClosedSegments()
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-
-		snapshot, err = e.Cache.Snapshot()
-		return segments, snapshot, err
-	}()
-
+	e.mu.Lock()
+	snapshot, err := e.Cache.Snapshot()
+	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -1237,11 +1159,11 @@ func (e *Engine) WriteSnapshot() error {
 		zap.String("path", e.path),
 		zap.Duration("duration", time.Since(dedup)))
 
-	return e.writeSnapshotAndCommit(log, closedFiles, snapshot)
+	return e.writeSnapshotAndCommit(log, snapshot)
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.
-func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, snapshot *Cache) (err error) {
+func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache) (err error) {
 	defer func() {
 		if err != nil {
 			e.Cache.ClearSnapshot(false)
@@ -1266,12 +1188,6 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, s
 
 	// clear the snapshot from the in-memory cache, then the old WAL files
 	e.Cache.ClearSnapshot(true)
-
-	if e.WAL != nil {
-		if err := e.WAL.Remove(closedFiles); err != nil {
-			log.Info("Error removing closed WAL segments", zap.Error(err))
-		}
-	}
 
 	return nil
 }
@@ -1576,36 +1492,6 @@ func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *c
 		s.level = 4
 	}
 	return s
-}
-
-// reloadCache reads the WAL segment files and loads them into the cache.
-func (e *Engine) reloadCache() error {
-	if e.WAL == nil {
-		return nil
-	}
-
-	now := time.Now()
-	files, err := wal.SegmentFileNames(e.WAL.Path())
-	if err != nil {
-		return err
-	}
-
-	limit := e.Cache.MaxSize()
-	defer func() {
-		e.Cache.SetMaxSize(limit)
-	}()
-
-	// Disable the max size during loading
-	e.Cache.SetMaxSize(0)
-
-	loader := NewCacheLoader(files)
-	loader.WithLogger(e.logger)
-	if err := loader.Load(e.Cache); err != nil {
-		return err
-	}
-
-	e.traceLogger.Info("Reloaded WAL cache", zap.String("path", e.WAL.Path()), zap.Duration("duration", time.Since(now)))
-	return nil
 }
 
 // cleanup removes all temp files and dirs that exist on disk.  This is should only be run at startup to avoid

@@ -630,65 +630,6 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 	}
 }
 
-func TestEngine_LastModified(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode")
-	}
-
-	// Create a few points.
-	p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
-	p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
-	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
-
-	e, err := NewEngine()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// mock the planner so compactions don't run during the test
-	e.CompactionPlan = &mockPlanner{}
-	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer e.Close()
-
-	if err := e.writePoints(p1, p2, p3); err != nil {
-		t.Fatalf("failed to write points: %s", err.Error())
-	}
-
-	lm := e.LastModified()
-	if lm.IsZero() {
-		t.Fatalf("expected non-zero time, got %v", lm.UTC())
-	}
-	e.SetEnabled(true)
-
-	// Artificial sleep added due to filesystems caching the mod time
-	// of files.  This prevents the WAL last modified time from being
-	// returned and newer than the filestore's mod time.
-	time.Sleep(2 * time.Second) // Covers most filesystems.
-
-	if err := e.WriteSnapshot(); err != nil {
-		t.Fatalf("failed to snapshot: %s", err.Error())
-	}
-
-	lm2 := e.LastModified()
-
-	if got, exp := lm.Equal(lm2), false; exp != got {
-		t.Fatalf("expected time change, got %v, exp %v: %s == %s", got, exp, lm.String(), lm2.String())
-	}
-
-	itr := &seriesIterator{keys: [][]byte{[]byte("cpu,host=A")}}
-	if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
-		t.Fatalf("failed to delete series: %v", err)
-	}
-
-	lm3 := e.LastModified()
-	if got, exp := lm2.Equal(lm3), false; exp != got {
-		t.Fatalf("expected time change, got %v, exp %v", got, exp)
-	}
-}
-
 func TestEngine_SnapshotsDisabled(t *testing.T) {
 	sfile := MustOpenSeriesFile()
 	defer sfile.Close()

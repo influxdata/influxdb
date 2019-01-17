@@ -128,17 +128,20 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	// Initialise Engine
 	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine,
-		tsm1.WithWAL(e.wal),
 		tsm1.WithTraceLogging(c.TraceLoggingEnabled))
 
 	// Apply options.
 	for _, option := range options {
 		option(e)
 	}
+
 	// Set default metrics labels.
 	e.engine.SetDefaultMetricLabels(e.defaultMetricLabels)
 	e.sfile.SetDefaultMetricLabels(e.defaultMetricLabels)
 	e.index.SetDefaultMetricLabels(e.defaultMetricLabels)
+	if e.wal != nil {
+		e.wal.SetDefaultMetricLabels(e.defaultMetricLabels)
+	}
 
 	return e
 }
@@ -159,6 +162,9 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	e.sfile.WithLogger(e.logger)
 	e.index.WithLogger(e.logger)
 	e.engine.WithLogger(e.logger)
+	if e.wal != nil {
+		e.wal.WithLogger(e.logger)
+	}
 	e.retentionEnforcer.WithLogger(e.logger)
 }
 
@@ -169,6 +175,7 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	metrics = append(metrics, tsdb.PrometheusCollectors()...)
 	metrics = append(metrics, tsi1.PrometheusCollectors()...)
 	metrics = append(metrics, tsm1.PrometheusCollectors()...)
+	metrics = append(metrics, wal.PrometheusCollectors()...)
 	metrics = append(metrics, e.retentionEnforcer.PrometheusCollectors()...)
 	return metrics
 }
@@ -189,6 +196,12 @@ func (e *Engine) Open() error {
 
 	if err := e.index.Open(); err != nil {
 		return err
+	}
+
+	if e.wal != nil {
+		if err := e.wal.Open(); err != nil {
+			return err
+		}
 	}
 
 	if err := e.engine.Open(); err != nil {
@@ -266,15 +279,25 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.closing = nil
 
-	if err := e.sfile.Close(); err != nil {
+	if err := e.engine.Close(); err != nil {
 		return err
+	}
+
+	if e.wal != nil {
+		if err := e.wal.Close(); err != nil {
+			return err
+		}
 	}
 
 	if err := e.index.Close(); err != nil {
 		return err
 	}
 
-	return e.engine.Close()
+	if err := e.sfile.Close(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest, cond influxql.Expr) (SeriesCursor, error) {
