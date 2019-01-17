@@ -122,7 +122,7 @@ func (s *SourceService) CreateSource(ctx context.Context, src *influxdb.Source) 
 
 // UpdateSource checks to see if the authorizer on context has write access to the source provided.
 func (s *SourceService) UpdateSource(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
-	src, err := s.FindSourceByID(ctx, id)
+	src, err := s.s.FindSourceByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (s *SourceService) UpdateSource(ctx context.Context, id influxdb.ID, upd in
 
 // DeleteSource checks to see if the authorizer on context has write access to the source provided.
 func (s *SourceService) DeleteSource(ctx context.Context, id influxdb.ID) error {
-	m, err := s.FindSourceByID(ctx, id)
+	m, err := s.s.FindSourceByID(ctx, id)
 	if err != nil {
 		return err
 	}
