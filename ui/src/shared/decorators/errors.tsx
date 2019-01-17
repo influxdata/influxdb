@@ -9,11 +9,8 @@ class DefaultError extends Component {
   public render() {
     return (
       <p className="error">
-        A Chronograf error has occurred. Please report the issue&nbsp;
-        <a href="https://github.com/influxdata/influxdb/chronograf/issues">
-          here
-        </a>
-        .
+        An InfluxDB error has occurred. Please report the issue&nbsp;
+        <a href="https://github.com/influxdata/influxdb/issues">here</a>.
       </p>
     )
   }
