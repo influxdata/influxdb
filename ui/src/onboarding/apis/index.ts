@@ -91,6 +91,18 @@ export const trySources = async (): Promise<boolean> => {
   }
 }
 
+export const getTelegrafConfig = async (
+  telegrafConfigID
+): Promise<Telegraf> => {
+  try {
+    const response = await telegrafsAPI.telegrafsTelegrafIDGet(telegrafConfigID)
+    return response.data
+  } catch (error) {
+    console.error(error)
+    return null
+  }
+}
+
 export const getTelegrafConfigs = async (org: string): Promise<Telegraf[]> => {
   try {
     const data = await telegrafsAPI.telegrafsGet(org)

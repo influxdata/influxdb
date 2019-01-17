@@ -21,6 +21,7 @@ import {
   setPluginConfiguration,
   setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
+import {setBucketInfo} from 'src/onboarding/actions/steps'
 
 // Types
 import {DataLoadersState, DataLoaderStep} from 'src/types/v2/dataLoaders'
@@ -43,8 +44,10 @@ interface Props {
   onAddPluginBundle: typeof addPluginBundleWithPlugins
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onSetConfigArrayValue: typeof setConfigArrayValue
+  onSetBucketInfo: typeof setBucketInfo
   org: string
   username: string
+  selectedBucket: string
 }
 
 @ErrorHandling
@@ -68,6 +71,8 @@ class StepSwitcher extends PureComponent<Props> {
       username,
       org,
       buckets,
+      onSetBucketInfo,
+      selectedBucket,
     } = this.props
 
     switch (currentStepIndex) {
@@ -77,10 +82,13 @@ class StepSwitcher extends PureComponent<Props> {
             {...onboardingStepProps}
             {...dataLoaders}
             onSetDataLoadersType={onSetDataLoadersType}
+            buckets={buckets}
             bucket={bucketName}
+            selectedBucket={selectedBucket}
             onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
             onAddPluginBundle={onAddPluginBundle}
             onRemovePluginBundle={onRemovePluginBundle}
+            onSetBucketInfo={onSetBucketInfo}
           />
         )
       case DataLoaderStep.Configure:

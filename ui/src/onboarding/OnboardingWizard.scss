@@ -70,6 +70,11 @@
   flex: 1 0 calc(100% - 240px);
 }
 
+.wizard-step--group {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
 
 .onboarding-step {
   min-width: 100%;
@@ -122,8 +127,8 @@
 }
 
 .wizard-step--filter {
-  float:right;
-  padding-bottom: 15px;
+  align-self: flex-end;
+  margin: 20px;
 }
 
 /* Buttons */

@@ -36,6 +36,9 @@ const setup = (override = {}) => {
     location: null,
     router: null,
     routes: [],
+    selectedBucket: '',
+    onSetBucketInfo: jest.fn(),
+    buckets: [],
     ...override,
   }
 

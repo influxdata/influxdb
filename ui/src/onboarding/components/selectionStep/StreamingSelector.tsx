@@ -1,11 +1,21 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import uuid from 'uuid'
+import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import {GridSizer, Input, IconFont, ComponentSize} from 'src/clockface'
+import {
+  GridSizer,
+  Input,
+  IconFont,
+  ComponentSize,
+  Dropdown,
+  FormElement,
+  Grid,
+  Columns,
+} from 'src/clockface'
 
 // Constants
 import {
@@ -15,11 +25,16 @@ import {
 
 // Types
 import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
+import {Bucket} from 'src/api'
 
 export interface Props {
+  buckets: Bucket[]
+  bucket: string
+  selectedBucket: string
   pluginBundles: BundleName[]
   telegrafPlugins: TelegrafPlugin[]
   onTogglePluginBundle: (telegrafPlugin: string, isSelected: boolean) => void
+  onSelectBucket: (bucket: Bucket) => void
 }
 
 interface State {
@@ -59,17 +74,31 @@ class StreamingSelector extends PureComponent<Props, State> {
 
     return (
       <div className="wizard-step--grid-container">
-        <div className="wizard-step--filter">
-          <Input
-            size={ComponentSize.Medium}
-            icon={IconFont.Search}
-            widthPixels={290}
-            value={searchTerm}
-            onBlur={this.handleFilterBlur}
-            onChange={this.handleFilterChange}
-            placeholder="Filter Plugins..."
-          />
-        </div>
+        <Grid.Row>
+          <Grid.Column widthSM={Columns.Five}>
+            <FormElement label="Bucket">
+              <Dropdown
+                selectedID={this.selectedBucketID}
+                onChange={this.handleSelectBucket}
+              >
+                {this.dropdownBuckets}
+              </Dropdown>
+            </FormElement>
+          </Grid.Column>
+          <Grid.Column widthSM={Columns.Five} offsetSM={Columns.Two}>
+            <FormElement label="">
+              <Input
+                customClass={'wizard-step--filter'}
+                size={ComponentSize.Small}
+                icon={IconFont.Search}
+                value={searchTerm}
+                onBlur={this.handleFilterBlur}
+                onChange={this.handleFilterChange}
+                placeholder="Filter Plugins..."
+              />
+            </FormElement>
+          </Grid.Column>
+        </Grid.Row>
         <GridSizer
           wait={ANIMATION_LENGTH}
           recalculateFlag={gridSizerUpdateFlag}
@@ -90,6 +119,28 @@ class StreamingSelector extends PureComponent<Props, State> {
         </GridSizer>
       </div>
     )
+  }
+
+  private handleSelectBucket = (bucketName: string) => {
+    const bucket = this.props.buckets.find(b => b.name === bucketName)
+
+    this.props.onSelectBucket(bucket)
+  }
+
+  private get selectedBucketID(): string {
+    const {bucket, selectedBucket, buckets} = this.props
+
+    return selectedBucket || bucket || _.get(buckets, '0.name', '')
+  }
+
+  private get dropdownBuckets(): JSX.Element[] {
+    const {buckets} = this.props
+
+    return buckets.map(b => (
+      <Dropdown.Item key={b.name} value={b.name} id={b.name}>
+        {b.name}
+      </Dropdown.Item>
+    ))
   }
 
   private get filteredBundles(): BundleName[] {
