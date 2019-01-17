@@ -3,6 +3,7 @@ package inmem
 import (
 	"context"
 	"fmt"
+	"path"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -35,6 +36,20 @@ func (s *Service) forEachLabel(ctx context.Context, fn func(m *platform.Label) b
 	return err
 }
 
+func (s *Service) forEachLabelMapping(ctx context.Context, fn func(m *platform.LabelMapping) bool) error {
+	var err error
+	s.labelMappingKV.Range(func(k, v interface{}) bool {
+		m, ok := v.(platform.LabelMapping)
+		if !ok {
+			err = fmt.Errorf("type %T is not a label mapping", v)
+			return false
+		}
+		return fn(&m)
+	})
+
+	return err
+}
+
 func (s *Service) filterLabels(ctx context.Context, fn func(m *platform.Label) bool) ([]*platform.Label, error) {
 	labels := []*platform.Label{}
 	err := s.forEachLabel(ctx, func(l *platform.Label) bool {
@@ -49,6 +64,26 @@ func (s *Service) filterLabels(ctx context.Context, fn func(m *platform.Label) b
 	}
 
 	return labels, nil
+}
+
+func (s *Service) filterLabelMappings(ctx context.Context, fn func(m *platform.LabelMapping) bool) ([]*platform.LabelMapping, error) {
+	mappings := []*platform.LabelMapping{}
+	err := s.forEachLabelMapping(ctx, func(m *platform.LabelMapping) bool {
+		if fn(m) {
+			mappings = append(mappings, m)
+		}
+		return true
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return mappings, nil
+}
+
+func encodeLabelMappingKey(m *platform.LabelMapping) string {
+	return path.Join(m.ResourceID.String(), m.LabelID.String())
 }
 
 // FindLabelByID returns a single user by ID.
@@ -80,26 +115,26 @@ func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, o
 
 // FindResourceLabels returns a list of labels that are mapped to a resource.
 func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
-	// if filter.ResourceID.Valid() && filter.Name != "" {
-	// 	l, err := s.FindLabelBy(ctx, filter.ResourceID, filter.Name)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	return []*platform.Label{l}, nil
-	// }
-	//
-	// filterFunc := func(label *platform.Label) bool {
-	// 	return (!filter.ResourceID.Valid() || (filter.ResourceID == label.ResourceID)) &&
-	// 		(filter.Name == "" || (filter.Name == label.Name))
-	// }
-	//
-	// labels, err := s.filterLabels(ctx, filterFunc)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	//
-	// return labels, nil
-	return nil, nil
+	filterFunc := func(mapping *platform.LabelMapping) bool {
+		return (filter.ResourceID.String() == mapping.ResourceID.String())
+	}
+
+	mappings, err := s.filterLabelMappings(ctx, filterFunc)
+	if err != nil {
+		return nil, err
+	}
+
+	ls := []*platform.Label{}
+	for _, m := range mappings {
+		l, err := s.FindLabelByID(ctx, *m.LabelID)
+		if err != nil {
+			return nil, err
+		}
+
+		ls = append(ls, l)
+	}
+
+	return ls, nil
 }
 
 // CreateLabel creates a new label.
@@ -111,6 +146,7 @@ func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
 
 // CreateLabelMapping creates a mapping that associates a label to a resource.
 func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	s.labelMappingKV.Store(encodeLabelMappingKey(m), *m)
 	return nil
 }
 
