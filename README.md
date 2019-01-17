@@ -1,10 +1,22 @@
 # InfluxDB [![CircleCI](https://circleci.com/gh/influxdata/influxdb.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb)
 
-This is the repository for InfluxDB 2.0 OSS, which includes components previously known as Chronograf and Kapacitor.
+InfluxDB is an open source time series platform. This includes APIs for storing and querying data, processing it in the background for ETL or monitoring and alerting purposes, user dashboards, and visualizing and exploring the data and more. The master branch on this repo now represents InfluxDB 2.0, which includes functionality for Kapacitor (background processing) and Chronograf (the UI). If you are looking for the 1.x line of releases, there are branches for each of those. InfluxDB 1.8 will be the next (and likely last) release in the 1.x line and the [working branch is here](https://github.com/influxdata/influxdb/tree/1.8).
 
-If you are looking for the [InfluxDB 1.x Go Client, we've created a new repo](https://github.com/influxdata/influxdb1-client) for that.
+If you are looking for the [InfluxDB 1.x Go Client, we've created a new repo](https://github.com/influxdata/influxdb1-client) for that. There will be a Go client for the 2.0 API coming very soon.
+
+## State Of the Project
+
+InfluxDB 1.7.3 is the current stable release and recommended for production use. InfluxDB 2.0 (what's in the master branch) is currently in the alpha stage. This means that it is not recommended for production usage. There may be breaking API changes, breaking changes in the [Flux language](https://github.com/influxdata/flux), changes in the underlying storage format that will require you to wipe out all your old data, and significant changes to the UI. We will be cutting weekly versioned releases every week starting in the first week of February. There will also be nightly builds.
+
+Once we close on the final feature set of what will be in the first release of InfluxDB in the 2.x line, we will move into the beta phase. At that point we won't be making breaking changes to the API or the Flux language. However, it will still not be recommended for production usage. During the beta period we will focus on bug fixes, performance, and additive features (where time permits).
+
+Although InfluxDB 2.0 has an all new API and query language (Flux), it will have a compatability mode that can be turned on which will let users continue to write and query the database with InfluxQL (the SQL style language).
 
 ## Installing from Source
+
+We have nightly and weekly versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB 2.0 available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/).
+
+## Building From Source
 
 This project requires Go 1.11 and Go module support.
 
@@ -15,8 +27,6 @@ This error will also be returned if you have not installed `npm`.
 On macOS, `brew install npm` will install `npm`.
 
 For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
-
-## Basic Usage
 
 A successful `make` run results in two binaries, with platform-dependent paths:
 
@@ -37,8 +47,22 @@ Logs to stdout by default:
 $ bin/darwin/influxd
 ```
 
-To write and read fancy timeseries data, you'll need to first create a user, credentials, organization and bucket.
-Use the subcommands `influx user`, `influx auth`, `influx org` and `influx bucket`, or do it all in one breath with `influx setup`:
+## Getting Started
+
+To write and query data or use the API in any way, you'll need to first create a user, credentials, organization and bucket.
+Everything in InfluxDB 2.0 is organized under a concept of an organization. The API is designed to be multi-tenant.
+Buckets represent where you store time series data.
+They're synonymous with what was previously in InfluxDB 1.x a database and retention policy.
+
+The simplest way to get set up is to point your browser to [http://localhost:9999](http://localhost:9999) and go through the prompts.
+
+**Note**: Port 9999 will be used during the alpha and beta phases of development of InfluxDB v2.0.
+This should allow a v2.0-alpha instance to be run alongside a v1.x instance without interfering on port 8086.
+InfluxDB v2.0 will thereafter continue to use 8086.
+
+You can also get set up from the CLI using the subcommands `influx user`, `influx auth`, `influx org` and `influx bucket`,
+or do it all in one breath with `influx setup`:
+
 
 ```
 $ bin/darwin/influx setup
@@ -104,10 +128,6 @@ Write the same point using `curl`:
 curl --header "Authorization: Token $(cat ~/.influxdbv2/credentials)" --data-raw "m v=2 $(date +%s)" "http://localhost:9999/api/v2/write?org=033a3f2c708aa000&bucket=033a3f2c710aa000&precision=s"
 ```
 
-**Note**: Port 9999 will be used during the alpha and beta phases of development of InfluxDB v2.0.
-This should allow a v2.0-alpha instance to be run alongside a v1.x instance without interfering on port 8086.
-InfluxDB v2.0 will thereafter continue to use 8086.
-
 Read that back with a simple Flux query (currently, the `query` subcommand does not have a `--org` flag):
 
 ```
@@ -132,13 +152,9 @@ Table: keys: [_start, _stop, _field, _measurement]
 >
 ```
 
-Access the user interface in your browser by navigating to `http://localhost:9999/`
-
 ## Introducing Flux
 
-We recently announced Flux, the MIT-licensed data scripting language (and rename for IFQL).
-The source for Flux is [available on GitHub](https://github.com/influxdata/flux).
-Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
+We recently announced Flux, the MIT-licensed data scripting language (previously named IFQL). The source for Flux is [available on GitHub](https://github.com/influxdata/flux). Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
 
 ## CI and Static Analysis
 
