@@ -21,7 +21,7 @@ export default class ScraperRow extends PureComponent<Props> {
     return (
       <>
         <IndexList.Row>
-          <IndexList.Cell>{scraper.name}</IndexList.Cell>
+          <IndexList.Cell>{scraper.url}</IndexList.Cell>
           <IndexList.Cell>{scraper.bucket}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton

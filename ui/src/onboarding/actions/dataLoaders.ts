@@ -416,11 +416,11 @@ export const saveScraperTarget = () => async (
   getState: GetState
 ) => {
   const {
-    onboarding: {bucketID, orgID},
     dataLoading: {
       dataLoaders: {
         scraperTarget: {url, id},
       },
+      steps: {bucketID, orgID},
     },
   } = getState()
 

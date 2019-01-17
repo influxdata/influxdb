@@ -6,6 +6,7 @@ import {connect} from 'react-redux'
 import {Form} from 'src/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
+import ScraperTarget from 'src/onboarding/components/configureStep/ScraperTarget'
 
 // Actions
 import {
@@ -13,13 +14,16 @@ import {
   setScraperTargetURL,
   saveScraperTarget,
 } from 'src/onboarding/actions/dataLoaders'
+
+// Types
+import {Bucket} from 'src/api'
 import {AppState} from 'src/types/v2/index'
-import ScraperTarget from 'src/onboarding/components/configureStep/ScraperTarget'
 
 interface OwnProps {
   onClickNext: () => void
   onClickBack: () => void
   onClickSkip: () => void
+  buckets: Bucket[]
 }
 
 interface DispatchProps {
@@ -29,7 +33,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  bucket: string
+  scraperBucket: string
   url: string
   currentBucket: string
 }
@@ -38,15 +42,21 @@ type Props = OwnProps & DispatchProps & StateProps
 
 export class Scraping extends PureComponent<Props> {
   public componentDidMount() {
-    const {bucket, currentBucket, onSetScraperTargetBucket} = this.props
-    if (!bucket) {
-      onSetScraperTargetBucket(currentBucket)
+    const {
+      buckets,
+      scraperBucket,
+      currentBucket,
+      onSetScraperTargetBucket,
+    } = this.props
+
+    if (!scraperBucket) {
+      onSetScraperTargetBucket(currentBucket || buckets[0].name)
     }
   }
 
   public render() {
     const {
-      bucket,
+      scraperBucket,
       onClickBack,
       onClickSkip,
       onSetScraperTargetURL,
@@ -64,7 +74,7 @@ export class Scraping extends PureComponent<Props> {
                 and to write to a bucket
               </h5>
               <ScraperTarget
-                bucket={bucket}
+                bucket={scraperBucket}
                 buckets={this.buckets}
                 onSelectBucket={this.handleSelectBucket}
                 onChangeURL={onSetScraperTargetURL}
@@ -85,9 +95,9 @@ export class Scraping extends PureComponent<Props> {
   }
 
   private get buckets(): string[] {
-    const {currentBucket} = this.props
+    const {buckets} = this.props
 
-    return currentBucket ? [currentBucket] : []
+    return buckets.map(b => b.name)
   }
 
   private handleSelectBucket = (bucket: string) => {
@@ -109,7 +119,7 @@ const mstp = ({
 }: AppState): StateProps => {
   return {
     currentBucket: bucket,
-    bucket: scraperTarget.bucket,
+    scraperBucket: scraperTarget.bucket,
     url: scraperTarget.url,
   }
 }

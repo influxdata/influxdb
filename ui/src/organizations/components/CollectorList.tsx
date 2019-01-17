@@ -17,7 +17,7 @@ interface Props {
   onDelete: (telegrafID: string) => void
 }
 
-export default class BucketList extends PureComponent<Props> {
+export default class CollectorList extends PureComponent<Props> {
   public render() {
     const {emptyState} = this.props
 
