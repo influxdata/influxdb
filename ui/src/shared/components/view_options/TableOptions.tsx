@@ -76,57 +76,51 @@ export class TableOptions extends Component<Props, {}> {
 
     return (
       <>
-        <h4 className="view-options--header">Customize Table</h4>
-        <Grid>
-          <Grid.Row>
-            {!!fieldOptions.length && (
-              <SortBy
-                selected={sortBy}
-                fieldOptions={fieldOptions}
-                onChange={this.handleChangeSortBy}
-              />
-            )}
-            <TimeFormat
-              timeFormat={timeFormat}
-              onTimeFormatChange={onSetTimeFormat}
-            />
-            {decimalPlaces && (
-              <DecimalPlacesOption
-                digits={decimalPlaces.digits}
-                isEnforced={decimalPlaces.isEnforced}
-                onDecimalPlacesChange={onSetDecimalPlaces}
-              />
-            )}
-          </Grid.Row>
-        </Grid>
-        <h4 className="view-options--header">Column Settings</h4>
-        <Grid>
-          <Grid.Row>
-            <TimeAxis
-              verticalTimeAxis={verticalTimeAxis}
-              onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
-            />
-            <FixFirstColumn
-              fixed={fixFirstColumn}
-              onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
-            />
-            <ColumnOptions
-              columns={fieldOptions}
-              onMoveColumn={this.handleMoveColumn}
-              onUpdateColumn={this.handleUpdateColumn}
-            />
-          </Grid.Row>
-        </Grid>
-        <h4 className="view-options--header">Colorized Thresholds</h4>
-        <Grid>
-          <Grid.Row>
-            <ThresholdList
-              colorConfigs={this.colorConfigs}
-              onUpdateColors={onSetColors}
-              onValidateNewColor={() => true}
-            />
-          </Grid.Row>
-        </Grid>
+        <Grid.Column>
+          <h4 className="view-options--header">Customize Table</h4>
+        </Grid.Column>
+        {!!fieldOptions.length && (
+          <SortBy
+            selected={sortBy}
+            fieldOptions={fieldOptions}
+            onChange={this.handleChangeSortBy}
+          />
+        )}
+        <TimeFormat
+          timeFormat={timeFormat}
+          onTimeFormatChange={onSetTimeFormat}
+        />
+        {decimalPlaces && (
+          <DecimalPlacesOption
+            digits={decimalPlaces.digits}
+            isEnforced={decimalPlaces.isEnforced}
+            onDecimalPlacesChange={onSetDecimalPlaces}
+          />
+        )}
+        <Grid.Column>
+          <h4 className="view-options--header">Column Settings</h4>
+        </Grid.Column>
+        <TimeAxis
+          verticalTimeAxis={verticalTimeAxis}
+          onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
+        />
+        <FixFirstColumn
+          fixed={fixFirstColumn}
+          onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
+        />
+        <ColumnOptions
+          columns={fieldOptions}
+          onMoveColumn={this.handleMoveColumn}
+          onUpdateColumn={this.handleUpdateColumn}
+        />
+        <Grid.Column>
+          <h4 className="view-options--header">Colorized Thresholds</h4>
+        </Grid.Column>
+        <ThresholdList
+          colorConfigs={this.colorConfigs}
+          onUpdateColors={onSetColors}
+          onValidateNewColor={() => true}
+        />
       </>
     )
   }

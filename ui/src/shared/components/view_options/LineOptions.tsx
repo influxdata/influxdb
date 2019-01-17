@@ -80,45 +80,31 @@ class LineOptions extends PureComponent<Props> {
 
     return (
       <>
-        <h4 className="view-options--header">Customize Graph</h4>
-        <Form>
-          <Grid>
-            <Grid.Row>
-              {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
-              <ColorSelector colors={colors} onUpdateColors={onUpdateColors} />
-              {this.decimalPlaces}
-            </Grid.Row>
-          </Grid>
-        </Form>
-        <h4 className="view-options--header">Left Y Axis</h4>
-        <Form>
-          <Grid>
-            <Grid.Row>
-              <YAxisTitle
-                label={label}
-                onUpdateYAxisLabel={onUpdateYAxisLabel}
-              />
-              <YAxisBounds
-                min={min}
-                max={max}
-                scale={scale}
-                onUpdateYAxisMaxBound={onUpdateYAxisMaxBound}
-                onUpdateYAxisMinBound={onUpdateYAxisMinBound}
-              />
-              <YAxisAffixes
-                prefix={prefix}
-                suffix={suffix}
-                onUpdateYAxisPrefix={onUpdateYAxisPrefix}
-                onUpdateYAxisSuffix={onUpdateYAxisSuffix}
-              />
-              <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
-              <YAxisScale
-                scale={scale}
-                onUpdateYAxisScale={onUpdateYAxisScale}
-              />
-            </Grid.Row>
-          </Grid>
-        </Form>
+        <Grid.Column>
+          <h4 className="view-options--header">Customize Graph</h4>
+        </Grid.Column>
+        {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
+        <ColorSelector colors={colors} onUpdateColors={onUpdateColors} />
+        {this.decimalPlaces}
+        <Grid.Column>
+          <h4 className="view-options--header">Left Y Axis</h4>
+        </Grid.Column>
+        <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
+        <YAxisBounds
+          min={min}
+          max={max}
+          scale={scale}
+          onUpdateYAxisMaxBound={onUpdateYAxisMaxBound}
+          onUpdateYAxisMinBound={onUpdateYAxisMinBound}
+        />
+        <YAxisAffixes
+          prefix={prefix}
+          suffix={suffix}
+          onUpdateYAxisPrefix={onUpdateYAxisPrefix}
+          onUpdateYAxisSuffix={onUpdateYAxisSuffix}
+        />
+        <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
+        <YAxisScale scale={scale} onUpdateYAxisScale={onUpdateYAxisScale} />
       </>
     )
   }

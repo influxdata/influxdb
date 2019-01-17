@@ -21,7 +21,7 @@ const ColorDropdown: SFC<Props> = props => {
   const {selected, colors, onChoose, disabled, stretchToFit} = props
 
   const status = disabled ? ComponentStatus.Disabled : ComponentStatus.Default
-  const widthPixels = stretchToFit ? null : 200
+  const widthPixels = stretchToFit ? null : 124
 
   return (
     <Dropdown

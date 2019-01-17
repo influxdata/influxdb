@@ -50,28 +50,24 @@ class GaugeOptions extends PureComponent<Props> {
 
     return (
       <>
-        <h4 className="view-options--header">Customize Gauge</h4>
-        <Grid>
-          <Grid.Row>
-            <Affixes
-              prefix={prefix}
-              suffix={suffix}
-              onUpdatePrefix={onUpdatePrefix}
-              onUpdateSuffix={onUpdateSuffix}
-            />
-            {this.decimalPlaces}
-          </Grid.Row>
-        </Grid>
-        <h4 className="view-options--header">Colorized Thresholds</h4>
-        <Grid>
-          <Grid.Row>
-            <ThresholdList
-              colorConfigs={this.colorConfigs}
-              onUpdateColors={onUpdateColors}
-              onValidateNewColor={this.handleValidateNewColor}
-            />
-          </Grid.Row>
-        </Grid>
+        <Grid.Column>
+          <h4 className="view-options--header">Customize Gauge</h4>
+        </Grid.Column>
+        <Affixes
+          prefix={prefix}
+          suffix={suffix}
+          onUpdatePrefix={onUpdatePrefix}
+          onUpdateSuffix={onUpdateSuffix}
+        />
+        {this.decimalPlaces}
+        <Grid.Column>
+          <h4 className="view-options--header">Colorized Thresholds</h4>
+        </Grid.Column>
+        <ThresholdList
+          colorConfigs={this.colorConfigs}
+          onUpdateColors={onUpdateColors}
+          onValidateNewColor={this.handleValidateNewColor}
+        />
       </>
     )
   }

@@ -48,7 +48,7 @@ class TimeFormat extends PureComponent<Props, State> {
     const {format} = this.state
 
     return (
-      <Grid.Column widthSM={Columns.Six}>
+      <Grid.Column widthSM={Columns.Twelve}>
         <Form.Element label="Time Format">
           <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
             <Dropdown
