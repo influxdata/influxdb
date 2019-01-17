@@ -4168,7 +4168,7 @@ components:
           type: string
         rp:
           type: string
-        orgID:
+        organizationID:
           type: string
         retentionRules:
           type: array

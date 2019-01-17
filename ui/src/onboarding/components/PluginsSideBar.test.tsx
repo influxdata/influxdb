@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import OnboardingSideBar from 'src/onboarding/components/OnboardingSideBar'
+import PluginsSideBar from 'src/onboarding/components/PluginsSideBar'
 import {cpuTelegrafPlugin, diskTelegrafPlugin} from 'mocks/dummyData'
 import {Button} from 'src/clockface'
 import SideBarTab from 'src/onboarding/components/side_bar/SideBarTab'
@@ -23,12 +23,12 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  const wrapper = shallow(<OnboardingSideBar {...props} />)
+  const wrapper = shallow(<PluginsSideBar {...props} />)
 
   return {wrapper}
 }
 
-describe('OnboardingSideBar', () => {
+describe('PluginsSideBar', () => {
   describe('rendering', () => {
     it('renders! wee!', () => {
       const {wrapper} = setup({

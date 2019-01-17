@@ -34,8 +34,9 @@ import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
 import {OverlayState} from 'src/types/v2/overlay'
 import {SourcesState} from 'src/sources/reducers'
-import {OnboardingState} from 'src/onboarding/reducers'
 import {NoteEditorState} from 'src/dashboards/reducers/v2/notes'
+import {DataLoadingState} from 'src/dataLoaders/reducers'
+import {OnboardingState} from 'src/onboarding/reducers'
 
 export interface AppState {
   VERSION: string
@@ -55,6 +56,7 @@ export interface AppState {
   me: MeState
   onboarding: OnboardingState
   noteEditor: NoteEditorState
+  dataLoading: DataLoadingState
 }
 
 export type GetState = () => AppState

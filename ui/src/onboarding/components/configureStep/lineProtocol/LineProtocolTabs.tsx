@@ -130,7 +130,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
 }
 
 const mstp = ({
-  onboarding: {
+  dataLoading: {
     dataLoaders: {lineProtocolBody, activeLPTab, precision},
   },
 }: AppState) => {

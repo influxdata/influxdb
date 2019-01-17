@@ -18,7 +18,7 @@ import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
-import {setupAdmin} from 'src/onboarding/actions/steps'
+import {setupAdmin} from 'src/onboarding/actions'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -43,13 +43,20 @@ class AdminStep extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
     const {setupParams} = props
+
+    const username = getDeep(setupParams, 'username', '')
+    const password = getDeep(setupParams, 'password', '')
+    const confirmPassword = getDeep(setupParams, 'password', '')
+    const org = getDeep(setupParams, 'org', '')
+    const bucket = getDeep(setupParams, 'bucket', '')
+
     this.state = {
-      username: getDeep(setupParams, 'username', ''),
-      password: getDeep(setupParams, 'password', ''),
-      confirmPassword: getDeep(setupParams, 'password', ''),
-      org: getDeep(setupParams, 'org', ''),
-      bucket: getDeep(setupParams, 'bucket', ''),
-      isAlreadySet: !!setupParams,
+      username,
+      password,
+      confirmPassword,
+      org,
+      bucket,
+      isAlreadySet: !!username && !!password && !!org && !!bucket,
       isPassMismatched: false,
     }
   }

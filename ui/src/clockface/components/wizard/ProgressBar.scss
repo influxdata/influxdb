@@ -3,6 +3,20 @@
   ------------------------------------------------------------------------------
 */
 
+.wizard-overlay {
+  height: calc(100vh - 206px);
+  width: 100%;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  >.wizard-contents {
+    width: 100%;
+    min-width: 100%;
+    flex-grow: 1;
+    margin: 0;
+  }
+}
+
 .wizard--progress-bar {
   display: inline-flex;
   justify-content: center;

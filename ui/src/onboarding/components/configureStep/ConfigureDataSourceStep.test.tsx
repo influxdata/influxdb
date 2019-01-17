@@ -24,14 +24,15 @@ const setup = (override = {}) => {
     onRemoveConfigValue: jest.fn(),
     onSaveTelegrafConfig: jest.fn(),
     authToken: '',
-    params: {
-      stepID: '3',
-      substepID: '0',
-    },
+    currentStepIndex: 3,
+    substep: 0,
     location: null,
     router: null,
     routes: [],
     onSetConfigArrayValue: jest.fn(),
+    bucket: '',
+    org: '',
+    username: '',
     ...override,
   }
 

@@ -14,6 +14,7 @@ interface Props {
   stepStatuses: StepStatus[]
   stepTitles: string[]
   stepSkippable: boolean[]
+  hideFirstStep?: boolean
 }
 
 @ErrorHandling
@@ -68,13 +69,18 @@ class ProgressBar extends PureComponent<Props, null> {
   }
 
   private get WizardProgress(): JSX.Element[] {
-    const {stepStatuses, stepTitles, currentStepIndex} = this.props
+    const {
+      hideFirstStep,
+      stepStatuses,
+      stepTitles,
+      currentStepIndex,
+    } = this.props
 
     const lastIndex = stepStatuses.length - 1
 
     const progressBar: JSX.Element[] = stepStatuses.reduce(
       (acc, stepStatus, i) => {
-        if (i === 0) {
+        if (hideFirstStep && i === 0) {
           return [...acc]
         }
 

@@ -4985,7 +4985,7 @@ components:
           type: string
         name:
           type: string
-        orgID:
+        organizationID:
           type: string
         organization:
           type: string

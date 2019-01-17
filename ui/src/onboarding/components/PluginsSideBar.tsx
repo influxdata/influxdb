@@ -41,7 +41,7 @@ const configStateToTabStatus = (cs: ConfigurationState): TabStatus => {
   }
 }
 
-class OnboardingSideBar extends Component<Props> {
+class PluginsSideBar extends Component<Props> {
   public render() {
     const {title, visible} = this.props
     return (
@@ -122,4 +122,4 @@ class OnboardingSideBar extends Component<Props> {
   }
 }
 
-export default OnboardingSideBar
+export default PluginsSideBar

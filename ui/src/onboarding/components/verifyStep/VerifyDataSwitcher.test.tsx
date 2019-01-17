@@ -4,7 +4,6 @@ import {shallow} from 'enzyme'
 
 // Components
 import {VerifyDataSwitcher} from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
-import DataStreaming from 'src/onboarding/components/verifyStep/DataStreaming'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
@@ -43,8 +42,7 @@ describe('Onboarding.Components.VerifyStep.VerifyDataSwitcher', () => {
     it('renders the DataStreaming component', () => {
       const {wrapper} = setup({type: DataLoaderType.Streaming})
 
-      const dataStreaming = wrapper.find(DataStreaming)
-      expect(dataStreaming.exists()).toBe(true)
+      expect(wrapper).toMatchSnapshot()
     })
   })
 })

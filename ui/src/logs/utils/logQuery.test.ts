@@ -22,7 +22,7 @@ describe('Logs.LogQuery', () => {
     config = buildTableQueryConfig({
       id: '1',
       organization: 'default',
-      orgID: '1',
+      organizationID: '1',
       name: 'telegraf',
       rp: 'autogen',
       retentionRules: [],

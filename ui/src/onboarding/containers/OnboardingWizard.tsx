@@ -15,24 +15,7 @@ import OnboardingStepSwitcher from 'src/onboarding/components/OnboardingStepSwit
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {
-  setSetupParams,
-  setStepStatus,
-  setupAdmin,
-} from 'src/onboarding/actions/steps'
-
-import {
-  setDataLoadersType,
-  updateTelegrafPluginConfig,
-  addConfigValue,
-  removeConfigValue,
-  setActiveTelegrafPlugin,
-  setPluginConfiguration,
-  createOrUpdateTelegrafConfigAsync,
-  addPluginBundleWithPlugins,
-  removePluginBundleWithPlugins,
-  setConfigArrayValue,
-} from 'src/onboarding/actions/dataLoaders'
+import {setSetupParams, setStepStatus, setupAdmin} from 'src/onboarding/actions'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -40,10 +23,8 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 // Types
 import {Links} from 'src/types/v2/links'
 import {SetupParams} from 'src/onboarding/apis'
-import {DataLoadersState, DataLoaderType} from 'src/types/v2/dataLoaders'
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
-import OnboardingSideBar from 'src/onboarding/components/OnboardingSideBar'
 
 export interface OnboardingStepProps {
   links: Links
@@ -77,16 +58,6 @@ interface DispatchProps {
   notify: (message: Notification | NotificationFunc) => void
   onSetSetupParams: typeof setSetupParams
   onSetStepStatus: typeof setStepStatus
-  onSetDataLoadersType: typeof setDataLoadersType
-  onAddPluginBundle: typeof addPluginBundleWithPlugins
-  onRemovePluginBundle: typeof removePluginBundleWithPlugins
-  onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
-  onAddConfigValue: typeof addConfigValue
-  onRemoveConfigValue: typeof removeConfigValue
-  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  onSetPluginConfiguration: typeof setPluginConfiguration
-  onSetConfigArrayValue: typeof setConfigArrayValue
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   onSetupAdmin: typeof setupAdmin
 }
 
@@ -94,78 +65,32 @@ interface StateProps {
   links: Links
   stepStatuses: StepStatus[]
   setupParams: SetupParams
-  dataLoaders: DataLoadersState
 }
 
 type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 
 @ErrorHandling
 class OnboardingWizard extends PureComponent<Props> {
-  public stepTitles = [
-    'Welcome',
-    'Initial User Setup',
-    'Select Data Sources',
-    'Configure Data Sources',
-    'Verify',
-    'Complete',
-  ]
+  public stepTitles = ['Welcome', 'Initial User Setup', 'Complete']
 
-  public stepSkippable = [true, false, true, true, true, true]
+  public stepSkippable = [true, false, false]
 
   constructor(props: Props) {
     super(props)
   }
 
   public render() {
-    const {
-      currentStepIndex,
-      dataLoaders,
-      dataLoaders: {telegrafPlugins, telegrafConfigID},
-      onSetDataLoadersType,
-      onSetActiveTelegrafPlugin,
-      onSetPluginConfiguration,
-      onUpdateTelegrafPluginConfig,
-      onAddConfigValue,
-      onRemoveConfigValue,
-      onSaveTelegrafConfig,
-      onAddPluginBundle,
-      onRemovePluginBundle,
-      setupParams,
-      notify,
-      onSetConfigArrayValue,
-      onSetupAdmin,
-    } = this.props
+    const {currentStepIndex, setupParams, onSetupAdmin} = this.props
 
     return (
       <WizardFullScreen>
         {this.progressHeader}
         <div className="wizard-contents">
-          <OnboardingSideBar
-            notify={notify}
-            telegrafPlugins={telegrafPlugins}
-            telegrafConfigID={telegrafConfigID}
-            onTabClick={this.handleClickSideBarTab}
-            title="Plugins to Configure"
-            visible={this.sideBarVisible}
-            currentStepIndex={currentStepIndex}
-            onNewSourceClick={this.handleNewSourceClick}
-          />
           <div className="wizard-step--container">
             <OnboardingStepSwitcher
               currentStepIndex={currentStepIndex}
               onboardingStepProps={this.onboardingStepProps}
               setupParams={setupParams}
-              dataLoaders={dataLoaders}
-              onSetDataLoadersType={onSetDataLoadersType}
-              onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-              onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
-              onSetPluginConfiguration={onSetPluginConfiguration}
-              onAddConfigValue={onAddConfigValue}
-              onRemoveConfigValue={onRemoveConfigValue}
-              onSaveTelegrafConfig={onSaveTelegrafConfig}
-              onAddPluginBundle={onAddPluginBundle}
-              onRemovePluginBundle={onRemovePluginBundle}
-              onSetConfigArrayValue={onSetConfigArrayValue}
               onSetupAdmin={onSetupAdmin}
             />
           </div>
@@ -192,45 +117,6 @@ class OnboardingWizard extends PureComponent<Props> {
         />
       </WizardProgressHeader>
     )
-  }
-
-  private get sideBarVisible() {
-    const {currentStepIndex, dataLoaders} = this.props
-    const {telegrafPlugins, type} = dataLoaders
-
-    const isStreaming = type === DataLoaderType.Streaming
-    const isNotEmpty = telegrafPlugins.length > 0
-    const isSideBarStep =
-      (currentStepIndex === 2 && isNotEmpty) ||
-      currentStepIndex === 3 ||
-      currentStepIndex === 4
-
-    return isStreaming && isSideBarStep
-  }
-
-  private handleNewSourceClick = () => {
-    const {onSetSubstepIndex, onSetActiveTelegrafPlugin} = this.props
-
-    onSetActiveTelegrafPlugin('')
-    onSetSubstepIndex(2, 'streaming')
-  }
-
-  private handleClickSideBarTab = (telegrafPluginID: string) => {
-    const {
-      onSetSubstepIndex,
-      onSetActiveTelegrafPlugin,
-      dataLoaders: {telegrafPlugins},
-    } = this.props
-
-    const index = Math.max(
-      _.findIndex(telegrafPlugins, plugin => {
-        return plugin.name === telegrafPluginID
-      }),
-      0
-    )
-
-    onSetSubstepIndex(3, index)
-    onSetActiveTelegrafPlugin(telegrafPluginID)
   }
 
   private handleExit = () => {
@@ -276,31 +162,17 @@ class OnboardingWizard extends PureComponent<Props> {
 
 const mstp = ({
   links,
-  onboarding: {
-    steps: {stepStatuses, setupParams},
-    dataLoaders,
-  },
+  onboarding: {stepStatuses, setupParams},
 }: AppState): StateProps => ({
   links,
   stepStatuses,
   setupParams,
-  dataLoaders,
 })
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
   onSetSetupParams: setSetupParams,
   onSetStepStatus: setStepStatus,
-  onSetDataLoadersType: setDataLoadersType,
-  onUpdateTelegrafPluginConfig: updateTelegrafPluginConfig,
-  onAddConfigValue: addConfigValue,
-  onRemoveConfigValue: removeConfigValue,
-  onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
-  onSaveTelegrafConfig: createOrUpdateTelegrafConfigAsync,
-  onAddPluginBundle: addPluginBundleWithPlugins,
-  onRemovePluginBundle: removePluginBundleWithPlugins,
-  onSetPluginConfiguration: setPluginConfiguration,
-  onSetConfigArrayValue: setConfigArrayValue,
   onSetupAdmin: setupAdmin,
 }
 

@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 import classnames from 'classnames'
 
@@ -23,14 +22,14 @@ import {
 import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
-import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
 import {
   TelegrafPlugin,
   DataLoaderType,
   BundleName,
 } from 'src/types/v2/dataLoaders'
 
-export interface OwnProps extends OnboardingStepProps {
+export interface OwnProps extends DataLoaderStepProps {
   bucket: string
   telegrafPlugins: TelegrafPlugin[]
   pluginBundles: BundleName[]
@@ -42,14 +41,7 @@ export interface OwnProps extends OnboardingStepProps {
   onSetStepStatus: (index: number, status: StepStatus) => void
 }
 
-interface RouterProps {
-  params: {
-    stepID: string
-    substepID: string
-  }
-}
-
-type Props = OwnProps & RouterProps & WithRouterProps
+type Props = OwnProps
 
 interface State {
   showStreamingSources: boolean
@@ -158,35 +150,35 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
 
   private handleClickNext = () => {
     const {
-      params: {stepID},
+      currentStepIndex,
       telegrafPlugins,
       onSetActiveTelegrafPlugin,
       onSetSubstepIndex,
     } = this.props
 
     if (this.props.type === DataLoaderType.Streaming && !this.isStreaming) {
-      onSetSubstepIndex(+stepID, 'streaming')
+      onSetSubstepIndex(currentStepIndex, 'streaming')
       onSetActiveTelegrafPlugin('')
       return
     }
 
+    this.handleSetStepStatus()
+
     if (this.isStreaming) {
       const name = _.get(telegrafPlugins, '0.name', '')
       onSetActiveTelegrafPlugin(name)
+      onSetSubstepIndex(currentStepIndex + 1, 0)
+      return
     }
 
-    this.handleSetStepStatus()
     this.props.onIncrementCurrentStepIndex()
   }
 
   private handleClickBack = () => {
-    const {
-      params: {stepID},
-      onSetCurrentStepIndex,
-    } = this.props
+    const {currentStepIndex, onSetCurrentStepIndex} = this.props
 
     if (this.isStreaming) {
-      onSetCurrentStepIndex(+stepID)
+      onSetCurrentStepIndex(+currentStepIndex)
       return
     }
 
@@ -214,23 +206,20 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 
   private handleSetStepStatus = () => {
-    const {
-      onSetStepStatus,
-      params: {stepID},
-    } = this.props
+    const {onSetStepStatus, currentStepIndex} = this.props
 
     if (
       this.props.type === DataLoaderType.Streaming &&
       !this.props.telegrafPlugins.length
     ) {
-      onSetStepStatus(parseInt(stepID, 10), StepStatus.Incomplete)
+      onSetStepStatus(currentStepIndex, StepStatus.Incomplete)
     } else if (this.props.type) {
-      onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+      onSetStepStatus(currentStepIndex, StepStatus.Complete)
     }
   }
 
   private get isStreaming(): boolean {
-    return this.props.params.substepID === 'streaming'
+    return this.props.substep === 'streaming'
   }
 
   private get skippableClassName(): string {
@@ -246,4 +235,4 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
   }
 }
 
-export default withRouter<OwnProps>(SelectDataSourceStep)
+export default SelectDataSourceStep
