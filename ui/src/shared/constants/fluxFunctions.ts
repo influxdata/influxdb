@@ -347,25 +347,20 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     name: 'group',
     args: [
       {
-        name: 'by',
+        name: 'columns',
         desc:
-          'List of columns by which to group. Cannot be used with `except`.',
+          'Columns is a list used to calculate the new group key. Defaults to `[]`.',
         type: 'Array of Strings',
       },
       {
-        name: 'except',
+        name: 'mode',
         desc:
-          'List of columns by which to NOT group. All other columns are used to group records. Cannot be used with `by`.',
-        type: 'Array of Strings',
-      },
-      {
-        name: 'none',
-        desc: 'Remove existing groups.',
-        type: 'Boolean',
+          'The grouping mode. Can be one of `"by"` or `"except"`. Defaults to `"by"`.',
+        type: 'String',
       },
     ],
     desc:
-      'Groups records based on their values for specific columns. It produces tables with new group keys based on provided properties.',
+      'Groups records based on their values for specific columns. It produces tables with new group keys based on provided properties. When using `"by"` mode, the specified `columns` are the new group key. When using `"except"` mode, the new group key is the difference between the columns of the table and `columns`.',
     example: 'group(columns: ["host", "_measurement"])',
     category: 'Transformations',
     link:
