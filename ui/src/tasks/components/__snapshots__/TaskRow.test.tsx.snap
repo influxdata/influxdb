@@ -9,10 +9,11 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
     revealOnHover={false}
   >
     <ComponentSpacer
-      align="left"
-      stackChildren="rows"
+      align="right"
+      stackChildren="columns"
     >
       <a
+        className="index-list--resource-name"
         href="#"
         onClick={[Function]}
       >
@@ -25,6 +26,17 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
         resourceName="this resource"
       />
     </ComponentSpacer>
+  </IndexListRowCell>
+  <IndexListRowCell
+    alignment="left"
+    revealOnHover={false}
+  >
+    <a
+      href=""
+      onClick={[Function]}
+    >
+      RadicalOrganization
+    </a>
   </IndexListRowCell>
   <IndexListRowCell
     alignment="left"
@@ -44,17 +56,6 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
     revealOnHover={false}
   >
     2 0 * * *
-  </IndexListRowCell>
-  <IndexListRowCell
-    alignment="left"
-    revealOnHover={false}
-  >
-    <a
-      href=""
-      onClick={[Function]}
-    >
-      RadicalOrganization
-    </a>
   </IndexListRowCell>
   <IndexListRowCell
     alignment="right"
