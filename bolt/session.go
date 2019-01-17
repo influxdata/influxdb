@@ -110,6 +110,7 @@ func (c *Client) findSession(ctx context.Context, tx *bolt.Tx, key string) (*pla
 
 		ps = append(ps, p...)
 	}
+	ps = append(ps, platform.MePermissions(s.UserID)...)
 	s.Permissions = ps
 	return s, nil
 }
