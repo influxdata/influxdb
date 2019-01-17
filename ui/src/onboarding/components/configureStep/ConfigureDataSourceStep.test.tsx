@@ -33,6 +33,7 @@ const setup = (override = {}) => {
     bucket: '',
     org: '',
     username: '',
+    buckets: [],
     ...override,
   }
 

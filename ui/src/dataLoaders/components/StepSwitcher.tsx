@@ -23,8 +23,9 @@ import {
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
-import {DataLoadersState} from 'src/types/v2/dataLoaders'
+import {DataLoadersState, DataLoaderStep} from 'src/types/v2/dataLoaders'
 import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
+import {Bucket} from 'src/api'
 
 interface Props {
   onboardingStepProps: DataLoaderStepProps
@@ -35,6 +36,7 @@ interface Props {
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetPluginConfiguration: typeof setPluginConfiguration
   bucketName: string
+  buckets: Bucket[]
   dataLoaders: DataLoadersState
   currentStepIndex: number
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
@@ -65,10 +67,11 @@ class StepSwitcher extends PureComponent<Props> {
       bucketName,
       username,
       org,
+      buckets,
     } = this.props
 
     switch (currentStepIndex) {
-      case 0:
+      case DataLoaderStep.Select:
         return (
           <SelectDataSourceStep
             {...onboardingStepProps}
@@ -80,11 +83,12 @@ class StepSwitcher extends PureComponent<Props> {
             onRemovePluginBundle={onRemovePluginBundle}
           />
         )
-      case 1:
+      case DataLoaderStep.Configure:
         return (
           <ConfigureDataSourceStep
             {...onboardingStepProps}
             {...dataLoaders}
+            buckets={buckets}
             bucket={bucketName}
             username={username}
             org={org}
@@ -96,7 +100,7 @@ class StepSwitcher extends PureComponent<Props> {
             onSetConfigArrayValue={onSetConfigArrayValue}
           />
         )
-      case 2:
+      case DataLoaderStep.Verify:
         return (
           <VerifyDataStep
             {...onboardingStepProps}

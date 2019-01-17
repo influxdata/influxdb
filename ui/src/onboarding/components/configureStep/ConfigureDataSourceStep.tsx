@@ -26,6 +26,7 @@ import {
   DataLoaderType,
   ConfigurationState,
 } from 'src/types/v2/dataLoaders'
+import {Bucket} from 'src/api'
 
 export interface OwnProps extends DataLoaderStepProps {
   telegrafPlugins: TelegrafPlugin[]
@@ -39,6 +40,7 @@ export interface OwnProps extends DataLoaderStepProps {
   bucket: string
   org: string
   username: string
+  buckets: Bucket[]
 }
 
 type Props = OwnProps
@@ -61,11 +63,13 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       bucket,
       org,
       username,
+      buckets,
     } = this.props
 
     return (
       <div className="onboarding-step wizard--skippable">
         <ConfigureDataSourceSwitcher
+          buckets={buckets}
           bucket={bucket}
           org={org}
           username={username}

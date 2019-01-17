@@ -19,6 +19,7 @@ import {
 
 // Types
 import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {Bucket} from 'src/api'
 
 export interface Props {
   telegrafPlugins: TelegrafPlugin[]
@@ -27,6 +28,7 @@ export interface Props {
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
   dataLoaderType: DataLoaderType
+  buckets: Bucket[]
   bucket: string
   org: string
   username: string
@@ -52,6 +54,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
       onClickNext,
       onClickPrevious,
       onClickSkip,
+      buckets,
     } = this.props
 
     switch (dataLoaderType) {
@@ -85,6 +88,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
             onClickNext={onClickNext}
             onClickBack={onClickPrevious}
             onClickSkip={onClickSkip}
+            buckets={buckets}
           />
         )
       case DataLoaderType.CSV:
