@@ -3,7 +3,7 @@ import 'babel-polyfill'
 import React, {PureComponent} from 'react'
 import {render} from 'react-dom'
 import {Provider} from 'react-redux'
-import {Router, Route, useRouterHistory, IndexRedirect} from 'react-router'
+import {Router, Route, useRouterHistory, IndexRoute} from 'react-router'
 import {createHistory, History} from 'history'
 
 import configureStore from 'src/store/configureStore'
@@ -75,19 +75,6 @@ window.addEventListener('keyup', event => {
   }
 })
 
-const MainLine = ({children}) => {
-  const {pathname} = window.location
-  if (
-    pathname.includes('signin') ||
-    pathname.includes('onboarding') ||
-    pathname.includes('logout')
-  ) {
-    return null
-  }
-
-  return children
-}
-
 class Root extends PureComponent {
   public render() {
     return (
@@ -95,46 +82,46 @@ class Root extends PureComponent {
         <Router history={history}>
           <Route component={GetLinks}>
             <Route component={Setup}>
-              <Route
-                path="/onboarding/:stepID"
-                component={OnboardingWizardPage}
-              />
-              <Route
-                path="/onboarding/:stepID/:substepID"
-                component={OnboardingWizardPage}
-              />
+              <Route path="/onboarding">
+                <Route path=":stepID" component={OnboardingWizardPage} />
+                <Route
+                  path=":stepID/:substepID"
+                  component={OnboardingWizardPage}
+                />
+              </Route>
               <Route path="/signin" component={SigninPage} />
-              <Route component={MainLine}>
+              <Route path="/logout" component={Logout} />
+              <Route path="/">
                 <Route component={Signin}>
                   <Route component={GetMe}>
                     <Route component={GetOrganizations}>
                       <Route component={App}>
                         <Route component={GetSources}>
-                          <Route path="/" component={SetActiveSource}>
-                            <IndexRedirect to="/dashboards" />
-                            <Route
-                              path="dashboards/:dashboardID"
-                              component={DashboardPage}
-                            />
-                            <Route path="tasks" component={TasksPage} />
-                            <Route
-                              path="organizations"
-                              component={OrganizationsIndex}
-                            />
-                            <Route
-                              path="organizations/:orgID/:tab"
-                              component={OrganizationView}
-                            />
-                            <Route path="tasks/new" component={TaskPage} />
-                            <Route path="tasks/:id" component={TaskEditPage} />
+                          <Route component={SetActiveSource}>
+                            <IndexRoute component={DashboardsIndex} />
+                            <Route path="organizations">
+                              <IndexRoute component={OrganizationsIndex} />
+                              <Route
+                                path="/:orgID/:tab"
+                                component={OrganizationView}
+                              />
+                            </Route>
+                            <Route path="tasks">
+                              <IndexRoute component={TasksPage} />
+                              <Route path="new" component={TaskPage} />
+                              <Route path=":id" component={TaskEditPage} />
+                            </Route>
                             <Route
                               path="data-explorer"
                               component={DataExplorerPage}
                             />
-                            <Route
-                              path="dashboards"
-                              component={DashboardsIndex}
-                            />
+                            <Route path="dashboards">
+                              <IndexRoute component={DashboardsIndex} />
+                              <Route
+                                path=":dashboardID"
+                                component={DashboardPage}
+                              />
+                            </Route>
                             <Route path="me" component={MePage} />
                             <Route path="account/:tab" component={Account} />
                             <Route path="sources" component={SourcesPage} />
@@ -149,7 +136,6 @@ class Root extends PureComponent {
                   </Route>
                 </Route>
               </Route>
-              <Route path="/logout" component={Logout} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />
