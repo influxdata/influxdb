@@ -69,6 +69,7 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
             className={`time-machine-query-tab ${activeClass}`}
             onClick={this.handleSetActive}
           >
+            {this.showHideButton}
             <TimeMachineQueryTabName
               isActive={isActive}
               name={query.name}
@@ -78,7 +79,6 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
               onEdit={this.handleEditName}
               onCancelEdit={this.handleCancelEditName}
             />
-            {this.showHideButton}
             {this.removeButton}
           </div>
         </RightClick.Trigger>
@@ -151,7 +151,7 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
 
     return (
       <div
-        className="time-machine-query-tab--close"
+        className="time-machine-query-tab--hide"
         onClick={this.handleToggleView}
       >
         <span className={`icon ${icon}`} />

@@ -4,7 +4,7 @@
   background: $g2-kevlar;
   border-radius: 5px 5px 0 0;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   color: $g10-wolf;
   font-weight: 700;
@@ -29,14 +29,22 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  flex: 1 1 0;
 }
 
-.time-machine-query-tab--close {
-  margin-left: 10px;
+.time-machine-query-tab--close, .time-machine-query-tab--hide {
   margin-bottom: 2px;
   color: $g7-graphite;
 
   &:hover {
     color: $g16-pearl;
   }
+}
+
+.time-machine-query-tab--hide {
+  margin-right: 8px;
+}
+
+.time-machine-query-tab--close {
+  margin-left: 8px;
 }
