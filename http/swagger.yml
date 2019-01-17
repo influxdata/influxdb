@@ -2638,72 +2638,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /query:
-   get:
-    tags:
-      - Query
-    summary: query influx with specified return formatting. The spec and query fields are mutually exclusive.
-    parameters:
-      - $ref: '#/components/parameters/TraceSpan'
-      - in: query
-        name: org
-        description: specifies the organization of the resource
-        required: true
-        schema:
-          type: string
-      - in: query
-        name: query
-        description: query script to execute.
-        required: true
-        schema:
-          type: string
-    responses:
-        '200':
-          description: query results
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  result,table,_start,_stop,_time,region,host,_value
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
-                  mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
-        '400':
-          description: error processing query
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
-        default:
-          description: internal server error
-          headers:
-            X-Influx-Error:
-              description: error string describing the problem
-              schema:
-                type: string
-            X-Influx-Reference:
-              description: reference code unique to the error type
-              schema:
-                type: integer
-          content:
-            text/csv:
-              schema:
-                type: string
-                example: >
-                  error,reference
-                  Failed to parse query,897
    post:
     tags:
       - Query
@@ -2726,6 +2660,7 @@ paths:
           type: string
           enum:
             - application/json
+            - application/vnd.flux
       - in: query
         name: org
         description: specifies the name of the organization executing the query.
@@ -2742,6 +2677,9 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/Query"
+          application/vnd.flux:
+            schema:
+              type: string
     responses:
         '200':
           description: query results

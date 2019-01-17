@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -396,6 +397,35 @@ func Test_decodeQueryRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "valid query request with explict content-type",
+			args: args{
+				r: func() *http.Request {
+					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`))
+					r.Header.Set("Content-Type", "application/json")
+					return r
+				}(),
+				svc: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+						}, nil
+					},
+				},
+			},
+			want: &QueryRequest{
+				Query: "from()",
+				Type:  "flux",
+				Dialect: QueryDialect{
+					Delimiter:      ",",
+					DateTimeFormat: "RFC3339",
+					Header:         func(x bool) *bool { return &x }(true),
+				},
+				Org: &platform.Organization{
+					ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+				},
+			},
+		},
+		{
 			name: "error decoding json",
 			args: args{
 				r: httptest.NewRequest("POST", "/", bytes.NewBufferString(`error`)),
@@ -465,9 +495,13 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "valid get query request",
+			name: "valid post vnd.flux query request",
 			args: args{
-				r: httptest.NewRequest("GET", "/api/v2/query?query=from(bucket%3A%20%22mybucket%22)&org=myorg", nil),
+				r: func() *http.Request {
+					r := httptest.NewRequest("POST", "/api/v2/query?org=myorg", strings.NewReader(`from(bucket: "mybucket")`))
+					r.Header.Set("Content-Type", "application/vnd.flux")
+					return r
+				}(),
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
