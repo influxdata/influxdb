@@ -130,7 +130,8 @@ func taskCreateF(cmd *cobra.Command, args []string) {
 			w.Flush()
 		}
 
-		t.Organization = orgs[0].ID
+		t.OrganizationID = orgs[0].ID
+		t.Organization = orgs[0].Name
 	}
 
 	if taskCreateFlags.orgID != "" {
@@ -139,7 +140,7 @@ func taskCreateF(cmd *cobra.Command, args []string) {
 			fmt.Printf("error parsing organization id: %v\n", err)
 			os.Exit(1)
 		}
-		t.Organization = *id
+		t.OrganizationID = *id
 	}
 
 	if err := s.CreateTask(context.Background(), t); err != nil {
@@ -151,18 +152,20 @@ func taskCreateF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Name",
+		"OrganizationID",
 		"Organization",
 		"Status",
 		"Every",
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":           t.ID.String(),
-		"Name":         t.Name,
-		"Organization": t.Organization.String(),
-		"Status":       t.Status,
-		"Every":        t.Every,
-		"Cron":         t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 }
@@ -252,6 +255,7 @@ func taskFindF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Name",
+		"OrganizationID",
 		"Organization",
 		"Status",
 		"Every",
@@ -259,12 +263,13 @@ func taskFindF(cmd *cobra.Command, args []string) {
 	)
 	for _, t := range tasks {
 		w.Write(map[string]interface{}{
-			"ID":           t.ID.String(),
-			"Name":         t.Name,
-			"Organization": t.Organization.String(),
-			"Status":       t.Status,
-			"Every":        t.Every,
-			"Cron":         t.Cron,
+			"ID":             t.ID.String(),
+			"Name":           t.Name,
+			"OrganizationID": t.OrganizationID.String(),
+			"Organization":   t.Organization,
+			"Status":         t.Status,
+			"Every":          t.Every,
+			"Cron":           t.Cron,
 		})
 	}
 	w.Flush()
@@ -328,18 +333,20 @@ func taskUpdateF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Name",
+		"OrganizationID",
 		"Organization",
 		"Status",
 		"Every",
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":           t.ID.String(),
-		"Name":         t.Name,
-		"Organization": t.Organization.String(),
-		"Status":       t.Status,
-		"Every":        t.Every,
-		"Cron":         t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 }
@@ -393,18 +400,20 @@ func taskDeleteF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Name",
+		"OrganizationID",
 		"Organization",
 		"Status",
 		"Every",
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":           t.ID.String(),
-		"Name":         t.Name,
-		"Organization": t.Organization.String(),
-		"Status":       t.Status,
-		"Every":        t.Every,
-		"Cron":         t.Cron,
+		"ID":             t.ID.String(),
+		"Name":           t.Name,
+		"OrganizationID": t.OrganizationID.String(),
+		"Organization":   t.Organization,
+		"Status":         t.Status,
+		"Every":          t.Every,
+		"Cron":           t.Cron,
 	})
 	w.Flush()
 }

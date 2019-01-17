@@ -41,7 +41,7 @@ func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID
 		return nil, err
 	}
 
-	perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, task.Organization)
+	perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.T
 }
 
 func (ts *taskServiceValidator) CreateTask(ctx context.Context, t *platform.Task) error {
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, t.Organization)
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, t.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, 
 		return nil, err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.Organization)
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) 
 		return err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.Organization)
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID p
 		return nil, err
 	}
 
-	p, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, task.Organization)
+	p, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID pla
 		return err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.Organization)
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID plat
 		return nil, err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.Organization)
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID
 		return nil, err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.Organization)
+	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
