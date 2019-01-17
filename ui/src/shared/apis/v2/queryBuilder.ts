@@ -6,9 +6,6 @@ import uuid from 'uuid'
 import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
-// Utils
-import {formatTagFilterCall} from 'src/shared/utils/queryBuilder'
-
 // Types
 import {InfluxLanguage, BuilderConfig} from 'src/types/v2'
 
@@ -32,23 +29,22 @@ async function findKeys(
   tagsSelections: BuilderConfig['tags'],
   searchTerm: string = ''
 ): Promise<string[]> {
-  const tagFilters = formatTagFilterCall(tagsSelections)
+  const tagFilters = formatTagFilterPredicate(tagsSelections)
   const searchFilter = formatSearchFilterCall(searchTerm)
   const previousKeyFilter = formatTagKeyFilterCall(tagsSelections)
 
-  const query = `from(bucket: "${bucket}")
-  |> range(start: -${SEARCH_DURATION})${tagFilters}
-  |> keys()
-  |> group()
-  |> distinct()
-  |> keep(columns: ["_value"])${searchFilter}${previousKeyFilter}
+  const query = `
+  import "influxdata/influxdb/v1"
+
+  v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, start: -${SEARCH_DURATION})${searchFilter}${previousKeyFilter}
   |> filter(fn: (r) =>
-        r._value != "_time" and
-        r._value != "_start" and
-        r._value !=  "_stop" and
-        r._value != "_value")
-  |> sort()
-  |> limit(n: ${LIMIT})`
+    r._value != "_time" and
+    r._value != "_start" and
+    r._value !=  "_stop" and
+    r._value != "_value")
+  |> distinct()
+  |> limit(n: ${LIMIT})
+  `
 
   const resp = await executeQuery(url, query, InfluxLanguage.Flux)
   const parsed = extractCol(resp, '_value')
@@ -63,17 +59,15 @@ async function findValues(
   key: string,
   searchTerm: string = ''
 ): Promise<string[]> {
-  const tagFilters = formatTagFilterCall(tagsSelections)
+  const tagFilters = formatTagFilterPredicate(tagsSelections)
   const searchFilter = formatSearchFilterCall(searchTerm)
 
-  const query = `from(bucket: "${bucket}")
-    |> range(start: -${SEARCH_DURATION})${tagFilters}
-    |> group(columns: ["${key}"])
-    |> distinct(column: "${key}")
-    |> group()
-    |> keep(columns: ["_value"])${searchFilter}
-    |> sort()
-    |> limit(n: ${LIMIT})`
+  const query = `
+  import "influxdata/influxdb/v1"
+
+  v1.tagValues(bucket: "${bucket}", tag: "${key}", predicate: ${tagFilters}, start: -${SEARCH_DURATION})${searchFilter}
+  |> limit(n: ${LIMIT})
+  `
 
   const resp = await executeQuery(url, query, InfluxLanguage.Flux)
   const parsed = extractCol(resp, '_value')
@@ -199,4 +193,21 @@ export class QueryBuilderFetcher {
   public cancelFindValues(index) {
     this.findValuesTokens[index] = uuid.v4()
   }
+}
+
+function formatTagFilterPredicate(tagsSelections: BuilderConfig['tags']) {
+  if (!tagsSelections.length) {
+    return '(r) => true'
+  }
+
+  const calls = tagsSelections
+    .filter(({key, values}) => key && values.length)
+    .map(({key, values}) => {
+      const body = values.map(value => `r.${key} == "${value}"`).join(' or ')
+
+      return `(${body})`
+    })
+    .join(' and ')
+
+  return `(r) => ${calls}`
 }
