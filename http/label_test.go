@@ -1,7 +1,9 @@
 package http
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	http "net/http"
 	"net/http/httptest"
@@ -125,6 +127,93 @@ func TestService_handleGetLabels(t *testing.T) {
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil || tt.wants.body != "" && !eq {
 				t.Errorf("%q. handleGetLabels() = ***%v***", tt.name, diff)
+			}
+		})
+	}
+}
+
+func TestService_handlePostLabel(t *testing.T) {
+	type fields struct {
+		LabelService platform.LabelService
+	}
+	type args struct {
+		label *platform.Label
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "create a new label",
+			fields: fields{
+				&mock.LabelService{
+					CreateLabelFn: func(ctx context.Context, l *platform.Label) error {
+						l.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
+				},
+			},
+			args: args{
+				label: &platform.Label{
+					Name: "mylabel",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "self": "/api/v2/labels/020f755c3c082000"
+  },
+  "label": {
+    "id": "020f755c3c082000",
+    "name": "mylabel"
+  }
+}
+`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewLabelHandler()
+			h.LabelService = tt.fields.LabelService
+
+			l, err := json.Marshal(tt.args.label)
+			if err != nil {
+				t.Fatalf("failed to marshal label: %v", err)
+			}
+
+			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(l))
+			w := httptest.NewRecorder()
+
+			h.handlePostLabel(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handlePostLabel() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handlePostLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil || tt.wants.body != "" && !eq {
+				if err != nil {
+					t.Errorf("%q. handlePostLabel() = ***%v***", tt.name, err)
+				}
+				t.Errorf("%q. handlePostLabel() = ***%v***", tt.name, diff)
 			}
 		})
 	}

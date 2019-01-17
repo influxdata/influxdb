@@ -11,11 +11,15 @@ import (
 	platform "github.com/influxdata/influxdb"
 	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // LabelHandler represents an HTTP API handler for labels
 type LabelHandler struct {
 	*httprouter.Router
+
+	Logger *zap.Logger
+
 	LabelService platform.LabelService
 }
 
@@ -28,6 +32,7 @@ const (
 func NewLabelHandler() *LabelHandler {
 	h := &LabelHandler{
 		Router: NewRouter(),
+		Logger: zap.NewNop(),
 	}
 
 	h.HandlerFunc("POST", labelsPath, h.handlePostLabel)
@@ -40,8 +45,49 @@ func NewLabelHandler() *LabelHandler {
 	return h
 }
 
+// handlePostLabel is the HTTP handler for the POST /api/v2/labels route.
 func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
+	req, err := decodePostLabelRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.LabelService.CreateLabel(ctx, req.Label); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(req.Label)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
+type postLabelRequest struct {
+	Label *platform.Label
+}
+
+func (b postLabelRequest) Validate() error {
+	if b.Label.Name == "" {
+		return fmt.Errorf("label requires a name")
+	}
+	return nil
+}
+
+func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelRequest, error) {
+	l := &platform.Label{}
+	if err := json.NewDecoder(r.Body).Decode(l); err != nil {
+		return nil, err
+	}
+
+	req := &postLabelRequest{
+		Label: l,
+	}
+
+	return req, req.Validate()
 }
 
 func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +207,7 @@ func newPostLabelHandler(s platform.LabelService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		req, err := decodePostLabelRequest(ctx, r)
+		req, err := decodePostLabelMappingRequest(ctx, r)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -193,11 +239,11 @@ func newPostLabelHandler(s platform.LabelService) http.HandlerFunc {
 	}
 }
 
-type postLabelRequest struct {
+type postLabelMappingRequest struct {
 	Mapping platform.LabelMapping
 }
 
-func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelRequest, error) {
+func decodePostLabelMappingRequest(ctx context.Context, r *http.Request) (*postLabelMappingRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -220,7 +266,7 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 		return nil, err
 	}
 
-	req := &postLabelRequest{
+	req := &postLabelMappingRequest{
 		Mapping: *mapping,
 	}
 
