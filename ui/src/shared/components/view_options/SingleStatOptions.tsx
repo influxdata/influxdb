@@ -74,39 +74,37 @@ const SingleStatOptions: SFC<Props> = props => {
 
   return (
     <>
-      <Grid.Column widthXS={Columns.Six}>
-        <h4 className="view-options--header">Customize Gauge</h4>
-        <Grid>
-          <Grid.Row>
-            <Affixes
-              prefix={prefix}
-              suffix={suffix}
-              onUpdatePrefix={onSetPrefix}
-              onUpdateSuffix={onSetSuffix}
+      <h4 className="view-options--header">Customize Gauge</h4>
+      <Grid>
+        <Grid.Row>
+          <Affixes
+            prefix={prefix}
+            suffix={suffix}
+            onUpdatePrefix={onSetPrefix}
+            onUpdateSuffix={onSetSuffix}
+          />
+          {decimalPlaces && (
+            <DecimalPlacesOption
+              digits={decimalPlaces.digits}
+              isEnforced={decimalPlaces.isEnforced}
+              onDecimalPlacesChange={onSetDecimalPlaces}
             />
-            {decimalPlaces && (
-              <DecimalPlacesOption
-                digits={decimalPlaces.digits}
-                isEnforced={decimalPlaces.isEnforced}
-                onDecimalPlacesChange={onSetDecimalPlaces}
-              />
-            )}
-          </Grid.Row>
-        </Grid>
-      </Grid.Column>
-      <Grid.Column widthXS={Columns.Six}>
-        <h4 className="view-options--header">Colorized Thresholds</h4>
-        <Form>
+          )}
+        </Grid.Row>
+      </Grid>
+      <h4 className="view-options--header">Colorized Thresholds</h4>
+      <Grid>
+        <Grid.Row>
           <ThresholdList
             colorConfigs={colorConfigs}
             onUpdateColors={onSetColors}
             onValidateNewColor={() => true}
           />
-          <Form.Element label="Colorization">
+          <Grid.Column>
             <ThresholdColoring />
-          </Form.Element>
-        </Form>
-      </Grid.Column>
+          </Grid.Column>
+        </Grid.Row>
+      </Grid>
     </>
   )
 }

@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form, Grid, Columns} from 'src/clockface'
+import {Grid, Columns} from 'src/clockface'
 import Affixes from 'src/shared/components/view_options/options/Affixes'
 import DecimalPlacesOption from 'src/shared/components/view_options/options/DecimalPlaces'
 import ThresholdList from 'src/shared/components/view_options/options/ThresholdList'
@@ -50,26 +50,28 @@ class GaugeOptions extends PureComponent<Props> {
 
     return (
       <>
-        <Grid.Column widthSM={Columns.Six}>
-          <h4 className="view-options--header">Customize Gauge</h4>
-          <Affixes
-            prefix={prefix}
-            suffix={suffix}
-            onUpdatePrefix={onUpdatePrefix}
-            onUpdateSuffix={onUpdateSuffix}
-          />
-          {this.decimalPlaces}
-        </Grid.Column>
-        <Grid.Column widthSM={Columns.Six}>
-          <h4 className="view-options--header">Colorized Thresholds</h4>
-          <Form>
+        <h4 className="view-options--header">Customize Gauge</h4>
+        <Grid>
+          <Grid.Row>
+            <Affixes
+              prefix={prefix}
+              suffix={suffix}
+              onUpdatePrefix={onUpdatePrefix}
+              onUpdateSuffix={onUpdateSuffix}
+            />
+            {this.decimalPlaces}
+          </Grid.Row>
+        </Grid>
+        <h4 className="view-options--header">Colorized Thresholds</h4>
+        <Grid>
+          <Grid.Row>
             <ThresholdList
               colorConfigs={this.colorConfigs}
               onUpdateColors={onUpdateColors}
               onValidateNewColor={this.handleValidateNewColor}
             />
-          </Form>
-        </Grid.Column>
+          </Grid.Row>
+        </Grid>
       </>
     )
   }

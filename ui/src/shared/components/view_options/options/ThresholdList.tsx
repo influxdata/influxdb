@@ -12,6 +12,7 @@ import {
   IconFont,
   ComponentStatus,
   ButtonType,
+  Grid,
 } from 'src/clockface'
 
 // Constants
@@ -34,42 +35,44 @@ interface Props {
 class ThresholdList extends PureComponent<Props> {
   public render() {
     return (
-      <Form.Element label="Thresholds">
-        <div className="threshold-list">
-          <Button
-            size={ComponentSize.Small}
-            onClick={this.handleAddThreshold}
-            status={this.disableAddThreshold}
-            icon={IconFont.Plus}
-            type={ButtonType.Button}
-            text="Add a Threshold"
-          />
-          {this.sortedColorConfigs.map<JSX.Element>(colorConfig => {
-            const {
-              color: threshold,
-              isDeletable,
-              isBase,
-              disableColor,
-              label,
-            } = colorConfig
+      <Grid.Column>
+        <Form.Element label="Thresholds">
+          <div className="threshold-list">
+            <Button
+              size={ComponentSize.Small}
+              onClick={this.handleAddThreshold}
+              status={this.disableAddThreshold}
+              icon={IconFont.Plus}
+              type={ButtonType.Button}
+              text="Add a Threshold"
+            />
+            {this.sortedColorConfigs.map<JSX.Element>(colorConfig => {
+              const {
+                color: threshold,
+                isDeletable,
+                isBase,
+                disableColor,
+                label,
+              } = colorConfig
 
-            return (
-              <ThresholdItem
-                label={label}
-                key={uuid.v4()}
-                threshold={threshold}
-                isBase={isBase}
-                isDeletable={isDeletable}
-                disableColor={disableColor}
-                onChooseColor={this.handleChooseColor}
-                onDeleteThreshold={this.handleDeleteThreshold}
-                onUpdateColorValue={this.handleUpdateColorValue}
-                onValidateColorValue={this.handleValidateColorValue}
-              />
-            )
-          })}
-        </div>
-      </Form.Element>
+              return (
+                <ThresholdItem
+                  label={label}
+                  key={uuid.v4()}
+                  threshold={threshold}
+                  isBase={isBase}
+                  isDeletable={isDeletable}
+                  disableColor={disableColor}
+                  onChooseColor={this.handleChooseColor}
+                  onDeleteThreshold={this.handleDeleteThreshold}
+                  onUpdateColorValue={this.handleUpdateColorValue}
+                  onValidateColorValue={this.handleValidateColorValue}
+                />
+              )
+            })}
+          </div>
+        </Form.Element>
+      </Grid.Column>
     )
   }
 
