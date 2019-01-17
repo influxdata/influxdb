@@ -8,7 +8,7 @@ import {DEFAULT_DURATION_MS, WINDOW_PERIOD} from 'src/shared/constants'
 // Types
 import {InfluxLanguage} from 'src/types/v2/dashboards'
 
-const DESIRED_POINTS_PER_GRAPH = 1440
+const DESIRED_POINTS_PER_GRAPH = 360
 const FALLBACK_WINDOW_PERIOD = 15000
 
 export async function renderQuery(
@@ -56,5 +56,5 @@ async function getAST(query: string): Promise<object> {
 }
 
 function getWindowInterval(durationMilliseconds: number = DEFAULT_DURATION_MS) {
-  return durationMilliseconds / DESIRED_POINTS_PER_GRAPH
+  return Math.round(durationMilliseconds / DESIRED_POINTS_PER_GRAPH)
 }
