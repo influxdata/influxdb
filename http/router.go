@@ -13,7 +13,7 @@ func NewRouter() *httprouter.Router {
 	router := httprouter.New()
 	router.NotFound = http.HandlerFunc(notFoundHandler)
 	router.MethodNotAllowed = http.HandlerFunc(methodNotAllowedHandler)
-	// router.PanicHandler = panicHandler
+	router.PanicHandler = panicHandler
 	return router
 }
 
