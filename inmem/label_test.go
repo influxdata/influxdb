@@ -18,6 +18,12 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 		}
 	}
 
+	for _, m := range f.Mappings {
+		if err := s.CreateLabelMapping(ctx, m); err != nil {
+			t.Fatalf("failed to populate label mappings")
+		}
+	}
+
 	return s, OpPrefix, func() {}
 }
 

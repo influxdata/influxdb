@@ -15,6 +15,7 @@ const (
 	OpCreateLabelMapping = "CreateLabelMapping"
 	OpUpdateLabel        = "UpdateLabel"
 	OpDeleteLabel        = "DeleteLabel"
+	OpDeleteLabelMapping = "DeleteLabelMapping"
 )
 
 // LabelService represents a service for managing resource labels

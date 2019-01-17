@@ -199,6 +199,32 @@ func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMappin
 }
 
 func (c *Client) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		return c.deleteLabelMapping(ctx, tx, m)
+	})
+	if err != nil {
+		return &platform.Error{
+			Op:  getOp(platform.OpDeleteLabelMapping),
+			Err: err,
+		}
+	}
+	return nil
+}
+
+func (c *Client) deleteLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.LabelMapping) error {
+	key, err := labelMappingKey(m)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	if err := tx.Bucket(labelMappingBucket).Delete(key); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
 	return nil
 }
 
@@ -343,6 +369,18 @@ func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) e
 	}
 
 	return nil
+}
+
+// PutLabelMapping writes a label mapping to boltdb
+func (c *Client) PutLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		var err error
+		pe := c.putLabelMapping(ctx, tx, m)
+		if pe != nil {
+			err = pe
+		}
+		return err
+	})
 }
 
 func (c *Client) putLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.LabelMapping) error {

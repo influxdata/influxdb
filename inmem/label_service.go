@@ -210,30 +210,8 @@ func (s *Service) DeleteLabel(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
+// DeleteLabelMapping deletes a label mapping.
 func (s *Service) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
-	// label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
-	// if label == nil && err != nil {
-	// 	return &platform.Error{
-	// 		Code: platform.ENotFound,
-	// 		Op:   OpPrefix + platform.OpDeleteLabel,
-	// 		Err:  platform.ErrLabelNotFound,
-	// 	}
-	// }
-	//
-	// s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))
-	// return nil
-	return nil
-}
-
-func (s *Service) deleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
-	// labels, err := s.FindLabels(ctx, filter)
-	// if labels == nil && err != nil {
-	// 	return err
-	// }
-	// for _, l := range labels {
-	// 	s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))
-	// }
-	//
-	// return nil
+	s.labelMappingKV.Delete(encodeLabelMappingKey(m))
 	return nil
 }

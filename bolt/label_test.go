@@ -23,6 +23,12 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 		}
 	}
 
+	for _, m := range f.Mappings {
+		if err := c.PutLabelMapping(ctx, m); err != nil {
+			t.Fatalf("failed to populate label mappings: %v", err)
+		}
+	}
+
 	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, l := range f.Labels {
