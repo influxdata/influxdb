@@ -11,7 +11,7 @@ import {
   TelegrafPluginInputMem,
   TelegrafPluginInputNet,
   TelegrafPluginInputNetResponse,
-  TelegrafPluginInputNgnix,
+  TelegrafPluginInputNginx,
   TelegrafPluginInputProcesses,
   TelegrafPluginInputProcstat,
   TelegrafPluginInputPrometheus,
@@ -100,7 +100,7 @@ export type Plugin =
   | TelegrafPluginInputMem
   | TelegrafPluginInputNet
   | TelegrafPluginInputNetResponse
-  | TelegrafPluginInputNgnix
+  | TelegrafPluginInputNginx
   | TelegrafPluginInputProcesses
   | TelegrafPluginInputProcstat
   | TelegrafPluginInputPrometheus
@@ -123,7 +123,7 @@ export enum BundleName {
   System = 'System',
   Docker = 'Docker',
   Kubernetes = 'Kubernetes',
-  Ngnix = 'NGNIX',
+  Nginx = 'NGINX',
   Redis = 'Redis',
 }
 
@@ -139,7 +139,7 @@ export type TelegrafPluginName =
   | TelegrafPluginInputMem.NameEnum.Mem
   | TelegrafPluginInputNet.NameEnum.Net
   | TelegrafPluginInputNetResponse.NameEnum.NetResponse
-  | TelegrafPluginInputNgnix.NameEnum.Ngnix
+  | TelegrafPluginInputNginx.NameEnum.Nginx
   | TelegrafPluginInputProcesses.NameEnum.Processes
   | TelegrafPluginInputProcstat.NameEnum.Procstat
   | TelegrafPluginInputPrometheus.NameEnum.Prometheus

@@ -204,6 +204,10 @@
   font-weight: 400;
   color: $g11-sidewalk;
   @include no-user-select();
+
+  a {
+    color: $c-pool;
+  }
 }
 
 /* Streaming */

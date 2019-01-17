@@ -4004,46 +4004,46 @@ export namespace TelegrafPluginInputNetResponseRequest {
 /**
  * 
  * @export
- * @interface TelegrafPluginInputNgnix
+ * @interface TelegrafPluginInputNginx
  */
-export interface TelegrafPluginInputNgnix {
+export interface TelegrafPluginInputNginx {
     /**
      * 
      * @type {string}
-     * @memberof TelegrafPluginInputNgnix
+     * @memberof TelegrafPluginInputNginx
      */
-    name: TelegrafPluginInputNgnix.NameEnum;
+    name: TelegrafPluginInputNginx.NameEnum;
     /**
      * 
      * @type {string}
-     * @memberof TelegrafPluginInputNgnix
+     * @memberof TelegrafPluginInputNginx
      */
-    type: TelegrafPluginInputNgnix.TypeEnum;
+    type: TelegrafPluginInputNginx.TypeEnum;
     /**
      * 
      * @type {string}
-     * @memberof TelegrafPluginInputNgnix
+     * @memberof TelegrafPluginInputNginx
      */
     comment?: string;
     /**
      * 
      * @type {TelegrafPluginConfig}
-     * @memberof TelegrafPluginInputNgnix
+     * @memberof TelegrafPluginInputNginx
      */
     config: TelegrafPluginConfig;
 }
 
 /**
  * @export
- * @namespace TelegrafPluginInputNgnix
+ * @namespace TelegrafPluginInputNginx
  */
-export namespace TelegrafPluginInputNgnix {
+export namespace TelegrafPluginInputNginx {
     /**
      * @export
      * @enum {string}
      */
     export enum NameEnum {
-        Ngnix = 'ngnix'
+        Nginx = 'nginx'
     }
     /**
      * @export
@@ -4057,16 +4057,16 @@ export namespace TelegrafPluginInputNgnix {
 /**
  * 
  * @export
- * @interface TelegrafPluginInputNgnixRequest
+ * @interface TelegrafPluginInputNginxRequest
  */
-export interface TelegrafPluginInputNgnixRequest extends TelegrafRequestPlugin {
+export interface TelegrafPluginInputNginxRequest extends TelegrafRequestPlugin {
 }
 
 /**
  * @export
- * @namespace TelegrafPluginInputNgnixRequest
+ * @namespace TelegrafPluginInputNginxRequest
  */
-export namespace TelegrafPluginInputNgnixRequest {
+export namespace TelegrafPluginInputNginxRequest {
 }
 
 /**
