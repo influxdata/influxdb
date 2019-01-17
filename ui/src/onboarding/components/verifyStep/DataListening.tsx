@@ -130,7 +130,7 @@ class DataListening extends PureComponent<Props, State> {
         '/api/v2/query',
         script,
         InfluxLanguage.Flux
-      )
+      ).promise
       rowCount = response.rowCount
       timePassed = Number(new Date()) - this.startTime
     } catch (err) {

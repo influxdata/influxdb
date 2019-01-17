@@ -1,4 +1,5 @@
-import {restartable, CancellationError} from 'src/utils/restartable'
+import {restartable} from 'src/utils/restartable'
+import {CancellationError} from 'src/types/promises'
 
 describe('restartable', () => {
   test('with three concurrent promises', async () => {

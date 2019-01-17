@@ -1,8 +1,5 @@
 // APIs
-import {
-  QueryBuilderFetcher,
-  CancellationError,
-} from 'src/shared/apis/v2/queryBuilder'
+import {QueryBuilderFetcher} from 'src/shared/apis/v2/queryBuilder'
 
 import {bucketsAPI} from 'src/utils/api'
 
@@ -17,6 +14,7 @@ import {
 import {Dispatch} from 'redux-thunk'
 import {GetState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
+import {CancellationError} from 'src/types/promises'
 
 const fetcher = new QueryBuilderFetcher()
 
