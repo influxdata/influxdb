@@ -19,6 +19,7 @@ type APIHandler struct {
 	OrgHandler           *OrgHandler
 	AuthorizationHandler *AuthorizationHandler
 	DashboardHandler     *DashboardHandler
+	LabelHandler         *LabelHandler
 	AssetHandler         *AssetHandler
 	ChronografHandler    *ChronografHandler
 	ScraperHandler       *ScraperHandler
@@ -80,6 +81,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.BucketHandler.BucketService = authorizer.NewBucketService(b.BucketService)
 	h.BucketHandler.OrganizationService = b.OrganizationService
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
+
+	h.LabelHandler = NewLabelHandler()
+	h.LabelHandler.LabelService = b.LabelService
 
 	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.OrgHandler.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
@@ -159,6 +163,7 @@ var apiLinks = map[string]interface{}{
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
 	},
+	"labels": "/api/v2/labels",
 	"macros": "/api/v2/macros",
 	"me":     "/api/v2/me",
 	"orgs":   "/api/v2/orgs",
@@ -229,6 +234,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/buckets") {
 		h.BucketHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/labels") {
+		h.LabelHandler.ServeHTTP(w, r)
 		return
 	}
 
