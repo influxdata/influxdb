@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Grid, Columns} from 'src/clockface'
+import {Grid} from 'src/clockface'
 import Affixes from 'src/shared/components/view_options/options/Affixes'
 import DecimalPlacesOption from 'src/shared/components/view_options/options/DecimalPlaces'
 import ThresholdList from 'src/shared/components/view_options/options/ThresholdList'

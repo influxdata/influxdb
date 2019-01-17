@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form, Grid} from 'src/clockface'
+import {Grid} from 'src/clockface'
 import Geom from 'src/shared/components/view_options/options/Geom'
 import YAxisTitle from 'src/shared/components/view_options/options/YAxisTitle'
 import YAxisBounds from 'src/shared/components/view_options/options/YAxisBounds'

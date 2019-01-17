@@ -10,7 +10,7 @@ import FixFirstColumn from 'src/shared/components/view_options/options/FixFirstC
 import TimeFormat from 'src/shared/components/view_options/options/TimeFormat'
 import TimeAxis from 'src/shared/components/view_options/options/TimeAxis'
 import SortBy from 'src/shared/components/view_options/options/SortBy'
-import {Grid, Columns} from 'src/clockface'
+import {Grid} from 'src/clockface'
 
 // Constants
 import {THRESHOLD_TYPE_BASE} from 'src/shared/constants/thresholds'
