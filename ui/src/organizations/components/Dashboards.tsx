@@ -2,6 +2,9 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
+// APIs
+import {deleteDashboard} from 'src/dashboards/apis'
+
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {ComponentSize, EmptyState, Input, IconFont} from 'src/clockface'
@@ -17,6 +20,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   dashboards: Dashboard[]
   orgName: string
+  onChange: () => void
 }
 
 interface State {
@@ -53,7 +57,13 @@ export default class Dashboards extends PureComponent<Props, State> {
           searchKeys={['name']}
           list={dashboards}
         >
-          {ds => <DashboardList dashboards={ds} emptyState={this.emptyState} />}
+          {ds => (
+            <DashboardList
+              dashboards={ds}
+              emptyState={this.emptyState}
+              onDeleteDashboard={this.handleDeleteDashboard}
+            />
+          )}
         </FilterList>
       </>
     )
@@ -65,6 +75,11 @@ export default class Dashboards extends PureComponent<Props, State> {
 
   private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
     this.setState({searchTerm: e.target.value})
+  }
+
+  private handleDeleteDashboard = async (dashboard: Dashboard) => {
+    await deleteDashboard(dashboard)
+    this.props.onChange()
   }
 
   private get emptyState(): JSX.Element {

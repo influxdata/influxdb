@@ -125,9 +125,13 @@ class OrganizationView extends PureComponent<Props> {
                   organization={org}
                   fetcher={getDashboards}
                 >
-                  {(dashboards, loading) => (
+                  {(dashboards, loading, fetch) => (
                     <Spinner loading={loading}>
-                      <Dashboards dashboards={dashboards} orgName={org.name} />
+                      <Dashboards
+                        dashboards={dashboards}
+                        orgName={org.name}
+                        onChange={fetch}
+                      />
                     </Spinner>
                   )}
                 </GetOrgResources>
