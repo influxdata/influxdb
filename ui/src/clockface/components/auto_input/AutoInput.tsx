@@ -52,8 +52,7 @@ export default class AutoInput extends Component<Props, State> {
           <Radio shape={ButtonShape.StretchToFit}>
             <Radio.Button
               active={inputMode === Mode.Auto}
-              id={`auto-input--auto--${name}`}
-              key={`auto-input--auto--${name}`}
+              id={`auto--${name}`}
               titleText="Decide for me"
               value={Mode.Auto}
               onClick={this.handleRadioClick}
@@ -62,8 +61,7 @@ export default class AutoInput extends Component<Props, State> {
             </Radio.Button>
             <Radio.Button
               active={inputMode === Mode.Custom}
-              id={`auto-input--custom--${name}`}
-              key={`auto-input--auto--${name}`}
+              id={`custom--${name}`}
               titleText="I want to specify my own value"
               value={Mode.Custom}
               onClick={this.handleRadioClick}

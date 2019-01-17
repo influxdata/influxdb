@@ -10,7 +10,7 @@ import FixFirstColumn from 'src/shared/components/view_options/options/FixFirstC
 import TimeFormat from 'src/shared/components/view_options/options/TimeFormat'
 import TimeAxis from 'src/shared/components/view_options/options/TimeAxis'
 import SortBy from 'src/shared/components/view_options/options/SortBy'
-import {Grid, Columns} from 'src/clockface'
+import {Grid} from 'src/clockface'
 
 // Constants
 import {THRESHOLD_TYPE_BASE} from 'src/shared/constants/thresholds'
@@ -76,59 +76,51 @@ export class TableOptions extends Component<Props, {}> {
 
     return (
       <>
-        <Grid.Column widthSM={Columns.Four}>
-          <h4 className="view-options--header">Table Formatting</h4>
-          <Grid>
-            <Grid.Row>
-              {!!fieldOptions.length && (
-                <SortBy
-                  selected={sortBy}
-                  fieldOptions={fieldOptions}
-                  onChange={this.handleChangeSortBy}
-                />
-              )}
-              <TimeFormat
-                timeFormat={timeFormat}
-                onTimeFormatChange={onSetTimeFormat}
-              />
-              {decimalPlaces && (
-                <DecimalPlacesOption
-                  digits={decimalPlaces.digits}
-                  isEnforced={decimalPlaces.isEnforced}
-                  onDecimalPlacesChange={onSetDecimalPlaces}
-                />
-              )}
-            </Grid.Row>
-          </Grid>
+        <Grid.Column>
+          <h4 className="view-options--header">Customize Table</h4>
         </Grid.Column>
-        <Grid.Column widthSM={Columns.Four}>
-          <h4 className="view-options--header">Column Settings</h4>
-          <Grid>
-            <Grid.Row>
-              <TimeAxis
-                verticalTimeAxis={verticalTimeAxis}
-                onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
-              />
-              <FixFirstColumn
-                fixed={fixFirstColumn}
-                onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
-              />
-              <ColumnOptions
-                columns={fieldOptions}
-                onMoveColumn={this.handleMoveColumn}
-                onUpdateColumn={this.handleUpdateColumn}
-              />
-            </Grid.Row>
-          </Grid>
-        </Grid.Column>
-        <Grid.Column widthSM={Columns.Four}>
-          <h4 className="view-options--header">Colorized Thresholds</h4>
-          <ThresholdList
-            colorConfigs={this.colorConfigs}
-            onUpdateColors={onSetColors}
-            onValidateNewColor={() => true}
+        {!!fieldOptions.length && (
+          <SortBy
+            selected={sortBy}
+            fieldOptions={fieldOptions}
+            onChange={this.handleChangeSortBy}
           />
+        )}
+        <TimeFormat
+          timeFormat={timeFormat}
+          onTimeFormatChange={onSetTimeFormat}
+        />
+        {decimalPlaces && (
+          <DecimalPlacesOption
+            digits={decimalPlaces.digits}
+            isEnforced={decimalPlaces.isEnforced}
+            onDecimalPlacesChange={onSetDecimalPlaces}
+          />
+        )}
+        <Grid.Column>
+          <h4 className="view-options--header">Column Settings</h4>
         </Grid.Column>
+        <TimeAxis
+          verticalTimeAxis={verticalTimeAxis}
+          onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
+        />
+        <FixFirstColumn
+          fixed={fixFirstColumn}
+          onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
+        />
+        <ColumnOptions
+          columns={fieldOptions}
+          onMoveColumn={this.handleMoveColumn}
+          onUpdateColumn={this.handleUpdateColumn}
+        />
+        <Grid.Column>
+          <h4 className="view-options--header">Colorized Thresholds</h4>
+        </Grid.Column>
+        <ThresholdList
+          colorConfigs={this.colorConfigs}
+          onUpdateColors={onSetColors}
+          onValidateNewColor={() => true}
+        />
       </>
     )
   }

@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import {Radio, ButtonShape} from 'src/clockface'
+import {Form, Radio, ButtonShape} from 'src/clockface'
 
 // Actions
 import {
@@ -38,22 +38,24 @@ type Props = StateProps & DispatchProps
 class ThresholdColoring extends PureComponent<Props> {
   public render() {
     return (
-      <Radio shape={ButtonShape.StretchToFit}>
-        <Radio.Button
-          active={this.activeSetting === ThresholdColoringSetting.Background}
-          onClick={this.handleClick}
-          value={ThresholdColoringSetting.Background}
-        >
-          Background
-        </Radio.Button>
-        <Radio.Button
-          active={this.activeSetting === ThresholdColoringSetting.Text}
-          onClick={this.handleClick}
-          value={ThresholdColoringSetting.Text}
-        >
-          Text
-        </Radio.Button>
-      </Radio>
+      <Form.Element label="Colorization">
+        <Radio shape={ButtonShape.StretchToFit}>
+          <Radio.Button
+            active={this.activeSetting === ThresholdColoringSetting.Background}
+            onClick={this.handleClick}
+            value={ThresholdColoringSetting.Background}
+          >
+            Background
+          </Radio.Button>
+          <Radio.Button
+            active={this.activeSetting === ThresholdColoringSetting.Text}
+            onClick={this.handleClick}
+            value={ThresholdColoringSetting.Text}
+          >
+            Text
+          </Radio.Button>
+        </Radio>
+      </Form.Element>
     )
   }
 

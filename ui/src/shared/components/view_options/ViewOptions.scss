@@ -5,23 +5,33 @@
 
 @import 'src/style/modules';
 
+
 .view-options {
-  padding: $ix-marg-c $ix-marg-d;
+  flex: 0 0 (420px - $ix-marg-b);
+  height: 100%;
+  background-color: $g3-castle;
+  margin-left: $ix-marg-b;
+  border-radius: $radius;
+}
+
+.view-options--container {
+  padding: $ix-marg-d;
 }
 
 .view-options--header {
+  font-size: 16px;
+  font-weight: 500;
   @include no-user-select();
-  margin-top: 0;
-  margin-bottom: $ix-marg-d;
+  padding-top: $ix-marg-c;
+  border-top: $ix-border solid $g5-pepper;
+  margin-top: $ix-marg-b;
+  margin-bottom: $ix-marg-c;
   color: $g11-sidewalk;
-}
 
-@media screen and (max-width: 991px) {
-  .view-options--header {
-    margin-top: $ix-marg-d;
-  }
-
-  .view-options .row > div:first-child .view-options--header {
+  *:first-child > & {
     margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
 }
+
