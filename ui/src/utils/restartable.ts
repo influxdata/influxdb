@@ -1,6 +1,6 @@
 import Deferred from 'src/utils/Deferred'
 
-export class CancellationError extends Error {}
+import {CancellationError} from 'src/types/promises'
 
 // `restartable` is a utility that wraps promise-returning functions so that
 // concurrent calls resolve successfully exactly once, and with the most

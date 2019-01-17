@@ -3,6 +3,7 @@ import _ from 'lodash'
 import Deferred from 'src/utils/Deferred'
 
 import {InfluxLanguage} from 'src/types/v2/dashboards'
+import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 
 const CHECK_LIMIT_INTERVAL = 200
 const MAX_ROWS = 50000
@@ -17,11 +18,11 @@ interface XHRError extends Error {
   xhr?: XMLHttpRequest
 }
 
-export const executeQuery = async (
+export const executeQuery = (
   url: string,
   query: string,
   language: InfluxLanguage = InfluxLanguage.Flux
-): Promise<ExecuteFluxQueryResult> => {
+): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
   // We're using `XMLHttpRequest` directly here rather than through `axios` so
   // that we can poll the response size as it comes back. If the response size
   // is greater than a predefined limit, we close the HTTP connection and
@@ -130,5 +131,12 @@ export const executeQuery = async (
   xhr.setRequestHeader('Content-Type', 'application/json')
   xhr.send(body)
 
-  return deferred.promise
+  return {
+    promise: deferred.promise,
+    cancel: () => {
+      clearTimeout(interval)
+      xhr.abort()
+      deferred.reject(new CancellationError())
+    },
+  }
 }

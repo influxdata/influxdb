@@ -8,7 +8,6 @@ import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
-import {restartable, CancellationError} from 'src/utils/restartable'
 import {getSources, getActiveSource} from 'src/sources/selectors'
 import {renderQuery} from 'src/shared/utils/renderQuery'
 
@@ -16,21 +15,38 @@ import {renderQuery} from 'src/shared/utils/renderQuery'
 import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 import {AppState, Source} from 'src/types/v2'
+import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 
 type URLQuery = DashboardQuery & {url: string}
 
-const executeQueries = async (
-  queries: URLQuery[],
+const executeRenderedQuery = (
+  {text, type, url}: URLQuery,
   variables: {[key: string]: string}
-): Promise<ExecuteFluxQueryResult[]> => {
-  const promises = queries.map(async ({url, text, type}) => {
-    const renderedQuery = await renderQuery(text, type, variables)
-    const queryResult = await executeQuery(url, renderedQuery, type)
+): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
+  let isCancelled = false
+  let cancelExecution
 
-    return queryResult
+  const cancel = () => {
+    isCancelled = true
+
+    if (cancelExecution) {
+      cancelExecution()
+    }
+  }
+
+  const promise = renderQuery(text, type, variables).then(renderedQuery => {
+    if (isCancelled) {
+      return Promise.reject(new CancellationError())
+    }
+
+    const pendingResult = executeQuery(url, renderedQuery, type)
+
+    cancelExecution = pendingResult.cancel
+
+    return pendingResult.promise
   })
 
-  return Promise.all(promises)
+  return {promise, cancel}
 }
 
 export interface QueriesState {
@@ -84,7 +100,9 @@ class TimeSeries extends Component<Props, State> {
 
   public state: State = defaultState()
 
-  private executeQueries = restartable(executeQueries)
+  private pendingResults: Array<
+    WrappedCancelablePromise<ExecuteFluxQueryResult>
+  > = []
 
   public async componentDidMount() {
     this.reload()
@@ -142,7 +160,16 @@ class TimeSeries extends Component<Props, State> {
 
     try {
       const startTime = Date.now()
-      const results = await this.executeQueries(queries, variables)
+
+      // Cancel any existing queries
+      this.pendingResults.forEach(({cancel}) => cancel())
+
+      // Issue new queries
+      this.pendingResults = queries.map(q => executeRenderedQuery(q, variables))
+
+      // Wait for new queries to complete
+      const results = await Promise.all(this.pendingResults.map(r => r.promise))
+
       const duration = Date.now() - startTime
       const tables = flatten(results.map(r => parseResponse(r.csv)))
       const files = results.map(r => r.csv)
