@@ -111,7 +111,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.ScraperHandler.Logger = b.Logger.With(zap.String("handler", "scraper"))
 
 	h.SourceHandler = NewSourceHandler()
-	h.SourceHandler.SourceService = b.SourceService
+	h.SourceHandler.SourceService = authorizer.NewSourceService(b.SourceService)
 	h.SourceHandler.NewBucketService = b.NewBucketService
 	h.SourceHandler.NewQueryService = b.NewQueryService
 
