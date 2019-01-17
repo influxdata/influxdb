@@ -124,7 +124,9 @@ class TaskPage extends PureComponent<
   }
 
   private handleSave = () => {
-    this.props.saveNewScript()
+    const {newScript, taskOptions} = this.props
+
+    this.props.saveNewScript(newScript, taskOptions)
   }
 
   private handleCancel = () => {

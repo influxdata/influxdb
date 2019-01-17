@@ -177,7 +177,7 @@ describe('timeMachineReducer', () => {
       expect(nextState.activeQueryIndex).toEqual(1)
       expect(nextState.draftQueries).toEqual([
         {
-          text: 'foo',
+          text: '',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
@@ -185,7 +185,7 @@ describe('timeMachineReducer', () => {
           hidden: false,
         },
         {
-          text: 'bar',
+          text: '',
           type: InfluxLanguage.Flux,
           sourceID: '',
           editMode: QueryEditMode.Builder,
