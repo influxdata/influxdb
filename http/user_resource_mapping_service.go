@@ -41,7 +41,7 @@ type resourceUsersResponse struct {
 func newResourceUsersResponse(opts platform.FindOptions, f platform.UserResourceMappingFilter, users []*platform.User) *resourceUsersResponse {
 	rs := resourceUsersResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/%ss/%s/%ss", f.ResourceType, f.ResourceID, f.UserType),
+			"self": fmt.Sprintf("/api/v2/%s/%s/%ss", f.ResourceType, f.ResourceID, f.UserType),
 		},
 		Users: make([]*resourceUserResponse, 0, len(users)),
 	}
