@@ -92,7 +92,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.UserHandler.UserOperationLogService = b.UserOperationLogService
 
 	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.DashboardHandler.DashboardService = b.DashboardService
+	h.DashboardHandler.DashboardService = authorizer.NewDashboardService(b.DashboardService)
 	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
 
 	h.MacroHandler = NewMacroHandler()
