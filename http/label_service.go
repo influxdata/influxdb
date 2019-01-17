@@ -177,7 +177,7 @@ func newPostLabelHandler(s platform.LabelService) http.HandlerFunc {
 			return
 		}
 
-		label, err := s.FindLabelByID(ctx, req.Mapping.LabelID)
+		label, err := s.FindLabelByID(ctx, *req.Mapping.LabelID)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -214,7 +214,7 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 		return nil, err
 	}
 
-	mapping.ResourceID = rid
+	mapping.ResourceID = &rid
 
 	if err := mapping.Validate(); err != nil {
 		return nil, err
@@ -305,8 +305,8 @@ func newDeleteLabelHandler(s platform.LabelService) http.HandlerFunc {
 		}
 
 		mapping := &platform.LabelMapping{
-			LabelID:    req.LabelID,
-			ResourceID: req.ResourceID,
+			LabelID:    &req.LabelID,
+			ResourceID: &req.ResourceID,
 		}
 
 		if err := s.DeleteLabelMapping(ctx, mapping); err != nil {
@@ -407,7 +407,7 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.Label
 		return err
 	}
 
-	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, m.ResourceID))
+	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, *m.ResourceID))
 	if err != nil {
 		return err
 	}
@@ -469,7 +469,7 @@ func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
 }
 
 func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
-	url, err := newURL(s.Addr, labelNamePath(s.BasePath, m.ResourceID, m.LabelID))
+	url, err := newURL(s.Addr, labelNamePath(s.BasePath, *m.ResourceID, *m.LabelID))
 	if err != nil {
 		return err
 	}

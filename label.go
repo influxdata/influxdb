@@ -10,6 +10,7 @@ const ErrLabelNotFound = ChronografError("label not found")
 const (
 	OpFindLabels         = "FindLabels"
 	OpFindLabelByID      = "FindLabelByID"
+	OpFindLabelMapping   = "FindLabelMapping"
 	OpCreateLabel        = "CreateLabel"
 	OpCreateLabelMapping = "CreateLabelMapping"
 	OpUpdateLabel        = "UpdateLabel"
@@ -65,8 +66,8 @@ func (l *Label) Validate() error {
 // LabelMapping is used to map resource to its labels.
 // It should not be shared directly over the HTTP API.
 type LabelMapping struct {
-	LabelID    ID
-	ResourceID ID
+	LabelID    *ID
+	ResourceID *ID
 }
 
 // Validate returns an error if the mapping is invalid.

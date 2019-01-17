@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -117,9 +118,70 @@ func (c *Client) findLabels(ctx context.Context, tx *bolt.Tx, filter platform.La
 	return ls, nil
 }
 
-func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
-	return nil, nil
+// func filterMappingsFn(filter platform.LabelMappingFilter) func(m *platform.LabelMapping) bool {
+// 	return func(mapping *platform.LabelMapping) bool {
+// 		return (filter.ResourceID.String() == mapping.ResourceID.String()) &&
+// 			(filter.LabelID == nil || filter.LabelID == mapping.LabelID)
+// 	}
+// }
+
+func decodeLabelMappingKey(key []byte) (resourceID platform.ID, labelID platform.ID, err error) {
+	if len(key) != 2*platform.IDLength {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "malformed label mapping key (please report this error)"}
+	}
+
+	if err := (&resourceID).Decode(key[:platform.IDLength]); err != nil {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "bad resource id", Err: platform.ErrInvalidID}
+	}
+
+	if err := (&labelID).Decode(key[platform.IDLength:]); err != nil {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "bad label id", Err: platform.ErrInvalidID}
+	}
+
+	return resourceID, labelID, nil
 }
+
+func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
+	if !filter.ResourceID.Valid() {
+		return nil, &platform.Error{Code: platform.EInvalid, Msg: "filter requires a valid resource id", Err: platform.ErrInvalidID}
+	}
+
+	ls := []*platform.Label{}
+	err := c.db.View(func(tx *bolt.Tx) error {
+		cur := tx.Bucket(labelMappingBucket).Cursor()
+		prefix, err := filter.ResourceID.Encode()
+		if err != nil {
+			return err
+		}
+
+		for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
+			_, id, err := decodeLabelMappingKey(k)
+			if err != nil {
+				return err
+			}
+
+			l, err := c.findLabelByID(ctx, tx, id)
+			// TODO(jm): why the heck is it finding the label and returning an error?
+			if l == nil && err != nil {
+				return err
+			}
+
+			ls = append(ls, l)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpFindLabelMapping),
+		}
+	}
+
+	return ls, nil
+}
+
+// func (c *Client) findResourceLabels(ctx context.Context, )
 
 func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
@@ -184,9 +246,9 @@ func labelMappingKey(m *platform.LabelMapping) ([]byte, error) {
 		}
 	}
 
-	key := make([]byte, len(lid)+len(rid))
-	copy(key, lid)
-	copy(key[len(lid):], rid)
+	key := make([]byte, len(rid)+len(lid))
+	copy(key, rid)
+	copy(key[len(rid):], lid)
 
 	return key, nil
 }
@@ -298,7 +360,7 @@ func (c *Client) putLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.L
 		}
 	}
 
-	if err := tx.Bucket(labelBucket).Put(key, v); err != nil {
+	if err := tx.Bucket(labelMappingBucket).Put(key, v); err != nil {
 		return &platform.Error{
 			Err: err,
 		}

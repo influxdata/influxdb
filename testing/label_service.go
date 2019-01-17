@@ -204,8 +204,8 @@ func CreateLabelMapping(
 			},
 			args: args{
 				mapping: &platform.LabelMapping{
-					LabelID:    MustIDBase16(labelOneID),
-					ResourceID: MustIDBase16(bucketOneID),
+					LabelID:    IDPtr(MustIDBase16(labelOneID)),
+					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
 				},
 				filter: platform.LabelMappingFilter{
 					ResourceID: MustIDBase16(bucketOneID),
@@ -258,7 +258,7 @@ func CreateLabelMapping(
 
 			defer s.DeleteLabelMapping(ctx, tt.args.mapping)
 
-			labels, err := s.FindResourceLabels(ctx, platform.LabelMappingFilter{})
+			labels, err := s.FindResourceLabels(ctx, tt.args.filter)
 			if err != nil {
 				t.Fatalf("failed to retrieve labels: %v", err)
 			}
