@@ -48,7 +48,6 @@ func NewFluxHandler() *FluxHandler {
 	}
 
 	h.HandlerFunc("POST", fluxPath, h.handleQuery)
-	h.HandlerFunc("GET", fluxPath, h.handleQuery)
 	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
 	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
 	h.HandlerFunc("POST", "/api/v2/query/spec", h.postFluxSpec)
