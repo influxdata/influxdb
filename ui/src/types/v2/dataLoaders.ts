@@ -37,6 +37,12 @@ import {
 import {RemoteDataState} from 'src/types'
 import {WritePrecision} from 'src/api'
 
+export enum DataLoaderStep {
+  'Select',
+  'Configure',
+  'Verify',
+}
+
 interface ScraperTarget {
   bucket: string
   url: string

@@ -69,7 +69,11 @@ export interface DataLoaderStepProps {
 interface OwnProps {
   onCompleteSetup: () => void
   visible: boolean
-  bucket: Bucket
+  bucket?: Bucket
+  buckets: Bucket[]
+  startingType?: DataLoaderType
+  startingStep?: number
+  startingSubstep?: Substep
 }
 
 interface DispatchProps {
@@ -116,24 +120,22 @@ class DataLoadersWizard extends PureComponent<Props> {
   public stepSkippable = [true, true, true]
 
   public componentDidMount() {
-    const {bucket} = this.props
-    if (bucket) {
-      const {organization, organizationID, name, id} = bucket
-
-      this.props.onSetBucketInfo(organization, organizationID, name, id)
-    }
+    this.handleSetBucketInfo()
+    this.handleSetStartingValues()
   }
 
   public componentDidUpdate(prevProps: Props) {
-    const {bucket} = this.props
+    const {bucket, buckets} = this.props
 
-    const prevID = _.get(prevProps.bucket, 'id', '')
-    const curID = _.get(bucket, 'id', '')
+    const prevBucket = prevProps.bucket || prevProps.buckets[0]
+    const curBucket = bucket || buckets[0]
+
+    const prevID = _.get(prevBucket, 'id', '')
+    const curID = _.get(curBucket, 'id', '')
     const isDifferentBucket = prevID !== curID
 
-    if (isDifferentBucket && bucket) {
-      const {organization, organizationID, name, id} = bucket
-      this.props.onSetBucketInfo(organization, organizationID, name, id)
+    if (isDifferentBucket && curBucket) {
+      this.handleSetBucketInfo()
     }
   }
 
@@ -156,6 +158,7 @@ class DataLoadersWizard extends PureComponent<Props> {
       visible,
       bucket,
       username,
+      buckets,
     } = this.props
 
     return (
@@ -194,6 +197,7 @@ class DataLoadersWizard extends PureComponent<Props> {
               onSetConfigArrayValue={onSetConfigArrayValue}
               org={_.get(bucket, 'organization', '')}
               username={username}
+              buckets={buckets}
             />
           </div>
         </div>
@@ -201,10 +205,43 @@ class DataLoadersWizard extends PureComponent<Props> {
     )
   }
 
+  private handleSetBucketInfo = () => {
+    const {bucket, buckets} = this.props
+    if (bucket || buckets.length) {
+      const b = bucket || buckets[0]
+      const {organization, organizationID, name, id} = b
+
+      this.props.onSetBucketInfo(organization, organizationID, name, id)
+    }
+  }
+
+  private handleSetStartingValues = () => {
+    const {startingStep, startingType, startingSubstep} = this.props
+
+    const hasStartingStep = startingStep || startingStep === 0
+    const hasStartingSubstep = startingSubstep || startingSubstep === 0
+    const hasStartingType =
+      startingType || startingType === DataLoaderType.Empty
+
+    if (hasStartingType) {
+      this.props.onSetDataLoadersType(startingType)
+    }
+
+    if (hasStartingSubstep) {
+      this.props.onSetSubstepIndex(
+        hasStartingStep ? startingStep : 0,
+        startingSubstep
+      )
+    } else if (hasStartingStep) {
+      this.props.onSetCurrentStepIndex(startingStep)
+    }
+  }
+
   private handleDismiss = () => {
     this.props.onClearDataLoaders()
     this.props.onClearSteps()
     this.props.onCompleteSetup()
+    this.handleSetStartingValues()
   }
 
   private get progressHeader(): JSX.Element {

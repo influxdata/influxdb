@@ -9,6 +9,7 @@ import {OverlayTechnology, IndexList} from 'src/clockface'
 // Types
 import {OverlayState} from 'src/types/v2'
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
+import {DataLoaderStep, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 interface Props {
   buckets: PrettyBucket[]
@@ -68,6 +69,10 @@ export default class BucketList extends PureComponent<Props, State> {
           visible={this.isDataLoadersWizardVisible}
           onCompleteSetup={this.handleDismissDataLoaders}
           bucket={this.bucket}
+          buckets={buckets}
+          startingStep={DataLoaderStep.Select}
+          startingSubstep={0}
+          startingType={DataLoaderType.Empty}
         />
       </>
     )
