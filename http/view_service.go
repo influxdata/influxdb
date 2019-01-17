@@ -55,14 +55,6 @@ func NewViewHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("DELETE", viewsIDPath, h.handleDeleteView)
 	h.HandlerFunc("PATCH", viewsIDPath, h.handlePatchView)
 
-	h.HandlerFunc("POST", viewsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Member))
-	h.HandlerFunc("GET", viewsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Member))
-	h.HandlerFunc("DELETE", viewsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
-
-	h.HandlerFunc("POST", viewsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Owner))
-	h.HandlerFunc("GET", viewsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.DashboardsResourceType, platform.Owner))
-	h.HandlerFunc("DELETE", viewsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
-
 	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", viewsIDLabelsPath, newPostLabelHandler(h.LabelService))
 	h.HandlerFunc("DELETE", viewsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
