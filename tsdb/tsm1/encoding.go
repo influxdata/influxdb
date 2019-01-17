@@ -6,7 +6,7 @@ import (
 	"runtime"
 
 	"github.com/influxdata/influxdb/pkg/pool"
-	"github.com/influxdata/influxdb/tsdb/tsm1/value"
+	"github.com/influxdata/influxdb/tsdb/value"
 	"github.com/influxdata/influxql"
 )
 

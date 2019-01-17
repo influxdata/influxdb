@@ -9,7 +9,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/pkg/slices"
-	"github.com/influxdata/influxdb/tsdb/tsm1/value"
+	"github.com/influxdata/influxdb/tsdb/value"
 )
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {

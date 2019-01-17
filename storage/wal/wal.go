@@ -17,11 +17,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb/tsdb/tsm1/value"
-
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/pool"
+	"github.com/influxdata/influxdb/tsdb/value"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
