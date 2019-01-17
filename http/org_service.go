@@ -23,7 +23,6 @@ type OrgHandler struct {
 
 	OrganizationService             platform.OrganizationService
 	OrganizationOperationLogService platform.OrganizationOperationLogService
-	BucketService                   platform.BucketService
 	UserResourceMappingService      platform.UserResourceMappingService
 	SecretService                   platform.SecretService
 	LabelService                    platform.LabelService

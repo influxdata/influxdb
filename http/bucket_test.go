@@ -329,7 +329,8 @@ func TestService_handleGetBucket(t *testing.T) {
 
 func TestService_handlePostBucket(t *testing.T) {
 	type fields struct {
-		BucketService platform.BucketService
+		BucketService       platform.BucketService
+		OrganizationService platform.OrganizationService
 	}
 	type args struct {
 		bucket *platform.Bucket
@@ -349,10 +350,15 @@ func TestService_handlePostBucket(t *testing.T) {
 		{
 			name: "create a new bucket",
 			fields: fields{
-				&mock.BucketService{
+				BucketService: &mock.BucketService{
 					CreateBucketFn: func(ctx context.Context, c *platform.Bucket) error {
 						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, f platform.OrganizationFilter) (*platform.Organization, error) {
+						return &platform.Organization{ID: platformtesting.MustIDBase16("6f626f7274697320")}, nil
 					},
 				},
 			},
@@ -391,6 +397,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			userService := mock.NewUserService()
 			h := NewBucketHandler(mappingService, labelService, userService)
 			h.BucketService = tt.fields.BucketService
+			h.OrganizationService = tt.fields.OrganizationService
 
 			b, err := json.Marshal(newBucket(tt.args.bucket))
 			if err != nil {
@@ -1014,6 +1021,8 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 	userService := mock.NewUserService()
 	handler := NewBucketHandler(mappingService, labelService, userService)
 	handler.BucketService = svc
+	handler.OrganizationService = svc
+
 	server := httptest.NewServer(handler)
 	client := BucketService{
 		Addr:     server.URL,

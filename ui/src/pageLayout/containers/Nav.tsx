@@ -32,7 +32,7 @@ class SideNav extends PureComponent<Props> {
 
   public render() {
     const {isHidden, me} = this.props
-
+    const {location} = this.props
     if (isHidden) {
       return null
     }
@@ -48,7 +48,7 @@ class SideNav extends PureComponent<Props> {
         >
           <NavMenu.SubItem
             title="Logout"
-            link="/logout"
+            link={`/logout?returnTo=${location.pathname}`}
             location={location.pathname}
             highlightWhen={[]}
           />
@@ -95,16 +95,16 @@ class SideNav extends PureComponent<Props> {
             highlightWhen={['labels']}
           />
           <NavMenu.SubItem
-            title="My Settings"
+            title="Profile"
             link="/configuration/settings_tab"
             location={location.pathname}
-            highlightWhen={['settings']}
+            highlightWhen={['settings_tab']}
           />
           <NavMenu.SubItem
-            title="My Tokens"
+            title="Tokens"
             link="/configuration/tokens_tab"
             location={location.pathname}
-            highlightWhen={['tokens']}
+            highlightWhen={['tokens_tab']}
           />
         </NavMenu.Item>
       </NavMenu>

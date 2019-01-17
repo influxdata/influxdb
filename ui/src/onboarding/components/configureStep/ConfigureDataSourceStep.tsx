@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -21,14 +20,14 @@ import {
 import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
-import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
 import {
   TelegrafPlugin,
   DataLoaderType,
   ConfigurationState,
 } from 'src/types/v2/dataLoaders'
 
-export interface OwnProps extends OnboardingStepProps {
+export interface OwnProps extends DataLoaderStepProps {
   telegrafPlugins: TelegrafPlugin[]
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
@@ -36,18 +35,13 @@ export interface OwnProps extends OnboardingStepProps {
   type: DataLoaderType
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
-  authToken: string
   onSetConfigArrayValue: typeof setConfigArrayValue
+  bucket: string
+  org: string
+  username: string
 }
 
-interface RouterProps {
-  params: {
-    stepID: string
-    substepID: string
-  }
-}
-
-type Props = OwnProps & WithRouterProps & RouterProps
+type Props = OwnProps
 
 @ErrorHandling
 export class ConfigureDataSourceStep extends PureComponent<Props> {
@@ -55,41 +49,32 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
     super(props)
   }
 
-  public componentDidMount() {
-    const {
-      router,
-      params: {stepID, substepID},
-    } = this.props
-
-    if (substepID === undefined) {
-      router.replace(`/onboarding/${stepID}/0`)
-    }
-  }
-
   public render() {
     const {
       telegrafPlugins,
       type,
-      params: {substepID},
-      setupParams,
+      substep,
       onUpdateTelegrafPluginConfig,
       onAddConfigValue,
       onRemoveConfigValue,
       onSetConfigArrayValue,
+      bucket,
+      org,
+      username,
     } = this.props
 
     return (
       <div className="onboarding-step wizard--skippable">
         <ConfigureDataSourceSwitcher
-          bucket={_.get(setupParams, 'bucket', '')}
-          org={_.get(setupParams, 'org', '')}
-          username={_.get(setupParams, 'username', '')}
+          bucket={bucket}
+          org={org}
+          username={username}
           telegrafPlugins={telegrafPlugins}
           onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
           onAddConfigValue={onAddConfigValue}
           onRemoveConfigValue={onRemoveConfigValue}
           dataLoaderType={type}
-          currentIndex={+substepID}
+          currentIndex={+substep}
           onSetConfigArrayValue={onSetConfigArrayValue}
           onClickNext={this.handleNext}
           onClickPrevious={this.handlePrevious}
@@ -117,38 +102,46 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       onSetActiveTelegrafPlugin,
       onSetPluginConfiguration,
       telegrafPlugins,
-      params: {substepID, stepID},
+      substep,
+      currentStepIndex,
       onSetSubstepIndex,
+      type,
     } = this.props
 
-    const index = +substepID
+    const index = +substep
     const telegrafPlugin = _.get(telegrafPlugins, `${index}.name`)
 
     onSetPluginConfiguration(telegrafPlugin)
     this.handleSetStepStatus()
 
-    if (index >= telegrafPlugins.length - 1) {
-      onIncrementCurrentStepIndex()
-      onSetActiveTelegrafPlugin('')
-    } else {
-      const name = _.get(telegrafPlugins, `${index + 1}.name`, '')
-      onSetActiveTelegrafPlugin(name)
-      onSetSubstepIndex(+stepID, index + 1)
+    if (type === DataLoaderType.Streaming) {
+      if (index >= telegrafPlugins.length - 1) {
+        onIncrementCurrentStepIndex()
+        onSetActiveTelegrafPlugin('')
+      } else {
+        const name = _.get(telegrafPlugins, `${index + 1}.name`, '')
+        onSetActiveTelegrafPlugin(name)
+        onSetSubstepIndex(+currentStepIndex, index + 1)
+      }
+      return
     }
+
+    onIncrementCurrentStepIndex()
   }
 
   private handlePrevious = () => {
     const {
       type,
+      substep,
+      currentStepIndex,
       onSetActiveTelegrafPlugin,
       onSetPluginConfiguration,
-      params: {substepID, stepID},
       telegrafPlugins,
       onSetSubstepIndex,
       onDecrementCurrentStepIndex,
     } = this.props
 
-    const index = +substepID
+    const index = +substep
     const telegrafPlugin = _.get(telegrafPlugins, `${index}.name`)
 
     if (type === DataLoaderType.Streaming) {
@@ -158,10 +151,10 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       if (index > 0) {
         const name = _.get(telegrafPlugins, `${index - 1}.name`)
         onSetActiveTelegrafPlugin(name)
-        onSetSubstepIndex(+stepID, index - 1)
+        onSetSubstepIndex(+currentStepIndex, index - 1)
       } else {
         onSetActiveTelegrafPlugin('')
-        onSetSubstepIndex(+stepID - 1, 'streaming')
+        onSetSubstepIndex(+currentStepIndex - 1, 'streaming')
       }
 
       return
@@ -175,7 +168,7 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       type,
       telegrafPlugins,
       onSetStepStatus,
-      params: {stepID},
+      currentStepIndex,
     } = this.props
 
     if (type === DataLoaderType.Streaming) {
@@ -184,14 +177,14 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       })
 
       if (unconfigured || !telegrafPlugins.length) {
-        onSetStepStatus(parseInt(stepID, 10), StepStatus.Incomplete)
+        onSetStepStatus(currentStepIndex, StepStatus.Incomplete)
       } else {
-        onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+        onSetStepStatus(currentStepIndex, StepStatus.Complete)
       }
     } else {
-      onSetStepStatus(parseInt(stepID, 10), StepStatus.Complete)
+      onSetStepStatus(currentStepIndex, StepStatus.Complete)
     }
   }
 }
 
-export default withRouter<OwnProps>(ConfigureDataSourceStep)
+export default ConfigureDataSourceStep

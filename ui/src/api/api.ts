@@ -343,7 +343,7 @@ export interface Bucket {
      * @type {string}
      * @memberof Bucket
      */
-    orgID?: string;
+    organizationID?: string;
     /**
      * rules to expire or retain data.  No rules means data never expires.
      * @type {Array<BucketRetentionRules>}

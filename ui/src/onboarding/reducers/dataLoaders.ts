@@ -39,6 +39,8 @@ export const INITIAL_STATE: DataLoadersState = {
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
   switch (action.type) {
+    case 'CLEAR_DATA_LOADERS':
+      return {...INITIAL_STATE}
     case 'SET_DATA_LOADERS_TYPE':
       return {
         ...state,

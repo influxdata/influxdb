@@ -31,10 +31,8 @@ const setup = (override = {}) => {
     onSetDataLoadersType: jest.fn(),
     onSetActiveTelegrafPlugin: jest.fn(),
     onSetStepStatus: jest.fn(),
-    params: {
-      stepID: '2',
-      substepID: undefined,
-    },
+    currentStepIndex: 2,
+    substep: undefined,
     location: null,
     router: null,
     routes: [],
@@ -97,7 +95,8 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
       it('renders streaming selector with buttons', () => {
         const wrapper = setup({
           type: DataLoaderType.Streaming,
-          params: {stepID: '2', substepID: 'streaming'},
+          currentStepIndex: 0,
+          substep: 'streaming',
         })
         const streamingSelector = wrapper.find(StreamingSelector)
         const onboardingButtons = wrapper.find(OnboardingButtons)
@@ -113,7 +112,8 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
       it('renders back and next button with correct status', () => {
         const wrapper = setup({
           type: DataLoaderType.Streaming,
-          params: {stepID: '2', substepID: 'streaming'},
+          currentStepIndex: 0,
+          substep: 'streaming',
           telegrafPlugins: [cpuTelegrafPlugin],
         })
         const onboardingButtons = wrapper.find(OnboardingButtons)

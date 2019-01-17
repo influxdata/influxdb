@@ -1,10 +1,10 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DataStreaming from 'src/onboarding/components/verifyStep/DataStreaming'
+import FetchAuthToken from 'src/onboarding/components/verifyStep/FetchAuthToken'
 
 // Actions
 import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
@@ -16,26 +16,20 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import {NotificationAction, RemoteDataState} from 'src/types'
 import StatusIndicator from 'src/onboarding/components/verifyStep/lineProtocol/StatusIndicator'
-import {AppState} from 'src/types/v2'
 
-interface OwnProps {
+interface Props {
   notify: NotificationAction
   type: DataLoaderType
   org: string
   bucket: string
+  username: string
   stepIndex: number
-  authToken: string
   telegrafConfigID: string
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   onSetStepStatus: (index: number, status: StepStatus) => void
   onDecrementCurrentStep: () => void
-}
-
-interface StateProps {
   lpStatus: RemoteDataState
 }
-
-export type Props = OwnProps & StateProps
 
 @ErrorHandling
 export class VerifyDataSwitcher extends PureComponent<Props> {
@@ -43,10 +37,10 @@ export class VerifyDataSwitcher extends PureComponent<Props> {
     const {
       org,
       bucket,
+      username,
       type,
       stepIndex,
       onSetStepStatus,
-      authToken,
       telegrafConfigID,
       onSaveTelegrafConfig,
       notify,
@@ -56,16 +50,20 @@ export class VerifyDataSwitcher extends PureComponent<Props> {
     switch (type) {
       case DataLoaderType.Streaming:
         return (
-          <DataStreaming
-            notify={notify}
-            org={org}
-            configID={telegrafConfigID}
-            authToken={authToken}
-            bucket={bucket}
-            onSetStepStatus={onSetStepStatus}
-            onSaveTelegrafConfig={onSaveTelegrafConfig}
-            stepIndex={stepIndex}
-          />
+          <FetchAuthToken bucket={bucket} username={username}>
+            {authToken => (
+              <DataStreaming
+                notify={notify}
+                org={org}
+                configID={telegrafConfigID}
+                authToken={authToken}
+                bucket={bucket}
+                onSetStepStatus={onSetStepStatus}
+                onSaveTelegrafConfig={onSaveTelegrafConfig}
+                stepIndex={stepIndex}
+              />
+            )}
+          </FetchAuthToken>
         )
       case DataLoaderType.LineProtocol:
         return (
@@ -84,12 +82,4 @@ export class VerifyDataSwitcher extends PureComponent<Props> {
   }
 }
 
-const mstp = ({
-  onboarding: {
-    dataLoaders: {lpStatus},
-  },
-}: AppState): StateProps => ({
-  lpStatus,
-})
-
-export default connect<StateProps, {}, OwnProps>(mstp)(VerifyDataSwitcher)
+export default VerifyDataSwitcher

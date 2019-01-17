@@ -27,6 +27,7 @@ type BucketHandler struct {
 	UserResourceMappingService platform.UserResourceMappingService
 	LabelService               platform.LabelService
 	UserService                platform.UserService
+	OrganizationService        platform.OrganizationService
 }
 
 const (
@@ -236,6 +237,16 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
+	}
+
+	if !req.Bucket.OrganizationID.Valid() {
+		// Resolve organization name to ID before create
+		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &req.Bucket.Organization})
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+		req.Bucket.OrganizationID = o.ID
 	}
 
 	if err := h.BucketService.CreateBucket(ctx, req.Bucket); err != nil {

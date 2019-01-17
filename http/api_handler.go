@@ -4,7 +4,7 @@ import (
 	http "net/http"
 	"strings"
 
-	platform "github.com/influxdata/influxdb"
+	influxdb "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/query"
@@ -39,52 +39,50 @@ type APIBackend struct {
 	DeveloperMode bool
 	Logger        *zap.Logger
 
-	NewBucketService func(*platform.Source) (platform.BucketService, error)
-	NewQueryService  func(*platform.Source) (query.ProxyQueryService, error)
+	NewBucketService func(*influxdb.Source) (influxdb.BucketService, error)
+	NewQueryService  func(*influxdb.Source) (query.ProxyQueryService, error)
 
 	PointsWriter                    storage.PointsWriter
-	AuthorizationService            platform.AuthorizationService
-	BucketService                   platform.BucketService
-	SessionService                  platform.SessionService
-	UserService                     platform.UserService
-	OrganizationService             platform.OrganizationService
-	UserResourceMappingService      platform.UserResourceMappingService
-	LabelService                    platform.LabelService
-	DashboardService                platform.DashboardService
-	DashboardOperationLogService    platform.DashboardOperationLogService
-	BucketOperationLogService       platform.BucketOperationLogService
-	UserOperationLogService         platform.UserOperationLogService
-	OrganizationOperationLogService platform.OrganizationOperationLogService
-	SourceService                   platform.SourceService
-	MacroService                    platform.MacroService
-	BasicAuthService                platform.BasicAuthService
-	OnboardingService               platform.OnboardingService
+	AuthorizationService            influxdb.AuthorizationService
+	BucketService                   influxdb.BucketService
+	SessionService                  influxdb.SessionService
+	UserService                     influxdb.UserService
+	OrganizationService             influxdb.OrganizationService
+	UserResourceMappingService      influxdb.UserResourceMappingService
+	LabelService                    influxdb.LabelService
+	DashboardService                influxdb.DashboardService
+	DashboardOperationLogService    influxdb.DashboardOperationLogService
+	BucketOperationLogService       influxdb.BucketOperationLogService
+	UserOperationLogService         influxdb.UserOperationLogService
+	OrganizationOperationLogService influxdb.OrganizationOperationLogService
+	SourceService                   influxdb.SourceService
+	MacroService                    influxdb.MacroService
+	BasicAuthService                influxdb.BasicAuthService
+	OnboardingService               influxdb.OnboardingService
 	ProxyQueryService               query.ProxyQueryService
-	TaskService                     platform.TaskService
-	TelegrafService                 platform.TelegrafConfigStore
-	ScraperTargetStoreService       platform.ScraperTargetStoreService
-	SecretService                   platform.SecretService
-	LookupService                   platform.LookupService
+	TaskService                     influxdb.TaskService
+	TelegrafService                 influxdb.TelegrafConfigStore
+	ScraperTargetStoreService       influxdb.ScraperTargetStoreService
+	SecretService                   influxdb.SecretService
+	LookupService                   influxdb.LookupService
 	ChronografService               *server.Service
-	ProtoService                    platform.ProtoService
+	ProtoService                    influxdb.ProtoService
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
 func NewAPIHandler(b *APIBackend) *APIHandler {
 	h := &APIHandler{}
-	b.BucketService = authorizer.NewBucketService(b.BucketService)
-	b.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
 
 	sessionBackend := NewSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
 
 	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.BucketHandler.BucketService = b.BucketService
+	h.BucketHandler.BucketService = authorizer.NewBucketService(b.BucketService)
+	h.BucketHandler.OrganizationService = b.OrganizationService
 	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
 
 	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.OrgHandler.OrganizationService = b.OrganizationService
-	h.OrgHandler.BucketService = b.BucketService
+	h.OrgHandler.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
 	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
 	h.OrgHandler.SecretService = b.SecretService
 
@@ -98,7 +96,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
 
 	h.MacroHandler = NewMacroHandler()
-	h.MacroHandler.MacroService = b.MacroService
+	h.MacroHandler.MacroService = authorizer.NewMacroService(b.MacroService)
 
 	h.AuthorizationHandler = NewAuthorizationHandler(b.UserService)
 	h.AuthorizationHandler.OrganizationService = b.OrganizationService
@@ -129,7 +127,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 		b.Logger.With(zap.String("handler", "telegraf")),
 		b.UserResourceMappingService,
 		b.LabelService,
-		b.TelegrafService,
+		authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService),
 		b.UserService,
 		b.OrganizationService,
 	)

@@ -3,35 +3,52 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
 import {Action} from 'src/onboarding/actions/steps'
-import {SetupParams} from 'src/onboarding/apis'
+import {Substep} from 'src/types/v2/dataLoaders'
 
-export interface OnboardingStepsState {
+export interface DataLoadersStepsState {
+  currentStep: number
+  substep?: Substep
   stepStatuses: StepStatus[]
-  setupParams: SetupParams
   orgID: string
   bucketID: string
+  org: string
+  bucket: string
 }
 
-const INITIAL_STATE: OnboardingStepsState = {
-  stepStatuses: new Array(6).fill(StepStatus.Incomplete),
-  setupParams: null,
+const INITIAL_STATE: DataLoadersStepsState = {
+  stepStatuses: new Array(3).fill(StepStatus.Incomplete),
+  org: '',
+  bucket: '',
   orgID: '',
   bucketID: '',
+  currentStep: 0,
 }
 
 export default (
   state = INITIAL_STATE,
   action: Action
-): OnboardingStepsState => {
+): DataLoadersStepsState => {
   switch (action.type) {
-    case 'SET_SETUP_PARAMS':
-      return {...state, setupParams: action.payload.setupParams}
+    case 'CLEAR_STEPS':
+      return {...INITIAL_STATE}
+    case 'INCREMENT_CURRENT_STEP_INDEX':
+      return {...state, currentStep: state.currentStep + 1}
+    case 'DECREMENT_CURRENT_STEP_INDEX':
+      return {...state, currentStep: state.currentStep - 1}
+    case 'SET_CURRENT_STEP_INDEX':
+      return {...state, currentStep: action.payload.index}
+    case 'SET_SUBSTEP_INDEX':
+      return {
+        ...state,
+        currentStep: action.payload.stepIndex,
+        substep: action.payload.substep,
+      }
+    case 'SET_BUCKET_INFO':
+      return {...state, ...action.payload}
     case 'SET_STEP_STATUS':
       const stepStatuses = [...state.stepStatuses]
       stepStatuses[action.payload.index] = action.payload.status
       return {...state, stepStatuses}
-    case 'SET_ORG_ID':
-      return {...state, orgID: action.payload.orgID}
     case 'SET_BUCKET_ID':
       return {...state, bucketID: action.payload.bucketID}
     default:

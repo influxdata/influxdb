@@ -12,6 +12,7 @@ import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import SigninForm from 'src/onboarding/components/SigninForm'
 import {Spinner} from 'src/clockface'
 import {RemoteDataState} from 'src/types'
+import Notifications from 'src/shared/components/notifications/Notifications'
 
 interface State {
   status: RemoteDataState
@@ -39,6 +40,7 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
   public render() {
     return (
       <Spinner loading={this.state.status}>
+        <Notifications inPresentationMode={true} />
         <SplashPage panelWidthPixels={300}>
           <SplashPage.Panel>
             <SplashPage.Logo />

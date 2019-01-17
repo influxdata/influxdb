@@ -30,7 +30,6 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 
 	handler := NewOrgHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
 	handler.OrganizationService = svc
-	handler.BucketService = svc
 	server := httptest.NewServer(handler)
 	client := OrganizationService{
 		Addr:     server.URL,

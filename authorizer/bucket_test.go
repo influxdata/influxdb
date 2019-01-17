@@ -567,7 +567,7 @@ func TestBucketService_CreateBucket(t *testing.T) {
 			name: "authorized to create bucket",
 			fields: fields{
 				BucketService: &mock.BucketService{
-					CreateBucketFn: func(ctx context.Context, o *influxdb.Bucket) error {
+					CreateBucketFn: func(ctx context.Context, b *influxdb.Bucket) error {
 						return nil
 					},
 				},
@@ -590,7 +590,7 @@ func TestBucketService_CreateBucket(t *testing.T) {
 			name: "unauthorized to create bucket",
 			fields: fields{
 				BucketService: &mock.BucketService{
-					CreateBucketFn: func(ctx context.Context, o *influxdb.Bucket) error {
+					CreateBucketFn: func(ctx context.Context, b *influxdb.Bucket) error {
 						return nil
 					},
 				},

@@ -14,7 +14,6 @@ import {
   saveScraperTarget,
 } from 'src/onboarding/actions/dataLoaders'
 import {AppState} from 'src/types/v2/index'
-import {SetupParams} from 'src/onboarding/apis'
 import ScraperTarget from 'src/onboarding/components/configureStep/ScraperTarget'
 
 interface OwnProps {
@@ -32,16 +31,16 @@ interface DispatchProps {
 interface StateProps {
   bucket: string
   url: string
-  setupParams: SetupParams
+  currentBucket: string
 }
 
 type Props = OwnProps & DispatchProps & StateProps
 
 export class Scraping extends PureComponent<Props> {
   public componentDidMount() {
-    const {bucket, setupParams, onSetScraperTargetBucket} = this.props
+    const {bucket, currentBucket, onSetScraperTargetBucket} = this.props
     if (!bucket) {
-      onSetScraperTargetBucket(setupParams.bucket)
+      onSetScraperTargetBucket(currentBucket)
     }
   }
 
@@ -86,11 +85,9 @@ export class Scraping extends PureComponent<Props> {
   }
 
   private get buckets(): string[] {
-    const {
-      setupParams: {bucket},
-    } = this.props
+    const {currentBucket} = this.props
 
-    return bucket ? [bucket] : []
+    return currentBucket ? [currentBucket] : []
   }
 
   private handleSelectBucket = (bucket: string) => {
@@ -105,14 +102,16 @@ export class Scraping extends PureComponent<Props> {
 }
 
 const mstp = ({
-  onboarding: {
-    steps: {setupParams},
-    dataLoaders: {
-      scraperTarget: {bucket, url},
-    },
+  dataLoading: {
+    dataLoaders: {scraperTarget},
+    steps: {bucket},
   },
 }: AppState): StateProps => {
-  return {setupParams, bucket, url}
+  return {
+    currentBucket: bucket,
+    bucket: scraperTarget.bucket,
+    url: scraperTarget.url,
+  }
 }
 
 const mdtp: DispatchProps = {

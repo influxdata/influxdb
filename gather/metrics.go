@@ -37,9 +37,7 @@ func (ms MetricsSlice) Points() (models.Points, error) {
 		if err != nil {
 			return ps, err
 		}
-		if m.Type.Valid() {
-			point.AddTag("type", m.Type.String())
-		}
+
 		ps[mi] = point
 	}
 	return ps, nil
@@ -54,13 +52,12 @@ func (ms MetricsSlice) Reader() (io.Reader, error) {
 		if err != nil {
 			return nil, err
 		}
-		if m.Type.Valid() {
-			point.AddTag("type", m.Type.String())
-		}
+
 		_, err = buf.WriteString(point.String())
 		if err != nil {
 			return nil, err
 		}
+
 		if mi < len(ms)-1 && len(ms) > 1 {
 			_, err = buf.WriteString("\n")
 			if err != nil {

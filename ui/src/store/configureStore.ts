@@ -19,8 +19,9 @@ import viewsReducer from 'src/dashboards/reducers/v2/views'
 import logsReducer from 'src/logs/reducers'
 import {timeMachinesReducer} from 'src/shared/reducers/v2/timeMachines'
 import orgsReducer from 'src/organizations/reducers/orgs'
-import onboardingReducer from 'src/onboarding/reducers/'
+import onboardingReducer from 'src/onboarding/reducers'
 import noteEditorReducer from 'src/dashboards/reducers/v2/notes'
+import dataLoadingReducer from 'src/dataLoaders/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -45,6 +46,7 @@ const rootReducer = combineReducers<ReducerState>({
   me: meReducer,
   onboarding: onboardingReducer,
   noteEditor: noteEditorReducer,
+  dataLoading: dataLoadingReducer,
 })
 
 const composeEnhancers =

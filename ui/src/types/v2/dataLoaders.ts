@@ -185,3 +185,5 @@ export interface TelegrafPluginInfo {
     defaults: Plugin
   }
 }
+
+export type Substep = number | 'streaming'

@@ -108,7 +108,7 @@ export class LineProtocol extends PureComponent<Props> {
 }
 
 const mstp = ({
-  onboarding: {
+  dataLoading: {
     dataLoaders: {lineProtocolBody, precision},
   },
 }: AppState): StateProps => {

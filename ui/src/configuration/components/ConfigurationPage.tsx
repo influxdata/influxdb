@@ -59,14 +59,14 @@ class ConfigurationPage extends Component<Props> {
               <TabbedPageSection
                 id="settings_tab"
                 url="settings_tab"
-                title="My Settings"
+                title="Profile"
               >
                 <Settings />
               </TabbedPageSection>
               <TabbedPageSection
                 id="tokens_tab"
                 url="tokens_tab"
-                title="My Tokens"
+                title="Tokens"
               >
                 <Tokens />
               </TabbedPageSection>

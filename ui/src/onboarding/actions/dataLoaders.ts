@@ -64,6 +64,7 @@ export type Action =
   | SetScraperTargetBucket
   | SetScraperTargetURL
   | SetScraperTargetID
+  | ClearDataLoaders
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -75,6 +76,14 @@ export const setDataLoadersType = (
 ): SetDataLoadersType => ({
   type: 'SET_DATA_LOADERS_TYPE',
   payload: {type},
+})
+
+interface ClearDataLoaders {
+  type: 'CLEAR_DATA_LOADERS'
+}
+
+export const clearDataLoaders = (): ClearDataLoaders => ({
+  type: 'CLEAR_DATA_LOADERS',
 })
 
 interface UpdateTelegrafPluginConfig {
@@ -274,12 +283,9 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
   getState: GetState
 ) => {
   const {
-    onboarding: {
+    dataLoading: {
       dataLoaders: {telegrafPlugins},
-      steps: {
-        setupParams: {org, bucket},
-        orgID,
-      },
+      steps: {org, bucket, orgID},
     },
   } = getState()
 
@@ -410,11 +416,11 @@ export const saveScraperTarget = () => async (
   getState: GetState
 ) => {
   const {
-    onboarding: {
+    onboarding: {bucketID, orgID},
+    dataLoading: {
       dataLoaders: {
         scraperTarget: {url, id},
       },
-      steps: {bucketID, orgID},
     },
   } = getState()
 

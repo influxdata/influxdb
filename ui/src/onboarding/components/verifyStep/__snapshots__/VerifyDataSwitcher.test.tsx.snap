@@ -1,0 +1,10 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Onboarding.Components.VerifyStep.VerifyDataSwitcher If data type is streaming renders the DataStreaming component 1`] = `
+<FetchAuthToken
+  bucket=""
+  username=""
+>
+  <Component />
+</FetchAuthToken>
+`;

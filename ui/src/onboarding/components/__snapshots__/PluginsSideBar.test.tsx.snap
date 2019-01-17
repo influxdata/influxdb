@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`OnboardingSideBar rendering renders! wee! 1`] = `
+exports[`PluginsSideBar rendering renders! wee! 1`] = `
 <SideBar
   title="title"
   visible={true}

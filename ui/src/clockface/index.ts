@@ -13,10 +13,12 @@ import OverlayTechnology from './components/overlays/OverlayTechnology'
 import OverlayContainer from './components/overlays/OverlayContainer'
 import OverlayHeading from './components/overlays/OverlayHeading'
 import OverlayBody from './components/overlays/OverlayBody'
+import OverlayFooter from './components/overlays/OverlayFooter'
 import Panel from './components/panel/Panel'
 import Radio from './components/radio_buttons/RadioButtons'
 import SlideToggle from './components/slide_toggle/SlideToggle'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
+import WizardOverlay from './components/wizard/WizardOverlay'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
 import ProgressBar from './components/wizard/ProgressBar'
 import ComponentSpacer from './components/component_spacer/ComponentSpacer'
@@ -86,10 +88,11 @@ export {
   MultiSelectDropdown,
   MultiInputType,
   MultipleInput,
-  OverlayTechnology,
-  OverlayContainer,
-  OverlayHeading,
   OverlayBody,
+  OverlayContainer,
+  OverlayFooter,
+  OverlayHeading,
+  OverlayTechnology,
   Panel,
   ProgressBar,
   Radio,
@@ -101,4 +104,5 @@ export {
   Stack,
   WizardFullScreen,
   WizardProgressHeader,
+  WizardOverlay,
 }
