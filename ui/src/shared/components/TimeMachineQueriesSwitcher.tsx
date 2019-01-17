@@ -60,7 +60,6 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
 
   public render() {
     const {isOverlayVisible} = this.state
-    const {onEditWithBuilder} = this.props
 
     return (
       <>
@@ -82,7 +81,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
               <Button
                 color={ComponentColor.Danger}
                 text="Switch to Builder"
-                onClick={onEditWithBuilder}
+                onClick={this.handleConfirmSwitch}
               />
             </OverlayFooter>
           </OverlayContainer>
@@ -118,6 +117,13 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
 
   private handleDismissOverlay = (): void => {
     this.setState({isOverlayVisible: false})
+  }
+
+  private handleConfirmSwitch = (): void => {
+    const {onEditWithBuilder} = this.props
+
+    this.handleDismissOverlay()
+    onEditWithBuilder()
   }
 }
 
