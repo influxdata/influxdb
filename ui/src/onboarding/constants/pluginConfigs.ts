@@ -17,7 +17,7 @@ import {
   TelegrafPluginInputMem,
   TelegrafPluginInputNet,
   TelegrafPluginInputNetResponse,
-  TelegrafPluginInputNgnix,
+  TelegrafPluginInputNginx,
   TelegrafPluginInputProcesses,
   TelegrafPluginInputProcstat,
   TelegrafPluginInputPrometheus,
@@ -45,7 +45,7 @@ export const pluginsByBundle: PluginBundles = {
   ],
   [BundleName.Docker]: [TelegrafPluginInputDocker.NameEnum.Docker],
   [BundleName.Kubernetes]: [TelegrafPluginInputKubernetes.NameEnum.Kubernetes],
-  [BundleName.Ngnix]: [TelegrafPluginInputNgnix.NameEnum.Ngnix],
+  [BundleName.Nginx]: [TelegrafPluginInputNginx.NameEnum.Nginx],
   [BundleName.Redis]: [TelegrafPluginInputRedis.NameEnum.Redis],
 }
 
@@ -153,11 +153,11 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       config: {},
     },
   },
-  [TelegrafPluginInputNgnix.NameEnum.Ngnix]: {
+  [TelegrafPluginInputNginx.NameEnum.Nginx]: {
     fields: null,
     defaults: {
-      name: TelegrafPluginInputNgnix.NameEnum.Ngnix,
-      type: TelegrafPluginInputNgnix.TypeEnum.Input,
+      name: TelegrafPluginInputNginx.NameEnum.Nginx,
+      type: TelegrafPluginInputNginx.TypeEnum.Input,
       config: {},
     },
   },
@@ -242,7 +242,7 @@ export const PLUGIN_OPTIONS: TelegrafPluginName[] = [
   TelegrafPluginInputMem.NameEnum.Mem,
   TelegrafPluginInputNet.NameEnum.Net,
   TelegrafPluginInputNetResponse.NameEnum.NetResponse,
-  TelegrafPluginInputNgnix.NameEnum.Ngnix,
+  TelegrafPluginInputNginx.NameEnum.Nginx,
   TelegrafPluginInputProcesses.NameEnum.Processes,
   TelegrafPluginInputProcstat.NameEnum.Procstat,
   TelegrafPluginInputPrometheus.NameEnum.Prometheus,
@@ -265,7 +265,7 @@ export const BUNDLE_LOGOS = {
   [BundleName.System]: LogoCpu,
   [BundleName.Docker]: LogoDocker,
   [BundleName.Kubernetes]: LogoKubernetes,
-  [BundleName.Ngnix]: LogoNginx,
+  [BundleName.Nginx]: LogoNginx,
   [BundleName.Redis]: LogoRedis,
 }
 
@@ -273,6 +273,6 @@ export const PLUGIN_BUNDLE_OPTIONS: BundleName[] = [
   BundleName.System,
   BundleName.Docker,
   BundleName.Kubernetes,
-  BundleName.Ngnix,
+  BundleName.Nginx,
   BundleName.Redis,
 ]
