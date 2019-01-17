@@ -20,7 +20,7 @@ const (
 
 // LabelService represents a service for managing resource labels
 type LabelService interface {
-	// Returns a single label by ID.
+	// FindLabelByID a single label by ID.
 	FindLabelByID(ctx context.Context, id ID) (*Label, error)
 
 	// FindLabels returns a list of labels that match a filter
@@ -67,7 +67,7 @@ func (l *Label) Validate() error {
 // LabelMapping is used to map resource to its labels.
 // It should not be shared directly over the HTTP API.
 type LabelMapping struct {
-	LabelID    *ID
+	LabelID    *ID `json:"labelID"`
 	ResourceID *ID
 }
 
