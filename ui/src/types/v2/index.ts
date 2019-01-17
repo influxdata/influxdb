@@ -37,6 +37,7 @@ import {SourcesState} from 'src/sources/reducers'
 import {NoteEditorState} from 'src/dashboards/reducers/v2/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
+import {ProtosState} from 'src/protos/reducers'
 
 export interface AppState {
   VERSION: string
@@ -57,6 +58,7 @@ export interface AppState {
   onboarding: OnboardingState
   noteEditor: NoteEditorState
   dataLoading: DataLoadingState
+  protos: ProtosState
 }
 
 export type GetState = () => AppState

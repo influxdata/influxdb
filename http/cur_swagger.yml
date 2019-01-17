@@ -43,6 +43,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Routes"
+  /protos:
+    get:
+      tags:
+        - Protos
+      summary: List of available protos (templates of tasks/dashboards/etc)
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+      responses:
+        '200':
+          description: List of protos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Protos"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /protos/{protoID}/dashboards:
+    post:
+      tags:
+        - Protos
+      summary: Create instance of a proto dashboard
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: protoID
+          schema:
+            type: string
+          required: true
+          description: ID of proto
+      requestBody:
+          description: organization that the dashboard will be created as
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateProtoResourcesRequest"
+      responses:
+        '201':
+          description: List of dashboards that was created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboards"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /setup:
     get:
       tags:
@@ -6102,4 +6155,37 @@ components:
           type: object
           description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
           example: {"color": "#ffb3b3", "description": "this is a description"}
-          
+    CreateProtoResourcesRequest:
+      properties:
+        orgID:
+          type: string
+    Proto:
+      properties:
+        links:
+          readOnly: true
+          type: object
+          properties:
+            dashboard:
+              type: string
+              format: uri
+        id:
+          readOnly: true
+          type: string
+        name:
+          readOnly: true
+          type: string
+          description: user-facing name of the proto
+        dashboards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dashboard"
+        views:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/View"
+    Protos:
+      properties:
+        protos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Proto"          

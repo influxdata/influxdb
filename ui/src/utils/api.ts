@@ -14,6 +14,7 @@ import {
   QueryApi,
   SetupApi,
   ScraperTargetsApi,
+  ProtosApi,
 } from 'src/api'
 
 const basePath = '/api/v2'
@@ -33,3 +34,4 @@ export const orgsAPI = new OrganizationsApi({basePath})
 export const queryAPI = new QueryApi({basePath})
 export const setupAPI = new SetupApi({basePath})
 export const scraperTargetsApi = new ScraperTargetsApi({basePath})
+export const protosAPI = new ProtosApi({basePath})

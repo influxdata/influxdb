@@ -22,6 +22,7 @@ import orgsReducer from 'src/organizations/reducers/orgs'
 import onboardingReducer from 'src/onboarding/reducers'
 import noteEditorReducer from 'src/dashboards/reducers/v2/notes'
 import dataLoadingReducer from 'src/dataLoaders/reducers'
+import protosReducer from 'src/protos/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -47,6 +48,7 @@ const rootReducer = combineReducers<ReducerState>({
   onboarding: onboardingReducer,
   noteEditor: noteEditorReducer,
   dataLoading: dataLoadingReducer,
+  protos: protosReducer,
 })
 
 const composeEnhancers =
