@@ -4,8 +4,7 @@
 */
 
 $overlay-title-height: $chronograf-page-header-height;
-$overlay-gutter: 30px;
-$overlay-min-height: 150px;
+$overlay-gutter: $ix-marg-d;
 
 
 /*
@@ -121,6 +120,16 @@ $overlay-min-height: 150px;
 
 .overlay--body {
   padding: $overlay-gutter;
-  padding-top: 0; 
-  min-height: $overlay-min-height;
+  padding-top: 0;
+  padding-bottom: $overlay-gutter / 2;
+  color: $g13-mist;
+
+  p {
+    font-weight: 500;
+  }
+}
+
+.overlay--footer {
+  padding: $overlay-gutter 0;
+  padding-top: $overlay-gutter / 2;
 }
