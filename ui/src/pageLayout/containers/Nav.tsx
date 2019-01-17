@@ -95,13 +95,13 @@ class SideNav extends PureComponent<Props> {
             highlightWhen={['labels']}
           />
           <NavMenu.SubItem
-            title="My Settings"
+            title="Account"
             link="/configuration/settings_tab"
             location={location.pathname}
             highlightWhen={['settings']}
           />
           <NavMenu.SubItem
-            title="My Tokens"
+            title="Tokens"
             link="/configuration/tokens_tab"
             location={location.pathname}
             highlightWhen={['tokens']}
