@@ -346,20 +346,14 @@ export const timeMachineReducer = (
     }
 
     case 'EDIT_ACTIVE_QUERY_WITH_BUILDER': {
-      const {activeQueryIndex} = state
-      const draftQueries = [...state.draftQueries]
-      const query = draftQueries[activeQueryIndex]
+      return produce(state, draftState => {
+        const query = draftState.draftQueries[draftState.activeQueryIndex]
 
-      draftQueries[activeQueryIndex] = {
-        ...query,
-        editMode: QueryEditMode.Builder,
-        hidden: false,
-      }
+        query.editMode = QueryEditMode.Builder
+        query.hidden = false
 
-      return {
-        ...state,
-        draftQueries,
-      }
+        buildAndSubmitAllQueries(draftState)
+      })
     }
 
     case 'EDIT_ACTIVE_QUERY_AS_FLUX': {
