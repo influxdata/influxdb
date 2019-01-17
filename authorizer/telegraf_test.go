@@ -14,12 +14,12 @@ import (
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 )
 
-var bucketCmpOptions = cmp.Options{
+var telegrafCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []*influxdb.Bucket) []*influxdb.Bucket {
-		out := append([]*influxdb.Bucket(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*influxdb.TelegrafConfig) []*influxdb.TelegrafConfig {
+		out := append([]*influxdb.TelegrafConfig(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID.String() > out[j].ID.String()
 		})
@@ -27,9 +27,9 @@ var bucketCmpOptions = cmp.Options{
 	}),
 }
 
-func TestBucketService_FindBucketByID(t *testing.T) {
+func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 	type fields struct {
-		BucketService influxdb.BucketService
+		TelegrafConfigStore influxdb.TelegrafConfigStore
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -48,9 +48,9 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 		{
 			name: "authorized to access id",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             id,
 							OrganizationID: 10,
 						}, nil
@@ -61,7 +61,7 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
+						Type: influxdb.TelegrafsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -74,9 +74,9 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 		{
 			name: "unauthorized to access id",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             id,
 							OrganizationID: 10,
 						}, nil
@@ -87,7 +87,7 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
+						Type: influxdb.TelegrafsResourceType,
 						ID:   influxdbtesting.IDPtr(2),
 					},
 				},
@@ -95,7 +95,7 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/000000000000000a/telegrafs/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -104,20 +104,20 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewBucketService(tt.fields.BucketService)
+			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			_, err := s.FindBucketByID(ctx, tt.args.id)
+			_, err := s.FindTelegrafConfigByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestBucketService_FindBucket(t *testing.T) {
+func TestTelegrafConfigStore_FindTelegrafConfig(t *testing.T) {
 	type fields struct {
-		BucketService influxdb.BucketService
+		TelegrafConfigStore influxdb.TelegrafConfigStore
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -133,11 +133,11 @@ func TestBucketService_FindBucket(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to access bucket",
+			name: "authorized to access telegraf",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketFn: func(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigF: func(ctx context.Context, filter influxdb.TelegrafConfigFilter) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
@@ -148,7 +148,7 @@ func TestBucketService_FindBucket(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
+						Type: influxdb.TelegrafsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -158,11 +158,11 @@ func TestBucketService_FindBucket(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to access bucket",
+			name: "unauthorized to access telegraf",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketFn: func(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigF: func(ctx context.Context, filter influxdb.TelegrafConfigFilter) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
@@ -173,14 +173,14 @@ func TestBucketService_FindBucket(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
+						Type: influxdb.TelegrafsResourceType,
 						ID:   influxdbtesting.IDPtr(2),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/000000000000000a/telegrafs/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -189,27 +189,27 @@ func TestBucketService_FindBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewBucketService(tt.fields.BucketService)
+			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			_, err := s.FindBucket(ctx, influxdb.BucketFilter{})
+			_, err := s.FindTelegrafConfig(ctx, influxdb.TelegrafConfigFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestBucketService_FindBuckets(t *testing.T) {
+func TestTelegrafConfigStore_FindTelegrafConfigs(t *testing.T) {
 	type fields struct {
-		BucketService influxdb.BucketService
+		TelegrafConfigStore influxdb.TelegrafConfigStore
 	}
 	type args struct {
 		permission influxdb.Permission
 	}
 	type wants struct {
-		err     error
-		buckets []*influxdb.Bucket
+		err       error
+		telegrafs []*influxdb.TelegrafConfig
 	}
 
 	tests := []struct {
@@ -219,11 +219,11 @@ func TestBucketService_FindBuckets(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to see all buckets",
+			name: "authorized to see all telegrafs",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketsFn: func(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
-						return []*influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigsF: func(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
+						return []*influxdb.TelegrafConfig{
 							{
 								ID:             1,
 								OrganizationID: 10,
@@ -244,12 +244,12 @@ func TestBucketService_FindBuckets(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
+						Type: influxdb.TelegrafsResourceType,
 					},
 				},
 			},
 			wants: wants{
-				buckets: []*influxdb.Bucket{
+				telegrafs: []*influxdb.TelegrafConfig{
 					{
 						ID:             1,
 						OrganizationID: 10,
@@ -266,12 +266,11 @@ func TestBucketService_FindBuckets(t *testing.T) {
 			},
 		},
 		{
-			name: "authorized to access a single orgs buckets",
+			name: "authorized to access a single orgs telegrafs",
 			fields: fields{
-				BucketService: &mock.BucketService{
-
-					FindBucketsFn: func(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
-						return []*influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigsF: func(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
+						return []*influxdb.TelegrafConfig{
 							{
 								ID:             1,
 								OrganizationID: 10,
@@ -292,13 +291,13 @@ func TestBucketService_FindBuckets(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.BucketsResourceType,
+						Type:  influxdb.TelegrafsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
 			wants: wants{
-				buckets: []*influxdb.Bucket{
+				telegrafs: []*influxdb.TelegrafConfig{
 					{
 						ID:             1,
 						OrganizationID: 10,
@@ -314,24 +313,24 @@ func TestBucketService_FindBuckets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewBucketService(tt.fields.BucketService)
+			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			buckets, _, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
+			ts, _, err := s.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
-			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
-				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(ts, tt.wants.telegrafs, telegrafCmpOptions...); diff != "" {
+				t.Errorf("telegrafs are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-func TestBucketService_UpdateBucket(t *testing.T) {
+func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 	type fields struct {
-		BucketService influxdb.BucketService
+		TelegrafConfigStore influxdb.TelegrafConfigStore
 	}
 	type args struct {
 		id          influxdb.ID
@@ -348,17 +347,17 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to update bucket",
+			name: "authorized to update telegraf",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateBucketFn: func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+					UpdateTelegrafConfigF: func(ctx context.Context, id influxdb.ID, upd *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
@@ -371,14 +370,14 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
+							Type: influxdb.TelegrafsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
+							Type: influxdb.TelegrafsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -389,17 +388,17 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to update bucket",
+			name: "unauthorized to update telegraf",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateBucketFn: func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+					UpdateTelegrafConfigF: func(ctx context.Context, id influxdb.ID, upd *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
@@ -412,7 +411,7 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
+							Type: influxdb.TelegrafsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -420,7 +419,7 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a/telegrafs/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -429,20 +428,20 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewBucketService(tt.fields.BucketService)
+			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
 
-			_, err := s.UpdateBucket(ctx, tt.args.id, influxdb.BucketUpdate{})
+			_, err := s.UpdateTelegrafConfig(ctx, tt.args.id, &influxdb.TelegrafConfig{}, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestBucketService_DeleteBucket(t *testing.T) {
+func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 	type fields struct {
-		BucketService influxdb.BucketService
+		TelegrafConfigStore influxdb.TelegrafConfigStore
 	}
 	type args struct {
 		id          influxdb.ID
@@ -459,16 +458,16 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to delete bucket",
+			name: "authorized to delete telegraf",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteBucketFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteTelegrafConfigF: func(ctx context.Context, id influxdb.ID) error {
 						return nil
 					},
 				},
@@ -479,14 +478,14 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
+							Type: influxdb.TelegrafsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
+							Type: influxdb.TelegrafsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -497,16 +496,16 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to delete bucket",
+			name: "unauthorized to delete telegraf",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-						return &influxdb.Bucket{
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+						return &influxdb.TelegrafConfig{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteBucketFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteTelegrafConfigF: func(ctx context.Context, id influxdb.ID) error {
 						return nil
 					},
 				},
@@ -517,7 +516,7 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
+							Type: influxdb.TelegrafsResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -525,7 +524,7 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a/telegrafs/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -534,20 +533,20 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewBucketService(tt.fields.BucketService)
+			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
 
-			err := s.DeleteBucket(ctx, tt.args.id)
+			err := s.DeleteTelegrafConfig(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestBucketService_CreateBucket(t *testing.T) {
+func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 	type fields struct {
-		BucketService influxdb.BucketService
+		TelegrafConfigStore influxdb.TelegrafConfigStore
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -564,10 +563,10 @@ func TestBucketService_CreateBucket(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to create bucket",
+			name: "authorized to create telegraf",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					CreateBucketFn: func(ctx context.Context, b *influxdb.Bucket) error {
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					CreateTelegrafConfigF: func(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -577,7 +576,7 @@ func TestBucketService_CreateBucket(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type:  influxdb.BucketsResourceType,
+						Type:  influxdb.TelegrafsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
@@ -587,10 +586,10 @@ func TestBucketService_CreateBucket(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to create bucket",
+			name: "unauthorized to create telegraf",
 			fields: fields{
-				BucketService: &mock.BucketService{
-					CreateBucketFn: func(ctx context.Context, b *influxdb.Bucket) error {
+				TelegrafConfigStore: &mock.TelegrafConfigStore{
+					CreateTelegrafConfigF: func(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -600,14 +599,14 @@ func TestBucketService_CreateBucket(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
+						Type: influxdb.TelegrafsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/buckets is unauthorized",
+					Msg:  "write:orgs/000000000000000a/telegrafs is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -616,12 +615,12 @@ func TestBucketService_CreateBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewBucketService(tt.fields.BucketService)
+			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateBucket(ctx, &influxdb.Bucket{OrganizationID: tt.args.orgID})
+			err := s.CreateTelegrafConfig(ctx, &influxdb.TelegrafConfig{OrganizationID: tt.args.orgID}, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
