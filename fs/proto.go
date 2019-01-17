@@ -112,7 +112,7 @@ func (s *ProtoService) findProto(ctx context.Context, id platform.ID) (*platform
 	return nil, &platform.Error{Msg: "proto not found"}
 }
 
-// CreateDashboardsFromProtos creates instances of each dashboard in a proto.
+// CreateDashboardsFromProto creates instances of each dashboard in a proto.
 func (s *ProtoService) CreateDashboardsFromProto(ctx context.Context, protoID platform.ID, orgID platform.ID) ([]*platform.Dashboard, error) {
 	// TODO(desa): this should be done transactionally.
 	proto, err := s.findProto(ctx, protoID)
@@ -125,8 +125,8 @@ func (s *ProtoService) CreateDashboardsFromProto(ctx context.Context, protoID pl
 	for _, protodash := range proto.Dashboards {
 		dash := &platform.Dashboard{}
 		*dash = protodash.Dashboard
-		// TODO(desa): add organization id here
 		dash.Cells = nil
+		dash.OrganizationID = orgID
 
 		if err := s.DashboardService.CreateDashboard(ctx, dash); err != nil {
 			return nil, err
