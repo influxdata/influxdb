@@ -1,25 +1,41 @@
 @import "src/style/modules";
 
 .note-editor {
-  height: 100%;
   display: flex;
   flex-direction: column;
+}
 
-  .note-editor-text, .note-editor-preview {
-    flex: 1 1 0;
-    border-width: $ix-border;
-    border-style: solid;
-    border-radius: $ix-radius;
-  }
+.note-editor--body {
+  flex: 1 1 40vh;
+  position: relative;
+}
 
-  .note-editor-text {
-    border-color: $g5-pepper;
-  }
+.note-editor--body .react-codemirror2,
+.note-editor--preview {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
 
-  .note-editor-preview {
-    border-color: $g4-onyx;
-    padding: $ix-marg-b * 2;
-  }
+.note-editor--body .react-codemirror2 {
+  z-index: 1;
+}
+
+.note-editor--preview {
+  background-color: $g3-castle;
+  z-index: 2;
+  border-width: $ix-border;
+  border-style: solid;
+  border-radius: $ix-radius;
+  border-color: $g4-onyx;
+}
+
+.note-editor--preview-scroll {
+  position: absolute !important;
+}
+
+.note-editor--markdown-container {
+  padding: $ix-marg-c;
 }
 
 .note-editor--controls {
@@ -33,14 +49,12 @@
   }
 }
 
-.note-editor--toggle {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.note-editor--radio {
+  width: 220px;
 }
 
 .note-editor--footer {
-  font-size: 13px;
+  font-size: $form-sm-font;
   font-weight: 600;
   color: $g11-sidewalk;
   margin-top: $ix-marg-b;

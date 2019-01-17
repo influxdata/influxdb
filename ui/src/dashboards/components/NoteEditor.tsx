@@ -1,9 +1,18 @@
 // Libraries
-import React, {SFC} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import classnames from 'classnames'
 
 // Components
-import {Radio, SlideToggle, ComponentSize} from 'src/clockface'
+import {
+  Radio,
+  SlideToggle,
+  ComponentSize,
+  ComponentSpacer,
+  ButtonShape,
+  Stack,
+  Alignment,
+} from 'src/clockface'
 import NoteEditorText from 'src/dashboards/components/NoteEditorText'
 import NoteEditorPreview from 'src/dashboards/components/NoteEditorPreview'
 
@@ -37,65 +46,84 @@ interface OwnProps {}
 
 type Props = StateProps & DispatchProps & OwnProps
 
-const NoteEditor: SFC<Props> = props => {
-  const {
-    note,
-    isPreviewing,
-    toggleVisible,
-    showNoteWhenEmpty,
-    onSetIsPreviewing,
-    onToggleShowNoteWhenEmpty,
-    onSetNote,
-  } = props
+class NoteEditor extends PureComponent<Props> {
+  public render() {
+    const {note, isPreviewing, onSetIsPreviewing, onSetNote} = this.props
 
-  return (
-    <div className="note-editor">
-      <div
-        className={`note-editor--controls ${toggleVisible ? '' : 'centered'}`}
-      >
-        <Radio>
-          <Radio.Button
-            value={false}
-            active={!isPreviewing}
-            onClick={onSetIsPreviewing}
-          >
-            Compose
-          </Radio.Button>
-          <Radio.Button
-            value={true}
-            active={isPreviewing}
-            onClick={onSetIsPreviewing}
-          >
-            Preview
-          </Radio.Button>
-        </Radio>
-        {toggleVisible && (
-          <div className="note-editor--toggle">
-            <SlideToggle.Label text="Show note when query returns no data" />
-            <SlideToggle
-              active={showNoteWhenEmpty}
-              size={ComponentSize.ExtraSmall}
-              onChange={onToggleShowNoteWhenEmpty}
-            />
+    return (
+      <div className="note-editor">
+        <div className={this.controlsClassName}>
+          <div className="note-editor--radio">
+            <Radio shape={ButtonShape.StretchToFit}>
+              <Radio.Button
+                value={false}
+                active={!isPreviewing}
+                onClick={onSetIsPreviewing}
+              >
+                Compose
+              </Radio.Button>
+              <Radio.Button
+                value={true}
+                active={isPreviewing}
+                onClick={onSetIsPreviewing}
+              >
+                Preview
+              </Radio.Button>
+            </Radio>
           </div>
-        )}
+          {this.visibilityToggle}
+        </div>
+        <div className="note-editor--body">
+          {this.noteEditorPreview}
+          <NoteEditorText note={note} onChangeNote={onSetNote} />
+        </div>
+        <div className="note-editor--footer">
+          Need help using Markdown? Check out{' '}
+          <a
+            href="https://daringfireball.net/projects/markdown/syntax"
+            target="_blank"
+          >
+            this handy guide
+          </a>
+        </div>
       </div>
-      {isPreviewing ? (
-        <NoteEditorPreview note={note} />
-      ) : (
-        <NoteEditorText note={note} onChangeNote={onSetNote} />
-      )}
-      <div className="note-editor--footer">
-        Need help using Markdown? Check out{' '}
-        <a
-          href="https://daringfireball.net/projects/markdown/syntax"
-          target="_blank"
-        >
-          this handy guide
-        </a>
-      </div>
-    </div>
-  )
+    )
+  }
+
+  private get controlsClassName(): string {
+    const {toggleVisible} = this.props
+
+    return classnames('note-editor--controls', {centered: toggleVisible})
+  }
+
+  private get noteEditorPreview(): JSX.Element {
+    const {isPreviewing, note} = this.props
+
+    if (isPreviewing) {
+      return <NoteEditorPreview note={note} />
+    }
+  }
+
+  private visibilityToggle(): JSX.Element {
+    const {
+      toggleVisible,
+      showNoteWhenEmpty,
+      onToggleShowNoteWhenEmpty,
+    } = this.props
+
+    if (toggleVisible) {
+      return (
+        <ComponentSpacer stackChildren={Stack.Columns} align={Alignment.Right}>
+          <SlideToggle.Label text="Show note when query returns no data" />
+          <SlideToggle
+            active={showNoteWhenEmpty}
+            size={ComponentSize.ExtraSmall}
+            onChange={onToggleShowNoteWhenEmpty}
+          />
+        </ComponentSpacer>
+      )
+    }
+  }
 }
 
 const mstp = (state: AppState) => {

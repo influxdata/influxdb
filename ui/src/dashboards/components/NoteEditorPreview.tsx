@@ -9,9 +9,15 @@ interface Props {
 
 const NoteEditorPreview: SFC<Props> = props => {
   return (
-    <div className="note-editor-preview markdown-format">
-      <FancyScrollbar>
-        <ReactMarkdown source={props.note} escapeHtml={true} />
+    <div className="note-editor--preview">
+      <FancyScrollbar className="note-editor--preview-scroll">
+        <div className="note-editor--markdown-container">
+          <ReactMarkdown
+            source={props.note}
+            escapeHtml={true}
+            className="markdown-format"
+          />
+        </div>
       </FancyScrollbar>
     </div>
   )
