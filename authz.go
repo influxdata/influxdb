@@ -111,6 +111,8 @@ const (
 	TelegrafsResourceType = ResourceType("telegrafs") // 6
 	// UsersResourceType gives permissions to one or more users.
 	UsersResourceType = ResourceType("users") // 7
+	// MacrosResourceType gives permission to one or more macros.
+	MacrosResourceType = ResourceType("macros") // 8
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -123,6 +125,7 @@ var AllResourceTypes = []ResourceType{
 	TasksResourceType,          // 5
 	TelegrafsResourceType,      // 6
 	UsersResourceType,          // 7
+	MacrosResourceType,         // 8
 }
 
 // OrgResourceTypes is the list of all known resource types that belong to an organization.
@@ -133,6 +136,7 @@ var OrgResourceTypes = []ResourceType{
 	TasksResourceType,      // 5
 	TelegrafsResourceType,  // 6
 	UsersResourceType,      // 7
+	MacrosResourceType,     // 8
 }
 
 // Valid checks if the resource is a member of the Resource enum.
@@ -149,7 +153,8 @@ func (t ResourceType) Valid() (err error) {
 	case TasksResourceType: // 4
 	case TelegrafsResourceType: // 5
 	case SourcesResourceType: // 6
-	case UsersResourceType: //7
+	case UsersResourceType: // 7
+	case MacrosResourceType: // 8
 	default:
 		err = ErrInvalidResourceType
 	}
