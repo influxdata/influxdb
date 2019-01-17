@@ -10,6 +10,7 @@ import {
   OverlayHeading,
   OverlayTechnology,
   OverlayContainer,
+  OverlayFooter,
   Button,
   ComponentColor,
   ComponentStatus,
@@ -25,9 +26,6 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Utils
 import {savingNoteFailed} from 'src/shared/copy/v2/notifications'
-
-// Styles
-import 'src/dashboards/components/NoteEditorContainer.scss'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -65,20 +63,19 @@ class NoteEditorContainer extends PureComponent<Props, State> {
       <div className="note-editor-container">
         <OverlayTechnology visible={overlayVisible}>
           <OverlayContainer>
-            <OverlayHeading title={this.overlayTitle}>
-              <div className="create-source-overlay--heading-buttons">
-                <Button text="Cancel" onClick={onHide} />
-                <Button
-                  text="Save"
-                  color={ComponentColor.Success}
-                  status={this.saveButtonStatus}
-                  onClick={this.handleSave}
-                />
-              </div>
-            </OverlayHeading>
+            <OverlayHeading title={this.overlayTitle} onDismiss={onHide} />
             <OverlayBody>
               <NoteEditor />
             </OverlayBody>
+            <OverlayFooter>
+              <Button text="Cancel" onClick={onHide} />
+              <Button
+                text="Save"
+                color={ComponentColor.Success}
+                status={this.saveButtonStatus}
+                onClick={this.handleSave}
+              />
+            </OverlayFooter>
           </OverlayContainer>
         </OverlayTechnology>
       </div>
