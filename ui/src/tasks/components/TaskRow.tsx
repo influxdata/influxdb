@@ -56,6 +56,11 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
           </ComponentSpacer>
         </IndexList.Cell>
         <IndexList.Cell>
+          <a href="" onClick={this.handleOrgClick}>
+            {task.organization.name}
+          </a>
+        </IndexList.Cell>
+        <IndexList.Cell>
           <SlideToggle
             active={this.isTaskActive}
             size={ComponentSize.ExtraSmall}
@@ -63,11 +68,6 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
           />
         </IndexList.Cell>
         <IndexList.Cell>{this.schedule}</IndexList.Cell>
-        <IndexList.Cell>
-          <a href="" onClick={this.handleOrgClick}>
-            {task.organization.name}
-          </a>
-        </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
             <Button

@@ -69,23 +69,9 @@ export default class TasksList extends PureComponent<Props, State> {
           <IndexList.Header>
             <IndexList.HeaderCell
               columnName="Name"
-              width="45%"
+              width="55%"
               sortKey={headerKeys[0]}
               sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
-            />
-            <IndexList.HeaderCell
-              columnName="Active"
-              width="10%"
-              sortKey={headerKeys[1]}
-              sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
-            />
-            <IndexList.HeaderCell
-              columnName="Schedule"
-              width="20%"
-              sortKey={headerKeys[2]}
-              sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
             <IndexList.HeaderCell
@@ -93,6 +79,20 @@ export default class TasksList extends PureComponent<Props, State> {
               width="15%"
               sortKey={headerKeys[3]}
               sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
+              onClick={this.handleClickColumn}
+            />
+            <IndexList.HeaderCell
+              columnName="Active"
+              width="5%"
+              sortKey={headerKeys[1]}
+              sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
+              onClick={this.handleClickColumn}
+            />
+            <IndexList.HeaderCell
+              columnName="Schedule"
+              width="15%"
+              sortKey={headerKeys[2]}
+              sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
             <IndexList.HeaderCell columnName="" width="10%" />
