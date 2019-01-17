@@ -75,7 +75,7 @@ const SingleStatOptions: SFC<Props> = props => {
   return (
     <>
       <Grid.Column>
-        <h4 className="view-options--header">Customize Gauge</h4>
+        <h4 className="view-options--header">Customize Single-Stat</h4>
       </Grid.Column>
       <Affixes
         prefix={prefix}
