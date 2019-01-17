@@ -4,7 +4,7 @@ import (
 	http "net/http"
 	"strings"
 
-	platform "github.com/influxdata/influxdb"
+	influxdb "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/query"
@@ -39,34 +39,34 @@ type APIBackend struct {
 	DeveloperMode bool
 	Logger        *zap.Logger
 
-	NewBucketService func(*platform.Source) (platform.BucketService, error)
-	NewQueryService  func(*platform.Source) (query.ProxyQueryService, error)
+	NewBucketService func(*influxdb.Source) (influxdb.BucketService, error)
+	NewQueryService  func(*influxdb.Source) (query.ProxyQueryService, error)
 
 	PointsWriter                    storage.PointsWriter
-	AuthorizationService            platform.AuthorizationService
-	BucketService                   platform.BucketService
-	SessionService                  platform.SessionService
-	UserService                     platform.UserService
-	OrganizationService             platform.OrganizationService
-	UserResourceMappingService      platform.UserResourceMappingService
-	LabelService                    platform.LabelService
-	DashboardService                platform.DashboardService
-	DashboardOperationLogService    platform.DashboardOperationLogService
-	BucketOperationLogService       platform.BucketOperationLogService
-	UserOperationLogService         platform.UserOperationLogService
-	OrganizationOperationLogService platform.OrganizationOperationLogService
-	SourceService                   platform.SourceService
-	MacroService                    platform.MacroService
-	BasicAuthService                platform.BasicAuthService
-	OnboardingService               platform.OnboardingService
+	AuthorizationService            influxdb.AuthorizationService
+	BucketService                   influxdb.BucketService
+	SessionService                  influxdb.SessionService
+	UserService                     influxdb.UserService
+	OrganizationService             influxdb.OrganizationService
+	UserResourceMappingService      influxdb.UserResourceMappingService
+	LabelService                    influxdb.LabelService
+	DashboardService                influxdb.DashboardService
+	DashboardOperationLogService    influxdb.DashboardOperationLogService
+	BucketOperationLogService       influxdb.BucketOperationLogService
+	UserOperationLogService         influxdb.UserOperationLogService
+	OrganizationOperationLogService influxdb.OrganizationOperationLogService
+	SourceService                   influxdb.SourceService
+	MacroService                    influxdb.MacroService
+	BasicAuthService                influxdb.BasicAuthService
+	OnboardingService               influxdb.OnboardingService
 	ProxyQueryService               query.ProxyQueryService
-	TaskService                     platform.TaskService
-	TelegrafService                 platform.TelegrafConfigStore
-	ScraperTargetStoreService       platform.ScraperTargetStoreService
-	SecretService                   platform.SecretService
-	LookupService                   platform.LookupService
+	TaskService                     influxdb.TaskService
+	TelegrafService                 influxdb.TelegrafConfigStore
+	ScraperTargetStoreService       influxdb.ScraperTargetStoreService
+	SecretService                   influxdb.SecretService
+	LookupService                   influxdb.LookupService
 	ChronografService               *server.Service
-	ProtoService                    platform.ProtoService
+	ProtoService                    influxdb.ProtoService
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
@@ -96,7 +96,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
 
 	h.MacroHandler = NewMacroHandler()
-	h.MacroHandler.MacroService = b.MacroService
+	h.MacroHandler.MacroService = authorizer.NewMacroService(b.MacroService)
 
 	h.AuthorizationHandler = NewAuthorizationHandler(b.UserService)
 	h.AuthorizationHandler.OrganizationService = b.OrganizationService
