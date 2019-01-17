@@ -34,7 +34,10 @@ class CompletionAdvancedButton extends PureComponent<Props> {
     const {router, orgs, onExit} = this.props
     const id = _.get(orgs, '0.id', null)
     if (id) {
-      router.push(`/organizations/${id}/buckets_tab`)
+      router.push({
+        pathname: `/organizations/${id}/buckets_tab`,
+        state: {openDataLoaderOverlay: true},
+      })
     } else {
       onExit()
     }
