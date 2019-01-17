@@ -27,10 +27,8 @@ type ViewHandler struct {
 }
 
 const (
-	viewsPath             = "/api/v2/views"
-	viewsIDPath           = "/api/v2/views/:id"
-	viewsIDLabelsPath     = "/api/v2/views/:id/labels"
-	viewsIDLabelsNamePath = "/api/v2/views/:id/labels/:name"
+	viewsPath   = "/api/v2/views"
+	viewsIDPath = "/api/v2/views/:id"
 )
 
 // NewViewHandler returns a new instance of ViewHandler.
@@ -50,11 +48,6 @@ func NewViewHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("GET", viewsIDPath, h.handleGetView)
 	h.HandlerFunc("DELETE", viewsIDPath, h.handleDeleteView)
 	h.HandlerFunc("PATCH", viewsIDPath, h.handlePatchView)
-
-	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", viewsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", viewsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", viewsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
 
 	return h
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"net/http"
 	"path"
 
@@ -50,8 +51,15 @@ func newLabelsResponse(opts plat.FindOptions, f plat.LabelFilter, ls []*plat.Lab
 	}
 }
 
+// LabelBackend is all services and associated parameters required to construct
+// label handlers.
+type LabelBackend struct {
+	Logger       *zap.Logger
+	LabelService plat.LabelService
+}
+
 // newGetLabelsHandler returns a handler func for a GET to /labels endpoints
-func newGetLabelsHandler(s plat.LabelService) http.HandlerFunc {
+func newGetLabelsHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -62,17 +70,14 @@ func newGetLabelsHandler(s plat.LabelService) http.HandlerFunc {
 		}
 
 		opts := plat.FindOptions{}
-		labels, err := s.FindLabels(ctx, req.filter)
+		labels, err := b.LabelService.FindLabels(ctx, req.filter)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(opts, req.filter, labels)); err != nil {
-			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
-			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
-			// is called is distinct from the time that a potential logger is set.
-			EncodeError(ctx, err, w)
+			logEncodingError(b.Logger, r, err)
 			return
 		}
 	}
@@ -106,7 +111,7 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 }
 
 // newPostLabelHandler returns a handler func for a POST to /labels endpoints
-func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
+func newPostLabelHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -121,16 +126,13 @@ func newPostLabelHandler(s plat.LabelService) http.HandlerFunc {
 			return
 		}
 
-		if err := s.CreateLabel(ctx, &req.Label); err != nil {
+		if err := b.LabelService.CreateLabel(ctx, &req.Label); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(&req.Label)); err != nil {
-			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
-			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
-			// is called is distinct from the time that a potential logger is set.
-			EncodeError(ctx, err, w)
+			logEncodingError(b.Logger, r, err)
 			return
 		}
 	}
@@ -210,7 +212,7 @@ func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelR
 }
 
 // newPatchLabelHandler returns a handler func for a PATCH to /labels endpoints
-func newPatchLabelHandler(s plat.LabelService) http.HandlerFunc {
+func newPatchLabelHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -220,24 +222,21 @@ func newPatchLabelHandler(s plat.LabelService) http.HandlerFunc {
 			return
 		}
 
-		label, err := s.UpdateLabel(ctx, req.label, req.upd)
+		label, err := b.LabelService.UpdateLabel(ctx, req.label, req.upd)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(label)); err != nil {
-			// TODO: this can potentially result in calling w.WriteHeader multiple times, we need to pass a logger in here
-			// some how. This isn't as simple as simply passing in a logger to this function since the time that this function
-			// is called is distinct from the time that a potential logger is set.
-			EncodeError(ctx, err, w)
+			logEncodingError(b.Logger, r, err)
 			return
 		}
 	}
 }
 
 // newDeleteLabelHandler returns a handler func for a DELETE to /labels endpoints
-func newDeleteLabelHandler(s plat.LabelService) http.HandlerFunc {
+func newDeleteLabelHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -252,7 +251,7 @@ func newDeleteLabelHandler(s plat.LabelService) http.HandlerFunc {
 			Name:       req.Name,
 		}
 
-		if err := s.DeleteLabel(ctx, label); err != nil {
+		if err := b.LabelService.DeleteLabel(ctx, label); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}

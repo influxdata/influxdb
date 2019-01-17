@@ -118,10 +118,14 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h.HandlerFunc("GET", dashboardsIDOwnersPath, newGetMembersHandler(ownerBackend))
 	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
-	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", dashboardsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", dashboardsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", dashboardsIDLabelsNamePath, newDeleteLabelHandler(labelBackend))
+	h.HandlerFunc("PATCH", dashboardsIDLabelsNamePath, newPatchLabelHandler(labelBackend))
 
 	return h
 }

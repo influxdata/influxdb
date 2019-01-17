@@ -129,10 +129,14 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("POST", tasksIDRunsIDRetryPath, h.handleRetryRun)
 	h.HandlerFunc("DELETE", tasksIDRunsIDPath, h.handleCancelRun)
 
-	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", tasksIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", tasksIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", tasksIDLabelsNamePath, newDeleteLabelHandler(labelBackend))
+	h.HandlerFunc("PATCH", tasksIDLabelsNamePath, newPatchLabelHandler(labelBackend))
 
 	return h
 }

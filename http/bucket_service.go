@@ -112,10 +112,14 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("GET", bucketsIDOwnersPath, newGetMembersHandler(ownerBackend))
 	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
-	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", bucketsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", bucketsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", bucketsIDLabelsNamePath, newDeleteLabelHandler(labelBackend))
+	h.HandlerFunc("PATCH", bucketsIDLabelsNamePath, newPatchLabelHandler(labelBackend))
 
 	return h
 }
