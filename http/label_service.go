@@ -41,7 +41,7 @@ func NewLabelHandler() *LabelHandler {
 
 	h.HandlerFunc("GET", labelsIDPath, h.handleGetLabel)
 	// h.HandlerFunc("PATCH", labelsIDPath, h.handlePatchLabel)
-	// h.HandlerFunc("DELETE", labelsIDPath, h.handleDeleteLabel)
+	h.HandlerFunc("DELETE", labelsIDPath, h.handleDeleteLabel)
 
 	return h
 }
@@ -152,11 +152,47 @@ func decodeGetLabelRequest(ctx context.Context, r *http.Request) (*getLabelReque
 	return req, nil
 }
 
+// handleDeleteLabel is the HTTP handler for the DELETE /api/v2/labels/:id route.
+func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeDeleteLabelRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.LabelService.DeleteLabel(ctx, req.LabelID); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type deleteLabelRequest struct {
+	LabelID platform.ID
+}
+
+func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabelRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req := &deleteLabelRequest{
+		LabelID: i,
+	}
+
+	return req, nil
+}
+
 // func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
-//
-// }
-//
-// func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
 //
 // }
 
@@ -388,7 +424,7 @@ func newDeleteLabelHandler(s platform.LabelService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		req, err := decodeDeleteLabelRequest(ctx, r)
+		req, err := decodeDeleteLabelMappingRequest(ctx, r)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -408,12 +444,12 @@ func newDeleteLabelHandler(s platform.LabelService) http.HandlerFunc {
 	}
 }
 
-type deleteLabelRequest struct {
+type deleteLabelMappingRequest struct {
 	ResourceID platform.ID
 	LabelID    platform.ID
 }
 
-func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabelRequest, error) {
+func decodeDeleteLabelMappingRequest(ctx context.Context, r *http.Request) (*deleteLabelMappingRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -441,7 +477,7 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 		return nil, err
 	}
 
-	return &deleteLabelRequest{
+	return &deleteLabelMappingRequest{
 		LabelID:    lid,
 		ResourceID: rid,
 	}, nil
