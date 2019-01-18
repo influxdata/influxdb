@@ -309,7 +309,7 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
 
   if (telegrafConfigID) {
     const telegrafConfig = await getTelegrafConfig(telegrafConfigID)
-    const id = _.get(telegrafConfig, '0.id', '')
+    const id = _.get(telegrafConfig, 'id', '')
 
     await updateTelegrafConfig(id, {...telegrafConfig, plugins})
     dispatch(setTelegrafConfigID(id))
