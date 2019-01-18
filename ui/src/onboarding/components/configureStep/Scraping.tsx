@@ -14,6 +14,7 @@ import {
   setScraperTargetURL,
   saveScraperTarget,
 } from 'src/onboarding/actions/dataLoaders'
+import {setBucketInfo} from 'src/onboarding/actions/steps'
 
 // Types
 import {Bucket} from 'src/api'
@@ -30,6 +31,7 @@ interface DispatchProps {
   onSetScraperTargetBucket: typeof setScraperTargetBucket
   onSetScraperTargetURL: typeof setScraperTargetURL
   onSaveScraperTarget: typeof saveScraperTarget
+  onSetBucketInfo: typeof setBucketInfo
 }
 
 interface StateProps {
@@ -101,7 +103,15 @@ export class Scraping extends PureComponent<Props> {
   }
 
   private handleSelectBucket = (bucket: string) => {
-    this.props.onSetScraperTargetBucket(bucket)
+    const {buckets, onSetScraperTargetBucket, onSetBucketInfo} = this.props
+
+    const findBucket = buckets.find(b => b.name === bucket)
+    const bucketID = findBucket.id
+    const org = findBucket.organization
+    const orgID = findBucket.organizationID
+
+    onSetBucketInfo(org, orgID, bucket, bucketID)
+    onSetScraperTargetBucket(bucket)
   }
 
   private handleSubmit = async () => {
@@ -128,6 +138,7 @@ const mdtp: DispatchProps = {
   onSetScraperTargetBucket: setScraperTargetBucket,
   onSetScraperTargetURL: setScraperTargetURL,
   onSaveScraperTarget: saveScraperTarget,
+  onSetBucketInfo: setBucketInfo,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
