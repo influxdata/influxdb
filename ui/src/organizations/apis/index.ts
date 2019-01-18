@@ -210,7 +210,7 @@ export const deleteTelegrafConfig = async (
 // Scrapers
 export const getScrapers = async (): Promise<ScraperTargetResponses> => {
   try {
-    const response = await scraperTargetsApi.scrapertargetsGet()
+    const response = await scraperTargetsApi.scrapersGet()
 
     return response.data
   } catch (error) {
@@ -220,7 +220,7 @@ export const getScrapers = async (): Promise<ScraperTargetResponses> => {
 
 export const deleteScraper = async (scraperTargetID: string): Promise<void> => {
   try {
-    await scraperTargetsApi.scrapertargetsScraperTargetIDDelete(scraperTargetID)
+    await scraperTargetsApi.scrapersScraperTargetIDDelete(scraperTargetID)
   } catch (error) {
     console.error(error)
   }

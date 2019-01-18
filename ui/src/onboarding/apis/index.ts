@@ -176,7 +176,7 @@ export const createScraperTarget = async (
   orgID: string,
   bucketID: string
 ): Promise<ScraperTargetResponse> => {
-  const response = await scraperTargetsApi.scrapertargetsPost({
+  const response = await scraperTargetsApi.scrapersPost({
     name: 'new target',
     type: ScraperTargetRequest.TypeEnum.Prometheus,
     url,
@@ -192,13 +192,10 @@ export const updateScraperTarget = async (
   url: string,
   bucketID: string
 ): Promise<ScraperTargetResponse> => {
-  const response = await scraperTargetsApi.scrapertargetsScraperTargetIDPatch(
-    id,
-    {
-      url,
-      bucketID,
-    }
-  )
+  const response = await scraperTargetsApi.scrapersScraperTargetIDPatch(id, {
+    url,
+    bucketID,
+  })
 
   return response.data
 }
