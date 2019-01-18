@@ -68,6 +68,7 @@ type APIBackend struct {
 	LookupService                   influxdb.LookupService
 	ChronografService               *server.Service
 	ProtoService                    influxdb.ProtoService
+	OrgLookupService                authorizer.OrganizationService
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
@@ -76,6 +77,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	sessionBackend := NewSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
+	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 
 	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
 	h.BucketHandler.BucketService = authorizer.NewBucketService(b.BucketService)
