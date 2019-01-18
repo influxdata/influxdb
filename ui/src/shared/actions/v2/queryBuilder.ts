@@ -1,8 +1,6 @@
 // APIs
 import {QueryBuilderFetcher} from 'src/shared/apis/v2/queryBuilder'
 
-import {bucketsAPI} from 'src/utils/api'
-
 // Utils
 import {
   getActiveQuerySource,
@@ -208,8 +206,8 @@ export const loadBuckets = () => async (
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    const {data} = await bucketsAPI.bucketsGet('')
-    const buckets = data.buckets.map(b => b.name)
+    const queryURL = getActiveQuerySource(getState()).links.query
+    const buckets = await fetcher.findBuckets(queryURL)
     const selectedBucket = getActiveQuery(getState()).builderConfig.buckets[0]
 
     dispatch(setBuilderBuckets(buckets))
