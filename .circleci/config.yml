@@ -4,8 +4,7 @@ jobs:
     docker:
       - image: quay.io/influxdb/litmus:latest
     working_directory: /Litmus
-    steps:
-      - run make litmus_nightly
+  
   jstest:
     docker:
       - image: circleci/golang:1.11-node-browsers
