@@ -1668,7 +1668,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-   patch:
+    patch:
       tags:
         - Labels
       summary: Update a single label
@@ -1706,7 +1706,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-   delete:
+    delete:
       tags:
         - Labels
       summary: Delete a label
