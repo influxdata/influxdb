@@ -157,7 +157,7 @@ class AdminStep extends PureComponent<Props, State> {
                           size={ComponentSize.Medium}
                           icon={icon}
                           status={ComponentStatus.Default}
-                          placeholder="An organization is a workspace for storing data, dashboards, and other related resources."
+                          placeholder="An organization is a workspace for a group of users."
                           disabledTitleText="Initial organization name has been set"
                         />
                       </Form.Element>
@@ -230,7 +230,7 @@ class AdminStep extends PureComponent<Props, State> {
     return (
       <QuestionMarkTooltip
         tipID="admin_org_tooltip"
-        tipContent={`An organization is a workspace for storing data, dashboards, and other related resources.
+        tipContent={`An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
         You can create organizations for different functional groups, teams, or projects.`}
       />
     )
