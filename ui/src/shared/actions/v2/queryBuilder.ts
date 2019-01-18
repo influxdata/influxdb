@@ -265,7 +265,15 @@ export const loadTagSelector = (index: number) => async (
     const {key} = tags[index]
 
     if (!key) {
-      dispatch(setBuilderTagKeySelection(index, keys[0]))
+      let defaultKey: string
+
+      if (index === 0 && keys.includes('_measurement')) {
+        defaultKey = '_measurement'
+      } else {
+        defaultKey = keys[0]
+      }
+
+      dispatch(setBuilderTagKeySelection(index, defaultKey))
     } else if (!keys.includes(key)) {
       // Even if the selected key didn't come back in the results, let it be
       // selected anyway
