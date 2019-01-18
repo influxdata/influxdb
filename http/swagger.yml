@@ -345,7 +345,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/telegrafs/{telegrafID}/labels/{label}':
+  '/telegrafs/{telegrafID}/labels/{labelID}':
     delete:
       tags:
         - Telegrafs
@@ -359,11 +359,11 @@ paths:
           required: true
           description: ID of the telegraf config
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
-          description: the label name
+          description: the label ID
       responses:
         '204':
           description: delete has been accepted
@@ -1388,7 +1388,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/views/{viewID}/labels/{label}':
+  '/views/{viewID}/labels/{labelID}':
     delete:
       tags:
         - Views
@@ -1402,11 +1402,11 @@ paths:
           required: true
           description: ID of the view
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
-          description: the label name
+          description: the label id
       responses:
         '204':
           description: delete has been accepted
@@ -1678,7 +1678,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
+                $ref: "#/components/schemas/LabelUpdate"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -2214,6 +2214,40 @@ paths:
                     $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}/labels/{labelID}':
+    delete:
+      tags:
+        - Dashboards
+      summary: delete a label from a dashboard
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of the dashboard
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -2990,7 +3024,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Label"
+              $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
           description: a list of all labels for a bucket
@@ -3009,7 +3043,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/buckets/{bucketID}/labels/{label}':
+  '/buckets/{bucketID}/labels/{labelID}':
     delete:
       tags:
         - Buckets
@@ -3023,11 +3057,11 @@ paths:
           required: true
           description: ID of the bucket
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
-          description: the label name
+          description: the label id to delete
       responses:
         '204':
           description: delete has been accepted
@@ -3418,7 +3452,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/orgs/{orgID}/labels/{label}':
+  '/orgs/{orgID}/labels/{labelID}':
     delete:
       tags:
         - Organizations
@@ -3432,11 +3466,11 @@ paths:
           required: true
           description: ID of the organization
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
-          description: the label name
+          description: the label id
       responses:
         '204':
           description: delete has been accepted
@@ -4144,7 +4178,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskID}/labels/{label}':
+  '/tasks/{taskID}/labels/{labelID}':
     delete:
       tags:
         - Tasks
@@ -4158,11 +4192,11 @@ paths:
           required: true
           description: ID of the task
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
-          description: the label name
+          description: the label id
       responses:
         '204':
           description: delete has been accepted
@@ -6996,3 +7030,15 @@ components:
           type: object
           description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
           example: {"color": "ffb3b3", "description": "this is a description"}
+    LabelUpdate:
+      type: object
+      properties:
+        properties:
+          type: object
+          description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
+          example: {"color": "ffb3b3", "description": "this is a description"}
+    LabelMapping:
+      type: object
+      properties:
+        labelID:
+          type: string
