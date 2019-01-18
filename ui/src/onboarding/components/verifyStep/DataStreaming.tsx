@@ -7,9 +7,6 @@ import TelegrafInstructions from 'src/onboarding/components/verifyStep/TelegrafI
 import CreateOrUpdateConfig from 'src/onboarding/components/verifyStep/CreateOrUpdateConfig'
 import DataListening from 'src/onboarding/components/verifyStep/DataListening'
 
-// Actions
-import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
-
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
 
@@ -27,7 +24,6 @@ interface Props {
   stepIndex: number
   authToken: string
   onSetStepStatus: (index: number, status: StepStatus) => void
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
 }
 
 @ErrorHandling
@@ -37,7 +33,6 @@ class DataStreaming extends PureComponent<Props> {
       authToken,
       org,
       configID,
-      onSaveTelegrafConfig,
       onSetStepStatus,
       bucket,
       stepIndex,
@@ -46,12 +41,7 @@ class DataStreaming extends PureComponent<Props> {
 
     return (
       <>
-        <CreateOrUpdateConfig
-          org={org}
-          notify={notify}
-          authToken={authToken}
-          onSaveTelegrafConfig={onSaveTelegrafConfig}
-        >
+        <CreateOrUpdateConfig org={org} authToken={authToken}>
           {() => (
             <TelegrafInstructions
               notify={notify}
