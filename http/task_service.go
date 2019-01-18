@@ -47,7 +47,7 @@ const (
 	tasksIDRunsIDLogsPath  = "/api/v2/tasks/:id/runs/:rid/logs"
 	tasksIDRunsIDRetryPath = "/api/v2/tasks/:id/runs/:rid/retry"
 	tasksIDLabelsPath      = "/api/v2/tasks/:id/labels"
-	tasksIDLabelsNamePath  = "/api/v2/tasks/:id/labels/:lid"
+	tasksIDLabelsIDPath  = "/api/v2/tasks/:id/labels/:lid"
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
@@ -87,7 +87,7 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, labelSer
 
 	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", tasksIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", tasksIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }

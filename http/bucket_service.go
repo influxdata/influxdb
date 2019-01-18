@@ -39,7 +39,7 @@ const (
 	bucketsIDOwnersPath     = "/api/v2/buckets/:id/owners"
 	bucketsIDOwnersIDPath   = "/api/v2/buckets/:id/owners/:userID"
 	bucketsIDLabelsPath     = "/api/v2/buckets/:id/labels"
-	bucketsIDLabelsNamePath = "/api/v2/buckets/:id/labels/:lid"
+	bucketsIDLabelsIDPath = "/api/v2/buckets/:id/labels/:lid"
 )
 
 // NewBucketHandler returns a new instance of BucketHandler.
@@ -70,7 +70,7 @@ func NewBucketHandler(mappingService platform.UserResourceMappingService, labelS
 
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", bucketsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", bucketsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }

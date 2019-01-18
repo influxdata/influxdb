@@ -41,7 +41,7 @@ const (
 	dashboardsIDOwnersPath      = "/api/v2/dashboards/:id/owners"
 	dashboardsIDOwnersIDPath    = "/api/v2/dashboards/:id/owners/:userID"
 	dashboardsIDLabelsPath      = "/api/v2/dashboards/:id/labels"
-	dashboardsIDLabelsNamePath  = "/api/v2/dashboards/:id/labels/:lid"
+	dashboardsIDLabelsIDPath  = "/api/v2/dashboards/:id/labels/:lid"
 )
 
 // NewDashboardHandler returns a new instance of DashboardHandler.
@@ -80,7 +80,7 @@ func NewDashboardHandler(mappingService platform.UserResourceMappingService, lab
 
 	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", dashboardsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", dashboardsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }

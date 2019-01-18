@@ -35,7 +35,7 @@ const (
 	telegrafsIDOwnersPath     = "/api/v2/telegrafs/:id/owners"
 	telegrafsIDOwnersIDPath   = "/api/v2/telegrafs/:id/owners/:userID"
 	telegrafsIDLabelsPath     = "/api/v2/telegrafs/:id/labels"
-	telegrafsIDLabelsNamePath = "/api/v2/telegrafs/:id/labels/:lid"
+	telegrafsIDLabelsIDPath = "/api/v2/telegrafs/:id/labels/:lid"
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
@@ -73,7 +73,7 @@ func NewTelegrafHandler(
 
 	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", telegrafsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", telegrafsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", telegrafsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }

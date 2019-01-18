@@ -41,7 +41,7 @@ const (
 	// TODO(desa): need a way to specify which secrets to delete. this should work for now
 	organizationsIDSecretsDeletePath = "/api/v2/orgs/:id/secrets/delete"
 	organizationsIDLabelsPath        = "/api/v2/orgs/:id/labels"
-	organizationsIDLabelsNamePath    = "/api/v2/orgs/:id/labels/:lid"
+	organizationsIDLabelsIDPath    = "/api/v2/orgs/:id/labels/:lid"
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
@@ -78,7 +78,7 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService,
 
 	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", organizationsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", organizationsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }
