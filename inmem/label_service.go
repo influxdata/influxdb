@@ -149,6 +149,14 @@ func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
 
 // CreateLabelMapping creates a mapping that associates a label to a resource.
 func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	_, err := s.FindLabelByID(ctx, *m.LabelID)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  platform.OpCreateLabel,
+		}
+	}
+
 	s.labelMappingKV.Store(encodeLabelMappingKey(m), *m)
 	return nil
 }

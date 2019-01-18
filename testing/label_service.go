@@ -646,7 +646,7 @@ func CreateLabelMapping(
 ) {
 	type args struct {
 		mapping *platform.LabelMapping
-		filter  platform.LabelMappingFilter
+		filter  *platform.LabelMappingFilter
 	}
 	type wants struct {
 		err    error
@@ -674,7 +674,7 @@ func CreateLabelMapping(
 					LabelID:    IDPtr(MustIDBase16(labelOneID)),
 					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
 				},
-				filter: platform.LabelMappingFilter{
+				filter: &platform.LabelMappingFilter{
 					ResourceID: MustIDBase16(bucketOneID),
 				},
 			},
@@ -687,32 +687,26 @@ func CreateLabelMapping(
 				},
 			},
 		},
-		// {
-		// 	name: "mapping to a non-existing label",
-		// 	fields: LabelFields{
-		// 		IDGenerator: mock.NewIDGenerator(labelOneID, t),
-		// 		Labels:      []*platform.Label{},
-		// 	},
-		// 	args: args{
-		// 		label: &platform.Label{
-		// 			Name: "Tag2",
-		// 			Properties: map[string]string{
-		// 				"color": "fff000",
-		// 			},
-		// 		},
-		// 	},
-		// 	wants: wants{
-		// 		labels: []*platform.Label{
-		// 			{
-		// 				ID:   MustIDBase16(labelOneID),
-		// 				Name: "Tag2",
-		// 				Properties: map[string]string{
-		// 					"color": "fff000",
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			name: "mapping to a nonexistent label",
+			fields: LabelFields{
+				IDGenerator: mock.NewIDGenerator(labelOneID, t),
+				Labels:      []*platform.Label{},
+			},
+			args: args{
+				mapping: &platform.LabelMapping{
+					LabelID:    IDPtr(MustIDBase16(labelOneID)),
+					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+				},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpDeleteLabel,
+					Msg:  "label not found",
+				},
+			},
+		},
 		// {
 		// 	name: "duplicate label mappings",
 		// 	fields: LabelFields{
@@ -751,7 +745,11 @@ func CreateLabelMapping(
 
 			defer s.DeleteLabelMapping(ctx, tt.args.mapping)
 
-			labels, err := s.FindResourceLabels(ctx, tt.args.filter)
+			if tt.args.filter == nil {
+				return
+			}
+
+			labels, err := s.FindResourceLabels(ctx, *tt.args.filter)
 			if err != nil {
 				t.Fatalf("failed to retrieve labels: %v", err)
 			}

@@ -182,10 +182,17 @@ func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMa
 	return ls, nil
 }
 
-// func (c *Client) findResourceLabels(ctx context.Context, )
-
+// CreateLabelMapping creates a new mapping between a resource and a label.
 func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
-	err := c.db.Update(func(tx *bolt.Tx) error {
+	_, err := c.FindLabelByID(ctx, *m.LabelID)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpCreateLabel),
+		}
+	}
+
+	err = c.db.Update(func(tx *bolt.Tx) error {
 		return c.putLabelMapping(ctx, tx, m)
 	})
 
@@ -199,6 +206,7 @@ func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMappin
 	return nil
 }
 
+// DeleteLabelMapping deletes a label mapping.
 func (c *Client) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		return c.deleteLabelMapping(ctx, tx, m)
@@ -229,6 +237,7 @@ func (c *Client) deleteLabelMapping(ctx context.Context, tx *bolt.Tx, m *platfor
 	return nil
 }
 
+// CreateLabel creates a new label.
 func (c *Client) CreateLabel(ctx context.Context, l *platform.Label) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		l.ID = c.IDGenerator.ID()
@@ -245,6 +254,7 @@ func (c *Client) CreateLabel(ctx context.Context, l *platform.Label) error {
 	return nil
 }
 
+// PutLabel creates a label from the provided struct, without generating a new ID.
 func (c *Client) PutLabel(ctx context.Context, l *platform.Label) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		var err error
