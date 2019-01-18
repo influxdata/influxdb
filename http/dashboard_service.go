@@ -41,7 +41,7 @@ const (
 	dashboardsIDOwnersPath      = "/api/v2/dashboards/:id/owners"
 	dashboardsIDOwnersIDPath    = "/api/v2/dashboards/:id/owners/:userID"
 	dashboardsIDLabelsPath      = "/api/v2/dashboards/:id/labels"
-	dashboardsIDLabelsIDPath  = "/api/v2/dashboards/:id/labels/:lid"
+	dashboardsIDLabelsIDPath    = "/api/v2/dashboards/:id/labels/:lid"
 )
 
 // NewDashboardHandler returns a new instance of DashboardHandler.

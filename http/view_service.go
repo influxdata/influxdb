@@ -27,14 +27,14 @@ type ViewHandler struct {
 }
 
 const (
-	viewsPath             = "/api/v2/views"
-	viewsIDPath           = "/api/v2/views/:id"
-	viewsIDMembersPath    = "/api/v2/views/:id/members"
-	viewsIDMembersIDPath  = "/api/v2/views/:id/members/:userID"
-	viewsIDOwnersPath     = "/api/v2/views/:id/owners"
-	viewsIDOwnersIDPath   = "/api/v2/views/:id/owners/:userID"
-	viewsIDLabelsPath     = "/api/v2/views/:id/labels"
-	viewsIDLabelsIDPath = "/api/v2/views/:id/labels/:lid"
+	viewsPath            = "/api/v2/views"
+	viewsIDPath          = "/api/v2/views/:id"
+	viewsIDMembersPath   = "/api/v2/views/:id/members"
+	viewsIDMembersIDPath = "/api/v2/views/:id/members/:userID"
+	viewsIDOwnersPath    = "/api/v2/views/:id/owners"
+	viewsIDOwnersIDPath  = "/api/v2/views/:id/owners/:userID"
+	viewsIDLabelsPath    = "/api/v2/views/:id/labels"
+	viewsIDLabelsIDPath  = "/api/v2/views/:id/labels/:lid"
 )
 
 // NewViewHandler returns a new instance of ViewHandler.

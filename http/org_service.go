@@ -41,7 +41,7 @@ const (
 	// TODO(desa): need a way to specify which secrets to delete. this should work for now
 	organizationsIDSecretsDeletePath = "/api/v2/orgs/:id/secrets/delete"
 	organizationsIDLabelsPath        = "/api/v2/orgs/:id/labels"
-	organizationsIDLabelsIDPath    = "/api/v2/orgs/:id/labels/:lid"
+	organizationsIDLabelsIDPath      = "/api/v2/orgs/:id/labels/:lid"
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.

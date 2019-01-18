@@ -28,14 +28,14 @@ type TelegrafHandler struct {
 }
 
 const (
-	telegrafsPath             = "/api/v2/telegrafs"
-	telegrafsIDPath           = "/api/v2/telegrafs/:id"
-	telegrafsIDMembersPath    = "/api/v2/telegrafs/:id/members"
-	telegrafsIDMembersIDPath  = "/api/v2/telegrafs/:id/members/:userID"
-	telegrafsIDOwnersPath     = "/api/v2/telegrafs/:id/owners"
-	telegrafsIDOwnersIDPath   = "/api/v2/telegrafs/:id/owners/:userID"
-	telegrafsIDLabelsPath     = "/api/v2/telegrafs/:id/labels"
-	telegrafsIDLabelsIDPath = "/api/v2/telegrafs/:id/labels/:lid"
+	telegrafsPath            = "/api/v2/telegrafs"
+	telegrafsIDPath          = "/api/v2/telegrafs/:id"
+	telegrafsIDMembersPath   = "/api/v2/telegrafs/:id/members"
+	telegrafsIDMembersIDPath = "/api/v2/telegrafs/:id/members/:userID"
+	telegrafsIDOwnersPath    = "/api/v2/telegrafs/:id/owners"
+	telegrafsIDOwnersIDPath  = "/api/v2/telegrafs/:id/owners/:userID"
+	telegrafsIDLabelsPath    = "/api/v2/telegrafs/:id/labels"
+	telegrafsIDLabelsIDPath  = "/api/v2/telegrafs/:id/labels/:lid"
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.

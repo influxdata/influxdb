@@ -31,15 +31,15 @@ type BucketHandler struct {
 }
 
 const (
-	bucketsPath             = "/api/v2/buckets"
-	bucketsIDPath           = "/api/v2/buckets/:id"
-	bucketsIDLogPath        = "/api/v2/buckets/:id/log"
-	bucketsIDMembersPath    = "/api/v2/buckets/:id/members"
-	bucketsIDMembersIDPath  = "/api/v2/buckets/:id/members/:userID"
-	bucketsIDOwnersPath     = "/api/v2/buckets/:id/owners"
-	bucketsIDOwnersIDPath   = "/api/v2/buckets/:id/owners/:userID"
-	bucketsIDLabelsPath     = "/api/v2/buckets/:id/labels"
-	bucketsIDLabelsIDPath = "/api/v2/buckets/:id/labels/:lid"
+	bucketsPath            = "/api/v2/buckets"
+	bucketsIDPath          = "/api/v2/buckets/:id"
+	bucketsIDLogPath       = "/api/v2/buckets/:id/log"
+	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
+	bucketsIDMembersIDPath = "/api/v2/buckets/:id/members/:userID"
+	bucketsIDOwnersPath    = "/api/v2/buckets/:id/owners"
+	bucketsIDOwnersIDPath  = "/api/v2/buckets/:id/owners/:userID"
+	bucketsIDLabelsPath    = "/api/v2/buckets/:id/labels"
+	bucketsIDLabelsIDPath  = "/api/v2/buckets/:id/labels/:lid"
 )
 
 // NewBucketHandler returns a new instance of BucketHandler.
