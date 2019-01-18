@@ -20,7 +20,6 @@ const setup = (override = {}) => {
     telegrafConfigID: '',
     onSaveTelegrafConfig: jest.fn(),
     stepIndex: 4,
-    onSetStepStatus: jest.fn(),
     onDecrementCurrentStep: jest.fn(),
     lpStatus: RemoteDataState.NotStarted,
     ...override,

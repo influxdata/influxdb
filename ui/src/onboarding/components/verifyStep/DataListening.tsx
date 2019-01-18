@@ -17,16 +17,11 @@ import ConnectionInformation, {
   LoadingState,
 } from 'src/onboarding/components/verifyStep/ConnectionInformation'
 
-// Constants
-import {StepStatus} from 'src/clockface/constants/wizard'
-
 // Types
 import {InfluxLanguage} from 'src/types/v2/dashboards'
 
 export interface Props {
   bucket: string
-  stepIndex: number
-  onSetStepStatus: (index: number, status: StepStatus) => void
 }
 
 interface State {
@@ -117,7 +112,7 @@ class DataListening extends PureComponent<Props, State> {
   }
 
   private checkForData = async (): Promise<void> => {
-    const {bucket, onSetStepStatus, stepIndex} = this.props
+    const {bucket} = this.props
     const {secondsLeft} = this.state
     const script = `from(bucket: "${bucket}")
       |> range(start: -1m)`
@@ -135,19 +130,16 @@ class DataListening extends PureComponent<Props, State> {
       timePassed = Number(new Date()) - this.startTime
     } catch (err) {
       this.setState({loading: LoadingState.Error})
-      onSetStepStatus(stepIndex, StepStatus.Incomplete)
       return
     }
 
     if (rowCount > 1) {
       this.setState({loading: LoadingState.Done})
-      onSetStepStatus(stepIndex, StepStatus.Complete)
       return
     }
 
     if (timePassed >= MINUTE || secondsLeft <= 0) {
       this.setState({loading: LoadingState.NotFound})
-      onSetStepStatus(stepIndex, StepStatus.Incomplete)
       return
     }
     this.intervalID = setTimeout(this.checkForData, FETCH_WAIT)

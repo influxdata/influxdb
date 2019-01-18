@@ -1,6 +1,3 @@
-// Constants
-import {StepStatus} from 'src/clockface/constants/wizard'
-
 // Types
 import {Action} from 'src/onboarding/actions/steps'
 import {Substep} from 'src/types/v2/dataLoaders'
@@ -8,7 +5,6 @@ import {Substep} from 'src/types/v2/dataLoaders'
 export interface DataLoadersStepsState {
   currentStep: number
   substep?: Substep
-  stepStatuses: StepStatus[]
   orgID: string
   bucketID: string
   org: string
@@ -16,7 +12,6 @@ export interface DataLoadersStepsState {
 }
 
 const INITIAL_STATE: DataLoadersStepsState = {
-  stepStatuses: new Array(3).fill(StepStatus.Incomplete),
   org: '',
   bucket: '',
   orgID: '',
@@ -45,10 +40,6 @@ export default (
       }
     case 'SET_BUCKET_INFO':
       return {...state, ...action.payload}
-    case 'SET_STEP_STATUS':
-      const stepStatuses = [...state.stepStatuses]
-      stepStatuses[action.payload.index] = action.payload.status
-      return {...state, stepStatuses}
     case 'SET_BUCKET_ID':
       return {...state, bucketID: action.payload.bucketID}
     default:

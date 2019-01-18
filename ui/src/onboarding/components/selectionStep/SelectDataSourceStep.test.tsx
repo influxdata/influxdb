@@ -12,11 +12,7 @@ import {ComponentStatus} from 'src/clockface'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 // Dummy Data
-import {
-  defaultOnboardingStepProps,
-  telegrafPlugin,
-  cpuTelegrafPlugin,
-} from 'mocks/dummyData'
+import {defaultOnboardingStepProps, cpuTelegrafPlugin} from 'mocks/dummyData'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 const setup = (override = {}) => {
@@ -30,7 +26,6 @@ const setup = (override = {}) => {
     onRemovePluginBundle: jest.fn(),
     onSetDataLoadersType: jest.fn(),
     onSetActiveTelegrafPlugin: jest.fn(),
-    onSetStepStatus: jest.fn(),
     currentStepIndex: 2,
     substep: undefined,
     location: null,
@@ -57,29 +52,6 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
       expect(onboardingButtons.prop('nextButtonStatus')).toBe(
         ComponentStatus.Disabled
       )
-    })
-  })
-
-  describe('skip info', () => {
-    it('does not render if telegraf no plugins are selected', () => {
-      const wrapper = setup()
-      const onboardingButtons = wrapper.find(OnboardingButtons)
-
-      expect(onboardingButtons.prop('showSkip')).toBe(false)
-    })
-
-    it('renders if telegraf plugins are selected', () => {
-      const wrapper = setup({telegrafPlugins: [cpuTelegrafPlugin]})
-      const onboardingButtons = wrapper.find(OnboardingButtons)
-
-      expect(onboardingButtons.prop('showSkip')).toBe(true)
-    })
-
-    it('does not render if any telegraf plugins is incomplete', () => {
-      const wrapper = setup({telegrafPlugins: [telegrafPlugin]})
-      const onboardingButtons = wrapper.find(OnboardingButtons)
-
-      expect(onboardingButtons.prop('showSkip')).toBe(false)
     })
   })
 
