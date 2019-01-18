@@ -38,14 +38,6 @@ export default class BucketRow extends PureComponent<Props> {
             </a>
           </IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
-          <IndexList.Cell alignment={Alignment.Right}>
-            <Button
-              text={'Add Data'}
-              onClick={this.handleClickAddData}
-              color={ComponentColor.Secondary}
-              size={ComponentSize.ExtraSmall}
-            />
-          </IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
               size={ComponentSize.ExtraSmall}
@@ -53,6 +45,14 @@ export default class BucketRow extends PureComponent<Props> {
               confirmText="Confirm"
               onConfirm={onDeleteBucket}
               returnValue={bucket}
+            />
+          </IndexList.Cell>
+          <IndexList.Cell alignment={Alignment.Right}>
+            <Button
+              text={'Add Data'}
+              onClick={this.handleClickAddData}
+              color={ComponentColor.Secondary}
+              size={ComponentSize.ExtraSmall}
             />
           </IndexList.Cell>
         </IndexList.Row>
