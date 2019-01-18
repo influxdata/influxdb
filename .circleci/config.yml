@@ -2,10 +2,10 @@ version: 2
 jobs:
   litmus_nightly:
     docker:
-      - image: quay.io/influxdb/litmus:latest
+      - image: quay.io/influxdb/litmus
         auth:
          username: $QUAY_USER
-         passsword: $QUAY_PASS
+         password: $QUAY_PASS
     working_directory: /Litmus
     steps:
       - run: echo "HELLO WORLD"
