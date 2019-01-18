@@ -100,7 +100,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 					`
 					{
 					  "links": {
-					    "self": "/api/v2/scrapertargets"
+					    "self": "/api/v2/scrapers"
 					  },
 					  "scraper_targets": [
 					    {
@@ -113,7 +113,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "type": "prometheus",
 						  "url": "www.one.url",
 						  "links": {
-						    "self": "/api/v2/scrapertargets/0000000000000111"
+						    "self": "/api/v2/scrapers/0000000000000111"
 						  }
 						},
 						{
@@ -126,7 +126,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "type": "prometheus",
 						  "url": "www.two.url",
 						  "links": {
-						    "self": "/api/v2/scrapertargets/0000000000000222"
+						    "self": "/api/v2/scrapers/0000000000000222"
 						  }
                         }
 					  ]
@@ -169,7 +169,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 				body: `
                 {
                   "links": {
-                    "self": "/api/v2/scrapertargets"
+                    "self": "/api/v2/scrapers"
                   },
                   "scraper_targets": []
                 }
@@ -295,7 +295,7 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 					  "orgID": "0000000000000211",
 					  "organization": "org1",
                       "links": {
-                        "self": "/api/v2/scrapertargets/%[1]s"
+                        "self": "/api/v2/scrapers/%[1]s"
                       }
                     }
                     `,
@@ -518,7 +518,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 					  "bucket": "bucket1",
                       "bucketID": "0000000000000212",
                       "links": {
-                        "self": "/api/v2/scrapertargets/%[1]s"
+                        "self": "/api/v2/scrapers/%[1]s"
                       }
                     }
                     `,
@@ -643,7 +643,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 					  "bucket": "bucket1",
 					  "bucketID":"0000000000000212",
 		              "links":{
-		                "self":"/api/v2/scrapertargets/%[1]s"
+		                "self":"/api/v2/scrapers/%[1]s"
 		              }
 		            }`,
 					targetOneIDString,

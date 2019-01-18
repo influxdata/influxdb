@@ -597,7 +597,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /scrapertargets:
+  /scrapers:
     get:
       tags:
         - ScraperTargets
@@ -633,7 +633,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/scrapertargets/{scraperTargetID}':
+  '/scrapers/{scraperTargetID}':
     delete:
       tags:
         - ScraperTargets

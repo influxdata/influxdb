@@ -22,7 +22,7 @@ type ScraperHandler struct {
 }
 
 const (
-	targetPath = "/api/v2/scrapertargets"
+	targetPath = "/api/v2/scrapers"
 )
 
 // NewScraperHandler returns a new instance of ScraperHandler.
@@ -38,7 +38,7 @@ func NewScraperHandler() *ScraperHandler {
 	return h
 }
 
-// handlePostScraperTarget is HTTP handler for the POST /api/v2/scrapertargets route.
+// handlePostScraperTarget is HTTP handler for the POST /api/v2/scrapers route.
 func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -63,7 +63,7 @@ func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.
 	}
 }
 
-// handleDeleteScraperTarget is the HTTP handler for the DELETE /api/v2/scrapertargets/:id route.
+// handleDeleteScraperTarget is the HTTP handler for the DELETE /api/v2/scrapers/:id route.
 func (h *ScraperHandler) handleDeleteScraperTarget(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -81,7 +81,7 @@ func (h *ScraperHandler) handleDeleteScraperTarget(w http.ResponseWriter, r *htt
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handlePatchScraperTarget is the HTTP handler for the PATCH /api/v2/scrapertargets/:id route.
+// handlePatchScraperTarget is the HTTP handler for the PATCH /api/v2/scrapers/:id route.
 func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -135,7 +135,7 @@ func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.R
 	}
 }
 
-// handleGetScraperTargets is the HTTP handler for the GET /api/v2/scrapertargets route.
+// handleGetScraperTargets is the HTTP handler for the GET /api/v2/scrapers route.
 func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
