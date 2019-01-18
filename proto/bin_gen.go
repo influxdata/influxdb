@@ -269,3 +269,4 @@ func _filePath(dir, name string) string {
 	canonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(canonicalName, "/")...)...)
 }
+//lint:file-ignore ST1005 Ignore error strings should not be capitalized
