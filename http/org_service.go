@@ -569,6 +569,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 	if err != nil {
 		return nil, 0, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
@@ -614,6 +615,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
 	if err := CheckError(resp, true); err != nil {
@@ -653,6 +655,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -662,7 +665,6 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 	if err := json.NewDecoder(resp.Body).Decode(&o); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	return &o, nil
 }
@@ -685,6 +687,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	return CheckErrorStatus(http.StatusNoContent, resp, true)
 }

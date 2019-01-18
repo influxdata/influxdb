@@ -528,6 +528,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -537,7 +538,6 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 	return br.toPlatform()
 }
 
@@ -603,6 +603,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 	if err != nil {
 		return nil, 0, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
@@ -612,7 +613,6 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
 
 	buckets := make([]*platform.Bucket, 0, len(bs.Buckets))
 	for _, b := range bs.Buckets {
@@ -653,6 +653,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
 	if err := CheckError(resp, true); err != nil {
@@ -700,6 +701,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -709,7 +711,6 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 	return br.toPlatform()
 }
 
@@ -731,6 +732,8 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	return CheckError(resp, true)
 }
 

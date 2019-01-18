@@ -355,6 +355,7 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	if err != nil {
 		return nil, err
 	}
+	// Can't defer resp.Body.Close here because the CSV decoder depends on reading from resp.Body after this function returns.
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err

@@ -495,6 +495,7 @@ func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*plat
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -531,6 +532,7 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter platform.L
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return nil, err
@@ -570,6 +572,7 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
 	if err := CheckError(resp, true); err != nil {
@@ -613,6 +616,7 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.Label
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return err
@@ -651,6 +655,7 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id platform.ID, upd plat
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -681,6 +686,8 @@ func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	return CheckError(resp, true)
 }
 
@@ -701,6 +708,8 @@ func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *platform.Label
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	return CheckError(resp)
 }
 

@@ -272,6 +272,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	return CheckError(resp, true)
 }

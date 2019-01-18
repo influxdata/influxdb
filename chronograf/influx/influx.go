@@ -333,12 +333,12 @@ func (c *Client) write(ctx context.Context, u *url.URL, db, rp, lp string) error
 			errChan <- err
 			return
 		}
+		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusNoContent {
 			errChan <- nil
 			return
 		}
-		defer resp.Body.Close()
 
 		var response Response
 		dec := json.NewDecoder(resp.Body)

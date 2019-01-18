@@ -271,6 +271,7 @@ func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Contex
 	if err != nil {
 		return nil, 0, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return nil, 0, err
@@ -309,6 +310,7 @@ func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Conte
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
 	if err := CheckError(resp); err != nil {
@@ -339,6 +341,8 @@ func (s *UserResourceMappingService) DeleteUserResourceMapping(ctx context.Conte
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	return CheckError(resp)
 }
 
