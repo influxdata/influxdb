@@ -80,7 +80,7 @@ export const executeQuery = (
     let bodyError = null
 
     try {
-      bodyError = JSON.parse(xhr.responseText).error
+      bodyError = JSON.parse(xhr.responseText).message
     } catch {
       if (xhr.responseText && xhr.responseText.trim() !== '') {
         bodyError = xhr.responseText
