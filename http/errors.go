@@ -164,6 +164,14 @@ func ForbiddenError(ctx context.Context, err error, w http.ResponseWriter) {
 	}, w)
 }
 
+// UnauthorizedError encodes a error message and status code for unauthorized access.
+func UnauthorizedError(ctx context.Context, w http.ResponseWriter) {
+	EncodeError(ctx, &platform.Error{
+		Code: platform.EUnauthorized,
+		Msg:  "unauthorized access",
+	}, w)
+}
+
 // statusCode returns the http status code for an error.
 func statusCode(e kerrors.Error) int {
 	if e.Code > 0 {
@@ -194,6 +202,6 @@ var statusCodePlatformError = map[string]int{
 	platform.ENotFound:         http.StatusNotFound,
 	platform.EUnavailable:      http.StatusServiceUnavailable,
 	platform.EForbidden:        http.StatusForbidden,
-	platform.EUnauthorized:     http.StatusForbidden,
+	platform.EUnauthorized:     http.StatusUnauthorized,
 	platform.EMethodNotAllowed: http.StatusMethodNotAllowed,
 }

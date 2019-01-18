@@ -72,7 +72,7 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	scheme, err := ProbeAuthScheme(r)
 	if err != nil {
-		ForbiddenError(ctx, err, w)
+		UnauthorizedError(ctx, w)
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ForbiddenError(ctx, fmt.Errorf("unauthorized"), w)
+	UnauthorizedError(ctx, w)
 }
 
 func (h *AuthenticationHandler) extractAuthorization(ctx context.Context, r *http.Request) (context.Context, error) {
