@@ -29,7 +29,7 @@ var sessionCmpOptions = cmp.Options{
 		})
 		return out
 	}),
-	cmpopts.IgnoreFields(platform.Session{}, "CreatedAt", "ExpiresAt"),
+	cmpopts.IgnoreFields(platform.Session{}, "CreatedAt", "ExpiresAt", "Permissions"),
 	cmpopts.EquateEmpty(),
 }
 

@@ -312,6 +312,16 @@ func OwnerPermissions(orgID ID) []Permission {
 	return ps
 }
 
+// MePermissions is the permission to read/write myself.
+func MePermissions(userID ID) []Permission {
+	ps := []Permission{}
+	for _, a := range actions {
+		ps = append(ps, Permission{Action: a, Resource: Resource{Type: UsersResourceType, ID: &userID}})
+	}
+
+	return ps
+}
+
 // MemberPermissions are the default permissions for those who can see a resource.
 func MemberPermissions(orgID ID) []Permission {
 	ps := []Permission{}

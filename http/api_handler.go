@@ -87,7 +87,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.OrgHandler.SecretService = b.SecretService
 
 	h.UserHandler = NewUserHandler()
-	h.UserHandler.UserService = b.UserService
+	h.UserHandler.UserService = authorizer.NewUserService(b.UserService)
 	h.UserHandler.BasicAuthService = b.BasicAuthService
 	h.UserHandler.UserOperationLogService = b.UserOperationLogService
 
