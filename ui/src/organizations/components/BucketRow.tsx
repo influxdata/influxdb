@@ -8,7 +8,6 @@ import {
   ConfirmationButton,
   Alignment,
   Button,
-  ComponentSpacer,
   ComponentColor,
 } from 'src/clockface'
 
