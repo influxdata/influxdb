@@ -37,18 +37,17 @@ function findKeys(
   const searchFilter = formatSearchFilterCall(searchTerm)
   const previousKeyFilter = formatTagKeyFilterCall(tagsSelections)
 
-  const query = `
-  import "influxdata/influxdb/v1"
+  const query = `import "influxdata/influxdb/v1"
 
-  v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, start: -${SEARCH_DURATION})${searchFilter}${previousKeyFilter}
+v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, start: -${SEARCH_DURATION})${searchFilter}${previousKeyFilter}
   |> filter(fn: (r) =>
     r._value != "_time" and
     r._value != "_start" and
     r._value !=  "_stop" and
     r._value != "_value")
   |> distinct()
-  |> limit(n: ${LIMIT})
-  `
+  |> sort()
+  |> limit(n: ${LIMIT})`
 
   const {promise, cancel} = executeQuery(url, query, InfluxLanguage.Flux)
 
@@ -68,12 +67,11 @@ function findValues(
   const tagFilters = formatTagFilterPredicate(tagsSelections)
   const searchFilter = formatSearchFilterCall(searchTerm)
 
-  const query = `
-  import "influxdata/influxdb/v1"
+  const query = `import "influxdata/influxdb/v1"
 
-  v1.tagValues(bucket: "${bucket}", tag: "${key}", predicate: ${tagFilters}, start: -${SEARCH_DURATION})${searchFilter}
+v1.tagValues(bucket: "${bucket}", tag: "${key}", predicate: ${tagFilters}, start: -${SEARCH_DURATION})${searchFilter}
   |> limit(n: ${LIMIT})
-  `
+  |> sort()`
 
   const {promise, cancel} = executeQuery(url, query, InfluxLanguage.Flux)
 
@@ -104,6 +102,26 @@ function extractCol(resp: ExecuteFluxQueryResult, colName: string): string[] {
   }
 
   return colValues
+}
+
+function formatTagFilterPredicate(tagsSelections: BuilderConfig['tags']) {
+  const validSelections = tagsSelections.filter(
+    ({key, values}) => key && values.length
+  )
+
+  if (!validSelections.length) {
+    return '(r) => true'
+  }
+
+  const calls = validSelections
+    .map(({key, values}) => {
+      const body = values.map(value => `r.${key} == "${value}"`).join(' or ')
+
+      return `(${body})`
+    })
+    .join(' and ')
+
+  return `(r) => ${calls}`
 }
 
 function formatTagKeyFilterCall(tagsSelections: BuilderConfig['tags']) {
@@ -231,21 +249,4 @@ export class QueryBuilderFetcher {
       this.findValuesQueries[index].cancel()
     }
   }
-}
-
-function formatTagFilterPredicate(tagsSelections: BuilderConfig['tags']) {
-  if (!tagsSelections.length) {
-    return '(r) => true'
-  }
-
-  const calls = tagsSelections
-    .filter(({key, values}) => key && values.length)
-    .map(({key, values}) => {
-      const body = values.map(value => `r.${key} == "${value}"`).join(' or ')
-
-      return `(${body})`
-    })
-    .join(' and ')
-
-  return `(r) => ${calls}`
 }
