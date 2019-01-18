@@ -33,7 +33,6 @@ import {
   netTelegrafPlugin,
   memTelegrafPlugin,
   processesTelegrafPlugin,
-  procstatTelegrafPlugin,
   systemTelegrafPlugin,
   redisTelegrafPlugin,
   token,
@@ -385,7 +384,6 @@ describe('dataLoader reducer', () => {
           netTelegrafPlugin,
           memTelegrafPlugin,
           processesTelegrafPlugin,
-          procstatTelegrafPlugin,
           systemTelegrafPlugin,
           dockerTelegrafPlugin,
         ],
@@ -490,7 +488,6 @@ describe('dataLoader reducer', () => {
         memTelegrafPlugin,
         netTelegrafPlugin,
         processesTelegrafPlugin,
-        procstatTelegrafPlugin,
       ])
     )
   })
