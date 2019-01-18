@@ -8,8 +8,15 @@ import CompletionAdvancedButton from 'src/onboarding/components/CompletionAdvanc
 import CompletionQuickStartButton from 'src/onboarding/components/CompletionQuickStartButton'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
+// Constants
+import {
+  QuickstartScraperCreationSuccess,
+  QuickstartScraperCreationError,
+} from 'src/shared/copy/notifications'
+
 // APIs
 import {getOrganizations, getDashboards} from 'src/organizations/apis'
+import {createScraperTarget} from 'src/onboarding/apis'
 
 // Types
 import {
@@ -21,9 +28,15 @@ import {
 } from 'src/clockface'
 import {Organization, Dashboard} from 'src/api'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/logs/constants'
+
+interface Props extends OnboardingStepProps {
+  orgID: string
+  bucketID: string
+}
 
 @ErrorHandling
-class CompletionStep extends PureComponent<OnboardingStepProps> {
+class CompletionStep extends PureComponent<Props> {
   public componentDidMount() {
     window.addEventListener('keydown', this.handleKeydown)
   }
@@ -59,7 +72,7 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
                         <ResourceFetcher<Dashboard[]> fetcher={getDashboards}>
                           {dashboards => (
                             <CompletionQuickStartButton
-                              onExit={onExit}
+                              onExit={this.handleQuickStart}
                               dashboards={dashboards}
                             />
                           )}
@@ -120,6 +133,21 @@ class CompletionStep extends PureComponent<OnboardingStepProps> {
         </div>
       </div>
     )
+  }
+
+  private handleQuickStart = async () => {
+    try {
+      await createScraperTarget(
+        QUICKSTART_SCRAPER_TARGET_URL,
+        this.props.orgID,
+        this.props.bucketID
+      )
+      this.props.notify(QuickstartScraperCreationSuccess)
+    } catch (err) {
+      this.props.notify(QuickstartScraperCreationError)
+    }
+
+    this.props.onExit()
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {

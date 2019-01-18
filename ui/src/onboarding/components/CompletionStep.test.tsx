@@ -11,6 +11,8 @@ import {defaultOnboardingStepProps} from 'mocks/dummyData'
 const setup = (override = {}) => {
   const props = {
     ...defaultOnboardingStepProps,
+    orgID: '',
+    bucketID: '',
     ...override,
   }
 

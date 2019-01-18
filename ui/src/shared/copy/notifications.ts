@@ -8,6 +8,7 @@ type NotificationExcludingMessage = Pick<
 >
 
 import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/logs/constants'
 
 const defaultErrorNotification: NotificationExcludingMessage = {
   type: 'error',
@@ -115,6 +116,16 @@ export const SigninSuccessful: Notification = {
 export const SigninError: Notification = {
   ...defaultErrorNotification,
   message: `Could not sign in`,
+}
+
+export const QuickstartScraperCreationSuccess: Notification = {
+  ...defaultSuccessNotification,
+  message: `The InfluxDB Scraper has been configured for ${QUICKSTART_SCRAPER_TARGET_URL}`,
+}
+
+export const QuickstartScraperCreationError: Notification = {
+  ...defaultErrorNotification,
+  message: `Failed to configure InfluxDB Scraper`,
 }
 
 export const TelegrafConfigCreationSuccess: Notification = {
