@@ -35,7 +35,26 @@ func NewProtoService(dir string, logger *zap.Logger, s platform.DashboardService
 
 // WithProtos is used for testing the ProtoService. It will overwrite the protos on the service.
 func (s *ProtoService) WithProtos(ps []*platform.Proto) {
-	s.protos = ps
+	if s.protos == nil {
+		s.protos = []*platform.Proto{}
+	}
+
+	for _, p := range ps {
+		ok := true
+		for _, sp := range s.protos {
+			if p.Name == sp.Name {
+				ok = false
+			}
+
+			if p.ID == sp.ID {
+				ok = false
+			}
+		}
+		if ok {
+			s.protos = append(s.protos, p)
+		}
+	}
+
 }
 
 // Open loads the protos from the file system and sets them on the service.

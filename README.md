@@ -161,4 +161,5 @@ If you re-generate a file and find that `staticcheck` has failed, please see thi
 | File  | Comment  |
 |:-:|:-:|
 | query/promql/promql.go  | //lint:file-ignore SA6001 Ignore all unused code, it's generated  |
+| proto/bin_gen.go  | //lint:file-ignore ST1005 Ignore error strings should not be capitalized |
 

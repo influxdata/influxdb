@@ -13,8 +13,7 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all subdirs have the `all` and `clean` targets.
-SUBDIRS := http ui chronograf query storage task
-
+SUBDIRS := proto http ui chronograf query storage task
 GO_ARGS=-tags '$(GO_TAGS)'
 
 # Test vars can be used by all recursive Makefiles
