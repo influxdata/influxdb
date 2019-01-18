@@ -58,12 +58,15 @@ const setBuilderBuckets = (buckets: string[]): SetBuilderBucketsAction => ({
 
 interface SetBuilderBucketSelectionAction {
   type: 'SET_BUILDER_BUCKET_SELECTION'
-  payload: {bucket: string}
+  payload: {bucket: string; resetSelections: boolean}
 }
 
-const setBuilderBucket = (bucket: string): SetBuilderBucketSelectionAction => ({
+const setBuilderBucket = (
+  bucket: string,
+  resetSelections: boolean
+): SetBuilderBucketSelectionAction => ({
   type: 'SET_BUILDER_BUCKET_SELECTION',
-  payload: {bucket},
+  payload: {bucket, resetSelections},
 })
 
 interface SetBuilderTagKeysAction {
@@ -214,7 +217,7 @@ export const loadBuckets = () => async (
     if (selectedBucket && buckets.includes(selectedBucket)) {
       dispatch(selectBucket(selectedBucket))
     } else {
-      dispatch(selectBucket(buckets[0]))
+      dispatch(selectBucket(buckets[0], true))
     }
   } catch (e) {
     if (e instanceof CancellationError) {
@@ -226,10 +229,11 @@ export const loadBuckets = () => async (
   }
 }
 
-export const selectBucket = (bucket: string) => async (
-  dispatch: Dispatch<Action>
-) => {
-  dispatch(setBuilderBucket(bucket))
+export const selectBucket = (
+  bucket: string,
+  resetSelections: boolean = false
+) => async (dispatch: Dispatch<Action>) => {
+  dispatch(setBuilderBucket(bucket, resetSelections))
   dispatch(loadTagSelector(0))
 }
 
