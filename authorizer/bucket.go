@@ -123,7 +123,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 
 // UpdateBucket checks to see if the authorizer on context has write access to the bucket provided.
 func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	b, err := s.FindBucketByID(ctx, id)
+	b, err := s.s.FindBucketByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 
 // DeleteBucket checks to see if the authorizer on context has write access to the bucket provided.
 func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error {
-	b, err := s.FindBucketByID(ctx, id)
+	b, err := s.s.FindBucketByID(ctx, id)
 	if err != nil {
 		return err
 	}
