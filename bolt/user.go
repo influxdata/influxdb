@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	userUser           = []byte("usersv1")
+	userBucket         = []byte("usersv1")
 	userIndex          = []byte("userindexv1")
 	userpasswordBucket = []byte("userspasswordv1")
 )
@@ -22,7 +22,7 @@ var _ platform.UserOperationLogService = (*Client)(nil)
 var _ platform.BasicAuthService = (*Client)(nil)
 
 func (c *Client) initializeUsers(ctx context.Context, tx *bolt.Tx) error {
-	if _, err := tx.CreateBucketIfNotExists([]byte(userUser)); err != nil {
+	if _, err := tx.CreateBucketIfNotExists([]byte(userBucket)); err != nil {
 		return err
 	}
 	if _, err := tx.CreateBucketIfNotExists([]byte(userIndex)); err != nil {
@@ -66,7 +66,7 @@ func (c *Client) findUserByID(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 	}
 
 	var u platform.User
-	v := tx.Bucket(userUser).Get(encodedID)
+	v := tx.Bucket(userBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		return nil, &platform.Error{
@@ -287,7 +287,7 @@ func (c *Client) putUser(ctx context.Context, tx *bolt.Tx, u *platform.User) err
 	if err := tx.Bucket(userIndex).Put(userIndexKey(u.Name), encodedID); err != nil {
 		return err
 	}
-	return tx.Bucket(userUser).Put(encodedID, v)
+	return tx.Bucket(userBucket).Put(encodedID, v)
 }
 
 func userIndexKey(n string) []byte {
@@ -296,7 +296,7 @@ func userIndexKey(n string) []byte {
 
 // forEachUser will iterate through all users while fn returns true.
 func forEachUser(ctx context.Context, tx *bolt.Tx, fn func(*platform.User) bool) error {
-	cur := tx.Bucket(userUser).Cursor()
+	cur := tx.Bucket(userBucket).Cursor()
 	for k, v := cur.First(); k != nil; k, v = cur.Next() {
 		u := &platform.User{}
 		if err := json.Unmarshal(v, u); err != nil {
@@ -401,7 +401,7 @@ func (c *Client) deleteUser(ctx context.Context, tx *bolt.Tx, id platform.ID) *p
 			Err: err,
 		}
 	}
-	if err := tx.Bucket(userUser).Delete(encodedID); err != nil {
+	if err := tx.Bucket(userBucket).Delete(encodedID); err != nil {
 		return &platform.Error{
 			Err: err,
 		}

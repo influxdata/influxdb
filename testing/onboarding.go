@@ -170,7 +170,7 @@ func Generate(
 						UserID:      MustIDBase16(oneID),
 						Description: "admin's Token",
 						OrgID:       MustIDBase16(twoID),
-						Permissions: platform.OperPermissions(MustIDBase16(twoID)),
+						Permissions: platform.OperPermissions(),
 					},
 				},
 			},
