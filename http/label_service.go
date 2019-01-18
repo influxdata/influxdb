@@ -73,7 +73,10 @@ type postLabelRequest struct {
 
 func (b postLabelRequest) Validate() error {
 	if b.Label.Name == "" {
-		return fmt.Errorf("label requires a name")
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "label requires a name",
+		}
 	}
 	return nil
 }
@@ -81,7 +84,11 @@ func (b postLabelRequest) Validate() error {
 func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelRequest, error) {
 	l := &platform.Label{}
 	if err := json.NewDecoder(r.Body).Decode(l); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "unable to decode label request",
+			Err:  err,
+		}
 	}
 
 	req := &postLabelRequest{
@@ -138,7 +145,10 @@ func decodeGetLabelRequest(ctx context.Context, r *http.Request) (*getLabelReque
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "label id is not valid",
+		}
 	}
 
 	var i platform.ID
