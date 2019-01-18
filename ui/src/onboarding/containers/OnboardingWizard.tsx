@@ -65,6 +65,8 @@ interface StateProps {
   links: Links
   stepStatuses: StepStatus[]
   setupParams: SetupParams
+  orgID: string
+  bucketID: string
 }
 
 type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
@@ -80,7 +82,13 @@ class OnboardingWizard extends PureComponent<Props> {
   }
 
   public render() {
-    const {currentStepIndex, setupParams, onSetupAdmin} = this.props
+    const {
+      currentStepIndex,
+      orgID,
+      bucketID,
+      setupParams,
+      onSetupAdmin,
+    } = this.props
 
     return (
       <WizardFullScreen>
@@ -92,6 +100,8 @@ class OnboardingWizard extends PureComponent<Props> {
               onboardingStepProps={this.onboardingStepProps}
               setupParams={setupParams}
               onSetupAdmin={onSetupAdmin}
+              orgID={orgID}
+              bucketID={bucketID}
             />
           </div>
         </div>
@@ -162,11 +172,13 @@ class OnboardingWizard extends PureComponent<Props> {
 
 const mstp = ({
   links,
-  onboarding: {stepStatuses, setupParams},
+  onboarding: {stepStatuses, setupParams, orgID, bucketID},
 }: AppState): StateProps => ({
   links,
   stepStatuses,
   setupParams,
+  orgID,
+  bucketID,
 })
 
 const mdtp: DispatchProps = {

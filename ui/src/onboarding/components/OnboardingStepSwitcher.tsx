@@ -18,12 +18,20 @@ interface Props {
   setupParams: SetupParams
   currentStepIndex: number
   onSetupAdmin: typeof setupAdmin
+  orgID: string
+  bucketID: string
 }
 
 @ErrorHandling
 class OnboardingStepSwitcher extends PureComponent<Props> {
   public render() {
-    const {currentStepIndex, onboardingStepProps, onSetupAdmin} = this.props
+    const {
+      currentStepIndex,
+      orgID,
+      bucketID,
+      onboardingStepProps,
+      onSetupAdmin,
+    } = this.props
 
     switch (currentStepIndex) {
       case 0:
@@ -33,7 +41,13 @@ class OnboardingStepSwitcher extends PureComponent<Props> {
           <AdminStep {...onboardingStepProps} onSetupAdmin={onSetupAdmin} />
         )
       case 2:
-        return <CompletionStep {...onboardingStepProps} />
+        return (
+          <CompletionStep
+            {...onboardingStepProps}
+            orgID={orgID}
+            bucketID={bucketID}
+          />
+        )
       default:
         return <div />
     }
