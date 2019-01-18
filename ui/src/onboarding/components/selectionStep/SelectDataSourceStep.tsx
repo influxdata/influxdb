@@ -19,9 +19,6 @@ import {
 } from 'src/onboarding/actions/dataLoaders'
 import {setBucketInfo} from 'src/onboarding/actions/steps'
 
-// Constants
-import {StepStatus} from 'src/clockface/constants/wizard'
-
 // Types
 import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
 import {
@@ -40,7 +37,6 @@ export interface Props extends DataLoaderStepProps {
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onSetDataLoadersType: (type: DataLoaderType) => void
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  onSetStepStatus: (index: number, status: StepStatus) => void
   onSetBucketInfo: typeof setBucketInfo
   buckets: Bucket[]
   selectedBucket: string
@@ -71,11 +67,8 @@ export class SelectDataSourceStep extends PureComponent<Props> {
           </div>
           <OnboardingButtons
             onClickBack={this.handleClickBack}
-            onClickSkip={this.jumpToCompletionStep}
-            skipButtonText={'Skip to Complete'}
             autoFocusNext={true}
             nextButtonStatus={this.nextButtonStatus}
-            showSkip={this.showSkip}
           />
         </Form>
       </div>
@@ -135,22 +128,6 @@ export class SelectDataSourceStep extends PureComponent<Props> {
     this.props.onSetBucketInfo(organization, organizationID, name, id)
   }
 
-  private get showSkip(): boolean {
-    const {telegrafPlugins} = this.props
-    if (telegrafPlugins.length < 1) {
-      return false
-    }
-
-    return telegrafPlugins.every(plugin => plugin.configured === 'configured')
-  }
-
-  private jumpToCompletionStep = () => {
-    const {onSetCurrentStepIndex, stepStatuses} = this.props
-
-    this.handleSetStepStatus()
-    onSetCurrentStepIndex(stepStatuses.length - 2)
-  }
-
   private handleClickNext = () => {
     const {
       currentStepIndex,
@@ -165,8 +142,6 @@ export class SelectDataSourceStep extends PureComponent<Props> {
       return
     }
 
-    this.handleSetStepStatus()
-
     if (this.isStreaming) {
       const name = _.get(telegrafPlugins, '0.name', '')
       onSetActiveTelegrafPlugin(name)
@@ -178,10 +153,10 @@ export class SelectDataSourceStep extends PureComponent<Props> {
   }
 
   private handleClickBack = () => {
-    const {currentStepIndex, onSetCurrentStepIndex} = this.props
+    const {currentStepIndex, onSetSubstepIndex} = this.props
 
     if (this.isStreaming) {
-      onSetCurrentStepIndex(+currentStepIndex)
+      onSetSubstepIndex(+currentStepIndex, 0)
       return
     }
 
@@ -206,19 +181,6 @@ export class SelectDataSourceStep extends PureComponent<Props> {
     }
 
     this.props.onAddPluginBundle(bundle)
-  }
-
-  private handleSetStepStatus = () => {
-    const {onSetStepStatus, currentStepIndex} = this.props
-
-    if (
-      this.props.type === DataLoaderType.Streaming &&
-      !this.props.telegrafPlugins.length
-    ) {
-      onSetStepStatus(currentStepIndex, StepStatus.Incomplete)
-    } else if (this.props.type) {
-      onSetStepStatus(currentStepIndex, StepStatus.Complete)
-    }
   }
 
   private get isStreaming(): boolean {

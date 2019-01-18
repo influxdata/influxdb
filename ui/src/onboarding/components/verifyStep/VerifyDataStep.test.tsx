@@ -5,7 +5,6 @@ import {shallow} from 'enzyme'
 // Components
 import {VerifyDataStep} from 'src/onboarding/components/verifyStep/VerifyDataStep'
 import VerifyDataSwitcher from 'src/onboarding/components/verifyStep/VerifyDataSwitcher'
-import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
@@ -43,11 +42,9 @@ const setup = (override = {}) => {
 describe('Onboarding.Components.VerifyStep.VerifyDataStep', () => {
   it('renders', () => {
     const {wrapper} = setup()
-    const onboardingButtons = wrapper.find(OnboardingButtons)
     const switcher = wrapper.find(VerifyDataSwitcher)
 
     expect(wrapper.exists()).toBe(true)
-    expect(onboardingButtons.prop('showSkip')).toBe(true)
     expect(switcher.exists()).toBe(true)
   })
 })

@@ -10,9 +10,6 @@ import DataListening from 'src/onboarding/components/verifyStep/DataListening'
 // Actions
 import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
 
-// Constants
-import {StepStatus} from 'src/clockface/constants/wizard'
-
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -24,9 +21,7 @@ interface Props {
   bucket: string
   org: string
   configID: string
-  stepIndex: number
   authToken: string
-  onSetStepStatus: (index: number, status: StepStatus) => void
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
 }
 
@@ -38,9 +33,7 @@ class DataStreaming extends PureComponent<Props> {
       org,
       configID,
       onSaveTelegrafConfig,
-      onSetStepStatus,
       bucket,
-      stepIndex,
       notify,
     } = this.props
 
@@ -61,11 +54,7 @@ class DataStreaming extends PureComponent<Props> {
           )}
         </CreateOrUpdateConfig>
 
-        <DataListening
-          bucket={bucket}
-          stepIndex={stepIndex}
-          onSetStepStatus={onSetStepStatus}
-        />
+        <DataListening bucket={bucket} />
       </>
     )
   }

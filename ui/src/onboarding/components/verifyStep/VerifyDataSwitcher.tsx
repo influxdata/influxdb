@@ -9,9 +9,6 @@ import FetchAuthToken from 'src/onboarding/components/verifyStep/FetchAuthToken'
 // Actions
 import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
 
-// Constants
-import {StepStatus} from 'src/clockface/constants/wizard'
-
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import {NotificationAction, RemoteDataState} from 'src/types'
@@ -23,10 +20,8 @@ interface Props {
   org: string
   bucket: string
   username: string
-  stepIndex: number
   telegrafConfigID: string
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
-  onSetStepStatus: (index: number, status: StepStatus) => void
   onDecrementCurrentStep: () => void
   lpStatus: RemoteDataState
 }
@@ -39,8 +34,6 @@ export class VerifyDataSwitcher extends PureComponent<Props> {
       bucket,
       username,
       type,
-      stepIndex,
-      onSetStepStatus,
       telegrafConfigID,
       onSaveTelegrafConfig,
       notify,
@@ -58,9 +51,7 @@ export class VerifyDataSwitcher extends PureComponent<Props> {
                 configID={telegrafConfigID}
                 authToken={authToken}
                 bucket={bucket}
-                onSetStepStatus={onSetStepStatus}
                 onSaveTelegrafConfig={onSaveTelegrafConfig}
-                stepIndex={stepIndex}
               />
             )}
           </FetchAuthToken>

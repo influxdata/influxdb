@@ -1,12 +1,8 @@
-// Constants
-import {StepStatus} from 'src/clockface/constants/wizard'
-
 // Types
 import {Substep} from 'src/types/v2/dataLoaders'
 
 export type Action =
   | SetBucketInfo
-  | SetStepStatus
   | SetBucketID
   | IncrementCurrentStepIndex
   | DecrementCurrentStepIndex
@@ -77,22 +73,6 @@ export const setBucketInfo = (
 ): SetBucketInfo => ({
   type: 'SET_BUCKET_INFO',
   payload: {org, orgID, bucket, bucketID},
-})
-
-interface SetStepStatus {
-  type: 'SET_STEP_STATUS'
-  payload: {index: number; status: StepStatus}
-}
-
-export const setStepStatus = (
-  index: number,
-  status: StepStatus
-): SetStepStatus => ({
-  type: 'SET_STEP_STATUS',
-  payload: {
-    index,
-    status,
-  },
 })
 
 interface SetBucketID {

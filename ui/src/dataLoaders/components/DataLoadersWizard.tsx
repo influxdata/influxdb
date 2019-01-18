@@ -5,7 +5,6 @@ import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {WizardProgressHeader, ProgressBar} from 'src/clockface'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import StepSwitcher from 'src/dataLoaders/components/StepSwitcher'
 
@@ -13,7 +12,6 @@ import StepSwitcher from 'src/dataLoaders/components/StepSwitcher'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {
   setBucketInfo,
-  setStepStatus,
   incrementCurrentStepIndex,
   decrementCurrentStepIndex,
   setCurrentStepIndex,
@@ -35,9 +33,6 @@ import {
   clearDataLoaders,
 } from 'src/onboarding/actions/dataLoaders'
 
-// Constants
-import {StepStatus} from 'src/clockface/constants/wizard'
-
 // Types
 import {Links} from 'src/types/v2/links'
 import {
@@ -58,10 +53,7 @@ export interface DataLoaderStepProps {
   onSetCurrentStepIndex: (stepNumber: number) => void
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
-  onSetStepStatus: (index: number, status: StepStatus) => void
   onSetSubstepIndex: (index: number, subStep: number | 'streaming') => void
-  stepStatuses: StepStatus[]
-  stepTitles: string[]
   notify: (message: Notification | NotificationFunc) => void
   onCompleteSetup: () => void
   onExit: () => void
@@ -80,7 +72,6 @@ interface OwnProps {
 interface DispatchProps {
   notify: (message: Notification | NotificationFunc) => void
   onSetBucketInfo: typeof setBucketInfo
-  onSetStepStatus: typeof setStepStatus
   onSetDataLoadersType: typeof setDataLoadersType
   onAddPluginBundle: typeof addPluginBundleWithPlugins
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
@@ -101,7 +92,6 @@ interface DispatchProps {
 
 interface StateProps {
   links: Links
-  stepStatuses: StepStatus[]
   dataLoaders: DataLoadersState
   currentStepIndex: number
   substep: Substep
@@ -113,14 +103,6 @@ type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
 class DataLoadersWizard extends PureComponent<Props> {
-  public stepTitles = [
-    'Select Data Sources',
-    'Configure Data Sources',
-    'Verify',
-  ]
-
-  public stepSkippable = [true, true, true]
-
   public componentDidMount() {
     this.handleSetBucketInfo()
     this.handleSetStartingValues()
@@ -171,7 +153,6 @@ class DataLoadersWizard extends PureComponent<Props> {
         title={'Data Loading'}
         onDismis={this.handleDismiss}
       >
-        {this.progressHeader}
         <div className="wizard-contents">
           <PluginsSideBar
             notify={notify}
@@ -250,22 +231,6 @@ class DataLoadersWizard extends PureComponent<Props> {
     this.handleSetStartingValues()
   }
 
-  private get progressHeader(): JSX.Element {
-    const {stepStatuses, currentStepIndex, onSetCurrentStepIndex} = this.props
-
-    return (
-      <WizardProgressHeader>
-        <ProgressBar
-          currentStepIndex={currentStepIndex}
-          handleSetCurrentStep={onSetCurrentStepIndex}
-          stepStatuses={stepStatuses}
-          stepTitles={this.stepTitles}
-          stepSkippable={this.stepSkippable}
-        />
-      </WizardProgressHeader>
-    )
-  }
-
   private get sideBarVisible() {
     const {dataLoaders} = this.props
     const {telegrafPlugins, type} = dataLoaders
@@ -303,13 +268,11 @@ class DataLoadersWizard extends PureComponent<Props> {
 
   private get stepProps(): DataLoaderStepProps {
     const {
-      stepStatuses,
       links,
       notify,
       substep,
       onCompleteSetup,
       currentStepIndex,
-      onSetStepStatus,
       onSetCurrentStepIndex,
       onSetSubstepIndex,
       onDecrementCurrentStepIndex,
@@ -317,15 +280,12 @@ class DataLoadersWizard extends PureComponent<Props> {
     } = this.props
 
     return {
-      stepStatuses,
       substep,
-      stepTitles: this.stepTitles,
       currentStepIndex,
       onSetCurrentStepIndex,
       onSetSubstepIndex,
       onIncrementCurrentStepIndex,
       onDecrementCurrentStepIndex,
-      onSetStepStatus,
       links,
       notify,
       onCompleteSetup,
@@ -338,12 +298,11 @@ const mstp = ({
   links,
   dataLoading: {
     dataLoaders,
-    steps: {stepStatuses, currentStep, substep, bucket},
+    steps: {currentStep, substep, bucket},
   },
   me: {name},
 }: AppState): StateProps => ({
   links,
-  stepStatuses,
   dataLoaders,
   currentStepIndex: currentStep,
   substep,
@@ -354,7 +313,6 @@ const mstp = ({
 const mdtp: DispatchProps = {
   notify: notifyAction,
   onSetBucketInfo: setBucketInfo,
-  onSetStepStatus: setStepStatus,
   onSetDataLoadersType: setDataLoadersType,
   onUpdateTelegrafPluginConfig: updateTelegrafPluginConfig,
   onAddConfigValue: addConfigValue,

@@ -16,15 +16,12 @@ import {
   setConfigArrayValue,
 } from 'src/onboarding/actions/dataLoaders'
 
-// Constants
-import {StepStatus} from 'src/clockface/constants/wizard'
-
 // Types
 import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
 import {
   TelegrafPlugin,
   DataLoaderType,
-  ConfigurationState,
+  DataLoaderStep,
 } from 'src/types/v2/dataLoaders'
 import {Bucket} from 'src/api'
 
@@ -89,15 +86,9 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
   }
 
   private jumpToCompletionStep = () => {
-    const {onSetCurrentStepIndex, stepStatuses, type} = this.props
+    const {onSetCurrentStepIndex} = this.props
 
-    this.handleSetStepStatus()
-
-    if (type === DataLoaderType.Streaming) {
-      onSetCurrentStepIndex(stepStatuses.length - 2)
-    } else {
-      onSetCurrentStepIndex(stepStatuses.length - 1)
-    }
+    onSetCurrentStepIndex(DataLoaderStep.Verify)
   }
 
   private handleNext = async () => {
@@ -110,13 +101,13 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       currentStepIndex,
       onSetSubstepIndex,
       type,
+      onExit,
     } = this.props
 
     const index = +substep
     const telegrafPlugin = _.get(telegrafPlugins, `${index}.name`)
 
     onSetPluginConfiguration(telegrafPlugin)
-    this.handleSetStepStatus()
 
     if (type === DataLoaderType.Streaming) {
       if (index >= telegrafPlugins.length - 1) {
@@ -128,6 +119,11 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
         onSetSubstepIndex(+currentStepIndex, index + 1)
       }
       return
+    } else if (
+      type === DataLoaderType.Scraping &&
+      currentStepIndex === DataLoaderStep.Configure
+    ) {
+      onExit()
     }
 
     onIncrementCurrentStepIndex()
@@ -150,7 +146,6 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
 
     if (type === DataLoaderType.Streaming) {
       onSetPluginConfiguration(telegrafPlugin)
-      this.handleSetStepStatus()
 
       if (index > 0) {
         const name = _.get(telegrafPlugins, `${index - 1}.name`)
@@ -165,29 +160,6 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
     }
 
     onDecrementCurrentStepIndex()
-  }
-
-  private handleSetStepStatus = () => {
-    const {
-      type,
-      telegrafPlugins,
-      onSetStepStatus,
-      currentStepIndex,
-    } = this.props
-
-    if (type === DataLoaderType.Streaming) {
-      const unconfigured = telegrafPlugins.find(tp => {
-        return tp.configured === ConfigurationState.Unconfigured
-      })
-
-      if (unconfigured || !telegrafPlugins.length) {
-        onSetStepStatus(currentStepIndex, StepStatus.Incomplete)
-      } else {
-        onSetStepStatus(currentStepIndex, StepStatus.Complete)
-      }
-    } else {
-      onSetStepStatus(currentStepIndex, StepStatus.Complete)
-    }
   }
 }
 
