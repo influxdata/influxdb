@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/rand"
 	"github.com/influxdata/influxdb/snowflake"
@@ -88,6 +88,11 @@ func (c *Client) Open(ctx context.Context) error {
 // initialize creates Buckets that are missing
 func (c *Client) initialize(ctx context.Context) error {
 	if err := c.db.Update(func(tx *bolt.Tx) error {
+		// Always create ID bucket.
+		if err := c.initializeID(tx); err != nil {
+			return err
+		}
+
 		// Always create Buckets bucket.
 		if err := c.initializeBuckets(ctx, tx); err != nil {
 			return err

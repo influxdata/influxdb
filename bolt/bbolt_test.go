@@ -17,6 +17,18 @@ func init() {
 }
 
 func NewTestClient() (*bolt.Client, func(), error) {
+	c, closeFn, err := newTestClient()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := c.Open(context.Background()); err != nil {
+		return nil, nil, err
+	}
+
+	return c, closeFn, nil
+}
+
+func newTestClient() (*bolt.Client, func(), error) {
 	c := bolt.NewClient()
 
 	f, err := ioutil.TempFile("", "influxdata-platform-bolt-")
@@ -26,10 +38,6 @@ func NewTestClient() (*bolt.Client, func(), error) {
 	f.Close()
 
 	c.Path = f.Name()
-
-	if err := c.Open(context.TODO()); err != nil {
-		return nil, nil, err
-	}
 
 	close := func() {
 		c.Close()
