@@ -264,6 +264,108 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/telegrafs/{telegrafID}/labels':
+    get:
+      tags:
+        - Telegrafs
+      summary: list all labels for a telegraf config
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      responses:
+        '200':
+          description: a list of all labels for a telegraf config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Telegrafs
+      summary: add a label to a telegraf config
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '200':
+          description: a list of all labels for a telegraf config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/telegrafs/{telegrafID}/labels/{labelID}':
+    delete:
+      tags:
+        - Telegrafs
+      summary: delete a label from a telegraf config
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: telegrafID
+          schema:
+            type: string
+          required: true
+          description: ID of the telegraf config
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label ID
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: telegraf config not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/members':
     get:
       tags:
@@ -1171,6 +1273,139 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /labels:
+    post:
+      tags:
+        - Labels
+      summary: Create a label
+      requestBody:
+          description: label to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+      responses:
+        '201':
+          description: Added label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Labels
+      summary: Get all labels
+      responses:
+        '200':
+          description: all labels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Labels"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /labels/{labelID}:
+    get:
+      tags:
+        - Labels
+      summary: Get a label
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: ID of label to update
+      responses:
+        '200':
+          description: a label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Labels
+      summary: Update a single label
+      requestBody:
+          description: label update
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelUpdate"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: ID of label to update
+      responses:
+        '200':
+          description: Updated label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Label"
+        '404':
+          description: label not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Labels
+      summary: Delete a label
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: ID of label to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: label not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /dashboards:
     post:
       x-generated: true
@@ -1608,11 +1843,11 @@ paths:
                   links:
                     $ref: "#/components/schemas/Links"
         default:
-            description: unexpected error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     post:
       tags:
         - Dashboards
@@ -1631,7 +1866,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Label"
+              $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
           description: a list of all labels for a dashboard
@@ -1640,8 +1875,8 @@ paths:
               schema:
                 type: object
                 properties:
-                  label:
-                    $ref: "#/components/schemas/Label"
+                  labels:
+                    $ref: "#/components/schemas/Labels"
                   links:
                     $ref: "#/components/schemas/Links"
         default:
@@ -1650,10 +1885,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/dashboards/{dashboardID}/labels/{name}':
+  '/dashboards/{dashboardID}/labels/{labelID}':
     delete:
       tags:
         - Dashboards
+      summary: delete a label from a dashboard
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -1663,23 +1899,20 @@ paths:
           required: true
           description: ID of the dashboard
         - in: path
-          name: name
+          name: labelID
           schema:
             type: string
           required: true
-          description: name of the label
+          description: the label id to delete
       responses:
-        '200':
-          description: the removed label for a dashboard
+        '204':
+          description: delete has been accepted
+        '404':
+          description: dashboard not found
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Label"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -2396,6 +2629,108 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/buckets/{bucketID}/labels':
+    get:
+      tags:
+        - Buckets
+      summary: list all labels for a bucket
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the bucket
+      responses:
+        '200':
+          description: a list of all labels for a bucket
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Buckets
+      summary: add a label to a bucket
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the bucket
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '200':
+          description: a list of all labels for a bucket
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/buckets/{bucketID}/labels/{labelID}':
+    delete:
+      tags:
+        - Buckets
+      summary: delete a label from a bucket
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: bucketID
+          schema:
+            type: string
+          required: true
+          description: ID of the bucket
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: bucket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/members':
     get:
       tags:
@@ -2685,6 +3020,108 @@ paths:
       responses:
         '200':
           description: organization deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/labels':
+    get:
+      tags:
+        - Organizations
+      summary: list all labels for a organization
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      responses:
+        '200':
+          description: a list of all labels for an organization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Organizations
+      summary: add a label to an organization
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '200':
+          description: a list of all labels for an organization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/labels/{labelID}':
+    delete:
+      tags:
+        - Organizations
+      summary: delete a label from an organization
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: orgID
+          schema:
+            type: string
+          required: true
+          description: ID of the organization
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -3232,7 +3669,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Label"
+              $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
           description: a list of all labels for a task
@@ -3253,7 +3690,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/tasks/{taskID}/labels/{label}':
+  '/tasks/{taskID}/labels/{labelID}':
     delete:
       tags:
         - Tasks
@@ -3267,54 +3704,14 @@ paths:
           required: true
           description: ID of the task
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
-          description: the label name
+          description: the label id
       responses:
         '204':
           description: delete has been accepted
-        '404':
-          description: task not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    patch:
-      tags:
-        - Tasks
-      summary: update a label from a task
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: taskID
-          schema:
-            type: string
-          required: true
-          description: ID of the task
-        - in: path
-          name: label
-          schema:
-            type: string
-          required: true
-          description: the label name
-      requestBody:
-        description: label update to apply
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LabelRequest"
-      responses:
-        '200':
-          description: updated successfully
         '404':
           description: task not found
           content:
@@ -3689,6 +4086,108 @@ paths:
                 $ref: "#/components/schemas/User"
         default:
           description: unsuccessful authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/views/{viewID}/labels':
+    get:
+      tags:
+        - Views
+      summary: list all labels for a view
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+      responses:
+        '200':
+          description: a list of all labels for a view
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Views
+      summary: add a label to a view
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '200':
+          description: a list of all labels for a view
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/views/{viewID}/labels/{labelID}':
+    delete:
+      tags:
+        - Views
+      summary: delete a label from a view
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of the view
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
           content:
             application/json:
               schema:
@@ -6070,7 +6569,8 @@ components:
     Label:
       type: object
       properties:
-        resourceID:
+        id:
+          readOnly: true
           type: string
         name:
           type: string
@@ -6078,6 +6578,18 @@ components:
           type: object
           description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
           example: {"color": "#ffb3b3", "description": "this is a description"}
+    LabelUpdate:
+      type: object
+      properties:
+        properties:
+          type: object
+          description: Key/Value pairs associated with this label. Keys can be removed by sending an update with an empty value.
+          example: {"color": "ffb3b3", "description": "this is a description"}
+    LabelMapping:
+      type: object
+      properties:
+        labelID:
+          type: string
     LabelRequest:
       type: object
       properties:
