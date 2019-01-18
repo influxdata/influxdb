@@ -110,7 +110,15 @@ class SigninForm extends PureComponent<Props, State> {
       await signin({username, password})
       this.handleRedirect()
     } catch (error) {
-      const message = get(error, 'data.msg', '')
+      const message = get(error, 'response.data.msg', '')
+      const status = get(error, 'response.status', '')
+
+      if (status === 401) {
+        return notify({
+          ...copy.SigninError,
+          message: 'Login failed: username or password is invalid',
+        })
+      }
 
       if (!message) {
         return notify(copy.SigninError)

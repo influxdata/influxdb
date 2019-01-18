@@ -57,20 +57,19 @@ func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeSigninRequest(ctx, r)
 	if err != nil {
-		h.Logger.Info("failed to decode request", zap.Error(err))
-		EncodeError(ctx, err, w)
+		UnauthorizedError(ctx, w)
 		return
 	}
 
 	if err := h.BasicAuthService.ComparePassword(ctx, req.Username, req.Password); err != nil {
 		// Don't log here, it should already be handled by the service
-		EncodeError(ctx, err, w)
+		UnauthorizedError(ctx, w)
 		return
 	}
 
 	s, e := h.SessionService.CreateSession(ctx, req.Username)
 	if e != nil {
-		EncodeError(ctx, err, w)
+		UnauthorizedError(ctx, w)
 		return
 	}
 
@@ -104,13 +103,12 @@ func (h *SessionHandler) handleSignout(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeSignoutRequest(ctx, r)
 	if err != nil {
-		h.Logger.Info("failed to decode request", zap.Error(err))
-		EncodeError(ctx, err, w)
+		UnauthorizedError(ctx, w)
 		return
 	}
 
 	if err := h.SessionService.ExpireSession(ctx, req.Key); err != nil {
-		EncodeError(ctx, err, w)
+		UnauthorizedError(ctx, w)
 		return
 	}
 

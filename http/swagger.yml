@@ -15,6 +15,12 @@ paths:
       responses:
         '204':
           description: succesfully authenticated
+        '401':
+          description: unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unsuccessful authentication
           content:
@@ -29,6 +35,12 @@ paths:
       responses:
         '204':
           description: session successfully expired
+        '401':
+          description: unauthorized access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unsuccessful session exipry
           content:

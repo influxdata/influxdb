@@ -66,7 +66,7 @@ func TestAuthenticationHandler(t *testing.T) {
 				session: "abc123",
 			},
 			wants: wants{
-				code: http.StatusForbidden,
+				code: http.StatusUnauthorized,
 			},
 		},
 		{
@@ -100,7 +100,7 @@ func TestAuthenticationHandler(t *testing.T) {
 				token: "abc123",
 			},
 			wants: wants{
-				code: http.StatusForbidden,
+				code: http.StatusUnauthorized,
 			},
 		},
 		{
@@ -111,7 +111,7 @@ func TestAuthenticationHandler(t *testing.T) {
 			},
 			args: args{},
 			wants: wants{
-				code: http.StatusForbidden,
+				code: http.StatusUnauthorized,
 			},
 		},
 	}
@@ -264,7 +264,7 @@ func TestAuthenticationHandler_NoAuthRoutes(t *testing.T) {
 				path:   "/api/v2/write",
 			},
 			wants: wants{
-				code: http.StatusForbidden,
+				code: http.StatusUnauthorized,
 			},
 		},
 	}

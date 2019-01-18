@@ -1,10 +1,17 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {getMe} from 'src/shared/apis/v2/user'
+
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+
+// Constants
+import {sessionTimedOut} from 'src/shared/copy/notifications'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -17,7 +24,11 @@ interface OwnProps {
   children: ReactElement<any>
 }
 
-type Props = OwnProps & WithRouterProps
+interface DispatchProps {
+  notify: typeof notifyAction
+}
+
+type Props = OwnProps & WithRouterProps & DispatchProps
 
 const FETCH_WAIT = 60000
 
@@ -75,6 +86,7 @@ export class Signin extends PureComponent<Props, State> {
 
       if (pathname !== '/') {
         returnTo = `?returnTo=${pathname}`
+        this.props.notify(sessionTimedOut())
       }
 
       this.props.router.push(`/signin${returnTo}`)
@@ -82,4 +94,11 @@ export class Signin extends PureComponent<Props, State> {
   }
 }
 
-export default withRouter(Signin)
+const mdtp: DispatchProps = {
+  notify: notifyAction,
+}
+
+export default connect(
+  null,
+  mdtp
+)(withRouter(Signin))
