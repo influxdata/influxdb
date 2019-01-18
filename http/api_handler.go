@@ -169,11 +169,11 @@ var apiLinks = map[string]interface{}{
 		"spec":        "/api/v2/query/spec",
 		"suggestions": "/api/v2/query/suggestions",
 	},
-	"setup":          "/api/v2/setup",
-	"signin":         "/api/v2/signin",
-	"signout":        "/api/v2/signout",
-	"sources":        "/api/v2/sources",
-	"scrapertargets": "/api/v2/scrapertargets",
+	"setup":    "/api/v2/setup",
+	"signin":   "/api/v2/signin",
+	"signout":  "/api/v2/signout",
+	"sources":  "/api/v2/sources",
+	"scrapers": "/api/v2/scrapers",
 	"system": map[string]string{
 		"metrics": "/metrics",
 		"debug":   "/debug/pprof",
@@ -261,7 +261,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/api/v2/scrapertargets") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/scrapers") {
 		h.ScraperHandler.ServeHTTP(w, r)
 		return
 	}
