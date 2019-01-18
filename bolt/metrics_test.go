@@ -26,6 +26,7 @@ func TestInitialMetrics(t *testing.T) {
 
 	metrics := map[string]int{
 		"influxdb_organizations_total": 0,
+		"influxdb_buckets_total":       0,
 		"influxdb_users_total":         0,
 		"influxdb_tokens_total":        0,
 		"influxdb_dashboards_total":    0,
@@ -71,6 +72,7 @@ func TestMetrics_Onboarding(t *testing.T) {
 
 	metrics := map[string]int{
 		"influxdb_organizations_total": 1,
+		"influxdb_buckets_total":       1,
 		"influxdb_users_total":         1,
 		"influxdb_tokens_total":        1,
 		"influxdb_dashboards_total":    1,

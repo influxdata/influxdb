@@ -13,6 +13,11 @@ var (
 		"Number of total organizations on the server",
 		nil, nil)
 
+	bucketsDesc = prometheus.NewDesc(
+		"influxdb_buckets_total",
+		"Number of total buckets on the server",
+		nil, nil)
+
 	usersDesc = prometheus.NewDesc(
 		"influxdb_users_total",
 		"Number of total users on the server",
@@ -42,6 +47,7 @@ var (
 // Describe returns all descriptions of the collector.
 func (c *Client) Describe(ch chan<- *prometheus.Desc) {
 	ch <- orgsDesc
+	ch <- bucketsDesc
 	ch <- usersDesc
 	ch <- tokensDesc
 	ch <- dashboardsDesc
@@ -66,9 +72,10 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		prometheus.CounterValue,
 		float64(writes),
 	)
-	orgs, users, tokens, dashboards := 0, 0, 0, 0
+	orgs, buckets, users, tokens, dashboards := 0, 0, 0, 0, 0
 	_ = c.db.View(func(tx *bolt.Tx) error {
 		orgs = tx.Bucket(organizationBucket).Stats().KeyN
+		buckets = tx.Bucket(bucketBucket).Stats().KeyN
 		users = tx.Bucket(userBucket).Stats().KeyN
 		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
 		dashboards = tx.Bucket(dashboardBucket).Stats().KeyN
@@ -79,6 +86,12 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		orgsDesc,
 		prometheus.CounterValue,
 		float64(orgs),
+	)
+
+	ch <- prometheus.MustNewConstMetric(
+		bucketsDesc,
+		prometheus.CounterValue,
+		float64(buckets),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
