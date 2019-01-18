@@ -4,7 +4,8 @@ import classnames from 'classnames'
 
 interface Props {
   label: string
-  action: () => void
+  action: (value?: any) => void
+  value?: any
   onCollapseMenu?: () => void
   disabled?: boolean
 }
@@ -33,14 +34,14 @@ class ContextMenuItem extends Component<Props> {
   }
 
   private handleClick = (): void => {
-    const {action, onCollapseMenu} = this.props
+    const {action, onCollapseMenu, value} = this.props
 
     if (!onCollapseMenu) {
       return
     }
 
     onCollapseMenu()
-    action()
+    action(value)
   }
 }
 

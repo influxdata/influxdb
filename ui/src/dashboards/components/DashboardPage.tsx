@@ -325,7 +325,7 @@ class DashboardPage extends Component<Props, State> {
     const {dashboard, onCreateCellWithView, views} = this.props
     const viewEntry = views[cell.id]
     if (viewEntry && viewEntry.view) {
-      await onCreateCellWithView(dashboard, viewEntry.view)
+      await onCreateCellWithView(dashboard, viewEntry.view, cell)
     }
   }
 

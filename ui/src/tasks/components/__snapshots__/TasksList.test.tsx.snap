@@ -10,23 +10,7 @@ exports[`TasksList rendering renders 1`] = `
         onClick={[Function]}
         sort="none"
         sortKey="name"
-        width="20%"
-      />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Active"
-        onClick={[Function]}
-        sort="none"
-        sortKey="status"
-        width="10%"
-      />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Schedule"
-        onClick={[Function]}
-        sort="none"
-        sortKey="every"
-        width="20%"
+        width="55%"
       />
       <IndexListHeaderCell
         alignment="left"
@@ -38,8 +22,24 @@ exports[`TasksList rendering renders 1`] = `
       />
       <IndexListHeaderCell
         alignment="left"
+        columnName="Active"
+        onClick={[Function]}
+        sort="none"
+        sortKey="status"
+        width="5%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Schedule"
+        onClick={[Function]}
+        sort="none"
+        sortKey="every"
+        width="15%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
         columnName=""
-        width="35%"
+        width="10%"
       />
     </IndexListHeader>
     <IndexListBody

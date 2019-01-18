@@ -87,11 +87,35 @@ class TagSelector extends PureComponent<Props> {
     }
 
     if (keysStatus === RemoteDataState.Error) {
-      return <div className="tag-selector--empty">Failed to load tag keys</div>
+      return (
+        <>
+          <div className="tag-selector--top">
+            <Button
+              shape={ButtonShape.Square}
+              icon={IconFont.Remove}
+              onClick={this.handleRemoveTagSelector}
+              customClass="tag-selector--remove"
+            />
+          </div>
+          <div className="tag-selector--empty">Failed to load tag keys</div>
+        </>
+      )
     }
 
     if (keysStatus === RemoteDataState.Done && !keys.length) {
-      return <div className="tag-selector--empty">No more tag keys found</div>
+      return (
+        <>
+          <div className="tag-selector--top">
+            <Button
+              shape={ButtonShape.Square}
+              icon={IconFont.Remove}
+              onClick={this.handleRemoveTagSelector}
+              customClass="tag-selector--remove"
+            />
+          </div>
+          <div className="tag-selector--empty">No more tag keys found</div>
+        </>
+      )
     }
 
     return (

@@ -156,7 +156,7 @@ class OrganizationView extends PureComponent<Props> {
               <TabbedPageSection
                 id="org-view-tab--collectors"
                 url="collectors_tab"
-                title="Collectors"
+                title="Telegraf"
               >
                 <GetOrgResources<Telegraf[]>
                   organization={org}
@@ -168,6 +168,7 @@ class OrganizationView extends PureComponent<Props> {
                         collectors={collectors}
                         onChange={fetch}
                         notify={notify}
+                        orgName={org.name}
                       />
                     </Spinner>
                   )}

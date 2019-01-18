@@ -96,7 +96,8 @@ export default class Scrapers extends PureComponent<Props, State> {
     return (
       <EmptyState size={ComponentSize.Medium}>
         <EmptyState.Text
-          text={`${orgName} does not own any scrapers, why not create one?`}
+          text={`${orgName} does not own any Scrapers , why not create one?`}
+          highlightWords={['Scrapers']}
         />
         {this.createScraperButton}
       </EmptyState>

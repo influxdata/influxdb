@@ -7,12 +7,15 @@ import {downloadTextFile} from 'src/shared/utils/download'
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CollectorList from 'src/organizations/components/CollectorList'
+import TelegrafExplainer from 'src/organizations/components/TelegrafExplainer'
 import {
   Button,
   ComponentColor,
   IconFont,
   ComponentSize,
   EmptyState,
+  Grid,
+  Columns,
 } from 'src/clockface'
 
 // Actions
@@ -34,35 +37,60 @@ interface Props {
   collectors: Telegraf[]
   onChange: () => void
   notify: NotificationsActions.PublishNotificationActionCreator
+  orgName: string
 }
 
 @ErrorHandling
-export default class OrgOptions extends PureComponent<Props> {
+export default class Collectors extends PureComponent<Props> {
   public render() {
     const {collectors} = this.props
     return (
       <>
         <TabbedPageHeader>
-          <h1>Collectors</h1>
+          <h1>Telegraf Configurations</h1>
           <Button
-            text="Create Collector"
+            text="Create Configuration"
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
           />
         </TabbedPageHeader>
-        <CollectorList
-          collectors={collectors}
-          emptyState={this.emptyState}
-          onDownloadConfig={this.handleDownloadConfig}
-          onDelete={this.handleDeleteTelegraf}
-        />
+        <Grid>
+          <Grid.Row>
+            <Grid.Column widthSM={Columns.Twelve}>
+              <CollectorList
+                collectors={collectors}
+                emptyState={this.emptyState}
+                onDownloadConfig={this.handleDownloadConfig}
+                onDelete={this.handleDeleteTelegraf}
+              />
+            </Grid.Column>
+            <Grid.Column
+              widthSM={Columns.Six}
+              widthMD={Columns.Four}
+              offsetSM={Columns.Three}
+              offsetMD={Columns.Four}
+            >
+              <TelegrafExplainer />
+            </Grid.Column>
+          </Grid.Row>
+        </Grid>
       </>
     )
   }
   private get emptyState(): JSX.Element {
+    const {orgName} = this.props
+
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="No Collectors match your query" />
+        <EmptyState.Text
+          text={`${orgName} does not own any Telegraf  Configurations , why not create one?`}
+          highlightWords={['Telegraf', 'Configurations']}
+        />
+        <Button
+          text="Create Configuration"
+          icon={IconFont.Plus}
+          color={ComponentColor.Primary}
+        />
       </EmptyState>
     )
   }

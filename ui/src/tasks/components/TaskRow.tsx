@@ -41,12 +41,24 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
     return (
       <IndexList.Row disabled={!this.isTaskActive}>
         <IndexList.Cell>
-          <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
-            <a href="#" onClick={this.handleClick}>
+          <ComponentSpacer
+            stackChildren={Stack.Columns}
+            align={Alignment.Right}
+          >
+            <a
+              href="#"
+              onClick={this.handleClick}
+              className="index-list--resource-name"
+            >
               {task.name}
             </a>
             {this.labels}
           </ComponentSpacer>
+        </IndexList.Cell>
+        <IndexList.Cell>
+          <a href="" onClick={this.handleOrgClick}>
+            {task.organization.name}
+          </a>
         </IndexList.Cell>
         <IndexList.Cell>
           <SlideToggle
@@ -56,11 +68,6 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
           />
         </IndexList.Cell>
         <IndexList.Cell>{this.schedule}</IndexList.Cell>
-        <IndexList.Cell>
-          <a href="" onClick={this.handleOrgClick}>
-            {task.organization.name}
-          </a>
-        </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
             <Button

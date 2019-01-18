@@ -284,10 +284,11 @@ export const addCellAsync = (dashboard: Dashboard) => async (
 
 export const createCellWithView = (
   dashboard: Dashboard,
-  view: NewView
+  view: NewView,
+  clonedCell?: Cell
 ) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
-    const cell: CreateCell = getNewDashboardCell(dashboard)
+    const cell: CreateCell = getNewDashboardCell(dashboard, clonedCell)
     const createdCell = await addCellAJAX(dashboard.id, cell)
     const updatedView = await updateViewAJAX(dashboard.id, createdCell.id, view)
 

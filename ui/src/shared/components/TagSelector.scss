@@ -3,33 +3,32 @@
 .tag-selector {
   min-height: 130px;
   background: $g4-onyx;
-  border-radius: 4px;
-  padding: 10px 0;
+  border-radius: $radius;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  font-size: 13px;
-
-  input {
-    margin-top: 5px;
-  }
+  font-size: $form-sm-font;
+  position: relative;
 }
 
-.tag-selector--top, .tag-selector--search {
-  margin: 0 10px;
+.tag-selector--top,
+.tag-selector--search {
+  margin: $ix-marg-b;
 }
 
 .tag-selector--top {
   display: flex;
+  justify-content: flex-end;
 }
 
 .tag-selector--search {
-  margin-bottom: 10px;
+  margin-top: 0;
   width: initial !important;
 }
 
 button.tag-selector--remove {
-  margin-left: 3px;
+  flex: 0 0 $form-sm-height;
+  margin-left: $ix-marg-b;
 }
 
 .tag-selector .selector-list {
@@ -38,7 +37,8 @@ button.tag-selector--remove {
 
 
 .tag-selector--empty {
-  flex: 1 1 0;
+  position: absolute;
+  pointer-events: none;
   width: 100%;
   height: 100%;
   display: flex;
@@ -49,5 +49,5 @@ button.tag-selector--remove {
   font-size: 16px;
   text-transform: uppercase;
   text-align: center;
-  padding: 10px;
+  padding: $ix-marg-b + $ix-marg-a;
 }
