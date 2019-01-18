@@ -22,14 +22,8 @@ export class Logout extends PureComponent<Props> {
 
   private handleSignOut = async () => {
     await logout()
-    const {query} = this.props.location
-    let returnTo = ''
 
-    if (query && query.returnTo) {
-      returnTo = `?returnTo=${query.returnTo}`
-    }
-
-    this.props.router.push(`/signin${returnTo}`)
+    this.props.router.push(`/signin`)
   }
 }
 
