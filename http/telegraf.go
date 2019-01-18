@@ -28,14 +28,14 @@ type TelegrafHandler struct {
 }
 
 const (
-	telegrafsPath             = "/api/v2/telegrafs"
-	telegrafsIDPath           = "/api/v2/telegrafs/:id"
-	telegrafsIDMembersPath    = "/api/v2/telegrafs/:id/members"
-	telegrafsIDMembersIDPath  = "/api/v2/telegrafs/:id/members/:userID"
-	telegrafsIDOwnersPath     = "/api/v2/telegrafs/:id/owners"
-	telegrafsIDOwnersIDPath   = "/api/v2/telegrafs/:id/owners/:userID"
-	telegrafsIDLabelsPath     = "/api/v2/telegrafs/:id/labels"
-	telegrafsIDLabelsNamePath = "/api/v2/telegrafs/:id/labels/:name"
+	telegrafsPath            = "/api/v2/telegrafs"
+	telegrafsIDPath          = "/api/v2/telegrafs/:id"
+	telegrafsIDMembersPath   = "/api/v2/telegrafs/:id/members"
+	telegrafsIDMembersIDPath = "/api/v2/telegrafs/:id/members/:userID"
+	telegrafsIDOwnersPath    = "/api/v2/telegrafs/:id/owners"
+	telegrafsIDOwnersIDPath  = "/api/v2/telegrafs/:id/owners/:userID"
+	telegrafsIDLabelsPath    = "/api/v2/telegrafs/:id/labels"
+	telegrafsIDLabelsIDPath  = "/api/v2/telegrafs/:id/labels/:lid"
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
@@ -73,8 +73,7 @@ func NewTelegrafHandler(
 
 	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", telegrafsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", telegrafsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", telegrafsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", telegrafsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }
@@ -116,7 +115,7 @@ func newTelegrafResponses(ctx context.Context, tcs []*platform.TelegrafConfig, l
 		TelegrafConfigs: make([]telegrafResponse, len(tcs)),
 	}
 	for i, c := range tcs {
-		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: c.ID})
+		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: c.ID})
 		resp.TelegrafConfigs[i] = newTelegrafResponse(c, labels)
 	}
 	return resp
@@ -177,7 +176,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(tc.TOML()))
 	case "application/json":
-		labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: tc.ID})
+		labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID})
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -312,7 +311,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: tc.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

@@ -31,15 +31,15 @@ type BucketHandler struct {
 }
 
 const (
-	bucketsPath             = "/api/v2/buckets"
-	bucketsIDPath           = "/api/v2/buckets/:id"
-	bucketsIDLogPath        = "/api/v2/buckets/:id/log"
-	bucketsIDMembersPath    = "/api/v2/buckets/:id/members"
-	bucketsIDMembersIDPath  = "/api/v2/buckets/:id/members/:userID"
-	bucketsIDOwnersPath     = "/api/v2/buckets/:id/owners"
-	bucketsIDOwnersIDPath   = "/api/v2/buckets/:id/owners/:userID"
-	bucketsIDLabelsPath     = "/api/v2/buckets/:id/labels"
-	bucketsIDLabelsNamePath = "/api/v2/buckets/:id/labels/:name"
+	bucketsPath            = "/api/v2/buckets"
+	bucketsIDPath          = "/api/v2/buckets/:id"
+	bucketsIDLogPath       = "/api/v2/buckets/:id/log"
+	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
+	bucketsIDMembersIDPath = "/api/v2/buckets/:id/members/:userID"
+	bucketsIDOwnersPath    = "/api/v2/buckets/:id/owners"
+	bucketsIDOwnersIDPath  = "/api/v2/buckets/:id/owners/:userID"
+	bucketsIDLabelsPath    = "/api/v2/buckets/:id/labels"
+	bucketsIDLabelsIDPath  = "/api/v2/buckets/:id/labels/:lid"
 )
 
 // NewBucketHandler returns a new instance of BucketHandler.
@@ -70,8 +70,7 @@ func NewBucketHandler(mappingService platform.UserResourceMappingService, labelS
 
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", bucketsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", bucketsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", bucketsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }
@@ -220,7 +219,7 @@ type bucketsResponse struct {
 func newBucketsResponse(ctx context.Context, opts platform.FindOptions, f platform.BucketFilter, bs []*platform.Bucket, labelService platform.LabelService) *bucketsResponse {
 	rs := make([]*bucketResponse, 0, len(bs))
 	for _, b := range bs {
-		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
 		rs = append(rs, newBucketResponse(b, labels))
 	}
 	return &bucketsResponse{
@@ -305,7 +304,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -436,7 +435,7 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	return req, nil
 }
 
-// handlePatchBucket is the HTTP handler for the PATH /api/v2/buckets route.
+// handlePatchBucket is the HTTP handler for the PATCH /api/v2/buckets route.
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -452,7 +451,7 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: b.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

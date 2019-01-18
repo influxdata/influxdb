@@ -47,7 +47,7 @@ const (
 	tasksIDRunsIDLogsPath  = "/api/v2/tasks/:id/runs/:rid/logs"
 	tasksIDRunsIDRetryPath = "/api/v2/tasks/:id/runs/:rid/retry"
 	tasksIDLabelsPath      = "/api/v2/tasks/:id/labels"
-	tasksIDLabelsNamePath  = "/api/v2/tasks/:id/labels/:name"
+	tasksIDLabelsIDPath    = "/api/v2/tasks/:id/labels/:lid"
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
@@ -87,8 +87,7 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, labelSer
 
 	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", tasksIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", tasksIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", tasksIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }
@@ -157,7 +156,7 @@ func newTasksResponse(ctx context.Context, ts []*platform.Task, labelService pla
 	}
 
 	for i := range ts {
-		labels, _ := labelService.FindLabels(ctx, platform.LabelFilter{ResourceID: ts[i].ID})
+		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: ts[i].ID})
 		rs.Tasks[i] = newTaskResponse(*ts[i], labels)
 	}
 	return rs
@@ -359,7 +358,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: task.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: task.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -408,7 +407,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: task.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: task.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

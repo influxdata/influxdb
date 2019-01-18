@@ -14,17 +14,25 @@ func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.Lab
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
+	c.IDGenerator = f.IDGenerator
+
 	ctx := context.Background()
 	for _, l := range f.Labels {
-		if err := c.CreateLabel(ctx, l); err != nil {
-			t.Fatalf("failed to populate labels")
+		if err := c.PutLabel(ctx, l); err != nil {
+			t.Fatalf("failed to populate labels: %v", err)
+		}
+	}
+
+	for _, m := range f.Mappings {
+		if err := c.PutLabelMapping(ctx, m); err != nil {
+			t.Fatalf("failed to populate label mappings: %v", err)
 		}
 	}
 
 	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, l := range f.Labels {
-			if err := c.DeleteLabel(ctx, *l); err != nil {
+			if err := c.DeleteLabel(ctx, l.ID); err != nil {
 				t.Logf("failed to remove label: %v", err)
 			}
 		}

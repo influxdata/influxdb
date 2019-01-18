@@ -24,6 +24,7 @@ type Service struct {
 	dbrpMappingKV         sync.Map
 	userResourceMappingKV sync.Map
 	labelKV               sync.Map
+	labelMappingKV        sync.Map
 	scraperTargetKV       sync.Map
 	telegrafConfigKV      sync.Map
 	onboardingKV          sync.Map

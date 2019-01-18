@@ -209,13 +209,13 @@ func (s *Service) DeleteDashboard(ctx context.Context, id platform.ID) error {
 		}
 	}
 	s.dashboardKV.Delete(id.String())
-	err := s.deleteLabel(ctx, platform.LabelFilter{ResourceID: id})
-	if err != nil {
-		return &platform.Error{
-			Err: err,
-			Op:  op,
-		}
-	}
+	// err := s.deleteLabel(ctx, platform.LabelFilter{ResourceID: id})
+	// if err != nil {
+	// 	return &platform.Error{
+	// 		Err: err,
+	// 		Op:  op,
+	// 	}
+	// }
 	return nil
 }
 

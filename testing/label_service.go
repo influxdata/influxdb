@@ -8,6 +8,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/mock"
+)
+
+const (
+	labelOneID = "41a9f7288d4e2d64"
+	labelTwoID = "b7c5355e1134b11c"
 )
 
 var labelCmpOptions = cmp.Options{
@@ -17,17 +23,17 @@ var labelCmpOptions = cmp.Options{
 	cmp.Transformer("Sort", func(in []*platform.Label) []*platform.Label {
 		out := append([]*platform.Label(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
-			if out[i].Name != out[j].Name {
-				return out[i].Name < out[j].Name
-			}
-			return out[i].ResourceID.String() < out[j].ResourceID.String()
+			return out[i].Name < out[j].Name
 		})
 		return out
 	}),
 }
 
+// LabelFields include the IDGenerator, labels and their mappings
 type LabelFields struct {
-	Labels []*platform.Label
+	Labels      []*platform.Label
+	Mappings    []*platform.LabelMapping
+	IDGenerator platform.IDGenerator
 }
 
 type labelServiceF func(
@@ -49,8 +55,16 @@ func LabelService(
 			fn:   CreateLabel,
 		},
 		{
+			name: "CreateLabelMapping",
+			fn:   CreateLabelMapping,
+		},
+		{
 			name: "FindLabels",
 			fn:   FindLabels,
+		},
+		{
+			name: "FindLabelByID",
+			fn:   FindLabelByID,
 		},
 		{
 			name: "UpdateLabel",
@@ -59,6 +73,10 @@ func LabelService(
 		{
 			name: "DeleteLabel",
 			fn:   DeleteLabel,
+		},
+		{
+			name: "DeleteLabelMapping",
+			fn:   DeleteLabelMapping,
 		},
 	}
 	for _, tt := range tests {
@@ -89,17 +107,12 @@ func CreateLabel(
 		{
 			name: "basic create label",
 			fields: LabelFields{
-				Labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-				},
+				IDGenerator: mock.NewIDGenerator(labelOneID, t),
+				Labels:      []*platform.Label{},
 			},
 			args: args{
 				label: &platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag2",
+					Name: "Tag2",
 					Properties: map[string]string{
 						"color": "fff000",
 					},
@@ -108,12 +121,8 @@ func CreateLabel(
 			wants: wants{
 				labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag2",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag2",
 						Properties: map[string]string{
 							"color": "fff000",
 						},
@@ -121,36 +130,34 @@ func CreateLabel(
 				},
 			},
 		},
-		{
-			name: "duplicate labels fail",
-			fields: LabelFields{
-				Labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-				},
-			},
-			args: args{
-				label: &platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
-			},
-			wants: wants{
-				labels: []*platform.Label{
-					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
-					},
-				},
-				err: &platform.Error{
-					Code: platform.EConflict,
-					Op:   platform.OpCreateLabel,
-					Msg:  "label Tag1 already exists",
-				},
-			},
-		},
+		// {
+		// 	name: "duplicate labels fail",
+		// 	fields: LabelFields{
+		// 		IDGenerator: mock.NewIDGenerator(labelTwoID, t),
+		// 		Labels: []*platform.Label{
+		// 			{
+		// 				Name: "Tag1",
+		// 			},
+		// 		},
+		// 	},
+		// 	args: args{
+		// 		label: &platform.Label{
+		// 			Name: "Tag1",
+		// 		},
+		// 	},
+		// 	wants: wants{
+		// 		labels: []*platform.Label{
+		// 			{
+		// 				Name: "Tag1",
+		// 			},
+		// 		},
+		// 		err: &platform.Error{
+		// 			Code: platform.EConflict,
+		// 			Op:   platform.OpCreateLabel,
+		// 			Msg:  "label Tag1 already exists",
+		// 		},
+		// 	},
+		// },
 	}
 
 	for _, tt := range tests {
@@ -161,7 +168,7 @@ func CreateLabel(
 			err := s.CreateLabel(ctx, tt.args.label)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			defer s.DeleteLabel(ctx, *tt.args.label)
+			defer s.DeleteLabel(ctx, tt.args.label.ID)
 
 			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
 			if err != nil {
@@ -197,12 +204,12 @@ func FindLabels(
 			fields: LabelFields{
 				Labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 					},
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag2",
+						ID:   MustIDBase16(labelTwoID),
+						Name: "Tag2",
 					},
 				},
 			},
@@ -212,12 +219,12 @@ func FindLabels(
 			wants: wants{
 				labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 					},
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag2",
+						ID:   MustIDBase16(labelTwoID),
+						Name: "Tag2",
 					},
 				},
 			},
@@ -227,30 +234,25 @@ func FindLabels(
 			fields: LabelFields{
 				Labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 					},
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag2",
-					},
-					{
-						ResourceID: MustIDBase16(bucketTwoID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelTwoID),
+						Name: "Tag2",
 					},
 				},
 			},
 			args: args{
 				filter: platform.LabelFilter{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
+					Name: "Tag1",
 				},
 			},
 			wants: wants{
 				labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 					},
 				},
 			},
@@ -272,13 +274,88 @@ func FindLabels(
 	}
 }
 
+func FindLabelByID(
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		id platform.ID
+	}
+	type wants struct {
+		err   error
+		label *platform.Label
+	}
+
+	tests := []struct {
+		name   string
+		fields LabelFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "find label by ID",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
+					},
+					{
+						ID:   MustIDBase16(labelTwoID),
+						Name: "Tag2",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(labelOneID),
+			},
+			wants: wants{
+				label: &platform.Label{
+					ID:   MustIDBase16(labelOneID),
+					Name: "Tag1",
+				},
+			},
+		},
+		{
+			name: "label does not exist",
+			fields: LabelFields{
+				Labels: []*platform.Label{},
+			},
+			args: args{
+				id: MustIDBase16(labelOneID),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindLabelByID,
+					Msg:  "label not found",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+			label, err := s.FindLabelByID(ctx, tt.args.id)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			if diff := cmp.Diff(label, tt.wants.label, labelCmpOptions...); diff != "" {
+				t.Errorf("labels are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
 func UpdateLabel(
 	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		label  platform.Label
-		update platform.LabelUpdate
+		labelID platform.ID
+		update  platform.LabelUpdate
 	}
 	type wants struct {
 		err    error
@@ -296,16 +373,13 @@ func UpdateLabel(
 			fields: LabelFields{
 				Labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 					},
 				},
 			},
 			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
+				labelID: MustIDBase16(labelOneID),
 				update: platform.LabelUpdate{
 					Properties: map[string]string{
 						"color": "fff000",
@@ -315,8 +389,8 @@ func UpdateLabel(
 			wants: wants{
 				labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 						Properties: map[string]string{
 							"color": "fff000",
 						},
@@ -329,8 +403,8 @@ func UpdateLabel(
 			fields: LabelFields{
 				Labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 						Properties: map[string]string{
 							"color":       "fff000",
 							"description": "description",
@@ -339,10 +413,7 @@ func UpdateLabel(
 				},
 			},
 			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
+				labelID: MustIDBase16(labelOneID),
 				update: platform.LabelUpdate{
 					Properties: map[string]string{
 						"color": "abc123",
@@ -352,8 +423,8 @@ func UpdateLabel(
 			wants: wants{
 				labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 						Properties: map[string]string{
 							"color":       "abc123",
 							"description": "description",
@@ -367,8 +438,8 @@ func UpdateLabel(
 			fields: LabelFields{
 				Labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 						Properties: map[string]string{
 							"color":       "fff000",
 							"description": "description",
@@ -377,10 +448,7 @@ func UpdateLabel(
 				},
 			},
 			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
+				labelID: MustIDBase16(labelOneID),
 				update: platform.LabelUpdate{
 					Properties: map[string]string{
 						"description": "",
@@ -390,8 +458,8 @@ func UpdateLabel(
 			wants: wants{
 				labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 						Properties: map[string]string{
 							"color": "fff000",
 						},
@@ -443,10 +511,7 @@ func UpdateLabel(
 				Labels: []*platform.Label{},
 			},
 			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
+				labelID: MustIDBase16(labelOneID),
 				update: platform.LabelUpdate{
 					Properties: map[string]string{
 						"color": "fff000",
@@ -458,6 +523,7 @@ func UpdateLabel(
 				err: &platform.Error{
 					Code: platform.ENotFound,
 					Op:   platform.OpUpdateLabel,
+					Msg:  "label not found",
 				},
 			},
 		},
@@ -468,7 +534,7 @@ func UpdateLabel(
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			_, err := s.UpdateLabel(ctx, &tt.args.label, tt.args.update)
+			_, err := s.UpdateLabel(ctx, tt.args.labelID, tt.args.update)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
@@ -487,7 +553,7 @@ func DeleteLabel(
 	t *testing.T,
 ) {
 	type args struct {
-		label platform.Label
+		labelID platform.ID
 	}
 	type wants struct {
 		err    error
@@ -505,26 +571,23 @@ func DeleteLabel(
 			fields: LabelFields{
 				Labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 					},
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag2",
+						ID:   MustIDBase16(labelTwoID),
+						Name: "Tag2",
 					},
 				},
 			},
 			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag1",
-				},
+				labelID: MustIDBase16(labelOneID),
 			},
 			wants: wants{
 				labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag2",
+						ID:   MustIDBase16(labelTwoID),
+						Name: "Tag2",
 					},
 				},
 			},
@@ -534,27 +597,25 @@ func DeleteLabel(
 			fields: LabelFields{
 				Labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 					},
 				},
 			},
 			args: args{
-				label: platform.Label{
-					ResourceID: MustIDBase16(bucketOneID),
-					Name:       "Tag2",
-				},
+				labelID: MustIDBase16(labelTwoID),
 			},
 			wants: wants{
 				labels: []*platform.Label{
 					{
-						ResourceID: MustIDBase16(bucketOneID),
-						Name:       "Tag1",
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
 					},
 				},
 				err: &platform.Error{
 					Code: platform.ENotFound,
 					Op:   platform.OpDeleteLabel,
+					Msg:  "label not found",
 				},
 			},
 		},
@@ -565,10 +626,199 @@ func DeleteLabel(
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			err := s.DeleteLabel(ctx, tt.args.label)
+			err := s.DeleteLabel(ctx, tt.args.labelID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
+			if err != nil {
+				t.Fatalf("failed to retrieve labels: %v", err)
+			}
+			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
+				t.Errorf("labels are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+func CreateLabelMapping(
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		mapping *platform.LabelMapping
+		filter  *platform.LabelMappingFilter
+	}
+	type wants struct {
+		err    error
+		labels []*platform.Label
+	}
+
+	tests := []struct {
+		name   string
+		fields LabelFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "create label mapping",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
+					},
+				},
+			},
+			args: args{
+				mapping: &platform.LabelMapping{
+					LabelID:    IDPtr(MustIDBase16(labelOneID)),
+					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+				},
+				filter: &platform.LabelMappingFilter{
+					ResourceID: MustIDBase16(bucketOneID),
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
+					},
+				},
+			},
+		},
+		{
+			name: "mapping to a nonexistent label",
+			fields: LabelFields{
+				IDGenerator: mock.NewIDGenerator(labelOneID, t),
+				Labels:      []*platform.Label{},
+			},
+			args: args{
+				mapping: &platform.LabelMapping{
+					LabelID:    IDPtr(MustIDBase16(labelOneID)),
+					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+				},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpDeleteLabel,
+					Msg:  "label not found",
+				},
+			},
+		},
+		// {
+		// 	name: "duplicate label mappings",
+		// 	fields: LabelFields{
+		// 		IDGenerator: mock.NewIDGenerator(labelOneID, t),
+		// 		Labels:      []*platform.Label{},
+		// 	},
+		// 	args: args{
+		// 		label: &platform.Label{
+		// 			Name: "Tag2",
+		// 			Properties: map[string]string{
+		// 				"color": "fff000",
+		// 			},
+		// 		},
+		// 	},
+		// 	wants: wants{
+		// 		labels: []*platform.Label{
+		// 			{
+		// 				ID:   MustIDBase16(labelOneID),
+		// 				Name: "Tag2",
+		// 				Properties: map[string]string{
+		// 					"color": "fff000",
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+			err := s.CreateLabelMapping(ctx, tt.args.mapping)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			defer s.DeleteLabelMapping(ctx, tt.args.mapping)
+
+			if tt.args.filter == nil {
+				return
+			}
+
+			labels, err := s.FindResourceLabels(ctx, *tt.args.filter)
+			if err != nil {
+				t.Fatalf("failed to retrieve labels: %v", err)
+			}
+			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
+				t.Errorf("labels are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+func DeleteLabelMapping(
+	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		mapping *platform.LabelMapping
+		filter  platform.LabelMappingFilter
+	}
+	type wants struct {
+		err    error
+		labels []*platform.Label
+	}
+
+	tests := []struct {
+		name   string
+		fields LabelFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "delete label mapping",
+			fields: LabelFields{
+				Labels: []*platform.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
+					},
+				},
+				Mappings: []*platform.LabelMapping{
+					{
+						LabelID:    IDPtr(MustIDBase16(labelOneID)),
+						ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+					},
+				},
+			},
+			args: args{
+				mapping: &platform.LabelMapping{
+					LabelID:    IDPtr(MustIDBase16(labelOneID)),
+					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+				},
+				filter: platform.LabelMappingFilter{
+					ResourceID: MustIDBase16(bucketOneID),
+				},
+			},
+			wants: wants{
+				labels: []*platform.Label{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+			err := s.DeleteLabelMapping(ctx, tt.args.mapping)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			labels, err := s.FindResourceLabels(ctx, tt.args.filter)
 			if err != nil {
 				t.Fatalf("failed to retrieve labels: %v", err)
 			}

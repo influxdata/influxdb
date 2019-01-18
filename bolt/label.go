@@ -1,46 +1,86 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 
 	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
 )
 
 var (
-	labelBucket = []byte("labelsv1")
+	labelBucket        = []byte("labelsv1")
+	labelMappingBucket = []byte("labelmappingsv1")
 )
 
 func (c *Client) initializeLabels(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(labelBucket)); err != nil {
 		return err
 	}
+
+	if _, err := tx.CreateBucketIfNotExists([]byte(labelMappingBucket)); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// FindLabelByID finds a label by its ID
+func (c *Client) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
+	var l *platform.Label
+
+	err := c.db.View(func(tx *bolt.Tx) error {
+		label, pe := c.findLabelByID(ctx, tx, id)
+		if pe != nil {
+			return pe
+		}
+		l = label
+		return nil
+	})
+
+	if err != nil {
+		return nil, &platform.Error{
+			Op:  getOp(platform.OpFindLabelByID),
+			Err: err,
+		}
+	}
+
+	return l, nil
+}
+
+func (c *Client) findLabelByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Label, *platform.Error) {
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+		}
+	}
+
+	var l platform.Label
+	v := tx.Bucket(labelBucket).Get(encodedID)
+
+	if len(v) == 0 {
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "label not found",
+		}
+	}
+
+	if err := json.Unmarshal(v, &l); err != nil {
+		return nil, &platform.Error{
+			Err: err,
+		}
+	}
+
+	return &l, nil
 }
 
 func filterLabelsFn(filter platform.LabelFilter) func(l *platform.Label) bool {
 	return func(label *platform.Label) bool {
-		return (filter.Name == "" || (filter.Name == label.Name)) &&
-			(!filter.ResourceID.Valid() || (filter.ResourceID == label.ResourceID))
+		return (filter.Name == "" || (filter.Name == label.Name))
 	}
 }
-
-// func (c *Client) findLabel(ctx context.Context, tx *bolt.Tx, resourceID platform.ID, name string) (*platform.Label, error) {
-// 	key, err := labelKey(&platform.Label{ResourceID: resourceID, Name: name})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-//
-// 	l := &platform.Label{}
-// 	v := tx.Bucket(labelBucket).Get(key)
-// 	if err := json.Unmarshal(v, l); err != nil {
-// 		return nil, err
-// 	}
-//
-// 	return l, nil
-// }
 
 // FindLabels returns a list of labels that match a filter.
 func (c *Client) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
@@ -78,42 +118,156 @@ func (c *Client) findLabels(ctx context.Context, tx *bolt.Tx, filter platform.La
 	return ls, nil
 }
 
-func (c *Client) CreateLabel(ctx context.Context, l *platform.Label) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.createLabel(ctx, tx, l)
-	})
+// func filterMappingsFn(filter platform.LabelMappingFilter) func(m *platform.LabelMapping) bool {
+// 	return func(mapping *platform.LabelMapping) bool {
+// 		return (filter.ResourceID.String() == mapping.ResourceID.String()) &&
+// 			(filter.LabelID == nil || filter.LabelID == mapping.LabelID)
+// 	}
+// }
+
+func decodeLabelMappingKey(key []byte) (resourceID platform.ID, labelID platform.ID, err error) {
+	if len(key) != 2*platform.IDLength {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "malformed label mapping key (please report this error)"}
+	}
+
+	if err := (&resourceID).Decode(key[:platform.IDLength]); err != nil {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "bad resource id", Err: platform.ErrInvalidID}
+	}
+
+	if err := (&labelID).Decode(key[platform.IDLength:]); err != nil {
+		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "bad label id", Err: platform.ErrInvalidID}
+	}
+
+	return resourceID, labelID, nil
 }
 
-func (c *Client) createLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) error {
-	unique := c.uniqueLabel(ctx, tx, l)
+func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
+	if !filter.ResourceID.Valid() {
+		return nil, &platform.Error{Code: platform.EInvalid, Msg: "filter requires a valid resource id", Err: platform.ErrInvalidID}
+	}
 
-	if !unique {
-		return &platform.Error{
-			Code: platform.EConflict,
-			Op:   getOp(platform.OpCreateLabel),
-			Msg:  fmt.Sprintf("label %s already exists", l.Name),
+	ls := []*platform.Label{}
+	err := c.db.View(func(tx *bolt.Tx) error {
+		cur := tx.Bucket(labelMappingBucket).Cursor()
+		prefix, err := filter.ResourceID.Encode()
+		if err != nil {
+			return err
+		}
+
+		for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
+			_, id, err := decodeLabelMappingKey(k)
+			if err != nil {
+				return err
+			}
+
+			l, err := c.findLabelByID(ctx, tx, id)
+			if l == nil && err != nil {
+				// TODO(jm): return error instead of continuing once orphaned mappings are fixed
+				// (see https://github.com/influxdata/influxdb/issues/11278)
+				continue
+			}
+
+			ls = append(ls, l)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpFindLabelMapping),
 		}
 	}
 
-	v, err := json.Marshal(l)
+	return ls, nil
+}
+
+// CreateLabelMapping creates a new mapping between a resource and a label.
+func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	_, err := c.FindLabelByID(ctx, *m.LabelID)
 	if err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpCreateLabel),
+		}
 	}
 
-	key, err := labelKey(l)
-	if err != nil {
-		return err
-	}
+	err = c.db.Update(func(tx *bolt.Tx) error {
+		return c.putLabelMapping(ctx, tx, m)
+	})
 
-	if err := tx.Bucket(labelBucket).Put(key, v); err != nil {
-		return err
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpCreateLabel),
+		}
 	}
 
 	return nil
 }
 
-func labelKey(l *platform.Label) ([]byte, error) {
-	encodedResourceID, err := l.ResourceID.Encode()
+// DeleteLabelMapping deletes a label mapping.
+func (c *Client) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		return c.deleteLabelMapping(ctx, tx, m)
+	})
+	if err != nil {
+		return &platform.Error{
+			Op:  getOp(platform.OpDeleteLabelMapping),
+			Err: err,
+		}
+	}
+	return nil
+}
+
+func (c *Client) deleteLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.LabelMapping) error {
+	key, err := labelMappingKey(m)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	if err := tx.Bucket(labelMappingBucket).Delete(key); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// CreateLabel creates a new label.
+func (c *Client) CreateLabel(ctx context.Context, l *platform.Label) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		l.ID = c.IDGenerator.ID()
+
+		return c.putLabel(ctx, tx, l)
+	})
+
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  getOp(platform.OpCreateLabel),
+		}
+	}
+	return nil
+}
+
+// PutLabel creates a label from the provided struct, without generating a new ID.
+func (c *Client) PutLabel(ctx context.Context, l *platform.Label) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		var err error
+		pe := c.putLabel(ctx, tx, l)
+		if pe != nil {
+			err = pe
+		}
+		return err
+	})
+}
+
+func labelMappingKey(m *platform.LabelMapping) ([]byte, error) {
+	lid, err := m.LabelID.Encode()
 	if err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,
@@ -121,9 +275,17 @@ func labelKey(l *platform.Label) ([]byte, error) {
 		}
 	}
 
-	key := make([]byte, len(encodedResourceID)+len(l.Name))
-	copy(key, encodedResourceID)
-	copy(key[len(encodedResourceID):], l.Name)
+	rid, err := m.ResourceID.Encode()
+	if err != nil {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
+	}
+
+	key := make([]byte, len(rid)+len(lid))
+	copy(key, rid)
+	copy(key[len(rid):], lid)
 
 	return key, nil
 }
@@ -143,21 +305,11 @@ func (c *Client) forEachLabel(ctx context.Context, tx *bolt.Tx, fn func(*platfor
 	return nil
 }
 
-func (c *Client) uniqueLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) bool {
-	key, err := labelKey(l)
-	if err != nil {
-		return false
-	}
-
-	v := tx.Bucket(labelBucket).Get(key)
-	return len(v) == 0
-}
-
 // UpdateLabel updates a label.
-func (c *Client) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
+func (c *Client) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
 	var label *platform.Label
 	err := c.db.Update(func(tx *bolt.Tx) error {
-		labelResponse, pe := c.updateLabel(ctx, tx, l, upd)
+		labelResponse, pe := c.updateLabel(ctx, tx, id, upd)
 		if pe != nil {
 			return &platform.Error{
 				Err: pe,
@@ -171,19 +323,11 @@ func (c *Client) UpdateLabel(ctx context.Context, l *platform.Label, upd platfor
 	return label, err
 }
 
-func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
-	ls, err := c.findLabels(ctx, tx, platform.LabelFilter{Name: l.Name, ResourceID: l.ResourceID})
+func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+	label, err := c.findLabelByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
 	}
-	if len(ls) == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Err:  platform.ErrLabelNotFound,
-		}
-	}
-
-	label := ls[0]
 
 	if label.Properties == nil {
 		label.Properties = make(map[string]string)
@@ -222,12 +366,50 @@ func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) e
 		}
 	}
 
-	key, pe := labelKey(l)
-	if pe != nil {
-		return pe
+	encodedID, err := l.ID.Encode()
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
 	}
 
-	if err := tx.Bucket(labelBucket).Put(key, v); err != nil {
+	if err := tx.Bucket(labelBucket).Put(encodedID, v); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// PutLabelMapping writes a label mapping to boltdb
+func (c *Client) PutLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
+		var err error
+		pe := c.putLabelMapping(ctx, tx, m)
+		if pe != nil {
+			err = pe
+		}
+		return err
+	})
+}
+
+func (c *Client) putLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.LabelMapping) error {
+	v, err := json.Marshal(m)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	key, err := labelMappingKey(m)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
+	if err := tx.Bucket(labelMappingBucket).Put(key, v); err != nil {
 		return &platform.Error{
 			Err: err,
 		}
@@ -237,46 +419,50 @@ func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) e
 }
 
 // DeleteLabel deletes a label.
-func (c *Client) DeleteLabel(ctx context.Context, l platform.Label) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteLabel(ctx, tx, platform.LabelFilter{Name: l.Name, ResourceID: l.ResourceID})
+func (c *Client) DeleteLabel(ctx context.Context, id platform.ID) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		return c.deleteLabel(ctx, tx, id)
 	})
-}
-
-func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, filter platform.LabelFilter) error {
-	ls, err := c.findLabels(ctx, tx, filter)
 	if err != nil {
-		return err
-	}
-	if len(ls) == 0 {
 		return &platform.Error{
-			Code: platform.ENotFound,
-			Op:   getOp(platform.OpDeleteLabel),
-			Err:  platform.ErrLabelNotFound,
-		}
-	}
-
-	key, err := labelKey(ls[0])
-	if err != nil {
-		return err
-	}
-
-	return tx.Bucket(labelBucket).Delete(key)
-}
-
-func (c *Client) deleteLabels(ctx context.Context, tx *bolt.Tx, filter platform.LabelFilter) error {
-	ls, err := c.findLabels(ctx, tx, filter)
-	if err != nil {
-		return err
-	}
-	for _, l := range ls {
-		key, err := labelKey(l)
-		if err != nil {
-			return err
-		}
-		if err = tx.Bucket(labelBucket).Delete(key); err != nil {
-			return err
+			Op:  getOp(platform.OpDeleteLabel),
+			Err: err,
 		}
 	}
 	return nil
 }
+
+func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
+	_, err := c.findLabelByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	encodedID, idErr := id.Encode()
+	if idErr != nil {
+		return &platform.Error{
+			Err: idErr,
+		}
+	}
+
+	return tx.Bucket(labelBucket).Delete(encodedID)
+}
+
+// func (c *Client) deleteLabels(ctx context.Context, tx *bolt.Tx, filter platform.LabelFilter) error {
+// 	ls, err := c.findLabels(ctx, tx, filter)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	for _, l := range ls {
+// 		encodedID, idErr := l.ID.Encode()
+// 		if idErr != nil {
+// 			return &platform.Error{
+// 				Err: idErr,
+// 			}
+// 		}
+//
+// 		if err = tx.Bucket(labelBucket).Delete(encodedID); err != nil {
+// 			return err
+// 		}
+// 	}
+// 	return nil
+// }

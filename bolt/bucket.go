@@ -602,11 +602,6 @@ func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 		}
 	}
 
-	if err := c.deleteLabels(ctx, tx, platform.LabelFilter{ResourceID: id}); err != nil {
-		return &platform.Error{
-			Err: err,
-		}
-	}
 	return nil
 }
 

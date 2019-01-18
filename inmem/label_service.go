@@ -8,14 +8,13 @@ import (
 	platform "github.com/influxdata/influxdb"
 )
 
-func encodeLabelKey(resourceID platform.ID, name string) string {
-	return path.Join(resourceID.String(), name)
-}
-
-func (s *Service) loadLabel(ctx context.Context, resourceID platform.ID, name string) (*platform.Label, error) {
-	i, ok := s.labelKV.Load(encodeLabelKey(resourceID, name))
+func (s *Service) loadLabel(ctx context.Context, id platform.ID) (*platform.Label, error) {
+	i, ok := s.labelKV.Load(id.String())
 	if !ok {
-		return nil, platform.ErrLabelNotFound
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "label not found",
+		}
 	}
 
 	l, ok := i.(platform.Label)
@@ -24,10 +23,6 @@ func (s *Service) loadLabel(ctx context.Context, resourceID platform.ID, name st
 	}
 
 	return &l, nil
-}
-
-func (s *Service) FindLabelBy(ctx context.Context, resourceID platform.ID, name string) (*platform.Label, error) {
-	return s.loadLabel(ctx, resourceID, name)
 }
 
 func (s *Service) forEachLabel(ctx context.Context, fn func(m *platform.Label) bool) error {
@@ -39,6 +34,20 @@ func (s *Service) forEachLabel(ctx context.Context, fn func(m *platform.Label) b
 			return false
 		}
 		return fn(&l)
+	})
+
+	return err
+}
+
+func (s *Service) forEachLabelMapping(ctx context.Context, fn func(m *platform.LabelMapping) bool) error {
+	var err error
+	s.labelMappingKV.Range(func(k, v interface{}) bool {
+		m, ok := v.(platform.LabelMapping)
+		if !ok {
+			err = fmt.Errorf("type %T is not a label mapping", v)
+			return false
+		}
+		return fn(&m)
 	})
 
 	return err
@@ -60,9 +69,35 @@ func (s *Service) filterLabels(ctx context.Context, fn func(m *platform.Label) b
 	return labels, nil
 }
 
+func (s *Service) filterLabelMappings(ctx context.Context, fn func(m *platform.LabelMapping) bool) ([]*platform.LabelMapping, error) {
+	mappings := []*platform.LabelMapping{}
+	err := s.forEachLabelMapping(ctx, func(m *platform.LabelMapping) bool {
+		if fn(m) {
+			mappings = append(mappings, m)
+		}
+		return true
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return mappings, nil
+}
+
+func encodeLabelMappingKey(m *platform.LabelMapping) string {
+	return path.Join(m.ResourceID.String(), m.LabelID.String())
+}
+
+// FindLabelByID returns a single user by ID.
+func (s *Service) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
+	return s.loadLabel(ctx, id)
+}
+
+// FindLabels will retrieve a list of labels from storage.
 func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
-	if filter.ResourceID.Valid() && filter.Name != "" {
-		l, err := s.FindLabelBy(ctx, filter.ResourceID, filter.Name)
+	if filter.ID.Valid() {
+		l, err := s.FindLabelByID(ctx, filter.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -70,8 +105,7 @@ func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, o
 	}
 
 	filterFunc := func(label *platform.Label) bool {
-		return (!filter.ResourceID.Valid() || (filter.ResourceID == label.ResourceID)) &&
-			(filter.Name == "" || (filter.Name == label.Name))
+		return (filter.Name == "" || (filter.Name == label.Name))
 	}
 
 	labels, err := s.filterLabels(ctx, filterFunc)
@@ -82,27 +116,60 @@ func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, o
 	return labels, nil
 }
 
-func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
-	label, _ := s.FindLabelBy(ctx, l.ResourceID, l.Name)
-	if label != nil {
-		return &platform.Error{
-			Code: platform.EConflict,
-			Op:   OpPrefix + platform.OpCreateLabel,
-			Msg:  fmt.Sprintf("label %s already exists", l.Name),
-		}
+// FindResourceLabels returns a list of labels that are mapped to a resource.
+func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
+	filterFunc := func(mapping *platform.LabelMapping) bool {
+		return (filter.ResourceID.String() == mapping.ResourceID.String())
 	}
 
-	s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
+	mappings, err := s.filterLabelMappings(ctx, filterFunc)
+	if err != nil {
+		return nil, err
+	}
+
+	ls := []*platform.Label{}
+	for _, m := range mappings {
+		l, err := s.FindLabelByID(ctx, *m.LabelID)
+		if err != nil {
+			return nil, err
+		}
+
+		ls = append(ls, l)
+	}
+
+	return ls, nil
+}
+
+// CreateLabel creates a new label.
+func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
+	l.ID = s.IDGenerator.ID()
+	s.labelKV.Store(l.ID, *l)
 	return nil
 }
 
-func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platform.LabelUpdate) (*platform.Label, error) {
-	label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
+// CreateLabelMapping creates a mapping that associates a label to a resource.
+func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	_, err := s.FindLabelByID(ctx, *m.LabelID)
+	if err != nil {
+		return &platform.Error{
+			Err: err,
+			Op:  platform.OpCreateLabel,
+		}
+	}
+
+	s.labelMappingKV.Store(encodeLabelMappingKey(m), *m)
+	return nil
+}
+
+// UpdateLabel updates a label.
+func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+	label, err := s.FindLabelByID(ctx, id)
 	if err != nil {
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
 			Op:   OpPrefix + platform.OpUpdateLabel,
 			Err:  err,
+			Msg:  "label not found",
 		}
 	}
 
@@ -126,38 +193,36 @@ func (s *Service) UpdateLabel(ctx context.Context, l *platform.Label, upd platfo
 		}
 	}
 
-	s.labelKV.Store(encodeLabelKey(label.ResourceID, label.Name), *label)
+	s.labelKV.Store(label.ID.String(), *label)
 
 	return label, nil
 }
 
+// PutLabel writes a label directly to the database without generating IDs
+// or making checks.
 func (s *Service) PutLabel(ctx context.Context, l *platform.Label) error {
-	s.labelKV.Store(encodeLabelKey(l.ResourceID, l.Name), *l)
+	s.labelKV.Store(l.ID.String(), *l)
 	return nil
 }
 
-func (s *Service) DeleteLabel(ctx context.Context, l platform.Label) error {
-	label, err := s.FindLabelBy(ctx, l.ResourceID, l.Name)
+// DeleteLabel deletes a label.
+func (s *Service) DeleteLabel(ctx context.Context, id platform.ID) error {
+	label, err := s.FindLabelByID(ctx, id)
 	if label == nil && err != nil {
 		return &platform.Error{
 			Code: platform.ENotFound,
 			Op:   OpPrefix + platform.OpDeleteLabel,
 			Err:  platform.ErrLabelNotFound,
+			Msg:  "label not found",
 		}
 	}
 
-	s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))
+	s.labelKV.Delete(id.String())
 	return nil
 }
 
-func (s *Service) deleteLabel(ctx context.Context, filter platform.LabelFilter) error {
-	labels, err := s.FindLabels(ctx, filter)
-	if labels == nil && err != nil {
-		return err
-	}
-	for _, l := range labels {
-		s.labelKV.Delete(encodeLabelKey(l.ResourceID, l.Name))
-	}
-
+// DeleteLabelMapping deletes a label mapping.
+func (s *Service) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+	s.labelMappingKV.Delete(encodeLabelMappingKey(m))
 	return nil
 }

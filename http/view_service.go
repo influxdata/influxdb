@@ -27,14 +27,14 @@ type ViewHandler struct {
 }
 
 const (
-	viewsPath             = "/api/v2/views"
-	viewsIDPath           = "/api/v2/views/:id"
-	viewsIDMembersPath    = "/api/v2/views/:id/members"
-	viewsIDMembersIDPath  = "/api/v2/views/:id/members/:userID"
-	viewsIDOwnersPath     = "/api/v2/views/:id/owners"
-	viewsIDOwnersIDPath   = "/api/v2/views/:id/owners/:userID"
-	viewsIDLabelsPath     = "/api/v2/views/:id/labels"
-	viewsIDLabelsNamePath = "/api/v2/views/:id/labels/:name"
+	viewsPath            = "/api/v2/views"
+	viewsIDPath          = "/api/v2/views/:id"
+	viewsIDMembersPath   = "/api/v2/views/:id/members"
+	viewsIDMembersIDPath = "/api/v2/views/:id/members/:userID"
+	viewsIDOwnersPath    = "/api/v2/views/:id/owners"
+	viewsIDOwnersIDPath  = "/api/v2/views/:id/owners/:userID"
+	viewsIDLabelsPath    = "/api/v2/views/:id/labels"
+	viewsIDLabelsIDPath  = "/api/v2/views/:id/labels/:lid"
 )
 
 // NewViewHandler returns a new instance of ViewHandler.
@@ -65,8 +65,7 @@ func NewViewHandler(mappingService platform.UserResourceMappingService, labelSer
 
 	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(h.LabelService))
 	h.HandlerFunc("POST", viewsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", viewsIDLabelsNamePath, newDeleteLabelHandler(h.LabelService))
-	h.HandlerFunc("PATCH", viewsIDLabelsNamePath, newPatchLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", viewsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
 
 	return h
 }
