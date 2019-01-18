@@ -161,9 +161,10 @@ func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMa
 			}
 
 			l, err := c.findLabelByID(ctx, tx, id)
-			// TODO(jm): why the heck is it finding the label and returning an error?
 			if l == nil && err != nil {
-				return err
+				// TODO(jm): return error instead of continuing once orphaned mappings are fixed
+				// (see https://github.com/influxdata/influxdb/issues/11278)
+				continue
 			}
 
 			ls = append(ls, l)
