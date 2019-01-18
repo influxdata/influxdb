@@ -8,7 +8,6 @@ import {
   ConfirmationButton,
   Alignment,
   Button,
-  ComponentSpacer,
   ComponentColor,
 } from 'src/clockface'
 
@@ -39,20 +38,21 @@ export default class BucketRow extends PureComponent<Props> {
           </IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-            <ComponentSpacer align={Alignment.Right}>
-              <Button
-                text={'Add Data'}
-                onClick={this.handleClickAddData}
-                color={ComponentColor.Default}
-              />
-              <ConfirmationButton
-                size={ComponentSize.ExtraSmall}
-                text="Delete"
-                confirmText="Confirm"
-                onConfirm={onDeleteBucket}
-                returnValue={bucket}
-              />
-            </ComponentSpacer>
+            <ConfirmationButton
+              size={ComponentSize.ExtraSmall}
+              text="Delete"
+              confirmText="Confirm"
+              onConfirm={onDeleteBucket}
+              returnValue={bucket}
+            />
+          </IndexList.Cell>
+          <IndexList.Cell alignment={Alignment.Right}>
+            <Button
+              text={'Add Data'}
+              onClick={this.handleClickAddData}
+              color={ComponentColor.Secondary}
+              size={ComponentSize.ExtraSmall}
+            />
           </IndexList.Cell>
         </IndexList.Row>
       </>
