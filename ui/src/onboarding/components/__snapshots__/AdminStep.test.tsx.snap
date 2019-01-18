@@ -112,20 +112,21 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 widthXS={12}
               >
                 <FormElement
-                  label="Default Organization Name"
+                  label="Initial Organization Name"
+                  labelAddOn={[Function]}
                 >
                   <Input
                     autoFocus={false}
                     autocomplete="off"
-                    disabledTitleText="Default organization name has been set"
+                    disabledTitleText="Initial organization name has been set"
                     icon={null}
                     name=""
                     onChange={[Function]}
-                    placeholder="Your organization is where everything you create lives"
+                    placeholder="An organization is a workspace for storing data, dashboards, and other related resources."
                     size="md"
                     spellCheck={false}
                     status="default"
-                    titleText="Default Organization Name"
+                    titleText="Initial Organization Name"
                     value=""
                   />
                 </FormElement>
@@ -136,20 +137,21 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 widthXS={12}
               >
                 <FormElement
-                  label="Default Bucket Name"
+                  label="Initial Bucket Name"
+                  labelAddOn={[Function]}
                 >
                   <Input
                     autoFocus={false}
                     autocomplete="off"
-                    disabledTitleText="Default bucket name has been set"
+                    disabledTitleText="Initial bucket name has been set"
                     icon={null}
                     name=""
                     onChange={[Function]}
-                    placeholder="Your bucket is where you will store all your data"
+                    placeholder="A bucket is where your time series data is stored with a retention policy."
                     size="md"
                     spellCheck={false}
                     status="default"
-                    titleText="Default Bucket Name"
+                    titleText="Initial Bucket Name"
                     value=""
                   />
                 </FormElement>

@@ -34,6 +34,7 @@ import LabelSelector from 'src/clockface/components/label/LabelSelector'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 import Select from 'src/clockface/components/Select'
 import Grid from 'src/clockface/components/grid_layout/Grid'
+import QuestionMarkTooltip from 'src/clockface/components/tooltips/QuestionMarkTooltip'
 
 // Import Types
 import {
@@ -95,6 +96,7 @@ export {
   OverlayTechnology,
   Panel,
   ProgressBar,
+  QuestionMarkTooltip,
   Radio,
   Select,
   SlideToggle,

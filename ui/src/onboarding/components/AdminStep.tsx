@@ -13,6 +13,7 @@ import {
   IconFont,
   Grid,
   ComponentStatus,
+  QuestionMarkTooltip,
 } from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
@@ -145,16 +146,19 @@ class AdminStep extends PureComponent<Props, State> {
                       widthMD={Columns.Ten}
                       offsetMD={Columns.One}
                     >
-                      <Form.Element label="Default Organization Name">
+                      <Form.Element
+                        label="Initial Organization Name"
+                        labelAddOn={this.orgTip}
+                      >
                         <Input
                           value={org}
                           onChange={this.handleOrg}
-                          titleText="Default Organization Name"
+                          titleText="Initial Organization Name"
                           size={ComponentSize.Medium}
                           icon={icon}
                           status={ComponentStatus.Default}
-                          placeholder="Your organization is where everything you create lives"
-                          disabledTitleText="Default organization name has been set"
+                          placeholder="An organization is a workspace for storing data, dashboards, and other related resources."
+                          disabledTitleText="Initial organization name has been set"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -163,16 +167,19 @@ class AdminStep extends PureComponent<Props, State> {
                       widthMD={Columns.Ten}
                       offsetMD={Columns.One}
                     >
-                      <Form.Element label="Default Bucket Name">
+                      <Form.Element
+                        label="Initial Bucket Name"
+                        labelAddOn={this.bucketTip}
+                      >
                         <Input
                           value={bucket}
                           onChange={this.handleBucket}
-                          titleText="Default Bucket Name"
+                          titleText="Initial Bucket Name"
                           size={ComponentSize.Medium}
                           icon={icon}
                           status={status}
-                          placeholder="Your bucket is where you will store all your data"
-                          disabledTitleText="Default bucket name has been set"
+                          placeholder="A bucket is where your time series data is stored with a retention policy."
+                          disabledTitleText="Initial bucket name has been set"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -217,6 +224,25 @@ class AdminStep extends PureComponent<Props, State> {
   private handleBucket = (e: ChangeEvent<HTMLInputElement>): void => {
     const bucket = e.target.value
     this.setState({bucket})
+  }
+
+  private orgTip = (): JSX.Element => {
+    return (
+      <QuestionMarkTooltip
+        tipID="admin_org_tooltip"
+        tipContent={`An organization is a workspace for storing data, dashboards, and other related resources.
+        You can create organizations for different functional groups, teams, or projects.`}
+      />
+    )
+  }
+
+  private bucketTip = (): JSX.Element => {
+    return (
+      <QuestionMarkTooltip
+        tipID="admin_bucket_tooltip"
+        tipContent="A bucket is where your time series data is stored with a retention policy."
+      />
+    )
   }
 
   private get nextButtonStatus(): ComponentStatus {
