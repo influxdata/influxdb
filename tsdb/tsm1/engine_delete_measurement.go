@@ -149,6 +149,9 @@ func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
 
 		// In this case the entire measurement (bucket) can be removed from the index.
 		if min == math.MinInt64 && max == math.MaxInt64 {
+			// The TSI index and Series File do not store series data in escaped form.
+			name = models.UnescapeMeasurement(name)
+
 			// Build up a set of series IDs that we need to remove from the series file.
 			set := tsdb.NewSeriesIDSet()
 			itr, err := e.index.MeasurementSeriesIDIterator(name)
