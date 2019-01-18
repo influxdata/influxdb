@@ -146,9 +146,9 @@ workflows:
   build:
     jobs:
       - litmus_nightly
-#      - gotest
-#      - jstest
-#      - build
+      - gotest
+      - jstest
+      - build
 
   nightly:
     triggers:
