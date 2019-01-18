@@ -993,7 +993,7 @@ func (t TaskService) CreateTask(ctx context.Context, tsk *platform.Task) error {
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
