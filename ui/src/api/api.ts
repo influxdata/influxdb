@@ -10650,66 +10650,16 @@ export const QueryApiAxiosParamCreator = function (configuration?: Configuration
         },
         /**
          * 
-         * @summary query influx with specified return formatting. The spec and query fields are mutually exclusive.
-         * @param {string} org specifies the organization of the resource
-         * @param {string} query query script to execute.
-         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        queryGet(org: string, query: string, authorization?: string, options: any = {}): RequestArgs {
-            // verify required parameter 'org' is not null or undefined
-            if (org === null || org === undefined) {
-                throw new RequiredError('org','Required parameter org was null or undefined when calling queryGet.');
-            }
-            // verify required parameter 'query' is not null or undefined
-            if (query === null || query === undefined) {
-                throw new RequiredError('query','Required parameter query was null or undefined when calling queryGet.');
-            }
-            const localVarPath = `/query`;
-            const localVarUrlObj = url.parse(localVarPath, true);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-            const localVarRequestOptions = Object.assign({ method: 'GET' }, baseOptions, options);
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            if (org !== undefined) {
-                localVarQueryParameter['org'] = org;
-            }
-
-            if (query !== undefined) {
-                localVarQueryParameter['query'] = query;
-            }
-
-            if (authorization !== undefined && authorization !== null) {
-                localVarHeaderParameter['Authorization'] = String(authorization);
-            }
-
-            localVarUrlObj.query = Object.assign({}, localVarUrlObj.query, localVarQueryParameter, options.query);
-            // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
-            delete localVarUrlObj.search;
-            localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
-
-            return {
-                url: url.format(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
-         * 
          * @summary query an influx
          * @param {'text/csv' | 'application/vnd.influx.arrow'} [accept] specifies the return content format. Each response content type will have its own dialect options.
-         * @param {'application/json'} [contentType] 
+         * @param {'application/json' | 'application/vnd.flux'} [contentType] 
          * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
          * @param {string} [org] specifies the name of the organization executing the query.
          * @param {Query} [query] flux query or specification to execute
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json', authorization?: string, org?: string, query?: Query, options: any = {}): RequestArgs {
+        queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json' | 'application/vnd.flux', authorization?: string, org?: string, query?: Query, options: any = {}): RequestArgs {
             const localVarPath = `/query`;
             const localVarUrlObj = url.parse(localVarPath, true);
             let baseOptions;
@@ -10891,32 +10841,16 @@ export const QueryApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
-         * @summary query influx with specified return formatting. The spec and query fields are mutually exclusive.
-         * @param {string} org specifies the organization of the resource
-         * @param {string} query query script to execute.
-         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        queryGet(org: string, query: string, authorization?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<string> {
-            const localVarAxiosArgs = QueryApiAxiosParamCreator(configuration).queryGet(org, query, authorization, options);
-            return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
-                const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
-                return axios.request(axiosRequestArgs);                
-            };
-        },
-        /**
-         * 
          * @summary query an influx
          * @param {'text/csv' | 'application/vnd.influx.arrow'} [accept] specifies the return content format. Each response content type will have its own dialect options.
-         * @param {'application/json'} [contentType] 
+         * @param {'application/json' | 'application/vnd.flux'} [contentType] 
          * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
          * @param {string} [org] specifies the name of the organization executing the query.
          * @param {Query} [query] flux query or specification to execute
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json', authorization?: string, org?: string, query?: Query, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<string> {
+        queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json' | 'application/vnd.flux', authorization?: string, org?: string, query?: Query, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<string> {
             const localVarAxiosArgs = QueryApiAxiosParamCreator(configuration).queryPost(accept, contentType, authorization, org, query, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
@@ -10997,28 +10931,16 @@ export const QueryApiFactory = function (configuration?: Configuration, basePath
         },
         /**
          * 
-         * @summary query influx with specified return formatting. The spec and query fields are mutually exclusive.
-         * @param {string} org specifies the organization of the resource
-         * @param {string} query query script to execute.
-         * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        queryGet(org: string, query: string, authorization?: string, options?: any) {
-            return QueryApiFp(configuration).queryGet(org, query, authorization, options)(axios, basePath);
-        },
-        /**
-         * 
          * @summary query an influx
          * @param {'text/csv' | 'application/vnd.influx.arrow'} [accept] specifies the return content format. Each response content type will have its own dialect options.
-         * @param {'application/json'} [contentType] 
+         * @param {'application/json' | 'application/vnd.flux'} [contentType] 
          * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
          * @param {string} [org] specifies the name of the organization executing the query.
          * @param {Query} [query] flux query or specification to execute
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json', authorization?: string, org?: string, query?: Query, options?: any) {
+        queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json' | 'application/vnd.flux', authorization?: string, org?: string, query?: Query, options?: any) {
             return QueryApiFp(configuration).queryPost(accept, contentType, authorization, org, query, options)(axios, basePath);
         },
         /**
@@ -11088,23 +11010,9 @@ export class QueryApi extends BaseAPI {
 
     /**
      * 
-     * @summary query influx with specified return formatting. The spec and query fields are mutually exclusive.
-     * @param {string} org specifies the organization of the resource
-     * @param {string} query query script to execute.
-     * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof QueryApi
-     */
-    public queryGet(org: string, query: string, authorization?: string, options?: any) {
-        return QueryApiFp(this.configuration).queryGet(org, query, authorization, options)(this.axios, this.basePath);
-    }
-
-    /**
-     * 
      * @summary query an influx
      * @param {'text/csv' | 'application/vnd.influx.arrow'} [accept] specifies the return content format. Each response content type will have its own dialect options.
-     * @param {'application/json'} [contentType] 
+     * @param {'application/json' | 'application/vnd.flux'} [contentType] 
      * @param {string} [authorization] the authorization header should be in the format of &#x60;Token &lt;key&gt;&#x60;
      * @param {string} [org] specifies the name of the organization executing the query.
      * @param {Query} [query] flux query or specification to execute
@@ -11112,7 +11020,7 @@ export class QueryApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof QueryApi
      */
-    public queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json', authorization?: string, org?: string, query?: Query, options?: any) {
+    public queryPost(accept?: 'text/csv' | 'application/vnd.influx.arrow', contentType?: 'application/json' | 'application/vnd.flux', authorization?: string, org?: string, query?: Query, options?: any) {
         return QueryApiFp(this.configuration).queryPost(accept, contentType, authorization, org, query, options)(this.axios, this.basePath);
     }
 
@@ -11164,8 +11072,8 @@ export const ScraperTargetsApiAxiosParamCreator = function (configuration?: Conf
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsGet(options: any = {}): RequestArgs {
-            const localVarPath = `/scrapertargets`;
+        scrapersGet(options: any = {}): RequestArgs {
+            const localVarPath = `/scrapers`;
             const localVarUrlObj = url.parse(localVarPath, true);
             let baseOptions;
             if (configuration) {
@@ -11192,12 +11100,12 @@ export const ScraperTargetsApiAxiosParamCreator = function (configuration?: Conf
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsPost(scraperTargetRequest: ScraperTargetRequest, options: any = {}): RequestArgs {
+        scrapersPost(scraperTargetRequest: ScraperTargetRequest, options: any = {}): RequestArgs {
             // verify required parameter 'scraperTargetRequest' is not null or undefined
             if (scraperTargetRequest === null || scraperTargetRequest === undefined) {
-                throw new RequiredError('scraperTargetRequest','Required parameter scraperTargetRequest was null or undefined when calling scrapertargetsPost.');
+                throw new RequiredError('scraperTargetRequest','Required parameter scraperTargetRequest was null or undefined when calling scrapersPost.');
             }
-            const localVarPath = `/scrapertargets`;
+            const localVarPath = `/scrapers`;
             const localVarUrlObj = url.parse(localVarPath, true);
             let baseOptions;
             if (configuration) {
@@ -11229,12 +11137,12 @@ export const ScraperTargetsApiAxiosParamCreator = function (configuration?: Conf
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
+        scrapersScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options: any = {}): RequestArgs {
             // verify required parameter 'scraperTargetID' is not null or undefined
             if (scraperTargetID === null || scraperTargetID === undefined) {
-                throw new RequiredError('scraperTargetID','Required parameter scraperTargetID was null or undefined when calling scrapertargetsScraperTargetIDDelete.');
+                throw new RequiredError('scraperTargetID','Required parameter scraperTargetID was null or undefined when calling scrapersScraperTargetIDDelete.');
             }
-            const localVarPath = `/scrapertargets/{scraperTargetID}`
+            const localVarPath = `/scrapers/{scraperTargetID}`
                 .replace(`{${"scraperTargetID"}}`, encodeURIComponent(String(scraperTargetID)));
             const localVarUrlObj = url.parse(localVarPath, true);
             let baseOptions;
@@ -11268,16 +11176,16 @@ export const ScraperTargetsApiAxiosParamCreator = function (configuration?: Conf
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options: any = {}): RequestArgs {
+        scrapersScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options: any = {}): RequestArgs {
             // verify required parameter 'scraperTargetID' is not null or undefined
             if (scraperTargetID === null || scraperTargetID === undefined) {
-                throw new RequiredError('scraperTargetID','Required parameter scraperTargetID was null or undefined when calling scrapertargetsScraperTargetIDPatch.');
+                throw new RequiredError('scraperTargetID','Required parameter scraperTargetID was null or undefined when calling scrapersScraperTargetIDPatch.');
             }
             // verify required parameter 'scraperTargetRequest' is not null or undefined
             if (scraperTargetRequest === null || scraperTargetRequest === undefined) {
-                throw new RequiredError('scraperTargetRequest','Required parameter scraperTargetRequest was null or undefined when calling scrapertargetsScraperTargetIDPatch.');
+                throw new RequiredError('scraperTargetRequest','Required parameter scraperTargetRequest was null or undefined when calling scrapersScraperTargetIDPatch.');
             }
-            const localVarPath = `/scrapertargets/{scraperTargetID}`
+            const localVarPath = `/scrapers/{scraperTargetID}`
                 .replace(`{${"scraperTargetID"}}`, encodeURIComponent(String(scraperTargetID)));
             const localVarUrlObj = url.parse(localVarPath, true);
             let baseOptions;
@@ -11321,8 +11229,8 @@ export const ScraperTargetsApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsGet(options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponses> {
-            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapertargetsGet(options);
+        scrapersGet(options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponses> {
+            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapersGet(options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -11335,8 +11243,8 @@ export const ScraperTargetsApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsPost(scraperTargetRequest: ScraperTargetRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponse> {
-            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapertargetsPost(scraperTargetRequest, options);
+        scrapersPost(scraperTargetRequest: ScraperTargetRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponse> {
+            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapersPost(scraperTargetRequest, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -11350,8 +11258,8 @@ export const ScraperTargetsApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
-            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapertargetsScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options);
+        scrapersScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Response> {
+            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapersScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -11366,8 +11274,8 @@ export const ScraperTargetsApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponse> {
-            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapertargetsScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options);
+        scrapersScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<ScraperTargetResponse> {
+            const localVarAxiosArgs = ScraperTargetsApiAxiosParamCreator(configuration).scrapersScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -11388,8 +11296,8 @@ export const ScraperTargetsApiFactory = function (configuration?: Configuration,
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsGet(options?: any) {
-            return ScraperTargetsApiFp(configuration).scrapertargetsGet(options)(axios, basePath);
+        scrapersGet(options?: any) {
+            return ScraperTargetsApiFp(configuration).scrapersGet(options)(axios, basePath);
         },
         /**
          * 
@@ -11398,8 +11306,8 @@ export const ScraperTargetsApiFactory = function (configuration?: Configuration,
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsPost(scraperTargetRequest: ScraperTargetRequest, options?: any) {
-            return ScraperTargetsApiFp(configuration).scrapertargetsPost(scraperTargetRequest, options)(axios, basePath);
+        scrapersPost(scraperTargetRequest: ScraperTargetRequest, options?: any) {
+            return ScraperTargetsApiFp(configuration).scrapersPost(scraperTargetRequest, options)(axios, basePath);
         },
         /**
          * 
@@ -11409,8 +11317,8 @@ export const ScraperTargetsApiFactory = function (configuration?: Configuration,
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any) {
-            return ScraperTargetsApiFp(configuration).scrapertargetsScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options)(axios, basePath);
+        scrapersScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any) {
+            return ScraperTargetsApiFp(configuration).scrapersScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options)(axios, basePath);
         },
         /**
          * 
@@ -11421,8 +11329,8 @@ export const ScraperTargetsApiFactory = function (configuration?: Configuration,
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        scrapertargetsScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any) {
-            return ScraperTargetsApiFp(configuration).scrapertargetsScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options)(axios, basePath);
+        scrapersScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any) {
+            return ScraperTargetsApiFp(configuration).scrapersScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options)(axios, basePath);
         },
     };
 };
@@ -11441,8 +11349,8 @@ export class ScraperTargetsApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof ScraperTargetsApi
      */
-    public scrapertargetsGet(options?: any) {
-        return ScraperTargetsApiFp(this.configuration).scrapertargetsGet(options)(this.axios, this.basePath);
+    public scrapersGet(options?: any) {
+        return ScraperTargetsApiFp(this.configuration).scrapersGet(options)(this.axios, this.basePath);
     }
 
     /**
@@ -11453,8 +11361,8 @@ export class ScraperTargetsApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof ScraperTargetsApi
      */
-    public scrapertargetsPost(scraperTargetRequest: ScraperTargetRequest, options?: any) {
-        return ScraperTargetsApiFp(this.configuration).scrapertargetsPost(scraperTargetRequest, options)(this.axios, this.basePath);
+    public scrapersPost(scraperTargetRequest: ScraperTargetRequest, options?: any) {
+        return ScraperTargetsApiFp(this.configuration).scrapersPost(scraperTargetRequest, options)(this.axios, this.basePath);
     }
 
     /**
@@ -11466,8 +11374,8 @@ export class ScraperTargetsApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof ScraperTargetsApi
      */
-    public scrapertargetsScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any) {
-        return ScraperTargetsApiFp(this.configuration).scrapertargetsScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options)(this.axios, this.basePath);
+    public scrapersScraperTargetIDDelete(scraperTargetID: string, zapTraceSpan?: string, options?: any) {
+        return ScraperTargetsApiFp(this.configuration).scrapersScraperTargetIDDelete(scraperTargetID, zapTraceSpan, options)(this.axios, this.basePath);
     }
 
     /**
@@ -11480,8 +11388,8 @@ export class ScraperTargetsApi extends BaseAPI {
      * @throws {RequiredError}
      * @memberof ScraperTargetsApi
      */
-    public scrapertargetsScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any) {
-        return ScraperTargetsApiFp(this.configuration).scrapertargetsScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options)(this.axios, this.basePath);
+    public scrapersScraperTargetIDPatch(scraperTargetID: string, scraperTargetRequest: ScraperTargetRequest, zapTraceSpan?: string, options?: any) {
+        return ScraperTargetsApiFp(this.configuration).scrapersScraperTargetIDPatch(scraperTargetID, scraperTargetRequest, zapTraceSpan, options)(this.axios, this.basePath);
     }
 
 }
