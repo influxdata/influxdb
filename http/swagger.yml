@@ -379,46 +379,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-    patch:
-      tags:
-        - Telegrafs
-      summary: update a label from a telegraf config
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: telegrafID
-          schema:
-            type: string
-          required: true
-          description: ID of the telegraf config
-        - in: path
-          name: label
-          schema:
-            type: string
-          required: true
-          description: the label name
-      requestBody:
-        description: label update to apply
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Label"
-      responses:
-        '200':
-          description: updated successfully
-        '404':
-          description: telegraf config not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/members':
     get:
       tags:
@@ -1450,46 +1410,6 @@ paths:
       responses:
         '204':
           description: delete has been accepted
-        '404':
-          description: view not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    patch:
-      tags:
-        - Views
-      summary: update a label from a view
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-        - in: path
-          name: label
-          schema:
-            type: string
-          required: true
-          description: the label name
-      requestBody:
-        description: label update to apply
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Label"
-      responses:
-        '200':
-          description: updated successfully
         '404':
           description: view not found
           content:
@@ -3032,46 +2952,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-    patch:
-      tags:
-        - Buckets
-      summary: update a label from a bucket
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: bucketID
-          schema:
-            type: string
-          required: true
-          description: ID of the bucket
-        - in: path
-          name: label
-          schema:
-            type: string
-          required: true
-          description: the label name
-      requestBody:
-        description: label update to apply
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Label"
-      responses:
-        '200':
-          description: updated successfully
-        '404':
-          description: bucket not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/members':
     get:
       tags:
@@ -3469,46 +3349,6 @@ paths:
       responses:
         '204':
           description: delete has been accepted
-        '404':
-          description: organization not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    patch:
-      tags:
-        - Organizations
-      summary: update a label from an organization
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: ID of the organization
-        - in: path
-          name: label
-          schema:
-            type: string
-          required: true
-          description: the label name
-      requestBody:
-        description: label update to apply
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Label"
-      responses:
-        '200':
-          description: updated successfully
         '404':
           description: organization not found
           content:
@@ -4235,46 +4075,6 @@ paths:
       responses:
         '204':
           description: delete has been accepted
-        '404':
-          description: task not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    patch:
-      tags:
-        - Tasks
-      summary: update a label from a task
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: taskID
-          schema:
-            type: string
-          required: true
-          description: ID of the task
-        - in: path
-          name: label
-          schema:
-            type: string
-          required: true
-          description: the label name
-      requestBody:
-        description: label update to apply
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Label"
-      responses:
-        '200':
-          description: updated successfully
         '404':
           description: task not found
           content:
