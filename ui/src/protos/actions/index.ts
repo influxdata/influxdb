@@ -13,10 +13,18 @@ import {addLabelDefaults} from 'src/shared/utils/labels'
 
 // Actions
 import {loadDashboard} from 'src/dashboards/actions/v2/'
+import {notify} from 'src/shared/actions/notifications'
 
 // Types
-import {Proto} from 'src/api'
-import {Dashboard} from 'src/types/v2'
+import {Proto, Dashboard} from 'src/api'
+import {GetState} from 'src/types/v2'
+import {ConfigurationState} from 'src/types/v2/dataLoaders'
+
+// Const
+import {
+  ProtoDashboardFailed,
+  ProtoDashboardCreated,
+} from 'src/shared/copy/notifications'
 
 export enum ActionTypes {
   LoadProto = 'LOAD_PROTO',
@@ -39,6 +47,7 @@ export const loadProto = (proto: Proto): LoadProtoAction => ({
 export const getProtos = () => async (dispatch: Dispatch<Action>) => {
   try {
     const {protos} = await getProtosAJAX()
+
     protos.forEach(p => {
       dispatch(loadProto(p))
     })
@@ -64,5 +73,39 @@ export const createDashFromProto = (
     })
   } catch (error) {
     console.error(error)
+  }
+}
+
+export const createDashboardsForPlugins = () => async (
+  dispatch,
+  getState: GetState
+) => {
+  await dispatch(getProtos())
+  const {
+    dataLoading: {
+      dataLoaders: {telegrafPlugins},
+      steps: {orgID},
+    },
+    protos,
+  } = getState()
+
+  const plugins = []
+
+  try {
+    telegrafPlugins.forEach(tp => {
+      if (tp.configured === ConfigurationState.Configured) {
+        if (protos[tp.name]) {
+          dispatch(createDashFromProto(protos[tp.name].id, orgID))
+          plugins.push(tp.name)
+        }
+      }
+    })
+
+    if (plugins.length) {
+      dispatch(notify(ProtoDashboardCreated(plugins)))
+    }
+  } catch (err) {
+    console.error(err)
+    dispatch(notify(ProtoDashboardFailed()))
   }
 }

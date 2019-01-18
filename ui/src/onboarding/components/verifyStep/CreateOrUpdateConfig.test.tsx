@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import CreateOrUpdateConfig from 'src/onboarding/components/verifyStep/CreateOrUpdateConfig'
+import {CreateOrUpdateConfig} from 'src/onboarding/components/verifyStep/CreateOrUpdateConfig'
 
 jest.mock('src/utils/api', () => require('src/onboarding/apis/mocks'))
 
@@ -12,6 +12,7 @@ const setup = async (override = {}) => {
     org: 'default',
     children: jest.fn(),
     onSaveTelegrafConfig: jest.fn(),
+    createDashboardsForPlugins: jest.fn(),
     notify: jest.fn(),
     authToken: '',
     ...override,

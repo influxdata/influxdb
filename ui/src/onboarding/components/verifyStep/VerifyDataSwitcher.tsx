@@ -6,9 +6,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import DataStreaming from 'src/onboarding/components/verifyStep/DataStreaming'
 import FetchAuthToken from 'src/onboarding/components/verifyStep/FetchAuthToken'
 
-// Actions
-import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
-
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import {NotificationAction, RemoteDataState} from 'src/types'
@@ -21,7 +18,6 @@ interface Props {
   bucket: string
   username: string
   telegrafConfigID: string
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   onDecrementCurrentStep: () => void
   lpStatus: RemoteDataState
 }
@@ -35,7 +31,6 @@ export class VerifyDataSwitcher extends PureComponent<Props> {
       username,
       type,
       telegrafConfigID,
-      onSaveTelegrafConfig,
       notify,
       lpStatus,
     } = this.props
@@ -51,7 +46,6 @@ export class VerifyDataSwitcher extends PureComponent<Props> {
                 configID={telegrafConfigID}
                 authToken={authToken}
                 bucket={bucket}
-                onSaveTelegrafConfig={onSaveTelegrafConfig}
               />
             )}
           </FetchAuthToken>

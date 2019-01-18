@@ -15,7 +15,6 @@ import {
   setActiveTelegrafPlugin,
   addConfigValue,
   removeConfigValue,
-  createOrUpdateTelegrafConfigAsync,
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
   setPluginConfiguration,
@@ -40,7 +39,6 @@ interface Props {
   buckets: Bucket[]
   dataLoaders: DataLoadersState
   currentStepIndex: number
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   onAddPluginBundle: typeof addPluginBundleWithPlugins
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
   onSetConfigArrayValue: typeof setConfigArrayValue
@@ -58,7 +56,6 @@ class StepSwitcher extends PureComponent<Props> {
       onboardingStepProps,
       dataLoaders,
       onSetDataLoadersType,
-      onSaveTelegrafConfig,
       onUpdateTelegrafPluginConfig,
       onSetActiveTelegrafPlugin,
       onSetPluginConfiguration,
@@ -117,7 +114,6 @@ class StepSwitcher extends PureComponent<Props> {
             selectedBucket={selectedBucket}
             username={username}
             org={org}
-            onSaveTelegrafConfig={onSaveTelegrafConfig}
             onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
             onSetPluginConfiguration={onSetPluginConfiguration}
             stepIndex={currentStepIndex}

@@ -12,7 +12,6 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 // Actions
 import {
   setActiveTelegrafPlugin,
-  createOrUpdateTelegrafConfigAsync,
   setPluginConfiguration,
 } from 'src/onboarding/actions/dataLoaders'
 
@@ -30,7 +29,6 @@ export interface OwnProps extends DataLoaderStepProps {
   telegrafPlugins: TelegrafPlugin[]
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetPluginConfiguration: typeof setPluginConfiguration
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   stepIndex: number
   bucket: string
   username: string
@@ -61,7 +59,6 @@ export class VerifyDataStep extends PureComponent<Props> {
       username,
       telegrafConfigID,
       type,
-      onSaveTelegrafConfig,
       onDecrementCurrentStepIndex,
       notify,
       lpStatus,
@@ -78,7 +75,6 @@ export class VerifyDataStep extends PureComponent<Props> {
                   notify={notify}
                   type={type}
                   telegrafConfigID={telegrafConfigID}
-                  onSaveTelegrafConfig={onSaveTelegrafConfig}
                   org={org}
                   bucket={this.bucket}
                   username={username}
