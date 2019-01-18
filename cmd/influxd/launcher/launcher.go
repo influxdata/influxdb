@@ -25,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
+	"github.com/influxdata/influxdb/proto"
 	"github.com/influxdata/influxdb/query"
 	pcontrol "github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/snowflake"
@@ -284,11 +285,21 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	// Load proto examples from the user data.
 	protoSvc := protofs.NewProtoService(m.protosPath, m.logger, dashboardSvc)
 	if err := protoSvc.Open(ctx); err != nil {
 		m.logger.Error("failed to read protos from the filesystem", zap.Error(err))
 		return err
 	}
+
+	// ... now, load the proto examples that are build with release.
+	protoData, err := proto.Load(m.logger)
+	if err != nil {
+		return err
+	}
+
+	// join the release proto examples with the user data examples.
+	protoSvc.WithProtos(protoData)
 
 	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
 	if err != nil {
