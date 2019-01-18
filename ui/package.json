@@ -8,6 +8,10 @@
     "type": "git",
     "url": "github:influxdata/chronograf"
   },
+  "engines": {
+    "npm": "~6.4",
+    "node": "~10.5"
+  },
   "alias": {
     "src": "./src"
   },
