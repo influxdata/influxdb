@@ -51,13 +51,16 @@ func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
 		}
 
 		// Skip if this key has been tombstoned.
+		release := itr.sfile.Retain()
 		key := itr.sfile.SeriesKey(elem.SeriesID)
 		if len(key) == 0 {
+			release()
 			continue
 		}
 
 		name, tags := ParseSeriesKey(key)
 		deleted := itr.sfile.IsDeleted(elem.SeriesID)
+		release()
 
 		return &seriesElemAdapter{
 			name:    name,
@@ -252,7 +255,9 @@ func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
 		}
 
 		// Skip if key has been tombstoned.
+		release := itr.sfile.Retain()
 		seriesKey := itr.sfile.SeriesKey(e.SeriesID)
+		release()
 		if len(seriesKey) == 0 {
 			continue
 		}
@@ -297,7 +302,11 @@ func (itr *filterUndeletedSeriesIDIterator) Next() (SeriesIDElem, error) {
 			return SeriesIDElem{}, err
 		} else if e.SeriesID.IsZero() {
 			return SeriesIDElem{}, nil
-		} else if itr.sfile.IsDeleted(e.SeriesID) {
+		}
+		release := itr.sfile.Retain()
+		isDeleted := itr.sfile.IsDeleted(e.SeriesID)
+		release()
+		if isDeleted {
 			continue
 		}
 		return e, nil
