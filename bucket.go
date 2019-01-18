@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -95,6 +96,26 @@ func (f BucketFilter) QueryParams() map[string][]string {
 	}
 
 	return qp
+}
+
+// String returns a human-readable string of the BucketFilter,
+// particularly useful for error messages.
+func (f BucketFilter) String() string {
+	// There should always be exactly 2 fields set, but if it's somehow more, that's fine.
+	parts := make([]string, 0, 2)
+	if f.ID != nil {
+		parts = append(parts, "Bucket ID: "+f.ID.String())
+	}
+	if f.Name != nil {
+		parts = append(parts, "Bucket Name: "+*f.Name)
+	}
+	if f.OrganizationID != nil {
+		parts = append(parts, "Org ID: "+f.OrganizationID.String())
+	}
+	if f.Organization != nil {
+		parts = append(parts, "Org Name: "+*f.Organization)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 // InternalBucketID returns the ID for an organization's specified internal bucket

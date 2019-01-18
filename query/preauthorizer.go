@@ -34,10 +34,10 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth 
 		return errors.Wrap(err, "could not retrieve buckets for query.Spec")
 	}
 
-	for _, readBucketItem := range readBuckets {
-		bucket, err := a.bucketService.FindBucket(ctx, readBucketItem)
+	for _, readBucketFilter := range readBuckets {
+		bucket, err := a.bucketService.FindBucket(ctx, readBucketFilter)
 		if err != nil {
-			return errors.Wrapf(err, "bucket does not exist")
+			return errors.Wrapf(err, "could not find read bucket with filter: %s", readBucketFilter)
 		}
 
 		if bucket == nil {
@@ -57,7 +57,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth 
 	for _, writeBucketFilter := range writeBuckets {
 		bucket, err := a.bucketService.FindBucket(ctx, writeBucketFilter)
 		if err != nil {
-			return errors.Wrapf(err, "could not find bucket %v", writeBucketFilter)
+			return errors.Wrapf(err, "could not find write bucket with filter: %s", writeBucketFilter)
 		}
 
 		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, bucket.OrganizationID)
