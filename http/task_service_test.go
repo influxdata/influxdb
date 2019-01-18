@@ -18,6 +18,25 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+func mockOrgService() platform.OrganizationService {
+	return &mock.OrganizationService{
+		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+			return &platform.Organization{ID: id, Name: "test"}, nil
+		},
+		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+			org := &platform.Organization{}
+			if filter.Name != nil {
+				org.Name = *filter.Name
+			}
+			if filter.ID != nil {
+				org.ID = *filter.ID
+			}
+
+			return org, nil
+		},
+	}
+}
+
 func TestTaskHandler_handleGetTasks(t *testing.T) {
 	type fields struct {
 		taskService  platform.TaskService
@@ -41,16 +60,16 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
 						tasks := []*platform.Task{
 							{
-								ID:           1,
-								Name:         "task1",
-								Organization: 1,
-								Owner:        platform.User{ID: 1, Name: "user1"},
+								ID:             1,
+								Name:           "task1",
+								OrganizationID: 1,
+								Owner:          platform.User{ID: 1, Name: "user1"},
 							},
 							{
-								ID:           2,
-								Name:         "task2",
-								Organization: 2,
-								Owner:        platform.User{ID: 2, Name: "user2"},
+								ID:             2,
+								Name:           "task2",
+								OrganizationID: 2,
+								Owner:          platform.User{ID: 2, Name: "user2"},
 							},
 						}
 						return tasks, len(tasks), nil
@@ -101,6 +120,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
         }
       ],
       "orgID": "0000000000000001",
+      "org": "test",
       "status": "",
       "flux": "",
       "owner": {
@@ -128,7 +148,8 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
           }
         }
       ],
-      "orgID": "0000000000000002",
+	  "orgID": "0000000000000002",
+	  "org": "test",
       "status": "",
       "flux": "",
       "owner": {
@@ -148,6 +169,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
+			h.OrganizationService = mockOrgService()
 			h.TaskService = tt.fields.taskService
 			h.LabelService = tt.fields.labelService
 			h.handleGetTasks(w, r)
@@ -192,8 +214,8 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			name: "create task",
 			args: args{
 				task: platform.Task{
-					Name:         "task1",
-					Organization: 1,
+					Name:           "task1",
+					OrganizationID: 1,
 					Owner: platform.User{
 						ID:   1,
 						Name: "user1",
@@ -225,6 +247,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
   "name": "task1",
   "labels": [],
   "orgID": "0000000000000001",
+  "org": "test",
   "status": "",
   "flux": "",
   "owner": {
@@ -251,6 +274,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
+			h.OrganizationService = mockOrgService()
 			h.TaskService = tt.fields.taskService
 			h.handlePostTask(w, r)
 
@@ -355,6 +379,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 				}))
 			w := httptest.NewRecorder()
 			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
+			h.OrganizationService = mockOrgService()
 			h.TaskService = tt.fields.taskService
 			h.handleGetRun(w, r)
 
@@ -463,6 +488,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 				}))
 			w := httptest.NewRecorder()
 			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
+			h.OrganizationService = mockOrgService()
 			h.TaskService = tt.fields.taskService
 			h.handleGetRuns(w, r)
 

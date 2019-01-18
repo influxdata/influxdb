@@ -216,6 +216,13 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for _, task := range tasks {
+		if err := h.populateOrg(ctx, task); err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+	}
+
 	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, h.LabelService)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -285,7 +292,12 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !req.Task.Organization.Valid() {
+	if err := h.populateOrg(ctx, req.Task); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if !req.Task.OrganizationID.Valid() {
 		err := &platform.Error{
 			Code: platform.EInvalid,
 			Msg:  "invalid organization id",
@@ -342,6 +354,11 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.populateOrg(ctx, task); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
 	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: task.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
@@ -393,6 +410,11 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{ResourceID: task.ID})
 	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.populateOrg(ctx, task); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -1320,4 +1342,29 @@ func taskIDRunsPath(id platform.ID) string {
 
 func taskIDRunIDPath(taskID, runID platform.ID) string {
 	return path.Join(tasksPath, taskID.String(), "runs", runID.String())
+}
+
+func (h *TaskHandler) populateOrg(ctx context.Context, t *platform.Task) error {
+	if t.OrganizationID.Valid() && t.Organization != "" {
+		return nil
+	}
+
+	if !t.OrganizationID.Valid() && t.Organization == "" {
+		return errors.New("missing orgID and organization name")
+	}
+
+	if t.OrganizationID.Valid() {
+		o, err := h.OrganizationService.FindOrganizationByID(ctx, t.OrganizationID)
+		if err != nil {
+			return err
+		}
+		t.Organization = o.Name
+	} else {
+		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &t.Organization})
+		if err != nil {
+			return err
+		}
+		t.OrganizationID = o.ID
+	}
+	return nil
 }

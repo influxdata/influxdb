@@ -5151,6 +5151,9 @@ components:
         orgID:
           description: The ID of the organization that owns this Task.
           type: string
+        org:
+          description: The organization that owns this Task.
+          type: string
         name:
           description: A description of the task.
           type: string

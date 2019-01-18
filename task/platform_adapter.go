@@ -83,7 +83,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 	}
 
 	req := backend.CreateTaskRequest{
-		Org:           t.Organization,
+		Org:           t.OrganizationID,
 		User:          t.Owner.ID,
 		Script:        t.Flux,
 		ScheduleAfter: scheduleAfter,
@@ -141,7 +141,7 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 		return nil, err
 	}
 	task.Owner.ID = t.User
-	task.Organization = t.Org
+	task.OrganizationID = t.Org
 
 	return task, nil
 }
@@ -233,9 +233,9 @@ func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Ta
 	}
 
 	pt := &platform.Task{
-		ID:           t.ID,
-		Organization: t.Org,
-		Name:         t.Name,
+		ID:             t.ID,
+		OrganizationID: t.Org,
+		Name:           t.Name,
 		Owner: platform.User{
 			ID:   t.User,
 			Name: "", // TODO(mr): how to get owner name?
