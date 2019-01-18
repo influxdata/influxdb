@@ -154,11 +154,11 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
     },
   },
   [TelegrafPluginInputNginx.NameEnum.Nginx]: {
-    fields: null,
+    fields: {urls: {type: ConfigFieldType.UriArray, isRequired: true}},
     defaults: {
       name: TelegrafPluginInputNginx.NameEnum.Nginx,
       type: TelegrafPluginInputNginx.TypeEnum.Input,
-      config: {},
+      config: {urls: []},
     },
   },
   [TelegrafPluginInputProcesses.NameEnum.Processes]: {
