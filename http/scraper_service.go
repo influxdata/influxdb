@@ -8,6 +8,7 @@ import (
 	"path"
 
 	"github.com/influxdata/influxdb"
+	pctx "github.com/influxdata/influxdb/context"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -41,14 +42,19 @@ func NewScraperHandler() *ScraperHandler {
 // handlePostScraperTarget is HTTP handler for the POST /api/v2/scrapers route.
 func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	req, err := decodeScraperTargetAddRequest(ctx, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := h.ScraperStorageService.AddTarget(ctx, req); err != nil {
+	auth, err := pctx.GetAuthorizer(ctx)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.ScraperStorageService.AddTarget(ctx, req, auth.GetUserID()); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -91,7 +97,13 @@ func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http
 		return
 	}
 
-	target, err := h.ScraperStorageService.UpdateTarget(ctx, update)
+	auth, err := pctx.GetAuthorizer(ctx)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	target, err := h.ScraperStorageService.UpdateTarget(ctx, update, auth.GetUserID())
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -247,7 +259,7 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]influxdb.ScraperTar
 
 // UpdateTarget updates a single scraper target with changeset.
 // Returns the new target state after update.
-func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget) (*influxdb.ScraperTarget, error) {
+func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
 	if !update.ID.Valid() {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -291,7 +303,7 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.Scra
 }
 
 // AddTarget creates a new scraper target and sets target.ID with the new identifier.
-func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.ScraperTarget) error {
+func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.ScraperTarget, userID influxdb.ID) error {
 	url, err := newURL(s.Addr, targetPath)
 	if err != nil {
 		return err

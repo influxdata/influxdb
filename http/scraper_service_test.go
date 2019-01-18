@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
+	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
@@ -494,7 +495,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 					},
 				},
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					AddTargetF: func(ctx context.Context, st *platform.ScraperTarget) error {
+					AddTargetF: func(ctx context.Context, st *platform.ScraperTarget, userID platform.ID) error {
 						st.ID = targetOneID
 						return nil
 					},
@@ -549,6 +550,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 			}
 
 			r := httptest.NewRequest("GET", "http://any.tld", bytes.NewReader(st))
+			r = r.WithContext(platcontext.SetAuthorizer(r.Context(), &platform.Authorization{}))
 			w := httptest.NewRecorder()
 
 			h.handlePostScraperTarget(w, r)
@@ -614,7 +616,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 					},
 				},
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					UpdateTargetF: func(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, t *platform.ScraperTarget, userID platform.ID) (*platform.ScraperTarget, error) {
 						if t.ID == targetOneID {
 							return t, nil
 						}
@@ -680,7 +682,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 					},
 				},
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					UpdateTargetF: func(ctx context.Context, upd *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, upd *platform.ScraperTarget, userID platform.ID) (*platform.ScraperTarget, error) {
 						return nil, &platform.Error{
 							Code: platform.ENotFound,
 							Msg:  platform.ErrScraperTargetNotFound,
@@ -732,7 +734,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 						Value: tt.args.id,
 					},
 				}))
-
+			r = r.WithContext(platcontext.SetAuthorizer(r.Context(), &platform.Authorization{}))
 			w := httptest.NewRecorder()
 
 			h.handlePatchScraperTarget(w, r)
@@ -765,6 +767,11 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.
 			t.Fatalf("failed to populate scraper targets")
 		}
 	}
+	for _, m := range f.UserResourceMappings {
+		if err := svc.PutUserResourceMapping(ctx, m); err != nil {
+			t.Fatalf("failed to populate user resource mapping")
+		}
+	}
 
 	handler := NewScraperHandler()
 	handler.ScraperStorageService = svc
@@ -784,10 +791,23 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.
 			}, nil
 		},
 	}
-	server := httptest.NewServer(handler)
-	client := ScraperService{
-		Addr:     server.URL,
-		OpPrefix: inmem.OpPrefix,
+	userID, _ := platform.IDFromString("020f755c3c082002")
+	server := httptest.NewServer(mock.NewMiddlewareHandler(
+		handler, &platform.Authorization{
+			UserID: *userID,
+			Token:  "tok",
+		},
+	))
+	client := struct {
+		platform.UserResourceMappingService
+		ScraperService
+	}{
+		UserResourceMappingService: svc,
+		ScraperService: ScraperService{
+			Token:    "tok",
+			Addr:     server.URL,
+			OpPrefix: inmem.OpPrefix,
+		},
 	}
 	done := server.Close
 

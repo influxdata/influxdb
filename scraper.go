@@ -28,11 +28,12 @@ type ScraperTarget struct {
 
 // ScraperTargetStoreService defines the crud service for ScraperTarget.
 type ScraperTargetStoreService interface {
+	UserResourceMappingService
 	ListTargets(ctx context.Context) ([]ScraperTarget, error)
-	AddTarget(ctx context.Context, t *ScraperTarget) error
+	AddTarget(ctx context.Context, t *ScraperTarget, userID ID) error
 	GetTargetByID(ctx context.Context, id ID) (*ScraperTarget, error)
 	RemoveTarget(ctx context.Context, id ID) error
-	UpdateTarget(ctx context.Context, t *ScraperTarget) (*ScraperTarget, error)
+	UpdateTarget(ctx context.Context, t *ScraperTarget, userID ID) (*ScraperTarget, error)
 }
 
 // ScraperTargetFilter represents a set of filter that restrict the returned results.

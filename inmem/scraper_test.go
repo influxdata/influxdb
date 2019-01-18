@@ -17,25 +17,14 @@ func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T)
 			t.Fatalf("failed to populate scraper targets")
 		}
 	}
+	for _, m := range f.UserResourceMappings {
+		if err := s.PutUserResourceMapping(ctx, m); err != nil {
+			t.Fatalf("failed to populate user resource mapping")
+		}
+	}
 	return s, OpPrefix, func() {}
 }
 
-func TestScraperTargetStoreService_AddTarget(t *testing.T) {
-	platformtesting.AddTarget(initScraperTargetStoreService, t)
-}
-
-func TestScraperTargetStoreService_ListTargets(t *testing.T) {
-	platformtesting.ListTargets(initScraperTargetStoreService, t)
-}
-
-func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
-	platformtesting.RemoveTarget(initScraperTargetStoreService, t)
-}
-
-func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
-	platformtesting.UpdateTarget(initScraperTargetStoreService, t)
-}
-
-func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
-	platformtesting.GetTargetByID(initScraperTargetStoreService, t)
+func TestScraperTargetStoreService(t *testing.T) {
+	platformtesting.ScraperService(initScraperTargetStoreService, t)
 }

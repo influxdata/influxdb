@@ -10,11 +10,12 @@ var _ platform.ScraperTargetStoreService = &ScraperTargetStoreService{}
 
 // ScraperTargetStoreService is a mock implementation of a platform.ScraperTargetStoreService.
 type ScraperTargetStoreService struct {
+	UserResourceMappingService
 	ListTargetsF   func(ctx context.Context) ([]platform.ScraperTarget, error)
-	AddTargetF     func(ctx context.Context, t *platform.ScraperTarget) error
+	AddTargetF     func(ctx context.Context, t *platform.ScraperTarget, userID platform.ID) error
 	GetTargetByIDF func(ctx context.Context, id platform.ID) (*platform.ScraperTarget, error)
 	RemoveTargetF  func(ctx context.Context, id platform.ID) error
-	UpdateTargetF  func(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error)
+	UpdateTargetF  func(ctx context.Context, t *platform.ScraperTarget, userID platform.ID) (*platform.ScraperTarget, error)
 }
 
 // ListTargets lists all the scraper targets.
@@ -23,8 +24,8 @@ func (s *ScraperTargetStoreService) ListTargets(ctx context.Context) ([]platform
 }
 
 // AddTarget adds a scraper target.
-func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, t *platform.ScraperTarget) error {
-	return s.AddTargetF(ctx, t)
+func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, t *platform.ScraperTarget, userID platform.ID) error {
+	return s.AddTargetF(ctx, t, userID)
 }
 
 // GetTargetByID retrieves a scraper target by id.
@@ -38,6 +39,6 @@ func (s *ScraperTargetStoreService) RemoveTarget(ctx context.Context, id platfor
 }
 
 // UpdateTarget updates a scraper target.
-func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error) {
-	return s.UpdateTargetF(ctx, t)
+func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, t *platform.ScraperTarget, userID platform.ID) (*platform.ScraperTarget, error) {
+	return s.UpdateTargetF(ctx, t, userID)
 }

@@ -104,7 +104,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService)
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
@@ -228,7 +228,7 @@ func TestScraperTargetStoreService_ListTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService)
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
@@ -271,7 +271,7 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 							OrgID: 10,
 						}, nil
 					},
-					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget) (*influxdb.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:    1,
 							OrgID: 10,
@@ -312,7 +312,7 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 							OrgID: 10,
 						}, nil
 					},
-					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget) (*influxdb.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, upd *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
 						return &influxdb.ScraperTarget{
 							ID:    1,
 							OrgID: 10,
@@ -343,12 +343,12 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService)
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
 
-			_, err := s.UpdateTarget(ctx, &influxdb.ScraperTarget{ID: tt.args.id})
+			_, err := s.UpdateTarget(ctx, &influxdb.ScraperTarget{ID: tt.args.id}, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -448,7 +448,7 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService)
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
@@ -481,7 +481,7 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 			name: "authorized to create scraper",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget) error {
+					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -504,7 +504,7 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 			name: "unauthorized to create scraper",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget) error {
+					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -530,12 +530,12 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService)
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.AddTarget(ctx, &influxdb.ScraperTarget{OrgID: tt.args.orgID})
+			err := s.AddTarget(ctx, &influxdb.ScraperTarget{OrgID: tt.args.orgID}, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
