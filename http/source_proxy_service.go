@@ -89,12 +89,11 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
-
 	if err != nil {
 		return 0, err
 	}
-
 	defer resp.Body.Close()
+
 	if err := CheckError(resp); err != nil {
 		return 0, err
 	}

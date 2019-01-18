@@ -131,10 +131,11 @@ func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	defer resp.Body.Close()
+
 	if err := CheckError(resp); err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
 	var ir isOnboardingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ir); err != nil {
 		return false, err

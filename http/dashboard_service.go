@@ -941,6 +941,7 @@ func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -994,6 +995,7 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 	if err != nil {
 		return dashboards, 0, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return dashboards, 0, err
@@ -1034,6 +1036,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dash
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return err
@@ -1074,6 +1077,7 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, 
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -1083,7 +1087,6 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, 
 	if err := json.NewDecoder(resp.Body).Decode(&d); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 	if len(d.Cells) == 0 {
 		d.Cells = nil
 	}
@@ -1109,6 +1112,8 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id platform.ID) 
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	return CheckError(resp, true)
 }
 
@@ -1138,6 +1143,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID,
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return err
@@ -1165,6 +1171,8 @@ func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID,
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	return CheckError(resp, true)
 }
 
@@ -1202,6 +1210,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -1211,7 +1220,6 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 	if err := json.NewDecoder(resp.Body).Decode(&c); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	return &c, nil
 }
@@ -1237,6 +1245,7 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -1246,7 +1255,6 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	return &res.View, nil
 }
@@ -1277,6 +1285,7 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -1286,7 +1295,6 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	return &res.View, nil
 }
@@ -1318,6 +1326,7 @@ func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platfor
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return err
@@ -1327,7 +1336,6 @@ func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platfor
 	if err := json.NewDecoder(resp.Body).Decode(&cells); err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
 	return nil
 }

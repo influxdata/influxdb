@@ -515,6 +515,7 @@ func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*pl
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return nil, err
@@ -524,7 +525,6 @@ func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*pl
 	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	return &b, nil
 }
@@ -549,6 +549,7 @@ func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOption
 	if err != nil {
 		return nil, 0, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return nil, 0, err
@@ -558,7 +559,6 @@ func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOption
 	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
 		return nil, 0, err
 	}
-	defer resp.Body.Close()
 
 	return bs, len(bs), nil
 }
@@ -589,6 +589,7 @@ func (s *SourceService) CreateSource(ctx context.Context, b *platform.Source) er
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
 	if err := CheckError(resp); err != nil {
@@ -629,6 +630,7 @@ func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd pl
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
 		return nil, err
@@ -638,7 +640,6 @@ func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd pl
 	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	return &b, nil
 }
@@ -661,6 +662,7 @@ func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error 
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	return CheckErrorStatus(http.StatusNoContent, resp)
 }

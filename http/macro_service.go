@@ -385,6 +385,7 @@ func (s *MacroService) FindMacroByID(ctx context.Context, id platform.ID) (*plat
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -432,6 +433,7 @@ func (s *MacroService) FindMacros(ctx context.Context, filter platform.MacroFilt
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -476,6 +478,7 @@ func (s *MacroService) CreateMacro(ctx context.Context, m *platform.Macro) error
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return err
@@ -510,6 +513,7 @@ func (s *MacroService) UpdateMacro(ctx context.Context, id platform.ID, update *
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return nil, err
@@ -519,7 +523,6 @@ func (s *MacroService) UpdateMacro(ctx context.Context, id platform.ID, update *
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	return &m, nil
 }
@@ -550,6 +553,7 @@ func (s *MacroService) ReplaceMacro(ctx context.Context, macro *platform.Macro) 
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if err := CheckError(resp, true); err != nil {
 		return err
@@ -558,7 +562,6 @@ func (s *MacroService) ReplaceMacro(ctx context.Context, macro *platform.Macro) 
 	if err := json.NewDecoder(resp.Body).Decode(&macro); err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
 	return nil
 }
@@ -581,6 +584,8 @@ func (s *MacroService) DeleteMacro(ctx context.Context, id platform.ID) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	return CheckError(resp, true)
 }
 
