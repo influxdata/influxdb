@@ -6,7 +6,7 @@ import {Link} from 'react-router'
 import {Button, ComponentSize} from 'src/clockface'
 
 const LogoutButton: SFC = () => (
-  <Link to={`/logout`}>
+  <Link to="/logout">
     <Button text="Logout" size={ComponentSize.ExtraSmall} />
   </Link>
 )
