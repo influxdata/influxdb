@@ -445,9 +445,15 @@ export const timeMachineReducer = (
 
     case 'SET_BUILDER_BUCKET_SELECTION': {
       return produce(state, draftState => {
-        const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
+        const builderConfig =
+          draftState.draftQueries[draftState.activeQueryIndex].builderConfig
 
-        draftQuery.builderConfig.buckets = [action.payload.bucket]
+        builderConfig.buckets = [action.payload.bucket]
+
+        if (action.payload.resetSelections) {
+          builderConfig.tags = [{key: '', values: []}]
+          builderConfig.functions = []
+        }
       })
     }
 

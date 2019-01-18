@@ -26,7 +26,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSelectBucket: (bucket: string) => void
+  onSelectBucket: (bucket: string, resetSelections: boolean) => void
 }
 
 interface OwnProps {}
@@ -39,7 +39,7 @@ const QueryBuilderBucketDropdown: SFC<Props> = props => {
   return (
     <Dropdown
       selectedID={selectedBucket}
-      onChange={onSelectBucket}
+      onChange={bucket => onSelectBucket(bucket, true)}
       buttonSize={ComponentSize.Small}
       status={toComponentStatus(bucketsStatus)}
     >
@@ -61,7 +61,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  onSelectBucket: selectBucket as any,
+  onSelectBucket: selectBucket,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
