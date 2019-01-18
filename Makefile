@@ -1,4 +1,4 @@
-# Top level Makefile for the entire project
+# Top tevel Makefile for the entire project
 #
 # This Makefile encodes the "go generate" prerequeisites ensuring that the proper tooling is installed and
 # that the generate steps are executed when their prerequeisites files change.
@@ -150,6 +150,8 @@ chronogiraffe: subdirs generate $(CMDS)
 run: chronogiraffe
 	./bin/$(GOOS)/influxd --developer-mode=true
 
+litmus_nightly:
+	python litmus_run_master.py --gateway=http://localhost:9999 --platform --user=admin_user --password=admin_password --org=admin_org --bucket=admin_bucket --tests src/cloud/rest_api/buckets/test_gateway_create_bucket.py --dockerimage
 
 # .PHONY targets represent actions that do not create an actual file.
 .PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist
