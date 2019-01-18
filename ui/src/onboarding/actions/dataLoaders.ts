@@ -5,10 +5,10 @@ import _ from 'lodash'
 import {
   writeLineProtocol,
   createTelegrafConfig,
-  getTelegrafConfigs,
   updateTelegrafConfig,
   createScraperTarget,
   updateScraperTarget,
+  getTelegrafConfig,
 } from 'src/onboarding/apis/index'
 
 // Utils
@@ -284,12 +284,10 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
 ) => {
   const {
     dataLoading: {
-      dataLoaders: {telegrafPlugins},
+      dataLoaders: {telegrafPlugins, telegrafConfigID},
       steps: {org, bucket, orgID},
     },
   } = getState()
-
-  const telegrafConfigsFromServer = await getTelegrafConfigs(orgID)
 
   const influxDB2Out = {
     name: TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2,
@@ -309,19 +307,20 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     }
   })
 
+  if (telegrafConfigID) {
+    const telegrafConfig = await getTelegrafConfig(telegrafConfigID)
+    const id = _.get(telegrafConfig, '0.id', '')
+
+    await updateTelegrafConfig(id, {...telegrafConfig, plugins})
+    dispatch(setTelegrafConfigID(id))
+    return
+  }
+
   const telegrafRequest: TelegrafRequest = {
     name: 'new config',
     agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
     organizationID: orgID,
     plugins,
-  }
-
-  if (telegrafConfigsFromServer.length) {
-    const id = _.get(telegrafConfigsFromServer, '0.id', '')
-
-    await updateTelegrafConfig(id, telegrafRequest)
-    dispatch(setTelegrafConfigID(id))
-    return
   }
 
   const created = await createTelegrafConfig(telegrafRequest)

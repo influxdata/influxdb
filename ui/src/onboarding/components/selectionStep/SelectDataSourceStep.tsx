@@ -17,6 +17,7 @@ import {
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
 } from 'src/onboarding/actions/dataLoaders'
+import {setBucketInfo} from 'src/onboarding/actions/steps'
 
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
@@ -28,8 +29,9 @@ import {
   DataLoaderType,
   BundleName,
 } from 'src/types/v2/dataLoaders'
+import {Bucket} from 'src/api'
 
-export interface OwnProps extends DataLoaderStepProps {
+export interface Props extends DataLoaderStepProps {
   bucket: string
   telegrafPlugins: TelegrafPlugin[]
   pluginBundles: BundleName[]
@@ -39,22 +41,13 @@ export interface OwnProps extends DataLoaderStepProps {
   onSetDataLoadersType: (type: DataLoaderType) => void
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetStepStatus: (index: number, status: StepStatus) => void
-}
-
-type Props = OwnProps
-
-interface State {
-  showStreamingSources: boolean
+  onSetBucketInfo: typeof setBucketInfo
+  buckets: Bucket[]
+  selectedBucket: string
 }
 
 @ErrorHandling
-export class SelectDataSourceStep extends PureComponent<Props, State> {
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {showStreamingSources: false}
-  }
-
+export class SelectDataSourceStep extends PureComponent<Props> {
   public componentDidMount() {
     if (this.isStreaming && this.props.type !== DataLoaderType.Streaming) {
       this.props.onSetDataLoadersType(DataLoaderType.Streaming)
@@ -121,6 +114,10 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
           pluginBundles={this.props.pluginBundles}
           telegrafPlugins={this.props.telegrafPlugins}
           onTogglePluginBundle={this.handleTogglePluginBundle}
+          buckets={this.props.buckets}
+          bucket={this.props.bucket}
+          selectedBucket={this.props.selectedBucket}
+          onSelectBucket={this.handleSelectBucket}
         />
       )
     }
@@ -130,6 +127,12 @@ export class SelectDataSourceStep extends PureComponent<Props, State> {
         type={this.props.type}
       />
     )
+  }
+
+  private handleSelectBucket = (bucket: Bucket) => {
+    const {organization, organizationID, id, name} = bucket
+
+    this.props.onSetBucketInfo(organization, organizationID, name, id)
   }
 
   private get showSkip(): boolean {

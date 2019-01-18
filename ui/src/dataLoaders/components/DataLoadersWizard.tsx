@@ -44,6 +44,7 @@ import {
   DataLoadersState,
   DataLoaderType,
   Substep,
+  DataLoaderStep,
 } from 'src/types/v2/dataLoaders'
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
@@ -105,6 +106,7 @@ interface StateProps {
   currentStepIndex: number
   substep: Substep
   username: string
+  selectedBucket: string
 }
 
 type Props = OwnProps & StateProps & DispatchProps
@@ -158,7 +160,9 @@ class DataLoadersWizard extends PureComponent<Props> {
       visible,
       bucket,
       username,
+      onSetBucketInfo,
       buckets,
+      selectedBucket,
     } = this.props
 
     return (
@@ -184,6 +188,7 @@ class DataLoadersWizard extends PureComponent<Props> {
               currentStepIndex={currentStepIndex}
               onboardingStepProps={this.stepProps}
               bucketName={_.get(bucket, 'name', '')}
+              selectedBucket={selectedBucket}
               dataLoaders={dataLoaders}
               onSetDataLoadersType={onSetDataLoadersType}
               onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
@@ -195,6 +200,7 @@ class DataLoadersWizard extends PureComponent<Props> {
               onAddPluginBundle={onAddPluginBundle}
               onRemovePluginBundle={onRemovePluginBundle}
               onSetConfigArrayValue={onSetConfigArrayValue}
+              onSetBucketInfo={onSetBucketInfo}
               org={_.get(bucket, 'organization', '')}
               username={username}
               buckets={buckets}
@@ -274,7 +280,7 @@ class DataLoadersWizard extends PureComponent<Props> {
     const {onSetSubstepIndex, onSetActiveTelegrafPlugin} = this.props
 
     onSetActiveTelegrafPlugin('')
-    onSetSubstepIndex(0, 'streaming')
+    onSetSubstepIndex(DataLoaderStep.Select, 'streaming')
   }
 
   private handleClickSideBarTab = (telegrafPluginID: string) => {
@@ -291,7 +297,7 @@ class DataLoadersWizard extends PureComponent<Props> {
       0
     )
 
-    onSetSubstepIndex(1, index)
+    onSetSubstepIndex(DataLoaderStep.Configure, index)
     onSetActiveTelegrafPlugin(telegrafPluginID)
   }
 
@@ -332,7 +338,7 @@ const mstp = ({
   links,
   dataLoading: {
     dataLoaders,
-    steps: {stepStatuses, currentStep, substep},
+    steps: {stepStatuses, currentStep, substep, bucket},
   },
   me: {name},
 }: AppState): StateProps => ({
@@ -342,6 +348,7 @@ const mstp = ({
   currentStepIndex: currentStep,
   substep,
   username: name,
+  selectedBucket: bucket,
 })
 
 const mdtp: DispatchProps = {

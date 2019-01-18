@@ -165,12 +165,22 @@ class OrganizationView extends PureComponent<Props> {
                 >
                   {(collectors, loading, fetch) => (
                     <Spinner loading={loading}>
-                      <Collectors
-                        collectors={collectors}
-                        onChange={fetch}
-                        notify={notify}
-                        orgName={org.name}
-                      />
+                      <GetOrgResources<Bucket[]>
+                        organization={org}
+                        fetcher={getBuckets}
+                      >
+                        {(buckets, loading) => (
+                          <Spinner loading={loading}>
+                            <Collectors
+                              collectors={collectors}
+                              onChange={fetch}
+                              notify={notify}
+                              buckets={buckets}
+                              orgName={org.name}
+                            />
+                          </Spinner>
+                        )}
+                      </GetOrgResources>
                     </Spinner>
                   )}
                 </GetOrgResources>

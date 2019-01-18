@@ -15,6 +15,10 @@ const setup = (override = {}) => {
     telegrafPlugins: [],
     pluginBundles: [],
     onTogglePluginBundle: jest.fn(),
+    buckets: [],
+    bucket: '',
+    selectedBucket: '',
+    onSelectBucket: jest.fn(),
     ...override,
   }
 
