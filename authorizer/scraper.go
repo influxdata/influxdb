@@ -109,7 +109,7 @@ func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.
 
 // UpdateTarget checks to see if the authorizer on context has write access to the scraper target provided.
 func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influxdb.ScraperTarget) (*influxdb.ScraperTarget, error) {
-	st, err := s.GetTargetByID(ctx, upd.ID)
+	st, err := s.s.GetTargetByID(ctx, upd.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influ
 
 // RemoveTarget checks to see if the authorizer on context has write access to the scraper target provided.
 func (s *ScraperTargetStoreService) RemoveTarget(ctx context.Context, id influxdb.ID) error {
-	st, err := s.GetTargetByID(ctx, id)
+	st, err := s.s.GetTargetByID(ctx, id)
 	if err != nil {
 		return err
 	}
