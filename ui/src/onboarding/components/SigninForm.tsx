@@ -116,7 +116,7 @@ class SigninForm extends PureComponent<Props, State> {
       if (status === 401) {
         return notify({
           ...copy.SigninError,
-          message: 'Login faild: username or password is invalid',
+          message: 'Login failed: username or password is invalid',
         })
       }
 
