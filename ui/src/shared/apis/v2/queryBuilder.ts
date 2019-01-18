@@ -130,15 +130,33 @@ export class QueryBuilderFetcher {
   private findBucketsQuery: CancelableQuery
   private findKeysQueries: CancelableQuery[] = []
   private findValuesQueries: CancelableQuery[] = []
+  private findKeysCache: {[key: string]: string[]} = {}
+  private findValuesCache: {[key: string]: string[]} = {}
+  private findBucketsCache: {[key: string]: string[]} = {}
 
   public async findBuckets(url: string): Promise<string[]> {
+    this.cancelFindBuckets()
+
+    const cacheKey = JSON.stringify([...arguments])
+    const cachedResult = this.findBucketsCache[cacheKey]
+
+    if (cachedResult) {
+      return Promise.resolve(cachedResult)
+    }
+
+    const pendingResult = findBuckets(url)
+
+    pendingResult.promise.then(result => {
+      this.findBucketsCache[cacheKey] = result
+    })
+
+    return pendingResult.promise
+  }
+
+  public cancelFindBuckets(): void {
     if (this.findBucketsQuery) {
       this.findBucketsQuery.cancel()
     }
-
-    this.findBucketsQuery = findBuckets(url)
-
-    return this.findBucketsQuery.promise
   }
 
   public async findKeys(
@@ -150,16 +168,25 @@ export class QueryBuilderFetcher {
   ): Promise<string[]> {
     this.cancelFindKeys(index)
 
-    this.findKeysQueries[index] = findKeys(
-      url,
-      bucket,
-      tagsSelections,
-      searchTerm
-    )
-    return this.findKeysQueries[index].promise
+    const cacheKey = JSON.stringify([...arguments].slice(1))
+    const cachedResult = this.findKeysCache[cacheKey]
+
+    if (cachedResult) {
+      return Promise.resolve(cachedResult)
+    }
+
+    const pendingResult = findKeys(url, bucket, tagsSelections, searchTerm)
+
+    this.findKeysQueries[index] = pendingResult
+
+    pendingResult.promise.then(result => {
+      this.findKeysCache[cacheKey] = result
+    })
+
+    return pendingResult.promise
   }
 
-  public cancelFindKeys(index) {
+  public cancelFindKeys(index: number): void {
     if (this.findKeysQueries[index]) {
       this.findKeysQueries[index].cancel()
     }
@@ -175,7 +202,14 @@ export class QueryBuilderFetcher {
   ): Promise<string[]> {
     this.cancelFindValues(index)
 
-    this.findValuesQueries[index] = findValues(
+    const cacheKey = JSON.stringify([...arguments].slice(1))
+    const cachedResult = this.findValuesCache[cacheKey]
+
+    if (cachedResult) {
+      return Promise.resolve(cachedResult)
+    }
+
+    const pendingResult = findValues(
       url,
       bucket,
       tagsSelections,
@@ -183,10 +217,16 @@ export class QueryBuilderFetcher {
       searchTerm
     )
 
-    return this.findValuesQueries[index].promise
+    this.findValuesQueries[index] = pendingResult
+
+    pendingResult.promise.then(result => {
+      this.findValuesCache[cacheKey] = result
+    })
+
+    return pendingResult.promise
   }
 
-  public cancelFindValues(index) {
+  public cancelFindValues(index: number): void {
     if (this.findValuesQueries[index]) {
       this.findValuesQueries[index].cancel()
     }
