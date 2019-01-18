@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // APIs
@@ -17,18 +18,21 @@ import {Dashboard} from 'src/types/v2'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface OwnProps {
   dashboards: Dashboard[]
   orgName: string
+  orgID: string
   onChange: () => void
 }
+
+type Props = OwnProps & WithRouterProps
 
 interface State {
   searchTerm: string
 }
 
 @ErrorHandling
-export default class Dashboards extends PureComponent<Props, State> {
+class Dashboards extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -38,7 +42,7 @@ export default class Dashboards extends PureComponent<Props, State> {
 
   public render() {
     const {searchTerm} = this.state
-    const {dashboards} = this.props
+    const {dashboards, orgID, router} = this.props
 
     return (
       <>
@@ -62,6 +66,8 @@ export default class Dashboards extends PureComponent<Props, State> {
               dashboards={ds}
               emptyState={this.emptyState}
               onDeleteDashboard={this.handleDeleteDashboard}
+              orgID={orgID}
+              router={router}
             />
           )}
         </FilterList>
@@ -104,3 +110,5 @@ export default class Dashboards extends PureComponent<Props, State> {
     )
   }
 }
+
+export default withRouter<OwnProps>(Dashboards)

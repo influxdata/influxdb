@@ -131,6 +131,7 @@ class OrganizationView extends PureComponent<Props> {
                         dashboards={dashboards}
                         orgName={org.name}
                         onChange={fetch}
+                        orgID={org.id}
                       />
                     </Spinner>
                   )}

@@ -13,6 +13,7 @@ import {
   ConfirmationButton,
   Stack,
   Label,
+  ComponentColor,
 } from 'src/clockface'
 import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
 
@@ -72,6 +73,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
           <ComponentSpacer align={Alignment.Left} stackChildren={Stack.Columns}>
             <Button
               size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Secondary}
               text="Clone"
               icon={IconFont.Duplicate}
               onClick={this.handleClone}

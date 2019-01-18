@@ -4,8 +4,17 @@ import {Link} from 'react-router'
 import moment from 'moment'
 
 // Components
-import {IndexList, Alignment, ComponentSize} from 'src/clockface'
-import ConfirmationButton from 'src/clockface/components/confirmation_button/ConfirmationButton'
+import {
+  IndexList,
+  Alignment,
+  ComponentSize,
+  ConfirmationButton,
+  ComponentSpacer,
+  Stack,
+  Button,
+  IconFont,
+  ComponentColor,
+} from 'src/clockface'
 
 // Types
 import {Dashboard} from 'src/types/v2'
@@ -16,6 +25,7 @@ import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
 interface Props {
   dashboard: Dashboard
   onDeleteDashboard: (dashboard: Dashboard) => void
+  onCloneDashboard: (dashboard: Dashboard) => void
 }
 
 export default class DashboardRow extends PureComponent<Props> {
@@ -27,19 +37,48 @@ export default class DashboardRow extends PureComponent<Props> {
         <IndexList.Cell>
           <Link to={`/dashboards/${dashboard.id}`}>{dashboard.name}</Link>
         </IndexList.Cell>
-        <IndexList.Cell revealOnHover={true}>
-          {moment(dashboard.meta.updatedAt).format(UPDATED_AT_TIME_FORMAT)}
-        </IndexList.Cell>
+        {this.lastModifiedCell}
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-          <ConfirmationButton
-            size={ComponentSize.ExtraSmall}
-            text="Delete"
-            confirmText="Confirm"
-            onConfirm={onDeleteDashboard}
-            returnValue={dashboard}
-          />
+          <ComponentSpacer stackChildren={Stack.Columns} align={Alignment.Left}>
+            <Button
+              size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Secondary}
+              text="Clone"
+              icon={IconFont.Duplicate}
+              titleText="Create a duplicate copy of this Dashboard"
+              onClick={this.handleCloneDashboard}
+            />
+            <ConfirmationButton
+              size={ComponentSize.ExtraSmall}
+              text="Delete"
+              confirmText="Confirm"
+              onConfirm={onDeleteDashboard}
+              returnValue={dashboard}
+            />
+          </ComponentSpacer>
         </IndexList.Cell>
       </IndexList.Row>
+    )
+  }
+
+  private handleCloneDashboard = (): void => {
+    const {dashboard, onCloneDashboard} = this.props
+
+    onCloneDashboard(dashboard)
+  }
+
+  private get lastModifiedCell(): JSX.Element {
+    const {dashboard} = this.props
+
+    const relativeTimestamp = moment(dashboard.meta.updatedAt).fromNow()
+    const absoluteTimestamp = moment(dashboard.meta.updatedAt).format(
+      UPDATED_AT_TIME_FORMAT
+    )
+
+    return (
+      <IndexList.Cell>
+        <span title={absoluteTimestamp}>{relativeTimestamp}</span>
+      </IndexList.Cell>
     )
   }
 }
