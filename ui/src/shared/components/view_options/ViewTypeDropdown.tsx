@@ -6,13 +6,16 @@ import {connect} from 'react-redux'
 import {setType} from 'src/shared/actions/v2/timeMachines'
 
 // Components
-import {Dropdown} from 'src/clockface'
+import {Dropdown, DropdownMenuColors} from 'src/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
 
 // Constants
-import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
+import {VIS_GRAPHICS} from 'src/shared/constants/visGraphics'
+
+// Styles
+import 'src/shared/components/view_options/ViewTypeDropdown.scss'
 
 // Types
 import {View, NewView, AppState, ViewType} from 'src/types/v2'
@@ -33,7 +36,9 @@ class ViewTypeDropdown extends PureComponent<Props> {
       <Dropdown
         selectedID={this.selectedView}
         onChange={this.handleChange}
-        widthPixels={154}
+        widthPixels={215}
+        customClass="view-type-dropdown"
+        menuColor={DropdownMenuColors.Onyx}
       >
         {this.dropdownItems}
       </Dropdown>
@@ -47,13 +52,14 @@ class ViewTypeDropdown extends PureComponent<Props> {
   }
 
   private get dropdownItems(): JSX.Element[] {
-    return GRAPH_TYPES.map(g => (
+    return VIS_GRAPHICS.map(g => (
       <Dropdown.Item
         key={`view-type--${g.type}`}
         id={`${g.type}`}
         value={g.type}
       >
-        {g.menuOption}
+        <div className="view-type-dropdown--graphic">{g.graphic}</div>
+        <div className="view-type-dropdown--name">{g.name}</div>
       </Dropdown.Item>
     ))
   }
