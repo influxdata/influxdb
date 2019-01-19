@@ -1343,7 +1343,7 @@ func (t *partitionTracker) AddSeriesCreated(n uint64, d time.Duration) {
 		return // Nothing to record
 	}
 
-	perseries := d.Seconds() / float64(n)
+	perseries := float64(d.Nanoseconds()) / float64(n)
 	t.metrics.SeriesCreatedDuration.With(labels).Observe(perseries)
 }
 
