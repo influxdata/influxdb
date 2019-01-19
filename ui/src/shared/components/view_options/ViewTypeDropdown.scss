@@ -1,0 +1,107 @@
+@import "src/style/modules";
+
+.view-type-dropdown {
+  .dropdown-item--children, .dropdown--selected {
+    display: flex;
+    align-items: center;
+  }
+
+  .dropdown--selected {
+    .view-type-dropdown--name {
+      margin-left: 8px;
+    }
+
+    .view-type-dropdown--graphic {
+      width: 20px;
+      height: 20px;
+    }
+  }
+}
+
+.view-type-dropdown--name {
+  margin-left: 10px;
+}
+
+.view-type-dropdown--graphic {
+  width: 40px;
+  height: 40px;
+}
+
+.vis-graphic--line {
+  stroke-width: 1px;
+  fill: none;
+  stroke-linecap: round;
+  stroke-miterlimit: 10;
+}
+
+.vis-graphic--line-a {
+  stroke: $g11-sidewalk;
+}
+
+.vis-graphic--line-b {
+  stroke: $g9-mountain;
+}
+
+.vis-graphic--line-c {
+  stroke: $g7-graphite;
+}
+
+.vis-graphic--line-d {
+  stroke: $g13-mist;
+}
+
+.vis-graphic--fill-a {
+  fill: $g11-sidewalk;
+}
+
+.vis-graphic--fill-b {
+  fill: $g9-mountain;
+}
+
+.vis-graphic--fill-c {
+  fill: $g7-graphite;
+}
+
+.vis-graphic--fill-d {
+  fill: $g13-mist;
+  opacity: 1;
+}
+
+.vis-graphic--line-a {
+  stroke: $c-pool;
+}
+
+.vis-graphic--line-b {
+  stroke: $c-dreamsicle;
+}
+
+.vis-graphic--line-c {
+  stroke: $c-rainforest;
+}
+
+.vis-graphic--line-d {
+  stroke: $g17-whisper;
+}
+
+.vis-graphic--fill-a {
+  fill: $c-pool;
+}
+
+.vis-graphic--fill-b {
+  fill: $c-dreamsicle;
+}
+
+.vis-graphic--fill-c {
+  fill: $c-rainforest;
+}
+
+.vis-graphic--fill-a,
+.vis-graphic--fill-b,
+.vis-graphic--fill-c {
+  opacity: 0.5;
+}
+
+.vis-graphic--fill-d {
+  fill: $g17-whisper;
+  opacity: 1;
+}
