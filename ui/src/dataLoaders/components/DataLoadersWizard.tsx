@@ -109,17 +109,11 @@ class DataLoadersWizard extends PureComponent<Props> {
   }
 
   public componentDidUpdate(prevProps: Props) {
-    const {bucket, buckets} = this.props
+    const hasBecomeVisible = !prevProps.visible && this.props.visible
 
-    const prevBucket = prevProps.bucket || prevProps.buckets[0]
-    const curBucket = bucket || buckets[0]
-
-    const prevID = _.get(prevBucket, 'id', '')
-    const curID = _.get(curBucket, 'id', '')
-    const isDifferentBucket = prevID !== curID
-
-    if (isDifferentBucket && curBucket) {
+    if (hasBecomeVisible) {
       this.handleSetBucketInfo()
+      this.handleSetStartingValues()
     }
   }
 
@@ -225,10 +219,9 @@ class DataLoadersWizard extends PureComponent<Props> {
   }
 
   private handleDismiss = () => {
+    this.props.onCompleteSetup()
     this.props.onClearDataLoaders()
     this.props.onClearSteps()
-    this.props.onCompleteSetup()
-    this.handleSetStartingValues()
   }
 
   private get sideBarVisible() {
