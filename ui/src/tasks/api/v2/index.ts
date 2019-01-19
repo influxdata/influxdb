@@ -12,8 +12,8 @@ export const submitNewTask = async (
   return data
 }
 
-export const updateTaskFlux = async (id, flux: string): Promise<Task> => {
-  const {data} = await taskAPI.tasksTaskIDPatch(id, {flux})
+export const updateTaskFlux = async (id, task: Task): Promise<Task> => {
+  const {data} = await taskAPI.tasksTaskIDPatch(id, task)
 
   return data
 }
@@ -22,7 +22,8 @@ export const updateTaskStatus = async (
   id: string,
   status: Task.StatusEnum
 ): Promise<Task> => {
-  const {data} = await taskAPI.tasksTaskIDPatch(id, {status})
+  const {data: task} = await taskAPI.tasksTaskIDGet(id)
+  const {data} = await taskAPI.tasksTaskIDPatch(id, {...task, status})
 
   return data
 }
