@@ -10,6 +10,7 @@ import {
   ComponentSize,
   Dropdown,
   InputType,
+  ComponentStatus,
 } from 'src/clockface'
 
 interface Props {
@@ -27,7 +28,6 @@ export class ScraperTarget extends PureComponent<Props> {
 
   public render() {
     const {bucket, onSelectBucket, url} = this.props
-
     return (
       <Grid>
         <Grid.Row>
@@ -39,7 +39,10 @@ export class ScraperTarget extends PureComponent<Props> {
             </Form.Element>
           </Grid.Column>
           <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.Two}>
-            <Form.Element label="Target URL">
+            <Form.Element
+              label="Target URL"
+              errorMessage={this.urlEmpty && 'target URL is empty'}
+            >
               <Input
                 type={InputType.Text}
                 value={url}
@@ -47,12 +50,20 @@ export class ScraperTarget extends PureComponent<Props> {
                 titleText="Target URL"
                 size={ComponentSize.Medium}
                 autoFocus={true}
+                status={this.urlStatus}
               />
             </Form.Element>
           </Grid.Column>
         </Grid.Row>
       </Grid>
     )
+  }
+
+  private get urlStatus(): ComponentStatus {
+    if (this.urlEmpty) {
+      return ComponentStatus.Error
+    }
+    return ComponentStatus.Default
   }
 
   private get dropdownBuckets(): JSX.Element[] {
@@ -63,6 +74,10 @@ export class ScraperTarget extends PureComponent<Props> {
         {b}
       </Dropdown.Item>
     ))
+  }
+
+  private get urlEmpty(): boolean {
+    return !this.props.url
   }
 
   private handleChangeURL = (e: ChangeEvent<HTMLInputElement>) => {

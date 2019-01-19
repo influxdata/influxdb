@@ -29,6 +29,7 @@ exports[`ScraperTarget rendering renders! 1`] = `
       widthXS={8}
     >
       <FormElement
+        errorMessage="target URL is empty"
         label="Target URL"
       >
         <Input
@@ -40,7 +41,7 @@ exports[`ScraperTarget rendering renders! 1`] = `
           placeholder=""
           size="md"
           spellCheck={false}
-          status="default"
+          status="error"
           titleText="Target URL"
           type="text"
           value=""

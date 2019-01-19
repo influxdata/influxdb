@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form} from 'src/clockface'
+import {Form, ComponentStatus} from 'src/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import ScraperTarget from 'src/onboarding/components/configureStep/ScraperTarget'
@@ -91,6 +91,7 @@ export class Scraping extends PureComponent<Props> {
           showSkip={true}
           autoFocusNext={false}
           skipButtonText={'Skip'}
+          nextButtonStatus={this.nextButtonStatus}
         />
       </Form>
     )
@@ -114,10 +115,17 @@ export class Scraping extends PureComponent<Props> {
     onSetScraperTargetBucket(bucket)
   }
 
-  private handleSubmit = async () => {
-    await this.props.onSaveScraperTarget()
+  private get nextButtonStatus(): ComponentStatus {
+    if (this.props.url === '') {
+      return ComponentStatus.Disabled
+    }
+    return ComponentStatus.Default
+  }
 
-    this.props.onClickNext()
+  private handleSubmit = async () => {
+    const {onSaveScraperTarget, onClickNext} = this.props
+    await onSaveScraperTarget()
+    onClickNext()
   }
 }
 
