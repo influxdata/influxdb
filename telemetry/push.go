@@ -1,4 +1,4 @@
-package prometheus
+package telemetry
 
 import (
 	"bytes"

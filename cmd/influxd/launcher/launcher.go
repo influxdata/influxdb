@@ -25,7 +25,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
-	promusage "github.com/influxdata/influxdb/prometheus"
+	infprom "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/proto"
 	"github.com/influxdata/influxdb/query"
 	pcontrol "github.com/influxdata/influxdb/query/control"
@@ -38,6 +38,7 @@ import (
 	taskbolt "github.com/influxdata/influxdb/task/backend/bolt"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
+	"github.com/influxdata/influxdb/telemetry"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
@@ -268,7 +269,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg = prom.NewRegistry()
 	m.reg.MustRegister(
 		prometheus.NewGoCollector(),
-		promusage.NewInfluxCollector(m.boltClient, m.BuildInfo),
+		infprom.NewInfluxCollector(m.boltClient, m.BuildInfo),
 	)
 	m.reg.WithLogger(m.logger)
 	m.reg.MustRegister(m.boltClient)
@@ -514,7 +515,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 // ReportUsageStats starts periodic server reporting.
 func (m *Launcher) ReportUsageStats(ctx context.Context, interval time.Duration) {
-	pusher := promusage.NewUsagePusher(m.reg)
+	pusher := telemetry.NewUsagePusher(m.reg)
 	logger := m.logger.With(
 		zap.String("service", "reporting"),
 		influxlogger.DurationLiteral("interval", interval),
