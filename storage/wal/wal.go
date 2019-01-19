@@ -336,8 +336,13 @@ func (l *WAL) WriteMulti(values map[string][]value.Value) (int, error) {
 
 // ClosedSegments returns a slice of the names of the closed segment files.
 func (l *WAL) ClosedSegments() ([]string, error) {
+	if !l.enabled {
+		return nil, nil
+	}
+
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+
 	// Not loading files from disk so nothing to do
 	if l.path == "" {
 		return nil, nil
@@ -368,8 +373,13 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 
 // Remove deletes the given segment file paths from disk and cleans up any associated objects.
 func (l *WAL) Remove(files []string) error {
+	if !l.enabled {
+		return nil
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	for _, fn := range files {
 		l.traceLogger.Info("Removing WAL file", zap.String("path", fn))
 		os.RemoveAll(fn)
@@ -489,8 +499,13 @@ func (l *WAL) rollSegment() error {
 
 // CloseSegment closes the current segment if it is non-empty and opens a new one.
 func (l *WAL) CloseSegment() error {
+	if !l.enabled {
+		return nil
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	if l.currentSegmentWriter == nil || l.currentSegmentWriter.size > 0 {
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight

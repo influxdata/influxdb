@@ -79,17 +79,37 @@ const (
 type EngineOption func(i *Engine)
 
 // WithTraceLogging sets if trace logging is enabled for the engine.
-var WithTraceLogging = func(logging bool) EngineOption {
+func WithTraceLogging(logging bool) EngineOption {
 	return func(e *Engine) {
 		e.FileStore.enableTraceLogging(logging)
 	}
 }
 
 // WithCompactionPlanner sets the compaction planner for the engine.
-var WithCompactionPlanner = func(planner CompactionPlanner) EngineOption {
+func WithCompactionPlanner(planner CompactionPlanner) EngineOption {
 	return func(e *Engine) {
 		planner.SetFileStore(e.FileStore)
 		e.CompactionPlan = planner
+	}
+}
+
+// Snapshotter allows upward signaling of the tsm1 engine to the storage engine. Hopefully
+// it can be removed one day. The weird interface is due to the weird inversion of locking
+// that has to happen.
+type Snapshotter interface {
+	AcquireSegments(func(segments []string) error) error
+	CommitSegments(segments []string, fn func() error) error
+}
+
+type noSnapshotter struct{}
+
+func (noSnapshotter) AcquireSegments(fn func([]string) error) error    { return fn(nil) }
+func (noSnapshotter) CommitSegments(_ []string, fn func() error) error { return fn() }
+
+// WithSnapshotter sets the callbacks for the engine to use when creating snapshots.
+func WithSnapshotter(snapshotter Snapshotter) EngineOption {
+	return func(e *Engine) {
+		e.snapshotter = snapshotter
 	}
 }
 
@@ -148,7 +168,8 @@ type Engine struct {
 	// Limiter for concurrent compactions.
 	compactionLimiter limiter.Fixed
 
-	scheduler *scheduler
+	scheduler   *scheduler
+	snapshotter Snapshotter
 }
 
 // NewEngine returns a new instance of Engine.
@@ -207,6 +228,7 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		formatFileName:                DefaultFormatFileName,
 		compactionLimiter:             limiter.NewFixed(maxCompactions),
 		scheduler:                     newScheduler(maxCompactions),
+		snapshotter:                   new(noSnapshotter),
 	}
 
 	for _, option := range options {
@@ -1097,10 +1119,18 @@ func (e *Engine) WriteSnapshot() error {
 		logEnd()
 	}()
 
-	e.mu.Lock()
-	snapshot, err := e.Cache.Snapshot()
-	e.mu.Unlock()
-	if err != nil {
+	var (
+		snapshot *Cache
+		segments []string
+	)
+	if err := e.snapshotter.AcquireSegments(func(segs []string) (err error) {
+		segments = segs
+
+		e.mu.Lock()
+		snapshot, err = e.Cache.Snapshot()
+		e.mu.Unlock()
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -1118,11 +1148,11 @@ func (e *Engine) WriteSnapshot() error {
 		zap.String("path", e.path),
 		zap.Duration("duration", time.Since(dedup)))
 
-	return e.writeSnapshotAndCommit(log, snapshot)
+	return e.writeSnapshotAndCommit(log, snapshot, segments)
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.
-func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache) (err error) {
+func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache, segments []string) (err error) {
 	defer func() {
 		if err != nil {
 			e.Cache.ClearSnapshot(false)
@@ -1136,19 +1166,20 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache) (err e
 		return err
 	}
 
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	return e.snapshotter.CommitSegments(segments, func() error {
+		e.mu.RLock()
+		defer e.mu.RUnlock()
 
-	// update the file store with these new files
-	if err := e.FileStore.Replace(nil, newFiles); err != nil {
-		log.Info("Error adding new TSM files from snapshot", zap.Error(err))
-		return err
-	}
+		// update the file store with these new files
+		if err := e.FileStore.Replace(nil, newFiles); err != nil {
+			log.Info("Error adding new TSM files from snapshot", zap.Error(err))
+			return err
+		}
 
-	// clear the snapshot from the in-memory cache, then the old WAL files
-	e.Cache.ClearSnapshot(true)
-
-	return nil
+		// clear the snapshot from the in-memory cache
+		e.Cache.ClearSnapshot(true)
+		return nil
+	})
 }
 
 // compactCache continually checks if the WAL cache should be written to disk.

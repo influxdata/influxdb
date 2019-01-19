@@ -127,7 +127,8 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	// Initialise Engine
 	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine,
-		tsm1.WithTraceLogging(c.TraceLoggingEnabled))
+		tsm1.WithTraceLogging(c.TraceLoggingEnabled),
+		tsm1.WithSnapshotter(e))
 
 	// Apply options.
 	for _, option := range options {
@@ -335,9 +336,7 @@ func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator,
 // WritePoints will however determine if there are any field type conflicts, and
 // return an appropriate error in that case.
 func (e *Engine) WritePoints(points []models.Point) error {
-	collection := tsdb.NewSeriesCollection(points)
-
-	j := 0
+	collection, j := tsdb.NewSeriesCollection(points), 0
 	for iter := collection.Iterator(); iter.Next(); {
 		tags := iter.Tags()
 
@@ -416,6 +415,37 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	}
 
 	return collection.PartialWriteError()
+}
+
+// AcquireSegments closes the current WAL segment, gets the set of all the currently closed
+// segments, and calls the callback. It does all of this under the lock on the engine.
+func (e *Engine) AcquireSegments(fn func(segs []string) error) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if err := e.wal.CloseSegment(); err != nil {
+		return err
+	}
+
+	segments, err := e.wal.ClosedSegments()
+	if err != nil {
+		return err
+	}
+
+	return fn(segments)
+}
+
+// CommitSegments calls the callback and if that does not return an error, removes the segment
+// files from the WAL. It does all of this under the lock on the engine.
+func (e *Engine) CommitSegments(segs []string, fn func() error) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if err := fn(); err != nil {
+		return err
+	}
+
+	return e.wal.Remove(segs)
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
