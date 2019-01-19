@@ -142,11 +142,12 @@ var OrgResourceTypes = []ResourceType{
 	MacrosResourceType,     // 8
 }
 
-// Valid checks if the resource is a member of the Resource enum.
+// Valid checks if the resource type is a member of the ResourceType enum.
 func (r Resource) Valid() (err error) {
 	return r.Type.Valid()
 }
 
+// Valid checks if the resource type is a member of the ResourceType enum.
 func (t ResourceType) Valid() (err error) {
 	switch t {
 	case AuthorizationsResourceType: // 0
@@ -289,7 +290,7 @@ func NewPermissionAtID(id ID, a Action, rt ResourceType, orgID ID) (*Permission,
 }
 
 // OperPermissions are the default permissions for those who setup the application.
-func OperPermissions(orgID ID) []Permission {
+func OperPermissions() []Permission {
 	ps := []Permission{}
 	for _, r := range AllResourceTypes {
 		for _, a := range actions {

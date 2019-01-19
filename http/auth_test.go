@@ -55,7 +55,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 								UserID:      platformtesting.MustIDBase16("2070616e656d2076"),
 								OrgID:       platformtesting.MustIDBase16("3070616e656d2076"),
 								Description: "t1",
-								Permissions: platform.OperPermissions(platformtesting.MustIDBase16("3070616e656d2076")),
+								Permissions: platform.OperPermissions(),
 							},
 							{
 								ID:          platformtesting.MustIDBase16("6669646573207375"),
@@ -63,7 +63,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 								UserID:      platformtesting.MustIDBase16("6c7574652c206f6e"),
 								OrgID:       platformtesting.MustIDBase16("9d70616e656d2076"),
 								Description: "t2",
-								Permissions: platform.OperPermissions(platformtesting.MustIDBase16("3070616e656d2076")),
+								Permissions: platform.OperPermissions(),
 							},
 						}, 2, nil
 					},
@@ -127,7 +127,9 @@ func TestService_handleGetAuthorizations(t *testing.T) {
     }
   ]
 }
-`, MustMarshal(platform.OperPermissions(platformtesting.MustIDBase16("3070616e656d2076"))), MustMarshal(platform.OperPermissions(platformtesting.MustIDBase16("3070616e656d2076")))),
+`,
+					MustMarshal(platform.OperPermissions()),
+					MustMarshal(platform.OperPermissions())),
 			},
 		},
 		{

@@ -244,6 +244,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	reg.MustRegister(m.boltClient)
+
 	var (
 		orgSvc           platform.OrganizationService             = m.boltClient
 		authSvc          platform.AuthorizationService            = m.boltClient
