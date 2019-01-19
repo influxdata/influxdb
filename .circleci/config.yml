@@ -9,7 +9,7 @@ jobs:
     working_directory: /Litmus
     steps:
       - run: ls -la
-      - run: run_litmus_tests.sh
+      - run: ./run_litmus_tests.sh
 
   jstest:
     docker:
