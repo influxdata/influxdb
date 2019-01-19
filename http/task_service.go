@@ -281,17 +281,29 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 
 	auth, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EUnauthorized,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	req, err := decodePostTaskRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.populateOrg(ctx, req.Task); err != nil {
+		err = &platform.Error{
+			Err: err,
+			Msg: "could not identify organization",
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -312,6 +324,10 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	if err := h.TaskService.CreateTask(ctx, req.Task); err != nil {
 		if e, ok := err.(AuthzError); ok {
 			h.logger.Error("failed authentication", zap.Errors("error messages", []error{err, e.AuthzError()}))
+		}
+		err = &platform.Error{
+			Err: err,
+			Msg: "failed to create task",
 		}
 		EncodeError(ctx, err, w)
 		return
