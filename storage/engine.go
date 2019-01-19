@@ -383,19 +383,38 @@ func (e *Engine) WritePoints(points []models.Point) error {
 		return ErrEngineClosed
 	}
 
-	// Add new series to the index and series file. Check for partial writes.
+	// TODO(jeff): keep track of the values in the collection so that partail write
+	// errors get tracked all the way. Right now, the engine doesn't drop any values
+	// but if it ever did, the errors could end up missing some data.
+
+	// Add the write to the WAL to be replayed if there is a crash or shutdown.
+	values, err := tsm1.PointsToValues(collection.Points)
+	if err != nil {
+		return err
+	}
+	if _, err := e.wal.WriteMulti(values); err != nil {
+		return err
+	}
+
+	// Add new series to the index and series file.
 	if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
-		// ignore PartialWriteErrors. The collection captures it.
-		// TODO(edd/jeff): should we just remove PartialWriteError from the index then?
-		if _, ok := err.(tsdb.PartialWriteError); !ok {
+		return err
+	}
+
+	// If there was a PartialWriteError already, that means the values may contain
+	// more than the points so we need to recreate them.
+	if collection.PartialWriteError() != nil {
+		values, err = tsm1.PointsToValues(points)
+		if err != nil {
 			return err
 		}
 	}
 
-	// Write the points to the cache and WAL.
-	if err := e.engine.WritePoints(collection.Points); err != nil {
+	// Write the values to the engine.
+	if err := e.engine.WriteValues(values); err != nil {
 		return err
 	}
+
 	return collection.PartialWriteError()
 }
 

@@ -1,6 +1,11 @@
 package tsm1
 
-import "github.com/influxdata/influxdb/tsdb/value"
+import (
+	"fmt"
+
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb/value"
+)
 
 type (
 	Value         = value.Value
@@ -43,3 +48,60 @@ func NewBooleanValue(t int64, v bool) Value { return value.NewBooleanValue(t, v)
 
 // NewStringValue returns a new string value.
 func NewStringValue(t int64, v string) Value { return value.NewStringValue(t, v) }
+
+// PointsToValues takes in a slice of points and returns it as a map of series key to
+// values. It returns an error if any of the points could not be converted.
+func PointsToValues(points []models.Point) (map[string][]Value, error) {
+	values := make(map[string][]Value, len(points))
+	var (
+		keyBuf  []byte
+		baseLen int
+	)
+
+	for _, p := range points {
+		keyBuf = append(keyBuf[:0], p.Key()...)
+		keyBuf = append(keyBuf, keyFieldSeparator...)
+		baseLen = len(keyBuf)
+		iter := p.FieldIterator()
+		t := p.Time().UnixNano()
+		for iter.Next() {
+			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
+
+			var v Value
+			switch iter.Type() {
+			case models.Float:
+				fv, err := iter.FloatValue()
+				if err != nil {
+					return nil, err
+				}
+				v = NewFloatValue(t, fv)
+			case models.Integer:
+				iv, err := iter.IntegerValue()
+				if err != nil {
+					return nil, err
+				}
+				v = NewIntegerValue(t, iv)
+			case models.Unsigned:
+				iv, err := iter.UnsignedValue()
+				if err != nil {
+					return nil, err
+				}
+				v = NewUnsignedValue(t, iv)
+			case models.String:
+				v = NewStringValue(t, iter.StringValue())
+			case models.Boolean:
+				bv, err := iter.BooleanValue()
+				if err != nil {
+					return nil, err
+				}
+				v = NewBooleanValue(t, bv)
+			default:
+				return nil, fmt.Errorf("unknown field type for %s: %s",
+					string(iter.FieldKey()), p.String())
+			}
+			values[string(keyBuf)] = append(values[string(keyBuf)], v)
+		}
+	}
+
+	return values, nil
+}

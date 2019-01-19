@@ -550,59 +550,18 @@ func (e *Engine) Free() error {
 	return e.FileStore.Free()
 }
 
-// WritePoints writes metadata and point data into the engine.
-// It returns an error if new points are added to an existing key.
+// WritePoints saves the set of points in the engine.
 func (e *Engine) WritePoints(points []models.Point) error {
-	values := make(map[string][]Value, len(points))
-	var (
-		keyBuf  []byte
-		baseLen int
-	)
-
-	for _, p := range points {
-		keyBuf = append(keyBuf[:0], p.Key()...)
-		keyBuf = append(keyBuf, keyFieldSeparator...)
-		baseLen = len(keyBuf)
-		iter := p.FieldIterator()
-		t := p.Time().UnixNano()
-		for iter.Next() {
-			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
-
-			var v Value
-			switch iter.Type() {
-			case models.Float:
-				fv, err := iter.FloatValue()
-				if err != nil {
-					return err
-				}
-				v = NewFloatValue(t, fv)
-			case models.Integer:
-				iv, err := iter.IntegerValue()
-				if err != nil {
-					return err
-				}
-				v = NewIntegerValue(t, iv)
-			case models.Unsigned:
-				iv, err := iter.UnsignedValue()
-				if err != nil {
-					return err
-				}
-				v = NewUnsignedValue(t, iv)
-			case models.String:
-				v = NewStringValue(t, iter.StringValue())
-			case models.Boolean:
-				bv, err := iter.BooleanValue()
-				if err != nil {
-					return err
-				}
-				v = NewBooleanValue(t, bv)
-			default:
-				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
-			}
-			values[string(keyBuf)] = append(values[string(keyBuf)], v)
-		}
+	values, err := PointsToValues(points)
+	if err != nil {
+		return err
 	}
 
+	return e.WriteValues(values)
+}
+
+// WriteValues saves the set of values in the engine.
+func (e *Engine) WriteValues(values map[string][]Value) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 

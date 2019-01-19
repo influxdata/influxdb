@@ -314,8 +314,12 @@ func (l *WAL) sync() {
 
 // WriteMulti writes the given values to the WAL. It returns the WAL segment ID to
 // which the points were written. If an error is returned the segment ID should
-// be ignored.
+// be ignored. If the WAL is disabled, -1 and nil is returned.
 func (l *WAL) WriteMulti(values map[string][]value.Value) (int, error) {
+	if !l.enabled {
+		return -1, nil
+	}
+
 	entry := &WriteWALEntry{
 		Values: values,
 	}
