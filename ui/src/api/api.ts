@@ -12720,18 +12720,18 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * Update a task. This will cancel all queued runs.
          * @summary Update a task
          * @param {string} taskID ID of task to get
-         * @param {TaskUpdateRequest} taskUpdateRequest task update to apply
+         * @param {Task} task task update to apply
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksTaskIDPatch(taskID: string, taskUpdateRequest: TaskUpdateRequest, options: any = {}): RequestArgs {
+        tasksTaskIDPatch(taskID: string, task: Task, options: any = {}): RequestArgs {
             // verify required parameter 'taskID' is not null or undefined
             if (taskID === null || taskID === undefined) {
                 throw new RequiredError('taskID','Required parameter taskID was null or undefined when calling tasksTaskIDPatch.');
             }
-            // verify required parameter 'taskUpdateRequest' is not null or undefined
-            if (taskUpdateRequest === null || taskUpdateRequest === undefined) {
-                throw new RequiredError('taskUpdateRequest','Required parameter taskUpdateRequest was null or undefined when calling tasksTaskIDPatch.');
+            // verify required parameter 'task' is not null or undefined
+            if (task === null || task === undefined) {
+                throw new RequiredError('task','Required parameter task was null or undefined when calling tasksTaskIDPatch.');
             }
             const localVarPath = `/tasks/{taskID}`
                 .replace(`{${"taskID"}}`, encodeURIComponent(String(taskID)));
@@ -12750,8 +12750,8 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
             // fix override query string Detail: https://stackoverflow.com/a/7517673/1077943
             delete localVarUrlObj.search;
             localVarRequestOptions.headers = Object.assign({}, localVarHeaderParameter, options.headers);
-            const needsSerialization = (<any>"TaskUpdateRequest" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
-            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(taskUpdateRequest || {}) : (taskUpdateRequest || "");
+            const needsSerialization = (<any>"Task" !== "string") || localVarRequestOptions.headers['Content-Type'] === 'application/json';
+            localVarRequestOptions.data =  needsSerialization ? JSON.stringify(task || {}) : (task || "");
 
             return {
                 url: url.format(localVarUrlObj),
@@ -13165,12 +13165,12 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * Update a task. This will cancel all queued runs.
          * @summary Update a task
          * @param {string} taskID ID of task to get
-         * @param {TaskUpdateRequest} taskUpdateRequest task update to apply
+         * @param {Task} task task update to apply
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksTaskIDPatch(taskID: string, taskUpdateRequest: TaskUpdateRequest, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Task> {
-            const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDPatch(taskID, taskUpdateRequest, options);
+        tasksTaskIDPatch(taskID: string, task: Task, options?: any): (axios?: AxiosInstance, basePath?: string) => AxiosPromise<Task> {
+            const localVarAxiosArgs = TasksApiAxiosParamCreator(configuration).tasksTaskIDPatch(taskID, task, options);
             return (axios: AxiosInstance = globalAxios, basePath: string = BASE_PATH) => {
                 const axiosRequestArgs = Object.assign(localVarAxiosArgs.options, {url: basePath + localVarAxiosArgs.url})
                 return axios.request(axiosRequestArgs);                
@@ -13416,12 +13416,12 @@ export const TasksApiFactory = function (configuration?: Configuration, basePath
          * Update a task. This will cancel all queued runs.
          * @summary Update a task
          * @param {string} taskID ID of task to get
-         * @param {TaskUpdateRequest} taskUpdateRequest task update to apply
+         * @param {Task} task task update to apply
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        tasksTaskIDPatch(taskID: string, taskUpdateRequest: TaskUpdateRequest, options?: any) {
-            return TasksApiFp(configuration).tasksTaskIDPatch(taskID, taskUpdateRequest, options)(axios, basePath);
+        tasksTaskIDPatch(taskID: string, task: Task, options?: any) {
+            return TasksApiFp(configuration).tasksTaskIDPatch(taskID, task, options)(axios, basePath);
         },
         /**
          * 
@@ -13678,13 +13678,13 @@ export class TasksApi extends BaseAPI {
      * Update a task. This will cancel all queued runs.
      * @summary Update a task
      * @param {string} taskID ID of task to get
-     * @param {TaskUpdateRequest} taskUpdateRequest task update to apply
+     * @param {Task} task task update to apply
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof TasksApi
      */
-    public tasksTaskIDPatch(taskID: string, taskUpdateRequest: TaskUpdateRequest, options?: any) {
-        return TasksApiFp(this.configuration).tasksTaskIDPatch(taskID, taskUpdateRequest, options)(this.axios, this.basePath);
+    public tasksTaskIDPatch(taskID: string, task: Task, options?: any) {
+        return TasksApiFp(this.configuration).tasksTaskIDPatch(taskID, task, options)(this.axios, this.basePath);
     }
 
     /**

@@ -36,6 +36,7 @@ import {
   taskOptionsToFluxScript,
   TaskOptionKeys,
   TaskOptions,
+  TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
 
 export type Action =
@@ -306,10 +307,22 @@ export const cancelUpdateTask = () => async dispatch => {
 export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
   try {
     const {
-      tasks: {currentScript: script, currentTask: task},
+      tasks: {currentScript: script, currentTask: task, taskOptions},
     } = getState()
 
-    await updateTaskFlux(task.id, script)
+    const updatedTask: Partial<TaskAPI> & {name: string; flux: string} = {
+      flux: script,
+      name: taskOptions.name,
+      offset: taskOptions.offset,
+    }
+
+    if (taskOptions.taskScheduleType === TaskSchedule.interval) {
+      updatedTask.every = taskOptions.interval
+    } else {
+      updatedTask.cron = taskOptions.cron
+    }
+
+    await updateTaskFlux(task.id, updatedTask)
 
     dispatch(setCurrentTask(null))
     dispatch(goToTasks())
