@@ -85,7 +85,7 @@ func FromScript(script string) (Options, error) {
 	// pull options from the program scope
 	task, ok := scope.Lookup("task")
 	if !ok {
-		return opt, errors.New("task not defined")
+		return opt, errors.New("missing required option: 'task'")
 	}
 	optObject := task.Object()
 	nameVal, ok := optObject.Get("name")
