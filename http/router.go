@@ -2,7 +2,9 @@ package http
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"runtime"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
@@ -43,6 +45,11 @@ func methodNotAllowedHandler(w http.ResponseWriter, r *http.Request) {
 // panicHandler handles panics recovered from http handlers.
 // It returns a json response with http status code 500 and the recovered error message.
 func panicHandler(w http.ResponseWriter, r *http.Request, rcv interface{}) {
+	const size = 64 << 10
+	buf := make([]byte, size)
+	buf = buf[:runtime.Stack(buf, false)]
+	log.Printf("http: panic: %v\n%s", rcv, buf)
+
 	ctx := r.Context()
 	pe := &platform.Error{
 		Code: platform.EInternal,

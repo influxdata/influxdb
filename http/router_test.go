@@ -1,9 +1,12 @@
 package http
 
 import (
+	"bytes"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
 
@@ -117,6 +120,7 @@ func TestRouter_Panic(t *testing.T) {
 		statusCode  int
 		contentType string
 		body        string
+		logged      bool
 	}
 
 	tests := []struct {
@@ -164,6 +168,7 @@ func TestRouter_Panic(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusInternalServerError,
 				contentType: "application/json; charset=utf-8",
+				logged:      true,
 				body: `
 {
   "code": "internal error",
@@ -176,6 +181,12 @@ func TestRouter_Panic(t *testing.T) {
 
 	for _, tt := range tests[1:] {
 		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			log.SetOutput(&buf)
+			defer func() {
+				log.SetOutput(os.Stderr)
+			}()
+
 			router := NewRouter()
 			router.HandlerFunc(tt.fields.method, tt.fields.path, tt.fields.handlerFn)
 
@@ -192,6 +203,9 @@ func TestRouter_Panic(t *testing.T) {
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. get %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if got, want := buf.String() != "", tt.wants.logged; got != want {
+				t.Errorf("%q. get %v, want %v", tt.name, got, want)
 			}
 			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
 				t.Errorf("%q. get ***%s***", tt.name, diff)
