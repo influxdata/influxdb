@@ -1,16 +1,10 @@
 package telemetry
 
 import (
-	"context"
-
-	platform "github.com/influxdata/influxdb"
 	pr "github.com/influxdata/influxdb/prometheus"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
-var _ platform.UsageService = (*UsageService)(nil)
-
-var defaultMatcher = pr.NewMatcher().
+var telemetryMatcher = pr.NewMatcher().
 	Family("influxdb_info").
 	Family("influxdb_uptime_seconds").
 	Family("influxdb_organizations_total").
@@ -26,24 +20,3 @@ var defaultMatcher = pr.NewMatcher().
 		pr.L("path", "/api/v2"),
 		pr.L("status", "2XX"),
 	)
-
-// UsageService filters prometheus metrics for those needed in the usage service.
-type UsageService struct {
-	pr.Filter
-}
-
-// NewUsageService filters the prometheus gatherer to only return metrics
-// about the usage statistics.
-func NewUsageService(g prometheus.Gatherer) *UsageService {
-	return &UsageService{
-		Filter: pr.Filter{
-			Gatherer: g,
-			Matcher:  defaultMatcher,
-		},
-	}
-}
-
-// GetUsage returns usage metrics filtered out of the prometheus metrics.
-func (s *UsageService) GetUsage(ctx context.Context, filter platform.UsageFilter) (map[platform.UsageMetric]*platform.Usage, error) {
-	return nil, nil
-}

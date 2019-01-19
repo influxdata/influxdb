@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	pr "github.com/influxdata/influxdb/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 )
@@ -24,8 +25,11 @@ type Pusher struct {
 func NewUsagePusher(g prometheus.Gatherer) *Pusher {
 	return &Pusher{
 		//URL: "https://0czqg3djc8.execute-api.us-east-1.amazonaws.com/prod",
-		URL:    "http://localhost:8080/metrics/job/influxdb",
-		Gather: NewUsageService(g),
+		URL: "http://localhost:8080/metrics/job/influxdb",
+		Gather: &pr.Filter{
+			Gatherer: g,
+			Matcher:  telemetryMatcher,
+		},
 		Client: &http.Client{
 			Transport: http.DefaultTransport,
 			Timeout:   10 * time.Second,
