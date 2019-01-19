@@ -33,6 +33,16 @@ var (
 		"Number of total dashboards on the server",
 		nil, nil)
 
+	scrapersDesc = prometheus.NewDesc(
+		"influxdb_scrapers_total",
+		"Number of total scrapers on the server",
+		nil, nil)
+
+	telegrafsDesc = prometheus.NewDesc(
+		"influxdb_telegrafs_total",
+		"Number of total telegraf configurations on the server",
+		nil, nil)
+
 	boltWritesDesc = prometheus.NewDesc(
 		"boltdb_writes_total",
 		"Total number of boltdb writes",
@@ -51,6 +61,8 @@ func (c *Client) Describe(ch chan<- *prometheus.Desc) {
 	ch <- usersDesc
 	ch <- tokensDesc
 	ch <- dashboardsDesc
+	ch <- scrapersDesc
+	ch <- telegrafsDesc
 	ch <- boltWritesDesc
 	ch <- boltReadsDesc
 }
@@ -72,13 +84,17 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		prometheus.CounterValue,
 		float64(writes),
 	)
-	orgs, buckets, users, tokens, dashboards := 0, 0, 0, 0, 0
+
+	orgs, buckets, users, tokens := 0, 0, 0, 0
+	dashboards, scrapers, telegrafs := 0, 0, 0
 	_ = c.db.View(func(tx *bolt.Tx) error {
 		orgs = tx.Bucket(organizationBucket).Stats().KeyN
 		buckets = tx.Bucket(bucketBucket).Stats().KeyN
 		users = tx.Bucket(userBucket).Stats().KeyN
 		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
 		dashboards = tx.Bucket(dashboardBucket).Stats().KeyN
+		scrapers = tx.Bucket(scraperBucket).Stats().KeyN
+		telegrafs = tx.Bucket(telegrafBucket).Stats().KeyN
 		return nil
 	})
 
@@ -110,5 +126,17 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		dashboardsDesc,
 		prometheus.CounterValue,
 		float64(dashboards),
+	)
+
+	ch <- prometheus.MustNewConstMetric(
+		scrapersDesc,
+		prometheus.CounterValue,
+		float64(scrapers),
+	)
+
+	ch <- prometheus.MustNewConstMetric(
+		telegrafsDesc,
+		prometheus.CounterValue,
+		float64(telegrafs),
 	)
 }
