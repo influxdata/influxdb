@@ -21,6 +21,7 @@ var (
 const (
 	dashboardCreatedEvent = "Dashboard Created"
 	dashboardUpdatedEvent = "Dashboard Updated"
+	dashboardRemovedEvent = "Dashboard Removed"
 
 	dashboardCellsReplacedEvent = "Dashboard Cells Replaced"
 	dashboardCellAddedEvent     = "Dashboard Cell Added"
@@ -823,7 +824,6 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 		}
 	}
 
-	// TODO(desa): add DeleteKeyValueLog method and use it here.
 	err = c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: platform.DashboardsResourceType,
@@ -833,6 +833,13 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 			Err: err,
 		}
 	}
+
+	if err := c.appendDashboardEventToLog(ctx, tx, d.ID, dashboardRemovedEvent); err != nil {
+		return &platform.Error{
+			Err: err,
+		}
+	}
+
 	return nil
 }
 
