@@ -3,7 +3,6 @@ package prometheus
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 
 	dto "github.com/prometheus/client_model/go"
@@ -21,7 +20,6 @@ func DecodeExpfmt(r io.Reader, format expfmt.Format) ([]*dto.MetricFamily, error
 				break
 			}
 			if err != nil {
-				fmt.Println("decode error")
 				return nil, err
 			}
 		}
