@@ -106,15 +106,16 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 		OrganizationID:  o.ID,
 		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
 	}
+	if err = c.CreateBucket(ctx, bucket); err != nil {
+		return nil, err
+	}
+
 	if err := c.CreateUserResourceMapping(ctx, &platform.UserResourceMapping{
 		ResourceType: platform.OrgsResourceType,
 		ResourceID:   o.ID,
 		UserID:       u.ID,
 		UserType:     platform.Owner,
 	}); err != nil {
-		return nil, err
-	}
-	if err = c.CreateBucket(ctx, bucket); err != nil {
 		return nil, err
 	}
 
