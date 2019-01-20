@@ -38,7 +38,6 @@ import (
 	taskbolt "github.com/influxdata/influxdb/task/backend/bolt"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
-	"github.com/influxdata/influxdb/telemetry"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
@@ -106,6 +105,16 @@ func (m *Launcher) Running() bool {
 // ReportingDisabled is true if opted out of usage stats.
 func (m *Launcher) ReportingDisabled() bool {
 	return m.reportingDisabled
+}
+
+// Registry returns the prometheus metrics registry.
+func (m *Launcher) Registry() *prom.Registry {
+	return m.reg
+}
+
+// Logger returns the launchers logger.
+func (m *Launcher) Logger() *zap.Logger {
+	return m.logger
 }
 
 // SetBuild adds version, commit, and date to prometheus metrics.
@@ -511,33 +520,4 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}(httpLogger)
 
 	return nil
-}
-
-// ReportUsageStats starts periodic server reporting.
-func (m *Launcher) ReportUsageStats(ctx context.Context, interval time.Duration) {
-	pusher := telemetry.NewUsagePusher(m.reg)
-	logger := m.logger.With(
-		zap.String("service", "reporting"),
-		influxlogger.DurationLiteral("interval", interval),
-	)
-
-	logger.Info("Starting")
-	if err := pusher.Push(ctx); err != nil {
-		logger.Debug("failure pushing usage metrics", zap.Error(err))
-	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			logger.Debug("Pushing")
-			if err := pusher.Push(ctx); err != nil {
-				logger.Debug("failure pushing reporting usage", zap.Error(err))
-			}
-		case <-ctx.Done():
-			logger.Info("Stopping")
-			return
-		}
-	}
 }

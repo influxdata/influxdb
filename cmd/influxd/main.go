@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/kit/signals"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/telemetry"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1"
 	_ "github.com/influxdata/influxdb/tsdb/tsm1"
 )
@@ -35,7 +36,9 @@ func main() {
 	}
 
 	if !m.ReportingDisabled() {
-		go m.ReportUsageStats(ctx, 8*time.Hour)
+		reporter := telemetry.NewReporter(m.Registry())
+		reporter.Interval = 8 * time.Hour
+		reporter.Logger = m.Logger()
 	}
 
 	<-ctx.Done()

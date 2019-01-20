@@ -21,8 +21,8 @@ type Pusher struct {
 	Client *http.Client
 }
 
-// NewUsagePusher sends usage metrics to influxcloud.
-func NewUsagePusher(g prometheus.Gatherer) *Pusher {
+// NewPusher sends usage metrics to a prometheus push gateway.
+func NewPusher(g prometheus.Gatherer) *Pusher {
 	return &Pusher{
 		//URL: "https://0czqg3djc8.execute-api.us-east-1.amazonaws.com/prod",
 		URL: "http://localhost:8080/metrics/job/influxdb",
