@@ -1,4 +1,4 @@
-package prometheus
+package prometheus_test
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	proto "github.com/golang/protobuf/proto"
+	pr "github.com/influxdata/influxdb/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -13,7 +14,7 @@ import (
 func TestFilter_Gather(t *testing.T) {
 	type fields struct {
 		Gatherer prometheus.Gatherer
-		Matcher  Matcher
+		Matcher  pr.Matcher
 	}
 	tests := []struct {
 		name    string
@@ -27,12 +28,12 @@ func TestFilter_Gather(t *testing.T) {
 				Gatherer: prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
 					return nil, nil
 				}),
-				Matcher: NewMatcher().
+				Matcher: pr.NewMatcher().
 					Family("http_api_requests_total",
-						L("handler", "platform"),
-						L("method", "GET"),
-						L("path", "/api/v2"),
-						L("status", "2XX"),
+						pr.L("handler", "platform"),
+						pr.L("method", "GET"),
+						pr.L("path", "/api/v2"),
+						pr.L("status", "2XX"),
 					),
 			},
 		},
@@ -55,12 +56,12 @@ func TestFilter_Gather(t *testing.T) {
 					}
 					return []*dto.MetricFamily{mf}, nil
 				}),
-				Matcher: NewMatcher().
+				Matcher: pr.NewMatcher().
 					Family("http_api_requests_total",
-						L("handler", "platform"),
-						L("method", "GET"),
-						L("path", "/api/v2"),
-						L("status", "2XX"),
+						pr.L("handler", "platform"),
+						pr.L("method", "GET"),
+						pr.L("path", "/api/v2"),
+						pr.L("status", "2XX"),
 					),
 			},
 			want: []*dto.MetricFamily{},
@@ -74,7 +75,7 @@ func TestFilter_Gather(t *testing.T) {
 					}
 					return []*dto.MetricFamily{mf}, nil
 				}),
-				Matcher: NewMatcher().
+				Matcher: pr.NewMatcher().
 					Family("go_memstats_frees_total"),
 			},
 			want: []*dto.MetricFamily{},
@@ -85,7 +86,7 @@ func TestFilter_Gather(t *testing.T) {
 				Gatherer: prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
 					return []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0)}, nil
 				}),
-				Matcher: NewMatcher().
+				Matcher: pr.NewMatcher().
 					Family("go_memstats_frees_total"),
 			},
 			want: []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0)},
@@ -94,28 +95,28 @@ func TestFilter_Gather(t *testing.T) {
 			name: "matching with labels a family with labels matches",
 			fields: fields{
 				Gatherer: prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
-					return []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0, L("n1", "v1"))}, nil
+					return []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0, pr.L("n1", "v1"))}, nil
 				}),
-				Matcher: NewMatcher().
-					Family("go_memstats_frees_total", L("n1", "v1")),
+				Matcher: pr.NewMatcher().
+					Family("go_memstats_frees_total", pr.L("n1", "v1")),
 			},
-			want: []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0, L("n1", "v1"))},
+			want: []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0, pr.L("n1", "v1"))},
 		},
 		{
 			name: "matching a family that has no labels with labels matches",
 			fields: fields{
 				Gatherer: prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
-					return []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0, L("n1", "v1"))}, nil
+					return []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0, pr.L("n1", "v1"))}, nil
 				}),
-				Matcher: NewMatcher().
+				Matcher: pr.NewMatcher().
 					Family("go_memstats_frees_total"),
 			},
-			want: []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0, L("n1", "v1"))},
+			want: []*dto.MetricFamily{NewCounter("go_memstats_frees_total", 1.0, pr.L("n1", "v1"))},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := &Filter{
+			f := &pr.Filter{
 				Gatherer: tt.fields.Gatherer,
 				Matcher:  tt.fields.Matcher,
 			}
@@ -128,19 +129,5 @@ func TestFilter_Gather(t *testing.T) {
 				t.Errorf("Filter.Gather() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func NewCounter(name string, v float64, ls ...*dto.LabelPair) *dto.MetricFamily {
-	m := &dto.Metric{
-		Label: ls,
-		Counter: &dto.Counter{
-			Value: &v,
-		},
-	}
-	return &dto.MetricFamily{
-		Name:   proto.String(name),
-		Type:   dto.MetricType_COUNTER.Enum(),
-		Metric: []*dto.Metric{m},
 	}
 }
