@@ -198,8 +198,6 @@ func (h *Handler) initMetrics() {
 		Subsystem: handlerSubsystem,
 		Name:      "request_duration_seconds",
 		Help:      "Time taken to respond to HTTP request",
-		// TODO(desa): determine what spacing these buckets should have.
-		Buckets: prometheus.ExponentialBuckets(0.001, 1.5, 25),
 	}, []string{"handler", "method", "path", "status"})
 }
 
