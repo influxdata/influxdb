@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/influxdata/influxdb/tsdb/value"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -226,22 +228,84 @@ func (e *Engine) reloadCache() error {
 		return err
 	}
 
-	limit := e.engine.Cache.MaxSize()
-	defer func() {
-		e.engine.Cache.SetMaxSize(limit)
-	}()
-
 	// Disable the max size during loading
+	limit := e.engine.Cache.MaxSize()
+	defer func() { e.engine.Cache.SetMaxSize(limit) }()
 	e.engine.Cache.SetMaxSize(0)
 
-	loader := tsm1.NewCacheLoader(files)
-	loader.WithLogger(e.logger)
-	if err := loader.Load(e.engine.Cache); err != nil {
-		return err
+	for _, file := range files {
+		if err := e.reloadWALFile(file); err != nil {
+			return err
+		}
 	}
 
-	e.logger.Info("Reloaded WAL cache", zap.String("path", e.wal.Path()), zap.Duration("duration", time.Since(now)))
+	e.logger.Info("Reloaded WAL",
+		zap.String("path", e.wal.Path()),
+		zap.Duration("duration", time.Since(now)))
 	return nil
+}
+
+// reloadWALFile executes all of the actions in the WAL against the engine.
+func (e *Engine) reloadWALFile(file string) error {
+	f, err := os.OpenFile(file, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	e.logger.Info("Reading file", zap.String("path", file), zap.Int64("size", stat.Size()))
+
+	if stat.Size() == 0 {
+		return nil
+	}
+
+	r := wal.NewWALSegmentReader(f)
+	defer r.Close()
+
+	for r.Next() {
+		entry, err := r.Read()
+		if err != nil {
+			n := r.Count()
+			e.logger.Info("File corrupt", zap.Error(err), zap.String("path", file), zap.Int64("pos", n))
+			if err := f.Truncate(n); err != nil {
+				return err
+			}
+			break
+		}
+
+		switch t := entry.(type) {
+		case *wal.WriteWALEntry:
+			points := tsm1.ValuesToPoints(t.Values)
+			err := e.writePointsLocked(tsdb.NewSeriesCollection(points), t.Values)
+			if _, ok := err.(tsdb.PartialWriteError); err != nil && !ok {
+				return err
+			}
+
+		case *wal.DeleteRangeWALEntry:
+			err := e.engine.DeleteSeriesRangeWithPredicate(newFixedSeriesIterator(t.Keys),
+				func(name []byte, tags models.Tags) (int64, int64, bool) {
+					return t.Min, t.Max, true
+				})
+			if err != nil {
+				return err
+			}
+
+		case *wal.DeleteWALEntry:
+			err := e.engine.DeleteSeriesRangeWithPredicate(newFixedSeriesIterator(t.Keys),
+				func(name []byte, tags models.Tags) (int64, int64, bool) {
+					return math.MinInt64, math.MaxInt64, true
+				})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return r.Close()
 }
 
 // runRetentionEnforcer runs the retention enforcer in a separate goroutine.
@@ -382,15 +446,25 @@ func (e *Engine) WritePoints(points []models.Point) error {
 		return ErrEngineClosed
 	}
 
-	// TODO(jeff): keep track of the values in the collection so that partail write
+	return e.writePointsLocked(collection, nil)
+}
+
+// writePointsLocked does the work of writing points and must be called under some sort of lock.
+func (e *Engine) writePointsLocked(collection *tsdb.SeriesCollection, values map[string][]value.Value) error {
+	// TODO(jeff): keep track of the values in the collection so that partial write
 	// errors get tracked all the way. Right now, the engine doesn't drop any values
 	// but if it ever did, the errors could end up missing some data.
 
-	// Add the write to the WAL to be replayed if there is a crash or shutdown.
-	values, err := tsm1.PointsToValues(collection.Points)
-	if err != nil {
-		return err
+	// Load up the values if they haven't been passed in.
+	var err error
+	if values == nil {
+		values, err = tsm1.PointsToValues(collection.Points)
+		if err != nil {
+			return err
+		}
 	}
+
+	// Add the write to the WAL to be replayed if there is a crash or shutdown.
 	if _, err := e.wal.WriteMulti(values); err != nil {
 		return err
 	}
@@ -403,7 +477,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	// If there was a PartialWriteError already, that means the values may contain
 	// more than the points so we need to recreate them.
 	if collection.PartialWriteError() != nil {
-		values, err = tsm1.PointsToValues(points)
+		values, err = tsm1.PointsToValues(collection.Points)
 		if err != nil {
 			return err
 		}
@@ -456,6 +530,8 @@ func (e *Engine) DeleteBucket(orgID, bucketID platform.ID) error {
 		return ErrEngineClosed
 	}
 
+	// TODO(jeff): write the DeleteBucket request to the WAL.
+
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	encoded := tsdb.EncodeName(orgID, bucketID)
@@ -472,6 +548,11 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, fn func
 	if e.closing == nil {
 		return ErrEngineClosed
 	}
+
+	// TODO(jeff): this can't exist because we can't WAL a predicate. We'd have to run the
+	// iterator and predicate to completion, store the results in the WAL, and then run it
+	// again.
+
 	return e.engine.DeleteSeriesRangeWithPredicate(itr, fn)
 }
 

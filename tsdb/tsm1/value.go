@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/value"
@@ -104,4 +105,19 @@ func PointsToValues(points []models.Point) (map[string][]Value, error) {
 	}
 
 	return values, nil
+}
+
+// ValuesToPoints takes in a map of values and returns a slice of models.Point.
+func ValuesToPoints(values map[string][]Value) []models.Point {
+	points := make([]models.Point, 0, len(values))
+	for composite, vals := range values {
+		series, field := SeriesAndFieldFromCompositeKey([]byte(composite))
+		strField := string(field)
+		for _, val := range vals {
+			t := time.Unix(0, val.UnixNano())
+			fields := models.Fields{strField: val.Value()}
+			points = append(points, models.NewPointFromSeries(series, fields, t))
+		}
+	}
+	return points
 }
