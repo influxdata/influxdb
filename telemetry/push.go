@@ -16,9 +16,10 @@ import (
 
 // Pusher pushes metrics to a prometheus push gateway.
 type Pusher struct {
-	URL    string
-	Gather prometheus.Gatherer
-	Client *http.Client
+	URL        string
+	Gather     prometheus.Gatherer
+	Client     *http.Client
+	PushFormat expfmt.Format
 }
 
 // NewPusher sends usage metrics to a prometheus push gateway.
@@ -34,11 +35,16 @@ func NewPusher(g prometheus.Gatherer) *Pusher {
 			Transport: http.DefaultTransport,
 			Timeout:   10 * time.Second,
 		},
+		PushFormat: expfmt.FmtProtoDelim,
 	}
 }
 
 // Push POSTs prometheus metrics in protobuf delimited format to a push gateway.
 func (p *Pusher) Push(ctx context.Context) error {
+	if p.PushFormat == "" {
+		p.PushFormat = expfmt.FmtProtoDelim
+	}
+
 	resps := make(chan (error))
 	go func() {
 		resps <- p.push(ctx)
@@ -70,7 +76,7 @@ func (p *Pusher) push(ctx context.Context) error {
 
 	req = req.WithContext(ctx)
 
-	req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+	req.Header.Set("Content-Type", string(p.PushFormat))
 
 	res, err := p.Client.Do(req)
 	select {
@@ -101,13 +107,10 @@ func (p *Pusher) encode() (io.Reader, error) {
 		return nil, nil
 	}
 
-	buf := &bytes.Buffer{}
-	enc := expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
-	for _, mf := range mfs {
-		if err := enc.Encode(mf); err != nil {
-			return nil, err
-		}
+	b, err := pr.EncodeExpfmt(mfs, p.PushFormat)
+	if err != nil {
+		return nil, err
 	}
 
-	return buf, nil
+	return bytes.NewBuffer(b), nil
 }
