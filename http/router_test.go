@@ -1,10 +1,13 @@
 package http
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.uber.org/zap/zaptest"
 )
 
 func TestRouter_NotFound(t *testing.T) {
@@ -117,6 +120,7 @@ func TestRouter_Panic(t *testing.T) {
 		statusCode  int
 		contentType string
 		body        string
+		logged      bool
 	}
 
 	tests := []struct {
@@ -141,6 +145,7 @@ func TestRouter_Panic(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
+				logged:      false,
 				body: `
 {
   "message": "pong"
@@ -164,6 +169,7 @@ func TestRouter_Panic(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusInternalServerError,
 				contentType: "application/json; charset=utf-8",
+				logged:      true,
 				body: `
 {
   "code": "internal error",
@@ -176,6 +182,14 @@ func TestRouter_Panic(t *testing.T) {
 
 	for _, tt := range tests[1:] {
 		t.Run(tt.name, func(t *testing.T) {
+			logger := getPanicLogger()
+			defer func() {
+				panicLogger = logger
+			}()
+
+			tw := newTestLogWriter(t)
+			panicLogger = zaptest.NewLogger(tw)
+
 			router := NewRouter()
 			router.HandlerFunc(tt.fields.method, tt.fields.path, tt.fields.handlerFn)
 
@@ -196,7 +210,9 @@ func TestRouter_Panic(t *testing.T) {
 			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
 				t.Errorf("%q. get ***%s***", tt.name, diff)
 			}
-
+			if tt.wants.logged != tw.Logged() {
+				t.Errorf("%q. get %v, want %v", tt.name, tt.wants.logged, tw.Logged())
+			}
 		})
 	}
 }
@@ -296,4 +312,24 @@ func TestRouter_MethodNotAllowed(t *testing.T) {
 
 		})
 	}
+}
+
+// testLogWriter is a zaptest.TestingT that captures logged messages.
+type testLogWriter struct {
+	*testing.T
+	Messages []string
+}
+
+func newTestLogWriter(t *testing.T) *testLogWriter {
+	return &testLogWriter{T: t}
+}
+
+func (t *testLogWriter) Logf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	t.Messages = append(t.Messages, msg)
+	t.T.Log(msg)
+}
+
+func (t *testLogWriter) Logged() bool {
+	return len(t.Messages) > 0
 }
