@@ -7,14 +7,14 @@ import (
 	"fmt"
 
 	bolt "github.com/coreos/bbolt"
-	platform "github.com/influxdata/influxdb"
+	influxdb "github.com/influxdata/influxdb"
 )
 
 var (
 	secretBucket = []byte("secretsv1")
 )
 
-var _ platform.SecretService = (*Client)(nil)
+var _ influxdb.SecretService = (*Client)(nil)
 
 func (c *Client) initializeSecretService(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(secretBucket)); err != nil {
@@ -24,7 +24,7 @@ func (c *Client) initializeSecretService(ctx context.Context, tx *bolt.Tx) error
 }
 
 // LoadSecret retrieves the secret value v found at key k for organization orgID.
-func (c *Client) LoadSecret(ctx context.Context, orgID platform.ID, k string) (string, error) {
+func (c *Client) LoadSecret(ctx context.Context, orgID influxdb.ID, k string) (string, error) {
 	var v string
 	err := c.db.View(func(tx *bolt.Tx) error {
 		val, err := c.loadSecret(ctx, tx, orgID, k)
@@ -43,7 +43,7 @@ func (c *Client) LoadSecret(ctx context.Context, orgID platform.ID, k string) (s
 	return v, nil
 }
 
-func (c *Client) loadSecret(ctx context.Context, tx *bolt.Tx, orgID platform.ID, k string) (string, error) {
+func (c *Client) loadSecret(ctx context.Context, tx *bolt.Tx, orgID influxdb.ID, k string) (string, error) {
 	key, err := encodeSecretKey(orgID, k)
 	if err != nil {
 		return "", err
@@ -51,7 +51,10 @@ func (c *Client) loadSecret(ctx context.Context, tx *bolt.Tx, orgID platform.ID,
 
 	val := tx.Bucket(secretBucket).Get(key)
 	if len(val) == 0 {
-		return "", fmt.Errorf("secret not found")
+		return "", &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  influxdb.ErrSecretNotFound,
+		}
 	}
 
 	v, err := decodeSecretValue(val)
@@ -63,7 +66,7 @@ func (c *Client) loadSecret(ctx context.Context, tx *bolt.Tx, orgID platform.ID,
 }
 
 // GetSecretKeys retrieves all secret keys that are stored for the organization orgID.
-func (c *Client) GetSecretKeys(ctx context.Context, orgID platform.ID) ([]string, error) {
+func (c *Client) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]string, error) {
 	var vs []string
 	err := c.db.View(func(tx *bolt.Tx) error {
 		vals, err := c.getSecretKeys(ctx, tx, orgID)
@@ -82,7 +85,7 @@ func (c *Client) GetSecretKeys(ctx context.Context, orgID platform.ID) ([]string
 	return vs, nil
 }
 
-func (c *Client) getSecretKeys(ctx context.Context, tx *bolt.Tx, orgID platform.ID) ([]string, error) {
+func (c *Client) getSecretKeys(ctx context.Context, tx *bolt.Tx, orgID influxdb.ID) ([]string, error) {
 	cur := tx.Bucket(secretBucket).Cursor()
 	prefix, err := orgID.Encode()
 	if err != nil {
@@ -130,13 +133,13 @@ func (c *Client) getSecretKeys(ctx context.Context, tx *bolt.Tx, orgID platform.
 }
 
 // PutSecret stores the secret pair (k,v) for the organization orgID.
-func (c *Client) PutSecret(ctx context.Context, orgID platform.ID, k, v string) error {
+func (c *Client) PutSecret(ctx context.Context, orgID influxdb.ID, k, v string) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.putSecret(ctx, tx, orgID, k, v)
 	})
 }
 
-func (c *Client) putSecret(ctx context.Context, tx *bolt.Tx, orgID platform.ID, k, v string) error {
+func (c *Client) putSecret(ctx context.Context, tx *bolt.Tx, orgID influxdb.ID, k, v string) error {
 	key, err := encodeSecretKey(orgID, k)
 	if err != nil {
 		return err
@@ -150,31 +153,31 @@ func (c *Client) putSecret(ctx context.Context, tx *bolt.Tx, orgID platform.ID, 
 	return nil
 }
 
-func encodeSecretKey(orgID platform.ID, k string) ([]byte, error) {
+func encodeSecretKey(orgID influxdb.ID, k string) ([]byte, error) {
 	buf, err := orgID.Encode()
 	if err != nil {
 		return nil, err
 	}
 
-	key := make([]byte, 0, platform.IDLength+len(k))
+	key := make([]byte, 0, influxdb.IDLength+len(k))
 	key = append(key, buf...)
 	key = append(key, k...)
 
 	return key, nil
 }
 
-func decodeSecretKey(key []byte) (platform.ID, string, error) {
-	if len(key) < platform.IDLength {
+func decodeSecretKey(key []byte) (influxdb.ID, string, error) {
+	if len(key) < influxdb.IDLength {
 		// This should not happen.
-		return platform.InvalidID(), "", errors.New("provided key is too short to contain an ID. Please report this error")
+		return influxdb.InvalidID(), "", errors.New("provided key is too short to contain an ID (please report this error)")
 	}
 
-	var id platform.ID
-	if err := id.Decode(key[:platform.IDLength]); err != nil {
-		return platform.InvalidID(), "", err
+	var id influxdb.ID
+	if err := id.Decode(key[:influxdb.IDLength]); err != nil {
+		return influxdb.InvalidID(), "", err
 	}
 
-	k := string(key[platform.IDLength:])
+	k := string(key[influxdb.IDLength:])
 
 	return id, k, nil
 }
@@ -196,7 +199,7 @@ func encodeSecretValue(v string) []byte {
 }
 
 // PutSecrets puts all provided secrets and overwrites any previous values.
-func (c *Client) PutSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
+func (c *Client) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		keys, err := c.getSecretKeys(ctx, tx, orgID)
 		if err != nil {
@@ -219,7 +222,7 @@ func (c *Client) PutSecrets(ctx context.Context, orgID platform.ID, m map[string
 }
 
 // PatchSecrets patches all provided secrets and updates any previous values.
-func (c *Client) PatchSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
+func (c *Client) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		for k, v := range m {
 			if err := c.putSecret(ctx, tx, orgID, k, v); err != nil {
@@ -231,7 +234,7 @@ func (c *Client) PatchSecrets(ctx context.Context, orgID platform.ID, m map[stri
 }
 
 // DeleteSecret removes secrets from the secret store.
-func (c *Client) DeleteSecret(ctx context.Context, orgID platform.ID, ks ...string) error {
+func (c *Client) DeleteSecret(ctx context.Context, orgID influxdb.ID, ks ...string) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		for _, k := range ks {
 			if err := c.deleteSecret(ctx, tx, orgID, k); err != nil {
@@ -242,7 +245,7 @@ func (c *Client) DeleteSecret(ctx context.Context, orgID platform.ID, ks ...stri
 	})
 }
 
-func (c *Client) deleteSecret(ctx context.Context, tx *bolt.Tx, orgID platform.ID, k string) error {
+func (c *Client) deleteSecret(ctx context.Context, tx *bolt.Tx, orgID influxdb.ID, k string) error {
 	key, err := encodeSecretKey(orgID, k)
 	if err != nil {
 		return err
