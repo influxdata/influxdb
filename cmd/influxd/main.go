@@ -5,6 +5,7 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
@@ -35,10 +36,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	var wg sync.WaitGroup
 	if !m.ReportingDisabled() {
 		reporter := telemetry.NewReporter(m.Registry())
 		reporter.Interval = 8 * time.Hour
 		reporter.Logger = m.Logger()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			reporter.Report(ctx)
+		}()
 	}
 
 	<-ctx.Done()
@@ -47,4 +54,5 @@ func main() {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	m.Shutdown(ctx)
+	wg.Wait()
 }

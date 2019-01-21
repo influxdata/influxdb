@@ -24,8 +24,8 @@ type Pusher struct {
 // NewPusher sends usage metrics to a prometheus push gateway.
 func NewPusher(g prometheus.Gatherer) *Pusher {
 	return &Pusher{
-		//URL: "https://0czqg3djc8.execute-api.us-east-1.amazonaws.com/prod",
-		URL: "http://localhost:8080/metrics/job/influxdb",
+		//URL: "https://telemetry.influxdata.com/metrics/job/influxdb",
+		URL: "http://127.0.0.1:8080/metrics/job/influxdb",
 		Gather: &pr.Filter{
 			Gatherer: g,
 			Matcher:  telemetryMatcher,

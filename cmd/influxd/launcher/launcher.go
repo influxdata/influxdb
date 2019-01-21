@@ -231,7 +231,7 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				DestP:   &m.reportingDisabled,
 				Flag:    "reporting-disabled",
 				Default: false,
-				Desc:    "usage data to http://usage.influxdata.com every 8 hours",
+				Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
 			},
 		},
 	}

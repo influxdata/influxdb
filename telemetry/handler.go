@@ -54,6 +54,22 @@ func NewPushGateway(logger *zap.Logger, store Store, xforms ...prometheus.Transf
 // Handler accepts prometheus metrics send via the Push client and sends those
 // metrics into the store.
 func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
+	// redirect to agreement to give our users information about
+	// this collected data.
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		http.Redirect(w, r, "https://www.influxdata.com/legal/data-processing-agreement/", http.StatusSeeOther)
+		return
+	case http.MethodPost, http.MethodPut:
+	default:
+		w.Header().Set("Allow", "GET, HEAD, PUT, POST")
+		http.Error(w,
+			http.StatusText(http.StatusMethodNotAllowed),
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
 	if p.Timeout == 0 {
 		p.Timeout = DefaultTimeout
 	}
