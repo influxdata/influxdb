@@ -445,6 +445,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
 		ProtoService:                    protoSvc,
+		OrgLookupService:                m.boltClient,
 	}
 
 	// HTTP server
