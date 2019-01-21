@@ -85,6 +85,7 @@ func (m Matcher) Match(mfs []*dto.MetricFamily) []*dto.MetricFamily {
 		}
 	}
 
+	sort.Sort(familySorter(filteredFamilies))
 	return filteredFamilies
 }
 

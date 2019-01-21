@@ -28,11 +28,14 @@ func DecodeExpfmt(r io.Reader, format expfmt.Format) ([]*dto.MetricFamily, error
 	return mfs, nil
 }
 
-// EncodeExpfmt encodes the metrics family with delimited
-// protobuf (expt.FmtProtoDelim).
-func EncodeExpfmt(mfs []*dto.MetricFamily) ([]byte, error) {
+// EncodeExpfmt encodes the metrics family (defaults to expfmt.FmtProtoDelim).
+func EncodeExpfmt(mfs []*dto.MetricFamily, opts ...expfmt.Format) ([]byte, error) {
+	format := expfmt.FmtProtoDelim
+	if len(opts) != 0 {
+		format = opts[0]
+	}
 	buf := &bytes.Buffer{}
-	enc := expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
+	enc := expfmt.NewEncoder(buf, format)
 	for _, mf := range mfs {
 		if err := enc.Encode(mf); err != nil {
 			return nil, err
