@@ -3,12 +3,13 @@ package wal
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"reflect"
 	"testing"
 
 	"github.com/golang/snappy"
-	"github.com/influxdata/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tsdb/value"
 )
 
@@ -137,6 +138,7 @@ func TestWALWriter_WriteMulti_LargeBatch(t *testing.T) {
 		t.Fatalf("wrong count of bytes read, got %d, exp %d", n, MustReadFileSize(f))
 	}
 }
+
 func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -211,14 +213,17 @@ func TestWALWriter_WriteMulti_Multiple(t *testing.T) {
 	}
 }
 
-func TestWALWriter_WriteDelete_Single(t *testing.T) {
+func TestWALWriter_DeleteBucketRange(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	f := MustTempFile(dir)
 	w := NewWALSegmentWriter(f)
 
-	entry := &DeleteWALEntry{
-		Keys: [][]byte{[]byte("cpu")},
+	entry := &DeleteBucketRangeWALEntry{
+		OrgID:    influxdb.ID(1),
+		BucketID: influxdb.ID(2),
+		Min:      3,
+		Max:      4,
 	}
 
 	if err := w.Write(mustMarshalEntry(entry)); err != nil {
@@ -244,220 +249,14 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 		fatal(t, "read entry", err)
 	}
 
-	e, ok := we.(*DeleteWALEntry)
+	e, ok := we.(*DeleteBucketRangeWALEntry)
 	if !ok {
 		t.Fatalf("expected WriteWALEntry: got %#v", e)
 	}
 
-	if got, exp := len(e.Keys), len(entry.Keys); got != exp {
-		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
+	if !reflect.DeepEqual(entry, e) {
+		t.Fatalf("expected %+v but got %+v", entry, e)
 	}
-
-	if got, exp := string(e.Keys[0]), string(entry.Keys[0]); got != exp {
-		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func TestWALWriter_WriteMultiDelete_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
-	w := NewWALSegmentWriter(f)
-
-	p1 := value.NewValue(1, true)
-	values := map[string][]value.Value{
-		"cpu,host=A#!~#value": []value.Value{p1},
-	}
-
-	writeEntry := &WriteWALEntry{
-		Values: values,
-	}
-
-	if err := w.Write(mustMarshalEntry(writeEntry)); err != nil {
-		fatal(t, "write points", err)
-	}
-
-	if err := w.Flush(); err != nil {
-		fatal(t, "flush", err)
-	}
-
-	// Write the delete entry
-	deleteEntry := &DeleteWALEntry{
-		Keys: [][]byte{[]byte("cpu,host=A#!~value")},
-	}
-
-	if err := w.Write(mustMarshalEntry(deleteEntry)); err != nil {
-		fatal(t, "write points", err)
-	}
-
-	if err := w.Flush(); err != nil {
-		fatal(t, "flush", err)
-	}
-
-	// Seek back to the beinning of the file for reading
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		fatal(t, "seek", err)
-	}
-
-	r := NewWALSegmentReader(f)
-
-	// Read the write points first
-	if !r.Next() {
-		t.Fatalf("expected next, got false")
-	}
-
-	we, err := r.Read()
-	if err != nil {
-		fatal(t, "read entry", err)
-	}
-
-	e, ok := we.(*WriteWALEntry)
-	if !ok {
-		t.Fatalf("expected WriteWALEntry: got %#v", e)
-	}
-
-	for k, v := range e.Values {
-		if got, exp := len(v), len(values[k]); got != exp {
-			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
-		}
-
-		for i, vv := range v {
-			if got, exp := vv.String(), values[k][i].String(); got != exp {
-				t.Fatalf("points mismatch: got %v, exp %v", got, exp)
-			}
-		}
-	}
-
-	// Read the delete second
-	if !r.Next() {
-		t.Fatalf("expected next, got false")
-	}
-
-	we, err = r.Read()
-	if err != nil {
-		fatal(t, "read entry", err)
-	}
-
-	de, ok := we.(*DeleteWALEntry)
-	if !ok {
-		t.Fatalf("expected DeleteWALEntry: got %#v", e)
-	}
-
-	if got, exp := len(de.Keys), len(deleteEntry.Keys); got != exp {
-		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := string(de.Keys[0]), string(deleteEntry.Keys[0]); got != exp {
-		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func TestWALWriter_WriteMultiDeleteRange_Multiple(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-	f := MustTempFile(dir)
-	w := NewWALSegmentWriter(f)
-
-	p1 := value.NewValue(1, 1.0)
-	p2 := value.NewValue(2, 2.0)
-	p3 := value.NewValue(3, 3.0)
-
-	values := map[string][]value.Value{
-		"cpu,host=A#!~#value": []value.Value{p1, p2, p3},
-	}
-
-	writeEntry := &WriteWALEntry{
-		Values: values,
-	}
-
-	if err := w.Write(mustMarshalEntry(writeEntry)); err != nil {
-		fatal(t, "write points", err)
-	}
-
-	if err := w.Flush(); err != nil {
-		fatal(t, "flush", err)
-	}
-
-	// Write the delete entry
-	deleteEntry := &DeleteRangeWALEntry{
-		Keys: [][]byte{[]byte("cpu,host=A#!~value")},
-		Min:  2,
-		Max:  3,
-	}
-
-	if err := w.Write(mustMarshalEntry(deleteEntry)); err != nil {
-		fatal(t, "write points", err)
-	}
-
-	if err := w.Flush(); err != nil {
-		fatal(t, "flush", err)
-	}
-
-	// Seek back to the beinning of the file for reading
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		fatal(t, "seek", err)
-	}
-
-	r := NewWALSegmentReader(f)
-
-	// Read the write points first
-	if !r.Next() {
-		t.Fatalf("expected next, got false")
-	}
-
-	we, err := r.Read()
-	if err != nil {
-		fatal(t, "read entry", err)
-	}
-
-	e, ok := we.(*WriteWALEntry)
-	if !ok {
-		t.Fatalf("expected WriteWALEntry: got %#v", e)
-	}
-
-	for k, v := range e.Values {
-		if got, exp := len(v), len(values[k]); got != exp {
-			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
-		}
-
-		for i, vv := range v {
-			if got, exp := vv.String(), values[k][i].String(); got != exp {
-				t.Fatalf("points mismatch: got %v, exp %v", got, exp)
-			}
-		}
-	}
-
-	// Read the delete second
-	if !r.Next() {
-		t.Fatalf("expected next, got false")
-	}
-
-	we, err = r.Read()
-	if err != nil {
-		fatal(t, "read entry", err)
-	}
-
-	de, ok := we.(*DeleteRangeWALEntry)
-	if !ok {
-		t.Fatalf("expected DeleteWALEntry: got %#v", e)
-	}
-
-	if got, exp := len(de.Keys), len(deleteEntry.Keys); got != exp {
-		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := string(de.Keys[0]), string(deleteEntry.Keys[0]); got != exp {
-		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := de.Min, int64(2); got != exp {
-		t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := de.Max, int64(3); got != exp {
-		t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
-	}
-
 }
 
 func TestWAL_ClosedSegments(t *testing.T) {
@@ -483,48 +282,6 @@ func TestWAL_ClosedSegments(t *testing.T) {
 			value.NewValue(1, 1.1),
 		},
 	}); err != nil {
-		t.Fatalf("error writing points: %v", err)
-	}
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("error closing wal: %v", err)
-	}
-
-	// Re-open the WAL
-	w = NewWAL(dir)
-	defer w.Close()
-	if err := w.Open(); err != nil {
-		t.Fatalf("error opening WAL: %v", err)
-	}
-
-	files, err = w.ClosedSegments()
-	if err != nil {
-		t.Fatalf("error getting closed segments: %v", err)
-	}
-	if got, exp := len(files), 0; got != exp {
-		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func TestWAL_Delete(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-
-	w := NewWAL(dir)
-	if err := w.Open(); err != nil {
-		t.Fatalf("error opening WAL: %v", err)
-	}
-
-	files, err := w.ClosedSegments()
-	if err != nil {
-		t.Fatalf("error getting closed segments: %v", err)
-	}
-
-	if got, exp := len(files), 0; got != exp {
-		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if _, err := w.Delete([][]byte{[]byte("cpu")}); err != nil {
 		t.Fatalf("error writing points: %v", err)
 	}
 
@@ -687,78 +444,37 @@ func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 	}
 }
 
-func TestDeleteWALEntry_UnmarshalBinary(t *testing.T) {
-	examples := []struct {
-		In  []string
-		Out [][]byte
-	}{
-		{
-			In:  []string{""},
-			Out: nil,
-		},
-		{
-			In:  []string{"foo"},
-			Out: [][]byte{[]byte("foo")},
-		},
-		{
-			In:  []string{"foo", "bar"},
-			Out: [][]byte{[]byte("foo"), []byte("bar")},
-		},
-		{
-			In:  []string{"foo", "bar", "z", "abc"},
-			Out: [][]byte{[]byte("foo"), []byte("bar"), []byte("z"), []byte("abc")},
-		},
-		{
-			In:  []string{"foo", "bar", "z", "a"},
-			Out: [][]byte{[]byte("foo"), []byte("bar"), []byte("z"), []byte("a")},
-		},
-	}
+func TestDeleteBucketRangeWALEntry_UnmarshalBinary(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		in := &DeleteBucketRangeWALEntry{
+			OrgID:    influxdb.ID(rand.Int63()) + 1,
+			BucketID: influxdb.ID(rand.Int63()) + 1,
+			Min:      rand.Int63(),
+			Max:      rand.Int63(),
+		}
 
-	for i, example := range examples {
-		w := &DeleteWALEntry{Keys: slices.StringsToBytes(example.In...)}
-		b, err := w.MarshalBinary()
+		b, err := in.MarshalBinary()
 		if err != nil {
-			t.Fatalf("[example %d] unexpected error, got %v", i, err)
+			t.Fatalf("unexpected error, got %v", err)
 		}
 
-		out := &DeleteWALEntry{}
+		out := &DeleteBucketRangeWALEntry{}
 		if err := out.UnmarshalBinary(b); err != nil {
-			t.Fatalf("[example %d] %v", i, err)
+			t.Fatalf("%v", err)
 		}
 
-		if !reflect.DeepEqual(example.Out, out.Keys) {
-			t.Errorf("[example %d] got %v, expected %v", i, out.Keys, example.Out)
-		}
-	}
-}
-
-func TestWriteWALSegment_UnmarshalBinary_DeleteWALCorrupt(t *testing.T) {
-	w := &DeleteWALEntry{
-		Keys: [][]byte{[]byte("foo"), []byte("bar")},
-	}
-
-	b, err := w.MarshalBinary()
-	if err != nil {
-		t.Fatalf("unexpected error, got %v", err)
-	}
-
-	// Test every possible truncation of a write WAL entry
-	for i := 0; i < len(b); i++ {
-		// re-allocated to ensure capacity would be exceed if slicing
-		truncated := make([]byte, i)
-		copy(truncated, b[:i])
-		err := w.UnmarshalBinary(truncated)
-		if err != nil && err != ErrWALCorrupt {
-			t.Fatalf("unexpected error: %v", err)
+		if !reflect.DeepEqual(in, out) {
+			t.Errorf("got %+v, expected %+v", out, in)
 		}
 	}
 }
 
-func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
-	w := &DeleteRangeWALEntry{
-		Keys: [][]byte{[]byte("foo"), []byte("bar")},
-		Min:  1,
-		Max:  2,
+func TestWriteWALSegment_UnmarshalBinary_DeleteBucketRangeWALCorrupt(t *testing.T) {
+	w := &DeleteBucketRangeWALEntry{
+		OrgID:    influxdb.ID(1),
+		BucketID: influxdb.ID(2),
+		Min:      3,
+		Max:      4,
 	}
 
 	b, err := w.MarshalBinary()

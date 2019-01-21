@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"sync"
 	"time"
 
@@ -200,11 +199,9 @@ func (e *Engine) Open() (err error) {
 		return err
 	}
 
-	if err := e.reloadCache(); err != nil {
+	if err := e.replayWAL(); err != nil {
 		return err
 	}
-
-	e.engine.SetCompactionsEnabled(true) // TODO(edd):is this needed?
 
 	e.closing = make(chan struct{})
 
@@ -216,85 +213,52 @@ func (e *Engine) Open() (err error) {
 	return nil
 }
 
-// reloadCache reads the WAL segment files and loads them into the cache.
-func (e *Engine) reloadCache() error {
+// replayWAL reads the WAL segment files and replays them.
+func (e *Engine) replayWAL() error {
 	if !e.config.WAL.Enabled {
 		return nil
 	}
-
 	now := time.Now()
-	files, err := wal.SegmentFileNames(e.wal.Path())
+
+	walPaths, err := wal.SegmentFileNames(e.wal.Path())
 	if err != nil {
 		return err
 	}
+
+	// TODO(jeff): we should just do snapshots and wait for them so that we don't hit
+	// OOM situations when reloading huge WALs.
 
 	// Disable the max size during loading
 	limit := e.engine.Cache.MaxSize()
 	defer func() { e.engine.Cache.SetMaxSize(limit) }()
 	e.engine.Cache.SetMaxSize(0)
 
-	for _, file := range files {
-		if err := e.reloadWALFile(file); err != nil {
+	// Execute all the entries in the WAL again
+	reader := wal.NewWALReader(walPaths)
+	reader.WithLogger(e.logger)
+	err = reader.Read(func(entry wal.WALEntry) error {
+		switch en := entry.(type) {
+		case *wal.WriteWALEntry:
+			points := tsm1.ValuesToPoints(en.Values)
+			err := e.writePointsLocked(tsdb.NewSeriesCollection(points), en.Values)
+			if _, ok := err.(tsdb.PartialWriteError); ok {
+				err = nil
+			}
 			return err
+
+		case *wal.DeleteBucketRangeWALEntry:
+			return e.deleteBucketRangeLocked(en.OrgID, en.BucketID, en.Min, en.Max)
 		}
-	}
+
+		return nil
+	})
 
 	e.logger.Info("Reloaded WAL",
 		zap.String("path", e.wal.Path()),
-		zap.Duration("duration", time.Since(now)))
-	return nil
-}
+		zap.Duration("duration", time.Since(now)),
+		zap.Error(err))
 
-// reloadWALFile executes all of the actions in the WAL against the engine.
-func (e *Engine) reloadWALFile(file string) error {
-	f, err := os.OpenFile(file, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	stat, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	e.logger.Info("Reading file", zap.String("path", file), zap.Int64("size", stat.Size()))
-
-	if stat.Size() == 0 {
-		return nil
-	}
-
-	r := wal.NewWALSegmentReader(f)
-	defer r.Close()
-
-	for r.Next() {
-		entry, err := r.Read()
-		if err != nil {
-			n := r.Count()
-			e.logger.Info("File corrupt", zap.Error(err), zap.String("path", file), zap.Int64("pos", n))
-			if err := f.Truncate(n); err != nil {
-				return err
-			}
-			break
-		}
-
-		switch t := entry.(type) {
-		case *wal.WriteWALEntry:
-			points := tsm1.ValuesToPoints(t.Values)
-			err := e.writePointsLocked(tsdb.NewSeriesCollection(points), t.Values)
-			if _, ok := err.(tsdb.PartialWriteError); err != nil && !ok {
-				return err
-			}
-
-		case *wal.DeleteRangeWALEntry:
-			// TODO(jeff): implement?
-
-		case *wal.DeleteWALEntry:
-			// TODO(jeff): implement?
-
-		}
-	}
-
-	return r.Close()
+	return err
 }
 
 // runRetentionEnforcer runs the retention enforcer in a separate goroutine.
@@ -365,6 +329,7 @@ func (e *Engine) Close() error {
 	return ch.Done()
 }
 
+// CreateSeriesCursor creates a SeriesCursor for usage with the read service.
 func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest, cond influxql.Expr) (SeriesCursor, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -374,6 +339,7 @@ func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest
 	return newSeriesCursor(req, e.index, cond)
 }
 
+// CreateCursorIterator creates a CursorIterator for usage with the read service.
 func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -435,7 +401,18 @@ func (e *Engine) WritePoints(points []models.Point) error {
 		return ErrEngineClosed
 	}
 
-	return e.writePointsLocked(collection, nil)
+	// Convert the points to values for adding to the WAL/Cache.
+	values, err := tsm1.PointsToValues(collection.Points)
+	if err != nil {
+		return err
+	}
+
+	// Add the write to the WAL to be replayed if there is a crash or shutdown.
+	if _, err := e.wal.WriteMulti(values); err != nil {
+		return err
+	}
+
+	return e.writePointsLocked(collection, values)
 }
 
 // writePointsLocked does the work of writing points and must be called under some sort of lock.
@@ -444,28 +421,15 @@ func (e *Engine) writePointsLocked(collection *tsdb.SeriesCollection, values map
 	// errors get tracked all the way. Right now, the engine doesn't drop any values
 	// but if it ever did, the errors could end up missing some data.
 
-	// Load up the values if they haven't been passed in.
-	var err error
-	if values == nil {
-		values, err = tsm1.PointsToValues(collection.Points)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Add the write to the WAL to be replayed if there is a crash or shutdown.
-	if _, err := e.wal.WriteMulti(values); err != nil {
-		return err
-	}
-
 	// Add new series to the index and series file.
 	if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
 		return err
 	}
 
-	// If there was a PartialWriteError already, that means the values may contain
+	// If there was a PartialWriteError, that means the passed in values may contain
 	// more than the points so we need to recreate them.
 	if collection.PartialWriteError() != nil {
+		var err error
 		values, err = tsm1.PointsToValues(collection.Points)
 		if err != nil {
 			return err
@@ -524,8 +488,17 @@ func (e *Engine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) 
 		return ErrEngineClosed
 	}
 
-	// TODO(jeff): write the DeleteBucket request to the WAL.
+	// Add the delete to the WAL to be replayed if there is a crash or shutdown.
+	if _, err := e.wal.DeleteBucketRange(orgID, bucketID, min, max); err != nil {
+		return err
+	}
 
+	return e.deleteBucketRangeLocked(orgID, bucketID, min, max)
+}
+
+// deleteBucketRangeLocked does the work of deleting a bucket range and must be called under
+// some sort of lock.
+func (e *Engine) deleteBucketRangeLocked(orgID, bucketID platform.ID, min, max int64) error {
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	encoded := tsdb.EncodeName(orgID, bucketID)

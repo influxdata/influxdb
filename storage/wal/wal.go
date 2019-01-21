@@ -2,7 +2,6 @@ package wal
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/influxdata/influxdb/tsdb/value"
@@ -52,11 +52,14 @@ const (
 	// WriteWALEntryType indicates a write entry.
 	WriteWALEntryType WalEntryType = 0x01
 
-	// DeleteWALEntryType indicates a delete entry.
-	DeleteWALEntryType WalEntryType = 0x02
+	// DeleteWALEntryType indicates a delete entry. Deprecated.
+	_ WalEntryType = 0x02
 
-	// DeleteRangeWALEntryType indicates a delete range entry.
-	DeleteRangeWALEntryType WalEntryType = 0x03
+	// DeleteRangeWALEntryType indicates a delete range entry. Deprecated.
+	_ WalEntryType = 0x03
+
+	// DeleteBucketRangeWALEntryType indicates a delete bucket range entry.
+	DeleteBucketRangeWALEntryType WalEntryType = 0x04
 )
 
 var (
@@ -517,32 +520,18 @@ func (l *WAL) CloseSegment() error {
 	return nil
 }
 
-// Delete deletes the given keys, returning the segment ID for the operation.
-func (l *WAL) Delete(keys [][]byte) (int, error) {
-	if len(keys) == 0 {
-		return 0, nil
-	}
-	entry := &DeleteWALEntry{
-		Keys: keys,
+// DeleteBucketRange deletes the data inside of the bucket between the two times, returning
+// the segment ID for the operation.
+func (l *WAL) DeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) (int, error) {
+	if !l.enabled {
+		return -1, nil
 	}
 
-	id, err := l.writeToLog(entry)
-	if err != nil {
-		return -1, err
-	}
-	return id, nil
-}
-
-// DeleteRange deletes the given keys within the given time range,
-// returning the segment ID for the operation.
-func (l *WAL) DeleteRange(keys [][]byte, min, max int64) (int, error) {
-	if len(keys) == 0 {
-		return 0, nil
-	}
-	entry := &DeleteRangeWALEntry{
-		Keys: keys,
-		Min:  min,
-		Max:  max,
+	entry := &DeleteBucketRangeWALEntry{
+		OrgID:    orgID,
+		BucketID: bucketID,
+		Min:      min,
+		Max:      max,
 	}
 
 	id, err := l.writeToLog(entry)
@@ -708,6 +697,7 @@ type WriteWALEntry struct {
 	sz     int
 }
 
+// MarshalSize returns the number of bytes the entry takes when marshaled.
 func (w *WriteWALEntry) MarshalSize() int {
 	if w.sz > 0 || len(w.Values) == 0 {
 		return w.sz
@@ -999,152 +989,70 @@ func (w *WriteWALEntry) Type() WalEntryType {
 	return WriteWALEntryType
 }
 
-// DeleteWALEntry represents the deletion of multiple series.
-type DeleteWALEntry struct {
-	Keys [][]byte
-	sz   int
-}
-
-// MarshalBinary returns a binary representation of the entry in a new byte slice.
-func (w *DeleteWALEntry) MarshalBinary() ([]byte, error) {
-	b := make([]byte, w.MarshalSize())
-	return w.Encode(b)
-}
-
-// UnmarshalBinary deserializes the byte slice into w.
-func (w *DeleteWALEntry) UnmarshalBinary(b []byte) error {
-	if len(b) == 0 {
-		return nil
-	}
-
-	// b originates from a pool. Copy what needs to be retained.
-	buf := make([]byte, len(b))
-	copy(buf, b)
-	w.Keys = bytes.Split(buf, []byte("\n"))
-	return nil
-}
-
-func (w *DeleteWALEntry) MarshalSize() int {
-	if w.sz > 0 || len(w.Keys) == 0 {
-		return w.sz
-	}
-
-	encLen := len(w.Keys) // newlines
-	for _, k := range w.Keys {
-		encLen += len(k)
-	}
-
-	w.sz = encLen
-
-	return encLen
-}
-
-// Encode converts the DeleteWALEntry into a byte slice, appending to dst.
-func (w *DeleteWALEntry) Encode(dst []byte) ([]byte, error) {
-	sz := w.MarshalSize()
-
-	if len(dst) < sz {
-		dst = make([]byte, sz)
-	}
-
-	var n int
-	for _, k := range w.Keys {
-		n += copy(dst[n:], k)
-		n += copy(dst[n:], "\n")
-	}
-
-	// We return n-1 to strip off the last newline so that unmarshalling the value
-	// does not produce an empty string
-	return []byte(dst[:n-1]), nil
-}
-
-// Type returns DeleteWALEntryType.
-func (w *DeleteWALEntry) Type() WalEntryType {
-	return DeleteWALEntryType
-}
-
-// DeleteRangeWALEntry represents the deletion of multiple series.
-type DeleteRangeWALEntry struct {
-	Keys     [][]byte
+// DeleteBucketRangeWALEntry represents the deletion of data in a bucket.
+type DeleteBucketRangeWALEntry struct {
+	OrgID    influxdb.ID
+	BucketID influxdb.ID
 	Min, Max int64
-	sz       int
 }
 
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
-func (w *DeleteRangeWALEntry) MarshalBinary() ([]byte, error) {
+func (w *DeleteBucketRangeWALEntry) MarshalBinary() ([]byte, error) {
 	b := make([]byte, w.MarshalSize())
 	return w.Encode(b)
 }
 
 // UnmarshalBinary deserializes the byte slice into w.
-func (w *DeleteRangeWALEntry) UnmarshalBinary(b []byte) error {
-	if len(b) < 16 {
+func (w *DeleteBucketRangeWALEntry) UnmarshalBinary(b []byte) error {
+	if len(b) != 2*influxdb.IDLength+16 {
 		return ErrWALCorrupt
 	}
 
-	w.Min = int64(binary.BigEndian.Uint64(b[:8]))
-	w.Max = int64(binary.BigEndian.Uint64(b[8:16]))
-
-	i := 16
-	for i < len(b) {
-		if i+4 > len(b) {
-			return ErrWALCorrupt
-		}
-		sz := int(binary.BigEndian.Uint32(b[i : i+4]))
-		i += 4
-
-		if i+sz > len(b) {
-			return ErrWALCorrupt
-		}
-
-		// b originates from a pool. Copy what needs to be retained.
-		buf := make([]byte, sz)
-		copy(buf, b[i:i+sz])
-		w.Keys = append(w.Keys, buf)
-		i += sz
+	if err := w.OrgID.Decode(b[0:influxdb.IDLength]); err != nil {
+		return err
 	}
+	if err := w.BucketID.Decode(b[influxdb.IDLength : 2*influxdb.IDLength]); err != nil {
+		return err
+	}
+	w.Min = int64(binary.BigEndian.Uint64(b[2*influxdb.IDLength : 2*influxdb.IDLength+8]))
+	w.Max = int64(binary.BigEndian.Uint64(b[2*influxdb.IDLength+8 : 2*influxdb.IDLength+16]))
+
 	return nil
 }
 
-func (w *DeleteRangeWALEntry) MarshalSize() int {
-	if w.sz > 0 {
-		return w.sz
-	}
-
-	sz := 16 + len(w.Keys)*4
-	for _, k := range w.Keys {
-		sz += len(k)
-	}
-
-	w.sz = sz
-
-	return sz
+// MarshalSize returns the number of bytes the entry takes when marshaled.
+func (w *DeleteBucketRangeWALEntry) MarshalSize() int {
+	return 2*influxdb.IDLength + 16
 }
 
-// Encode converts the DeleteRangeWALEntry into a byte slice, appending to b.
-func (w *DeleteRangeWALEntry) Encode(b []byte) ([]byte, error) {
+// Encode converts the entry into a byte stream using b if it is large enough.
+// If b is too small, a newly allocated slice is returned.
+func (w *DeleteBucketRangeWALEntry) Encode(b []byte) ([]byte, error) {
 	sz := w.MarshalSize()
-
 	if len(b) < sz {
 		b = make([]byte, sz)
 	}
 
-	binary.BigEndian.PutUint64(b[:8], uint64(w.Min))
-	binary.BigEndian.PutUint64(b[8:16], uint64(w.Max))
-
-	i := 16
-	for _, k := range w.Keys {
-		binary.BigEndian.PutUint32(b[i:i+4], uint32(len(k)))
-		i += 4
-		i += copy(b[i:], k)
+	orgID, err := w.OrgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+	bucketID, err := w.BucketID.Encode()
+	if err != nil {
+		return nil, err
 	}
 
-	return b[:i], nil
+	copy(b, orgID)
+	copy(b[influxdb.IDLength:], bucketID)
+	binary.BigEndian.PutUint64(b[2*influxdb.IDLength:], uint64(w.Min))
+	binary.BigEndian.PutUint64(b[2*influxdb.IDLength+8:], uint64(w.Max))
+
+	return b[:sz], nil
 }
 
-// Type returns DeleteRangeWALEntryType.
-func (w *DeleteRangeWALEntry) Type() WalEntryType {
-	return DeleteRangeWALEntryType
+// Type returns DeleteBucketRangeWALEntryType.
+func (w *DeleteBucketRangeWALEntry) Type() WalEntryType {
+	return DeleteBucketRangeWALEntryType
 }
 
 // WALSegmentWriter writes WAL segments.
@@ -1290,10 +1198,8 @@ func (r *WALSegmentReader) Next() bool {
 		r.entry = &WriteWALEntry{
 			Values: make(map[string][]value.Value),
 		}
-	case DeleteWALEntryType:
-		r.entry = &DeleteWALEntry{}
-	case DeleteRangeWALEntryType:
-		r.entry = &DeleteRangeWALEntry{}
+	case DeleteBucketRangeWALEntryType:
+		r.entry = &DeleteBucketRangeWALEntry{}
 	default:
 		r.err = fmt.Errorf("unknown wal entry type: %v", entryType)
 		return true

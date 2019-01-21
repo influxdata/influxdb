@@ -3,7 +3,6 @@ package tsm1
 import (
 	"fmt"
 	"math"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -625,92 +624,39 @@ func (c *Cache) ApplyEntryFn(f func(key []byte, entry *entry) error) error {
 }
 
 // CacheLoader processes a set of WAL segment files, and loads a cache with the data
-// contained within those files.  Processing of the supplied files take place in the
-// order they exist in the files slice.
+// contained within those files.
 type CacheLoader struct {
-	files []string
-
-	Logger *zap.Logger
+	reader *wal.WALReader
 }
 
 // NewCacheLoader returns a new instance of a CacheLoader.
 func NewCacheLoader(files []string) *CacheLoader {
 	return &CacheLoader{
-		files:  files,
-		Logger: zap.NewNop(),
+		reader: wal.NewWALReader(files),
 	}
 }
 
 // Load returns a cache loaded with the data contained within the segment files.
-// If, during reading of a segment file, corruption is encountered, that segment
-// file is truncated up to and including the last valid byte, and processing
-// continues with the next segment file.
 func (cl *CacheLoader) Load(cache *Cache) error {
+	return cl.reader.Read(func(entry wal.WALEntry) error {
+		switch en := entry.(type) {
+		case *wal.WriteWALEntry:
+			return cache.WriteMulti(en.Values)
 
-	var r *wal.WALSegmentReader
-	for _, fn := range cl.files {
-		if err := func() error {
-			f, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0666)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-
-			// Log some information about the segments.
-			stat, err := os.Stat(f.Name())
-			if err != nil {
-				return err
-			}
-			cl.Logger.Info("Reading file", zap.String("path", f.Name()), zap.Int64("size", stat.Size()))
-
-			// Nothing to read, skip it
-			if stat.Size() == 0 {
-				return nil
-			}
-
-			if r == nil {
-				r = wal.NewWALSegmentReader(f)
-				defer r.Close()
-			} else {
-				r.Reset(f)
-			}
-
-			for r.Next() {
-				entry, err := r.Read()
-				if err != nil {
-					n := r.Count()
-					cl.Logger.Info("File corrupt", zap.Error(err), zap.String("path", f.Name()), zap.Int64("pos", n))
-					if err := f.Truncate(n); err != nil {
-						return err
-					}
-					break
-				}
-
-				switch t := entry.(type) {
-				case *wal.WriteWALEntry:
-					if err := cache.WriteMulti(t.Values); err != nil {
-						return err
-					}
-				case *wal.DeleteRangeWALEntry:
-					cache.DeleteRange(t.Keys, t.Min, t.Max)
-				case *wal.DeleteWALEntry:
-					cache.Delete(t.Keys)
-				}
-			}
-
-			return r.Close()
-		}(); err != nil {
-			return err
+		case *wal.DeleteBucketRangeWALEntry:
+			// TODO(jeff): delete bucket range
 		}
-	}
-	return nil
+
+		return nil
+	})
 }
 
 // WithLogger sets the logger on the CacheLoader.
-func (cl *CacheLoader) WithLogger(log *zap.Logger) {
-	cl.Logger = log.With(zap.String("service", "cacheloader"))
+func (cl *CacheLoader) WithLogger(logger *zap.Logger) {
+	cl.reader.WithLogger(logger.With(zap.String("service", "cacheloader")))
 }
 
+// LastWriteTime returns the time that the cache was last written to.
 func (c *Cache) LastWriteTime() time.Time {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
