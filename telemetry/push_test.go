@@ -108,6 +108,7 @@ func TestPusher_Push(t *testing.T) {
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if tt.timeout > 0 { // testing server timeouts
 						r = r.WithContext(ctx)
+						_ = r
 						<-ctx.Done()
 						return
 					}
