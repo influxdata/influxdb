@@ -115,6 +115,8 @@ const (
 	MacrosResourceType = ResourceType("macros") // 8
 	// ScraperResourceType gives permission to one or more scrapers.
 	ScraperResourceType = ResourceType("scrapers") // 9
+	// SecretsResourceType gives permission to one or more scrapers.
+	SecretsResourceType = ResourceType("secrets") // 10
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -129,6 +131,7 @@ var AllResourceTypes = []ResourceType{
 	UsersResourceType,          // 7
 	MacrosResourceType,         // 8
 	ScraperResourceType,        // 9
+	SecretsResourceType,        // 10
 }
 
 // OrgResourceTypes is the list of all known resource types that belong to an organization.
@@ -140,6 +143,7 @@ var OrgResourceTypes = []ResourceType{
 	TelegrafsResourceType,  // 6
 	UsersResourceType,      // 7
 	MacrosResourceType,     // 8
+	SecretsResourceType,    // 10
 }
 
 // Valid checks if the resource type is a member of the ResourceType enum.
@@ -160,6 +164,7 @@ func (t ResourceType) Valid() (err error) {
 	case UsersResourceType: // 7
 	case MacrosResourceType: // 8
 	case ScraperResourceType: // 9
+	case SecretsResourceType: // 10
 	default:
 		err = ErrInvalidResourceType
 	}
