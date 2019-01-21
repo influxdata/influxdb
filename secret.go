@@ -2,6 +2,9 @@ package influxdb
 
 import "context"
 
+// ErrSecretNotFound is the error msg for a missing secret.
+const ErrSecretNotFound = "secret not found"
+
 // SecretService a service for storing and retrieving secrets.
 type SecretService interface {
 	// LoadSecret retrieves the secret value v found at key k for organization orgID.
