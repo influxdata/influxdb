@@ -11,10 +11,10 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// DeleteBucket removes all TSM data belonging to a bucket, and removes all index
+// DeleteBucketRange removes all TSM data belonging to a bucket, and removes all index
 // and series file data associated with the bucket. The provided time range ensures
 // that only bucket data for that range is removed.
-func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
+func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	// TODO(jeff): we need to block writes to this prefix while deletes are in progress
 	// otherwise we can end up in a situation where we have staged data in the cache or
 	// WAL that was deleted from the index, or worse. This needs to happen at a higher

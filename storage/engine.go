@@ -286,22 +286,11 @@ func (e *Engine) reloadWALFile(file string) error {
 			}
 
 		case *wal.DeleteRangeWALEntry:
-			err := e.engine.DeleteSeriesRangeWithPredicate(newFixedSeriesIterator(t.Keys),
-				func(name []byte, tags models.Tags) (int64, int64, bool) {
-					return t.Min, t.Max, true
-				})
-			if err != nil {
-				return err
-			}
+			// TODO(jeff): implement?
 
 		case *wal.DeleteWALEntry:
-			err := e.engine.DeleteSeriesRangeWithPredicate(newFixedSeriesIterator(t.Keys),
-				func(name []byte, tags models.Tags) (int64, int64, bool) {
-					return math.MinInt64, math.MaxInt64, true
-				})
-			if err != nil {
-				return err
-			}
+			// TODO(jeff): implement?
+
 		}
 	}
 
@@ -524,6 +513,11 @@ func (e *Engine) CommitSegments(segs []string, fn func() error) error {
 
 // DeleteBucket deletes an entire bucket from the storage engine.
 func (e *Engine) DeleteBucket(orgID, bucketID platform.ID) error {
+	return e.DeleteBucketRange(orgID, bucketID, math.MinInt64, math.MaxInt64)
+}
+
+// DeleteBucketRange deletes an entire bucket from the storage engine.
+func (e *Engine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
@@ -537,23 +531,7 @@ func (e *Engine) DeleteBucket(orgID, bucketID platform.ID) error {
 	encoded := tsdb.EncodeName(orgID, bucketID)
 	name := models.EscapeMeasurement(encoded[:])
 
-	return e.engine.DeleteBucket(name, math.MinInt64, math.MaxInt64)
-}
-
-// DeleteSeriesRangeWithPredicate deletes all series data iterated over if fn returns
-// true for that series.
-func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, fn func([]byte, models.Tags) (int64, int64, bool)) error {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.closing == nil {
-		return ErrEngineClosed
-	}
-
-	// TODO(jeff): this can't exist because we can't WAL a predicate. We'd have to run the
-	// iterator and predicate to completion, store the results in the WAL, and then run it
-	// again.
-
-	return e.engine.DeleteSeriesRangeWithPredicate(itr, fn)
+	return e.engine.DeleteBucketRange(name, min, max)
 }
 
 // SeriesCardinality returns the number of series in the engine.
