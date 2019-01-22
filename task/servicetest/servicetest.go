@@ -122,7 +122,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Look up a task the different ways we can.
 	// Map of method name to found task.
-	found := make(map[string]*platform.Task)
+	found := map[string]*platform.Task{
+		"Created": task,
+	}
 
 	// Find by ID should return the right task.
 	f, err := sys.ts.FindTaskByID(sys.Ctx, task.ID)
