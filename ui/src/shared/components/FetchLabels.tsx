@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import {EmptyState} from 'src/clockface'
 
 // APIs
-import {getLabels} from 'src/shared/apis/v2/labels'
+import {getLabels} from 'src/configuration/apis'
 
 // Types
 import {RemoteDataState} from 'src/types'

@@ -8,13 +8,13 @@ import {Dropdown, DropdownMenuColors} from 'src/clockface'
 import {
   PRESET_LABEL_COLORS,
   CUSTOM_LABEL,
-} from 'src/organizations/constants/LabelColors'
+} from 'src/configuration/constants/LabelColors'
 
 // Types
 import {LabelColor, LabelColorType} from 'src/types/colors'
 
 // Styles
-import 'src/organizations/components/LabelColorDropdown.scss'
+import 'src/configuration/components/LabelColorDropdown.scss'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

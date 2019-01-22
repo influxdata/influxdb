@@ -2,7 +2,7 @@
 import React, {Component, ChangeEvent} from 'react'
 
 // Components
-import LabelOverlayForm from 'src/organizations/components/LabelOverlayForm'
+import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
 import {
   OverlayTechnology,
   OverlayContainer,
@@ -11,13 +11,13 @@ import {
 } from 'src/clockface'
 
 // Utils
-import {validateHexCode} from 'src/organizations/utils/labels'
+import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Types
 import {LabelType} from 'src/clockface'
 
 // Constants
-import {EMPTY_LABEL} from 'src/organizations/constants/LabelColors'
+import {EMPTY_LABEL} from 'src/configuration/constants/LabelColors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

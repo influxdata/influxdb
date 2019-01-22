@@ -39,6 +39,7 @@ export const dashboard: Dashboard = {
       },
     },
   ],
+  labels: [],
   links: {
     self: '/v2/dashboards/1',
     cells: '/v2/dashboards/cells',

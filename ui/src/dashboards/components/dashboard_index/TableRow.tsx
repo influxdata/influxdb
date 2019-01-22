@@ -114,8 +114,8 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
       >
         {dashboard.labels.map(label => (
           <Label
-            key={`${label.resourceID}-${label.name}`}
-            id={label.resourceID}
+            key={`${label.id}-${label.name}`}
+            id={label.id}
             colorHex={label.properties.color}
             name={label.name}
             description={label.properties.description}

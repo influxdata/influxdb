@@ -8,7 +8,7 @@ import GetLabels from 'src/configuration/components/GetLabels'
 import {Spinner} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
-import Labels from 'src/organizations/components/Labels'
+import Labels from 'src/configuration/components/Labels'
 import Settings from 'src/me/components/account/Settings'
 import Tokens from 'src/me/components/account/Tokens'
 

@@ -126,8 +126,8 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
       >
         {task.labels.map(label => (
           <Label
-            key={label.name}
-            id={label.resourceID}
+            key={label.id}
+            id={label.id}
             colorHex={label.properties.color}
             name={label.name}
             description={label.properties.description}
