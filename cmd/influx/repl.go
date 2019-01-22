@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
@@ -18,7 +17,7 @@ var replCmd = &cobra.Command{
 	Use:   "repl",
 	Short: "Interactive REPL (read-eval-print-loop)",
 	Args:  cobra.NoArgs,
-	Run:   replF,
+	RunE:  wrapCheckSetup(replF),
 }
 
 var replFlags struct {
@@ -40,30 +39,24 @@ func init() {
 	}
 }
 
-func replF(cmd *cobra.Command, args []string) {
+func replF(cmd *cobra.Command, args []string) error {
 	if flags.local {
-		fmt.Println("Local flag not supported for repl command")
-		os.Exit(1)
+		return fmt.Errorf("local flag not supported for repl command")
 	}
 
 	if replFlags.OrgID == "" && replFlags.Org == "" {
-		fmt.Fprintln(os.Stderr, "must specify exactly one of org or org-id")
-		_ = cmd.Usage()
-		os.Exit(1)
+		return fmt.Errorf("must specify exactly one of org or org-id")
 	}
 
 	if replFlags.OrgID != "" && replFlags.Org != "" {
-		fmt.Fprintln(os.Stderr, "must specify exactly one of org or org-id")
-		_ = cmd.Usage()
-		os.Exit(1)
+		return fmt.Errorf("must specify exactly one of org or org-id")
 	}
 
 	var orgID platform.ID
 	if replFlags.OrgID != "" {
 		err := orgID.DecodeFromString(replFlags.OrgID)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "invalid org id: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("invalid org id: %v", err)
 		}
 	}
 
@@ -72,18 +65,17 @@ func replF(cmd *cobra.Command, args []string) {
 		var err error
 		orgID, err = findOrgID(ctx, replFlags.Org)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to find organization: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("unable to find organization: %v", err)
 		}
 	}
 
 	r, err := getFluxREPL(flags.host, flags.token, orgID)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	r.Run()
+	return nil
 }
 
 func findOrgID(ctx context.Context, org string) (platform.ID, error) {

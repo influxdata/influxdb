@@ -54,7 +54,7 @@ func init() {
 	authorizationCreateCmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create authorization",
-		RunE:  authorizationCreateF,
+		RunE:  wrapCheckSetup(authorizationCreateF),
 	}
 
 	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.org, "org", "o", "", "The organization name (required)")
@@ -294,7 +294,7 @@ func init() {
 	authorizationFindCmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find authorization",
-		RunE:  authorizationFindF,
+		RunE:  wrapCheckSetup(authorizationFindF),
 	}
 
 	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
@@ -395,7 +395,7 @@ func init() {
 	authorizationDeleteCmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete authorization",
-		RunE:  authorizationDeleteF,
+		RunE:  wrapCheckSetup(authorizationDeleteF),
 	}
 
 	authorizationDeleteCmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "The authorization ID (required)")
@@ -464,7 +464,7 @@ func init() {
 	authorizationActiveCmd := &cobra.Command{
 		Use:   "active",
 		Short: "Active authorization",
-		RunE:  authorizationActiveF,
+		RunE:  wrapCheckSetup(authorizationActiveF),
 	}
 
 	authorizationActiveCmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "The authorization ID (required)")
@@ -533,7 +533,7 @@ func init() {
 	authorizationInactiveCmd := &cobra.Command{
 		Use:   "inactive",
 		Short: "Inactive authorization",
-		RunE:  authorizationInactiveF,
+		RunE:  wrapCheckSetup(authorizationInactiveF),
 	}
 
 	authorizationInactiveCmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "The authorization ID (required)")

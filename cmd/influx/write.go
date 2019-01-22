@@ -22,7 +22,7 @@ var writeCmd = &cobra.Command{
 	Long: `Write a single line of line protocol to InfluxDB,
 or add an entire file specified with an @ prefix.`,
 	Args: cobra.ExactArgs(1),
-	RunE: fluxWriteF,
+	RunE: wrapCheckSetup(fluxWriteF),
 }
 
 var writeFlags struct {

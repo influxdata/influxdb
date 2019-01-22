@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"github.com/influxdata/influxdb/cmd/influx/internal"
+	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -87,7 +90,43 @@ func init() {
 	})
 }
 
+func checkSetup(host string) error {
+	s := &http.SetupService{
+		Addr: flags.host,
+	}
+
+	ctx := context.Background()
+	isOnboarding, err := s.IsOnboarding(ctx)
+	if err != nil {
+		return err
+	}
+
+	if isOnboarding {
+		return fmt.Errorf("the instance at %q has not been setup. Please run `influx setup` before issuing any additional commands", host)
+	}
+
+	return nil
+}
+
+func wrapCheckSetup(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		err := fn(cmd, args)
+		if err == nil {
+			return nil
+		}
+
+		if setupErr := checkSetup(flags.host); err != nil {
+			return internal.ErrorFmt(setupErr)
+		}
+
+		return internal.ErrorFmt(err)
+	}
+}
+
 func influxF(cmd *cobra.Command, args []string) {
+	if err := checkSetup(flags.host); err != nil {
+		fmt.Printf("Note: %v\n", err)
+	}
 	cmd.Usage()
 }
 
@@ -102,7 +141,6 @@ func walk(c *cobra.Command, f func(*cobra.Command)) {
 // Execute executes the influx command
 func Execute() {
 	if err := influxCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }
