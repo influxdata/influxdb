@@ -169,7 +169,7 @@ func TestCache_CacheWriteMulti_TypeConflict(t *testing.T) {
 	}
 }
 
-func TestCache_Cache_DeleteRange(t *testing.T) {
+func TestCache_Cache_DeleteBucketRange(t *testing.T) {
 	v0 := NewValue(1, 1.0)
 	v1 := NewValue(2, 2.0)
 	v2 := NewValue(3, 3.0)
@@ -189,7 +189,7 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteRange([][]byte{[]byte("bar")}, 2, math.MaxInt64)
+	c.DeleteBucketRange([]byte("bar"), 2, math.MaxInt64)
 
 	if exp, keys := [][]byte{[]byte("bar"), []byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after delete, exp %v, got %v", exp, keys)
@@ -208,7 +208,7 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 	}
 }
 
-func TestCache_DeleteRange_NoValues(t *testing.T) {
+func TestCache_DeleteBucketRange_NoValues(t *testing.T) {
 	v0 := NewValue(1, 1.0)
 	v1 := NewValue(2, 2.0)
 	v2 := NewValue(3, 3.0)
@@ -228,7 +228,7 @@ func TestCache_DeleteRange_NoValues(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteRange([][]byte{[]byte("foo")}, math.MinInt64, math.MaxInt64)
+	c.DeleteBucketRange([]byte("foo"), math.MinInt64, math.MaxInt64)
 
 	if exp, keys := 0, len(c.Keys()); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
@@ -243,7 +243,7 @@ func TestCache_DeleteRange_NoValues(t *testing.T) {
 	}
 }
 
-func TestCache_DeleteRange_NotSorted(t *testing.T) {
+func TestCache_DeleteBucketRange_NotSorted(t *testing.T) {
 	v0 := NewValue(1, 1.0)
 	v1 := NewValue(3, 3.0)
 	v2 := NewValue(2, 2.0)
@@ -263,7 +263,7 @@ func TestCache_DeleteRange_NotSorted(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteRange([][]byte{[]byte("foo")}, 1, 3)
+	c.DeleteBucketRange([]byte("foo"), 1, 3)
 
 	if exp, keys := 0, len(c.Keys()); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after delete, exp %v, got %v", exp, keys)
@@ -278,49 +278,10 @@ func TestCache_DeleteRange_NotSorted(t *testing.T) {
 	}
 }
 
-func TestCache_Cache_Delete(t *testing.T) {
-	v0 := NewValue(1, 1.0)
-	v1 := NewValue(2, 2.0)
-	v2 := NewValue(3, 3.0)
-	values := Values{v0, v1, v2}
-	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
-
-	c := NewCache(30 * valuesSize)
-
-	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
-		t.Fatalf("failed to write key foo to cache: %s", err.Error())
-	}
-	if n := c.Size(); n != 2*valuesSize+6 {
-		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
-	}
-
-	if exp, keys := [][]byte{[]byte("bar"), []byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
-		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
-	}
-
-	c.Delete([][]byte{[]byte("bar")})
-
-	if exp, keys := [][]byte{[]byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
-		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
-	}
-
-	if got, exp := c.Size(), valuesSize+3; exp != got {
-		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
-	}
-
-	if got, exp := len(c.Values([]byte("bar"))), 0; got != exp {
-		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := len(c.Values([]byte("foo"))), 3; got != exp {
-		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func TestCache_Cache_Delete_NonExistent(t *testing.T) {
+func TestCache_DeleteBucketRange_NonExistent(t *testing.T) {
 	c := NewCache(1024)
 
-	c.Delete([][]byte{[]byte("bar")})
+	c.DeleteBucketRange([]byte("bar"), math.MinInt64, math.MaxInt64)
 
 	if got, exp := c.Size(), uint64(0); exp != got {
 		t.Fatalf("cache size incorrect exp %d, got %d", exp, got)

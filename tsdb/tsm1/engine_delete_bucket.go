@@ -76,9 +76,6 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 		return err
 	}
 
-	// TODO(jeff): add a DeletePrefix to the Cache and WAL.
-	// TODO(jeff): add a Tombstone entry into the WAL for deletes.
-
 	var deleteKeys [][]byte
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
@@ -99,8 +96,8 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	// Sort the series keys because ApplyEntryFn iterates over the keys randomly.
 	bytesutil.Sort(deleteKeys)
 
-	// Delete from the cache and WAL.
-	e.Cache.DeleteRange(deleteKeys, min, max)
+	// Delete from the cache.
+	e.Cache.DeleteBucketRange(name, min, max)
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.

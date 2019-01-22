@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sync"
@@ -545,50 +546,51 @@ func (c *Cache) Values(key []byte) Values {
 	return values
 }
 
-// Delete removes all values for the given keys from the cache.
-func (c *Cache) Delete(keys [][]byte) {
-	c.DeleteRange(keys, math.MinInt64, math.MaxInt64)
-}
-
-// DeleteRange removes the values for all keys containing points
-// with timestamps between between min and max from the cache.
-//
-// TODO(edd): Lock usage could possibly be optimised if necessary.
-func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
+// DeleteBucketRange removes values for all keys containing points
+// with timestamps between min and max contained in the bucket identified
+// by name from the cache.
+func (c *Cache) DeleteBucketRange(name []byte, min, max int64) {
 	c.init()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// TODO(jeff): could optimzie lock usage, and figure a way out to
+	// avoid storing all of the entry keys to delete.
+	var toDelete [][]byte
 	var total uint64
-	for _, k := range keys {
-		// Make sure key exist in the cache, skip if it does not
-		e := c.store.entry(k)
-		if e == nil {
-			continue
-		}
 
+	// applySerial only errors if the closure returns an error.
+	_ = c.store.applySerial(func(k []byte, e *entry) error {
+		if !bytes.HasPrefix(k, name) {
+			return nil
+		}
 		total += uint64(e.size())
-		// Everything is being deleted.
+
+		// if everything is being deleted, just stage it to be deleted and move on.
 		if min == math.MinInt64 && max == math.MaxInt64 {
-			total += uint64(len(k)) // all entries and the key.
-			c.store.remove(k)
-			continue
+			toDelete = append(toDelete, k)
+			return nil
 		}
 
-		// Filter what to delete by time range.
+		// filter the values and subtract out the remaining bytes from the reduction.
 		e.filter(min, max)
+		total -= uint64(e.size())
+
+		// if it has no entries left, flag it to be deleted.
 		if e.count() == 0 {
-			// Nothing left in cache for that key
-			total += uint64(len(k)) // all entries and the key.
-			c.store.remove(k)
-			continue
+			toDelete = append(toDelete, k)
 		}
 
-		// Just update what is being deleted by the size of the filtered entries.
-		total -= uint64(e.size())
+		return nil
+	})
+
+	for _, k := range toDelete {
+		total += uint64(len(k))
+		c.store.remove(k)
 	}
-	c.tracker.DecCacheSize(total) // Decrease the live cache size.
+
+	c.tracker.DecCacheSize(total)
 	c.tracker.SetMemBytes(uint64(c.Size()))
 }
 
@@ -644,7 +646,13 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			return cache.WriteMulti(en.Values)
 
 		case *wal.DeleteBucketRangeWALEntry:
-			// TODO(jeff): delete bucket range
+			// TODO(edd): we need to clean up how we're encoding the prefix so that we
+			// don't have to remember to get it right everywhere we need to touch TSM data.
+			encoded := tsdb.EncodeName(en.OrgID, en.BucketID)
+			name := models.EscapeMeasurement(encoded[:])
+
+			cache.DeleteBucketRange(name, en.Min, en.Max)
+			return nil
 		}
 
 		return nil
