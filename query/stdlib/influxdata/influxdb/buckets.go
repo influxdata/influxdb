@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
-	"github.com/influxdata/flux/stdlib/inputs"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
@@ -115,7 +114,7 @@ func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 
 	bd := &BucketsDecoder{orgID: orgID, deps: deps, alloc: a.Allocator()}
 
-	return inputs.CreateSourceFromDecoder(bd, dsid, a)
+	return execute.CreateSourceFromDecoder(bd, dsid, a)
 }
 
 type AllBucketLookup interface {
