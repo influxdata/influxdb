@@ -37,6 +37,7 @@ ui/src/api/git_push.sh
 chronograf/canned/bin_gen.go
 chronograf/dist/dist_gen.go
 chronograf/server/swagger_gen.go
+http/swagger_gen.go
 
 # The rest of the file is the .gitignore from the original influxdb repository,
 # copied here to prevent mistakenly checking in any binary files
