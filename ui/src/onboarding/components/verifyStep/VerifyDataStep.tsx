@@ -99,16 +99,6 @@ export class VerifyDataStep extends PureComponent<Props> {
     return selectedBucket || bucket
   }
 
-  private get previousStepName() {
-    const {telegrafPlugins, type} = this.props
-
-    if (type === DataLoaderType.Streaming) {
-      return _.get(telegrafPlugins, `${telegrafPlugins.length - 1}.name`, '')
-    }
-
-    return type
-  }
-
   private handleIncrementStep = () => {
     const {onExit} = this.props
     onExit()
@@ -116,7 +106,6 @@ export class VerifyDataStep extends PureComponent<Props> {
 
   private handleDecrementStep = () => {
     const {
-      telegrafPlugins,
       onSetActiveTelegrafPlugin,
       onDecrementCurrentStepIndex,
       onSetSubstepIndex,
@@ -125,12 +114,11 @@ export class VerifyDataStep extends PureComponent<Props> {
     } = this.props
 
     if (type === DataLoaderType.Streaming) {
-      onSetSubstepIndex(stepIndex - 1, telegrafPlugins.length - 1 || 0)
-      onSetActiveTelegrafPlugin(this.previousStepName)
+      onSetSubstepIndex(stepIndex - 1, 'config')
     } else {
       onDecrementCurrentStepIndex()
-      onSetActiveTelegrafPlugin('')
     }
+    onSetActiveTelegrafPlugin('')
   }
 }
 

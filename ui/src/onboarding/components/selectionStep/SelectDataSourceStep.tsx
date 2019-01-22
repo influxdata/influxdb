@@ -132,21 +132,20 @@ export class SelectDataSourceStep extends PureComponent<Props> {
   private handleClickNext = () => {
     const {
       currentStepIndex,
-      telegrafPlugins,
       onSetActiveTelegrafPlugin,
       onSetSubstepIndex,
     } = this.props
 
-    if (this.props.type === DataLoaderType.Streaming && !this.isStreaming) {
+    const isTypeSelectionStep =
+      this.props.type === DataLoaderType.Streaming && !this.isStreaming
+    if (isTypeSelectionStep) {
       onSetSubstepIndex(currentStepIndex, 'streaming')
       onSetActiveTelegrafPlugin('')
       return
     }
 
     if (this.isStreaming) {
-      const name = _.get(telegrafPlugins, '0.name', '')
-      onSetActiveTelegrafPlugin(name)
-      onSetSubstepIndex(currentStepIndex + 1, 0)
+      onSetSubstepIndex(currentStepIndex + 1, 'config')
       return
     }
 

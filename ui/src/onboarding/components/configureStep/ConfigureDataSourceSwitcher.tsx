@@ -18,12 +18,12 @@ import {
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
-import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, DataLoaderType, Substep} from 'src/types/v2/dataLoaders'
 import {Bucket} from 'src/api'
 
 export interface Props {
   telegrafPlugins: TelegrafPlugin[]
-  currentIndex: number
+  substepIndex: Substep
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
@@ -35,7 +35,6 @@ export interface Props {
   onSetConfigArrayValue: typeof setConfigArrayValue
   onClickNext: () => void
   onClickPrevious: () => void
-  onClickSkip: () => void
 }
 
 @ErrorHandling
@@ -45,7 +44,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
       bucket,
       org,
       telegrafPlugins,
-      currentIndex,
+      substepIndex,
       dataLoaderType,
       onUpdateTelegrafPluginConfig,
       onAddConfigValue,
@@ -53,7 +52,6 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
       onSetConfigArrayValue,
       onClickNext,
       onClickPrevious,
-      onClickSkip,
       buckets,
     } = this.props
 
@@ -65,12 +63,11 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
               onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
               onRemoveConfigValue={onRemoveConfigValue}
               telegrafPlugins={telegrafPlugins}
-              currentIndex={currentIndex}
+              substepIndex={substepIndex}
               onAddConfigValue={onAddConfigValue}
               onSetConfigArrayValue={onSetConfigArrayValue}
               onClickNext={onClickNext}
               onClickPrevious={onClickPrevious}
-              onClickSkip={onClickSkip}
             />
           </div>
         )

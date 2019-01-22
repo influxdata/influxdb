@@ -16,7 +16,7 @@ import {Telegraf} from 'src/api'
 interface Props {
   collector: Telegraf
   bucket: string
-  onDownloadConfig: (telegrafID: string) => void
+  onDownloadConfig: (telegrafID: string, telegrafName: string) => void
   onDelete: (telegrafID: string) => void
 }
 
@@ -50,7 +50,10 @@ export default class CollectorRow extends PureComponent<Props> {
   }
 
   private handleDownloadConfig = (): void => {
-    this.props.onDownloadConfig(this.props.collector.id)
+    this.props.onDownloadConfig(
+      this.props.collector.id,
+      this.props.collector.name
+    )
   }
   private handleDeleteConfig = (): void => {
     this.props.onDelete(this.props.collector.id)

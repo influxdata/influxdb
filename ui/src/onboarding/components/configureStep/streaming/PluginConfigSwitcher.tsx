@@ -18,18 +18,18 @@ import {
 } from 'src/onboarding/actions/dataLoaders'
 
 // Types
-import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, Substep} from 'src/types/v2/dataLoaders'
+import TelegrafPluginInstructions from 'src/onboarding/components/configureStep/streaming/TelegrafPluginInstructions'
 
 interface Props {
   telegrafPlugins: TelegrafPlugin[]
   onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
   onAddConfigValue: typeof addConfigValue
   onRemoveConfigValue: typeof removeConfigValue
-  currentIndex: number
+  substepIndex: Substep
   onSetConfigArrayValue: typeof setConfigArrayValue
   onClickNext: () => void
   onClickPrevious: () => void
-  onClickSkip: () => void
 }
 
 class PluginConfigSwitcher extends PureComponent<Props> {
@@ -41,12 +41,18 @@ class PluginConfigSwitcher extends PureComponent<Props> {
       onSetConfigArrayValue,
       onClickNext,
       telegrafPlugins,
-      currentIndex,
+      substepIndex,
       onClickPrevious,
-      onClickSkip,
     } = this.props
 
-    if (this.currentTelegrafPlugin) {
+    if (substepIndex === 'config') {
+      return (
+        <TelegrafPluginInstructions
+          onClickNext={onClickNext}
+          onClickPrevious={onClickPrevious}
+        />
+      )
+    } else if (this.currentTelegrafPlugin) {
       return (
         <PluginConfigForm
           telegrafPlugin={this.currentTelegrafPlugin}
@@ -57,18 +63,16 @@ class PluginConfigSwitcher extends PureComponent<Props> {
           onSetConfigArrayValue={onSetConfigArrayValue}
           onClickNext={onClickNext}
           telegrafPlugins={telegrafPlugins}
-          currentIndex={currentIndex}
-          onClickPrevious={onClickPrevious}
-          onClickSkip={onClickSkip}
         />
       )
+    } else {
+      return <EmptyDataSourceState />
     }
-    return <EmptyDataSourceState />
   }
 
   private get currentTelegrafPlugin(): TelegrafPlugin {
-    const {currentIndex, telegrafPlugins} = this.props
-    return _.get(telegrafPlugins, `${currentIndex}`, null)
+    const {substepIndex, telegrafPlugins} = this.props
+    return _.get(telegrafPlugins, `${substepIndex}`, null)
   }
 
   private get configFields() {

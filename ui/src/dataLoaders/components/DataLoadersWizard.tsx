@@ -52,7 +52,7 @@ export interface DataLoaderStepProps {
   onSetCurrentStepIndex: (stepNumber: number) => void
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
-  onSetSubstepIndex: (index: number, subStep: number | 'streaming') => void
+  onSetSubstepIndex: (index: number, subStep: Substep) => void
   notify: (message: Notification | NotificationFunc) => void
   onCompleteSetup: () => void
   onExit: () => void
@@ -227,22 +227,34 @@ class DataLoadersWizard extends PureComponent<Props> {
     return isStreaming && isNotEmpty && isConfigStep
   }
 
-  private handleClickSideBarTab = (telegrafPluginID: string) => {
+  private handleClickSideBarTab = (tabID: string) => {
     const {
       onSetSubstepIndex,
       onSetActiveTelegrafPlugin,
       dataLoaders: {telegrafPlugins},
+      substep,
+      onSetPluginConfiguration,
     } = this.props
+
+    if (!_.isNaN(Number(substep))) {
+      onSetPluginConfiguration(_.get(telegrafPlugins, `${substep}.name`, ''))
+    }
+
+    if (tabID === 'config') {
+      onSetSubstepIndex(DataLoaderStep.Configure, tabID)
+      onSetActiveTelegrafPlugin('')
+      return
+    }
 
     const index = Math.max(
       _.findIndex(telegrafPlugins, plugin => {
-        return plugin.name === telegrafPluginID
+        return plugin.name === tabID
       }),
       0
     )
 
     onSetSubstepIndex(DataLoaderStep.Configure, index)
-    onSetActiveTelegrafPlugin(telegrafPluginID)
+    onSetActiveTelegrafPlugin(tabID)
   }
 
   private get stepProps(): DataLoaderStepProps {

@@ -14,7 +14,7 @@ import {TelegrafPluginInputCpu} from 'src/api'
 const setup = (override = {}) => {
   const props = {
     telegrafPlugins: [],
-    currentIndex: 0,
+    substepIndex: 0,
     authToken: token,
     onUpdateTelegrafPluginConfig: jest.fn(),
     onAddConfigValue: jest.fn(),

@@ -18,11 +18,7 @@ import {
 
 // Types
 import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
-import {
-  TelegrafPlugin,
-  DataLoaderType,
-  DataLoaderStep,
-} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, DataLoaderType} from 'src/types/v2/dataLoaders'
 import {Bucket} from 'src/api'
 
 export interface OwnProps extends DataLoaderStepProps {
@@ -74,19 +70,12 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
         onAddConfigValue={onAddConfigValue}
         onRemoveConfigValue={onRemoveConfigValue}
         dataLoaderType={type}
-        currentIndex={+substep}
+        substepIndex={substep}
         onSetConfigArrayValue={onSetConfigArrayValue}
         onClickNext={this.handleNext}
         onClickPrevious={this.handlePrevious}
-        onClickSkip={this.jumpToCompletionStep}
       />
     )
-  }
-
-  private jumpToCompletionStep = () => {
-    const {onSetCurrentStepIndex} = this.props
-
-    onSetCurrentStepIndex(DataLoaderStep.Verify)
   }
 
   private handleNext = async () => {
@@ -97,31 +86,23 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       telegrafPlugins,
       substep,
       currentStepIndex,
-      onSetSubstepIndex,
       type,
       onExit,
+      onSetSubstepIndex,
     } = this.props
 
-    const index = +substep
-    const telegrafPlugin = _.get(telegrafPlugins, `${index}.name`)
-
-    onSetPluginConfiguration(telegrafPlugin)
-
-    if (type === DataLoaderType.Streaming) {
-      if (index >= telegrafPlugins.length - 1) {
-        onIncrementCurrentStepIndex()
-        onSetActiveTelegrafPlugin('')
-      } else {
-        const name = _.get(telegrafPlugins, `${index + 1}.name`, '')
-        onSetActiveTelegrafPlugin(name)
-        onSetSubstepIndex(+currentStepIndex, index + 1)
-      }
-      return
-    } else if (
-      type === DataLoaderType.Scraping &&
-      currentStepIndex === DataLoaderStep.Configure
-    ) {
+    if (type === DataLoaderType.Scraping) {
       onExit()
+      return
+    }
+
+    if (type === DataLoaderType.Streaming && !_.isNaN(Number(substep))) {
+      const index = +substep
+      const telegrafPlugin = _.get(telegrafPlugins, `${index}.name`)
+      onSetPluginConfiguration(telegrafPlugin)
+      onSetActiveTelegrafPlugin('')
+      onSetSubstepIndex(currentStepIndex, 'config')
+      return
     }
 
     onIncrementCurrentStepIndex()
@@ -132,28 +113,14 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
       type,
       substep,
       currentStepIndex,
-      onSetActiveTelegrafPlugin,
-      onSetPluginConfiguration,
-      telegrafPlugins,
       onSetSubstepIndex,
       onDecrementCurrentStepIndex,
     } = this.props
 
-    const index = +substep
-    const telegrafPlugin = _.get(telegrafPlugins, `${index}.name`)
-
     if (type === DataLoaderType.Streaming) {
-      onSetPluginConfiguration(telegrafPlugin)
-
-      if (index > 0) {
-        const name = _.get(telegrafPlugins, `${index - 1}.name`)
-        onSetActiveTelegrafPlugin(name)
-        onSetSubstepIndex(+currentStepIndex, index - 1)
-      } else {
-        onSetActiveTelegrafPlugin('')
+      if (substep === 'config') {
         onSetSubstepIndex(+currentStepIndex - 1, 'streaming')
       }
-
       return
     }
 

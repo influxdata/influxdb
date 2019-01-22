@@ -12,9 +12,6 @@ import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import {telegrafPluginsInfo} from 'src/onboarding/constants/pluginConfigs'
 import {telegrafPlugin} from 'mocks/dummyData'
 
-// Dummy Data
-import {cpuTelegrafPlugin} from 'mocks/dummyData'
-
 // Types
 import {TelegrafPluginInputCpu, TelegrafPluginInputRedis} from 'src/api'
 
@@ -77,19 +74,6 @@ describe('Onboarding.Components.ConfigureStep.Streaming.PluginConfigForm', () =>
       expect(wrapper.exists()).toBe(true)
       expect(form.exists()).toBe(true)
       expect(configFieldSwitchers.length).toBe(fields.length)
-    })
-  })
-
-  describe('if skip button is clicked', () => {
-    it('renders the correct skip button text for streaming sources', () => {
-      const {wrapper} = setup({
-        telegrafPlugins: [cpuTelegrafPlugin],
-        params: {stepID: '3', substepID: 'streaming'},
-      })
-
-      const skipButton = wrapper.find('[data-test="skip"]')
-
-      expect(skipButton.prop('text')).toBe('Skip to Verify')
     })
   })
 })
