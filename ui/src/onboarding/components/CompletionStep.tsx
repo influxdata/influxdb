@@ -77,7 +77,7 @@ class CompletionStep extends PureComponent<Props> {
                             />
                           )}
                         </ResourceFetcher>
-                        <dt>Time is of the essence!</dt>
+                        <dt>Timing is everything!</dt>
                         <dd>
                           This will set up local metric collection and allow you
                           to explore the features of InfluxDB 2.0 quickly.
