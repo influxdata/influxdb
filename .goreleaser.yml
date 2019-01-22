@@ -9,7 +9,7 @@ builds:
     main: ./cmd/influx/
     env:
       - GO111MODULE=on
-    ldflags: -s -w -X main.commit={{.Commit}}
+    ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influx
   - goos:
     - linux
@@ -22,7 +22,7 @@ builds:
       - -tags=assets
     env:
       - GO111MODULE=on
-    ldflags: -s -w -X main.commit={{.Commit}}
+    ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influxd
     hooks:
       pre: make generate
