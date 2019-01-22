@@ -4454,6 +4454,8 @@ paths:
       summary: List all users
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
       responses:
         '200':
           description: a list of users
