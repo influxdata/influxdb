@@ -31,6 +31,7 @@ const setup = (override = {}) => {
     username: 'user',
     org: '',
     notify: jest.fn(),
+    selectedBucket: '',
     ...override,
   }
 

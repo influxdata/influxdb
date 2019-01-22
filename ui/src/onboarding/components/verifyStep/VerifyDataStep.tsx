@@ -35,6 +35,7 @@ export interface OwnProps extends DataLoaderStepProps {
   bucket: string
   username: string
   org: string
+  selectedBucket: string
 }
 
 interface StateProps {
@@ -57,7 +58,6 @@ export class VerifyDataStep extends PureComponent<Props> {
 
   public render() {
     const {
-      bucket,
       username,
       telegrafConfigID,
       type,
@@ -80,7 +80,7 @@ export class VerifyDataStep extends PureComponent<Props> {
                   telegrafConfigID={telegrafConfigID}
                   onSaveTelegrafConfig={onSaveTelegrafConfig}
                   org={org}
-                  bucket={bucket}
+                  bucket={this.bucket}
                   username={username}
                   onDecrementCurrentStep={onDecrementCurrentStepIndex}
                   lpStatus={lpStatus}
@@ -95,6 +95,12 @@ export class VerifyDataStep extends PureComponent<Props> {
         </Form>
       </div>
     )
+  }
+
+  private get bucket(): string {
+    const {bucket, selectedBucket} = this.props
+
+    return selectedBucket || bucket
   }
 
   private get previousStepName() {
