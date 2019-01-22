@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/influxdb/kit/cli"
 	influxlogger "github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/telemetry"
 	"go.uber.org/zap"
 )
@@ -52,6 +53,9 @@ func run() error {
 		Logger: logger,
 	}
 	svc := telemetry.NewPushGateway(logger, store)
+	// Print data as line protocol
+	svc.Encoder = &prometheus.LineProtocol{}
+
 	handler := http.HandlerFunc(svc.Handler)
 	logger.Info("starting telemetryd server", zap.String("addr", addr))
 

@@ -113,7 +113,7 @@ func TestPushGateway_Handler(t *testing.T) {
 					now: tt.fields.now,
 				},
 			)
-			p.Format = "JSON"
+			p.Encoder = &pr.JSON{}
 			tt.args.r.Header.Set("Content-Type", tt.contentType)
 			p.Handler(tt.args.w, tt.args.r)
 

@@ -37,7 +37,7 @@ type PushGateway struct {
 	Store        Store
 	Transformers []prometheus.Transformer
 
-	Format expfmt.Format
+	Encoder prometheus.Encoder
 }
 
 // NewPushGateway constructs the PushGateway.
@@ -81,8 +81,10 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 		p.MaxBytes = DefaultMaxBytes
 	}
 
-	if p.Format == "" {
-		p.Format = expfmt.FmtText
+	if p.Encoder == nil {
+		p.Encoder = &prometheus.Expfmt{
+			Format: expfmt.FmtText,
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(
@@ -118,14 +120,7 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 		mfs = transformer.Transform(mfs)
 	}
 
-	var data []byte
-	switch p.Format {
-	case "JSON":
-		data, err = prometheus.EncodeJSON(mfs)
-	default:
-		data, err = prometheus.EncodeExpfmt(mfs, p.Format)
-	}
-
+	data, err := p.Encoder.Encode(mfs)
 	if err != nil {
 		p.Logger.Error("unable to encode metric families", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
