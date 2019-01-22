@@ -93,7 +93,7 @@ class NoteEditor extends PureComponent<Props> {
   private get controlsClassName(): string {
     const {toggleVisible} = this.props
 
-    return classnames('note-editor--controls', {centered: toggleVisible})
+    return classnames('note-editor--controls', {centered: !toggleVisible})
   }
 
   private get noteEditorPreview(): JSX.Element {
@@ -104,7 +104,7 @@ class NoteEditor extends PureComponent<Props> {
     }
   }
 
-  private visibilityToggle(): JSX.Element {
+  private get visibilityToggle(): JSX.Element {
     const {
       toggleVisible,
       showNoteWhenEmpty,
