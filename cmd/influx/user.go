@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	platform "github.com/influxdata/influxdb"
@@ -33,7 +32,7 @@ func init() {
 	userUpdateCmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update user",
-		Run:   userUpdateF,
+		RunE:  wrapCheckSetup(userUpdateF),
 	}
 
 	userUpdateCmd.Flags().StringVarP(&userUpdateFlags.id, "id", "i", "", "The user ID (required)")
@@ -83,17 +82,15 @@ func newUserResourceMappingService(f Flags) (platform.UserResourceMappingService
 	}, nil
 }
 
-func userUpdateF(cmd *cobra.Command, args []string) {
+func userUpdateF(cmd *cobra.Command, args []string) error {
 	s, err := newUserService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(userUpdateFlags.id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	update := platform.UserUpdate{}
@@ -103,8 +100,7 @@ func userUpdateF(cmd *cobra.Command, args []string) {
 
 	user, err := s.UpdateUser(context.Background(), id, update)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -117,6 +113,8 @@ func userUpdateF(cmd *cobra.Command, args []string) {
 		"Name": user.Name,
 	})
 	w.Flush()
+
+	return nil
 }
 
 // UserCreateFlags are command line args used when creating a user
@@ -130,7 +128,7 @@ func init() {
 	userCreateCmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create user",
-		Run:   userCreateF,
+		RunE:  wrapCheckSetup(userCreateF),
 	}
 
 	userCreateCmd.Flags().StringVarP(&userCreateFlags.name, "name", "n", "", "The user name (required)")
@@ -139,11 +137,10 @@ func init() {
 	userCmd.AddCommand(userCreateCmd)
 }
 
-func userCreateF(cmd *cobra.Command, args []string) {
+func userCreateF(cmd *cobra.Command, args []string) error {
 	s, err := newUserService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	user := &platform.User{
@@ -151,8 +148,7 @@ func userCreateF(cmd *cobra.Command, args []string) {
 	}
 
 	if err := s.CreateUser(context.Background(), user); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -165,6 +161,8 @@ func userCreateF(cmd *cobra.Command, args []string) {
 		"Name": user.Name,
 	})
 	w.Flush()
+
+	return nil
 }
 
 // UserFindFlags are command line args used when finding a user
@@ -179,7 +177,7 @@ func init() {
 	userFindCmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find user",
-		Run:   userFindF,
+		RunE:  wrapCheckSetup(userFindF),
 	}
 
 	userFindCmd.Flags().StringVarP(&userFindFlags.id, "id", "i", "", "The user ID")
@@ -188,11 +186,10 @@ func init() {
 	userCmd.AddCommand(userFindCmd)
 }
 
-func userFindF(cmd *cobra.Command, args []string) {
+func userFindF(cmd *cobra.Command, args []string) error {
 	s, err := newUserService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	filter := platform.UserFilter{}
@@ -202,16 +199,14 @@ func userFindF(cmd *cobra.Command, args []string) {
 	if userFindFlags.id != "" {
 		id, err := platform.IDFromString(userFindFlags.id)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 		filter.ID = id
 	}
 
 	users, _, err := s.FindUsers(context.Background(), filter)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -226,6 +221,8 @@ func userFindF(cmd *cobra.Command, args []string) {
 		})
 	}
 	w.Flush()
+
+	return nil
 }
 
 // UserDeleteFlags are command line args used when deleting a user
@@ -239,7 +236,7 @@ func init() {
 	userDeleteCmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete user",
-		Run:   userDeleteF,
+		RunE:  wrapCheckSetup(userDeleteF),
 	}
 
 	userDeleteCmd.Flags().StringVarP(&userDeleteFlags.id, "id", "i", "", "The user ID (required)")
@@ -248,29 +245,25 @@ func init() {
 	userCmd.AddCommand(userDeleteCmd)
 }
 
-func userDeleteF(cmd *cobra.Command, args []string) {
+func userDeleteF(cmd *cobra.Command, args []string) error {
 	s, err := newUserService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(userDeleteFlags.id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	u, err := s.FindUserByID(ctx, id)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := s.DeleteUser(ctx, id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -285,4 +278,6 @@ func userDeleteF(cmd *cobra.Command, args []string) {
 		"Deleted": true,
 	})
 	w.Flush()
+
+	return nil
 }

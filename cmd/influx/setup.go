@@ -18,13 +18,12 @@ import (
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Create default username, password, org, bucket...",
-	Run:   setupF,
+	RunE:  setupF,
 }
 
-func setupF(cmd *cobra.Command, args []string) {
+func setupF(cmd *cobra.Command, args []string) error {
 	if flags.local {
-		fmt.Println("Local flag not supported for setup command")
-		os.Exit(1)
+		return fmt.Errorf("local flag not supported for setup command")
 	}
 
 	// check if setup is allowed
@@ -34,20 +33,20 @@ func setupF(cmd *cobra.Command, args []string) {
 
 	allowed, err := s.IsOnboarding(context.Background())
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 	if !allowed {
-		fmt.Println("Initialization has been already completed")
-		os.Exit(0)
+		return fmt.Errorf("instance at %q has already been setup", flags.host)
 	}
 
-	req := getOnboardingRequest()
+	req, err := getOnboardingRequest()
+	if err != nil {
+		return err
+	}
 
 	result, err := s.Generate(context.Background(), req)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 	w := internal.NewTabWriter(os.Stdout)
 	w.WriteHeaders(
@@ -65,10 +64,12 @@ func setupF(cmd *cobra.Command, args []string) {
 
 	writeTokenToPath(result.Auth.Token, defaultTokenPath())
 	w.Flush()
-	fmt.Println(promptWithColor("Your token has been stored in "+defaultTokenPath(), colorCyan))
+	fmt.Println(promptWithColor("Your token has been stored in "+defaultTokenPath()+".", colorCyan))
+
+	return nil
 }
 
-func getOnboardingRequest() (req *platform.OnboardingRequest) {
+func getOnboardingRequest() (req *platform.OnboardingRequest, err error) {
 	ui := &input.UI{
 		Writer: os.Stdout,
 		Reader: os.Stdin,
@@ -89,12 +90,10 @@ func getOnboardingRequest() (req *platform.OnboardingRequest) {
 	}
 
 	if confirmed := getConfirm(ui, req); !confirmed {
-		fmt.Println("Setup is canceled.")
-		// user cancel
-		os.Exit(0)
+		return nil, fmt.Errorf("setup was canceled")
 	}
 
-	return req
+	return req, nil
 }
 
 // vt100EscapeCodes
@@ -128,8 +127,7 @@ You have entered:
 			HideOrder: true,
 		})
 		if err != nil {
-			// interrupt
-			os.Exit(1)
+			return false
 		}
 		switch result {
 		case "y":

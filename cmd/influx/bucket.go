@@ -39,7 +39,7 @@ func init() {
 	bucketCreateCmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create bucket",
-		Run:   bucketCreateF,
+		RunE:  wrapCheckSetup(bucketCreateF),
 	}
 
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.name, "name", "n", "", "Name of bucket that will be created")
@@ -72,17 +72,14 @@ func newBucketService(f Flags) (platform.BucketService, error) {
 	}, nil
 }
 
-func bucketCreateF(cmd *cobra.Command, args []string) {
+func bucketCreateF(cmd *cobra.Command, args []string) error {
 	if bucketCreateFlags.org != "" && bucketCreateFlags.orgID != "" {
-		fmt.Println("must specify exactly one of org or org-id")
-		_ = cmd.Usage()
-		os.Exit(1)
+		return fmt.Errorf("must specify exactly one of org or org-id")
 	}
 
 	s, err := newBucketService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	b := &platform.Bucket{
@@ -97,15 +94,13 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 	if bucketCreateFlags.orgID != "" {
 		id, err := platform.IDFromString(bucketCreateFlags.orgID)
 		if err != nil {
-			fmt.Printf("error parsing organization id: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error parsing organization id: %v", err)
 		}
 		b.OrganizationID = *id
 	}
 
 	if err := s.CreateBucket(context.Background(), b); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -124,6 +119,8 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 		"OrganizationID": b.OrganizationID.String(),
 	})
 	w.Flush()
+
+	return nil
 }
 
 // BucketFindFlags define the Find Command
@@ -140,7 +137,7 @@ func init() {
 	bucketFindCmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find buckets",
-		Run:   bucketFindF,
+		RunE:  wrapCheckSetup(bucketFindF),
 	}
 
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.name, "name", "n", "", "The bucket name")
@@ -151,11 +148,10 @@ func init() {
 	bucketCmd.AddCommand(bucketFindCmd)
 }
 
-func bucketFindF(cmd *cobra.Command, args []string) {
+func bucketFindF(cmd *cobra.Command, args []string) error {
 	s, err := newBucketService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	filter := platform.BucketFilter{}
@@ -166,23 +162,19 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 	if bucketFindFlags.id != "" {
 		id, err := platform.IDFromString(bucketFindFlags.id)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 		filter.ID = id
 	}
 
 	if bucketFindFlags.orgID != "" && bucketFindFlags.org != "" {
-		fmt.Println("must specify at exactly one of org and org-id")
-		cmd.Usage()
-		os.Exit(1)
+		return fmt.Errorf("must specify at exactly one of org and org-id")
 	}
 
 	if bucketFindFlags.orgID != "" {
 		orgID, err := platform.IDFromString(bucketFindFlags.orgID)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 		filter.OrganizationID = orgID
 	}
@@ -193,8 +185,7 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 
 	buckets, _, err := s.FindBuckets(context.Background(), filter)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -215,6 +206,8 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 		})
 	}
 	w.Flush()
+
+	return nil
 }
 
 // BucketUpdateFlags define the Update Command
@@ -230,7 +223,7 @@ func init() {
 	bucketUpdateCmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update bucket",
-		Run:   bucketUpdateF,
+		RunE:  wrapCheckSetup(bucketUpdateF),
 	}
 
 	bucketUpdateCmd.Flags().StringVarP(&bucketUpdateFlags.id, "id", "i", "", "The bucket ID (required)")
@@ -241,17 +234,15 @@ func init() {
 	bucketCmd.AddCommand(bucketUpdateCmd)
 }
 
-func bucketUpdateF(cmd *cobra.Command, args []string) {
+func bucketUpdateF(cmd *cobra.Command, args []string) error {
 	s, err := newBucketService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(bucketUpdateFlags.id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	update := platform.BucketUpdate{}
@@ -264,8 +255,7 @@ func bucketUpdateF(cmd *cobra.Command, args []string) {
 
 	b, err := s.UpdateBucket(context.Background(), id, update)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -284,6 +274,8 @@ func bucketUpdateF(cmd *cobra.Command, args []string) {
 		"OrganizationID": b.OrganizationID.String(),
 	})
 	w.Flush()
+
+	return nil
 }
 
 // BucketDeleteFlags define the Delete command
@@ -293,29 +285,25 @@ type BucketDeleteFlags struct {
 
 var bucketDeleteFlags BucketDeleteFlags
 
-func bucketDeleteF(cmd *cobra.Command, args []string) {
+func bucketDeleteF(cmd *cobra.Command, args []string) error {
 	s, err := newBucketService(flags)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(bucketDeleteFlags.id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	ctx := context.TODO()
 	b, err := s.FindBucketByID(ctx, id)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	if err = s.DeleteBucket(ctx, id); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -336,13 +324,15 @@ func bucketDeleteF(cmd *cobra.Command, args []string) {
 		"Deleted":        true,
 	})
 	w.Flush()
+
+	return nil
 }
 
 func init() {
 	bucketDeleteCmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete bucket",
-		Run:   bucketDeleteF,
+		RunE:  wrapCheckSetup(bucketDeleteF),
 	}
 
 	bucketDeleteCmd.Flags().StringVarP(&bucketDeleteFlags.id, "id", "i", "", "The bucket ID (required)")

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
@@ -17,7 +16,7 @@ var queryCmd = &cobra.Command{
 	Long: `Execute a literal Flux query provided as a string,
 or execute a literal Flux query contained in a file by specifying the file prefixed with an @ sign.`,
 	Args: cobra.ExactArgs(1),
-	Run:  fluxQueryF,
+	RunE: wrapCheckSetup(fluxQueryF),
 }
 
 var queryFlags struct {
@@ -33,33 +32,30 @@ func init() {
 	queryCmd.MarkPersistentFlagRequired("org-id")
 }
 
-func fluxQueryF(cmd *cobra.Command, args []string) {
+func fluxQueryF(cmd *cobra.Command, args []string) error {
 	if flags.local {
-		fmt.Println("Local flag not supported for query command")
-		os.Exit(1)
+		return fmt.Errorf("local flag not supported for query command")
 	}
 
 	q, err := repl.LoadQuery(args[0])
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	var orgID platform.ID
 	err = orgID.DecodeFromString(queryFlags.OrgID)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	r, err := getFluxREPL(flags.host, flags.token, orgID)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := r.Input(q); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
+
+	return nil
 }
