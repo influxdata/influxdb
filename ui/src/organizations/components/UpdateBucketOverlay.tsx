@@ -11,7 +11,6 @@ import {
 import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
 
 // Types
-import {RetentionRuleTypes} from 'src/types/v2'
 import {Bucket, BucketRetentionRules} from 'src/api'
 
 interface Props {
@@ -22,7 +21,7 @@ interface Props {
 
 interface State {
   bucket: Bucket
-  errorMessage: string
+  nameErrorMessage: string
   ruleType: BucketRetentionRules.TypeEnum
   nameInputStatus: ComponentStatus
 }
@@ -30,18 +29,20 @@ interface State {
 export default class BucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
+
     const {bucket} = this.props
+
     this.state = {
       ruleType: this.ruleType(bucket),
       bucket,
       nameInputStatus: ComponentStatus.Default,
-      errorMessage: '',
+      nameErrorMessage: '',
     }
   }
 
   public render() {
     const {onCloseModal} = this.props
-    const {bucket, nameInputStatus, errorMessage, ruleType} = this.state
+    const {bucket, nameInputStatus, nameErrorMessage, ruleType} = this.state
 
     return (
       <OverlayContainer maxWidth={500}>
@@ -55,7 +56,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
             buttonText="Save Changes"
             ruleType={ruleType}
             onCloseModal={onCloseModal}
-            errorMessage={errorMessage}
+            nameErrorMessage={nameErrorMessage}
             onSubmit={this.handleSubmit}
             nameInputStatus={nameInputStatus}
             onChangeInput={this.handleChangeInput}
@@ -74,7 +75,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     )
 
     if (!rule) {
-      return 0
+      return 3600
     }
 
     return rule.everySeconds
@@ -93,13 +94,13 @@ export default class BucketOverlay extends PureComponent<Props, State> {
   }
 
   private handleChangeRetentionRule = (everySeconds: number): void => {
-    let retentionRules = []
-
-    if (everySeconds > 0) {
-      retentionRules = [{type: RetentionRuleTypes.Expire, everySeconds}]
+    const bucket = {
+      ...this.state.bucket,
+      retentionRules: [
+        {type: BucketRetentionRules.TypeEnum.Expire, everySeconds},
+      ],
     }
 
-    const bucket = {...this.state.bucket, retentionRules}
     this.setState({bucket})
   }
 
@@ -129,14 +130,14 @@ export default class BucketOverlay extends PureComponent<Props, State> {
       return this.setState({
         bucket,
         nameInputStatus: ComponentStatus.Error,
-        errorMessage: `Bucket ${key} cannot be empty`,
+        nameErrorMessage: `Bucket ${key} cannot be empty`,
       })
     }
 
     this.setState({
       bucket,
       nameInputStatus: ComponentStatus.Valid,
-      errorMessage: '',
+      nameErrorMessage: '',
     })
   }
 }

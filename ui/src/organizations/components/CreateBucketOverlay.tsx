@@ -21,9 +21,9 @@ interface Props {
 
 interface State {
   bucket: Bucket
-  errorMessage: string
   ruleType: BucketRetentionRules.TypeEnum
   nameInputStatus: ComponentStatus
+  nameErrorMessage: string
 }
 
 const emptyBucket = {
@@ -35,7 +35,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      errorMessage: '',
+      nameErrorMessage: '',
       bucket: emptyBucket,
       ruleType: null,
       nameInputStatus: ComponentStatus.Default,
@@ -44,7 +44,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
 
   public render() {
     const {onCloseModal} = this.props
-    const {bucket, nameInputStatus, errorMessage, ruleType} = this.state
+    const {bucket, nameInputStatus, nameErrorMessage, ruleType} = this.state
 
     return (
       <OverlayContainer maxWidth={500}>
@@ -58,7 +58,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
             buttonText="Create"
             ruleType={ruleType}
             onCloseModal={onCloseModal}
-            errorMessage={errorMessage}
+            nameErrorMessage={nameErrorMessage}
             onSubmit={this.handleSubmit}
             nameInputStatus={nameInputStatus}
             onChangeInput={this.handleChangeInput}
@@ -77,22 +77,20 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     )
 
     if (!rule) {
-      return 0
+      return 3600
     }
 
     return rule.everySeconds
   }
 
   private handleChangeRetentionRule = (everySeconds: number): void => {
-    let retentionRules = []
-
-    if (everySeconds > 0) {
-      retentionRules = [
+    const bucket = {
+      ...this.state.bucket,
+      retentionRules: [
         {type: BucketRetentionRules.TypeEnum.Expire, everySeconds},
-      ]
+      ],
     }
 
-    const bucket = {...this.state.bucket, retentionRules}
     this.setState({bucket})
   }
 
@@ -128,14 +126,14 @@ export default class BucketOverlay extends PureComponent<Props, State> {
       return this.setState({
         bucket,
         nameInputStatus: ComponentStatus.Error,
-        errorMessage: `Bucket ${key} cannot be empty`,
+        nameErrorMessage: `Bucket ${key} cannot be empty`,
       })
     }
 
     this.setState({
       bucket,
       nameInputStatus: ComponentStatus.Valid,
-      errorMessage: '',
+      nameErrorMessage: '',
     })
   }
 }

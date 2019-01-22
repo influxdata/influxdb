@@ -30,7 +30,7 @@ export default class RetentionDuration extends PureComponent<Props> {
     }
 
     return (
-      <>
+      <Grid.Row>
         <Grid.Column widthSM={Columns.Three}>
           <Form.Element label="Days">
             <Input
@@ -74,7 +74,7 @@ export default class RetentionDuration extends PureComponent<Props> {
             />
           </Form.Element>
         </Grid.Column>
-      </>
+      </Grid.Row>
     )
   }
 }

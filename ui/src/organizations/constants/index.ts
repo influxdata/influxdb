@@ -1,0 +1,1 @@
+export const MIN_RETENTION_SECONDS = 3600

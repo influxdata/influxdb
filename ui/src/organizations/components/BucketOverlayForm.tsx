@@ -1,4 +1,7 @@
+// Libraries
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
+import moment from 'moment'
+
 // Components
 import {
   Form,
@@ -11,12 +14,15 @@ import {
 } from 'src/clockface'
 import Retention from 'src/organizations/components/Retention'
 
+// Constants
+import {MIN_RETENTION_SECONDS} from 'src/organizations/constants'
+
 // Types
 import {BucketRetentionRules} from 'src/api'
 
 interface Props {
   name: string
-  errorMessage: string
+  nameErrorMessage: string
   retentionSeconds: number
   ruleType: BucketRetentionRules.TypeEnum
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
@@ -35,7 +41,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
       onSubmit,
       ruleType,
       buttonText,
-      errorMessage,
+      nameErrorMessage,
       retentionSeconds,
       nameInputStatus,
       onCloseModal,
@@ -49,7 +55,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
         <Grid>
           <Grid.Row>
             <Grid.Column>
-              <Form.Element label="Name" errorMessage={errorMessage}>
+              <Form.Element label="Name" errorMessage={nameErrorMessage}>
                 <Input
                   placeholder="Give your bucket a name"
                   name="name"
@@ -59,13 +65,18 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                   status={nameInputStatus}
                 />
               </Form.Element>
+              <Form.Element
+                label="How often to clear data?"
+                errorMessage={this.ruleErrorMessage}
+              >
+                <Retention
+                  type={ruleType}
+                  retentionSeconds={retentionSeconds}
+                  onChangeRuleType={onChangeRuleType}
+                  onChangeRetentionRule={onChangeRetentionRule}
+                />
+              </Form.Element>
             </Grid.Column>
-            <Retention
-              type={ruleType}
-              retentionSeconds={retentionSeconds}
-              onChangeRuleType={onChangeRuleType}
-              onChangeRetentionRule={onChangeRetentionRule}
-            />
           </Grid.Row>
           <Grid.Row>
             <Grid.Column>
@@ -78,6 +89,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                 <Button
                   text={buttonText}
                   color={this.submitButtonColor}
+                  status={this.submitButtonStatus}
                   type={ButtonType.Submit}
                 />
               </Form.Footer>
@@ -96,5 +108,38 @@ export default class BucketOverlayForm extends PureComponent<Props> {
     }
 
     return ComponentColor.Primary
+  }
+
+  private get submitButtonStatus(): ComponentStatus {
+    const {name} = this.props
+
+    const nameEmpty = name === ''
+
+    if (nameEmpty || this.retentionIsTooShort) {
+      return ComponentStatus.Disabled
+    }
+
+    return ComponentStatus.Default
+  }
+
+  private get retentionIsTooShort(): boolean {
+    const {retentionSeconds, ruleType} = this.props
+
+    return (
+      ruleType === BucketRetentionRules.TypeEnum.Expire &&
+      retentionSeconds < MIN_RETENTION_SECONDS
+    )
+  }
+
+  private get ruleErrorMessage(): string {
+    if (this.retentionIsTooShort) {
+      const humanDuration = moment
+        .duration(MIN_RETENTION_SECONDS, 'seconds')
+        .humanize()
+
+      return `Retention period must be at least ${humanDuration}`
+    }
+
+    return ''
   }
 }
