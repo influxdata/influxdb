@@ -11,7 +11,6 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
@@ -138,12 +137,21 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	p, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, org.ID)
 	if err != nil {
-		EncodeError(ctx, fmt.Errorf("could not create permission for bucket: %v", err), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInternal,
+			Op:   "http/handleWrite",
+			Msg:  fmt.Sprintf("unable to create permission for bucket: %v", err),
+			Err:  err,
+		}, w)
 		return
 	}
 
 	if !a.Allowed(*p) {
-		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for write"), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EForbidden,
+			Op:   "http/handleWrite",
+			Msg:  "insufficient permissions for write",
+		}, w)
 		return
 	}
 
@@ -152,27 +160,48 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// be sure to remove this when it is there!
 	data, err := ioutil.ReadAll(in)
 	if err != nil {
-		logger.Info("Error reading body", zap.Error(err))
-		EncodeError(ctx, err, w)
+		logger.Error("Error reading body", zap.Error(err))
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInternal,
+			Op:   "http/handleWrite",
+			Msg:  fmt.Sprintf("unable to read data: %v", err),
+			Err:  err,
+		}, w)
 		return
 	}
 
 	points, err := models.ParsePointsWithPrecision(data, time.Now(), req.Precision)
 	if err != nil {
-		logger.Info("Error parsing points", zap.Error(err))
-		EncodeError(ctx, err, w)
+		logger.Error("Error parsing points", zap.Error(err))
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   "http/handleWrite",
+			Msg:  fmt.Sprintf("unable to parse points: %v", err),
+			Err:  err,
+		}, w)
 		return
 	}
 
 	exploded, err := tsdb.ExplodePoints(org.ID, bucket.ID, points)
 	if err != nil {
-		logger.Info("Error exploding points", zap.Error(err))
-		EncodeError(ctx, err, w)
+		logger.Error("Error exploding points", zap.Error(err))
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInternal,
+			Op:   "http/handleWrite",
+			Msg:  fmt.Sprintf("unable to convert points to internal structures: %v", err),
+			Err:  err,
+		}, w)
 		return
 	}
 
 	if err := h.PointsWriter.WritePoints(exploded); err != nil {
-		EncodeError(ctx, errors.BadRequestError(err.Error()), w)
+		logger.Error("Error writing points", zap.Error(err))
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInternal,
+			Op:   "http/handleWrite",
+			Msg:  fmt.Sprintf("unable to write points to database: %v", err),
+			Err:  err,
+		}, w)
 		return
 	}
 
