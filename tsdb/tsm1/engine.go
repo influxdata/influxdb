@@ -37,7 +37,6 @@ import (
 var (
 	// Static objects to prevent small allocs.
 	keyFieldSeparatorBytes = []byte(keyFieldSeparator)
-	emptyBytes             = []byte{}
 )
 
 var (
@@ -62,9 +61,6 @@ const (
 	// keyFieldSeparator separates the series key from the field name in the composite key
 	// that identifies a specific field in series
 	keyFieldSeparator = "#!~#"
-
-	// deleteFlushThreshold is the size in bytes of a batch of series keys to delete.
-	deleteFlushThreshold = 50 * 1024 * 1024
 
 	// MaxPointsPerBlock is the maximum number of points in an encoded block in a TSM file
 	MaxPointsPerBlock = 1000

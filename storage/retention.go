@@ -14,7 +14,6 @@ import (
 
 const (
 	bucketAPITimeout = 10 * time.Second
-	engineAPITimeout = time.Minute
 )
 
 // A Deleter implementation is capable of deleting data from a storage engine.
@@ -95,7 +94,7 @@ func (s *retentionEnforcer) run() {
 // Any series data that (1) belongs to a bucket in the provided list and
 // (2) falls outside the bucket's indicated retention period will be deleted.
 func (s *retentionEnforcer) expireData(buckets []*platform.Bucket, now time.Time) error {
-	_, logEnd := logger.NewOperation(s.logger, "Data deletion", "data_deletion")
+	logger, logEnd := logger.NewOperation(s.logger, "Data deletion", "data_deletion")
 	defer logEnd()
 
 	for _, b := range buckets {
@@ -107,6 +106,10 @@ func (s *retentionEnforcer) expireData(buckets []*platform.Bucket, now time.Time
 		err := s.Engine.DeleteBucketRange(b.OrganizationID, b.ID, math.MinInt64, max)
 		if err != nil {
 			// TODO(jeff): metrics?
+			logger.Info("unable to delete bucket range",
+				zap.String("bucket id", b.ID.String()),
+				zap.String("org id", b.OrganizationID.String()),
+				zap.Error(err))
 		}
 	}
 

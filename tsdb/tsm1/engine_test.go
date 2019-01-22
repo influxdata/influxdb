@@ -518,30 +518,3 @@ func (m *mockPlanner) Release(groups []tsm1.CompactionGroup)           {}
 func (m *mockPlanner) FullyCompacted() bool                            { return false }
 func (m *mockPlanner) ForceFull()                                      {}
 func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore)                 {}
-
-type seriesIterator struct {
-	keys [][]byte
-}
-
-type series struct {
-	name    []byte
-	tags    models.Tags
-	deleted bool
-}
-
-func (s series) Name() []byte        { return s.name }
-func (s series) Tags() models.Tags   { return s.tags }
-func (s series) Deleted() bool       { return s.deleted }
-func (s series) Expr() influxql.Expr { return nil }
-
-func (itr *seriesIterator) Close() error { return nil }
-
-func (itr *seriesIterator) Next() (tsdb.SeriesElem, error) {
-	if len(itr.keys) == 0 {
-		return nil, nil
-	}
-	name, tags := models.ParseKeyBytes(itr.keys[0])
-	s := series{name: name, tags: tags}
-	itr.keys = itr.keys[1:]
-	return s, nil
-}
