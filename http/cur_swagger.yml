@@ -6564,16 +6564,16 @@ components:
       type: object
       properties:
         labels:
-          $ref: "#/components/schema/Labels"
+          $ref: "#/components/schemas/Labels"
         links:
-          $ref: "#/components/schema/Links"
+          $ref: "#/components/schemas/Links"
     LabelResponse:
       type: object
       properties:
         label:
-          $ref: "#/components/schema/Label"
+          $ref: "#/components/schemas/Label"
         links:
-          $ref: "#/components/schema/Links"
+          $ref: "#/components/schemas/Links"
     CreateProtoResourcesRequest:
       properties:
         orgID:
