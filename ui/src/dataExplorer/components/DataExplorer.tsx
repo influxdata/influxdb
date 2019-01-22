@@ -11,6 +11,7 @@ import {setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
 // Utils
 import {DE_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
+import {queryBuilderFetcher} from 'src/shared/apis/v2/queryBuilder'
 
 // Styles
 import './DataExplorer.scss'
@@ -24,6 +25,7 @@ class DataExplorer extends PureComponent<DispatchProps, {}> {
     super(props)
 
     props.onSetActiveTimeMachine(DE_TIME_MACHINE_ID)
+    queryBuilderFetcher.clearCache()
   }
 
   public render() {
