@@ -8,7 +8,6 @@ import ThresholdList from 'src/shared/components/view_options/options/ThresholdL
 import ColumnOptions from 'src/shared/components/columns_options/ColumnsOptions'
 import FixFirstColumn from 'src/shared/components/view_options/options/FixFirstColumn'
 import TimeFormat from 'src/shared/components/view_options/options/TimeFormat'
-import TimeAxis from 'src/shared/components/view_options/options/TimeAxis'
 import SortBy from 'src/shared/components/view_options/options/SortBy'
 import {Grid} from 'src/clockface'
 
@@ -80,7 +79,7 @@ export class TableOptions extends Component<Props, {}> {
         col.internalName !== 'table'
     )
 
-    const {fixFirstColumn, verticalTimeAxis, sortBy} = tableOptions
+    const {fixFirstColumn, sortBy} = tableOptions
 
     return (
       <>
@@ -108,10 +107,11 @@ export class TableOptions extends Component<Props, {}> {
         <Grid.Column>
           <h4 className="view-options--header">Column Settings</h4>
         </Grid.Column>
-        <TimeAxis
+        {/* TODO (watts): this currently doesn't working removing for alpha.
+          <TimeAxis
           verticalTimeAxis={verticalTimeAxis}
           onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
-        />
+        /> */}
         <FixFirstColumn
           fixed={fixFirstColumn}
           onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
@@ -158,10 +158,10 @@ export class TableOptions extends Component<Props, {}> {
     onSetTableOptions({...tableOptions, fixFirstColumn})
   }
 
-  private handleToggleVerticalTimeAxis = (verticalTimeAxis: boolean): void => {
-    const {tableOptions, onSetTableOptions} = this.props
-    onSetTableOptions({...tableOptions, verticalTimeAxis})
-  }
+  // private handleToggleVerticalTimeAxis = (verticalTimeAxis: boolean): void => {
+  //   const {tableOptions, onSetTableOptions} = this.props
+  //   onSetTableOptions({...tableOptions, verticalTimeAxis})
+  // }
 
   private get colorConfigs(): ThresholdConfig[] {
     return this.props.colors.map(color => {
