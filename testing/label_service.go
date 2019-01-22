@@ -671,8 +671,8 @@ func CreateLabelMapping(
 			},
 			args: args{
 				mapping: &influxdb.LabelMapping{
-					LabelID:    IDPtr(MustIDBase16(labelOneID)),
-					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+					LabelID:    MustIDBase16(labelOneID),
+					ResourceID: MustIDBase16(bucketOneID),
 				},
 				filter: &influxdb.LabelMappingFilter{
 					ResourceID: MustIDBase16(bucketOneID),
@@ -695,8 +695,8 @@ func CreateLabelMapping(
 			},
 			args: args{
 				mapping: &influxdb.LabelMapping{
-					LabelID:    IDPtr(MustIDBase16(labelOneID)),
-					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+					LabelID:    MustIDBase16(labelOneID),
+					ResourceID: MustIDBase16(bucketOneID),
 				},
 			},
 			wants: wants{
@@ -790,15 +790,15 @@ func DeleteLabelMapping(
 				},
 				Mappings: []*influxdb.LabelMapping{
 					{
-						LabelID:    IDPtr(MustIDBase16(labelOneID)),
-						ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+						LabelID:    MustIDBase16(labelOneID),
+						ResourceID: MustIDBase16(bucketOneID),
 					},
 				},
 			},
 			args: args{
 				mapping: &influxdb.LabelMapping{
-					LabelID:    IDPtr(MustIDBase16(labelOneID)),
-					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
+					LabelID:    MustIDBase16(labelOneID),
+					ResourceID: MustIDBase16(bucketOneID),
 				},
 				filter: influxdb.LabelMappingFilter{
 					ResourceID: MustIDBase16(bucketOneID),

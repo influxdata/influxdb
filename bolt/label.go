@@ -184,7 +184,7 @@ func (c *Client) FindResourceLabels(ctx context.Context, filter influxdb.LabelMa
 
 // CreateLabelMapping creates a new mapping between a resource and a label.
 func (c *Client) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	_, err := c.FindLabelByID(ctx, *m.LabelID)
+	_, err := c.FindLabelByID(ctx, m.LabelID)
 	if err != nil {
 		return &influxdb.Error{
 			Err: err,

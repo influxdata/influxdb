@@ -129,7 +129,7 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter influxdb.LabelM
 
 	ls := []*influxdb.Label{}
 	for _, m := range mappings {
-		l, err := s.FindLabelByID(ctx, *m.LabelID)
+		l, err := s.FindLabelByID(ctx, m.LabelID)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +149,7 @@ func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 
 // CreateLabelMapping creates a mapping that associates a label to a resource.
 func (s *Service) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	_, err := s.FindLabelByID(ctx, *m.LabelID)
+	_, err := s.FindLabelByID(ctx, m.LabelID)
 	if err != nil {
 		return &influxdb.Error{
 			Err: err,
