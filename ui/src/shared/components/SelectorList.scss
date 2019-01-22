@@ -2,12 +2,14 @@
 
 .selector-list--item {
   font-weight: 500;
-  padding: 5px 15px;
+  padding: ($ix-marg-a + $ix-border) 15px;
   margin-bottom: 1px;
   cursor: pointer;
   color: $g14-chromium;
   font-family: $code-font;
-  font-size: 13px;
+  font-size: $form-sm-font;
+  line-height: $form-sm-font;
+  white-space: nowrap;
 
   &.selected {
     background: $c-pool;

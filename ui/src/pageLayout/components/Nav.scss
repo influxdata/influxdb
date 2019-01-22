@@ -82,8 +82,8 @@ $nav--bg-accent: $c-comet;
   color: $g20-white;
   height: $nav-size;
   line-height: $nav-size;
-  font-size: 19px;
-  font-weight: 400;
+  font-size: $form-lg-font;
+  font-weight: 500;
   padding: 0px $nav--gutter;
   white-space: nowrap;
 }

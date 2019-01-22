@@ -10,6 +10,7 @@ $rename-dash-title-padding: 5px;
 .editable-description {
   height: $form-xs-height;
   width: 100%;
+  margin-top: -3px;
 }
 
 .editable-description--preview,
@@ -37,7 +38,7 @@ $rename-dash-title-padding: 5px;
   transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
   border: $ix-border solid transparent;
   height: $form-xs-height;
-  line-height: $form-xs-height - $ix-border;
+  line-height: $form-xs-height - ($ix-border * 2);
   
   .icon {
     position: relative;

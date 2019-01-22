@@ -76,8 +76,8 @@ $ix-text-selection-color: $g20-white;
 $ix-text-scale: 1.19;
 $ix-icon-font: 'icomoon';
 
-$ix-text-tiny: 12px;
-$ix-text-base: 13px;
+$ix-text-tiny: 11px;
+$ix-text-base: 12px;
 $ix-text-base-1: (ceil($ix-text-base * $ix-text-scale));
 $ix-text-base-2: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale));
 $ix-text-base-3: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale));
@@ -88,15 +88,15 @@ $ix-text-base-5: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-tex
 
 $form-xs-height: 22px;
 $form-xs-padding: 6px;
-$form-xs-font: 12px;
+$form-xs-font: 11px;
 
 $form-sm-height: 30px;
 $form-sm-padding: 9px;
-$form-sm-font: 13px;
+$form-sm-font: 12px;
 
 $form-md-height: 38px;
 $form-md-padding: 12px;
-$form-md-font: 15px;
+$form-md-font: 13px;
 
 $form-lg-height: 46px;
 $form-lg-padding: 15px;
