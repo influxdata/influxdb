@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 // APIs
 import {deleteScraper} from 'src/organizations/apis/index'
@@ -13,8 +13,11 @@ import {
   IconFont,
   ComponentSize,
   EmptyState,
+  Input,
+  InputType,
 } from 'src/clockface'
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
+import FilterList from 'src/shared/components/Filter'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -33,6 +36,7 @@ interface Props {
 
 interface State {
   overlayState: OverlayState
+  searchTerm: string
 }
 
 @ErrorHandling
@@ -40,22 +44,43 @@ export default class Scrapers extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
-    this.state = {overlayState: OverlayState.Closed}
+    this.state = {
+      overlayState: OverlayState.Closed,
+      searchTerm: '',
+    }
   }
 
   public render() {
     const {scrapers, buckets} = this.props
+    const {searchTerm} = this.state
+
     return (
       <>
         <TabbedPageHeader>
-          <h1>Scrapers</h1>
+          <Input
+            icon={IconFont.Search}
+            placeholder="Filter scrapers by bucket..."
+            widthPixels={290}
+            value={searchTerm}
+            type={InputType.Text}
+            onChange={this.handleFilterChange}
+            onBlur={this.handleFilterBlur}
+          />
           {this.createScraperButton}
         </TabbedPageHeader>
-        <ScraperList
-          scrapers={scrapers}
-          emptyState={this.emptyState}
-          onDeleteScraper={this.handleDeleteScraper}
-        />
+        <FilterList<ScraperTargetResponse>
+          searchTerm={searchTerm}
+          searchKeys={['bucket']}
+          list={scrapers.configurations || []}
+        >
+          {configurations => (
+            <ScraperList
+              scrapers={{configurations}}
+              emptyState={this.emptyState}
+              onDeleteScraper={this.handleDeleteScraper}
+            />
+          )}
+        </FilterList>
         <DataLoadersWizard
           visible={this.isOverlayVisible}
           onCompleteSetup={this.handleDismissDataLoaders}
@@ -107,5 +132,13 @@ export default class Scrapers extends PureComponent<Props, State> {
   private handleDeleteScraper = async (scraper: ScraperTargetResponse) => {
     await deleteScraper(scraper.id)
     this.props.onChange()
+  }
+
+  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
+  }
+
+  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
   }
 }

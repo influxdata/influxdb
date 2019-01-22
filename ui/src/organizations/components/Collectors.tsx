@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
@@ -16,8 +16,11 @@ import {
   EmptyState,
   Grid,
   Columns,
+  Input,
+  InputType,
 } from 'src/clockface'
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
+import FilterList from 'src/shared/components/Filter'
 
 // APIS
 import {
@@ -50,6 +53,7 @@ interface Props {
 
 interface State {
   overlayState: OverlayState
+  searchTerm: string
 }
 
 @ErrorHandling
@@ -57,26 +61,47 @@ export default class Collectors extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
-    this.state = {overlayState: OverlayState.Closed}
+    this.state = {
+      overlayState: OverlayState.Closed,
+      searchTerm: '',
+    }
   }
 
   public render() {
     const {collectors, buckets} = this.props
+    const {searchTerm} = this.state
+
     return (
       <>
         <TabbedPageHeader>
-          <h1>Telegraf Configurations</h1>
+          <Input
+            icon={IconFont.Search}
+            placeholder="Filter telegraf configs by bucket..."
+            widthPixels={290}
+            value={searchTerm}
+            type={InputType.Text}
+            onChange={this.handleFilterChange}
+            onBlur={this.handleFilterBlur}
+          />
           {this.createButton}
         </TabbedPageHeader>
         <Grid>
           <Grid.Row>
             <Grid.Column widthSM={Columns.Twelve}>
-              <CollectorList
-                collectors={collectors}
-                emptyState={this.emptyState}
-                onDownloadConfig={this.handleDownloadConfig}
-                onDelete={this.handleDeleteTelegraf}
-              />
+              <FilterList<Telegraf>
+                searchTerm={searchTerm}
+                searchKeys={['plugins.0.config.bucket']}
+                list={collectors}
+              >
+                {cs => (
+                  <CollectorList
+                    collectors={cs}
+                    emptyState={this.emptyState}
+                    onDownloadConfig={this.handleDownloadConfig}
+                    onDelete={this.handleDeleteTelegraf}
+                  />
+                )}
+              </FilterList>
             </Grid.Column>
             <Grid.Column
               widthSM={Columns.Six}
@@ -149,5 +174,13 @@ export default class Collectors extends PureComponent<Props, State> {
   private handleDeleteTelegraf = async (telegrafID: string) => {
     await deleteTelegrafConfig(telegrafID)
     this.props.onChange()
+  }
+
+  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
+  }
+
+  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
   }
 }
