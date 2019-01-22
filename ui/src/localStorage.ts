@@ -1,12 +1,11 @@
 import normalizer from 'src/normalizers/dashboardTime'
+import {VERSION} from 'src/shared/constants'
 import {
   newVersion,
   loadLocalSettingsFailed,
 } from 'src/shared/copy/notifications'
 
 import {LocalStorage} from 'src/types/localStorage'
-
-const VERSION = process.env.npm_package_version
 
 export const loadLocalStorage = (): LocalStorage => {
   try {
