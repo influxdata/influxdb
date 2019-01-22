@@ -22,7 +22,7 @@ export async function renderQuery(
     return query
   }
 
-  let preamble = formatVariables(variables)
+  let preamble = formatVariables(variables, query)
 
   if (query.includes(WINDOW_PERIOD)) {
     const ast = await getAST(`${preamble}\n\n${query}`)
@@ -43,8 +43,12 @@ export async function renderQuery(
   return renderedQuery
 }
 
-function formatVariables(variables: {[name: string]: string}): string {
+function formatVariables(
+  variables: {[name: string]: string},
+  query: string
+): string {
   return Object.entries(variables)
+    .filter(([key]) => query.includes(key))
     .map(([key, value]) => `${key} = ${value}`)
     .join('\n')
 }
