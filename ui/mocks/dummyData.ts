@@ -6,7 +6,7 @@ import {
   TemplateType,
   TemplateValueType,
 } from 'src/types'
-import {Cell, Dashboard} from 'src/types/v2'
+import {Cell, Dashboard, Label} from 'src/types/v2'
 import {Links} from 'src/types/v2/links'
 import {Task} from 'src/types/v2/tasks'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -24,7 +24,6 @@ import {
   TelegrafPluginInputProcstat,
   TelegrafPluginInputDocker,
   Task as TaskApi,
-  Label,
   Organization,
 } from 'src/api'
 
@@ -220,7 +219,7 @@ export const dashboard: Dashboard = {
 
 export const labels: Label[] = [
   {
-    resourceID: 'dashboard-mock-label-a',
+    id: '0001',
     name: 'Trogdor',
     properties: {
       color: '#44ffcc',
@@ -228,7 +227,7 @@ export const labels: Label[] = [
     },
   },
   {
-    resourceID: 'dashboard-mock-label-b',
+    id: '0002',
     name: 'Strawberry',
     properties: {
       color: '#ff0054',

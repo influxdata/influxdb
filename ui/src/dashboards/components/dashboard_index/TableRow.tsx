@@ -112,10 +112,10 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
         onEdit={this.handleEditLabels}
         resourceName="this Dashboard"
       >
-        {dashboard.labels.map(label => (
+        {dashboard.labels.map((label, index) => (
           <Label
-            key={`${label.resourceID}-${label.name}`}
-            id={label.resourceID}
+            key={label.id || `label-${index}`}
+            id={label.id}
             colorHex={label.properties.color}
             name={label.name}
             description={label.properties.description}

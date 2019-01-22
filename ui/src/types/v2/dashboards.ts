@@ -1,4 +1,5 @@
 import {Color} from 'src/types/colors'
+import {Label} from 'src/types/v2/labels'
 import {
   Dashboard as DashboardAPI,
   View as ViewAPI,
@@ -94,8 +95,9 @@ export interface Cell extends CellAPI {
   dashboardID: string
 }
 
-export interface Dashboard extends Omit<DashboardAPI, 'cells'> {
+export interface Dashboard extends Omit<DashboardAPI, 'cells' | 'labels'> {
   cells: Cell[]
+  labels: Label[]
 }
 
 type Omit<K, V> = Pick<K, Exclude<keyof K, V>>

@@ -1,5 +1,5 @@
 import {LabelType} from 'src/clockface'
-import {HEX_CODE_CHAR_LENGTH} from 'src/organizations/constants/LabelColors'
+import {HEX_CODE_CHAR_LENGTH} from 'src/configuration/constants/LabelColors'
 
 export const validateLabelName = (
   labels: LabelType[],

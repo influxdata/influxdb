@@ -94,20 +94,20 @@ from(bucket: \\"inbucket\\")
               "id": "02f12c50dba72000",
               "labels": Array [
                 Object {
+                  "id": "0001",
                   "name": "Trogdor",
                   "properties": Object {
                     "color": "#44ffcc",
                     "description": "Burninating the countryside",
                   },
-                  "resourceID": "dashboard-mock-label-a",
                 },
                 Object {
+                  "id": "0002",
                   "name": "Strawberry",
                   "properties": Object {
                     "color": "#ff0054",
                     "description": "It is a great fruit",
                   },
-                  "resourceID": "dashboard-mock-label-b",
                 },
               ],
               "name": "somename",

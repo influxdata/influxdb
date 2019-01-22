@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import CreateLabelOverlay from 'src/organizations/components/CreateLabelOverlay'
+import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {
   ComponentSize,
@@ -14,7 +14,7 @@ import {
   ComponentColor,
   InputType,
 } from 'src/clockface'
-import LabelList from 'src/organizations/components/LabelList'
+import LabelList from 'src/configuration/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
 // API
@@ -24,7 +24,7 @@ import {createLabel, deleteLabel, updateLabel} from 'src/configuration/apis'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Utils
-import {validateLabelName} from 'src/organizations/utils/labels'
+import {validateLabelName} from 'src/configuration/utils/labels'
 
 // Constants
 import {
@@ -35,7 +35,7 @@ import {
 
 // Types
 import {LabelType} from 'src/clockface'
-import {Label} from 'src/api'
+import {Label} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -151,6 +151,7 @@ class Labels extends PureComponent<Props, State> {
   private handleUpdateLabel = async (labelType: LabelType) => {
     try {
       const label = await updateLabel({
+        id: labelType.id,
         name: labelType.name,
         properties: this.labelProperties(labelType),
       })
@@ -181,7 +182,7 @@ class Labels extends PureComponent<Props, State> {
     const {properties} = label
 
     return {
-      id: label.name,
+      id: label.id,
       name: label.name,
       description: properties.description,
       colorHex: properties.color,
@@ -189,13 +190,12 @@ class Labels extends PureComponent<Props, State> {
     }
   }
 
-  private handleDelete = async (name: string) => {
+  private handleDelete = async (id: string) => {
     const {labels} = this.props
-    const label = labels.find(label => label.name === name)
-
+    const label = labels.find(label => label.id === id)
     try {
       await deleteLabel(label)
-      const labelTypes = this.state.labelTypes.filter(l => l.id !== name)
+      const labelTypes = this.state.labelTypes.filter(l => l.id !== id)
 
       this.setState({labelTypes})
     } catch (error) {

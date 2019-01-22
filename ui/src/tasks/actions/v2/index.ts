@@ -27,8 +27,7 @@ import {
 } from 'src/shared/copy/v2/notifications'
 
 // Types
-import {AppState} from 'src/types/v2'
-import {Label} from 'src/api'
+import {AppState, Label} from 'src/types/v2'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'

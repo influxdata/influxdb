@@ -3,11 +3,11 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {IndexList, OverlayTechnology} from 'src/clockface'
-import UpdateLabelOverlay from 'src/organizations/components/UpdateLabelOverlay'
-import LabelRow from 'src/organizations/components/LabelRow'
+import UpdateLabelOverlay from 'src/configuration/components/UpdateLabelOverlay'
+import LabelRow from 'src/configuration/components/LabelRow'
 
 // Utils
-import {validateLabelName} from 'src/organizations/utils/labels'
+import {validateLabelName} from 'src/configuration/utils/labels'
 
 // Types
 import {LabelType} from 'src/clockface'
@@ -60,9 +60,9 @@ export default class LabelList extends PureComponent<Props, State> {
   }
 
   private get rows(): JSX.Element[] {
-    return this.props.labels.map(label => (
+    return this.props.labels.map((label, index) => (
       <LabelRow
-        key={label.id}
+        key={label.id || `label-${index}`}
         label={{
           ...label,
           onClick: this.handleStartEdit,

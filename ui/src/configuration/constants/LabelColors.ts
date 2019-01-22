@@ -4,11 +4,13 @@ import {LabelColor, LabelColorType} from 'src/types/colors'
 
 export const HEX_CODE_CHAR_LENGTH = 7
 
+export const DEFAULT_LABEL_COLOR_HEX = '#326BBA'
+
 export const EMPTY_LABEL: LabelType = {
   id: 'newLabel',
   name: '',
   description: '',
-  colorHex: '#326BBA',
+  colorHex: DEFAULT_LABEL_COLOR_HEX,
 }
 
 export const CUSTOM_LABEL: LabelColor = {

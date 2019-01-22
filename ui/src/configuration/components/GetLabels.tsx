@@ -6,7 +6,7 @@ import {getLabels} from 'src/configuration/apis'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Label} from 'src/api'
+import {Label} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

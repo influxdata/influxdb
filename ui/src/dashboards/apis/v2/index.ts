@@ -2,6 +2,9 @@
 import {dashboardsAPI, cellsAPI} from 'src/utils/api'
 import _ from 'lodash'
 
+// Utils
+import {addLabelDefaults} from 'src/shared/utils/labels'
+
 // Types
 
 import {
@@ -10,9 +13,10 @@ import {
   NewCell,
   Dashboard,
   View,
-} from 'src/types/v2/'
+  Label,
+} from 'src/types/v2'
 
-import {Label, Cell as CellTypeAPI} from 'src/api'
+import {Cell as CellTypeAPI} from 'src/api'
 
 // Utils
 import {
@@ -35,6 +39,7 @@ export const getDashboards = async (): Promise<Dashboard[]> => {
 
   return data.dashboards.map(d => ({
     ...d,
+    labels: d.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(d.cells, d.id),
   }))
 }
@@ -42,14 +47,23 @@ export const getDashboards = async (): Promise<Dashboard[]> => {
 export const getDashboard = async (id: string): Promise<Dashboard> => {
   const {data} = await dashboardsAPI.dashboardsDashboardIDGet(id)
 
-  return {...data, cells: addDashboardIDToCells(data.cells, data.id)}
+  return {
+    ...data,
+    labels: data.labels.map(addLabelDefaults),
+    cells: addDashboardIDToCells(data.cells, data.id),
+  }
 }
 
 export const createDashboard = async (
   dashboard: Partial<Dashboard>
 ): Promise<Dashboard> => {
   const {data} = await dashboardsAPI.dashboardsPost(dashboard)
-  return {...data, cells: addDashboardIDToCells(data.cells, data.id)}
+
+  return {
+    ...data,
+    labels: data.labels.map(addLabelDefaults),
+    cells: addDashboardIDToCells(data.cells, data.id),
+  }
 }
 
 export const deleteDashboard = async (dashboard: Dashboard): Promise<void> => {
@@ -64,7 +78,11 @@ export const updateDashboard = async (
     dashboard
   )
 
-  return {...data, cells: addDashboardIDToCells(data.cells, data.id)}
+  return {
+    ...data,
+    labels: data.labels.map(addLabelDefaults),
+    cells: addDashboardIDToCells(data.cells, data.id),
+  }
 }
 
 export const loadDashboardLinks = async (
@@ -114,11 +132,11 @@ export const addDashboardLabels = async (
 ): Promise<Label[]> => {
   const addedLabels = await Promise.all(
     labels.map(async label => {
-      const {data} = await dashboardsAPI.dashboardsDashboardIDLabelsPost(
-        dashboardID,
-        label
-      )
-      return data.label
+      await dashboardsAPI.dashboardsDashboardIDLabelsPost(dashboardID, {
+        labelID: label.id,
+      })
+
+      return label
     })
   )
 
@@ -131,9 +149,11 @@ export const removeDashboardLabels = async (
 ): Promise<void> => {
   await Promise.all(
     labels.map(async label => {
-      const {data} = await dashboardsAPI.dashboardsDashboardIDLabelsNameDelete(
+      const {
+        data,
+      } = await dashboardsAPI.dashboardsDashboardIDLabelsLabelIDDelete(
         dashboardID,
-        label.name
+        label.id
       )
       return data
     })

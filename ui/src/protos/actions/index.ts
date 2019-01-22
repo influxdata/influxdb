@@ -9,12 +9,14 @@ import {
 
 // Utils
 import {addDashboardIDToCells} from 'src/dashboards/apis/v2/'
+import {addLabelDefaults} from 'src/shared/utils/labels'
 
 // Actions
 import {loadDashboard} from 'src/dashboards/actions/v2/'
 
 // Types
-import {Proto, Dashboard} from 'src/api'
+import {Proto} from 'src/api'
+import {Dashboard} from 'src/types/v2'
 
 export enum ActionTypes {
   LoadProto = 'LOAD_PROTO',
@@ -55,6 +57,7 @@ export const createDashFromProto = (
     dashboards.forEach((d: Dashboard) => {
       const updatedDashboard = {
         ...d,
+        labels: d.labels.map(addLabelDefaults),
         cells: addDashboardIDToCells(d.cells, d.id),
       }
       dispatch(loadDashboard(updatedDashboard))

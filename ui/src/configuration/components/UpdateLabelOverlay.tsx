@@ -2,11 +2,11 @@
 import React, {Component, ChangeEvent} from 'react'
 
 // Components
-import LabelOverlayForm from 'src/organizations/components/LabelOverlayForm'
+import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
 import {OverlayContainer, OverlayBody, OverlayHeading} from 'src/clockface'
 
 // Utils
-import {validateHexCode} from 'src/organizations/utils/labels'
+import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Types
 import {LabelType} from 'src/clockface'

@@ -18,21 +18,21 @@ import {
   ComponentStatus,
   InputType,
 } from 'src/clockface'
-import LabelColorDropdown from 'src/organizations/components/LabelColorDropdown'
+import LabelColorDropdown from 'src/configuration/components/LabelColorDropdown'
 
 // Constants
 import {
   CUSTOM_LABEL,
   HEX_CODE_CHAR_LENGTH,
   INPUT_ERROR_COLOR,
-} from 'src/organizations/constants/LabelColors'
+} from 'src/configuration/constants/LabelColors'
 const MAX_LABEL_CHARS = 50
 
 // Utils
-import {validateHexCode} from 'src/organizations/utils/labels'
+import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Styles
-import 'src/organizations/components/LabelOverlayForm.scss'
+import 'src/configuration/components/LabelOverlayForm.scss'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -146,6 +146,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                 <Button
                   text={buttonText}
                   color={ComponentColor.Success}
+                  type={ButtonType.Submit}
                   status={
                     isFormValid
                       ? ComponentStatus.Default

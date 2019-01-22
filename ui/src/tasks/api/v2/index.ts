@@ -1,6 +1,11 @@
 import _ from 'lodash'
 
-import {Task, Label} from 'src/api'
+// Utils
+import {addLabelDefaults} from 'src/shared/utils/labels'
+
+// Types
+import {Task} from 'src/api'
+import {Label} from 'src/types/v2'
 import {taskAPI} from 'src/utils/api'
 
 export const submitNewTask = async (
@@ -51,13 +56,13 @@ export const addTaskLabels = async (
 ): Promise<Label[]> => {
   await Promise.all(
     labels.map(async label => {
-      await taskAPI.tasksTaskIDLabelsPost(taskID, label)
+      await taskAPI.tasksTaskIDLabelsPost(taskID, {labelID: label.id})
     })
   )
 
   const {data} = await taskAPI.tasksTaskIDLabelsGet(taskID)
 
-  return data.labels
+  return data.labels.map(addLabelDefaults)
 }
 
 export const removeTaskLabels = async (
@@ -66,8 +71,8 @@ export const removeTaskLabels = async (
 ): Promise<void> => {
   await Promise.all(
     labels.map(async label => {
-      const name = _.get(label, 'name', '')
-      await taskAPI.tasksTaskIDLabelsLabelDelete(taskID, name)
+      const id = _.get(label, 'id', '')
+      await taskAPI.tasksTaskIDLabelsLabelIDDelete(taskID, id)
     })
   )
 }
