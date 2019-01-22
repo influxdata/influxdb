@@ -73,7 +73,8 @@ func newBucketService(f Flags) (platform.BucketService, error) {
 }
 
 func bucketCreateF(cmd *cobra.Command, args []string) error {
-	if bucketCreateFlags.org != "" && bucketCreateFlags.orgID != "" {
+	if (bucketCreateFlags.org == "" && bucketCreateFlags.orgID == "") ||
+		(bucketCreateFlags.org != "" && bucketCreateFlags.orgID != "") {
 		return fmt.Errorf("must specify exactly one of org or org-id")
 	}
 
