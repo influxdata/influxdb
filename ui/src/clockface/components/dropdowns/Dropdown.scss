@@ -41,6 +41,7 @@
 
 .dropdown--item {
   padding: 6px 11px;
+  padding-left: 21px;
   font-size: 12px;
   line-height: 12px;
   font-weight: 600;
@@ -48,9 +49,16 @@
   white-space: nowrap;
   position: relative;
 
-  &.active {
-    padding-left: 24px;
+  &.active,
+  &.checked {
     color: $g20-white;
+  }
+  
+  // &.active {
+  // }
+  
+  &.checked {
+    padding-left: 24px;
   }
 
   &:hover {
@@ -71,7 +79,7 @@
   border-radius: 50%;
   position: absolute;
   top: 50%;
-  left: 11px;
+  left: 8px;
   transform: translateY(-50%);
   background-color: $g20-white;
 
