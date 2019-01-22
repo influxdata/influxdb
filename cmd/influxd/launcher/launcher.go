@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // needed to add pprof to our binary.
 	"os"
 	"path/filepath"
 	"sync"
@@ -25,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
+	infprom "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/proto"
 	"github.com/influxdata/influxdb/query"
 	pcontrol "github.com/influxdata/influxdb/query/control"
@@ -37,8 +38,8 @@ import (
 	taskbolt "github.com/influxdata/influxdb/task/backend/bolt"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
-	_ "github.com/influxdata/influxdb/tsdb/tsi1"
-	_ "github.com/influxdata/influxdb/tsdb/tsm1"
+	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
+	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -53,15 +54,16 @@ type Launcher struct {
 	cancel  func()
 	running bool
 
-	logLevel        string
+	developerMode     bool
+	logLevel          string
+	reportingDisabled bool
+
 	httpBindAddress string
 	boltPath        string
 	natsPath        string
-	developerMode   bool
 	enginePath      string
 	protosPath      string
-
-	secretStore string
+	secretStore     string
 
 	boltClient *bolt.Client
 	engine     *storage.Engine
@@ -76,10 +78,14 @@ type Launcher struct {
 	scheduler *taskbackend.TickScheduler
 
 	logger *zap.Logger
+	reg    *prom.Registry
 
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+
+	// BuildInfo contains commit, version and such of influxdb.
+	BuildInfo platform.BuildInfo
 }
 
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
@@ -91,8 +97,31 @@ func NewLauncher() *Launcher {
 	}
 }
 
+// Running returns true if the main Launcher has started running.
 func (m *Launcher) Running() bool {
 	return m.running
+}
+
+// ReportingDisabled is true if opted out of usage stats.
+func (m *Launcher) ReportingDisabled() bool {
+	return m.reportingDisabled
+}
+
+// Registry returns the prometheus metrics registry.
+func (m *Launcher) Registry() *prom.Registry {
+	return m.reg
+}
+
+// Logger returns the launchers logger.
+func (m *Launcher) Logger() *zap.Logger {
+	return m.logger
+}
+
+// SetBuild adds version, commit, and date to prometheus metrics.
+func (m *Launcher) SetBuild(version, commit, date string) {
+	m.BuildInfo.Version = version
+	m.BuildInfo.Commit = commit
+	m.BuildInfo.Date = date
 }
 
 // URL returns the URL to connect to the HTTP server.
@@ -122,7 +151,7 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	}
 
 	m.logger.Info("Stopping", zap.String("service", "query"))
-	if err := m.queryController.Shutdown(ctx); err != nil {
+	if err := m.queryController.Shutdown(ctx); err != nil && err != context.Canceled {
 		m.logger.Info("Failed closing query service", zap.Error(err))
 	}
 
@@ -198,6 +227,12 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Default: filepath.Join(dir, "protos"),
 				Desc:    "path to protos on the filesystem",
 			},
+			{
+				DestP:   &m.reportingDisabled,
+				Flag:    "reporting-disabled",
+				Default: false,
+				Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
+			},
 		},
 	}
 
@@ -231,10 +266,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	tracer.IDGenerator = snowflake.NewIDGenerator()
 	opentracing.SetGlobalTracer(tracer)
 
-	reg := prom.NewRegistry()
-	reg.MustRegister(prometheus.NewGoCollector())
-	reg.WithLogger(m.logger)
-
 	m.boltClient = bolt.NewClient()
 	m.boltClient.Path = m.boltPath
 	m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
@@ -244,7 +275,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	reg.MustRegister(m.boltClient)
+	m.reg = prom.NewRegistry()
+	m.reg.MustRegister(
+		prometheus.NewGoCollector(),
+		infprom.NewInfluxCollector(m.boltClient, m.BuildInfo),
+	)
+	m.reg.WithLogger(m.logger)
+	m.reg.MustRegister(m.boltClient)
 
 	var (
 		orgSvc           platform.OrganizationService             = m.boltClient
@@ -319,7 +356,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 		// The Engine's metrics must be registered after it opens.
-		reg.MustRegister(m.engine.PrometheusCollectors()...)
+		m.reg.MustRegister(m.engine.PrometheusCollectors()...)
 
 		pointsWriter = m.engine
 
@@ -343,10 +380,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 
 		m.queryController = pcontrol.New(cc)
-		reg.MustRegister(m.queryController.PrometheusCollectors()...)
+		m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
 
-	var storageQueryService query.ProxyQueryService = readservice.NewProxyQueryService(m.queryController)
+	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
 		boltStore, err := taskbolt.New(m.boltClient.DB(), "tasks")
@@ -360,7 +397,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		lw := taskbackend.NewPointLogWriter(pointsWriter)
 		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
-		reg.MustRegister(m.scheduler.PrometheusCollectors()...)
+		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
 		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
 		lr := taskbackend.NewQueryLogReader(queryService)
@@ -451,9 +488,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	// HTTP server
 	httpLogger := m.logger.With(zap.String("service", "http"))
 	platformHandler := http.NewPlatformHandler(handlerConfig)
-	reg.MustRegister(platformHandler.PrometheusCollectors()...)
+	m.reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
-	h := http.NewHandlerFromRegistry("platform", reg)
+	h := http.NewHandlerFromRegistry("platform", m.reg)
 	h.Handler = platformHandler
 	h.Logger = httpLogger
 	h.Tracer = opentracing.GlobalTracer()
