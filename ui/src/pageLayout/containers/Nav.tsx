@@ -48,7 +48,7 @@ class SideNav extends PureComponent<Props> {
         >
           <NavMenu.SubItem
             title="Logout"
-            link={`/logout?returnTo=${location.pathname}`}
+            link={`/logout`}
             location={location.pathname}
             highlightWhen={[]}
           />
