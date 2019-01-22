@@ -162,12 +162,14 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *platform.Authoriza
 		return platform.ErrUnableToCreateToken
 	}
 
-	var err error
-	a.Token, err = s.TokenGenerator.Token()
-	if err != nil {
-		return &platform.Error{
-			Err: err,
-			Op:  op,
+	if a.Token == "" {
+		var err error
+		a.Token, err = s.TokenGenerator.Token()
+		if err != nil {
+			return &platform.Error{
+				Err: err,
+				Op:  op,
+			}
 		}
 	}
 

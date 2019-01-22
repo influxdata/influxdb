@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	bolt "github.com/coreos/bbolt"
+	"github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -226,23 +226,26 @@ func (c *Client) CreateAuthorization(ctx context.Context, a *platform.Authorizat
 			return platform.ErrUnableToCreateToken
 		}
 
-		token, err := c.TokenGenerator.Token()
-		if err != nil {
-			return &platform.Error{
-				Err: err,
-				Op:  op,
+		if a.Token == "" {
+			token, err := c.TokenGenerator.Token()
+			if err != nil {
+				return &platform.Error{
+					Err: err,
+					Op:  op,
+				}
 			}
+			a.Token = token
 		}
-		a.Token = token
 
 		a.ID = c.IDGenerator.ID()
 
 		pe := c.putAuthorization(ctx, tx, a)
 		if pe != nil {
 			pe.Op = op
-			err = pe
+			return pe
 		}
-		return err
+
+		return nil
 	})
 }
 

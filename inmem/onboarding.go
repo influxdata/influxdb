@@ -98,6 +98,7 @@ func (s *Service) Generate(ctx context.Context, req *platform.OnboardingRequest)
 		Description: fmt.Sprintf("%s's Token", u.Name),
 		OrgID:       o.ID,
 		Permissions: platform.OperPermissions(),
+		Token:       req.Token,
 	}
 	if err = s.CreateAuthorization(ctx, auth); err != nil {
 		return nil, err
