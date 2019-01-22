@@ -4,10 +4,12 @@ import React, {PureComponent} from 'react'
 // Components
 import {
   ComponentSize,
+  ButtonShape,
   IndexList,
   ConfirmationButton,
   Alignment,
-  Button,
+  IconFont,
+  Context,
   ComponentColor,
 } from 'src/clockface'
 
@@ -47,12 +49,31 @@ export default class BucketRow extends PureComponent<Props> {
             />
           </IndexList.Cell>
           <IndexList.Cell alignment={Alignment.Right}>
-            <Button
-              text={'Add Data'}
-              onClick={this.handleClickAddData}
-              color={ComponentColor.Secondary}
-              size={ComponentSize.ExtraSmall}
-            />
+            <Context align={Alignment.Center}>
+              <Context.Menu
+                icon={IconFont.Pencil}
+                text="Add Data"
+                shape={ButtonShape.Default}
+                color={ComponentColor.Secondary}
+                buttonColor={ComponentColor.Secondary}
+              >
+                <Context.Item
+                  label="Configure Agent"
+                  description="Configure a Telegraf agent to push data into your bucket."
+                  action={this.handleClickAddData}
+                />
+                <Context.Item
+                  label="Line Protocol"
+                  description="Quickly load an existing line protocol file."
+                  action={this.handleClickAddData}
+                />
+                <Context.Item
+                  label="Scrape Metrics"
+                  description="Add a scrape target to pull data into your bucket."
+                  action={this.handleClickAddData}
+                />
+              </Context.Menu>
+            </Context>
           </IndexList.Cell>
         </IndexList.Row>
       </>

@@ -20,14 +20,10 @@ $context-menu--arrow-size: 8px;
 
 .context-menu--container {
   position: relative;
-  width: $context-menu--toggle-size;
-  height: $context-menu--toggle-size;
 }
 
 .context-menu--toggle {
   position: relative;
-  width: $context-menu--toggle-size;
-  height: $context-menu--toggle-size;
   border: 0;
   border-radius: $radius-small;
   background-color: $g2-kevlar;
@@ -43,14 +39,6 @@ $context-menu--arrow-size: 8px;
   &.active {
     color: $g20-white;
   }
-}
-
-.context-menu--icon {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 13px;
 }
 
 .context-menu--list {
@@ -126,6 +114,13 @@ $context-menu--arrow-size: 8px;
     font-style: italic;
     background-color: transparent;
   }
+}
+
+.contex-menu--item-description {
+  font-size: $ix-text-tiny;
+  font-weight: 400;
+  padding-top: $ix-marg-a;
+  white-space: normal;
 }
 
 /* Alignment Modifiers */

@@ -4,6 +4,7 @@ import classnames from 'classnames'
 
 interface Props {
   label: string
+  description?: string
   action: (value?: any) => void
   value?: any
   onCollapseMenu?: () => void
@@ -21,6 +22,7 @@ class ContextMenuItem extends Component<Props> {
         disabled={disabled}
       >
         {label}
+        {this.description}
       </button>
     )
   }
@@ -31,6 +33,13 @@ class ContextMenuItem extends Component<Props> {
     return classnames('context-menu--item', {
       'context-menu--item__disabled': disabled,
     })
+  }
+
+  private get description(): JSX.Element {
+    const {description} = this.props
+    if (description) {
+      return <div className="contex-menu--item-description">{description}</div>
+    }
   }
 
   private handleClick = (): void => {
