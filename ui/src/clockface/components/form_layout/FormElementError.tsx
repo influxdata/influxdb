@@ -10,9 +10,18 @@ interface Props {
 @ErrorHandling
 class FormElementError extends Component<Props> {
   public render() {
+    return <span className="form--element-error">{this.message}</span>
+  }
+
+  private get message() {
     const {message} = this.props
 
-    return <span className="form--element-error">{message}</span>
+    // TODO(watts): temporary workaround for: https://github.com/influxdata/influxdb/issues/11372
+    if (!message) {
+      return '\u00a0\u00a0'
+    }
+
+    return this.props.message
   }
 }
 
