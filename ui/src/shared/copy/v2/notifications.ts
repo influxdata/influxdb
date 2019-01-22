@@ -43,6 +43,12 @@ export const taskUpdateFailed = (additionalMessage: string): Notification => ({
   message: `Failed to update task: ${additionalMessage}`,
 })
 
+export const taskUpdateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  duration: FIVE_SECONDS,
+  message: 'Task was updated successfully',
+})
+
 export const taskImportFailed = (
   fileName: string,
   errorMessage: string

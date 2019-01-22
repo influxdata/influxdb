@@ -24,6 +24,7 @@ import {
   taskUpdateFailed,
   taskImportFailed,
   taskImportSuccess,
+  taskUpdateSuccess,
 } from 'src/shared/copy/v2/notifications'
 
 // Types
@@ -229,10 +230,11 @@ export const updateTaskStatus = (task: Task) => async dispatch => {
     await updateTaskStatusAPI(task.id, task.status)
 
     dispatch(populateTasks())
+    dispatch(notify(taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
     const message = getErrorMessage(e)
-    dispatch(notify(taskDeleteFailed(message)))
+    dispatch(notify(taskUpdateFailed(message)))
   }
 }
 
