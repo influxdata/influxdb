@@ -18,6 +18,7 @@ type OnboardingRequest struct {
 	Org             string `json:"org"`
 	Bucket          string `json:"bucket"`
 	RetentionPeriod uint   `json:"retentionPeriodHrs,omitempty"`
+	Token           string `json:"token,omitempty"`
 }
 
 // OnboardingService represents a service for the first run.

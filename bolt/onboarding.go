@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
+	"github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -124,6 +124,7 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 		Description: fmt.Sprintf("%s's Token", u.Name),
 		OrgID:       o.ID,
 		Permissions: platform.OperPermissions(),
+		Token:       req.Token,
 	}
 	if err = c.CreateAuthorization(ctx, auth); err != nil {
 		return nil, err
