@@ -41,14 +41,18 @@ class DecimalPlacesOption extends PureComponent<Props> {
   }
 
   public handleSetValue = (value: number): void => {
-    const digits = Math.max(value, 0)
-    const isEnforced = true
+    const {digits, onDecimalPlacesChange} = this.props
 
-    this.props.onDecimalPlacesChange({digits, isEnforced})
+    if (value === null) {
+      onDecimalPlacesChange({digits, isEnforced: false})
+    } else {
+      onDecimalPlacesChange({digits: value, isEnforced: true})
+    }
   }
 
   private get value(): number {
     const {isEnforced, digits} = this.props
+
     if (!isEnforced) {
       return
     }
