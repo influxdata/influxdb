@@ -72,6 +72,14 @@ export class TableOptions extends Component<Props, {}> {
       onSetDecimalPlaces,
     } = this.props
 
+    const filteredColumns = fieldOptions.filter(
+      col =>
+        col.internalName !== 'time' &&
+        col.internalName !== '' &&
+        col.internalName !== 'result' &&
+        col.internalName !== 'table'
+    )
+
     const {fixFirstColumn, verticalTimeAxis, sortBy} = tableOptions
 
     return (
@@ -109,7 +117,7 @@ export class TableOptions extends Component<Props, {}> {
           onToggleFixFirstColumn={this.handleToggleFixFirstColumn}
         />
         <ColumnOptions
-          columns={fieldOptions}
+          columns={filteredColumns}
           onMoveColumn={this.handleMoveColumn}
           onUpdateColumn={this.handleUpdateColumn}
         />
