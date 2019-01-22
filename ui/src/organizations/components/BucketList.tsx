@@ -11,7 +11,7 @@ import {OverlayTechnology, IndexList} from 'src/clockface'
 // Types
 import {OverlayState} from 'src/types/v2'
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
-import {DataLoaderStep, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {Substep, DataLoaderStep, DataLoaderType} from 'src/types/v2/dataLoaders'
 
 interface Props {
   buckets: PrettyBucket[]
@@ -24,6 +24,7 @@ interface State {
   bucketID: string
   bucketOverlayState: OverlayState
   dataLoadersOverlayState: OverlayState
+  dataLoaderType: DataLoaderType
 }
 
 class BucketList extends PureComponent<Props & WithRouterProps, State> {
@@ -44,6 +45,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
       dataLoadersOverlayState: openDataLoaderOverlay
         ? OverlayState.Open
         : OverlayState.Closed,
+      dataLoaderType: DataLoaderType.Empty,
     }
   }
 
@@ -82,9 +84,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
           onCompleteSetup={this.handleDismissDataLoaders}
           bucket={this.bucket}
           buckets={buckets}
-          startingStep={DataLoaderStep.Select}
-          startingSubstep={0}
-          startingType={DataLoaderType.Empty}
+          {...this.startingValues}
         />
       </>
     )
@@ -92,6 +92,33 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
 
   private get bucket(): PrettyBucket {
     return this.props.buckets.find(b => b.id === this.state.bucketID)
+  }
+
+  private get startingValues(): {
+    startingType: DataLoaderType
+    startingStep: number
+    startingSubstep?: Substep
+  } {
+    const {dataLoaderType} = this.state
+
+    switch (dataLoaderType) {
+      case DataLoaderType.Streaming:
+        return {
+          startingType: DataLoaderType.Streaming,
+          startingStep: DataLoaderStep.Select,
+          startingSubstep: 'streaming',
+        }
+      case DataLoaderType.Scraping:
+        return {
+          startingType: DataLoaderType.Scraping,
+          startingStep: DataLoaderStep.Configure,
+        }
+      case DataLoaderType.LineProtocol:
+        return {
+          startingType: DataLoaderType.LineProtocol,
+          startingStep: DataLoaderStep.Configure,
+        }
+    }
   }
 
   private handleCloseModal = () => {
@@ -102,10 +129,14 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     this.setState({bucketID: bucket.id, bucketOverlayState: OverlayState.Open})
   }
 
-  private handleStartAddData = (bucket: PrettyBucket) => {
+  private handleStartAddData = (
+    bucket: PrettyBucket,
+    dataLoaderType: DataLoaderType
+  ) => {
     this.setState({
       bucketID: bucket.id,
       dataLoadersOverlayState: OverlayState.Open,
+      dataLoaderType,
     })
   }
 

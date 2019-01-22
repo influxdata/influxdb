@@ -23,7 +23,6 @@ interface Props {
   text?: string
   title
   color?: ComponentColor
-  buttonColor?: ComponentColor
   shape?: ButtonShape
   onBoostZIndex?: (boostZIndex: boolean) => void
 }
@@ -36,7 +35,6 @@ interface State {
 class ContextMenu extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
     color: ComponentColor.Primary,
-    buttonColor: ComponentColor.Default,
     shape: ButtonShape.Square,
     text: '',
   }
@@ -50,7 +48,7 @@ class ContextMenu extends Component<Props, State> {
   }
 
   public render() {
-    const {icon, text, shape, buttonColor} = this.props
+    const {icon, text, shape, color} = this.props
 
     return (
       <ClickOutside onClickOutside={this.handleCollapseMenu}>
@@ -62,7 +60,7 @@ class ContextMenu extends Component<Props, State> {
             shape={shape}
             icon={icon}
             size={ComponentSize.ExtraSmall}
-            color={buttonColor}
+            color={color}
           />
           {this.menu}
         </div>
