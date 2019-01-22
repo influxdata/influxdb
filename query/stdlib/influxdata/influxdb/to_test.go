@@ -88,12 +88,19 @@ func TestToOpSpec_BucketsAccessed(t *testing.T) {
 	t.Skip("https://github.com/influxdata/flux/issues/114")
 	bucketName := "my_bucket"
 	orgName := "my_org"
+	id := platform.ID(1)
 	tests := []querytest.BucketAwareQueryTestCase{
 		{
 			Name:             "from() with bucket and to with org and bucket",
 			Raw:              `from(bucket:"my_bucket") |> to(bucket:"my_bucket", org:"my_org")`,
 			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
 			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, Organization: &orgName}},
+		},
+		{
+			Name:             "from() with bucket and to with orgID and bucket",
+			Raw:              `from(bucket:"my_bucket") |> to(bucket:"my_bucket", orgID:"0000000000000001")`,
+			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
+			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, OrganizationID: &id}},
 		},
 	}
 
