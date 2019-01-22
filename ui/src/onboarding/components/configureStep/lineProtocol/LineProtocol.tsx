@@ -61,7 +61,7 @@ export class LineProtocol extends PureComponent<Props> {
               <h5 className="wizard-step--sub-title">
                 Need help writing InfluxDB Line Protocol? See Documentation
               </h5>
-              {this.Content}
+              {this.content}
             </div>
           </FancyScrollbar>
         </div>
@@ -77,7 +77,7 @@ export class LineProtocol extends PureComponent<Props> {
     return [LineProtocolTab.UploadFile, LineProtocolTab.EnterManually]
   }
 
-  private get Content(): JSX.Element {
+  private get content(): JSX.Element {
     const {bucket, org} = this.props
     return (
       <LineProtocolTabs
@@ -89,7 +89,7 @@ export class LineProtocol extends PureComponent<Props> {
     )
   }
 
-  private handleSubmit = () => {
+  private handleSubmit = async () => {
     const {
       bucket,
       org,
