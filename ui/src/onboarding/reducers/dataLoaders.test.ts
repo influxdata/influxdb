@@ -410,7 +410,7 @@ describe('dataLoader reducer', () => {
 
     const expected = {
       ...INITIAL_STATE,
-      scraperTarget: {bucket: 'a', url: ''},
+      scraperTarget: {bucket: 'a', url: 'http://127.0.0.1:9999/metrics'},
     }
 
     expect(actual).toEqual(expected)

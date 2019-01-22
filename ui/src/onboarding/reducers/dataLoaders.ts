@@ -34,7 +34,7 @@ export const INITIAL_STATE: DataLoadersState = {
   precision: WritePrecision.Ns,
   telegrafConfigID: null,
   pluginBundles: [],
-  scraperTarget: {bucket: '', url: ''},
+  scraperTarget: {bucket: '', url: 'http://127.0.0.1:9999/metrics'},
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {

@@ -56,29 +56,25 @@ describe('PluginsSideBar', () => {
   })
 
   describe('if there is not a telegraf config id', () => {
-    it('renders the streaming sources button but not download config button', () => {
+    it('does not render the download config button', () => {
       const {wrapper} = setup({currentStepIndex: 3})
 
       const downloadButton = wrapper.find('[data-test="download"]')
-      const addNewSourceButton = wrapper.find('[data-test="new"]')
 
       expect(downloadButton.exists()).toBe(false)
-      expect(addNewSourceButton.exists()).toBe(true)
     })
   })
 
   describe('if there is a telegraf config id', () => {
-    it('renders the streaming sources button and the download config button', () => {
+    it('renders the download config button', () => {
       const {wrapper} = setup({
         currentStepIndex: 3,
         telegrafConfigID: 'ajefoiaijesfk',
       })
 
       const downloadButton = wrapper.find('[data-test="download"]')
-      const addNewSourceButton = wrapper.find('[data-test="new"]')
 
       expect(downloadButton.exists()).toBe(true)
-      expect(addNewSourceButton.exists()).toBe(true)
     })
   })
 })

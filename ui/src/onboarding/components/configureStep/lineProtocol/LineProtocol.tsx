@@ -30,7 +30,6 @@ interface OwnProps {
   org: string
   onClickNext: () => void
   onClickBack: () => void
-  onClickSkip: () => void
 }
 
 interface StateProps {
@@ -68,10 +67,7 @@ export class LineProtocol extends PureComponent<Props> {
         </div>
         <OnboardingButtons
           onClickBack={this.props.onClickBack}
-          onClickSkip={this.props.onClickSkip}
-          showSkip={true}
           autoFocusNext={true}
-          skipButtonText={'Skip Config'}
         />
       </Form>
     )

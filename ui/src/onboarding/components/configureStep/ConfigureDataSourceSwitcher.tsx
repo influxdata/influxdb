@@ -79,7 +79,6 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
             org={org}
             onClickNext={onClickNext}
             onClickBack={onClickPrevious}
-            onClickSkip={onClickSkip}
           />
         )
       case DataLoaderType.Scraping:
@@ -87,7 +86,6 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
           <Scraping
             onClickNext={onClickNext}
             onClickBack={onClickPrevious}
-            onClickSkip={onClickSkip}
             buckets={buckets}
           />
         )

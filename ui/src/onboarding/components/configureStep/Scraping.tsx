@@ -23,7 +23,6 @@ import {AppState} from 'src/types/v2/index'
 interface OwnProps {
   onClickNext: () => void
   onClickBack: () => void
-  onClickSkip: () => void
   buckets: Bucket[]
 }
 
@@ -57,13 +56,7 @@ export class Scraping extends PureComponent<Props> {
   }
 
   public render() {
-    const {
-      scraperBucket,
-      onClickBack,
-      onClickSkip,
-      onSetScraperTargetURL,
-      url,
-    } = this.props
+    const {scraperBucket, onClickBack, onSetScraperTargetURL, url} = this.props
 
     return (
       <Form onSubmit={this.handleSubmit}>
@@ -87,10 +80,7 @@ export class Scraping extends PureComponent<Props> {
         </div>
         <OnboardingButtons
           onClickBack={onClickBack}
-          onClickSkip={onClickSkip}
-          showSkip={true}
           autoFocusNext={false}
-          skipButtonText={'Skip'}
           nextButtonStatus={this.nextButtonStatus}
           nextButtonText={'Finish'}
         />
