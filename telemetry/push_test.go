@@ -15,6 +15,7 @@ import (
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 )
 
 func TestPusher_Push(t *testing.T) {
@@ -122,9 +123,10 @@ func TestPusher_Push(t *testing.T) {
 			url := srv.URL
 			client := srv.Client()
 			p := &Pusher{
-				URL:    url,
-				Gather: tt.gather,
-				Client: client,
+				URL:        url,
+				Gather:     tt.gather,
+				Client:     client,
+				PushFormat: expfmt.FmtProtoDelim,
 			}
 			if err := p.Push(ctx); (err != nil) != tt.wantErr {
 				t.Errorf("Pusher.Push() error = %v, wantErr %v", err, tt.wantErr)

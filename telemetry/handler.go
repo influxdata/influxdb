@@ -28,6 +28,7 @@ var (
 )
 
 // PushGateway handles receiving prometheus push metrics and forwards them to the Store.
+// If Format is not set, the format of the inbound metrics are used.
 type PushGateway struct {
 	Timeout  time.Duration // handler returns after this duration with an error; defaults to 5 seconds
 	MaxBytes int64         // maximum number of bytes to read from the body; defaults to 1024000
@@ -35,6 +36,8 @@ type PushGateway struct {
 
 	Store        Store
 	Transformers []prometheus.Transformer
+
+	Format expfmt.Format
 }
 
 // NewPushGateway constructs the PushGateway.
@@ -78,6 +81,10 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 		p.MaxBytes = DefaultMaxBytes
 	}
 
+	if p.Format == "" {
+		p.Format = expfmt.FmtText
+	}
+
 	ctx, cancel := context.WithTimeout(
 		r.Context(),
 		p.Timeout,
@@ -85,8 +92,16 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	r = r.WithContext(ctx)
+	defer r.Body.Close()
 
-	mfs, err := decodePostMetricsRequest(r, p.MaxBytes)
+	format, err := metricsFormat(r.Header)
+	if err != nil {
+		p.Logger.Error("metrics format not support", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	mfs, err := decodePostMetricsRequest(r.Body, format, p.MaxBytes)
 	if err != nil {
 		p.Logger.Error("unable to decode metrics", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -103,7 +118,14 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 		mfs = transformer.Transform(mfs)
 	}
 
-	data, err := prometheus.EncodeJSON(mfs)
+	var data []byte
+	switch p.Format {
+	case "JSON":
+		data, err = prometheus.EncodeJSON(mfs)
+	default:
+		data, err = prometheus.EncodeExpfmt(mfs, p.Format)
+	}
+
 	if err != nil {
 		p.Logger.Error("unable to encode metric families", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -119,15 +141,17 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func decodePostMetricsRequest(req *http.Request, maxBytes int64) ([]*dto.MetricFamily, error) {
-	format := expfmt.ResponseFormat(req.Header)
+func metricsFormat(headers http.Header) (expfmt.Format, error) {
+	format := expfmt.ResponseFormat(headers)
 	if format == expfmt.FmtUnknown {
-		return nil, fmt.Errorf("unknown format metrics format")
+		return "", fmt.Errorf("unknown format metrics format")
 	}
+	return format, nil
+}
 
+func decodePostMetricsRequest(body io.Reader, format expfmt.Format, maxBytes int64) ([]*dto.MetricFamily, error) {
 	// protect against reading too many bytes
-	r := io.LimitReader(req.Body, maxBytes)
-	defer req.Body.Close()
+	r := io.LimitReader(body, maxBytes)
 
 	mfs, err := prometheus.DecodeExpfmt(r, format)
 	if err != nil {

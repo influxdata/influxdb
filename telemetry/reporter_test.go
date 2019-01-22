@@ -27,6 +27,7 @@ func TestReport(t *testing.T) {
 	}
 
 	gw := NewPushGateway(logger, store, timestamps)
+	gw.Format = "JSON"
 
 	ts := httptest.NewServer(http.HandlerFunc(gw.Handler))
 	defer ts.Close()

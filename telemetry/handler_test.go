@@ -113,6 +113,7 @@ func TestPushGateway_Handler(t *testing.T) {
 					now: tt.fields.now,
 				},
 			)
+			p.Format = "JSON"
 			tt.args.r.Header.Set("Content-Type", tt.contentType)
 			p.Handler(tt.args.w, tt.args.r)
 
@@ -142,13 +143,6 @@ func Test_decodePostMetricsRequest(t *testing.T) {
 		want        []*dto.MetricFamily
 		wantErr     bool
 	}{
-		{
-			name: "invalid response format is an error",
-			args: args{
-				req: httptest.NewRequest("POST", "/", nil),
-			},
-			wantErr: true,
-		},
 		{
 			name: "bad body returns no metrics",
 			args: args{
@@ -216,7 +210,7 @@ func Test_decodePostMetricsRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.args.req.Header.Set("Content-Type", tt.contentType)
-			got, err := decodePostMetricsRequest(tt.args.req, tt.args.maxBytes)
+			got, err := decodePostMetricsRequest(tt.args.req.Body, expfmt.Format(tt.contentType), tt.args.maxBytes)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("decodePostMetricsRequest() error = %v, wantErr %v", err, tt.wantErr)
 				return
