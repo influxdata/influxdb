@@ -394,7 +394,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			Writer: pointsWriter,
 		},
 	})
-	scraperScheduler, err := gather.NewScheduler(10, m.logger, scraperTargetSvc, publisher, subscriber, 0, 0)
+	scraperScheduler, err := gather.NewScheduler(10, m.logger, scraperTargetSvc, publisher, subscriber, 10*time.Second, 0)
 	if err != nil {
 		m.logger.Error("failed to create scraper subscriber", zap.Error(err))
 		return err
