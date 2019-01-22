@@ -10,14 +10,15 @@ import DashboardsList from 'src/me/components/DashboardsList'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import {Panel, Spinner} from 'src/clockface'
 
+// Constants
+import {VERSION, GIT_SHA} from 'src/shared/constants'
+
 // APIs
 import {getOrganizations, getDashboards} from 'src/organizations/apis'
 
 // Types
 import {Dashboard, MeState} from 'src/types/v2'
 import {Organization} from 'src/api'
-
-const VERSION = process.env.npm_package_version
 
 interface Props {
   me: MeState
@@ -72,7 +73,10 @@ class ResourceLists extends PureComponent<Props> {
             <Support />
           </Panel.Body>
           <Panel.Footer>
-            <p>Version {VERSION}</p>
+            <p>
+              Version {VERSION}{' '}
+              {GIT_SHA && <code>({GIT_SHA.slice(0, 7)})</code>}
+            </p>
           </Panel.Footer>
         </Panel>
       </>

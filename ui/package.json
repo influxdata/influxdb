@@ -16,8 +16,8 @@
     "src": "./src"
   },
   "scripts": {
-    "start": "npm i && parcel watch -d build src/index.html",
-    "build": "parcel build -d build --no-source-maps --log-level 2 src/index.html",
+    "start": "npm i && GIT_SHA=$(git rev-parse HEAD) parcel watch -d build src/index.html",
+    "build": "GIT_SHA=$(git rev-parse HEAD) parcel build -d build --no-source-maps --log-level 2 src/index.html",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules",
     "test": "jest --maxWorkers=2",
     "test:watch": "jest --watch --verbose false",
