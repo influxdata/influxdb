@@ -1,5 +1,5 @@
 // APIs
-import {QueryBuilderFetcher} from 'src/shared/apis/v2/queryBuilder'
+import {queryBuilderFetcher} from 'src/shared/apis/v2/queryBuilder'
 
 // Utils
 import {
@@ -13,8 +13,6 @@ import {Dispatch} from 'redux-thunk'
 import {GetState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
 import {CancellationError} from 'src/types/promises'
-
-const fetcher = new QueryBuilderFetcher()
 
 export type Action =
   | SetBuilderBucketSelectionAction
@@ -207,7 +205,7 @@ export const loadBuckets = () => async (
 
   try {
     const queryURL = getActiveQuerySource(getState()).links.query
-    const buckets = await fetcher.findBuckets(queryURL)
+    const buckets = await queryBuilderFetcher.findBuckets(queryURL)
     const selectedBucket = getActiveQuery(getState()).builderConfig.buckets[0]
 
     dispatch(setBuilderBuckets(buckets))
@@ -254,7 +252,7 @@ export const loadTagSelector = (index: number) => async (
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .keysSearchTerm
 
-    const keys = await fetcher.findKeys(
+    const keys = await queryBuilderFetcher.findKeys(
       index,
       queryURL,
       buckets[0],
@@ -306,7 +304,7 @@ const loadTagSelectorValues = (index: number) => async (
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm
-    const values = await fetcher.findValues(
+    const values = await queryBuilderFetcher.findValues(
       index,
       queryURL,
       buckets[0],
@@ -394,8 +392,8 @@ export const addTagSelector = () => async (
 export const removeTagSelector = (index: number) => async (
   dispatch: Dispatch<Action>
 ) => {
-  fetcher.cancelFindValues(index)
-  fetcher.cancelFindKeys(index)
+  queryBuilderFetcher.cancelFindValues(index)
+  queryBuilderFetcher.cancelFindKeys(index)
 
   dispatch(removeTagSelectorSync(index))
   dispatch(loadTagSelector(index))

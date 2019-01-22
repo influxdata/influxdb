@@ -144,7 +144,7 @@ function formatSearchFilterCall(searchTerm: string) {
   return `\n  |> filter(fn: (r) => r._value =~ /(?i:${searchTerm})/)`
 }
 
-export class QueryBuilderFetcher {
+class QueryBuilderFetcher {
   private findBucketsQuery: CancelableQuery
   private findKeysQueries: CancelableQuery[] = []
   private findValuesQueries: CancelableQuery[] = []
@@ -249,4 +249,12 @@ export class QueryBuilderFetcher {
       this.findValuesQueries[index].cancel()
     }
   }
+
+  public clearCache(): void {
+    this.findBucketsCache = {}
+    this.findKeysCache = {}
+    this.findValuesCache = {}
+  }
 }
+
+export const queryBuilderFetcher = new QueryBuilderFetcher()
