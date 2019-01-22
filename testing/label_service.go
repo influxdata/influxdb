@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 )
 
@@ -20,8 +20,8 @@ var labelCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []*platform.Label) []*platform.Label {
-		out := append([]*platform.Label(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*influxdb.Label) []*influxdb.Label {
+		out := append([]*influxdb.Label(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].Name < out[j].Name
 		})
@@ -31,19 +31,19 @@ var labelCmpOptions = cmp.Options{
 
 // LabelFields include the IDGenerator, labels and their mappings
 type LabelFields struct {
-	Labels      []*platform.Label
-	Mappings    []*platform.LabelMapping
-	IDGenerator platform.IDGenerator
+	Labels      []*influxdb.Label
+	Mappings    []*influxdb.LabelMapping
+	IDGenerator influxdb.IDGenerator
 }
 
 type labelServiceF func(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 )
 
 // LabelService tests all the service functions.
 func LabelService(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 ) {
 	tests := []struct {
@@ -87,15 +87,15 @@ func LabelService(
 }
 
 func CreateLabel(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		label *platform.Label
+		label *influxdb.Label
 	}
 	type wants struct {
 		err    error
-		labels []*platform.Label
+		labels []*influxdb.Label
 	}
 
 	tests := []struct {
@@ -108,10 +108,10 @@ func CreateLabel(
 			name: "basic create label",
 			fields: LabelFields{
 				IDGenerator: mock.NewIDGenerator(labelOneID, t),
-				Labels:      []*platform.Label{},
+				Labels:      []*influxdb.Label{},
 			},
 			args: args{
-				label: &platform.Label{
+				label: &influxdb.Label{
 					Name: "Tag2",
 					Properties: map[string]string{
 						"color": "fff000",
@@ -119,7 +119,7 @@ func CreateLabel(
 				},
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag2",
@@ -134,26 +134,26 @@ func CreateLabel(
 		// 	name: "duplicate labels fail",
 		// 	fields: LabelFields{
 		// 		IDGenerator: mock.NewIDGenerator(labelTwoID, t),
-		// 		Labels: []*platform.Label{
+		// 		Labels: []*influxdb.Label{
 		// 			{
 		// 				Name: "Tag1",
 		// 			},
 		// 		},
 		// 	},
 		// 	args: args{
-		// 		label: &platform.Label{
+		// 		label: &influxdb.Label{
 		// 			Name: "Tag1",
 		// 		},
 		// 	},
 		// 	wants: wants{
-		// 		labels: []*platform.Label{
+		// 		labels: []*influxdb.Label{
 		// 			{
 		// 				Name: "Tag1",
 		// 			},
 		// 		},
-		// 		err: &platform.Error{
-		// 			Code: platform.EConflict,
-		// 			Op:   platform.OpCreateLabel,
+		// 		err: &influxdb.Error{
+		// 			Code: influxdb.EConflict,
+		// 			Op:   influxdb.OpCreateLabel,
 		// 			Msg:  "label Tag1 already exists",
 		// 		},
 		// 	},
@@ -170,7 +170,7 @@ func CreateLabel(
 
 			defer s.DeleteLabel(ctx, tt.args.label.ID)
 
-			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
+			labels, err := s.FindLabels(ctx, influxdb.LabelFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve labels: %v", err)
 			}
@@ -182,15 +182,15 @@ func CreateLabel(
 }
 
 func FindLabels(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		filter platform.LabelFilter
+		filter influxdb.LabelFilter
 	}
 	type wants struct {
 		err    error
-		labels []*platform.Label
+		labels []*influxdb.Label
 	}
 
 	tests := []struct {
@@ -202,7 +202,7 @@ func FindLabels(
 		{
 			name: "basic find labels",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -214,10 +214,10 @@ func FindLabels(
 				},
 			},
 			args: args{
-				filter: platform.LabelFilter{},
+				filter: influxdb.LabelFilter{},
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -232,7 +232,7 @@ func FindLabels(
 		{
 			name: "find labels filtering",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -244,12 +244,12 @@ func FindLabels(
 				},
 			},
 			args: args{
-				filter: platform.LabelFilter{
+				filter: influxdb.LabelFilter{
 					Name: "Tag1",
 				},
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -275,15 +275,15 @@ func FindLabels(
 }
 
 func FindLabelByID(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		id platform.ID
+		id influxdb.ID
 	}
 	type wants struct {
 		err   error
-		label *platform.Label
+		label *influxdb.Label
 	}
 
 	tests := []struct {
@@ -295,7 +295,7 @@ func FindLabelByID(
 		{
 			name: "find label by ID",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -310,7 +310,7 @@ func FindLabelByID(
 				id: MustIDBase16(labelOneID),
 			},
 			wants: wants{
-				label: &platform.Label{
+				label: &influxdb.Label{
 					ID:   MustIDBase16(labelOneID),
 					Name: "Tag1",
 				},
@@ -319,16 +319,16 @@ func FindLabelByID(
 		{
 			name: "label does not exist",
 			fields: LabelFields{
-				Labels: []*platform.Label{},
+				Labels: []*influxdb.Label{},
 			},
 			args: args{
 				id: MustIDBase16(labelOneID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindLabelByID,
-					Msg:  "label not found",
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindLabelByID,
+					Err:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -350,16 +350,16 @@ func FindLabelByID(
 }
 
 func UpdateLabel(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		labelID platform.ID
-		update  platform.LabelUpdate
+		labelID influxdb.ID
+		update  influxdb.LabelUpdate
 	}
 	type wants struct {
 		err    error
-		labels []*platform.Label
+		labels []*influxdb.Label
 	}
 
 	tests := []struct {
@@ -371,7 +371,7 @@ func UpdateLabel(
 		{
 			name: "update label properties",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -380,14 +380,14 @@ func UpdateLabel(
 			},
 			args: args{
 				labelID: MustIDBase16(labelOneID),
-				update: platform.LabelUpdate{
+				update: influxdb.LabelUpdate{
 					Properties: map[string]string{
 						"color": "fff000",
 					},
 				},
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -401,7 +401,7 @@ func UpdateLabel(
 		{
 			name: "replacing a label property",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -414,14 +414,14 @@ func UpdateLabel(
 			},
 			args: args{
 				labelID: MustIDBase16(labelOneID),
-				update: platform.LabelUpdate{
+				update: influxdb.LabelUpdate{
 					Properties: map[string]string{
 						"color": "abc123",
 					},
 				},
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -436,7 +436,7 @@ func UpdateLabel(
 		{
 			name: "deleting a label property",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -449,14 +449,14 @@ func UpdateLabel(
 			},
 			args: args{
 				labelID: MustIDBase16(labelOneID),
-				update: platform.LabelUpdate{
+				update: influxdb.LabelUpdate{
 					Properties: map[string]string{
 						"description": "",
 					},
 				},
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -470,7 +470,7 @@ func UpdateLabel(
 		// {
 		// 	name: "label update proliferation",
 		// 	fields: LabelFields{
-		// 		Labels: []*platform.Label{
+		// 		Labels: []*influxdb.Label{
 		// 			{
 		// 				ResourceID: MustIDBase16(bucketOneID),
 		// 				Name:       "Tag1",
@@ -482,16 +482,16 @@ func UpdateLabel(
 		// 		},
 		// 	},
 		// 	args: args{
-		// 		label: platform.Label{
+		// 		label: influxdb.Label{
 		// 			ResourceID: MustIDBase16(bucketOneID),
 		// 			Name:       "Tag1",
 		// 		},
-		// 		update: platform.LabelUpdate{
+		// 		update: influxdb.LabelUpdate{
 		// 			Color: &validColor,
 		// 		},
 		// 	},
 		// 	wants: wants{
-		// 		labels: []*platform.Label{
+		// 		labels: []*influxdb.Label{
 		// 			{
 		// 				ResourceID: MustIDBase16(bucketOneID),
 		// 				Name:       "Tag1",
@@ -508,22 +508,22 @@ func UpdateLabel(
 		{
 			name: "updating a non-existent label",
 			fields: LabelFields{
-				Labels: []*platform.Label{},
+				Labels: []*influxdb.Label{},
 			},
 			args: args{
 				labelID: MustIDBase16(labelOneID),
-				update: platform.LabelUpdate{
+				update: influxdb.LabelUpdate{
 					Properties: map[string]string{
 						"color": "fff000",
 					},
 				},
 			},
 			wants: wants{
-				labels: []*platform.Label{},
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpUpdateLabel,
-					Msg:  "label not found",
+				labels: []*influxdb.Label{},
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpUpdateLabel,
+					Err:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -537,7 +537,7 @@ func UpdateLabel(
 			_, err := s.UpdateLabel(ctx, tt.args.labelID, tt.args.update)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
+			labels, err := s.FindLabels(ctx, influxdb.LabelFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve labels: %v", err)
 			}
@@ -549,15 +549,15 @@ func UpdateLabel(
 }
 
 func DeleteLabel(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		labelID platform.ID
+		labelID influxdb.ID
 	}
 	type wants struct {
 		err    error
-		labels []*platform.Label
+		labels []*influxdb.Label
 	}
 
 	tests := []struct {
@@ -569,7 +569,7 @@ func DeleteLabel(
 		{
 			name: "basic delete label",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -584,7 +584,7 @@ func DeleteLabel(
 				labelID: MustIDBase16(labelOneID),
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelTwoID),
 						Name: "Tag2",
@@ -595,7 +595,7 @@ func DeleteLabel(
 		{
 			name: "deleting a non-existant label",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -606,16 +606,16 @@ func DeleteLabel(
 				labelID: MustIDBase16(labelTwoID),
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
 					},
 				},
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpDeleteLabel,
-					Msg:  "label not found",
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpDeleteLabel,
+					Err:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -629,7 +629,7 @@ func DeleteLabel(
 			err := s.DeleteLabel(ctx, tt.args.labelID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			labels, err := s.FindLabels(ctx, platform.LabelFilter{})
+			labels, err := s.FindLabels(ctx, influxdb.LabelFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve labels: %v", err)
 			}
@@ -641,16 +641,16 @@ func DeleteLabel(
 }
 
 func CreateLabelMapping(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		mapping *platform.LabelMapping
-		filter  *platform.LabelMappingFilter
+		mapping *influxdb.LabelMapping
+		filter  *influxdb.LabelMappingFilter
 	}
 	type wants struct {
 		err    error
-		labels []*platform.Label
+		labels []*influxdb.Label
 	}
 
 	tests := []struct {
@@ -662,7 +662,7 @@ func CreateLabelMapping(
 		{
 			name: "create label mapping",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -670,16 +670,16 @@ func CreateLabelMapping(
 				},
 			},
 			args: args{
-				mapping: &platform.LabelMapping{
+				mapping: &influxdb.LabelMapping{
 					LabelID:    IDPtr(MustIDBase16(labelOneID)),
 					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
 				},
-				filter: &platform.LabelMappingFilter{
+				filter: &influxdb.LabelMappingFilter{
 					ResourceID: MustIDBase16(bucketOneID),
 				},
 			},
 			wants: wants{
-				labels: []*platform.Label{
+				labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
@@ -691,19 +691,19 @@ func CreateLabelMapping(
 			name: "mapping to a nonexistent label",
 			fields: LabelFields{
 				IDGenerator: mock.NewIDGenerator(labelOneID, t),
-				Labels:      []*platform.Label{},
+				Labels:      []*influxdb.Label{},
 			},
 			args: args{
-				mapping: &platform.LabelMapping{
+				mapping: &influxdb.LabelMapping{
 					LabelID:    IDPtr(MustIDBase16(labelOneID)),
 					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
 				},
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpDeleteLabel,
-					Msg:  "label not found",
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpDeleteLabel,
+					Err:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -711,10 +711,10 @@ func CreateLabelMapping(
 		// 	name: "duplicate label mappings",
 		// 	fields: LabelFields{
 		// 		IDGenerator: mock.NewIDGenerator(labelOneID, t),
-		// 		Labels:      []*platform.Label{},
+		// 		Labels:      []*influxdb.Label{},
 		// 	},
 		// 	args: args{
-		// 		label: &platform.Label{
+		// 		label: &influxdb.Label{
 		// 			Name: "Tag2",
 		// 			Properties: map[string]string{
 		// 				"color": "fff000",
@@ -722,7 +722,7 @@ func CreateLabelMapping(
 		// 		},
 		// 	},
 		// 	wants: wants{
-		// 		labels: []*platform.Label{
+		// 		labels: []*influxdb.Label{
 		// 			{
 		// 				ID:   MustIDBase16(labelOneID),
 		// 				Name: "Tag2",
@@ -761,16 +761,16 @@ func CreateLabelMapping(
 }
 
 func DeleteLabelMapping(
-	init func(LabelFields, *testing.T) (platform.LabelService, string, func()),
+	init func(LabelFields, *testing.T) (influxdb.LabelService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		mapping *platform.LabelMapping
-		filter  platform.LabelMappingFilter
+		mapping *influxdb.LabelMapping
+		filter  influxdb.LabelMappingFilter
 	}
 	type wants struct {
 		err    error
-		labels []*platform.Label
+		labels []*influxdb.Label
 	}
 
 	tests := []struct {
@@ -782,13 +782,13 @@ func DeleteLabelMapping(
 		{
 			name: "delete label mapping",
 			fields: LabelFields{
-				Labels: []*platform.Label{
+				Labels: []*influxdb.Label{
 					{
 						ID:   MustIDBase16(labelOneID),
 						Name: "Tag1",
 					},
 				},
-				Mappings: []*platform.LabelMapping{
+				Mappings: []*influxdb.LabelMapping{
 					{
 						LabelID:    IDPtr(MustIDBase16(labelOneID)),
 						ResourceID: IDPtr(MustIDBase16(bucketOneID)),
@@ -796,16 +796,16 @@ func DeleteLabelMapping(
 				},
 			},
 			args: args{
-				mapping: &platform.LabelMapping{
+				mapping: &influxdb.LabelMapping{
 					LabelID:    IDPtr(MustIDBase16(labelOneID)),
 					ResourceID: IDPtr(MustIDBase16(bucketOneID)),
 				},
-				filter: platform.LabelMappingFilter{
+				filter: influxdb.LabelMappingFilter{
 					ResourceID: MustIDBase16(bucketOneID),
 				},
 			},
 			wants: wants{
-				labels: []*platform.Label{},
+				labels: []*influxdb.Label{},
 			},
 		},
 	}
