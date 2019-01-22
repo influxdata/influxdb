@@ -68,7 +68,7 @@ func newOrganizationService(f Flags) (platform.OrganizationService, error) {
 func organizationCreateF(cmd *cobra.Command, args []string) error {
 	orgSvc, err := newOrganizationService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
 	o := &platform.Organization{
@@ -76,7 +76,7 @@ func organizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := orgSvc.CreateOrganization(context.Background(), o); err != nil {
-		return err
+		return fmt.Errorf("failed to create organization: %v", err)
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -117,7 +117,7 @@ func init() {
 func organizationFindF(cmd *cobra.Command, args []string) error {
 	orgSvc, err := newOrganizationService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
 	filter := platform.OrganizationFilter{}
@@ -128,14 +128,14 @@ func organizationFindF(cmd *cobra.Command, args []string) error {
 	if organizationFindFlags.id != "" {
 		id, err := platform.IDFromString(organizationFindFlags.id)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode org id %s: %v", organizationFindFlags.id, err)
 		}
 		filter.ID = id
 	}
 
 	orgs, _, err := orgSvc.FindOrganizations(context.Background(), filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed find orgs: %v", err)
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -179,12 +179,12 @@ func init() {
 func organizationUpdateF(cmd *cobra.Command, args []string) error {
 	orgSvc, err := newOrganizationService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(organizationUpdateFlags.id); err != nil {
-		return err
+		return fmt.Errorf("failed to decode org id %s: %v", organizationUpdateFlags.id, err)
 	}
 
 	update := platform.OrganizationUpdate{}
@@ -194,7 +194,7 @@ func organizationUpdateF(cmd *cobra.Command, args []string) error {
 
 	o, err := orgSvc.UpdateOrganization(context.Background(), id, update)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update org: %v", err)
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -221,22 +221,22 @@ var organizationDeleteFlags OrganizationDeleteFlags
 func organizationDeleteF(cmd *cobra.Command, args []string) error {
 	orgSvc, err := newOrganizationService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(organizationDeleteFlags.id); err != nil {
-		return err
+		return fmt.Errorf("failed to decode org id %s: %v", organizationDeleteFlags.id, err)
 	}
 
 	ctx := context.TODO()
 	o, err := orgSvc.FindOrganizationByID(ctx, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find org with id %q: %v", id, err)
 	}
 
 	if err = orgSvc.DeleteOrganization(ctx, id); err != nil {
-		return err
+		return fmt.Errorf("failed to delete org with id %q: %v", id, err)
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -290,12 +290,12 @@ var organizationMembersListFlags OrganizationMembersListFlags
 func organizationMembersListF(cmd *cobra.Command, args []string) error {
 	orgSvc, err := newOrganizationService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
 	mappingSvc, err := newUserResourceMappingService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize members service client: %v", err)
 	}
 
 	if organizationMembersListFlags.id == "" && organizationMembersListFlags.name == "" {
@@ -311,14 +311,14 @@ func organizationMembersListF(cmd *cobra.Command, args []string) error {
 		var fID platform.ID
 		err := fID.DecodeFromString(organizationMembersListFlags.id)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersListFlags.id, err)
 		}
 		filter.ID = &fID
 	}
 
 	organization, err := orgSvc.FindOrganization(context.Background(), filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find org: %v", err)
 	}
 
 	mappingFilter := platform.UserResourceMappingFilter{
@@ -328,7 +328,7 @@ func organizationMembersListF(cmd *cobra.Command, args []string) error {
 
 	mappings, _, err := mappingSvc.FindUserResourceMappings(context.Background(), mappingFilter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find members: %v", err)
 	}
 
 	// TODO: look up each user and output their name
@@ -362,7 +362,7 @@ func init() {
 type OrganizationMembersAddFlags struct {
 	name     string
 	id       string
-	memberId string
+	memberID string
 }
 
 var organizationMembersAddFlags OrganizationMembersAddFlags
@@ -395,20 +395,20 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 		var fID platform.ID
 		err := fID.DecodeFromString(organizationMembersAddFlags.id)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersAddFlags.id, err)
 		}
 		filter.ID = &fID
 	}
 
 	organization, err := orgSvc.FindOrganization(context.Background(), filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find org: %v", err)
 	}
 
 	var memberID platform.ID
-	err = memberID.DecodeFromString(organizationMembersAddFlags.memberId)
+	err = memberID.DecodeFromString(organizationMembersAddFlags.memberID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decode member id %s: %v", organizationMembersAddFlags.memberID, err)
 	}
 
 	mapping := &platform.UserResourceMapping{
@@ -418,7 +418,7 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 	}
 
 	if err = mappingS.CreateUserResourceMapping(context.Background(), mapping); err != nil {
-		return err
+		return fmt.Errorf("failed to add member: %v", err)
 	}
 
 	return nil
@@ -433,7 +433,7 @@ func init() {
 
 	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "The organization ID")
 	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "The organization name")
-	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.memberId, "member", "o", "", "The member ID")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.memberID, "member", "o", "", "The member ID")
 	organizationMembersAddCmd.MarkFlagRequired("member")
 
 	organizationMembersCmd.AddCommand(organizationMembersAddCmd)
@@ -443,7 +443,7 @@ func init() {
 type OrganizationMembersRemoveFlags struct {
 	name     string
 	id       string
-	memberId string
+	memberID string
 }
 
 var organizationMembersRemoveFlags OrganizationMembersRemoveFlags
@@ -476,24 +476,24 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 		var fID platform.ID
 		err := fID.DecodeFromString(organizationMembersRemoveFlags.id)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersRemoveFlags.id, err)
 		}
 		filter.ID = &fID
 	}
 
 	organization, err := orgSvc.FindOrganization(context.Background(), filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find organization: %v", err)
 	}
 
 	var memberID platform.ID
-	err = memberID.DecodeFromString(organizationMembersRemoveFlags.memberId)
+	err = memberID.DecodeFromString(organizationMembersRemoveFlags.memberID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decode member id %s: %v", organizationMembersRemoveFlags.memberID, err)
 	}
 
 	if err = mappingS.DeleteUserResourceMapping(context.Background(), organization.ID, memberID); err != nil {
-		return err
+		return fmt.Errorf("failed to remove member: %v", err)
 	}
 
 	return nil
@@ -508,7 +508,7 @@ func init() {
 
 	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "The organization ID")
 	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "The organization name")
-	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberId, "member", "o", "", "The member ID")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberID, "member", "o", "", "The member ID")
 	organizationMembersRemoveCmd.MarkFlagRequired("member")
 
 	organizationMembersCmd.AddCommand(organizationMembersRemoveCmd)
