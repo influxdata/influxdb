@@ -32,6 +32,7 @@ type APIHandler struct {
 	WriteHandler         *WriteHandler
 	SetupHandler         *SetupHandler
 	SessionHandler       *SessionHandler
+	SwaggerHandler       http.HandlerFunc
 }
 
 // APIBackend is all services and associated parameters required to construct
@@ -153,6 +154,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.ChronografHandler = NewChronografHandler(b.ChronografService)
 
+	h.SwaggerHandler = SwaggerHandler()
+
 	return h
 }
 
@@ -182,6 +185,7 @@ var apiLinks = map[string]interface{}{
 	"signout":  "/api/v2/signout",
 	"sources":  "/api/v2/sources",
 	"scrapers": "/api/v2/scrapers",
+	"swagger":  "/api/v2/swagger.json",
 	"system": map[string]string{
 		"metrics": "/metrics",
 		"debug":   "/debug/pprof",
@@ -301,6 +305,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/chronograf/") {
 		h.ChronografHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if r.URL.Path == "/api/v2/swagger.json" {
+		h.SwaggerHandler.ServeHTTP(w, r)
 		return
 	}
 

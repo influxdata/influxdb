@@ -10,6 +10,7 @@ import (
 // PlatformHandler is a collection of all the service handlers.
 type PlatformHandler struct {
 	AssetHandler *AssetHandler
+	DocsHandler  http.HandlerFunc
 	APIHandler   http.Handler
 }
 
@@ -33,12 +34,14 @@ func NewPlatformHandler(b *APIBackend) *PlatformHandler {
 	h.RegisterNoAuthRoute("POST", "/api/v2/signout")
 	h.RegisterNoAuthRoute("POST", "/api/v2/setup")
 	h.RegisterNoAuthRoute("GET", "/api/v2/setup")
+	h.RegisterNoAuthRoute("GET", "/api/v2/swagger.json")
 
 	assetHandler := NewAssetHandler()
 	assetHandler.DeveloperMode = b.DeveloperMode
 
 	return &PlatformHandler{
 		AssetHandler: assetHandler,
+		DocsHandler:  Redoc("/api/v2/swagger.json"),
 		APIHandler:   h,
 	}
 }
@@ -47,6 +50,11 @@ func NewPlatformHandler(b *APIBackend) *PlatformHandler {
 func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	setCORSResponseHeaders(w, r)
 	if r.Method == "OPTIONS" {
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/docs") {
+		h.DocsHandler.ServeHTTP(w, r)
 		return
 	}
 
