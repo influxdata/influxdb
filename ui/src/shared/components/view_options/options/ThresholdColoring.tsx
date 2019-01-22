@@ -62,7 +62,7 @@ class ThresholdColoring extends PureComponent<Props> {
   private get activeSetting(): ThresholdColoringSetting {
     const {colors} = this.props
     const activeSetting: ThresholdColoringSetting = get(
-      colors,
+      colors.filter(c => c.type !== 'scale'),
       '0.type',
       ThresholdColoringSetting.Text
     )
