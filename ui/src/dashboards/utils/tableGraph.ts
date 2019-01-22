@@ -259,9 +259,12 @@ export const transformTableData = (
 ): TransformTableDataReturnType => {
   const {verticalTimeAxis} = tableOptions
 
-  const resolvedFieldOptions = resolveFieldOptions(fieldOptions, data[0])
-
   const excludedData = excludeNoisyColumns(data)
+
+  const resolvedFieldOptions = resolveFieldOptions(
+    fieldOptions,
+    excludedData[0]
+  )
 
   const {sortedData, sortedTimeVals} = sortTableData(excludedData, sortOptions)
 
