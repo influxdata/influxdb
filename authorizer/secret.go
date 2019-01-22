@@ -53,12 +53,12 @@ func authorizeWriteSecret(ctx context.Context, orgID influxdb.ID) error {
 
 // LoadSecret checks to see if the authorizer on context has read access to the secret key provided.
 func (s *SecretService) LoadSecret(ctx context.Context, orgID influxdb.ID, key string) (string, error) {
-	secret, err := s.s.LoadSecret(ctx, orgID, key)
-	if err != nil {
+	if err := authorizeReadSecret(ctx, orgID); err != nil {
 		return "", err
 	}
 
-	if err := authorizeReadSecret(ctx, orgID); err != nil {
+	secret, err := s.s.LoadSecret(ctx, orgID, key)
+	if err != nil {
 		return "", err
 	}
 
@@ -67,12 +67,12 @@ func (s *SecretService) LoadSecret(ctx context.Context, orgID influxdb.ID, key s
 
 // GetSecretKeys checks to see if the authorizer on context has read access to all the secrets belonging to orgID.
 func (s *SecretService) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]string, error) {
-	secrets, err := s.s.GetSecretKeys(ctx, orgID)
-	if err != nil {
+	if err := authorizeReadSecret(ctx, orgID); err != nil {
 		return []string{}, err
 	}
 
-	if err := authorizeReadSecret(ctx, orgID); err != nil {
+	secrets, err := s.s.GetSecretKeys(ctx, orgID)
+	if err != nil {
 		return []string{}, err
 	}
 

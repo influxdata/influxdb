@@ -250,6 +250,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
+				org: influxdb.ID(10),
 			},
 			wants: wants{
 				err: &influxdb.Error{

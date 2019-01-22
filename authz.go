@@ -115,7 +115,7 @@ const (
 	MacrosResourceType = ResourceType("macros") // 8
 	// ScraperResourceType gives permission to one or more scrapers.
 	ScraperResourceType = ResourceType("scrapers") // 9
-	// SecretsResourceType gives permission to one or more scrapers.
+	// SecretsResourceType gives permission to one or more secrets.
 	SecretsResourceType = ResourceType("secrets") // 10
 )
 
