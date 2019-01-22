@@ -75,7 +75,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 		return err
 	}
 
-	// TODO(mr): decide whether we allow user to configure scheduleAfter. https://github.com/influxdata/influxdb/issues/595
+	// TODO(mr): decide whether we allow user to configure scheduleAfter. https://github.com/influxdata/influxdb/issues/10884
 	scheduleAfter := time.Now().Unix()
 
 	if t.Status == "" {
@@ -95,8 +95,15 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 		return err
 	}
 	t.ID = id
-	t.Every = opts.Every.String()
 	t.Cron = opts.Cron
+	t.Name = opts.Name
+
+	if opts.Every != 0 {
+		t.Every = opts.Every.String()
+	}
+	if opts.Offset != 0 {
+		t.Offset = opts.Offset.String()
+	}
 
 	return nil
 }
