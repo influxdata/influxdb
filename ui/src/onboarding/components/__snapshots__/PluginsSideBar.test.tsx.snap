@@ -21,14 +21,5 @@ exports[`PluginsSideBar rendering renders! wee! 1`] = `
     onClick={[MockFunction]}
     status="success"
   />
-  <SideBarButton
-    color="default"
-    data-test="new"
-    icon="plus"
-    key="Add New Source"
-    onClick={[MockFunction]}
-    text="Add New Source"
-    titleText="Add New Source"
-  />
 </SideBar>
 `;

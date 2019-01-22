@@ -156,7 +156,6 @@ class DataLoadersWizard extends PureComponent<Props> {
             title="Plugins to Configure"
             visible={this.sideBarVisible}
             currentStepIndex={currentStepIndex}
-            onNewSourceClick={this.handleNewSourceClick}
           />
           <div className="wizard-step--container">
             <StepSwitcher
@@ -232,13 +231,6 @@ class DataLoadersWizard extends PureComponent<Props> {
     const isNotEmpty = telegrafPlugins.length > 0
 
     return isStreaming && isNotEmpty
-  }
-
-  private handleNewSourceClick = () => {
-    const {onSetSubstepIndex, onSetActiveTelegrafPlugin} = this.props
-
-    onSetActiveTelegrafPlugin('')
-    onSetSubstepIndex(DataLoaderStep.Select, 'streaming')
   }
 
   private handleClickSideBarTab = (telegrafPluginID: string) => {

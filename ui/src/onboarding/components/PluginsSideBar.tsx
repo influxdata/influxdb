@@ -27,7 +27,6 @@ interface Props {
   notify: NotificationAction
   onTabClick: (tabID: string) => void
   currentStepIndex: number
-  onNewSourceClick: () => void
 }
 
 const configStateToTabStatus = (cs: ConfigurationState): TabStatus => {
@@ -86,29 +85,13 @@ class PluginsSideBar extends Component<Props> {
     )
   }
 
-  private get addSourceButton(): JSX.Element {
-    const {onNewSourceClick} = this.props
-
-    return (
-      <SideBar.Button
-        text="Add New Source"
-        key="Add New Source"
-        titleText="Add New Source"
-        data-test="new"
-        color={ComponentColor.Default}
-        icon={IconFont.Plus}
-        onClick={onNewSourceClick}
-      />
-    )
-  }
-
   private get buttons(): JSX.Element[] {
     const {telegrafConfigID} = this.props
 
     if (telegrafConfigID) {
-      return [this.downloadButton, this.addSourceButton]
+      return [this.downloadButton]
     }
-    return [this.addSourceButton]
+    return []
   }
 
   private handleDownload = async () => {
