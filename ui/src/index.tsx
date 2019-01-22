@@ -98,7 +98,7 @@ class Root extends PureComponent {
                       <Route component={App}>
                         <Route component={GetSources}>
                           <Route component={SetActiveSource}>
-                            <IndexRoute component={DashboardsIndex} />
+                            <IndexRoute component={MePage} />
                             <Route path="organizations">
                               <IndexRoute component={OrganizationsIndex} />
                               <Route
