@@ -160,19 +160,31 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	points, err := models.ParsePointsWithPrecision(data, time.Now(), req.Precision)
 	if err != nil {
 		logger.Info("Error parsing points", zap.Error(err))
-		EncodeError(ctx, err, w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   "http/handleWrite",
+			Err:  err,
+		}, w)
 		return
 	}
 
 	exploded, err := tsdb.ExplodePoints(org.ID, bucket.ID, points)
 	if err != nil {
 		logger.Info("Error exploding points", zap.Error(err))
-		EncodeError(ctx, err, w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   "http/handleWrite",
+			Err:  err,
+		}, w)
 		return
 	}
 
 	if err := h.PointsWriter.WritePoints(exploded); err != nil {
-		EncodeError(ctx, errors.BadRequestError(err.Error()), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   "http/handleWrite",
+			Err:  err,
+		}, w)
 		return
 	}
 
