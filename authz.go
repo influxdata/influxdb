@@ -117,6 +117,8 @@ const (
 	ScraperResourceType = ResourceType("scrapers") // 9
 	// SecretsResourceType gives permission to one or more secrets.
 	SecretsResourceType = ResourceType("secrets") // 10
+	// LabelsResourceType gives permission to one or more labels.
+	LabelsResourceType = ResourceType("labels") // 11
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -132,6 +134,7 @@ var AllResourceTypes = []ResourceType{
 	MacrosResourceType,         // 8
 	ScraperResourceType,        // 9
 	SecretsResourceType,        // 10
+	LabelsResourceType,         // 11
 }
 
 // OrgResourceTypes is the list of all known resource types that belong to an organization.
@@ -165,6 +168,7 @@ func (t ResourceType) Valid() (err error) {
 	case MacrosResourceType: // 8
 	case ScraperResourceType: // 9
 	case SecretsResourceType: // 10
+	case LabelsResourceType: // 11
 	default:
 		err = ErrInvalidResourceType
 	}
