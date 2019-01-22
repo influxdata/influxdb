@@ -5,6 +5,7 @@ import {connect} from 'react-redux'
 // Components
 import TimeMachineQueryTabName from 'src/shared/components/TimeMachineQueryTabName'
 import RightClick from 'src/clockface/components/right_click_menu/RightClick'
+import TimeMachineQueriesTimer from 'src/shared/components/TimeMachineQueriesTimer'
 
 // Actions
 import {
@@ -23,6 +24,7 @@ import 'src/shared/components/TimeMachineQueryTab.scss'
 // Types
 import {AppState} from 'src/types/v2'
 import {DashboardDraftQuery} from 'src/types/v2/dashboards'
+import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   activeQueryIndex: number
@@ -39,6 +41,7 @@ interface DispatchProps {
 interface OwnProps {
   queryIndex: number
   query: DashboardDraftQuery
+  queriesState: QueriesState
 }
 
 type Props = StateProps & DispatchProps & OwnProps
@@ -79,6 +82,7 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
               onEdit={this.handleEditName}
               onCancelEdit={this.handleCancelEditName}
             />
+            {this.queriesTimer}
             {this.removeButton}
           </div>
         </RightClick.Trigger>
@@ -124,6 +128,19 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
 
   private handleEditName = (): void => {
     this.setState({isEditingName: true})
+  }
+
+  private get queriesTimer(): JSX.Element {
+    const {queriesState, queryIndex, activeQueryIndex} = this.props
+
+    if (queryIndex === activeQueryIndex) {
+      return (
+        <TimeMachineQueriesTimer
+          status={queriesState.loading}
+          duration={queriesState.duration}
+        />
+      )
+    }
   }
 
   private get removeButton(): JSX.Element {

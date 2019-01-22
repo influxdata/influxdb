@@ -17,7 +17,7 @@ const TimeMachineQueriesTimer: SFC<Props> = ({duration, status}) => {
 
   return (
     <div className={`time-machine-queries-timer ${visibleClass}`}>
-      {`Query Completed In ${(duration / 1000).toFixed(2)}s`}
+      {`(${(duration / 1000).toFixed(2)}s)`}
     </div>
   )
 }

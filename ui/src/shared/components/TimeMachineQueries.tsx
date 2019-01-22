@@ -11,7 +11,6 @@ import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import TimeMachineQueryTab from 'src/shared/components/TimeMachineQueryTab'
 import TimeMachineQueryBuilder from 'src/shared/components/TimeMachineQueryBuilder'
 import TimeMachineInfluxQLEditor from 'src/shared/components/TimeMachineInfluxQLEditor'
-import TimeMachineQueriesTimer from 'src/shared/components/TimeMachineQueriesTimer'
 import SubmitQueryButton from 'src/shared/components/SubmitQueryButton'
 import {
   Button,
@@ -91,6 +90,7 @@ class TimeMachineQueries extends PureComponent<Props> {
                 key={queryIndex}
                 queryIndex={queryIndex}
                 query={query}
+                queriesState={queriesState}
               />
             ))}
             <Button
@@ -103,10 +103,6 @@ class TimeMachineQueries extends PureComponent<Props> {
             />
           </div>
           <div className="time-machine-queries--buttons">
-            <TimeMachineQueriesTimer
-              status={queriesState.loading}
-              duration={queriesState.duration}
-            />
             <ComponentSpacer align={Alignment.Right}>
               <SlideToggle.Label text="View Raw Data" />
               <SlideToggle

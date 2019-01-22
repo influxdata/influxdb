@@ -2,8 +2,10 @@
 
 .time-machine-queries-timer {
   display: flex;
+  white-space: nowrap;
   align-items: center;
   font-size: 13px;
+  font-weight: 400;
   margin-right: 10px;
   color: $g10-wolf;
   transition: 0.3s;
