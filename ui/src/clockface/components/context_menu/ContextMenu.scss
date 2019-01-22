@@ -20,38 +20,27 @@ $context-menu--arrow-size: 8px;
 
 .context-menu--container {
   position: relative;
-  width: $context-menu--toggle-size;
-  height: $context-menu--toggle-size;
-}
 
-.context-menu--toggle {
-  position: relative;
-  width: $context-menu--toggle-size;
-  height: $context-menu--toggle-size;
-  border: 0;
-  border-radius: $radius-small;
-  background-color: $g2-kevlar;
-  color: $g13-mist;
-  transition: color 0.25s ease, background-color 0.25s ease;
-  outline: none;
-
-  &:hover {
-    cursor: pointer;
-    color: $g20-white;
-  }
-
-  &.active {
-    color: $g20-white;
+  .button {
+    position: relative;
+    border: 0;
+    border-radius: $radius-small;
+    background-color: $g2-kevlar;
+    color: $g13-mist;
+    transition: color 0.25s ease, background-color 0.25s ease;
+    outline: none;
+  
+    &:hover {
+      cursor: pointer;
+      color: $g20-white;
+    }
+  
+    &.active {
+      color: $g20-white;
+    }
   }
 }
 
-.context-menu--icon {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 13px;
-}
 
 .context-menu--list {
   @extend %drop-shadow;
@@ -126,6 +115,14 @@ $context-menu--arrow-size: 8px;
     font-style: italic;
     background-color: transparent;
   }
+}
+
+.contex-menu--item-description {
+  font-size: $ix-text-tiny;
+  font-weight: 400;
+  padding-top: $ix-marg-a;
+  white-space: normal;
+  width: 200px;
 }
 
 /* Alignment Modifiers */

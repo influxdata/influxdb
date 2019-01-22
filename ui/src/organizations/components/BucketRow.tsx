@@ -4,15 +4,17 @@ import React, {PureComponent} from 'react'
 // Components
 import {
   ComponentSize,
+  ButtonShape,
   IndexList,
   ConfirmationButton,
   Alignment,
-  Button,
+  Context,
   ComponentColor,
 } from 'src/clockface'
 
 // Types
 import {Bucket} from 'src/api'
+import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 export interface PrettyBucket extends Bucket {
   ruleString: string
@@ -22,7 +24,7 @@ interface Props {
   bucket: PrettyBucket
   onEditBucket: (b: PrettyBucket) => void
   onDeleteBucket: (b: PrettyBucket) => void
-  onAddData: (b: PrettyBucket) => void
+  onAddData: (b: PrettyBucket, d: DataLoaderType) => void
 }
 
 export default class BucketRow extends PureComponent<Props> {
@@ -47,12 +49,29 @@ export default class BucketRow extends PureComponent<Props> {
             />
           </IndexList.Cell>
           <IndexList.Cell alignment={Alignment.Right}>
-            <Button
-              text={'Add Data'}
-              onClick={this.handleClickAddData}
-              color={ComponentColor.Secondary}
-              size={ComponentSize.ExtraSmall}
-            />
+            <Context align={Alignment.Center}>
+              <Context.Menu
+                text="Add Data"
+                shape={ButtonShape.Default}
+                color={ComponentColor.Primary}
+              >
+                <Context.Item
+                  label="Configure Telegraf Agent"
+                  description="Configure a Telegraf agent to push data into your bucket."
+                  action={this.handleAddCollector}
+                />
+                <Context.Item
+                  label="Line Protocol"
+                  description="Quickly load an existing line protocol file."
+                  action={this.handleAddLineProtocol}
+                />
+                <Context.Item
+                  label="Scrape Metrics"
+                  description="Add a scrape target to pull data into your bucket."
+                  action={this.handleAddScraper}
+                />
+              </Context.Menu>
+            </Context>
           </IndexList.Cell>
         </IndexList.Row>
       </>
@@ -63,7 +82,15 @@ export default class BucketRow extends PureComponent<Props> {
     this.props.onEditBucket(this.props.bucket)
   }
 
-  private handleClickAddData = (): void => {
-    this.props.onAddData(this.props.bucket)
+  private handleAddCollector = (): void => {
+    this.props.onAddData(this.props.bucket, DataLoaderType.Streaming)
+  }
+
+  private handleAddLineProtocol = (): void => {
+    this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol)
+  }
+
+  private handleAddScraper = (): void => {
+    this.props.onAddData(this.props.bucket, DataLoaderType.Scraping)
   }
 }

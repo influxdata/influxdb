@@ -59,7 +59,7 @@ export class SelectDataSourceStep extends PureComponent<Props> {
               <div className="wizard-step--scroll-content">
                 <h3 className="wizard-step--title">{this.title}</h3>
                 <h5 className="wizard-step--sub-title">
-                  You will be able to configure additional Data Sources later
+                  Telegraf collects and writes metrics to a bucket in InfluxDB.
                 </h5>
                 {this.selector}
               </div>
@@ -94,8 +94,7 @@ export class SelectDataSourceStep extends PureComponent<Props> {
   private get title(): string {
     const {bucket} = this.props
     if (this.isStreaming) {
-      return `Select Streaming Data Sources to add to ${bucket ||
-        'your bucket'}`
+      return `Select Telegraf Plugins to add to ${bucket || 'your bucket'}`
     }
     return `Select a Data Source to add to ${bucket || 'your bucket'}`
   }

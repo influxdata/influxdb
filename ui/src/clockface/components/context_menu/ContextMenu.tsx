@@ -5,16 +5,25 @@ import classnames from 'classnames'
 // Components
 import ContextMenuItem from 'src/clockface/components/context_menu/ContextMenuItem'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
+import Button from 'src/clockface/components/Button'
 
 // Types
-import {IconFont, ComponentColor} from 'src/clockface/types'
+import {
+  IconFont,
+  ComponentColor,
+  ComponentSize,
+  ButtonShape,
+} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element | JSX.Element[]
   icon: IconFont
+  text?: string
+  title
   color?: ComponentColor
+  shape?: ButtonShape
   onBoostZIndex?: (boostZIndex: boolean) => void
 }
 
@@ -26,6 +35,8 @@ interface State {
 class ContextMenu extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
     color: ComponentColor.Primary,
+    shape: ButtonShape.Square,
+    text: '',
   }
 
   constructor(props: Props) {
@@ -37,17 +48,20 @@ class ContextMenu extends Component<Props, State> {
   }
 
   public render() {
-    const {icon} = this.props
+    const {icon, text, shape, color} = this.props
 
     return (
       <ClickOutside onClickOutside={this.handleCollapseMenu}>
         <div className="context-menu--container">
-          <button
-            className={this.toggleClassName}
+          <Button
+            customClass={this.toggleClassName}
             onClick={this.handleExpandMenu}
-          >
-            <span className={`context-menu--icon icon ${icon}`} />
-          </button>
+            text={text}
+            shape={shape}
+            icon={icon}
+            size={ComponentSize.ExtraSmall}
+            color={color}
+          />
           {this.menu}
         </div>
       </ClickOutside>
