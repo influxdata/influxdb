@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 
 	bolt "github.com/coreos/bbolt"
-	platform "github.com/influxdata/influxdb"
+	influxdb "github.com/influxdata/influxdb"
 )
 
 var (
@@ -27,8 +27,8 @@ func (c *Client) initializeLabels(ctx context.Context, tx *bolt.Tx) error {
 }
 
 // FindLabelByID finds a label by its ID
-func (c *Client) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
-	var l *platform.Label
+func (c *Client) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+	var l *influxdb.Label
 
 	err := c.db.View(func(tx *bolt.Tx) error {
 		label, pe := c.findLabelByID(ctx, tx, id)
@@ -40,8 +40,8 @@ func (c *Client) FindLabelByID(ctx context.Context, id platform.ID) (*platform.L
 	})
 
 	if err != nil {
-		return nil, &platform.Error{
-			Op:  getOp(platform.OpFindLabelByID),
+		return nil, &influxdb.Error{
+			Op:  getOp(influxdb.OpFindLabelByID),
 			Err: err,
 		}
 	}
@@ -49,26 +49,26 @@ func (c *Client) FindLabelByID(ctx context.Context, id platform.ID) (*platform.L
 	return l, nil
 }
 
-func (c *Client) findLabelByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Label, *platform.Error) {
+func (c *Client) findLabelByID(ctx context.Context, tx *bolt.Tx, id influxdb.ID) (*influxdb.Label, *influxdb.Error) {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
 
-	var l platform.Label
+	var l influxdb.Label
 	v := tx.Bucket(labelBucket).Get(encodedID)
 
 	if len(v) == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Msg:  "label not found",
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Err:  influxdb.ErrLabelNotFound,
 		}
 	}
 
 	if err := json.Unmarshal(v, &l); err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
@@ -76,15 +76,15 @@ func (c *Client) findLabelByID(ctx context.Context, tx *bolt.Tx, id platform.ID)
 	return &l, nil
 }
 
-func filterLabelsFn(filter platform.LabelFilter) func(l *platform.Label) bool {
-	return func(label *platform.Label) bool {
+func filterLabelsFn(filter influxdb.LabelFilter) func(l *influxdb.Label) bool {
+	return func(label *influxdb.Label) bool {
 		return (filter.Name == "" || (filter.Name == label.Name))
 	}
 }
 
 // FindLabels returns a list of labels that match a filter.
-func (c *Client) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
-	ls := []*platform.Label{}
+func (c *Client) FindLabels(ctx context.Context, filter influxdb.LabelFilter, opt ...influxdb.FindOptions) ([]*influxdb.Label, error) {
+	ls := []*influxdb.Label{}
 	err := c.db.View(func(tx *bolt.Tx) error {
 		labels, err := c.findLabels(ctx, tx, filter)
 		if err != nil {
@@ -101,10 +101,10 @@ func (c *Client) FindLabels(ctx context.Context, filter platform.LabelFilter, op
 	return ls, nil
 }
 
-func (c *Client) findLabels(ctx context.Context, tx *bolt.Tx, filter platform.LabelFilter) ([]*platform.Label, error) {
-	ls := []*platform.Label{}
+func (c *Client) findLabels(ctx context.Context, tx *bolt.Tx, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
+	ls := []*influxdb.Label{}
 	filterFn := filterLabelsFn(filter)
-	err := c.forEachLabel(ctx, tx, func(l *platform.Label) bool {
+	err := c.forEachLabel(ctx, tx, func(l *influxdb.Label) bool {
 		if filterFn(l) {
 			ls = append(ls, l)
 		}
@@ -118,35 +118,35 @@ func (c *Client) findLabels(ctx context.Context, tx *bolt.Tx, filter platform.La
 	return ls, nil
 }
 
-// func filterMappingsFn(filter platform.LabelMappingFilter) func(m *platform.LabelMapping) bool {
-// 	return func(mapping *platform.LabelMapping) bool {
+// func filterMappingsFn(filter influxdb.LabelMappingFilter) func(m *influxdb.LabelMapping) bool {
+// 	return func(mapping *influxdb.LabelMapping) bool {
 // 		return (filter.ResourceID.String() == mapping.ResourceID.String()) &&
 // 			(filter.LabelID == nil || filter.LabelID == mapping.LabelID)
 // 	}
 // }
 
-func decodeLabelMappingKey(key []byte) (resourceID platform.ID, labelID platform.ID, err error) {
-	if len(key) != 2*platform.IDLength {
-		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "malformed label mapping key (please report this error)"}
+func decodeLabelMappingKey(key []byte) (resourceID influxdb.ID, labelID influxdb.ID, err error) {
+	if len(key) != 2*influxdb.IDLength {
+		return 0, 0, &influxdb.Error{Code: influxdb.EInvalid, Msg: "malformed label mapping key (please report this error)"}
 	}
 
-	if err := (&resourceID).Decode(key[:platform.IDLength]); err != nil {
-		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "bad resource id", Err: platform.ErrInvalidID}
+	if err := (&resourceID).Decode(key[:influxdb.IDLength]); err != nil {
+		return 0, 0, &influxdb.Error{Code: influxdb.EInvalid, Msg: "bad resource id", Err: influxdb.ErrInvalidID}
 	}
 
-	if err := (&labelID).Decode(key[platform.IDLength:]); err != nil {
-		return 0, 0, &platform.Error{Code: platform.EInvalid, Msg: "bad label id", Err: platform.ErrInvalidID}
+	if err := (&labelID).Decode(key[influxdb.IDLength:]); err != nil {
+		return 0, 0, &influxdb.Error{Code: influxdb.EInvalid, Msg: "bad label id", Err: influxdb.ErrInvalidID}
 	}
 
 	return resourceID, labelID, nil
 }
 
-func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
+func (c *Client) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 	if !filter.ResourceID.Valid() {
-		return nil, &platform.Error{Code: platform.EInvalid, Msg: "filter requires a valid resource id", Err: platform.ErrInvalidID}
+		return nil, &influxdb.Error{Code: influxdb.EInvalid, Msg: "filter requires a valid resource id", Err: influxdb.ErrInvalidID}
 	}
 
-	ls := []*platform.Label{}
+	ls := []*influxdb.Label{}
 	err := c.db.View(func(tx *bolt.Tx) error {
 		cur := tx.Bucket(labelMappingBucket).Cursor()
 		prefix, err := filter.ResourceID.Encode()
@@ -173,9 +173,9 @@ func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMa
 	})
 
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
-			Op:  getOp(platform.OpFindLabelMapping),
+			Op:  getOp(influxdb.OpFindLabelMapping),
 		}
 	}
 
@@ -183,12 +183,12 @@ func (c *Client) FindResourceLabels(ctx context.Context, filter platform.LabelMa
 }
 
 // CreateLabelMapping creates a new mapping between a resource and a label.
-func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+func (c *Client) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	_, err := c.FindLabelByID(ctx, *m.LabelID)
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
-			Op:  getOp(platform.OpCreateLabel),
+			Op:  getOp(influxdb.OpCreateLabel),
 		}
 	}
 
@@ -197,9 +197,9 @@ func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMappin
 	})
 
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
-			Op:  getOp(platform.OpCreateLabel),
+			Op:  getOp(influxdb.OpCreateLabel),
 		}
 	}
 
@@ -207,29 +207,29 @@ func (c *Client) CreateLabelMapping(ctx context.Context, m *platform.LabelMappin
 }
 
 // DeleteLabelMapping deletes a label mapping.
-func (c *Client) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+func (c *Client) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		return c.deleteLabelMapping(ctx, tx, m)
 	})
 	if err != nil {
-		return &platform.Error{
-			Op:  getOp(platform.OpDeleteLabelMapping),
+		return &influxdb.Error{
+			Op:  getOp(influxdb.OpDeleteLabelMapping),
 			Err: err,
 		}
 	}
 	return nil
 }
 
-func (c *Client) deleteLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.LabelMapping) error {
+func (c *Client) deleteLabelMapping(ctx context.Context, tx *bolt.Tx, m *influxdb.LabelMapping) error {
 	key, err := labelMappingKey(m)
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
 		}
 	}
 
 	if err := tx.Bucket(labelMappingBucket).Delete(key); err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
 		}
 	}
@@ -238,7 +238,7 @@ func (c *Client) deleteLabelMapping(ctx context.Context, tx *bolt.Tx, m *platfor
 }
 
 // CreateLabel creates a new label.
-func (c *Client) CreateLabel(ctx context.Context, l *platform.Label) error {
+func (c *Client) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		l.ID = c.IDGenerator.ID()
 
@@ -246,16 +246,16 @@ func (c *Client) CreateLabel(ctx context.Context, l *platform.Label) error {
 	})
 
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
-			Op:  getOp(platform.OpCreateLabel),
+			Op:  getOp(influxdb.OpCreateLabel),
 		}
 	}
 	return nil
 }
 
 // PutLabel creates a label from the provided struct, without generating a new ID.
-func (c *Client) PutLabel(ctx context.Context, l *platform.Label) error {
+func (c *Client) PutLabel(ctx context.Context, l *influxdb.Label) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		var err error
 		pe := c.putLabel(ctx, tx, l)
@@ -266,19 +266,19 @@ func (c *Client) PutLabel(ctx context.Context, l *platform.Label) error {
 	})
 }
 
-func labelMappingKey(m *platform.LabelMapping) ([]byte, error) {
+func labelMappingKey(m *influxdb.LabelMapping) ([]byte, error) {
 	lid, err := m.LabelID.Encode()
 	if err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 
 	rid, err := m.ResourceID.Encode()
 	if err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
@@ -290,10 +290,10 @@ func labelMappingKey(m *platform.LabelMapping) ([]byte, error) {
 	return key, nil
 }
 
-func (c *Client) forEachLabel(ctx context.Context, tx *bolt.Tx, fn func(*platform.Label) bool) error {
+func (c *Client) forEachLabel(ctx context.Context, tx *bolt.Tx, fn func(*influxdb.Label) bool) error {
 	cur := tx.Bucket(labelBucket).Cursor()
 	for k, v := cur.First(); k != nil; k, v = cur.Next() {
-		l := &platform.Label{}
+		l := &influxdb.Label{}
 		if err := json.Unmarshal(v, l); err != nil {
 			return err
 		}
@@ -306,14 +306,14 @@ func (c *Client) forEachLabel(ctx context.Context, tx *bolt.Tx, fn func(*platfor
 }
 
 // UpdateLabel updates a label.
-func (c *Client) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
-	var label *platform.Label
+func (c *Client) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
+	var label *influxdb.Label
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		labelResponse, pe := c.updateLabel(ctx, tx, id, upd)
 		if pe != nil {
-			return &platform.Error{
+			return &influxdb.Error{
 				Err: pe,
-				Op:  getOp(platform.OpUpdateLabel),
+				Op:  getOp(influxdb.OpUpdateLabel),
 			}
 		}
 		label = labelResponse
@@ -323,7 +323,7 @@ func (c *Client) UpdateLabel(ctx context.Context, id platform.ID, upd platform.L
 	return label, err
 }
 
-func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	label, err := c.findLabelByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
@@ -342,14 +342,14 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, id platform.ID, u
 	}
 
 	if err := label.Validate(); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 
 	if err := c.putLabel(ctx, tx, label); err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
@@ -358,23 +358,23 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, id platform.ID, u
 }
 
 // set a label and overwrite any existing label
-func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) error {
+func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *influxdb.Label) error {
 	v, err := json.Marshal(l)
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
 		}
 	}
 
 	encodedID, err := l.ID.Encode()
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
 		}
 	}
 
 	if err := tx.Bucket(labelBucket).Put(encodedID, v); err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
 		}
 	}
@@ -383,7 +383,7 @@ func (c *Client) putLabel(ctx context.Context, tx *bolt.Tx, l *platform.Label) e
 }
 
 // PutLabelMapping writes a label mapping to boltdb
-func (c *Client) PutLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+func (c *Client) PutLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		var err error
 		pe := c.putLabelMapping(ctx, tx, m)
@@ -394,23 +394,23 @@ func (c *Client) PutLabelMapping(ctx context.Context, m *platform.LabelMapping) 
 	})
 }
 
-func (c *Client) putLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.LabelMapping) error {
+func (c *Client) putLabelMapping(ctx context.Context, tx *bolt.Tx, m *influxdb.LabelMapping) error {
 	v, err := json.Marshal(m)
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
 		}
 	}
 
 	key, err := labelMappingKey(m)
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
 		}
 	}
 
 	if err := tx.Bucket(labelMappingBucket).Put(key, v); err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
 		}
 	}
@@ -419,27 +419,27 @@ func (c *Client) putLabelMapping(ctx context.Context, tx *bolt.Tx, m *platform.L
 }
 
 // DeleteLabel deletes a label.
-func (c *Client) DeleteLabel(ctx context.Context, id platform.ID) error {
+func (c *Client) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		return c.deleteLabel(ctx, tx, id)
 	})
 	if err != nil {
-		return &platform.Error{
-			Op:  getOp(platform.OpDeleteLabel),
+		return &influxdb.Error{
+			Op:  getOp(influxdb.OpDeleteLabel),
 			Err: err,
 		}
 	}
 	return nil
 }
 
-func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
+func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, id influxdb.ID) error {
 	_, err := c.findLabelByID(ctx, tx, id)
 	if err != nil {
 		return err
 	}
 	encodedID, idErr := id.Encode()
 	if idErr != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: idErr,
 		}
 	}
@@ -447,7 +447,7 @@ func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, id platform.ID) e
 	return tx.Bucket(labelBucket).Delete(encodedID)
 }
 
-// func (c *Client) deleteLabels(ctx context.Context, tx *bolt.Tx, filter platform.LabelFilter) error {
+// func (c *Client) deleteLabels(ctx context.Context, tx *bolt.Tx, filter influxdb.LabelFilter) error {
 // 	ls, err := c.findLabels(ctx, tx, filter)
 // 	if err != nil {
 // 		return err
@@ -455,7 +455,7 @@ func (c *Client) deleteLabel(ctx context.Context, tx *bolt.Tx, id platform.ID) e
 // 	for _, l := range ls {
 // 		encodedID, idErr := l.ID.Encode()
 // 		if idErr != nil {
-// 			return &platform.Error{
+// 			return &influxdb.Error{
 // 				Err: idErr,
 // 			}
 // 		}

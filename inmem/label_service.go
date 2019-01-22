@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"path"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 )
 
-func (s *Service) loadLabel(ctx context.Context, id platform.ID) (*platform.Label, error) {
+func (s *Service) loadLabel(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 	i, ok := s.labelKV.Load(id.String())
 	if !ok {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Msg:  "label not found",
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Err:  influxdb.ErrLabelNotFound,
 		}
 	}
 
-	l, ok := i.(platform.Label)
+	l, ok := i.(influxdb.Label)
 	if !ok {
 		return nil, fmt.Errorf("type %T is not a label", i)
 	}
@@ -25,10 +25,10 @@ func (s *Service) loadLabel(ctx context.Context, id platform.ID) (*platform.Labe
 	return &l, nil
 }
 
-func (s *Service) forEachLabel(ctx context.Context, fn func(m *platform.Label) bool) error {
+func (s *Service) forEachLabel(ctx context.Context, fn func(m *influxdb.Label) bool) error {
 	var err error
 	s.labelKV.Range(func(k, v interface{}) bool {
-		l, ok := v.(platform.Label)
+		l, ok := v.(influxdb.Label)
 		if !ok {
 			err = fmt.Errorf("type %T is not a label", v)
 			return false
@@ -39,10 +39,10 @@ func (s *Service) forEachLabel(ctx context.Context, fn func(m *platform.Label) b
 	return err
 }
 
-func (s *Service) forEachLabelMapping(ctx context.Context, fn func(m *platform.LabelMapping) bool) error {
+func (s *Service) forEachLabelMapping(ctx context.Context, fn func(m *influxdb.LabelMapping) bool) error {
 	var err error
 	s.labelMappingKV.Range(func(k, v interface{}) bool {
-		m, ok := v.(platform.LabelMapping)
+		m, ok := v.(influxdb.LabelMapping)
 		if !ok {
 			err = fmt.Errorf("type %T is not a label mapping", v)
 			return false
@@ -53,9 +53,9 @@ func (s *Service) forEachLabelMapping(ctx context.Context, fn func(m *platform.L
 	return err
 }
 
-func (s *Service) filterLabels(ctx context.Context, fn func(m *platform.Label) bool) ([]*platform.Label, error) {
-	labels := []*platform.Label{}
-	err := s.forEachLabel(ctx, func(l *platform.Label) bool {
+func (s *Service) filterLabels(ctx context.Context, fn func(m *influxdb.Label) bool) ([]*influxdb.Label, error) {
+	labels := []*influxdb.Label{}
+	err := s.forEachLabel(ctx, func(l *influxdb.Label) bool {
 		if fn(l) {
 			labels = append(labels, l)
 		}
@@ -69,9 +69,9 @@ func (s *Service) filterLabels(ctx context.Context, fn func(m *platform.Label) b
 	return labels, nil
 }
 
-func (s *Service) filterLabelMappings(ctx context.Context, fn func(m *platform.LabelMapping) bool) ([]*platform.LabelMapping, error) {
-	mappings := []*platform.LabelMapping{}
-	err := s.forEachLabelMapping(ctx, func(m *platform.LabelMapping) bool {
+func (s *Service) filterLabelMappings(ctx context.Context, fn func(m *influxdb.LabelMapping) bool) ([]*influxdb.LabelMapping, error) {
+	mappings := []*influxdb.LabelMapping{}
+	err := s.forEachLabelMapping(ctx, func(m *influxdb.LabelMapping) bool {
 		if fn(m) {
 			mappings = append(mappings, m)
 		}
@@ -85,26 +85,26 @@ func (s *Service) filterLabelMappings(ctx context.Context, fn func(m *platform.L
 	return mappings, nil
 }
 
-func encodeLabelMappingKey(m *platform.LabelMapping) string {
+func encodeLabelMappingKey(m *influxdb.LabelMapping) string {
 	return path.Join(m.ResourceID.String(), m.LabelID.String())
 }
 
 // FindLabelByID returns a single user by ID.
-func (s *Service) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
+func (s *Service) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 	return s.loadLabel(ctx, id)
 }
 
 // FindLabels will retrieve a list of labels from storage.
-func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
+func (s *Service) FindLabels(ctx context.Context, filter influxdb.LabelFilter, opt ...influxdb.FindOptions) ([]*influxdb.Label, error) {
 	if filter.ID.Valid() {
 		l, err := s.FindLabelByID(ctx, filter.ID)
 		if err != nil {
 			return nil, err
 		}
-		return []*platform.Label{l}, nil
+		return []*influxdb.Label{l}, nil
 	}
 
-	filterFunc := func(label *platform.Label) bool {
+	filterFunc := func(label *influxdb.Label) bool {
 		return (filter.Name == "" || (filter.Name == label.Name))
 	}
 
@@ -117,8 +117,8 @@ func (s *Service) FindLabels(ctx context.Context, filter platform.LabelFilter, o
 }
 
 // FindResourceLabels returns a list of labels that are mapped to a resource.
-func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
-	filterFunc := func(mapping *platform.LabelMapping) bool {
+func (s *Service) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+	filterFunc := func(mapping *influxdb.LabelMapping) bool {
 		return (filter.ResourceID.String() == mapping.ResourceID.String())
 	}
 
@@ -127,7 +127,7 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelM
 		return nil, err
 	}
 
-	ls := []*platform.Label{}
+	ls := []*influxdb.Label{}
 	for _, m := range mappings {
 		l, err := s.FindLabelByID(ctx, *m.LabelID)
 		if err != nil {
@@ -141,19 +141,19 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter platform.LabelM
 }
 
 // CreateLabel creates a new label.
-func (s *Service) CreateLabel(ctx context.Context, l *platform.Label) error {
+func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	l.ID = s.IDGenerator.ID()
 	s.labelKV.Store(l.ID, *l)
 	return nil
 }
 
 // CreateLabelMapping creates a mapping that associates a label to a resource.
-func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+func (s *Service) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	_, err := s.FindLabelByID(ctx, *m.LabelID)
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
-			Op:  platform.OpCreateLabel,
+			Op:  influxdb.OpCreateLabel,
 		}
 	}
 
@@ -162,14 +162,13 @@ func (s *Service) CreateLabelMapping(ctx context.Context, m *platform.LabelMappi
 }
 
 // UpdateLabel updates a label.
-func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	label, err := s.FindLabelByID(ctx, id)
 	if err != nil {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Op:   OpPrefix + platform.OpUpdateLabel,
-			Err:  err,
-			Msg:  "label not found",
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   OpPrefix + influxdb.OpUpdateLabel,
+			Err:  influxdb.ErrLabelNotFound,
 		}
 	}
 
@@ -186,9 +185,9 @@ func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd platform.
 	}
 
 	if err := label.Validate(); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
-			Op:   OpPrefix + platform.OpUpdateLabel,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Op:   OpPrefix + influxdb.OpUpdateLabel,
 			Err:  err,
 		}
 	}
@@ -200,20 +199,19 @@ func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd platform.
 
 // PutLabel writes a label directly to the database without generating IDs
 // or making checks.
-func (s *Service) PutLabel(ctx context.Context, l *platform.Label) error {
+func (s *Service) PutLabel(ctx context.Context, l *influxdb.Label) error {
 	s.labelKV.Store(l.ID.String(), *l)
 	return nil
 }
 
 // DeleteLabel deletes a label.
-func (s *Service) DeleteLabel(ctx context.Context, id platform.ID) error {
+func (s *Service) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 	label, err := s.FindLabelByID(ctx, id)
 	if label == nil && err != nil {
-		return &platform.Error{
-			Code: platform.ENotFound,
-			Op:   OpPrefix + platform.OpDeleteLabel,
-			Err:  platform.ErrLabelNotFound,
-			Msg:  "label not found",
+		return &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   OpPrefix + influxdb.OpDeleteLabel,
+			Err:  influxdb.ErrLabelNotFound,
 		}
 	}
 
@@ -222,7 +220,7 @@ func (s *Service) DeleteLabel(ctx context.Context, id platform.ID) error {
 }
 
 // DeleteLabelMapping deletes a label mapping.
-func (s *Service) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+func (s *Service) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	s.labelMappingKV.Delete(encodeLabelMappingKey(m))
 	return nil
 }
