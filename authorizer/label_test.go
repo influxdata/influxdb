@@ -476,7 +476,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			name: "authorized to create label",
 			fields: fields{
 				LabelService: &mock.LabelService{
-					CreateLabelFn: func(ctx context.Context, b *influxdb.Label) error {
+					CreateLabelFn: func(ctx context.Context, l *influxdb.Label) error {
 						return nil
 					},
 				},
@@ -527,6 +527,136 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
 			err := s.CreateLabel(ctx, &influxdb.Label{Name: "name"})
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+		})
+	}
+}
+
+func TestLabelService_CreateLabelMapping(t *testing.T) {
+	type fields struct {
+		LabelService influxdb.LabelService
+	}
+	type args struct {
+		mapping     influxdb.LabelMapping
+		permissions []influxdb.Permission
+	}
+	type wants struct {
+		err error
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "authorized to create label mapping",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				mapping: influxdb.LabelMapping{
+					LabelID:      1,
+					ResourceID:   2,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "write",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+						},
+					},
+					{
+						Action: "write",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							ID:   influxdbtesting.IDPtr(2),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
+			},
+		},
+		{
+			name: "unauthorized to create label mapping for resources on which the user does not have write access",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				mapping: influxdb.LabelMapping{
+					LabelID:      1,
+					ResourceID:   2,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "write",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.EUnauthorized,
+					Msg:  "write:buckets/0000000000000002 is unauthorized",
+				},
+			},
+		},
+		{
+			name: "unauthorized to create label mapping",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				mapping: influxdb.LabelMapping{
+					LabelID:      1,
+					ResourceID:   2,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "write:labels/0000000000000001 is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := authorizer.NewLabelService(tt.fields.LabelService)
+
+			ctx := context.Background()
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+
+			err := s.CreateLabelMapping(ctx, &tt.args.mapping)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
