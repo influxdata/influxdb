@@ -395,15 +395,19 @@ export const setPrecision = (precision: WritePrecision): SetPrecision => ({
   payload: {precision},
 })
 
-export const writeLineProtocolAction = (
-  org: string,
-  bucket: string,
-  body: string,
-  precision: WritePrecision
-) => async dispatch => {
+export const writeLineProtocolAction = () => async (
+  dispatch,
+  getState: GetState
+) => {
+  const {
+    dataLoading: {
+      dataLoaders: {lineProtocolBody, precision},
+      steps: {org, bucket},
+    },
+  } = getState()
   try {
     dispatch(setLPStatus(RemoteDataState.Loading))
-    await writeLineProtocol(org, bucket, body, precision)
+    await writeLineProtocol(org, bucket, lineProtocolBody, precision)
     dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
     dispatch(setLPStatus(RemoteDataState.Error))

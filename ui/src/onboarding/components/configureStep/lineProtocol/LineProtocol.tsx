@@ -90,15 +90,7 @@ export class LineProtocol extends PureComponent<Props> {
   }
 
   private handleSubmit = async () => {
-    const {
-      bucket,
-      org,
-      writeLineProtocolAction,
-      lineProtocolBody,
-      precision,
-    } = this.props
-
-    writeLineProtocolAction(org, bucket, lineProtocolBody, precision)
+    writeLineProtocolAction()
     this.props.onClickNext()
   }
 }
