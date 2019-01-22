@@ -39,6 +39,7 @@ import {
   telegrafConfig,
   dockerTelegrafPlugin,
 } from 'mocks/dummyData'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/onboarding/constants/pluginConfigs'
 
 // Types
 import {
@@ -410,7 +411,7 @@ describe('dataLoader reducer', () => {
 
     const expected = {
       ...INITIAL_STATE,
-      scraperTarget: {bucket: 'a', url: 'http://127.0.0.1:9999/metrics'},
+      scraperTarget: {bucket: 'a', url: QUICKSTART_SCRAPER_TARGET_URL},
     }
 
     expect(actual).toEqual(expected)

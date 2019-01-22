@@ -28,6 +28,8 @@ import {
   TelegrafPluginInputTail,
 } from 'src/api'
 
+export const QUICKSTART_SCRAPER_TARGET_URL = 'http://localhost:9999/metrics'
+
 interface PluginBundles {
   [bundleName: string]: TelegrafPluginName[]
 }

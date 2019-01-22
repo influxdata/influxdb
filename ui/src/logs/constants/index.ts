@@ -11,8 +11,6 @@ export const DEFAULT_TRUNCATION = true
 
 export const LOG_VIEW_NAME = 'LOGS_PAGE'
 
-export const QUICKSTART_SCRAPER_TARGET_URL = 'http://localhost:9999/metrics'
-
 export const EMPTY_VIEW_PROPERTIES: LogViewerView = {
   columns: [],
   type: ViewType.LogViewer,
