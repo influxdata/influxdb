@@ -18,12 +18,16 @@ const SelectorList: SFC<Props> = props => {
       <FancyScrollbar>
         {items.map(item => {
           const selectedClass = selectedItems.includes(item) ? 'selected' : ''
+          const title = selectedItems.includes(item)
+            ? 'Click to remove this filter'
+            : `Click to filter by ${item}`
 
           return (
             <div
               className={`selector-list--item ${selectedClass}`}
               key={item}
               onClick={() => onSelectItem(item)}
+              title={title}
             >
               {item}
             </div>

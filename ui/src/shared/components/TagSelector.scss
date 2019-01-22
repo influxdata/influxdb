@@ -26,9 +26,21 @@
   width: initial !important;
 }
 
-button.tag-selector--remove {
+button.tag-selector--remove,
+.tag-selector--count {
   flex: 0 0 $form-sm-height;
   margin-left: $ix-marg-b;
+}
+
+.tag-selector--count {
+  height: $form-sm-height;
+  background-color: $g2-kevlar;
+  border-radius: 50%;
+  text-align: center;
+  line-height: $form-sm-height;
+  font-weight: 900;
+  user-select: none;
+  color: $c-pool;
 }
 
 .tag-selector .selector-list {
