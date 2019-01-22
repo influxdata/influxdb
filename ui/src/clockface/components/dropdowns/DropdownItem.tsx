@@ -29,14 +29,15 @@ class DropdownItem extends Component<Props> {
     return (
       <div
         className={classnames('dropdown--item', {
-          active: selected,
+          checked: selected && checkbox,
+          active: selected && !checkbox,
           'multi-select--item': checkbox,
         })}
         onClick={this.handleClick}
       >
         {this.checkBox}
-        {this.dot}
         {this.childElements}
+        {this.dot}
       </div>
     )
   }
