@@ -2,6 +2,9 @@
 import {dashboardsAPI, cellsAPI} from 'src/utils/api'
 import _ from 'lodash'
 
+// Utils
+import {addLabelDefaults} from 'src/shared/utils/labels'
+
 // Types
 
 import {
@@ -36,7 +39,7 @@ export const getDashboards = async (): Promise<Dashboard[]> => {
 
   return data.dashboards.map(d => ({
     ...d,
-    labels: d.labels as Label[],
+    labels: d.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(d.cells, d.id),
   }))
 }
@@ -46,7 +49,7 @@ export const getDashboard = async (id: string): Promise<Dashboard> => {
 
   return {
     ...data,
-    labels: data.labels as Label[],
+    labels: data.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(data.cells, data.id),
   }
 }
@@ -58,7 +61,7 @@ export const createDashboard = async (
 
   return {
     ...data,
-    labels: data.labels as Label[],
+    labels: data.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(data.cells, data.id),
   }
 }
@@ -77,7 +80,7 @@ export const updateDashboard = async (
 
   return {
     ...data,
-    labels: data.labels as Label[],
+    labels: data.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(data.cells, data.id),
   }
 }

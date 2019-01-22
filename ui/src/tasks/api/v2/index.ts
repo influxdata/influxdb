@@ -1,5 +1,9 @@
 import _ from 'lodash'
 
+// Utils
+import {addLabelDefaults} from 'src/shared/utils/labels'
+
+// Types
 import {Task} from 'src/api'
 import {Label} from 'src/types/v2'
 import {taskAPI} from 'src/utils/api'
@@ -58,7 +62,7 @@ export const addTaskLabels = async (
 
   const {data} = await taskAPI.tasksTaskIDLabelsGet(taskID)
 
-  return data.labels as Label[]
+  return data.labels.map(addLabelDefaults)
 }
 
 export const removeTaskLabels = async (

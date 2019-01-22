@@ -1,19 +1,11 @@
+// API
 import {labelsAPI} from 'src/utils/api'
-import {Label} from 'src/types/v2/labels'
 
-import {DEFAULT_LABEL_COLOR_HEX} from 'src/configuration/constants/LabelColors'
+// Utils
+import {addLabelDefaults} from 'src/shared/utils/labels'
 
 // Types
-import {Label as APILabel} from 'src/api'
-
-const addLabelDefaults = (l: APILabel): Label => ({
-  ...l,
-  properties: {
-    ...l.properties,
-    // add defualt color hex if missing
-    color: l.properties.color || DEFAULT_LABEL_COLOR_HEX,
-  },
-})
+import {Label} from 'src/types/v2/labels'
 
 export const getLabels = async (): Promise<Label[]> => {
   const {data} = await labelsAPI.labelsGet()
