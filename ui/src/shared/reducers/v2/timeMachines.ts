@@ -28,6 +28,7 @@ import {
 import {Action} from 'src/shared/actions/v2/timeMachines'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {RemoteDataState} from 'src/types'
+import {Color} from 'src/types/colors'
 
 interface QueryBuilderState {
   buckets: string[]
@@ -260,9 +261,9 @@ export const timeMachineReducer = (
       switch (state.view.properties.type) {
         case ViewType.Gauge:
         case ViewType.SingleStat:
+        case ViewType.LinePlusSingleStat:
           return setViewProperties(state, {prefix})
         case ViewType.XY:
-        case ViewType.LinePlusSingleStat:
           return setYAxis(state, {prefix})
         default:
           return state
@@ -275,9 +276,9 @@ export const timeMachineReducer = (
       switch (state.view.properties.type) {
         case ViewType.Gauge:
         case ViewType.SingleStat:
+        case ViewType.LinePlusSingleStat:
           return setViewProperties(state, {suffix})
         case ViewType.XY:
-        case ViewType.LinePlusSingleStat:
           return setYAxis(state, {suffix})
         default:
           return state
@@ -287,7 +288,18 @@ export const timeMachineReducer = (
     case 'SET_COLORS': {
       const {colors} = action.payload
 
-      return setViewProperties(state, {colors})
+      switch (state.view.properties.type) {
+        case ViewType.Gauge:
+        case ViewType.SingleStat:
+        case ViewType.XY:
+          return setViewProperties(state, {colors})
+        case ViewType.LinePlusSingleStat:
+          return setViewProperties(state, {
+            colors: updateCorrectColors(state, colors),
+          })
+        default:
+          return state
+      }
     }
 
     case 'SET_DECIMAL_PLACES': {
@@ -297,39 +309,32 @@ export const timeMachineReducer = (
     }
 
     case 'SET_BACKGROUND_THRESHOLD_COLORING': {
-      const colors = state.view.properties.colors.map(color => ({
-        ...color,
-        type: 'background',
-      }))
+      const colors = state.view.properties.colors.map(color => {
+        if (color.type !== 'scale') {
+          return {
+            ...color,
+            type: 'background',
+          }
+        }
 
-      return {
-        ...state,
-        view: {
-          ...state.view,
-          properties: {
-            ...state.view.properties,
-            colors,
-          },
-        },
-      }
+        return color
+      })
+
+      return setViewProperties(state, {colors})
     }
 
     case 'SET_TEXT_THRESHOLD_COLORING': {
-      const colors = state.view.properties.colors.map(color => ({
-        ...color,
-        type: 'text',
-      }))
+      const colors = state.view.properties.colors.map(color => {
+        if (color.type !== 'scale') {
+          return {
+            ...color,
+            type: 'text',
+          }
+        }
+        return color
+      })
 
-      return {
-        ...state,
-        view: {
-          ...state.view,
-          properties: {
-            ...state.view.properties,
-            colors,
-          },
-        },
-      }
+      return setViewProperties(state, {colors})
     }
 
     case 'SET_STATIC_LEGEND': {
@@ -678,6 +683,19 @@ const setYAxis = (state: TimeMachineState, update: {[key: string]: any}) => {
       properties: {...properties, axes: {...axes, y: {...yAxis, ...update}}},
     },
   }
+}
+
+const updateCorrectColors = (
+  state: TimeMachineState,
+  update: Color[]
+): Color[] => {
+  const view: any = state.view
+  const colors = view.properties.colors
+
+  if (_.get(update, '0.type', '') === 'scale') {
+    return [...colors.filter(c => c.type !== 'scale'), ...update]
+  }
+  return [...colors.filter(c => c.type === 'scale'), ...update]
 }
 
 const convertView = (

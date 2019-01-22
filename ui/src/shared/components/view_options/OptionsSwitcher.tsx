@@ -19,8 +19,14 @@ class OptionsSwitcher extends PureComponent<Props> {
     const {view} = this.props
 
     switch (view.properties.type) {
-      case ViewType.XY:
       case ViewType.LinePlusSingleStat:
+        return (
+          <>
+            <LineOptions {...view.properties} />
+            <SingleStatOptions />
+          </>
+        )
+      case ViewType.XY:
         return <LineOptions {...view.properties} />
       case ViewType.Gauge:
         return <GaugeOptions {...view.properties} />

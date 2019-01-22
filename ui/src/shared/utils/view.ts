@@ -136,7 +136,7 @@ const NEW_VIEW_CREATORS = {
     ...defaultView(),
     properties: {
       ...defaultLineViewProperties(),
-      ...defaultGaugeViewProperties(),
+      ...defaultSingleStatViewProperties(),
       type: ViewType.LinePlusSingleStat,
       shape: ViewShape.ChronografV2,
     },

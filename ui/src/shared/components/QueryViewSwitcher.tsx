@@ -56,12 +56,14 @@ export default class QueryViewSwitcher extends PureComponent<Props> {
       case ViewType.LinePlusSingleStat:
         const xyProperties = {
           ...properties,
+          colors: properties.colors.filter(c => c.type === 'scale'),
           type: ViewType.XY,
           geom: XYViewGeom.Line,
         } as XYView
 
         const singleStatProperties = {
           ...properties,
+          colors: properties.colors.filter(c => c.type !== 'scale'),
           type: ViewType.SingleStat,
         } as SingleStatView
 
