@@ -33,6 +33,35 @@ func newLabelPermission(a influxdb.Action, id influxdb.ID) (*influxdb.Permission
 	return p, p.Valid()
 }
 
+func newResourcePermission(a influxdb.Action, id influxdb.ID, resourceType influxdb.ResourceType) (*influxdb.Permission, error) {
+	if err := resourceType.Valid(); err != nil {
+		return nil, err
+	}
+
+	p := &influxdb.Permission{
+		Action: a,
+		Resource: influxdb.Resource{
+			Type: resourceType,
+			ID:   &id,
+		},
+	}
+
+	return p, p.Valid()
+}
+
+func authorizeLabelMappingAction(ctx context.Context, action influxdb.Action, id influxdb.ID, resourceType influxdb.ResourceType) error {
+	p, err := newResourcePermission(action, id, resourceType)
+	if err != nil {
+		return err
+	}
+
+	if err := IsAllowed(ctx, *p); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func authorizeReadLabel(ctx context.Context, id influxdb.ID) error {
 	p, err := newLabelPermission(influxdb.ReadAction, id)
 	if err != nil {
@@ -121,13 +150,15 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 
 // CreateLabelMapping checks to see if the authorizer on context has write access to
 func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	// note(leodido) > LabelMapping does not have its own ID
-	if err := authorizeWriteLabel(ctx, *m.LabelID); err != nil {
+	if err := authorizeWriteLabel(ctx, m.LabelID); err != nil {
 		return err
 	}
 
-	// todo(leodido) > do we have/want to check also m.ResourceID write permission?
-	panic("tbd")
+	if err := authorizeLabelMappingAction(ctx, influxdb.WriteAction, m.ResourceID, m.ResourceType); err != nil {
+		return err
+	}
+
+	return s.s.CreateLabelMapping(ctx, m)
 }
 
 // UpdateLabel checks to see if the authorizer on context has write access to the label provided.
