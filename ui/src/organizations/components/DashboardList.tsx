@@ -8,7 +8,7 @@ import {IndexList} from 'src/clockface'
 import DashboardRow from 'src/organizations/components/DashboardRow'
 
 // APIs
-import {createDashboard} from 'src/dashboards/apis/v2'
+import {cloneDashboard} from 'src/dashboards/apis/v2'
 
 // Constants
 import {dashboardCreateFailed} from 'src/shared/copy/notifications'
@@ -60,7 +60,7 @@ class DashboardList extends PureComponent<Props> {
     const {router, notify, orgID} = this.props
     const name = `${dashboard.name} (clone)`
     try {
-      const data = await createDashboard({
+      const data = await cloneDashboard({
         ...dashboard,
         name,
         orgID,

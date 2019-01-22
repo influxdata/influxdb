@@ -22,7 +22,7 @@ import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 import {getDeep} from 'src/utils/wrappers'
 
 // APIs
-import {createDashboard} from 'src/dashboards/apis/v2'
+import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
 
 // Actions
 import {
@@ -189,13 +189,14 @@ class DashboardIndex extends PureComponent<Props, State> {
     const {router, notify, orgs} = this.props
     const name = `${dashboard.name} (clone)`
     try {
-      const data = await createDashboard({
+      const data = await cloneDashboard({
         ...dashboard,
         name,
         orgID: orgs[0].id,
       })
       router.push(`/dashboards/${data.id}`)
     } catch (error) {
+      console.error(error)
       notify(dashboardCreateFailed())
     }
   }
@@ -207,6 +208,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   private handleExportDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
+    const {notify} = this.props
     const dashboardForDownload = await this.modifyDashboardForDownload(
       dashboard
     )
@@ -215,9 +217,9 @@ class DashboardIndex extends PureComponent<Props, State> {
         JSON.stringify(dashboardForDownload, null, '\t'),
         `${dashboard.name}.json`
       )
-      this.props.notify(dashboardExported(dashboard.name))
+      notify(dashboardExported(dashboard.name))
     } catch (error) {
-      this.props.notify(dashboardExportFailed(dashboard.name, error))
+      notify(dashboardExportFailed(dashboard.name, error))
     }
   }
 
