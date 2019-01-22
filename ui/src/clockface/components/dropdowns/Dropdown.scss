@@ -48,14 +48,12 @@
   color: fade-out($g20-white, 0.18);
   white-space: nowrap;
   position: relative;
+  text-align: left;
 
   &.active,
   &.checked {
     color: $g20-white;
   }
-  
-  // &.active {
-  // }
   
   &.checked {
     padding-left: 24px;
