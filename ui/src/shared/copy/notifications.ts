@@ -96,12 +96,12 @@ export const csvUploadFailed = (): Notification => ({
 // Onboarding notifications
 export const SetupSuccess: Notification = {
   ...defaultSuccessNotification,
-  message: 'Admin User details have been successfully set',
+  message: 'Initial user details have been successfully set',
 }
 
 export const SetupError: Notification = {
   ...defaultErrorNotification,
-  message: `Could not Setup Admin User at this time.`,
+  message: `Could not initial user at this time.`,
 }
 
 export const SetupNotAllowed: Notification = {
