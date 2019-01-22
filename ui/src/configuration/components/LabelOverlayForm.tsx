@@ -146,6 +146,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                 <Button
                   text={buttonText}
                   color={ComponentColor.Success}
+                  type={ButtonType.Submit}
                   status={
                     isFormValid
                       ? ComponentStatus.Default

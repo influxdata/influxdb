@@ -60,9 +60,9 @@ export default class LabelList extends PureComponent<Props, State> {
   }
 
   private get rows(): JSX.Element[] {
-    return this.props.labels.map(label => (
+    return this.props.labels.map((label, index) => (
       <LabelRow
-        key={label.id}
+        key={label.id || `label-${index}`}
         label={{
           ...label,
           onClick: this.handleStartEdit,

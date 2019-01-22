@@ -54,6 +54,6 @@ export default class LabelRow extends PureComponent<Props> {
   private handleClick = () => {
     const {label} = this.props
 
-    label.onDelete(label.name)
+    label.onDelete(label.id)
   }
 }

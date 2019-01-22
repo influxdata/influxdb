@@ -151,6 +151,7 @@ class Labels extends PureComponent<Props, State> {
   private handleUpdateLabel = async (labelType: LabelType) => {
     try {
       const label = await updateLabel({
+        id: labelType.id,
         name: labelType.name,
         properties: this.labelProperties(labelType),
       })
@@ -181,7 +182,7 @@ class Labels extends PureComponent<Props, State> {
     const {properties} = label
 
     return {
-      id: label.name,
+      id: label.id,
       name: label.name,
       description: properties.description,
       colorHex: properties.color,
@@ -189,13 +190,12 @@ class Labels extends PureComponent<Props, State> {
     }
   }
 
-  private handleDelete = async (name: string) => {
+  private handleDelete = async (id: string) => {
     const {labels} = this.props
-    const label = labels.find(label => label.name === name)
-
+    const label = labels.find(label => label.id === id)
     try {
       await deleteLabel(label)
-      const labelTypes = this.state.labelTypes.filter(l => l.id !== name)
+      const labelTypes = this.state.labelTypes.filter(l => l.id !== id)
 
       this.setState({labelTypes})
     } catch (error) {
