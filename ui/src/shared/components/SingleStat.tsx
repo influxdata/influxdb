@@ -1,96 +1,40 @@
 // Libraries
-import React, {PureComponent, CSSProperties} from 'react'
-import _ from 'lodash'
+import React, {SFC} from 'react'
 
-// Constants
+// Utils
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
+import {formatStatValue} from 'src/shared/utils/formatStatValue'
 
 // Types
-import {ViewType} from 'src/types/v2/dashboards'
-import {SingleStatView} from 'src/types/v2/dashboards'
+import {ViewType, SingleStatView} from 'src/types/v2/dashboards'
 
 // Styles
 import 'src/shared/components/SingleStat.scss'
-
-import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   properties: SingleStatView
   stat: number
 }
 
-@ErrorHandling
-class SingleStat extends PureComponent<Props> {
-  public render() {
-    return (
-      <div className="single-stat" style={this.containerStyle}>
-        {this.resizerBox}
-      </div>
-    )
-  }
+const SingleStat: SFC<Props> = ({stat, properties}) => {
+  const {prefix, suffix, colors, decimalPlaces} = properties
 
-  private get prefixSuffixValue(): string {
-    const {prefix, suffix} = this.props.properties
+  const {bgColor: backgroundColor, textColor} = generateThresholdsListHexs({
+    colors,
+    lastValue: stat,
+    cellType: ViewType.SingleStat,
+  })
 
-    return `${prefix}${this.roundedLastValue}${suffix}`
-  }
+  const formattedValue = formatStatValue(stat, {decimalPlaces, prefix, suffix})
 
-  private get lastValue(): number {
-    return this.props.stat
-  }
-
-  private get roundedLastValue(): string {
-    const {decimalPlaces} = this.props.properties
-
-    if (this.lastValue === null) {
-      return `${0}`
-    }
-
-    let roundedValue = `${this.lastValue}`
-
-    if (decimalPlaces.isEnforced) {
-      roundedValue = this.lastValue.toFixed(decimalPlaces.digits)
-    }
-
-    return this.formatToLocale(+roundedValue)
-  }
-
-  private formatToLocale(n: number): string {
-    const maximumFractionDigits = 20
-    return n.toLocaleString(undefined, {maximumFractionDigits})
-  }
-
-  private get containerStyle(): CSSProperties {
-    const {backgroundColor} = this.coloration
-
-    return {
-      backgroundColor,
-    }
-  }
-
-  private get coloration(): CSSProperties {
-    const {colors} = this.props.properties
-
-    const {bgColor, textColor} = generateThresholdsListHexs({
-      colors,
-      lastValue: this.props.stat,
-      cellType: ViewType.SingleStat,
-    })
-
-    return {
-      backgroundColor: bgColor,
-      color: textColor,
-    }
-  }
-
-  private get resizerBox(): JSX.Element {
-    const {color} = this.coloration
-
-    const viewBox = `0 0 ${this.prefixSuffixValue.length * 55} 100`
-
-    return (
+  return (
+    <div className="single-stat" style={{backgroundColor}}>
       <div className="single-stat--resizer">
-        <svg width="100%" height="100%" viewBox={viewBox}>
+        <svg
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${formattedValue.length * 55} 100`}
+        >
           <text
             className="single-stat--text"
             fontSize="100"
@@ -98,14 +42,14 @@ class SingleStat extends PureComponent<Props> {
             x="50%"
             dominantBaseline="middle"
             textAnchor="middle"
-            style={{fill: color}}
+            style={{fill: textColor}}
           >
-            {this.prefixSuffixValue}
+            {formattedValue}
           </text>
         </svg>
       </div>
-    )
-  }
+    </div>
+  )
 }
 
 export default SingleStat

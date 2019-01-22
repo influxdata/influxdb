@@ -1,8 +1,15 @@
+// Libraries
 import React, {Component} from 'react'
 import _ from 'lodash'
 
-import {GAUGE_SPECS} from 'src/shared/constants/gaugeSpecs'
+// Components
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+// Utils
+import {formatStatValue} from 'src/shared/utils/formatStatValue'
+
+// Constants
+import {GAUGE_SPECS} from 'src/shared/constants/gaugeSpecs'
 import {
   COLOR_TYPE_MIN,
   COLOR_TYPE_MAX,
@@ -10,10 +17,8 @@ import {
   DEFAULT_VALUE_MIN,
   MIN_THRESHOLDS,
 } from 'src/shared/constants/thresholds'
-import {MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
 
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
+// Types
 import {Color} from 'src/types/colors'
 import {DecimalPlaces} from 'src/types/v2/dashboards'
 
@@ -46,6 +51,7 @@ class Gauge extends Component<Props> {
 
   public render() {
     const {width, height} = this.props
+
     return (
       <canvas
         className="gauge"
@@ -261,18 +267,18 @@ class Gauge extends Component<Props> {
     minValue,
     maxValue
   ) => {
-    const {prefix, suffix} = this.props
+    const {prefix, suffix, decimalPlaces} = this.props
     const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
 
     const incrementValue = (maxValue - minValue) / lineCount
 
-    const gaugeValues = []
+    const labels = []
     for (let g = minValue; g < maxValue; g += incrementValue) {
-      const valueString = this.labelToString(g)
-      gaugeValues.push(valueString)
+      const valueString = formatStatValue(g, {decimalPlaces, prefix, suffix})
+      labels.push(valueString)
     }
 
-    gaugeValues.push(this.labelToString(maxValue))
+    labels.push(formatStatValue(maxValue, {decimalPlaces, prefix, suffix}))
 
     const startDegree = degree * 135
     const arcLength = Math.PI * 1.5
@@ -295,14 +301,13 @@ class Gauge extends Component<Props> {
       if (i > 3) {
         ctx.textAlign = 'left'
       }
-      const labelText = `${prefix}${gaugeValues[i]}${suffix}`
 
       ctx.rotate(startDegree)
       ctx.rotate(i * arcIncrement)
       ctx.translate(labelRadius, 0)
       ctx.rotate(i * -arcIncrement)
       ctx.rotate(-startDegree)
-      ctx.fillText(labelText, 0, 0)
+      ctx.fillText(labels[i], 0, 0)
       ctx.rotate(startDegree)
       ctx.rotate(i * arcIncrement)
       ctx.translate(-labelRadius, 0)
@@ -312,7 +317,7 @@ class Gauge extends Component<Props> {
   }
 
   private drawGaugeValue = (ctx, radius, labelValueFontSize) => {
-    const {gaugePosition, prefix, suffix} = this.props
+    const {gaugePosition, prefix, suffix, decimalPlaces} = this.props
     const {valueColor} = GAUGE_SPECS
 
     ctx.font = `${labelValueFontSize}px Roboto`
@@ -320,23 +325,14 @@ class Gauge extends Component<Props> {
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
 
-    const valueString = this.labelToString(gaugePosition)
-
     const textY = radius
-    const textContent = `${prefix}${valueString}${suffix}`
+    const textContent = formatStatValue(gaugePosition, {
+      decimalPlaces,
+      prefix,
+      suffix,
+    })
+
     ctx.fillText(textContent, 0, textY)
-  }
-
-  private labelToString(value: number): string {
-    const {isEnforced, digits} = this.props.decimalPlaces
-
-    if (isEnforced && digits) {
-      return value.toFixed(Math.min(digits, MAX_DECIMAL_PLACES))
-    }
-
-    // Ensure the number has at most MAX_DECIMAL_PLACES digits after the
-    // decimal place
-    return String(Number(value.toFixed(MAX_DECIMAL_PLACES)))
   }
 
   private drawNeedle = (ctx, radius, minValue, maxValue) => {
