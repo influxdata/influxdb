@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/influxdata/flux/repl"
@@ -21,6 +22,7 @@ or execute a literal Flux query contained in a file by specifying the file prefi
 
 var queryFlags struct {
 	OrgID string
+	Org   string
 }
 
 func init() {
@@ -29,7 +31,12 @@ func init() {
 	if h := viper.GetString("ORG_ID"); h != "" {
 		queryFlags.OrgID = h
 	}
-	queryCmd.MarkPersistentFlagRequired("org-id")
+
+	queryCmd.PersistentFlags().StringVarP(&queryFlags.Org, "org", "o", "", "The organization name")
+	viper.BindEnv("ORG")
+	if h := viper.GetString("ORG"); h != "" {
+		queryFlags.Org = h
+	}
 }
 
 func fluxQueryF(cmd *cobra.Command, args []string) error {
@@ -37,24 +44,45 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("local flag not supported for query command")
 	}
 
+	if (queryFlags.OrgID != "" && queryFlags.Org != "") || (queryFlags.OrgID == "" && queryFlags.Org == "") {
+		return fmt.Errorf("must specify exactly one of org or org-id")
+	}
+
 	q, err := repl.LoadQuery(args[0])
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load query: %v", err)
 	}
 
 	var orgID platform.ID
-	err = orgID.DecodeFromString(queryFlags.OrgID)
-	if err != nil {
-		return err
+
+	if queryFlags.OrgID != "" {
+		if err := orgID.DecodeFromString(queryFlags.OrgID); err != nil {
+			return fmt.Errorf("failed to decode org-id: %v", err)
+		}
+	}
+
+	if queryFlags.Org != "" {
+		orgSvc, err := newOrganizationService(flags)
+		if err != nil {
+			return fmt.Errorf("failed to initialized organization service client: %v", err)
+		}
+
+		filter := platform.OrganizationFilter{Name: &queryFlags.Org}
+		o, err := orgSvc.FindOrganization(context.Background(), filter)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve organization %q: %v", queryFlags.Org, err)
+		}
+
+		orgID = o.ID
 	}
 
 	r, err := getFluxREPL(flags.host, flags.token, orgID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get the flux REPL: %v", err)
 	}
 
 	if err := r.Input(q); err != nil {
-		return err
+		return fmt.Errorf("failed to execute query: %v", err)
 	}
 
 	return nil

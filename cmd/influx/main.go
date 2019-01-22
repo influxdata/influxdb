@@ -109,14 +109,25 @@ func checkSetup(host string) error {
 }
 
 func wrapCheckSetup(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, args []string) error {
+	return wrapErrorFmt(func(cmd *cobra.Command, args []string) error {
 		err := fn(cmd, args)
 		if err == nil {
 			return nil
 		}
 
-		if setupErr := checkSetup(flags.host); err != nil {
-			return internal.ErrorFmt(setupErr)
+		if setupErr := checkSetup(flags.host); setupErr != nil {
+			return setupErr
+		}
+
+		return err
+	})
+}
+
+func wrapErrorFmt(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		err := fn(cmd, args)
+		if err == nil {
+			return nil
 		}
 
 		return internal.ErrorFmt(err)
@@ -125,7 +136,7 @@ func wrapCheckSetup(fn func(*cobra.Command, []string) error) func(*cobra.Command
 
 func influxF(cmd *cobra.Command, args []string) {
 	if err := checkSetup(flags.host); err != nil {
-		fmt.Printf("Note: %v\n", err)
+		fmt.Printf("Note: %v\n", internal.ErrorFmt(err))
 	}
 	cmd.Usage()
 }

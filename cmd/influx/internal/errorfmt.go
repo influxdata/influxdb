@@ -9,6 +9,10 @@ import (
 // ErrorFmt formats errors presented to the user such that the first letter in the error
 // is capitalized and ends with an appropriate punctuation.
 func ErrorFmt(err error) error {
+	if err == nil {
+		return nil
+	}
+
 	s := err.Error()
 
 	s = strings.Trim(s, "\n .!?")

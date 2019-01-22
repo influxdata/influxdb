@@ -94,7 +94,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	if writeFlags.BucketID != "" {
 		filter.ID, err = platform.IDFromString(writeFlags.BucketID)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode bucket-id: %v", err)
 		}
 	}
 	if writeFlags.Bucket != "" {
@@ -104,7 +104,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	if writeFlags.OrgID != "" {
 		filter.OrganizationID, err = platform.IDFromString(writeFlags.OrgID)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode org-id id: %v", err)
 		}
 	}
 	if writeFlags.Org != "" {
@@ -113,11 +113,17 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 
 	buckets, n, err := bs.FindBuckets(ctx, filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to retrieve buckets: %v", err)
 	}
 
 	if n == 0 {
-		return fmt.Errorf("bucket does not exist")
+		if writeFlags.Bucket != "" {
+			return fmt.Errorf("bucket %q was not found", writeFlags.Bucket)
+		}
+
+		if writeFlags.BucketID != "" {
+			return fmt.Errorf("bucket with id %q does not exist", writeFlags.BucketID)
+		}
 	}
 
 	bucketID, orgID := buckets[0].ID, buckets[0].OrganizationID
@@ -128,7 +134,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	} else if len(args[0]) > 0 && args[0][0] == '@' {
 		f, err := os.Open(args[0][1:])
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to open %q: %v", args[0][1:], err)
 		}
 		defer f.Close()
 		r = f
@@ -145,8 +151,9 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx = signals.WithStandardSignals(ctx)
-	if err := s.Write(ctx, orgID, bucketID, r); err != context.Canceled {
-		return err
+	if err := s.Write(ctx, orgID, bucketID, r); err != nil && err != context.Canceled {
+		return fmt.Errorf("failed to write data: %v", err)
 	}
+
 	return nil
 }

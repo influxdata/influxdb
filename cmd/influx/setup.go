@@ -17,8 +17,8 @@ import (
 // setup Command
 var setupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Create default username, password, org, bucket...",
-	RunE:  setupF,
+	Short: "Setup instance with initial user, org, bucket",
+	RunE:  wrapErrorFmt(setupF),
 }
 
 func setupF(cmd *cobra.Command, args []string) error {
@@ -33,7 +33,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 
 	allowed, err := s.IsOnboarding(context.Background())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to determine if instance has been configured: %v", err)
 	}
 	if !allowed {
 		return fmt.Errorf("instance at %q has already been setup", flags.host)
@@ -41,30 +41,29 @@ func setupF(cmd *cobra.Command, args []string) error {
 
 	req, err := getOnboardingRequest()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
 	}
 
 	result, err := s.Generate(context.Background(), req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to setup instance: %v", err)
 	}
+	writeTokenToPath(result.Auth.Token, defaultTokenPath())
+	fmt.Println(promptWithColor("Your token has been stored in "+defaultTokenPath()+".", colorCyan))
+
 	w := internal.NewTabWriter(os.Stdout)
 	w.WriteHeaders(
-		"UserID",
-		"Username",
+		"User",
 		"Organization",
 		"Bucket",
 	)
 	w.Write(map[string]interface{}{
-		"UserID":       result.User.ID.String(),
-		"Username":     result.User.Name,
+		"User":         result.User.Name,
 		"Organization": result.Org.Name,
 		"Bucket":       result.Bucket.Name,
 	})
 
-	writeTokenToPath(result.Auth.Token, defaultTokenPath())
 	w.Flush()
-	fmt.Println(promptWithColor("Your token has been stored in "+defaultTokenPath()+".", colorCyan))
 
 	return nil
 }
