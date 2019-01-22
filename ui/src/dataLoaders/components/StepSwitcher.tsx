@@ -114,6 +114,7 @@ class StepSwitcher extends PureComponent<Props> {
             {...onboardingStepProps}
             {...dataLoaders}
             bucket={bucketName}
+            selectedBucket={selectedBucket}
             username={username}
             org={org}
             onSaveTelegrafConfig={onSaveTelegrafConfig}
