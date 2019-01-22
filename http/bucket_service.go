@@ -432,6 +432,14 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 		req.filter.Name = &name
 	}
 
+	if bucketID := qp.Get("id"); bucketID != "" {
+		id, err := platform.IDFromString(bucketID)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.ID = id
+	}
+
 	return req, nil
 }
 
