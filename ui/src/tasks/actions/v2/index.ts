@@ -231,7 +231,8 @@ export const updateTaskStatus = (task: Task) => async dispatch => {
     dispatch(populateTasks())
   } catch (e) {
     console.error(e)
-    dispatch(notify(taskDeleteFailed()))
+    const message = getErrorMessage(e)
+    dispatch(notify(taskDeleteFailed(message)))
   }
 }
 
@@ -242,7 +243,8 @@ export const deleteTask = (task: Task) => async dispatch => {
     dispatch(populateTasks())
   } catch (e) {
     console.error(e)
-    dispatch(notify(taskDeleteFailed()))
+    const message = getErrorMessage(e)
+    dispatch(notify(taskDeleteFailed(message)))
   }
 }
 
@@ -268,7 +270,8 @@ export const populateTasks = () => async (
     dispatch(setTasks(mappedTasks))
   } catch (e) {
     console.error(e)
-    dispatch(notify(tasksFetchFailed()))
+    const message = getErrorMessage(e)
+    dispatch(notify(tasksFetchFailed(message)))
   }
 }
 
@@ -286,7 +289,8 @@ export const selectTaskByID = (id: string) => async (
   } catch (e) {
     console.error(e)
     dispatch(goToTasks())
-    dispatch(notify(taskNotFound()))
+    const message = getErrorMessage(e)
+    dispatch(notify(taskNotFound(message)))
   }
 }
 
@@ -327,7 +331,8 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
     dispatch(goToTasks())
   } catch (e) {
     console.error(e)
-    dispatch(notify(taskUpdateFailed()))
+    const message = getErrorMessage(e)
+    dispatch(notify(taskUpdateFailed(message)))
   }
 }
 
@@ -357,7 +362,8 @@ export const saveNewScript = (
     dispatch(populateTasks())
   } catch (e) {
     console.error(e)
-    dispatch(notify(taskNotCreated(e.message)))
+    const message = _.get(e, 'response.data.error.message', '')
+    dispatch(notify(taskNotCreated(message)))
   }
 }
 
@@ -390,7 +396,7 @@ export const importScript = (script: string, fileName: string) => async (
     dispatch(notify(taskImportSuccess(fileName)))
   } catch (error) {
     console.error(error)
-    const message = getDeep<string>(error, 'message', '')
+    const message = _.get(error, 'response.data.error.message', '')
     dispatch(notify(taskImportFailed(fileName, message)))
   }
 }
@@ -432,4 +438,12 @@ export const removeTaskLabelsAsync = (
   } catch (error) {
     console.error(error)
   }
+}
+
+export const getErrorMessage = (e: any) => {
+  let message = _.get(e, 'response.data.error.message', '')
+  if (message === '') {
+    message = _.get(e, 'response.headers.x-influx-error', '')
+  }
+  return message
 }
