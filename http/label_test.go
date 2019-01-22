@@ -201,7 +201,7 @@ func TestService_handleGetLabel(t *testing.T) {
 					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
 						return nil, &platform.Error{
 							Code: platform.ENotFound,
-							Msg:  "label not found",
+							Err:  platform.ErrLabelNotFound,
 						}
 					},
 				},
@@ -383,7 +383,7 @@ func TestService_handleDeleteLabel(t *testing.T) {
 					DeleteLabelFn: func(ctx context.Context, id platform.ID) error {
 						return &platform.Error{
 							Code: platform.ENotFound,
-							Msg:  "label not found",
+							Err:  platform.ErrLabelNotFound,
 						}
 					},
 				},
@@ -516,7 +516,7 @@ func TestService_handlePatchLabel(t *testing.T) {
 					UpdateLabelFn: func(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
 						return nil, &platform.Error{
 							Code: platform.ENotFound,
-							Msg:  "label not found",
+							Err:  platform.ErrLabelNotFound,
 						}
 					},
 				},
