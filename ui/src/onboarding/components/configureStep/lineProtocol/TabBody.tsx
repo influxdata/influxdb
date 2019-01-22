@@ -83,9 +83,9 @@ export default class extends PureComponent<Props> {
     setLineProtocolBody(lpBody)
   }
 
-  private handleSetLineProtocol = (lpBody: string) => {
+  private handleSetLineProtocol = async (lpBody: string) => {
     const {setLineProtocolBody, handleSubmit} = this.props
-    setLineProtocolBody(lpBody)
+    await setLineProtocolBody(lpBody)
     if (handleSubmit) {
       handleSubmit()
     }
