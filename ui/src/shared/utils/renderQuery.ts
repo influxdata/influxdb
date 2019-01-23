@@ -46,9 +46,11 @@ async function extractImports(
   query: string
 ): Promise<{imports: string; body: string}> {
   const ast = await getAST(query)
-  const {imports = [], body = []} = ast.files[0]
-  const importStatements = imports.map(i => i.location.source).join('\n')
-  const bodyStatements = body.map(b => b.location.source).join('\n')
+  const {imports, body} = ast.files[0]
+  const importStatements = (imports || [])
+    .map(i => i.location.source)
+    .join('\n')
+  const bodyStatements = (body || []).map(b => b.location.source).join('\n')
   return {imports: importStatements, body: bodyStatements}
 }
 
