@@ -65,7 +65,6 @@ export class SelectDataSourceStep extends PureComponent<Props> {
             </FancyScrollbar>
           </div>
           <OnboardingButtons
-            onClickBack={this.handleClickBack}
             autoFocusNext={true}
             nextButtonStatus={this.nextButtonStatus}
           />
@@ -152,17 +151,6 @@ export class SelectDataSourceStep extends PureComponent<Props> {
     }
 
     this.props.onIncrementCurrentStepIndex()
-  }
-
-  private handleClickBack = () => {
-    const {currentStepIndex, onSetSubstepIndex} = this.props
-
-    if (this.isStreaming) {
-      onSetSubstepIndex(+currentStepIndex, 0)
-      return
-    }
-
-    this.props.onDecrementCurrentStepIndex()
   }
 
   private handleSelectDataLoaderType = async (type: DataLoaderType) => {

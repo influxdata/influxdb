@@ -74,7 +74,7 @@ class OnboardingButtons extends PureComponent<Props> {
   private get backButton(): JSX.Element {
     const {backButtonText, onClickBack} = this.props
 
-    if (!backButtonText || !onClickBack) {
+    if (!onClickBack || !backButtonText) {
       return
     }
 
