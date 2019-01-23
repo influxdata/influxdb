@@ -118,6 +118,9 @@ man/*.1.gz
 
 # test outputs
 /test-results.xml
+junit-results
+cypress/screenshots
+cypress/videos
 
 # profile data
 /prof
