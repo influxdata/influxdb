@@ -53,15 +53,19 @@ class Legend extends PureComponent<Props> {
                 className={`legend--column ${isNumeric ? 'numeric' : ''}`}
               >
                 <div className="legend--column-header">{name}</div>
-                {rows.map(({color, value}) => (
-                  <div
-                    key={color}
-                    className={`legend--column-row ${!value ? 'empty' : ''}`}
-                    style={{color}}
-                  >
-                    {isNumber(value) ? value.toFixed(VALUE_PRECISION) : value}
-                  </div>
-                ))}
+                {rows.map(({color, value}) => {
+                  const emptyClass = !value && value !== 0 ? 'empty' : ''
+
+                  return (
+                    <div
+                      key={color}
+                      className={`legend--column-row ${emptyClass}`}
+                      style={{color}}
+                    >
+                      {isNumber(value) ? value.toFixed(VALUE_PRECISION) : value}
+                    </div>
+                  )
+                })}
               </div>
             ))}
           </div>
