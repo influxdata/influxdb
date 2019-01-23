@@ -46,6 +46,7 @@ class TimeMachineQueryTabName extends PureComponent<Props, State> {
       <div
         className="time-machine-query-tab--name"
         onDoubleClick={this.handleDoubleClick}
+        title={queryName}
       >
         {queryName}
       </div>

@@ -1,25 +1,44 @@
 @import "src/style/modules";
 
 .time-machine-query-tab {
-  background: $g2-kevlar;
+  background: rgba($g3-castle, .45);
+  margin: 0 1px;
   border-radius: 5px 5px 0 0;
-  display: flex;
-  justify-content: flex-start;
+  display: inline-flex;
+  flex: 0 1 auto;
+  justify-content: space-between;
   align-items: center;
   color: $g10-wolf;
   font-weight: 700;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: $ix-text-tiny;
   cursor: pointer !important;
-  width: 130px;
   @include no-user-select();
 
-
-  &.active {
-    background: $g3-castle;
-    color: $g16-pearl;
+  .time-machine-query-tab--hide {
+    display: none;
   }
 
+  .time-machine-query-tab--name {
+    margin: 0 $ix-marg-a 0 $ix-marg-a;
+    width: 30px;
+  }
+
+  &.active {
+    flex: 0 0 auto;
+    background: $g3-castle;
+    color: $g16-pearl;
+
+    .time-machine-query-tab--hide {
+      display: inline-flex;
+    }
+
+    .time-machine-query-tab--name {
+      margin: 0 $ix-marg-a 0 $ix-marg-b;
+      width: auto;
+    }
+  }
+  
   &:hover:not(.active) {
     color: $g14-chromium;
   }
@@ -29,7 +48,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  flex: 1 1 0;
+  
 }
 
 .time-machine-query-tab--close, .time-machine-query-tab--hide {
@@ -39,12 +58,4 @@
   &:hover {
     color: $g16-pearl;
   }
-}
-
-.time-machine-query-tab--hide {
-  margin-right: 8px;
-}
-
-.time-machine-query-tab--close {
-  margin-left: 8px;
 }
