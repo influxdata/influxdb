@@ -23,10 +23,10 @@ export async function renderQuery(
   }
 
   const {imports, body} = await extractImports(query)
-  let variableDelcarations = formatVariables(variables, query)
+  let variableDeclarations = formatVariables(variables, query)
 
   if (query.includes(WINDOW_PERIOD)) {
-    const ast = await getAST(`${variableDelcarations}\n\n${query}`)
+    const ast = await getAST(`${variableDeclarations}\n\n${query}`)
 
     let windowPeriod: number
 
@@ -36,10 +36,10 @@ export async function renderQuery(
       windowPeriod = FALLBACK_WINDOW_PERIOD
     }
 
-    variableDelcarations += `\n${WINDOW_PERIOD} = ${windowPeriod}ms`
+    variableDeclarations += `\n${WINDOW_PERIOD} = ${windowPeriod}ms`
   }
 
-  return `${imports}\n\n${variableDelcarations}\n\n${body}`
+  return `${imports}\n\n${variableDeclarations}\n\n${body}`
 }
 
 async function extractImports(
