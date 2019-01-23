@@ -8,7 +8,6 @@ import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/organizations/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
 import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'
-
 import {
   Input,
   Button,
@@ -18,6 +17,9 @@ import {
   ComponentSize,
   EmptyState,
 } from 'src/clockface'
+
+// Actions
+import * as NotificationsActions from 'src/types/actions/notifications'
 
 // Utils
 import {ruleToString} from 'src/utils/formatting'
@@ -34,6 +36,7 @@ interface Props {
   org: Organization
   buckets: Bucket[]
   onChange: () => void
+  notify: NotificationsActions.PublishNotificationActionCreator
 }
 
 interface State {
@@ -44,6 +47,7 @@ interface State {
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {bucketDeleted} from 'src/shared/copy/v2/notifications'
 
 @ErrorHandling
 export default class Buckets extends PureComponent<Props, State> {
@@ -109,8 +113,10 @@ export default class Buckets extends PureComponent<Props, State> {
     this.props.onChange()
   }
   private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
+    const {onChange, notify} = this.props
     await deleteBucket(deletedBucket)
-    this.props.onChange()
+    onChange()
+    notify(bucketDeleted(deletedBucket.name))
   }
 
   private handleCreateBucket = async (

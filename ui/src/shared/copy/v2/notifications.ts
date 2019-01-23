@@ -88,3 +88,8 @@ export const labelUpdateFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to update label',
 })
+
+export const bucketDeleted = (bucketName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Bucket ${bucketName} was successfully deleted`,
+})
