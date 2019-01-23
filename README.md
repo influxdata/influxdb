@@ -1,10 +1,47 @@
 # InfluxDB [![CircleCI](https://circleci.com/gh/influxdata/influxdb.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb)
 
-This is the repository for InfluxDB 2.0 OSS, which includes components previously known as Chronograf and Kapacitor.
+InfluxDB is an open source time series platform. This includes APIs for storing and querying data, processing it in the background for ETL or monitoring and alerting purposes, user dashboards, and visualizing and exploring the data and more. The master branch on this repo now represents InfluxDB 2.0, which includes functionality for Kapacitor (background processing) and Chronograf (the UI). If you are looking for the 1.x line of releases, there are branches for each of those. InfluxDB 1.8 will be the next (and likely last) release in the 1.x line and the [working branch is here](https://github.com/influxdata/influxdb/tree/1.8).
 
-If you are looking for the [InfluxDB 1.x Go Client, we've created a new repo](https://github.com/influxdata/influxdb1-client) for that.
+If you are looking for the [InfluxDB 1.x Go Client, we've created a new repo](https://github.com/influxdata/influxdb1-client) for that. There will be a Go client for the 2.0 API coming very soon.
+
+## State of the Project
+
+The latest InfluxDB 1.x is the stable release and recommended for production use. InfluxDB 2.0 (what's in the master branch) is currently in the alpha stage. This means that it is **not** recommended for production usage. There may be breaking API changes, breaking changes in the [Flux language](https://github.com/influxdata/flux), changes in the underlying storage format that will require you to delete all your data, and significant changes to the UI. The alpha is intended for feature exploration and gathering feedback on the available feature set. It **should not** be used for performance testing, benchmarks, or other stress tests.
+
+Additional features will arrive during the weekly alpha updates. We will be cutting versioned releases every week starting in the first week of February. There will also be nightly builds.
+
+Once we close on the final feature set of what will be in the first release of InfluxDB in the 2.x line, we will move into the beta phase. At that point, our intention is to avoid making breaking changes to the API or the Flux language. However, it still may be necessary to do so. We will do our best to keep this to an absolute minimum and clearly communicate ANY and ALL changes in this regard via the changelog.
+
+The beta will still not be recommended for production usage. During the beta period we will focus on bug fixes, performance, and additive features (where time permits).
+
+### What you can expect Alpha and Beta Phases
+
+#### Alpha
+**Weekly alpha releases with incremental feature additions and changes to the user interface**
+
+Planned additions include:
+- Initial alpha release only supports a single user through the UI and the permission assigned via the security token are "full access".  This restriction will be relaxed delivering the ability to define multiple users and change the access permissions provided via the token.
+- Compatibility layer with 1.x including: 1.x HTTP Write API  and HTTP Read API support for InfluxQL
+- Import Bulk Data from 1.x - convert TSM from 1.x to 2.x
+- Delete API w/ predicates for time (and other)
+
+#### Beta
+**Releases every 2 - 3 weeks or as needed**
+
+Planned activities include:
+- Performance tuning, stability improvements, and fine tuning based on community feedback.
+- Finalization of supported client libraries starting with JavaScript and Go.
+
+### What is **NOT** planned?
+- Migration of users/security permissions from InfluxDB v1.x to 2.x.  ACTION REQUIRED: Re-establish users and permissions within the new unified security model which now spans the underlying database and user interface.
+- Migration of Continuous Queries.  ACTION REQUIRED: These will need to be re-implemented as Flux tasks.
+- Direct support by InfluxDB for CollectD, StatsD, Graphite, or UDP.  ACTION REQUIRED: Leverage Telegraf 1.9+ along with the InfluxDB v2.0 output plugin to translate these protocols/formats.
 
 ## Installing from Source
+
+We have nightly and weekly versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB 2.0 available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/).
+
+## Building From Source
 
 This project requires Go 1.11 and Go module support.
 
@@ -15,8 +52,6 @@ This error will also be returned if you have not installed `npm`.
 On macOS, `brew install npm` will install `npm`.
 
 For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
-
-## Basic Usage
 
 A successful `make` run results in two binaries, with platform-dependent paths:
 
@@ -37,8 +72,22 @@ Logs to stdout by default:
 $ bin/darwin/influxd
 ```
 
-To write and read fancy timeseries data, you'll need to first create a user, credentials, organization and bucket.
-Use the subcommands `influx user`, `influx auth`, `influx org` and `influx bucket`, or do it all in one breath with `influx setup`:
+## Getting Started
+
+To write and query data or use the API in any way, you'll need to first create a user, credentials, organization and bucket.
+Everything in InfluxDB 2.0 is organized under a concept of an organization. The API is designed to be multi-tenant.
+Buckets represent where you store time series data.
+They're synonymous with what was previously in InfluxDB 1.x a database and retention policy.
+
+The simplest way to get set up is to point your browser to [http://localhost:9999](http://localhost:9999) and go through the prompts.
+
+**Note**: Port 9999 will be used during the alpha and beta phases of development of InfluxDB v2.0.
+This should allow a v2.0-alpha instance to be run alongside a v1.x instance without interfering on port 8086.
+InfluxDB v2.0 will thereafter continue to use 8086.
+
+You can also get set up from the CLI using the subcommands `influx user`, `influx auth`, `influx org` and `influx bucket`,
+or do it all in one breath with `influx setup`:
+
 
 ```
 $ bin/darwin/influx setup
@@ -104,10 +153,6 @@ Write the same point using `curl`:
 curl --header "Authorization: Token $(cat ~/.influxdbv2/credentials)" --data-raw "m v=2 $(date +%s)" "http://localhost:9999/api/v2/write?org=033a3f2c708aa000&bucket=033a3f2c710aa000&precision=s"
 ```
 
-**Note**: Port 9999 will be used during the alpha and beta phases of development of InfluxDB v2.0.
-This should allow a v2.0-alpha instance to be run alongside a v1.x instance without interfering on port 8086.
-InfluxDB v2.0 will thereafter continue to use 8086.
-
 Read that back with a simple Flux query (currently, the `query` subcommand does not have a `--org` flag):
 
 ```
@@ -132,13 +177,9 @@ Table: keys: [_start, _stop, _field, _measurement]
 >
 ```
 
-Access the user interface in your browser by navigating to `http://localhost:9999/`
-
 ## Introducing Flux
 
-We recently announced Flux, the MIT-licensed data scripting language (and rename for IFQL).
-The source for Flux is [available on GitHub](https://github.com/influxdata/flux).
-Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
+We recently announced Flux, the MIT-licensed data scripting language (previously named IFQL). The source for Flux is [available on GitHub](https://github.com/influxdata/flux). Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
 
 ## CI and Static Analysis
 
@@ -184,7 +225,7 @@ This is problematic because it will be erased if the file is re-generated.
 Until a better solution comes about, below is the list of generated files that need an ignores comment.
 If you re-generate a file and find that `staticcheck` has failed, please see this list below for what you need to put back:
 
-|          File          |                                 Comment                                  |
-| :--------------------: | :----------------------------------------------------------------------: |
-| query/promql/promql.go |     //lint:file-ignore SA6001 Ignore all unused code, it's generated     |
-|    proto/bin_gen.go    | //lint:file-ignore ST1005 Ignore error strings should not be capitalized |
+| File  | Comment  |
+|:-:|:-:|
+| query/promql/promql.go  | //lint:file-ignore SA6001 Ignore all unused code, it's generated         |
+|    proto/bin_gen.go     | //lint:file-ignore ST1005 Ignore error strings should not be capitalized |
