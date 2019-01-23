@@ -6,13 +6,10 @@ import {IndexList} from 'src/clockface'
 import ScraperRow from 'src/organizations/components/ScraperRow'
 
 // Types
-import {ScraperTargetResponses, ScraperTargetResponse} from 'src/api'
-
-// Utils
-import {getDeep} from 'src/utils/wrappers'
+import {ScraperTargetResponse} from 'src/api'
 
 interface Props {
-  scrapers: ScraperTargetResponses
+  scrapers: ScraperTargetResponse[]
   emptyState: JSX.Element
   onDeleteScraper: (scraper) => void
 }
@@ -38,14 +35,9 @@ export default class ScraperList extends PureComponent<Props> {
 
   public get scrapersList(): JSX.Element[] {
     const {scrapers, onDeleteScraper} = this.props
-    const scraperTargets = getDeep<ScraperTargetResponse[]>(
-      scrapers,
-      'scraper_targets',
-      []
-    )
 
-    if (scraperTargets !== undefined) {
-      return scraperTargets.map(scraper => (
+    if (scrapers !== undefined) {
+      return scrapers.map(scraper => (
         <ScraperRow
           key={scraper.id}
           scraper={scraper}

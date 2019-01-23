@@ -18,7 +18,6 @@ import {
   InputType,
 } from 'src/clockface'
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
-import FilterList from 'src/shared/components/Filter'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -52,7 +51,7 @@ export default class Scrapers extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {scrapers, buckets} = this.props
+    const {buckets} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -69,19 +68,11 @@ export default class Scrapers extends PureComponent<Props, State> {
           />
           {this.createScraperButton}
         </TabbedPageHeader>
-        <FilterList<ScraperTargetResponse>
-          searchTerm={searchTerm}
-          searchKeys={['bucket']}
-          list={scrapers.configurations || []}
-        >
-          {configurations => (
-            <ScraperList
-              scrapers={{configurations}}
-              emptyState={this.emptyState}
-              onDeleteScraper={this.handleDeleteScraper}
-            />
-          )}
-        </FilterList>
+        <ScraperList
+          scrapers={this.configurations}
+          emptyState={this.emptyState}
+          onDeleteScraper={this.handleDeleteScraper}
+        />
         <DataLoadersWizard
           visible={this.isOverlayVisible}
           onCompleteSetup={this.handleDismissDataLoaders}
@@ -91,6 +82,28 @@ export default class Scrapers extends PureComponent<Props, State> {
         />
       </>
     )
+  }
+
+  private get configurations(): ScraperTargetResponse[] {
+    const {scrapers} = this.props
+    const {searchTerm} = this.state
+
+    if (!scrapers || !scrapers.configurations) {
+      return []
+    }
+
+    return scrapers.configurations.filter(c => {
+      if (!searchTerm) {
+        return true
+      }
+      if (!c.bucket) {
+        return false
+      }
+
+      return String(c.bucket)
+        .toLocaleLowerCase()
+        .includes(searchTerm.toLocaleLowerCase())
+    })
   }
 
   private get isOverlayVisible(): boolean {

@@ -411,7 +411,7 @@ type getTargetsLinks struct {
 
 type getTargetsResponse struct {
 	Links   getTargetsLinks  `json:"links"`
-	Targets []targetResponse `json:"scraper_targets"`
+	Targets []targetResponse `json:"configurations"`
 }
 
 type targetLinks struct {

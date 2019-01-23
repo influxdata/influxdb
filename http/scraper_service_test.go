@@ -102,7 +102,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 					  "links": {
 					    "self": "/api/v2/scrapers"
 					  },
-					  "scraper_targets": [
+					  "configurations": [
 					    {
 					      "id": "%s",
 						  "name": "target-1",
@@ -175,7 +175,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
                   "links": {
                     "self": "/api/v2/scrapers"
                   },
-                  "scraper_targets": []
+                  "configurations": []
                 }
                 `,
 			},

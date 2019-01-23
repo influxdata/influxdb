@@ -199,25 +199,27 @@ class OrganizationView extends PureComponent<Props> {
                   organization={org}
                   fetcher={getScrapers}
                 >
-                  {(scrapers, loading, fetch) => (
-                    <Spinner loading={loading}>
-                      <GetOrgResources<Bucket[]>
-                        organization={org}
-                        fetcher={getBuckets}
-                      >
-                        {(buckets, loading) => (
-                          <Spinner loading={loading}>
-                            <Scrapers
-                              scrapers={scrapers}
-                              onChange={fetch}
-                              orgName={org.name}
-                              buckets={buckets}
-                            />
-                          </Spinner>
-                        )}
-                      </GetOrgResources>
-                    </Spinner>
-                  )}
+                  {(scrapers, loading, fetch) => {
+                    return (
+                      <Spinner loading={loading}>
+                        <GetOrgResources<Bucket[]>
+                          organization={org}
+                          fetcher={getBuckets}
+                        >
+                          {(buckets, loading) => (
+                            <Spinner loading={loading}>
+                              <Scrapers
+                                scrapers={scrapers}
+                                onChange={fetch}
+                                orgName={org.name}
+                                buckets={buckets}
+                              />
+                            </Spinner>
+                          )}
+                        </GetOrgResources>
+                      </Spinner>
+                    )
+                  }}
                 </GetOrgResources>
               </TabbedPageSection>
             </TabbedPage>
