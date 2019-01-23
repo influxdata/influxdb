@@ -42,7 +42,7 @@ func init() {
 	userCmd.AddCommand(userUpdateCmd)
 }
 
-func newUserService(f Flags) (platform.UserService, error) {
+func newUserService(ctx context.Context, f Flags) (platform.UserService, error) {
 	if flags.local {
 		boltFile, err := fs.BoltFile()
 		if err != nil {
@@ -50,7 +50,7 @@ func newUserService(f Flags) (platform.UserService, error) {
 		}
 		c := bolt.NewClient()
 		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
+		if err := c.Open(ctx); err != nil {
 			return nil, err
 		}
 
@@ -62,7 +62,7 @@ func newUserService(f Flags) (platform.UserService, error) {
 	}, nil
 }
 
-func newUserResourceMappingService(f Flags) (platform.UserResourceMappingService, error) {
+func newUserResourceMappingService(ctx context.Context, f Flags) (platform.UserResourceMappingService, error) {
 	if flags.local {
 		boltFile, err := fs.BoltFile()
 		if err != nil {
@@ -70,7 +70,7 @@ func newUserResourceMappingService(f Flags) (platform.UserResourceMappingService
 		}
 		c := bolt.NewClient()
 		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
+		if err := c.Open(ctx); err != nil {
 			return nil, err
 		}
 
@@ -83,7 +83,8 @@ func newUserResourceMappingService(f Flags) (platform.UserResourceMappingService
 }
 
 func userUpdateF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService(flags)
+	ctx := context.Background()
+	s, err := newUserService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -98,7 +99,7 @@ func userUpdateF(cmd *cobra.Command, args []string) error {
 		update.Name = &userUpdateFlags.name
 	}
 
-	user, err := s.UpdateUser(context.Background(), id, update)
+	user, err := s.UpdateUser(ctx, id, update)
 	if err != nil {
 		return err
 	}
@@ -138,7 +139,8 @@ func init() {
 }
 
 func userCreateF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService(flags)
+	ctx := context.Background()
+	s, err := newUserService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -147,7 +149,7 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		Name: userCreateFlags.name,
 	}
 
-	if err := s.CreateUser(context.Background(), user); err != nil {
+	if err := s.CreateUser(ctx, user); err != nil {
 		return err
 	}
 
@@ -187,7 +189,8 @@ func init() {
 }
 
 func userFindF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService(flags)
+	ctx := context.Background()
+	s, err := newUserService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -204,7 +207,7 @@ func userFindF(cmd *cobra.Command, args []string) error {
 		filter.ID = id
 	}
 
-	users, _, err := s.FindUsers(context.Background(), filter)
+	users, _, err := s.FindUsers(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -246,7 +249,8 @@ func init() {
 }
 
 func userDeleteF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService(flags)
+	ctx := context.Background()
+	s, err := newUserService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -256,7 +260,6 @@ func userDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx := context.Background()
 	u, err := s.FindUserByID(ctx, id)
 	if err != nil {
 		return err

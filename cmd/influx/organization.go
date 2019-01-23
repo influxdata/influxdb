@@ -45,7 +45,7 @@ func init() {
 	organizationCmd.AddCommand(organizationCreateCmd)
 }
 
-func newOrganizationService(f Flags) (platform.OrganizationService, error) {
+func newOrganizationService(ctx context.Context, f Flags) (platform.OrganizationService, error) {
 	if flags.local {
 		boltFile, err := fs.BoltFile()
 		if err != nil {
@@ -53,7 +53,7 @@ func newOrganizationService(f Flags) (platform.OrganizationService, error) {
 		}
 		c := bolt.NewClient()
 		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
+		if err := c.Open(ctx); err != nil {
 			return nil, err
 		}
 
@@ -66,7 +66,8 @@ func newOrganizationService(f Flags) (platform.OrganizationService, error) {
 }
 
 func organizationCreateF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	ctx := context.Background()
+	orgSvc, err := newOrganizationService(ctx, flags)
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -75,7 +76,7 @@ func organizationCreateF(cmd *cobra.Command, args []string) error {
 		Name: organizationCreateFlags.name,
 	}
 
-	if err := orgSvc.CreateOrganization(context.Background(), o); err != nil {
+	if err := orgSvc.CreateOrganization(ctx, o); err != nil {
 		return fmt.Errorf("failed to create organization: %v", err)
 	}
 
@@ -115,7 +116,8 @@ func init() {
 }
 
 func organizationFindF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	ctx := context.Background()
+	orgSvc, err := newOrganizationService(ctx, flags)
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -133,7 +135,7 @@ func organizationFindF(cmd *cobra.Command, args []string) error {
 		filter.ID = id
 	}
 
-	orgs, _, err := orgSvc.FindOrganizations(context.Background(), filter)
+	orgs, _, err := orgSvc.FindOrganizations(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed find orgs: %v", err)
 	}
@@ -177,7 +179,8 @@ func init() {
 }
 
 func organizationUpdateF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	ctx := context.Background()
+	orgSvc, err := newOrganizationService(ctx, flags)
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -192,7 +195,7 @@ func organizationUpdateF(cmd *cobra.Command, args []string) error {
 		update.Name = &organizationUpdateFlags.name
 	}
 
-	o, err := orgSvc.UpdateOrganization(context.Background(), id, update)
+	o, err := orgSvc.UpdateOrganization(ctx, id, update)
 	if err != nil {
 		return fmt.Errorf("failed to update org: %v", err)
 	}
@@ -219,7 +222,8 @@ type OrganizationDeleteFlags struct {
 var organizationDeleteFlags OrganizationDeleteFlags
 
 func organizationDeleteF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	ctx := context.Background()
+	orgSvc, err := newOrganizationService(ctx, flags)
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
@@ -229,7 +233,6 @@ func organizationDeleteF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to decode org id %s: %v", organizationDeleteFlags.id, err)
 	}
 
-	ctx := context.TODO()
 	o, err := orgSvc.FindOrganizationByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to find org with id %q: %v", id, err)
@@ -288,12 +291,13 @@ type OrganizationMembersListFlags struct {
 var organizationMembersListFlags OrganizationMembersListFlags
 
 func organizationMembersListF(cmd *cobra.Command, args []string) error {
-	orgSvc, err := newOrganizationService(flags)
+	ctx := context.Background()
+	orgSvc, err := newOrganizationService(ctx, flags)
 	if err != nil {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
-	mappingSvc, err := newUserResourceMappingService(flags)
+	mappingSvc, err := newUserResourceMappingService(ctx, flags)
 	if err != nil {
 		return fmt.Errorf("failed to initialize members service client: %v", err)
 	}
@@ -316,7 +320,7 @@ func organizationMembersListF(cmd *cobra.Command, args []string) error {
 		filter.ID = &fID
 	}
 
-	organization, err := orgSvc.FindOrganization(context.Background(), filter)
+	organization, err := orgSvc.FindOrganization(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to find org: %v", err)
 	}
@@ -326,7 +330,7 @@ func organizationMembersListF(cmd *cobra.Command, args []string) error {
 		UserType:   platform.Member,
 	}
 
-	mappings, _, err := mappingSvc.FindUserResourceMappings(context.Background(), mappingFilter)
+	mappings, _, err := mappingSvc.FindUserResourceMappings(ctx, mappingFilter)
 	if err != nil {
 		return fmt.Errorf("failed to find members: %v", err)
 	}
@@ -400,7 +404,8 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 		filter.ID = &fID
 	}
 
-	organization, err := orgSvc.FindOrganization(context.Background(), filter)
+	ctx := context.Background()
+	organization, err := orgSvc.FindOrganization(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to find org: %v", err)
 	}
@@ -417,7 +422,7 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 		UserType:   platform.Member,
 	}
 
-	if err = mappingS.CreateUserResourceMapping(context.Background(), mapping); err != nil {
+	if err = mappingS.CreateUserResourceMapping(ctx, mapping); err != nil {
 		return fmt.Errorf("failed to add member: %v", err)
 	}
 
@@ -481,7 +486,8 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 		filter.ID = &fID
 	}
 
-	organization, err := orgSvc.FindOrganization(context.Background(), filter)
+	ctx := context.Background()
+	organization, err := orgSvc.FindOrganization(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to find organization: %v", err)
 	}
@@ -492,7 +498,7 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to decode member id %s: %v", organizationMembersRemoveFlags.memberID, err)
 	}
 
-	if err = mappingS.DeleteUserResourceMapping(context.Background(), organization.ID, memberID); err != nil {
+	if err = mappingS.DeleteUserResourceMapping(ctx, organization.ID, memberID); err != nil {
 		return fmt.Errorf("failed to remove member: %v", err)
 	}
 

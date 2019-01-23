@@ -61,14 +61,15 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	ctx := context.Background()
 	if queryFlags.Org != "" {
-		orgSvc, err := newOrganizationService(flags)
+		orgSvc, err := newOrganizationService(ctx, flags)
 		if err != nil {
 			return fmt.Errorf("failed to initialized organization service client: %v", err)
 		}
 
 		filter := platform.OrganizationFilter{Name: &queryFlags.Org}
-		o, err := orgSvc.FindOrganization(context.Background(), filter)
+		o, err := orgSvc.FindOrganization(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("failed to retrieve organization %q: %v", queryFlags.Org, err)
 		}

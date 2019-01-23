@@ -88,12 +88,12 @@ func init() {
 
 func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	var permissions []platform.Permission
-	orgSvc, err := newOrganizationService(flags)
+	ctx := context.Background()
+	orgSvc, err := newOrganizationService(ctx, flags)
 	if err != nil {
 		return err
 	}
 
-	ctx := context.Background()
 	orgFilter := platform.OrganizationFilter{Name: &authorizationCreateFlags.org}
 	o, err := orgSvc.FindOrganization(ctx, orgFilter)
 	if err != nil {
@@ -228,12 +228,12 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 		OrgID:       o.ID,
 	}
 
-	s, err := newAuthorizationService(flags)
+	s, err := newAuthorizationService(ctx, flags)
 	if err != nil {
 		return err
 	}
 
-	if err := s.CreateAuthorization(context.Background(), authorization); err != nil {
+	if err := s.CreateAuthorization(ctx, authorization); err != nil {
 		return err
 	}
 
@@ -287,7 +287,7 @@ func init() {
 	authorizationCmd.AddCommand(authorizationFindCmd)
 }
 
-func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
+func newAuthorizationService(ctx context.Context, f Flags) (platform.AuthorizationService, error) {
 	if flags.local {
 		boltFile, err := fs.BoltFile()
 		if err != nil {
@@ -295,7 +295,7 @@ func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
 		}
 		c := bolt.NewClient()
 		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
+		if err := c.Open(ctx); err != nil {
 			return nil, err
 		}
 
@@ -308,7 +308,8 @@ func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
 }
 
 func authorizationFindF(cmd *cobra.Command, args []string) error {
-	s, err := newAuthorizationService(flags)
+	ctx := context.Background()
+	s, err := newAuthorizationService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -332,7 +333,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		filter.UserID = uID
 	}
 
-	authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
+	authorizations, _, err := s.FindAuthorizations(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -388,7 +389,8 @@ func init() {
 }
 
 func authorizationDeleteF(cmd *cobra.Command, args []string) error {
-	s, err := newAuthorizationService(flags)
+	ctx := context.Background()
+	s, err := newAuthorizationService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -398,13 +400,12 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx := context.TODO()
 	a, err := s.FindAuthorizationByID(ctx, *id)
 	if err != nil {
 		return err
 	}
 
-	if err := s.DeleteAuthorization(context.Background(), *id); err != nil {
+	if err := s.DeleteAuthorization(ctx, *id); err != nil {
 		return err
 	}
 
@@ -457,7 +458,8 @@ func init() {
 }
 
 func authorizationActiveF(cmd *cobra.Command, args []string) error {
-	s, err := newAuthorizationService(flags)
+	ctx := context.Background()
+	s, err := newAuthorizationService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -467,13 +469,12 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx := context.TODO()
 	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	if err := s.SetAuthorizationStatus(context.Background(), id, platform.Active); err != nil {
+	if err := s.SetAuthorizationStatus(ctx, id, platform.Active); err != nil {
 		return err
 	}
 
@@ -526,7 +527,8 @@ func init() {
 }
 
 func authorizationInactiveF(cmd *cobra.Command, args []string) error {
-	s, err := newAuthorizationService(flags)
+	ctx := context.Background()
+	s, err := newAuthorizationService(ctx, flags)
 	if err != nil {
 		return err
 	}
@@ -536,7 +538,6 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx := context.TODO()
 	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
 		return err

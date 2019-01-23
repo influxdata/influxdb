@@ -95,6 +95,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		Flux: flux,
 	}
 
+	ctx := context.Background()
 	if taskCreateFlags.org != "" && taskCreateFlags.orgID == "" {
 		ow := &http.OrganizationService{
 			Addr:  flags.host,
@@ -105,7 +106,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 			Name: &taskCreateFlags.org,
 		}
 
-		orgs, _, err := ow.FindOrganizations(context.Background(), filter)
+		orgs, _, err := ow.FindOrganizations(ctx, filter)
 		if err != nil {
 			return err
 		}
@@ -138,7 +139,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		t.OrganizationID = *id
 	}
 
-	if err := s.CreateTask(context.Background(), t); err != nil {
+	if err := s.CreateTask(ctx, t); err != nil {
 		return err
 	}
 
@@ -222,20 +223,21 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	var tasks []*platform.Task
 	var err error
 
+	ctx := context.Background()
 	if taskFindFlags.id != "" {
 		id, err := platform.IDFromString(taskFindFlags.id)
 		if err != nil {
 			return err
 		}
 
-		task, err := s.FindTaskByID(context.Background(), *id)
+		task, err := s.FindTaskByID(ctx, *id)
 		if err != nil {
 			return err
 		}
 
 		tasks = append(tasks, task)
 	} else {
-		tasks, _, err = s.FindTasks(context.Background(), filter)
+		tasks, _, err = s.FindTasks(ctx, filter)
 		if err != nil {
 			return err
 		}
@@ -536,19 +538,20 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter.Org = orgID
 
+	ctx := context.Background()
 	var runs []*platform.Run
 	if taskRunFindFlags.runID != "" {
 		id, err := platform.IDFromString(taskRunFindFlags.runID)
 		if err != nil {
 			return err
 		}
-		run, err := s.FindRunByID(context.Background(), *filter.Org, *id)
+		run, err := s.FindRunByID(ctx, *filter.Org, *id)
 		if err != nil {
 			return err
 		}
 		runs = append(runs, run)
 	} else {
-		runs, _, err = s.FindRuns(context.Background(), filter)
+		runs, _, err = s.FindRuns(ctx, filter)
 		if err != nil {
 			return err
 		}
