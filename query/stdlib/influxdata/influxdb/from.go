@@ -634,22 +634,23 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 		return nil, errors.New("nil bounds passed to from")
 	}
 
+	// Note: currently no planner rules will push a window() into from()
+	// so the following is dead code.
 	if spec.WindowSet {
 		w = execute.Window{
 			Every:  execute.Duration(spec.Window.Every),
 			Period: execute.Duration(spec.Window.Period),
-			Round:  execute.Duration(spec.Window.Round),
-			Start:  bounds.Start,
+			Offset: execute.Duration(spec.Window.Offset),
 		}
 	} else {
 		duration := execute.Duration(bounds.Stop) - execute.Duration(bounds.Start)
 		w = execute.Window{
 			Every:  duration,
 			Period: duration,
-			Start:  bounds.Start,
+			Offset: bounds.Start.Remainder(duration),
 		}
 	}
-	currentTime := w.Start + execute.Time(w.Period)
+	currentTime := bounds.Start + execute.Time(w.Period)
 
 	deps := a.Dependencies()[FromKind].(Dependencies)
 	req := query.RequestFromContext(a.Context())
