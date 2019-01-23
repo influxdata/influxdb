@@ -66,9 +66,8 @@ func newBucketService(f Flags) (platform.BucketService, error) {
 		return c, nil
 	}
 	return &http.BucketService{
-		Addr:     flags.host,
-		Token:    flags.token,
-		OpPrefix: bolt.OpPrefix,
+		Addr:  flags.host,
+		Token: flags.token,
 	}, nil
 }
 
