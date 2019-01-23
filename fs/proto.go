@@ -156,7 +156,7 @@ func (s *ProtoService) CreateDashboardsFromProto(ctx context.Context, protoID pl
 			cell := &platform.Cell{}
 			*cell = *protocell
 
-			protoview, ok := protodash.Views[cell.ID]
+			protoview, ok := protodash.Views[cell.ID.String()]
 			if !ok {
 				return nil, &platform.Error{Msg: fmt.Sprintf("view for ID %q does not exist", cell.ID)}
 			}

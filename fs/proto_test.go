@@ -56,8 +56,8 @@ func TestProtoService_FindProtos(t *testing.T) {
 										},
 									},
 								},
-								Views: map[platform.ID]platform.View{
-									platformtesting.MustIDBase16("da7aba5e5d81e550"): platform.View{
+								Views: map[string]platform.View{
+									"da7aba5e5d81e550": platform.View{
 										ViewContents: platform.ViewContents{
 											Name: "hello",
 										},
@@ -95,8 +95,8 @@ func TestProtoService_FindProtos(t *testing.T) {
 										},
 									},
 								},
-								Views: map[platform.ID]platform.View{
-									platformtesting.MustIDBase16("da7aba5e5d81e550"): platform.View{
+								Views: map[string]platform.View{
+									"da7aba5e5d81e550": platform.View{
 										ViewContents: platform.ViewContents{
 											Name: "hello",
 										},
