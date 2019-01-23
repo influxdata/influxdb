@@ -61,7 +61,7 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 	// this collected data.
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
-		http.Redirect(w, r, "https://www.influxdata.com/legal/data-processing-agreement/", http.StatusSeeOther)
+		http.Redirect(w, r, "https://www.influxdata.com/telemetry", http.StatusSeeOther)
 		return
 	case http.MethodPost, http.MethodPut:
 	default:
