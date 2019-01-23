@@ -27,7 +27,8 @@
     "tslint": "tslint -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "tslint:fix": "tslint --fix -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty",
-    "tsc:watch": "tsc -p ./tsconfig.json --noEmit --pretty -w"
+    "tsc:watch": "tsc -p ./tsconfig.json --noEmit --pretty -w",
+    "cypress:open": "cypress open"
   },
   "jest": {
     "setupTestFrameworkScriptFile": "./jestSetup.ts",
@@ -68,6 +69,9 @@
   },
   "author": "",
   "devDependencies": {
+    "@babel/core": "^7.2.2",
+    "@babel/preset-env": "^7.3.1",
+    "@cypress/webpack-preprocessor": "^4.0.3",
     "@types/chroma-js": "^1.3.4",
     "@types/codemirror": "^0.0.56",
     "@types/d3-color": "^1.2.1",
@@ -94,6 +98,8 @@
     "@types/text-encoding": "^0.0.32",
     "@types/uuid": "^3.4.3",
     "autoprefixer": "^6.3.1",
+    "babel-loader": "^8.0.5",
+    "cypress": "^3.1.4",
     "enzyme": "^3.6.0",
     "enzyme-adapter-react-16": "^1.6.0",
     "enzyme-to-json": "^3.3.4",
@@ -108,12 +114,14 @@
     "react-testing-library": "^5.4.4",
     "sass": "^1.15.3",
     "ts-jest": "^23.10.3",
+    "ts-loader": "^5.3.3",
     "tslib": "^1.9.0",
     "tslint": "^5.9.1",
     "tslint-config-prettier": "^1.15.0",
     "tslint-plugin-prettier": "^2.0.0",
     "tslint-react": "^3.5.1",
-    "typescript": "^3.1.3"
+    "typescript": "^3.1.3",
+    "webpack": "^4.29.0"
   },
   "dependencies": {
     "@influxdata/clockface": "0.0.4",
