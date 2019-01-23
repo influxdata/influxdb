@@ -598,7 +598,7 @@ func init() {
 	cmd.MarkFlagRequired("task-id")
 	cmd.MarkFlagRequired("run-id")
 
-	taskCmd.AddCommand(cmd)
+	runCmd.AddCommand(cmd)
 }
 
 func runRetryF(cmd *cobra.Command, args []string) error {
