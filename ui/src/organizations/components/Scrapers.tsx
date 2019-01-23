@@ -51,7 +51,6 @@ export default class Scrapers extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {buckets} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -78,10 +77,19 @@ export default class Scrapers extends PureComponent<Props, State> {
           onCompleteSetup={this.handleDismissDataLoaders}
           startingType={DataLoaderType.Scraping}
           startingStep={DataLoaderStep.Configure}
-          buckets={buckets}
+          buckets={this.buckets}
         />
       </>
     )
+  }
+
+  private get buckets(): Bucket[] {
+    const {buckets} = this.props
+
+    if (!buckets || !buckets.length) {
+      return []
+    }
+    return buckets
   }
 
   private get configurations(): ScraperTargetResponse[] {
