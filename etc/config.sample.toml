@@ -166,7 +166,7 @@
   # count unlimited.
   # max-select-series = 0
 
-  # The maxium number of group by time bucket a SELECT can create.  A value of zero will max the maximum
+  # The maximum number of group by time bucket a SELECT can create.  A value of zero will max the maximum
   # number of buckets unlimited.
   # max-select-buckets = 0
 
@@ -455,7 +455,7 @@
   # Multi-value plugins can be handled two ways.
   # "split" will parse and store the multi-value plugin data into separate measurements
   # "join" will parse and store the multi-value plugin as a single multi-value measurement.
-  # "split" is the default behavior for backward compatability with previous versions of influxdb.
+  # "split" is the default behavior for backward compatibility with previous versions of influxdb.
   # parse-multivalue-plugin = "split"
 ###
 ### [opentsdb]
