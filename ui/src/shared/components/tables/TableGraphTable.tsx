@@ -40,6 +40,7 @@ export interface CellRendererProps {
 }
 
 interface OwnProps {
+  dataTypes: {[x: string]: string}
   transformedDataBundle: TransformTableDataReturnType
   properties: TableView
   onSort: (fieldName: string) => void
@@ -315,6 +316,21 @@ class TableGraphTable extends PureComponent<Props, State> {
     return transformedData[rowIndex][columnIndex]
   }
 
+  private dataType = (rowIndex, columnIndex): string => {
+    const {
+      transformedDataBundle: {transformedData},
+      dataTypes,
+    } = this.props
+
+    if (rowIndex === 0) {
+      return 'n/a'
+    }
+
+    const columnName = transformedData[0][columnIndex]
+
+    return _.get(dataTypes, columnName, 'n/a')
+  }
+
   private cellRenderer = (cellProps: CellRendererProps) => {
     const {rowIndex, columnIndex} = cellProps
     const {
@@ -333,6 +349,7 @@ class TableGraphTable extends PureComponent<Props, State> {
         onHover={this.handleHover}
         isTimeVisible={this.isTimeVisible}
         data={this.getCellData(rowIndex, columnIndex)}
+        dataType={this.dataType(rowIndex, columnIndex)}
         hoveredRowIndex={hoverIndex}
         properties={properties}
         resolvedFieldOptions={resolvedFieldOptions}
