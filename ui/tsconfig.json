@@ -26,5 +26,5 @@
     "esModuleInterop": true,
     "baseUrl": "./"
   },
-  "exclude": ["assets", "build", "node_modules"]
+  "exclude": ["assets", "build", "node_modules", "cypress"]
 }
