@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Components
 import {Form, ComponentStatus} from 'src/clockface'
@@ -51,7 +52,7 @@ export class Scraping extends PureComponent<Props> {
     } = this.props
 
     if (!scraperBucket) {
-      onSetScraperTargetBucket(currentBucket || buckets[0].name)
+      onSetScraperTargetBucket(currentBucket || _.get(buckets, '0.name', ''))
     }
   }
 
@@ -96,6 +97,9 @@ export class Scraping extends PureComponent<Props> {
 
   private handleSelectBucket = (bucket: string) => {
     const {buckets, onSetScraperTargetBucket, onSetBucketInfo} = this.props
+    if (!buckets || !buckets.length) {
+      return
+    }
 
     const findBucket = buckets.find(b => b.name === bucket)
     const bucketID = findBucket.id
@@ -107,7 +111,11 @@ export class Scraping extends PureComponent<Props> {
   }
 
   private get nextButtonStatus(): ComponentStatus {
-    if (this.props.url === '') {
+    if (
+      this.props.url === '' ||
+      !this.props.buckets ||
+      !this.props.buckets.length
+    ) {
       return ComponentStatus.Disabled
     }
     return ComponentStatus.Default
