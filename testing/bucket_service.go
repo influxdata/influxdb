@@ -367,7 +367,7 @@ func CreateBucket(
 				buckets: []*platform.Bucket{},
 				err: &platform.Error{
 					Code: platform.ENotFound,
-					Msg:  "organization not found",
+					Msg:  "organization name \"org1\" not found",
 					Op:   platform.OpCreateBucket,
 				},
 			},

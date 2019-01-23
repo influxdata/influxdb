@@ -465,7 +465,7 @@ func FindOrganizations(
 				err: &platform.Error{
 					Code: platform.ENotFound,
 					Op:   platform.OpFindOrganizations,
-					Msg:  "organization not found",
+					Msg:  "organization name \"na\" not found",
 				},
 			},
 		},
@@ -652,7 +652,7 @@ func FindOrganization(
 				err: &platform.Error{
 					Code: platform.ENotFound,
 					Op:   platform.OpFindOrganization,
-					Msg:  "organization not found",
+					Msg:  "organization name \"abc\" not found",
 				},
 			},
 		},

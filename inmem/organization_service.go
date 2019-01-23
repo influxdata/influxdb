@@ -105,10 +105,15 @@ func (s *Service) FindOrganization(ctx context.Context, filter platform.Organiza
 		}
 	}
 	if n < 1 {
+		msg := errOrganizationNotFound
+		if filter.Name != nil {
+			msg = fmt.Sprintf("organization name \"%s\" not found", *filter.Name)
+		}
+
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
 			Op:   op,
-			Msg:  errOrganizationNotFound,
+			Msg:  msg,
 		}
 	}
 
@@ -146,10 +151,15 @@ func (s *Service) FindOrganizations(ctx context.Context, filter platform.Organiz
 	}
 
 	if len(orgs) == 0 {
+		msg := errOrganizationNotFound
+		if filter.Name != nil {
+			msg = fmt.Sprintf("organization name \"%s\" not found", *filter.Name)
+		}
+
 		return orgs, 0, &platform.Error{
 			Code: platform.ENotFound,
 			Op:   op,
-			Msg:  errOrganizationNotFound,
+			Msg:  msg,
 		}
 	}
 
