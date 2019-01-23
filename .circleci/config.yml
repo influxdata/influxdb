@@ -190,8 +190,19 @@ workflows:
               only: master
   release:
     jobs:
-      - gotest
-      - jstest
+      - gotest:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
+
+      - jstest:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
       - release:
           requires:
             - gotest
