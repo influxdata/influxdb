@@ -119,7 +119,7 @@ class DataLoadersWizard extends PureComponent<Props> {
     const {
       currentStepIndex,
       dataLoaders,
-      dataLoaders: {telegrafPlugins, telegrafConfigID},
+      dataLoaders: {telegrafPlugins},
       onSetDataLoadersType,
       onSetActiveTelegrafPlugin,
       onSetPluginConfiguration,
@@ -128,7 +128,6 @@ class DataLoadersWizard extends PureComponent<Props> {
       onRemoveConfigValue,
       onAddPluginBundle,
       onRemovePluginBundle,
-      notify,
       onSetConfigArrayValue,
       visible,
       bucket,
@@ -146,9 +145,7 @@ class DataLoadersWizard extends PureComponent<Props> {
       >
         <div className="wizard-contents">
           <PluginsSideBar
-            notify={notify}
             telegrafPlugins={telegrafPlugins}
-            telegrafConfigID={telegrafConfigID}
             onTabClick={this.handleClickSideBarTab}
             title="Plugins to Configure"
             visible={this.sideBarVisible}

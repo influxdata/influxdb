@@ -3,28 +3,13 @@ import React, {Component} from 'react'
 // Components
 import SideBar from 'src/onboarding/components/side_bar/SideBar'
 import {SideBarTabStatus as TabStatus} from 'src/onboarding/components/side_bar/SideBar'
-import {ComponentColor} from 'src/clockface'
 
-// Utils
-import {downloadTextFile} from 'src/shared/utils/download'
-
-// Constants
-import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
-
-// APIs
-import {getTelegrafConfigTOML} from 'src/onboarding/apis'
-
-// Types
-import {IconFont} from 'src/clockface'
 import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
-import {NotificationAction} from 'src/types'
 
 interface Props {
   title: string
-  telegrafConfigID: string
   visible: boolean
   telegrafPlugins: TelegrafPlugin[]
-  notify: NotificationAction
   onTabClick: (tabID: string) => void
   currentStepIndex: number
 }
@@ -52,7 +37,7 @@ class PluginsSideBar extends Component<Props> {
   private get content(): JSX.Element[] {
     const {currentStepIndex} = this.props
     if (currentStepIndex !== 2) {
-      return [...this.tabs, ...this.buttons]
+      return [...this.tabs]
     }
     return this.tabs
   }
@@ -69,39 +54,6 @@ class PluginsSideBar extends Component<Props> {
         onClick={onTabClick}
       />
     ))
-  }
-
-  private get downloadButton(): JSX.Element {
-    return (
-      <SideBar.Button
-        key="Download Config File"
-        text="Download Config File"
-        titleText="Download Config File"
-        data-test="download"
-        color={ComponentColor.Secondary}
-        icon={IconFont.Download}
-        onClick={this.handleDownload}
-      />
-    )
-  }
-
-  private get buttons(): JSX.Element[] {
-    const {telegrafConfigID} = this.props
-
-    if (telegrafConfigID) {
-      return [this.downloadButton]
-    }
-    return []
-  }
-
-  private handleDownload = async () => {
-    const {notify, telegrafConfigID} = this.props
-    try {
-      const config = await getTelegrafConfigTOML(telegrafConfigID)
-      downloadTextFile(config, 'config.toml')
-    } catch (error) {
-      notify(getTelegrafConfigFailed())
-    }
   }
 }
 

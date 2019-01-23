@@ -5,7 +5,6 @@ import {shallow} from 'enzyme'
 // Components
 import PluginsSideBar from 'src/onboarding/components/PluginsSideBar'
 import {cpuTelegrafPlugin, diskTelegrafPlugin} from 'mocks/dummyData'
-import {Button} from 'src/clockface'
 import SideBarTab from 'src/onboarding/components/side_bar/SideBarTab'
 
 const onClick = jest.fn(() => {})
@@ -16,8 +15,6 @@ const setup = (override = {}) => {
     visible: true,
     telegrafPlugins: [],
     onTabClick: onClick,
-    telegrafConfigID: '',
-    notify: jest.fn(),
     currentStepIndex: 0,
     onNewSourceClick: jest.fn(),
     ...override,
@@ -41,40 +38,13 @@ describe('PluginsSideBar', () => {
   })
 
   describe('if on selection step', () => {
-    it('renders the tabs but no buttons', () => {
+    it('renders the tabs', () => {
       const {wrapper} = setup({
         currentStepIndex: 2,
         telegrafPlugins: [cpuTelegrafPlugin, diskTelegrafPlugin],
       })
-
-      const buttons = wrapper.find(Button)
       const tabs = wrapper.find(SideBarTab)
-
-      expect(buttons.exists()).toBe(false)
       expect(tabs.exists()).toBe(true)
-    })
-  })
-
-  describe('if there is not a telegraf config id', () => {
-    it('does not render the download config button', () => {
-      const {wrapper} = setup({currentStepIndex: 3})
-
-      const downloadButton = wrapper.find('[data-test="download"]')
-
-      expect(downloadButton.exists()).toBe(false)
-    })
-  })
-
-  describe('if there is a telegraf config id', () => {
-    it('renders the download config button', () => {
-      const {wrapper} = setup({
-        currentStepIndex: 3,
-        telegrafConfigID: 'ajefoiaijesfk',
-      })
-
-      const downloadButton = wrapper.find('[data-test="download"]')
-
-      expect(downloadButton.exists()).toBe(true)
     })
   })
 })
