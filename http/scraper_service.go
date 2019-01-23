@@ -458,6 +458,8 @@ func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.
 		res.Bucket = bucket.Name
 		res.BucketID = bucket.ID
 		res.Links.Bucket = bucketIDPath(bucket.ID)
+	} else {
+		res.BucketID = influxdb.InvalidID()
 	}
 
 	org, err := h.OrganizationService.FindOrganizationByID(ctx, target.OrgID)
@@ -465,6 +467,8 @@ func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.
 		res.Organization = org.Name
 		res.OrgID = org.ID
 		res.Links.Organization = organizationIDPath(org.ID)
+	} else {
+		res.OrgID = influxdb.InvalidID()
 	}
 
 	return res, nil
