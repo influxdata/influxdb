@@ -24,7 +24,7 @@ class SplashPage extends Component<Props> {
         </div>
         <p className="auth-credits">
           Powered by <span className="icon cubo-uniform" />{' '}
-          <a href="https://www.influxdata.com/" target="_blank">
+          <a href="https://www.influxdata.com/?utm_campaign=login&utm_medium=product&utm_source=influxdbv2oss" target="_blank">
             InfluxData
           </a>
         </p>
