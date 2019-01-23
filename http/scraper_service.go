@@ -411,20 +411,20 @@ type getTargetsLinks struct {
 
 type getTargetsResponse struct {
 	Links   getTargetsLinks  `json:"links"`
-	Targets []targetResponse `json:"scraper_targets"`
+	Targets []targetResponse `json:"configurations"`
 }
 
 type targetLinks struct {
-	Self string `json:"self"`
+	Self         string `json:"self"`
+	Bucket       string `json:"bucket,omitempty"`
+	Organization string `json:"organization,omitempty"`
 }
 
 type targetResponse struct {
 	influxdb.ScraperTarget
-	// Organization name.
-	Organization string `json:"organization"`
-	// Bucket name.
-	Bucket string      `json:"bucket"`
-	Links  targetLinks `json:"links"`
+	Organization string      `json:"organization,omitempty"`
+	Bucket       string      `json:"bucket,omitempty"`
+	Links        targetLinks `json:"links"`
 }
 
 func (h *ScraperHandler) newListTargetsResponse(ctx context.Context, targets []influxdb.ScraperTarget) (getTargetsResponse, error) {
@@ -447,20 +447,29 @@ func (h *ScraperHandler) newListTargetsResponse(ctx context.Context, targets []i
 }
 
 func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.ScraperTarget) (targetResponse, error) {
-	bucket, err := h.BucketService.FindBucketByID(ctx, target.BucketID)
-	if err != nil {
-		return targetResponse{}, err
-	}
-	org, err := h.OrganizationService.FindOrganizationByID(ctx, target.OrgID)
-	if err != nil {
-		return targetResponse{}, err
-	}
-	return targetResponse{
+	res := targetResponse{
 		Links: targetLinks{
 			Self: targetIDPath(target.ID),
 		},
-		Bucket:        bucket.Name,
-		Organization:  org.Name,
 		ScraperTarget: target,
-	}, nil
+	}
+	bucket, err := h.BucketService.FindBucketByID(ctx, target.BucketID)
+	if err == nil {
+		res.Bucket = bucket.Name
+		res.BucketID = bucket.ID
+		res.Links.Bucket = bucketIDPath(bucket.ID)
+	} else {
+		res.BucketID = influxdb.InvalidID()
+	}
+
+	org, err := h.OrganizationService.FindOrganizationByID(ctx, target.OrgID)
+	if err == nil {
+		res.Organization = org.Name
+		res.OrgID = org.ID
+		res.Links.Organization = organizationIDPath(org.ID)
+	} else {
+		res.OrgID = influxdb.InvalidID()
+	}
+
+	return res, nil
 }
