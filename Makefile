@@ -19,6 +19,7 @@ GO_ARGS=-tags '$(GO_TAGS)'
 # Test vars can be used by all recursive Makefiles
 export GOOS=$(shell go env GOOS)
 export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS)
+export GO_INSTALL=env GO111MODULE=on go install $(GO_ARGS)
 export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
 export GO_GENERATE=go generate $(GO_ARGS)
@@ -119,10 +120,15 @@ bench:
 build: all
 
 dist:
-	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist
+	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --config=.goreleaser-nightly.yml
 
 nightly:
-	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots
+	$(GO_RUN) github.com/goreleaser/goreleaser --snapshot --rm-dist --publish-snapshots --config=.goreleaser-nightly.yml
+
+release:
+	$(GO_INSTALL) github.com/goreleaser/goreleaser
+	git checkout -- go.sum # avoid dirty git repository caused by go install 
+	goreleaser release --rm-dist
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done

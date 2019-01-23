@@ -1,4 +1,4 @@
-project_name: influxdb
+project_name: platform
 builds:
   - goos:
     - linux
@@ -9,7 +9,6 @@ builds:
     main: ./cmd/influx/
     env:
       - GO111MODULE=on
-      - CGO_ENABLED=0
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influx
   - goos:
@@ -23,7 +22,6 @@ builds:
       - -tags=assets
     env:
       - GO111MODULE=on
-      - CGO_ENABLED=0
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influxd
     hooks:
@@ -41,11 +39,14 @@ archive:
   - LICENSE
   - README.md
 
+snapshot:
+  name_template: 'nightly'
+
 s3:
   -
     bucket: dl.influxdata.com
     region: us-east-1
-    folder: "influxdb/releases/"
+    folder: "platform/nightlies/"
 
 dockers:
   - goos: linux
@@ -54,14 +55,11 @@ dockers:
     - influxd
     - influx
     image_templates:
-      - 'quay.io/influxdb/influxdb:{{ .Env.DOCKER_VERSION }}'
+      - 'quay.io/influxdb/influx:{{ .Version }}'
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
 
 # Do not make github release
 release:
-  name_template: "v{{.Version}}"
-  prerelease: auto # when we go to GA remove this line
-  draft: true      # when we go to GA remove this line
-  disable: true    # we keep the artifacts in S3 and link from the website
+  disable: true
