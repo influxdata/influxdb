@@ -12,7 +12,11 @@ import {ComponentStatus} from 'src/clockface'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 // Dummy Data
-import {defaultOnboardingStepProps, cpuTelegrafPlugin} from 'mocks/dummyData'
+import {
+  defaultOnboardingStepProps,
+  cpuTelegrafPlugin,
+  bucket,
+} from 'mocks/dummyData'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 const setup = (override = {}) => {
@@ -57,7 +61,10 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
 
   describe('if type is line protocol', () => {
     it('renders back and next buttons with correct status', () => {
-      const wrapper = setup({type: DataLoaderType.LineProtocol})
+      const wrapper = setup({
+        type: DataLoaderType.LineProtocol,
+        buckets: [bucket],
+      })
       const onboardingButtons = wrapper.find(OnboardingButtons)
       expect(onboardingButtons.prop('nextButtonStatus')).toBe(
         ComponentStatus.Default
@@ -90,6 +97,7 @@ describe('Onboarding.Components.SelectionStep.SelectDataSourceStep', () => {
           currentStepIndex: 0,
           substep: 'streaming',
           telegrafPlugins: [cpuTelegrafPlugin],
+          buckets: [bucket],
         })
         const onboardingButtons = wrapper.find(OnboardingButtons)
         expect(onboardingButtons.prop('nextButtonStatus')).toBe(
