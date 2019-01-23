@@ -14,15 +14,13 @@ var ErrNoNatsConnection = errors.New("nats connection has not been established. 
 // Server wraps a connection to a NATS streaming server
 type Server struct {
 	Server *stand.StanServer
-	config Config
 }
 
 // Open starts a NATS streaming server
 func (s *Server) Open() error {
 	opts := stand.GetDefaultOptions()
-	opts.StoreType = stores.TypeFile
+	opts.StoreType = stores.TypeMemory
 	opts.ID = ServerName
-	opts.FilestoreDir = s.config.FilestoreDir
 	server, err := stand.RunServerWithOpts(opts, nil)
 	if err != nil {
 		return err
@@ -38,15 +36,7 @@ func (s *Server) Close() {
 	s.Server.Shutdown()
 }
 
-// Config is the configuration for the NATS streaming server
-type Config struct {
-	// The directory where nats persists message information
-	FilestoreDir string
-}
-
 // NewServer creates and returns a new server struct from the provided config
-func NewServer(c Config) *Server {
-	return &Server{
-		config: c,
-	}
+func NewServer() *Server {
+	return &Server{}
 }
