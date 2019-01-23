@@ -100,7 +100,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                       id="every"
                       active={taskScheduleType === TaskSchedule.interval}
                       value={TaskSchedule.interval}
-                      titleText="Every"
+                      titleText="Run task at regular intervals"
                       onClick={this.handleChangeScheduleType}
                     >
                       Every
@@ -109,12 +109,13 @@ export default class TaskForm extends PureComponent<Props, State> {
                       id="cron"
                       active={taskScheduleType === TaskSchedule.cron}
                       value={TaskSchedule.cron}
-                      titleText="Cron"
+                      titleText="Use cron syntax for more control over scheduling"
                       onClick={this.handleChangeScheduleType}
                     >
                       Cron
                     </Radio.Button>
                   </Radio>
+                  {this.cronHelper}
                 </ComponentSpacer>
               </Form.Element>
             </Grid.Column>
@@ -155,6 +156,23 @@ export default class TaskForm extends PureComponent<Props, State> {
         </Form.Footer>
       </Grid.Column>
     )
+  }
+
+  private get cronHelper(): JSX.Element {
+    const {taskOptions} = this.props
+
+    if (taskOptions.taskScheduleType === TaskSchedule.cron) {
+      return (
+        <Form.Box>
+          <p className="time-format--helper">
+            For more information on cron syntax,{' '}
+            <a href="https://crontab.guru/" target="_blank">
+              click here
+            </a>
+          </p>
+        </Form.Box>
+      )
+    }
   }
 
   private handleChangeScheduleType = (schedule: TaskSchedule): void => {
