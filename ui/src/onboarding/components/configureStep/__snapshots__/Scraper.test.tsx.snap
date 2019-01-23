@@ -17,11 +17,21 @@ exports[`ScraperTarget rendering renders! 1`] = `
           menuColor="sapphire"
           mode="radio"
           onChange={[MockFunction]}
-          selectedID=""
+          selectedID="empty"
           status="default"
           titleText=""
           wrapText={false}
-        />
+        >
+          <DropdownItem
+            checkbox={false}
+            id="empty"
+            key="none"
+            selected={false}
+            value="No buckets found"
+          >
+            No buckets found
+          </DropdownItem>
+        </Dropdown>
       </FormElement>
     </GridColumn>
     <GridColumn

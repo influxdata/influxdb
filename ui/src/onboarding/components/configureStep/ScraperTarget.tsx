@@ -27,13 +27,16 @@ export class ScraperTarget extends PureComponent<Props> {
   }
 
   public render() {
-    const {bucket, onSelectBucket, url} = this.props
+    const {onSelectBucket, url} = this.props
     return (
       <Grid>
         <Grid.Row>
           <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.Two}>
             <Form.Element label="Bucket">
-              <Dropdown selectedID={bucket} onChange={onSelectBucket}>
+              <Dropdown
+                selectedID={this.selectedBucket}
+                onChange={onSelectBucket}
+              >
                 {this.dropdownBuckets}
               </Dropdown>
             </Form.Element>
@@ -66,8 +69,24 @@ export class ScraperTarget extends PureComponent<Props> {
     return ComponentStatus.Default
   }
 
+  private get selectedBucket(): string {
+    const {buckets, bucket} = this.props
+
+    if (!buckets || !buckets.length) {
+      return 'empty'
+    }
+    return bucket
+  }
+
   private get dropdownBuckets(): JSX.Element[] {
     const {buckets} = this.props
+    if (!buckets || !buckets.length) {
+      return [
+        <Dropdown.Item key={'none'} value={'No buckets found'} id={'empty'}>
+          {'No buckets found'}
+        </Dropdown.Item>,
+      ]
+    }
 
     return buckets.map(b => (
       <Dropdown.Item key={b} value={b} id={b}>
