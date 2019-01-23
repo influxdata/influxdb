@@ -79,7 +79,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 
 	s, err := newBucketService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize bucket service client: %v", err)
 	}
 
 	b := &platform.Bucket{
@@ -94,13 +94,13 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 	if bucketCreateFlags.orgID != "" {
 		id, err := platform.IDFromString(bucketCreateFlags.orgID)
 		if err != nil {
-			return fmt.Errorf("error parsing organization id: %v", err)
+			return fmt.Errorf("failed to decode org id %q: %v", bucketCreateFlags.orgID, err)
 		}
 		b.OrganizationID = *id
 	}
 
 	if err := s.CreateBucket(context.Background(), b); err != nil {
-		return err
+		return fmt.Errorf("failed to create bucket: %v", err)
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -151,7 +151,7 @@ func init() {
 func bucketFindF(cmd *cobra.Command, args []string) error {
 	s, err := newBucketService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize bucket service client: %v", err)
 	}
 
 	filter := platform.BucketFilter{}
@@ -162,7 +162,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 	if bucketFindFlags.id != "" {
 		id, err := platform.IDFromString(bucketFindFlags.id)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode bucket id %q: %v", bucketFindFlags.id, err)
 		}
 		filter.ID = id
 	}
@@ -174,7 +174,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 	if bucketFindFlags.orgID != "" {
 		orgID, err := platform.IDFromString(bucketFindFlags.orgID)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode org id %q: %v", bucketFindFlags.orgID, err)
 		}
 		filter.OrganizationID = orgID
 	}
@@ -185,7 +185,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 
 	buckets, _, err := s.FindBuckets(context.Background(), filter)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to retrieve buckets: %s", err)
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -237,12 +237,12 @@ func init() {
 func bucketUpdateF(cmd *cobra.Command, args []string) error {
 	s, err := newBucketService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize bucket service client: %v", err)
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(bucketUpdateFlags.id); err != nil {
-		return err
+		return fmt.Errorf("failed to decode bucket id %q: %v", bucketUpdateFlags.id, err)
 	}
 
 	update := platform.BucketUpdate{}
@@ -255,7 +255,7 @@ func bucketUpdateF(cmd *cobra.Command, args []string) error {
 
 	b, err := s.UpdateBucket(context.Background(), id, update)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update bucket: %v", err)
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
@@ -288,22 +288,22 @@ var bucketDeleteFlags BucketDeleteFlags
 func bucketDeleteF(cmd *cobra.Command, args []string) error {
 	s, err := newBucketService(flags)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize bucket service client: %v", err)
 	}
 
 	var id platform.ID
 	if err := id.DecodeFromString(bucketDeleteFlags.id); err != nil {
-		return err
+		return fmt.Errorf("failed to decode bucket id %q: %v", bucketDeleteFlags.id, err)
 	}
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	b, err := s.FindBucketByID(ctx, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find bucket with id %q: %v", id, err)
 	}
 
 	if err = s.DeleteBucket(ctx, id); err != nil {
-		return err
+		return fmt.Errorf("failed to delete bucket with id %q: %v", id, err)
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
