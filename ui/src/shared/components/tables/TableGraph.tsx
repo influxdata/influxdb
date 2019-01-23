@@ -45,13 +45,15 @@ class TableGraph extends PureComponent<Props, State> {
       <TableGraphTransform
         data={table.data}
         properties={properties}
+        dataTypes={table.dataTypes}
         sortOptions={this.sortOptions}
       >
         {transformedDataBundle => (
           <TableGraphTable
-            transformedDataBundle={transformedDataBundle}
-            onSort={this.handleSetSort}
             properties={properties}
+            dataTypes={table.dataTypes}
+            onSort={this.handleSetSort}
+            transformedDataBundle={transformedDataBundle}
           />
         )}
       </TableGraphTransform>

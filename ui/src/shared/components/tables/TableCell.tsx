@@ -19,6 +19,7 @@ import {CellRendererProps} from 'src/shared/components/tables/TableGraphTable'
 interface Props extends CellRendererProps {
   sortOptions: SortOptions
   data: string
+  dataType: string
   properties: TableView
   hoveredRowIndex: number
   hoveredColumnIndex: number
@@ -189,10 +190,10 @@ class TableCell extends PureComponent<Props> {
   }
 
   private get contents(): string {
-    const {properties, data} = this.props
+    const {properties, data, dataType} = this.props
     const {timeFormat, decimalPlaces} = properties
 
-    if (this.isTimeData) {
+    if (dataType.includes('dateTime')) {
       return moment(data).format(timeFormat)
     }
 

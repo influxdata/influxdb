@@ -12,6 +12,7 @@ import {TransformTableDataReturnType} from 'src/dashboards/utils/tableGraph'
 
 interface Props {
   data: string[][]
+  dataTypes: {[x: string]: string}
   properties: TableView
   sortOptions: SortOptions
   children: (transformedDataBundle: TransformTableDataReturnType) => JSX.Element
@@ -39,17 +40,22 @@ class TableGraphTransform extends PureComponent<Props> {
   )
 
   public render() {
-    const {properties, data, sortOptions} = this.props
+    const {properties, data, dataTypes, sortOptions} = this.props
     const {tableOptions, timeFormat, decimalPlaces, fieldOptions} = properties
+    const fo = fieldOptions.map(opts => ({
+      ...opts,
+      dataType: dataTypes[opts.internalName],
+    }))
 
     const transformedDataBundle = this.memoizedTableTransform(
       data,
       sortOptions,
-      fieldOptions,
+      fo,
       tableOptions,
       timeFormat,
       decimalPlaces
     )
+
     return this.props.children(transformedDataBundle)
   }
 }
