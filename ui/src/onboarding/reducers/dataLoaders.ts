@@ -24,6 +24,7 @@ import {
 } from 'src/types/v2/dataLoaders'
 import {RemoteDataState} from 'src/types'
 import {WritePrecision} from 'src/api'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/onboarding/constants/pluginConfigs'
 
 export const INITIAL_STATE: DataLoadersState = {
   telegrafPlugins: [],
@@ -34,7 +35,7 @@ export const INITIAL_STATE: DataLoadersState = {
   precision: WritePrecision.Ns,
   telegrafConfigID: null,
   pluginBundles: [],
-  scraperTarget: {bucket: '', url: 'http://127.0.0.1:9999/metrics'},
+  scraperTarget: {bucket: '', url: QUICKSTART_SCRAPER_TARGET_URL},
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
