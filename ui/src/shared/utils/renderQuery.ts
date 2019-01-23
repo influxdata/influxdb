@@ -1,5 +1,7 @@
+// APIs
+import {getAST} from 'src/shared/apis/v2/ast'
+
 // Utils
-import {queryAPI} from 'src/utils/api'
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
 
 // Constants
@@ -62,12 +64,6 @@ function formatVariables(
     .filter(([key]) => query.includes(key))
     .map(([key, value]) => `${key} = ${value}`)
     .join('\n')
-}
-
-async function getAST(query: string): Promise<{files}> {
-  const {data} = await queryAPI.queryAstPost(undefined, undefined, {query})
-
-  return data.ast
 }
 
 function getWindowInterval(durationMilliseconds: number = DEFAULT_DURATION_MS) {

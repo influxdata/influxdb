@@ -1,6 +1,20 @@
+// Libraries
 import {get, isObject, isArray} from 'lodash'
 
-export function getMinDurationFromAST(ast: any): number {
+// Types
+import {
+  Node,
+  Package,
+  CallExpression,
+  Property,
+  Expression,
+  Identifier,
+  ObjectExpression,
+  DateTimeLiteral,
+  DurationLiteral,
+} from 'src/types/ast'
+
+export function getMinDurationFromAST(ast: Package): number {
   // We can't take the minimum of durations of each range individually, since
   // seperate ranges are potentially combined via an inner `join` call. So the
   // approach is to:
@@ -26,77 +40,6 @@ export function getMinDurationFromAST(ast: any): number {
   return result
 }
 
-// The following interfaces only represent AST structs as they appear
-// in the context of a `range` call
-
-interface RangeCallExpression {
-  type: 'CallExpression'
-  callee: {
-    type: 'Identifier'
-    name: 'range'
-  }
-  arguments: [{properties: RangeCallProperty[]}]
-}
-
-interface RangeCallProperty {
-  type: 'Property'
-  key: {
-    name: 'start' | 'stop'
-  }
-  value: RangeCallPropertyValue
-}
-
-type RangeCallPropertyValue =
-  | MinusUnaryExpression<DurationLiteral>
-  | DurationLiteral
-  | DateTimeLiteral
-  | Identifier
-  | DurationBinaryExpression
-
-interface MinusUnaryExpression<T> {
-  type: 'UnaryExpression'
-  operator: '-'
-  argument: T
-}
-
-interface DurationLiteral {
-  type: 'DurationLiteral'
-  values: Array<{
-    magnitude: number
-    unit: DurationUnit
-  }>
-}
-
-type DurationUnit =
-  | 'y'
-  | 'mo'
-  | 'w'
-  | 'd'
-  | 'h'
-  | 'm'
-  | 's'
-  | 'ms'
-  | 'us'
-  | 'µs'
-  | 'ns'
-
-interface DateTimeLiteral {
-  type: 'DateTimeLiteral'
-  value: string
-}
-
-interface Identifier {
-  type: 'Identifier'
-  name: string
-}
-
-interface DurationBinaryExpression {
-  type: 'BinaryExpression'
-  left: DateTimeLiteral
-  right: DurationLiteral
-  operator: '+' | '-'
-}
-
 function allRangeTimes(ast: any): Array<[number, number]> {
   return findNodes(isRangeNode, ast).map(node => rangeTimes(ast, node))
 }
@@ -107,19 +50,23 @@ function allRangeTimes(ast: any): Array<[number, number]> {
   relative duration literal, it is interpreted as relative to the current
   instant (`Date.now()`).
 */
-function rangeTimes(
-  ast: any,
-  rangeNode: RangeCallExpression
-): [number, number] {
-  const properties = rangeNode.arguments[0].properties
+function rangeTimes(ast: any, rangeNode: CallExpression): [number, number] {
   const now = Date.now()
+  const properties: Property[] = (rangeNode.arguments[0] as ObjectExpression)
+    .properties
 
   // The `start` argument is required
-  const startProperty = properties.find(p => p.key.name === 'start')
+  const startProperty = properties.find(
+    p => (p.key as Identifier).name === 'start'
+  )
+
   const start = propertyTime(ast, startProperty.value, now)
 
   // The `end` argument to a `range` call is optional, and defaults to now
-  const endProperty = properties.find(p => p.key.name === 'stop')
+  const endProperty = properties.find(
+    p => (p.key as Identifier).name === 'stop'
+  )
+
   const end = endProperty ? propertyTime(ast, endProperty.value, now) : now
 
   if (isNaN(start) || isNaN(end)) {
@@ -129,30 +76,30 @@ function rangeTimes(
   return [start, end]
 }
 
-function propertyTime(
-  ast: any,
-  value: RangeCallPropertyValue,
-  now: number
-): number {
+function propertyTime(ast: any, value: Expression, now: number): number {
   switch (value.type) {
     case 'UnaryExpression':
-      return now - durationDuration(value.argument)
+      return now - durationDuration(value.argument as DurationLiteral)
     case 'DurationLiteral':
       return now + durationDuration(value)
     case 'DateTimeLiteral':
       return Date.parse(value.value)
     case 'Identifier':
-      return propertyTime(ast, resolveDeclaration(ast, value.name), now)
+      return propertyTime(ast, lookupVariable(ast, value.name), now)
     case 'BinaryExpression':
-      const leftTime = Date.parse(value.left.value)
-      const rightDuration = durationDuration(value.right)
+      const leftTime = Date.parse((value.left as DateTimeLiteral).value)
+      const rightDuration = durationDuration(value.right as DurationLiteral)
 
       switch (value.operator) {
         case '+':
           return leftTime + rightDuration
         case '-':
           return leftTime - rightDuration
+        default:
+          throw new Error(`unexpected operator ${value.operator}`)
       }
+    default:
+      throw new Error(`unexpected expression type ${value.type}`)
   }
 }
 
@@ -183,7 +130,7 @@ function durationDuration(durationLiteral: DurationLiteral): number {
   Find the node in the `ast` that defines the value of the variable with the
   given `name`.
 */
-function resolveDeclaration(ast: any, name: string): RangeCallPropertyValue {
+function lookupVariable(ast: any, name: string): Expression {
   const isDeclarator = node => {
     return (
       get(node, 'type') === 'VariableAssignment' &&
@@ -194,11 +141,11 @@ function resolveDeclaration(ast: any, name: string): RangeCallPropertyValue {
   const declarator = findNodes(isDeclarator, ast)
 
   if (!declarator.length) {
-    throw new Error(`unable to resolve identifier "${name}"`)
+    throw new Error(`unable to lookup variable "${name}"`)
   }
 
   if (declarator.length > 1) {
-    throw new Error('cannot resolve identifier with duplicate declarations')
+    throw new Error('cannot lookup variable with duplicate declarations')
   }
 
   const init = declarator[0].init
@@ -206,7 +153,7 @@ function resolveDeclaration(ast: any, name: string): RangeCallPropertyValue {
   return init
 }
 
-function isRangeNode(node: any) {
+function isRangeNode(node: Node) {
   return (
     get(node, 'type') === 'CallExpression' &&
     get(node, 'callee.type') === 'Identifier' &&
@@ -220,7 +167,7 @@ function isRangeNode(node: any) {
   under any key.
 */
 function findNodes(
-  predicate: (node: any[]) => boolean,
+  predicate: (node: Node) => boolean,
   node: any,
   acc: any[] = []
 ) {

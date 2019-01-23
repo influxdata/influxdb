@@ -130,18 +130,28 @@ export interface MemberAssignment extends BaseNode {
   type: 'MemberExpression'
 }
 
-type Expression =
+export type Expression =
   | ArrayExpression
   | FunctionExpression
   | BinaryExpression
+  | BooleanLiteral
   | CallExpression
   | ConditionalExpression
+  | DateTimeLiteral
+  | DurationLiteral
+  | FloatLiteral
+  | Identifier
+  | IntegerLiteral
   | LogicalExpression
   | MemberExpression
   | IndexExpression
-  | PipeExpression
   | ObjectExpression
+  | PipeExpression
+  | PipeLiteral
+  | RegexpLiteral
+  | StringLiteral
   | UnaryExpression
+  | UnsignedIntegerLiteral
 
 export interface ArrayExpression extends BaseNode {
   elements: Expression[]
@@ -163,7 +173,7 @@ export interface BinaryExpression extends BaseNode {
 
 export interface CallExpression extends BaseNode {
   callee: Expression
-  arrguments: Expression[]
+  arguments: Expression[]
   type: 'CallExpression'
 }
 
@@ -231,9 +241,22 @@ export interface DateTimeLiteral extends BaseNode {
   type: 'DateTimeLiteral'
 }
 
+export type DurationUnit =
+  | 'y'
+  | 'mo'
+  | 'w'
+  | 'd'
+  | 'h'
+  | 'm'
+  | 's'
+  | 'ms'
+  | 'us'
+  | 'µs'
+  | 'ns'
+
 export interface Duration {
   magnitude: number
-  unit: string
+  unit: DurationUnit
 }
 
 export interface DurationLiteral extends BaseNode {
@@ -310,3 +333,5 @@ export type Operator =
   | NotRegexpMatchOperator
 
 export type LogicalOperator = AndOperator | OrOperator
+
+export type PropertyKey = Identifier | StringLiteral
