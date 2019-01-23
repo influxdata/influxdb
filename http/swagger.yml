@@ -1041,8 +1041,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  
-                '/macros/{macroID}':
+  '/macros/{macroID}':
     delete:
       tags:
         - Macros

@@ -111,14 +111,15 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.AuthorizationHandler.LookupService = b.LookupService
 	h.AuthorizationHandler.Logger = b.Logger.With(zap.String("handler", "auth"))
 
-	h.ScraperHandler = NewScraperHandler()
-	h.ScraperHandler.ScraperStorageService = authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService, b.UserResourceMappingService)
-	h.ScraperHandler.BucketService = b.BucketService
-	h.ScraperHandler.OrganizationService = b.OrganizationService
-	h.ScraperHandler.UserService = b.UserService
-	h.ScraperHandler.UserResourceMappingService = b.UserResourceMappingService
-	h.ScraperHandler.LabelService = b.LabelService
-	h.ScraperHandler.Logger = b.Logger.With(zap.String("handler", "scraper"))
+	h.ScraperHandler = NewScraperHandler(
+		b.Logger.With(zap.String("handler", "scraper")),
+		b.UserService,
+		b.UserResourceMappingService,
+		b.LabelService,
+		authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService, b.UserResourceMappingService),
+		b.BucketService,
+		b.OrganizationService,
+	)
 
 	h.SourceHandler = NewSourceHandler()
 	h.SourceHandler.SourceService = authorizer.NewSourceService(b.SourceService)

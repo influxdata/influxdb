@@ -36,9 +36,24 @@ const (
 )
 
 // NewScraperHandler returns a new instance of ScraperHandler.
-func NewScraperHandler() *ScraperHandler {
+func NewScraperHandler(
+	logger *zap.Logger,
+	userService influxdb.UserService,
+	userResourceMappingService influxdb.UserResourceMappingService,
+	labelService influxdb.LabelService,
+	scraperStorageService influxdb.ScraperTargetStoreService,
+	bucketService influxdb.BucketService,
+	organizationService influxdb.OrganizationService,
+) *ScraperHandler {
 	h := &ScraperHandler{
-		Router: NewRouter(),
+		Router:                     NewRouter(),
+		Logger:                     logger,
+		UserService:                userService,
+		UserResourceMappingService: userResourceMappingService,
+		LabelService:               labelService,
+		ScraperStorageService:      scraperStorageService,
+		BucketService:              bucketService,
+		OrganizationService:        organizationService,
 	}
 	h.HandlerFunc("POST", targetsPath, h.handlePostScraperTarget)
 	h.HandlerFunc("GET", targetsPath, h.handleGetScraperTargets)
