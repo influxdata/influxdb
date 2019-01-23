@@ -69,7 +69,7 @@ export class VerifyDataStep extends PureComponent<Props> {
     } = this.props
 
     return (
-      <div className="onboarding-step wizard--skippable">
+      <div className="onboarding-step">
         <Form onSubmit={this.handleIncrementStep}>
           <div className="wizard-step--scroll-area">
             <FancyScrollbar autoHide={false}>

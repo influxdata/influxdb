@@ -13,7 +13,6 @@ $sidebar-width-md: 240px;
   overflow: hidden;
   transform: translate3d(0,0,0);
   flex: 1 0 0;
-  transition: flex 0.4s ease-in-out;
 
   &.show {
     flex: 1 0 $sidebar-width-sm;
@@ -23,7 +22,6 @@ $sidebar-width-md: 240px;
 .side-bar--container {
   box-sizing: border-box;
   opacity: 0;
-  transition: opacity 0.5s ease;
   height: 100%;
   width: 100%;
   display: inline-flex;
@@ -63,7 +61,6 @@ $sidebar-width-md: 240px;
   color: $g10-wolf;
   background-color: transparent;
   white-space: nowrap;
-  transition: color 0.25s ease-in-out, background-color 0.25s ease-in-out;
 
   &:hover {
     color: $g15-platinum;
@@ -83,7 +80,6 @@ $sidebar-width-md: 240px;
   display: inline-block;
   font-size: 16px;
   margin: 0 13px;
-  transition: color 0.25s ease-in-out;
 
   .side-bar--tab:hover & {
     color: $g11-sidewalk;

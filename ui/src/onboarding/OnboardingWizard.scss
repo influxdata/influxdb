@@ -63,7 +63,6 @@
   padding: $ix-marg-c;
   padding-bottom: 0;
   flex: 1 0 100%;
-  transition: flex 0.4s ease-in-out;
 }
 
 .side-bar.show + .wizard-step--container {
@@ -85,7 +84,6 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  transition: max-width .4s ease-in-out;
 }
 
 .wizard-step--scroll-area {

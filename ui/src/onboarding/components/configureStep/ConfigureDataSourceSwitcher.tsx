@@ -60,34 +60,40 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
     switch (dataLoaderType) {
       case DataLoaderType.Streaming:
         return (
-          <PluginConfigSwitcher
-            onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-            onRemoveConfigValue={onRemoveConfigValue}
-            telegrafPlugins={telegrafPlugins}
-            currentIndex={currentIndex}
-            onAddConfigValue={onAddConfigValue}
-            onSetConfigArrayValue={onSetConfigArrayValue}
-            onClickNext={onClickNext}
-            onClickPrevious={onClickPrevious}
-            onClickSkip={onClickSkip}
-          />
+          <div className="onboarding-step wizard--skippable">
+            <PluginConfigSwitcher
+              onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
+              onRemoveConfigValue={onRemoveConfigValue}
+              telegrafPlugins={telegrafPlugins}
+              currentIndex={currentIndex}
+              onAddConfigValue={onAddConfigValue}
+              onSetConfigArrayValue={onSetConfigArrayValue}
+              onClickNext={onClickNext}
+              onClickPrevious={onClickPrevious}
+              onClickSkip={onClickSkip}
+            />
+          </div>
         )
       case DataLoaderType.LineProtocol:
         return (
-          <LineProtocol
-            bucket={bucket}
-            org={org}
-            onClickNext={onClickNext}
-            onClickBack={onClickPrevious}
-          />
+          <div className="onboarding-step">
+            <LineProtocol
+              bucket={bucket}
+              org={org}
+              onClickNext={onClickNext}
+              onClickBack={onClickPrevious}
+            />
+          </div>
         )
       case DataLoaderType.Scraping:
         return (
-          <Scraping
-            onClickNext={onClickNext}
-            onClickBack={onClickPrevious}
-            buckets={buckets}
-          />
+          <div className="onboarding-step">
+            <Scraping
+              onClickNext={onClickNext}
+              onClickBack={onClickPrevious}
+              buckets={buckets}
+            />
+          </div>
         )
       case DataLoaderType.CSV:
         return <div>{DataLoaderType.CSV}</div>
