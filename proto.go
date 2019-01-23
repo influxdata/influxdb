@@ -13,8 +13,8 @@ type Proto struct {
 
 // ProtoDashboard is a templated dashboard.
 type ProtoDashboard struct {
-	Dashboard Dashboard   `json:"dashboard"`
-	Views     map[ID]View `json:"views"`
+	Dashboard Dashboard       `json:"dashboard"`
+	Views     map[string]View `json:"views"`
 }
 
 // ProtoService is what dashboard.land will be.
