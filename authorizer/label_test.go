@@ -532,6 +532,226 @@ func TestLabelService_CreateLabel(t *testing.T) {
 	}
 }
 
+func TestLabelService_FindResourceLabels(t *testing.T) {
+	type fields struct {
+		LabelService influxdb.LabelService
+	}
+	type args struct {
+		filter      influxdb.LabelMappingFilter
+		permissions []influxdb.Permission
+	}
+	type wants struct {
+		err    error
+		labels []*influxdb.Label
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "authorized to see all labels belonging to a resource",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						return []*influxdb.Label{
+							{
+								ID: 1,
+							},
+							{
+								ID: 2,
+							},
+							{
+								ID: 3,
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.LabelMappingFilter{
+					ResourceID:   10,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+						},
+					},
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
+				labels: []*influxdb.Label{
+					{
+						ID: 1,
+					},
+					{
+						ID: 2,
+					},
+					{
+						ID: 3,
+					},
+				},
+			},
+		},
+		{
+			name: "authorized to access a single label",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						return []*influxdb.Label{
+							{
+								ID: 1,
+							},
+							{
+								ID: 2,
+							},
+							{
+								ID: 3,
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.LabelMappingFilter{
+					ResourceID:   10,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+							ID:   influxdbtesting.IDPtr(3),
+						},
+					},
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
+				labels: []*influxdb.Label{
+					{
+						ID: 3,
+					},
+				},
+			},
+		},
+		{
+			name: "unable to access labels when missing read permission on labels",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						return []*influxdb.Label{
+							{
+								ID: 1,
+							},
+							{
+								ID: 2,
+							},
+							{
+								ID: 3,
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.LabelMappingFilter{
+					ResourceID:   10,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
+						},
+					},
+				},
+			},
+			wants: wants{
+				// fixme(leodido) > should we return error in this case?
+			},
+		},
+		{
+			name: "unable to access labels when missing read permission on filtering resource",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						return []*influxdb.Label{
+							{
+								ID: 1,
+							},
+							{
+								ID: 2,
+							},
+							{
+								ID: 3,
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.LabelMappingFilter{
+					ResourceID:   10,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "read:buckets/000000000000000a is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := authorizer.NewLabelService(tt.fields.LabelService)
+
+			ctx := context.Background()
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+
+			labels, err := s.FindResourceLabels(ctx, tt.args.filter)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+
+			if diff := cmp.Diff(labels, tt.wants.labels, labelCmpOptions...); diff != "" {
+				t.Errorf("labels are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
 func TestLabelService_CreateLabelMapping(t *testing.T) {
 	type fields struct {
 		LabelService influxdb.LabelService
