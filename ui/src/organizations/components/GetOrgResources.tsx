@@ -28,7 +28,7 @@ export default class GetOrgResources<T> extends PureComponent<
   Props<T>,
   State<T>
 > {
-  constructor(props) {
+  constructor(props: Props<T>) {
     super(props)
     this.state = {
       resources: null,
@@ -40,6 +40,12 @@ export default class GetOrgResources<T> extends PureComponent<
     this.fetchResourcesForOrg()
   }
 
+  public async componentDidUpdate(prevProps: Props<T>) {
+    if (this.props.organization !== prevProps.organization) {
+      this.fetchResourcesForOrg()
+    }
+  }
+
   public render() {
     const {resources, loading} = this.state
     return this.props.children(resources, loading, this.fetchResourcesForOrg)
@@ -47,7 +53,9 @@ export default class GetOrgResources<T> extends PureComponent<
 
   public fetchResourcesForOrg = async () => {
     const {fetcher, organization} = this.props
-    const resources = await fetcher(organization)
-    this.setState({resources, loading: RemoteDataState.Done})
+    if (organization) {
+      const resources = await fetcher(organization)
+      this.setState({resources, loading: RemoteDataState.Done})
+    }
   }
 }

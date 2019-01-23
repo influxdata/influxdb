@@ -2,6 +2,9 @@
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
+// APIs
+import {getBuckets} from 'src/organizations/apis'
+
 // Components
 import {
   ComponentSpacer,
@@ -16,12 +19,15 @@ import {
   ButtonType,
 } from 'src/clockface'
 import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown'
+import TaskOptionsOrgIDDropdown from 'src/tasks/components/TasksOptionsOrgIDDropdown'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
+import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
+import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
 // Types
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {Alignment, Stack, ComponentStatus} from 'src/clockface/types'
-import {Organization} from 'src/api'
+import {Organization, Bucket} from 'src/api'
 
 // Styles
 import './TaskForm.scss'
@@ -32,6 +38,8 @@ interface Props {
   onChangeScheduleType: (schedule: TaskSchedule) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   onChangeTaskOrgID: (orgID: string) => void
+  onChangeToOrgName: (orgName: string) => void
+  onChangeToBucketName: (bucketName: string) => void
   isInOverlay?: boolean
   onSubmit?: () => void
   canSubmit?: boolean
@@ -49,7 +57,7 @@ export default class TaskForm extends PureComponent<Props, State> {
     canSubmit: true,
     dismiss: () => {},
   }
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
 
     this.state = {
@@ -61,7 +69,18 @@ export default class TaskForm extends PureComponent<Props, State> {
     const {
       onChangeInput,
       onChangeTaskOrgID,
-      taskOptions: {name, taskScheduleType, interval, offset, cron, orgID},
+      onChangeToOrgName,
+      onChangeToBucketName,
+      taskOptions: {
+        name,
+        taskScheduleType,
+        interval,
+        offset,
+        cron,
+        orgID,
+        toOrgName,
+        toBucketName,
+      },
       orgs,
       isInOverlay,
     } = this.props
@@ -82,10 +101,10 @@ export default class TaskForm extends PureComponent<Props, State> {
             </Grid.Column>
             <Grid.Column widthXS={Columns.Twelve}>
               <Form.Element label="Owner">
-                <TaskOptionsOrgDropdown
+                <TaskOptionsOrgIDDropdown
                   orgs={orgs}
                   selectedOrgID={orgID}
-                  onChangeTaskOrgID={onChangeTaskOrgID}
+                  onChangeOrgID={onChangeTaskOrgID}
                 />
               </Form.Element>
             </Grid.Column>
@@ -126,11 +145,50 @@ export default class TaskForm extends PureComponent<Props, State> {
               offset={offset}
               cron={cron}
             />
+            {isInOverlay && (
+              <Grid.Column widthXS={Columns.Six}>
+                <Form.Element label="Output Organization">
+                  <TaskOptionsOrgDropdown
+                    orgs={orgs}
+                    selectedOrgName={toOrgName}
+                    onChangeOrgName={onChangeToOrgName}
+                  />
+                </Form.Element>
+              </Grid.Column>
+            )}
+            {isInOverlay && (
+              <Grid.Column widthXS={Columns.Six}>
+                <Form.Element label="Output Bucket">
+                  <GetOrgResources<Bucket[]>
+                    organization={this.toOrganization}
+                    fetcher={getBuckets}
+                  >
+                    {(buckets, loading) => (
+                      <TaskOptionsBucketDropdown
+                        buckets={buckets}
+                        selectedBucketName={toBucketName}
+                        onChangeBucketName={onChangeToBucketName}
+                        loading={loading}
+                      />
+                    )}
+                  </GetOrgResources>
+                </Form.Element>
+              </Grid.Column>
+            )}
             {isInOverlay && this.buttons}
           </Grid.Row>
         </Grid>
       </Form>
     )
+  }
+
+  private get toOrganization(): Organization {
+    const {
+      orgs,
+      taskOptions: {toOrgName},
+    } = this.props
+    const toOrg = orgs.find(o => o.name === toOrgName)
+    return toOrg
   }
 
   private get buttons(): JSX.Element {

@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 export interface TaskOptions {
   name: string
   interval: string
@@ -5,6 +7,8 @@ export interface TaskOptions {
   offset: string
   taskScheduleType: TaskSchedule
   orgID: string
+  toOrgName: string
+  toBucketName: string
 }
 
 export type TaskOptionKeys = keyof TaskOptions
@@ -30,4 +34,19 @@ export const taskOptionsToFluxScript = (options: TaskOptions): string => {
 
   fluxScript = `${fluxScript}}`
   return fluxScript
+}
+
+export const addDestinationToFluxScript = (
+  script: string,
+  options: TaskOptions
+): string => {
+  const {toOrgName, toBucketName} = options
+  if (toOrgName && toBucketName) {
+    const trimmedScript = _.trimEnd(script)
+    const trimmedOrgName = toOrgName.trim()
+    const trimmedBucketName = toBucketName.trim()
+    return `${trimmedScript}\n  |> to(bucket: "${trimmedBucketName}", org: "${trimmedOrgName}")`
+  }
+
+  return script
 }

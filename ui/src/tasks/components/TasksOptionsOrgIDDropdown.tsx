@@ -10,11 +10,11 @@ import {Organization} from 'src/api'
 
 interface Props {
   orgs: Organization[]
-  onChangeOrgName: (selectedOrg: string) => void
-  selectedOrgName: string
+  onChangeOrgID: (selectedOrgID: string) => void
+  selectedOrgID: string
 }
 
-export default class TaskOptionsOrgDropdown extends PureComponent<Props> {
+export default class TaskOptionsOrgIDDropdown extends PureComponent<Props> {
   public componentDidMount() {
     this.setSelectedToFirst()
   }
@@ -25,9 +25,9 @@ export default class TaskOptionsOrgDropdown extends PureComponent<Props> {
     }
   }
   public render() {
-    const {selectedOrgName, onChangeOrgName} = this.props
+    const {selectedOrgID, onChangeOrgID} = this.props
     return (
-      <Dropdown selectedID={selectedOrgName} onChange={onChangeOrgName}>
+      <Dropdown selectedID={selectedOrgID} onChange={onChangeOrgID}>
         {this.orgDropdownItems}
       </Dropdown>
     )
@@ -38,7 +38,7 @@ export default class TaskOptionsOrgDropdown extends PureComponent<Props> {
 
     return orgs.map(org => {
       return (
-        <Dropdown.Item id={org.name} key={org.name} value={org.name}>
+        <Dropdown.Item id={org.id} key={org.id} value={org.id}>
           {org.name}
         </Dropdown.Item>
       )
@@ -46,9 +46,9 @@ export default class TaskOptionsOrgDropdown extends PureComponent<Props> {
   }
 
   private setSelectedToFirst() {
-    const {orgs, onChangeOrgName} = this.props
-    const firstOrgNameInList = _.get(orgs, '0.name', '')
+    const {orgs, onChangeOrgID} = this.props
+    const firstOrgIDInList = _.get(orgs, '0.id', '')
 
-    onChangeOrgName(firstOrgNameInList)
+    onChangeOrgID(firstOrgIDInList)
   }
 }

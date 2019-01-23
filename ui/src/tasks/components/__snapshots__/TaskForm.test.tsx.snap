@@ -31,8 +31,8 @@ exports[`TaskForm rendering renders 1`] = `
         <FormElement
           label="Owner"
         >
-          <TaskOptionsOrgDropdown
-            onChangeTaskOrgID={[MockFunction]}
+          <TaskOptionsOrgIDDropdown
+            onChangeOrgID={[MockFunction]}
             orgs={Array []}
           />
         </FormElement>
