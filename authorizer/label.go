@@ -148,7 +148,7 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 	return s.s.CreateLabel(ctx, l)
 }
 
-// CreateLabelMapping checks to see if the authorizer on context has write access to
+// CreateLabelMapping checks to see if the authorizer on context has write access to the label and the resource contained by the label mapping in creation.
 func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	if err := authorizeWriteLabel(ctx, m.LabelID); err != nil {
 		return err
@@ -189,6 +189,20 @@ func (s *LabelService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 	return s.s.DeleteLabel(ctx, id)
 }
 
+// DeleteLabelMapping checks to see if the authorizer on context has write access to the label and the resource of the label mapping to delete.
 func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	panic("tbd")
+	_, err := s.s.FindLabelByID(ctx, m.LabelID)
+	if err != nil {
+		return err
+	}
+
+	if err := authorizeWriteLabel(ctx, m.LabelID); err != nil {
+		return err
+	}
+
+	if err := authorizeLabelMappingAction(ctx, influxdb.WriteAction, m.ResourceID, m.ResourceType); err != nil {
+		return err
+	}
+
+	return s.s.DeleteLabelMapping(ctx, m)
 }

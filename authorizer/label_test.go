@@ -661,3 +661,148 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 		})
 	}
 }
+
+func TestLabelService_DeleteLabelMapping(t *testing.T) {
+	type fields struct {
+		LabelService influxdb.LabelService
+	}
+	type args struct {
+		mapping     influxdb.LabelMapping
+		permissions []influxdb.Permission
+	}
+	type wants struct {
+		err error
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "authorized to delete label mapping",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
+						return &influxdb.Label{
+							ID: 1,
+						}, nil
+					},
+					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				mapping: influxdb.LabelMapping{
+					LabelID:      1,
+					ResourceID:   2,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "write",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+						},
+					},
+					{
+						Action: "write",
+						Resource: influxdb.Resource{
+							Type: influxdb.BucketsResourceType,
+							ID:   influxdbtesting.IDPtr(2),
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
+			},
+		},
+		{
+			name: "unauthorized to delete label mapping containing a resources on which the user does not have write access",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
+						return &influxdb.Label{
+							ID: 1,
+						}, nil
+					},
+					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				mapping: influxdb.LabelMapping{
+					LabelID:      1,
+					ResourceID:   2,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "write",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.EUnauthorized,
+					Msg:  "write:buckets/0000000000000002 is unauthorized",
+				},
+			},
+		},
+		{
+			name: "unauthorized to delete label mapping",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
+						return &influxdb.Label{
+							ID: 1,
+						}, nil
+					},
+					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				mapping: influxdb.LabelMapping{
+					LabelID:      1,
+					ResourceID:   2,
+					ResourceType: influxdb.BucketsResourceType,
+				},
+				permissions: []influxdb.Permission{
+					{
+						Action: "read",
+						Resource: influxdb.Resource{
+							Type: influxdb.LabelsResourceType,
+						},
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "write:labels/0000000000000001 is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := authorizer.NewLabelService(tt.fields.LabelService)
+
+			ctx := context.Background()
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
+
+			err := s.DeleteLabelMapping(ctx, &tt.args.mapping)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+		})
+	}
+}
