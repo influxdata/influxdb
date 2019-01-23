@@ -1,3 +1,5 @@
+import {WINDOW_PERIOD} from 'src/shared/constants'
+
 export interface QueryFn {
   name: string
   flux: string
@@ -10,6 +12,11 @@ export const FUNCTIONS: QueryFn[] = [
   {name: 'max', flux: '|> max()', aggregate: true},
   {name: 'min', flux: '|> min()', aggregate: true},
   {name: 'sum', flux: '|> sum()', aggregate: true},
+  {
+    name: 'derivative',
+    flux: `|> derivative(unit: ${WINDOW_PERIOD}, nonNegative: false)`,
+    aggregate: false,
+  },
   {name: 'distinct', flux: '|> distinct()', aggregate: false},
   {name: 'count', flux: '|> count()', aggregate: false},
   {name: 'increase', flux: '|> increase()', aggregate: false},
