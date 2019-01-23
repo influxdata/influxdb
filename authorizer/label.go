@@ -130,8 +130,33 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 	return labels, nil
 }
 
+// FindResourceLabels retrieves all labels belonging to the filtering resource if the authorizer on context has read access to it.
+// Then it filters the list down to only the labels that are authorized.
 func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
-	panic("tbd")
+	if err := authorizeLabelMappingAction(ctx, influxdb.ReadAction, filter.ResourceID, filter.ResourceType); err != nil {
+		return nil, err
+	}
+
+	ls, err := s.s.FindResourceLabels(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	labels := ls[:0]
+	for _, l := range ls {
+		err := authorizeReadLabel(ctx, l.ID)
+		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+			return nil, err
+		}
+
+		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+			continue
+		}
+
+		labels = append(labels, l)
+	}
+
+	return labels, nil
 }
 
 // CreateLabel checks to see if the authorizer on context has write access to the global labels resource.
