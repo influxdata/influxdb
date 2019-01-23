@@ -1,12 +1,11 @@
 @import "src/style/modules";
 
 .time-machine-queries-timer {
-  display: flex;
   white-space: nowrap;
-  align-items: center;
+  flex: 1 1 auto;
   font-size: 13px;
   font-weight: 400;
-  margin-right: 10px;
+  padding-right: $ix-marg-b;
   color: $g10-wolf;
   transition: 0.3s;
   opacity: 0;
