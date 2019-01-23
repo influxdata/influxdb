@@ -32,12 +32,18 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
           'The "time destination" column to which time is copied for the aggregate record. Defaults to `"_time"`.',
         type: 'String',
       },
+      {
+        name: 'createEmpty',
+        desc:
+          'For windows without data, this will create an empty window and fill it with a `null` aggregate value.',
+        type: 'Boolean',
+      },
     ],
     desc: 'Applies an aggregate function to fixed windows of time.',
     example: 'aggregateWindow(every: 1m, fn: mean)',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/aggregatewindow',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/aggregatewindow',
   },
   {
     name: 'assertEquals',
@@ -62,7 +68,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'assertEquals(got: got, want: want)',
     category: 'Test',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/tests/assertequals',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/tests/assertequals',
   },
   {
     name: 'bottom',
@@ -83,7 +89,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'bottom(n:10, cols: ["_value"])',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/bottom',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/bottom',
   },
   {
     name: 'buckets',
@@ -91,7 +97,24 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns a list of buckets in the organization.',
     example: 'buckets()',
     category: 'Inputs',
-    link: 'https://docs.influxdata.com/flux/latest/functions/inputs/buckets',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/inputs/buckets',
+  },
+  {
+    name: 'columns',
+    args: [
+      {
+        name: 'column',
+        desc:
+          'The name of the output column in which to store the column labels.',
+        type: 'String',
+      },
+    ],
+    desc: 'Lists the column labels of input tables.',
+    example: 'columns(column: "_value")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/columns',
   },
   {
     name: 'count',
@@ -103,11 +126,11 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
-    desc: 'Outputs the number of non-null records in each aggregated column.',
+    desc: 'Outputs the number of records in each aggregated column.',
     example: 'count(columns: ["_value"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/count',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/count',
   },
   {
     name: 'cov',
@@ -140,7 +163,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'cov(x: table1, y: table2, on: ["_time", "_field"], pearsonr: false)',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/cov',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/cov',
   },
   {
     name: 'covariance',
@@ -169,7 +192,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'covariance(columns: ["column_x", "column_y"], pearsonr: false, valueDst: "_value")',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/covariance',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/covariance',
   },
   {
     name: 'cumulativeSum',
@@ -186,7 +209,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'cumulativeSum(columns: ["_value"])',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/cumulativesum',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/cumulativesum',
   },
   {
     name: 'derivative',
@@ -209,18 +232,18 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
       {
-        name: 'timeSrc',
-        desc: 'The column containing time values. Defaults to `"_time"`.',
+        name: 'timeColumn',
+        desc: 'The column name for the time values. Defaults to `"_time"`.',
         type: 'String',
       },
     ],
     desc:
       'Computes the rate of change per unit of time between subsequent non-null records. The output table schema will be the same as the input table.',
     example:
-      'derivative(unit: 100ms, nonNegative: false, columns: ["_value"], timeSrc: "_time")',
+      'derivative(unit: 1s, nonNegative: true, columns: ["_value"], timeColumn: "_time")',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/derivative',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/derivative',
   },
   {
     name: 'difference',
@@ -238,11 +261,11 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
-    desc: 'Computes the difference between subsequent non-null records.',
+    desc: 'Computes the difference between subsequent records.',
     example: 'difference(nonNegative: false, columns: ["_value"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/difference',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/difference',
   },
   {
     name: 'distinct',
@@ -257,7 +280,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'distinct(column: "host")',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/distinct',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/distinct',
   },
   {
     name: 'drop',
@@ -280,7 +303,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'drop(columns: ["col1", "col2"])',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/drop',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/drop',
   },
   {
     name: 'duplicate',
@@ -300,7 +323,35 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'duplicate(column: "column-name", as: "duplicate-name")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/duplicate',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/duplicate',
+  },
+  {
+    name: 'fill',
+    args: [
+      {
+        name: 'column',
+        desc:
+          'The column in which to replace null values. Defaults to `"_value"`.',
+        type: 'String',
+      },
+      {
+        name: 'value',
+        desc: 'The constant value to use in place of nulls.',
+        type: 'Value type of `column`',
+      },
+      {
+        name: 'usePrevious',
+        desc:
+          'When `true`, assigns the value set in the previous non-null row.',
+        type: 'Boolean',
+      },
+    ],
+    desc:
+      'replaces all null values in an input stream and replace them with a non-null value.',
+    example: 'fill(column: "_value", usePrevious: true)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/fill',
   },
   {
     name: 'filter',
@@ -317,7 +368,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'filter(fn: (r) => r._measurement == "cpu")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/filter',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/filter',
   },
   {
     name: 'first',
@@ -326,7 +377,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'first()',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/first',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/first',
   },
   {
     name: 'from',
@@ -346,7 +397,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'Used to retrieve data from an InfluxDB data source. It returns a stream of tables from the specified bucket. Each unique series is contained within its own table. Each record in the table represents a single point in the series.',
     example: 'from(bucket: "telegraf/autogen")',
     category: 'Inputs',
-    link: 'https://docs.influxdata.com/flux/latest/functions/inputs/from',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/inputs/from',
   },
   {
     name: 'fromCSV',
@@ -366,7 +418,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Retrieves data from a comma-separated value (CSV) data source.',
     example: 'from(file: "/path/to/data-file.csv")',
     category: 'Inputs',
-    link: 'https://docs.influxdata.com/flux/latest/functions/inputs/fromcsv',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/inputs/fromcsv',
   },
   {
     name: 'group',
@@ -389,7 +442,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'group(columns: ["host", "_measurement"], mode:"by")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/group',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/group',
   },
   {
     name: 'highestAverage',
@@ -416,7 +469,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'highestAverage(n:10, groupColumns: ["host"])',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/highestaverage',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/highestaverage',
   },
   {
     name: 'highestCurrent',
@@ -443,7 +496,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'highestCurrent(n:10, groupColumns: ["host"])',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/highestcurrent',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/highestcurrent',
   },
   {
     name: 'highestMax',
@@ -470,7 +523,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'highestMax(n:10, groupColumns: ["host"])',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/highestmax',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/highestmax',
   },
   {
     name: 'histogram',
@@ -512,7 +565,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'histogram(column: "_value", upperBoundColumn: "le", countColumn: "_value", bins: [50.0, 75.0, 90.0], normalize: false)',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/histogram',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/histogram',
   },
   {
     name: 'histogramQuantile',
@@ -524,15 +577,15 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Float',
       },
       {
-        name: 'upperBoundColumn',
-        desc:
-          'The name of the column in which to store the histogram\'s upper bounds. The count column type must be float. Defaults to `"le"`.',
-        type: 'String',
-      },
-      {
         name: 'countColumn',
         desc:
           'The name of the column in which to store the histogram counts. The count column type must be float. Defaults to `"_value"`.',
+        type: 'String',
+      },
+      {
+        name: 'upperBoundColumn',
+        desc:
+          'The name of the column in which to store the histogram\'s upper bounds. The count column type must be float. Defaults to `"le"`.',
         type: 'String',
       },
       {
@@ -554,7 +607,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'histogramQuantile(quantile: 0.5, countColumn: "_value", upperBoundColumn: "le", valueColumn: "_value", minValue: 0)',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/histogramquantile',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/histogramquantile',
   },
   {
     name: 'increase',
@@ -571,7 +624,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'increase(columns: ["_values"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/increase',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/increase',
   },
   {
     name: 'influxFieldsAsCols',
@@ -581,7 +634,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'influxFieldsAsCols()',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/influxfieldsascols',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/influxfieldsascols',
   },
   {
     name: 'integral',
@@ -603,7 +656,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'integral(unit: 10s, columns: ["_value"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/integral',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/integral',
   },
   {
     name: 'intervals',
@@ -627,13 +680,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Duration',
       },
       {
-        name: 'columns',
-        desc:
-          'A list of columns on which to operate. Defaults to `["_value"]`.',
-        type: 'Array of Strings',
-      },
-      {
-        name: 'fn',
+        name: 'filter',
         desc:
           'A function that accepts an interval object and returns a boolean value. Each potential interval is passed to the filter function. When the function returns false, that interval is excluded from the set of intervals. Defaults to include all intervals.',
         type: 'Function',
@@ -642,7 +689,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Generates a set of time intervals over a range of time.',
     example: 'intervals()',
     category: 'Miscellaneous',
-    link: 'https://docs.influxdata.com/flux/latest/functions/misc/intervals',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/misc/intervals',
   },
   {
     name: 'join',
@@ -670,7 +718,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'join(tables: {key1: table1, key2: table2}, on: ["_time", "_field"], method: "inner")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/join',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/join',
   },
   {
     name: 'keep',
@@ -684,7 +732,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'fn',
         desc:
-          'A function which takes a column name as a parameter and returns a boolean indicating whether or not the column should be removed from the table. Cannot be used with `columns`.',
+          'A predicate function which takes a column name as a parameter and returns a boolean indicating whether or not the column should be removed from the table. Cannot be used with `columns`.',
         type: 'Function',
       },
     ],
@@ -693,30 +741,30 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'keep(columns: ["col1", "col2"])',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/keep',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/keep',
   },
   {
     name: 'keys',
     args: [
       {
-        name: 'except',
+        name: 'column',
         desc:
-          'Exclude the specified column names in the output. Defaults to `["_time", "_value"]`.',
-        type: 'Array of Strings',
+          'Column is the name of the output column to store the group key labels. Defaults to `_value`.',
+        type: 'String',
       },
     ],
     desc:
-      "Returns a table with the input table's group key columns, plus a `_value` column containing the names of the input table's columns.",
-    example: 'keys(except: ["_time", "_value"])',
+      "Outputs the group key of input tables. For each input table, it outputs a table with the same group key columns, plus a _value column containing the labels of the input table's group key.",
+    example: 'keys(column: "_value")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/keys',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/keys',
   },
   {
     name: 'keyValues',
     args: [
       {
-        name: 'keyCols',
+        name: 'keyColumns',
         desc:
           'A list of columns from which values are extracted. All columns indicated must be of the same type.',
         type: 'Array of Strings',
@@ -730,10 +778,10 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     desc:
       "Returns a table with the input table's group key plus two columns, `_key` and `_value`, that correspond to unique column + value pairs from the input table.",
-    example: 'keyValues(keyCols: ["usage_idle", "usage_user"])',
+    example: 'keyValues(keyColumns: ["usage_idle", "usage_user"])',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/keyvalues',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/keyvalues',
   },
   {
     name: 'last',
@@ -742,7 +790,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'last()',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/last',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/last',
   },
   {
     name: 'limit',
@@ -752,13 +800,19 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc: 'The maximum number of records to output.',
         type: 'Integer',
       },
+      {
+        name: 'offset',
+        desc:
+          'The number of records to skip per table before limiting to n. Defaults to 0.',
+        type: 'Integer',
+      },
     ],
     desc:
-      'Limits the number of records in output tables to a fixed number `n`. If the input table has less than `n` records, all records are be output.',
-    example: 'limit(n:10)',
+      'Limits the number of records in output tables to a fixed number `n` records after the `offset`. If the input table has less than `n` records, all records are be output.',
+    example: 'limit(n:10, offset: 0)',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/limit',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/limit',
   },
   {
     name: 'linearBins',
@@ -788,7 +842,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Generates a list of linearly separated floats.',
     example: 'linearBins(start: 0.0, width: 5.0, count: 20, infinity: true)',
     category: 'Miscellaneous',
-    link: 'https://docs.influxdata.com/flux/latest/functions/misc/linearbins',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/misc/linearbins',
   },
   {
     name: 'logarithmicBins',
@@ -820,7 +875,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'logarithmicBins(start: 1.0, factor: 2.0, count: 10, infinty: true)',
     category: 'Miscellaneous',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/misc/logarithmicbins',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/misc/logarithmicbins',
   },
   {
     name: 'lowestAverage',
@@ -847,7 +902,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'lowestAverage(n:10, groupColumns: ["host"])',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/lowestaverage',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/lowestaverage',
   },
   {
     name: 'lowestCurrent',
@@ -874,7 +929,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'lowestCurrent(n:10, groupColumns: ["host"])',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/lowestcurrent',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/lowestcurrent',
   },
   {
     name: 'lowestMin',
@@ -901,7 +956,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'lowestMin(n:10, groupColumns: ["host"])',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/lowestmin',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/lowestmin',
   },
   {
     name: 'map',
@@ -923,7 +978,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'map(fn: (r) => r._value * r._value), mergeKey: true)',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/map',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/map',
   },
   {
     name: 'max',
@@ -932,7 +987,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'max()',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/max',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/max',
   },
   {
     name: 'mean',
@@ -949,7 +1004,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'mean(columns: ["_value"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/mean',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/mean',
   },
   {
     name: 'median',
@@ -966,7 +1021,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'median()',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/median',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/median',
   },
   {
     name: 'min',
@@ -975,7 +1030,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'min()',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/min',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/min',
   },
   {
     name: 'pearsonr',
@@ -1001,7 +1056,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'pearsonr(x: table1, y: table2, on: ["_time", "_field"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/pearsonr',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/pearsonr',
   },
   {
     name: 'percentile',
@@ -1036,7 +1091,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'percentile(columns: ["_value"], percentile: 0.99, method: "estimate_tdigest", compression: 1000)',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/percentile',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/percentile',
   },
   {
     name: 'pivot',
@@ -1065,7 +1120,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/pivot',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/pivot',
   },
   {
     name: 'range',
@@ -1087,7 +1142,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'range(start: -15m, stop: now)',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/range',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/range',
   },
   {
     name: 'rename',
@@ -1096,12 +1151,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'columns',
         desc:
           'A map of columns to rename and their corresponding new names. Cannot be used with `fn`.',
-        type: 'Map',
+        type: 'Object',
       },
       {
         name: 'fn',
         desc:
-          'A function which takes a single string parameter (the old column name) and returns a string representing the new column name. Cannot be used with `columns`.',
+          'A function mapping between old and new column names. Cannot be used with `columns`.',
         type: 'Function',
       },
     ],
@@ -1110,7 +1165,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'rename(columns: {host: "server", facility: "datacenter"})',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/rename',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/rename',
   },
   {
     name: 'sample',
@@ -1123,7 +1178,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'pos',
         desc:
-          'The position offset from the start of results where sampling begins. `pos` must be less than `n`. If `pos` is less than 0, a random offset is used. Defaults to -1 (random offset).',
+          'The position offset from the start of results where sampling begins. `pos` must be less than `n`. If `pos` is less than 0, a random offset is used. Defaults to `-1` (random offset).',
         type: 'Integer',
       },
     ],
@@ -1131,7 +1186,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'sample(n:5, pos: -1)',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/sample',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/sample',
   },
   {
     name: 'set',
@@ -1152,7 +1207,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'set(key: "myKey", value: "myValue")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/set',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/set',
   },
   {
     name: 'shift',
@@ -1175,7 +1230,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'shift(shift: 10h, columns: ["_start", "_stop", "_time"])',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/shift',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/shift',
   },
   {
     name: 'skew',
@@ -1191,7 +1246,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'skew(columns: ["_value"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/skew',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/skew',
   },
   {
     name: 'sort',
@@ -1213,7 +1268,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'sort(columns: ["_value"], desc: false)',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/sort',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/sort',
   },
   {
     name: 'spread',
@@ -1230,7 +1285,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'spread(columns: ["_value"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/spread',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/spread',
   },
   {
     name: 'stateCount',
@@ -1253,7 +1308,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'stateCount(fn: (r) => r._field == "state", column: "stateCount")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/statecount',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/statecount',
   },
   {
     name: 'stateDuration',
@@ -1282,7 +1337,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'stateDuration(fn: (r) => r._measurement == "state", column: "stateDuration", unit: 1s)',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/stateduration',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/stateduration',
   },
   {
     name: 'stddev',
@@ -1299,7 +1354,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'stddev(columns: ["_value"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/stddev',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/stddev',
   },
   {
     name: 'sum',
@@ -1315,7 +1370,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'sum(columns: ["_value"])',
     category: 'Aggregates',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/aggregates/sum',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/sum',
   },
   {
     name: 'systemTime',
@@ -1323,7 +1378,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the current system time.',
     example: 'systemTime()',
     category: 'Miscellaneous',
-    link: 'https://docs.influxdata.com/flux/latest/functions/misc/systemtime',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/misc/systemtime',
   },
   {
     name: 'to',
@@ -1386,7 +1442,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example:
       'to(bucket: "my-bucket", org: "my-org", host: "http://example.com:8086", token: "xxxxxx", timeColumn: "_time", tagColumns: ["tag1", "tag2", "tag3"], fieldFn: (r) => ({ [r._field]: r._value }))',
     category: 'Outputs',
-    link: 'https://docs.influxdata.com/flux/latest/functions/outputs/to',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/outputs/to',
   },
   {
     name: 'toBool',
@@ -1395,7 +1452,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'toBool()',
     category: 'Type Conversions',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/type-conversions/tobool',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/type-conversions/tobool',
   },
   {
     name: 'toDuration',
@@ -1404,7 +1461,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'toDuration()',
     category: 'Type Conversions',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/type-conversions/toduration',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/type-conversions/toduration',
   },
   {
     name: 'toFloat',
@@ -1413,7 +1470,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'toFloat()',
     category: 'Type Conversions',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/type-conversions/tofloat',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/type-conversions/tofloat',
   },
   {
     name: 'toInt',
@@ -1422,7 +1479,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'toInt()',
     category: 'Type Conversions',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/type-conversions/toint',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/type-conversions/toint',
   },
   {
     name: 'top',
@@ -1443,7 +1500,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'top(n:10, cols: ["_value"])',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/top',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/top',
   },
   {
     name: 'toString',
@@ -1452,7 +1509,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'toString()',
     category: 'Type Conversions',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/type-conversions/tostring',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/type-conversions/tostring',
   },
   {
     name: 'toTime',
@@ -1461,7 +1518,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'toTime()',
     category: 'Type Conversions',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/type-conversions/totime',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/type-conversions/totime',
   },
   {
     name: 'toUInt',
@@ -1470,7 +1527,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'toUInt()',
     category: 'Type Conversions',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/type-conversions/touint',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/type-conversions/touint',
   },
   {
     name: 'union',
@@ -1487,7 +1544,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'union(tables: ["table1", "table2"])',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/union',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/union',
   },
   {
     name: 'unique',
@@ -1502,7 +1559,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     example: 'unique(column: "_value")',
     category: 'Selectors',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/selectors/unique',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/selectors/unique',
   },
   {
     name: 'window',
@@ -1554,7 +1611,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'window(every: 5m, period: 5m, offset: 12h, timeCol: "_time", startCol: "_start", stopCol: "_stop")',
     category: 'Transformations',
     link:
-      'https://docs.influxdata.com/flux/latest/functions/transformations/window',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/window',
   },
   {
     name: 'yield',
@@ -1569,6 +1626,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'Indicates the input tables received should be delivered as a result of the query. Yield outputs the input stream unmodified. A query may have multiple results, each identified by the name provided to the `yield()` function.',
     example: 'yield(name: "custom-name")',
     category: 'Outputs',
-    link: 'https://docs.influxdata.com/flux/latest/functions/outputs/yield',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/outputs/yield',
   },
 ]
