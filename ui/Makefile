@@ -3,7 +3,10 @@ UISOURCES := $(shell find . -type f -not \( -path ./build/\* -o -path ./node_mod
 all: build
 
 node_modules: package-lock.json
-	npm i
+	npm ci
+
+ e2e: node_modules
+	npm run test:junit
 
 build: node_modules $(UISOURCES)
 	npm run build
@@ -20,4 +23,4 @@ clean:
 run:
 	npm start
 
-.PHONY: all clean test run lint
+.PHONY: all clean test run lint junit
