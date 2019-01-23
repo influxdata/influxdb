@@ -37,14 +37,14 @@ jobs:
       - restore_cache:
           name: Restoring GOCACHE
           keys:
-            - platform-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
-            - platform-gocache-{{ .Branch }}-                # Matches a new commit on an existing branch.
-            - platform-gocache-                              # Matches a new branch.
+            - influxdb-gocache-{{ .Branch }}-{{ .Revision }} # Matches when retrying a single run.
+            - influxdb-gocache-{{ .Branch }}-                # Matches a new commit on an existing branch.
+            - influxdb-gocache-                              # Matches a new branch.
       # Populate GOPATH/pkg.
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - platform-gomod-{{ checksum "go.sum" }}         # Matches based on go.sum checksum.
+            - influxdb-gomod-{{ checksum "go.sum" }}         # Matches based on go.sum checksum.
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run: make vet
       - run: make checkfmt
@@ -64,13 +64,13 @@ jobs:
 
       - save_cache:
           name: Saving GOCACHE
-          key: platform-gocache-{{ .Branch }}-{{ .Revision }}
+          key: influxdb-gocache-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
           when: always
       - save_cache:
           name: Saving GOPATH/pkg/mod
-          key: platform-gomod-{{ checksum "go.sum" }}
+          key: influxdb-gomod-{{ checksum "go.sum" }}
           paths:
             - /go/pkg/mod
           when: always
@@ -89,18 +89,18 @@ jobs:
       - restore_cache:
           name: Restoring GOCACHE
           keys:
-            - platform-gocache- # Just match the most recent Go cache.
+            - influxdb-gocache- # Just match the most recent Go cache.
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - platform-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - restore_cache:
           name: Restore Yarn package cache
           keys:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: make build
 
-  deploy:
+  deploy-nightly:
     docker:
       - image: circleci/golang:1.11-node-browsers
     environment:
@@ -114,11 +114,11 @@ jobs:
       - restore_cache:
           name: Restoring GOCACHE
           keys:
-            - platform-gocache- # Just match the most recent Go cache.
+            - influxdb-gocache- # Just match the most recent Go cache.
       - restore_cache:
           name: Restoring GOPATH/pkg/mod
           keys:
-            - platform-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - restore_cache:
           name: Restore Yarn package cache
           keys:
@@ -128,11 +128,39 @@ jobs:
           name: "Docker Login"
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run:
-          name: "Tag commit for goreleaser semantic versioning"
-          command: git tag v0.0.0
-      - run:
           name: "Build nightly"
           command: make nightly
+  release:
+    docker:
+      - image: circleci/golang:1.11-node-browsers
+    environment:
+      GOCACHE: /tmp/go-cache
+      GOFLAGS: "-mod=readonly -p=4" # Go on Circle thinks 32 CPUs are available, but there aren't.
+      DOCKER_VERSION: 2.0.0-alpha
+    working_directory: /go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+
+      # Speed up `make nightly` by restoring caches from previous runs.
+      - restore_cache:
+          name: Restoring GOCACHE
+          keys:
+            - influxdb-gocache- # Just match the most recent Go cache.
+      - restore_cache:
+          name: Restoring GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
+      - restore_cache:
+          name: Restore Yarn package cache
+          keys:
+            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
+      - setup_remote_docker
+      - run:
+          name: "Docker Login"
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - run:
+          name: "Build release"
+          command: make release
 
 workflows:
   version: 2
@@ -153,10 +181,23 @@ workflows:
     jobs:
       - gotest
       - jstest
-      - deploy:
+      - deploy-nightly:
           requires:
             - gotest
             - jstest
           filters:
             branches:
               only: master
+  release:
+    jobs:
+      - gotest
+      - jstest
+      - release:
+          requires:
+            - gotest
+            - jstest
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$/
