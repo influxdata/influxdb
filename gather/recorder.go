@@ -1,13 +1,10 @@
 package gather
 
 import (
-	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/influxdata/influxdb/tsdb"
 
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/nats"
 	"github.com/influxdata/influxdb/storage"
 	"go.uber.org/zap"
@@ -29,29 +26,6 @@ func (s PointWriter) Record(collected MetricsCollection) error {
 		return err
 	}
 	return s.Writer.WritePoints(ps)
-}
-
-// ServiceWriter will use the writer interface to record the metrics.
-type ServiceWriter struct {
-	Writer  influxdb.WriteService
-	Timeout time.Duration
-}
-
-// Record the metrics and write using writer interface.
-func (s ServiceWriter) Record(collected MetricsCollection) error {
-	r, err := collected.MetricsSlice.Reader()
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), s.Timeout)
-	defer cancel()
-	s.Writer.Write(ctx,
-		collected.OrgID,
-		collected.BucketID,
-		r,
-	)
-
-	return nil
 }
 
 // Recorder record the metrics of a time based.

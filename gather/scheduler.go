@@ -60,7 +60,7 @@ func NewScheduler(
 	}
 
 	for i := 0; i < numScrapers; i++ {
-		err := s.Subscribe(promTargetSubject, "", &handler{
+		err := s.Subscribe(promTargetSubject, "metrics", &handler{
 			Scraper:   new(prometheusScraper),
 			Publisher: p,
 			Logger:    l,

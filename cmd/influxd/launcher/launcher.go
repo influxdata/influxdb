@@ -60,7 +60,6 @@ type Launcher struct {
 
 	httpBindAddress string
 	boltPath        string
-	natsPath        string
 	enginePath      string
 	protosPath      string
 	secretStore     string
@@ -202,12 +201,6 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Flag:    "developer-mode",
 				Default: false,
 				Desc:    "serve assets from the local filesystem in developer mode",
-			},
-			{
-				DestP:   &m.natsPath,
-				Flag:    "nats-path",
-				Default: filepath.Join(dir, "nats"),
-				Desc:    "path to NATS queue for scraping tasks",
 			},
 			{
 				DestP:   &m.enginePath,
@@ -412,7 +405,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	// NATS streaming server
-	m.natsServer = nats.NewServer(nats.Config{FilestoreDir: m.natsPath})
+	m.natsServer = nats.NewServer()
 	if err := m.natsServer.Open(); err != nil {
 		m.logger.Error("failed to start nats streaming server", zap.Error(err))
 		return err
@@ -431,13 +424,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	subscriber.Subscribe(gather.MetricsSubject, "", &gather.RecorderHandler{
+	subscriber.Subscribe(gather.MetricsSubject, "metrics", &gather.RecorderHandler{
 		Logger: m.logger,
 		Recorder: gather.PointWriter{
 			Writer: pointsWriter,
 		},
 	})
-	scraperScheduler, err := gather.NewScheduler(10, m.logger, scraperTargetSvc, publisher, subscriber, 10*time.Second, 0)
+	scraperScheduler, err := gather.NewScheduler(10, m.logger, scraperTargetSvc, publisher, subscriber, 10*time.Second, 30*time.Second)
 	if err != nil {
 		m.logger.Error("failed to create scraper subscriber", zap.Error(err))
 		return err
