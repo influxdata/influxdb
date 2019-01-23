@@ -260,6 +260,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	m.logger.Info("Welcome to InfluxDB",
+		zap.String("version", m.BuildInfo.Version),
+		zap.String("commit", m.BuildInfo.Commit),
+		zap.String("build_date", m.BuildInfo.Date),
+	)
+
 	// set tracing
 	tracer := new(pzap.Tracer)
 	tracer.Logger = m.logger
