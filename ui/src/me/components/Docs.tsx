@@ -15,7 +15,7 @@ const supportLinks = [
   },
   {
     link: 'https://v2.docs.influxdata.com/v2.0/visualize-data/dashboards/',
-    title: 'Building Dashboards',
+    title: 'Build a Dashboard',
   },
   {
     link: 'https://v2.docs.influxdata.com/v2.0/process-data/write-a-task/',
