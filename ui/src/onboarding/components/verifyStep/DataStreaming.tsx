@@ -7,9 +7,6 @@ import TelegrafInstructions from 'src/onboarding/components/verifyStep/TelegrafI
 import CreateOrUpdateConfig from 'src/onboarding/components/verifyStep/CreateOrUpdateConfig'
 import DataListening from 'src/onboarding/components/verifyStep/DataListening'
 
-// Actions
-import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
-
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -22,29 +19,16 @@ interface Props {
   org: string
   configID: string
   authToken: string
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
 }
 
 @ErrorHandling
 class DataStreaming extends PureComponent<Props> {
   public render() {
-    const {
-      authToken,
-      org,
-      configID,
-      onSaveTelegrafConfig,
-      bucket,
-      notify,
-    } = this.props
+    const {authToken, org, configID, bucket, notify} = this.props
 
     return (
       <>
-        <CreateOrUpdateConfig
-          org={org}
-          notify={notify}
-          authToken={authToken}
-          onSaveTelegrafConfig={onSaveTelegrafConfig}
-        >
+        <CreateOrUpdateConfig org={org} authToken={authToken}>
           {() => (
             <TelegrafInstructions
               notify={notify}

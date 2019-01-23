@@ -725,3 +725,16 @@ export const fluxTimeSeriesError = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Could not get data: ${message}`,
 })
+
+// Protos
+export const ProtoDashboardCreated = (configs: string[]): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully created dashboards for telegraf plugin${
+    configs.length > 1 ? 's' : ''
+  }: ${configs.join(', ')}.`,
+})
+
+export const ProtoDashboardFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Could not create dashboards for one or more plugins`,
+})

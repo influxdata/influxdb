@@ -26,7 +26,6 @@ import {
   removeConfigValue,
   setActiveTelegrafPlugin,
   setPluginConfiguration,
-  createOrUpdateTelegrafConfigAsync,
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
   setConfigArrayValue,
@@ -81,7 +80,6 @@ interface DispatchProps {
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetPluginConfiguration: typeof setPluginConfiguration
   onSetConfigArrayValue: typeof setConfigArrayValue
-  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
   onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
   onSetCurrentStepIndex: typeof setCurrentStepIndex
@@ -128,7 +126,6 @@ class DataLoadersWizard extends PureComponent<Props> {
       onUpdateTelegrafPluginConfig,
       onAddConfigValue,
       onRemoveConfigValue,
-      onSaveTelegrafConfig,
       onAddPluginBundle,
       onRemovePluginBundle,
       notify,
@@ -170,7 +167,6 @@ class DataLoadersWizard extends PureComponent<Props> {
               onSetPluginConfiguration={onSetPluginConfiguration}
               onAddConfigValue={onAddConfigValue}
               onRemoveConfigValue={onRemoveConfigValue}
-              onSaveTelegrafConfig={onSaveTelegrafConfig}
               onAddPluginBundle={onAddPluginBundle}
               onRemovePluginBundle={onRemovePluginBundle}
               onSetConfigArrayValue={onSetConfigArrayValue}
@@ -304,7 +300,6 @@ const mdtp: DispatchProps = {
   onAddConfigValue: addConfigValue,
   onRemoveConfigValue: removeConfigValue,
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
-  onSaveTelegrafConfig: createOrUpdateTelegrafConfigAsync,
   onAddPluginBundle: addPluginBundleWithPlugins,
   onRemovePluginBundle: removePluginBundleWithPlugins,
   onSetPluginConfiguration: setPluginConfiguration,
