@@ -130,11 +130,18 @@ class StreamingSelector extends PureComponent<Props, State> {
   private get selectedBucketID(): string {
     const {bucket, selectedBucket, buckets} = this.props
 
-    return selectedBucket || bucket || _.get(buckets, '0.name', '')
+    return selectedBucket || bucket || _.get(buckets, '0.name', 'empty')
   }
 
   private get dropdownBuckets(): JSX.Element[] {
     const {buckets} = this.props
+    if (!buckets || !buckets.length) {
+      return [
+        <Dropdown.Item key={'none'} value={'No buckets found'} id={'empty'}>
+          {'No buckets found'}
+        </Dropdown.Item>,
+      ]
+    }
 
     return buckets.map(b => (
       <Dropdown.Item key={b.name} value={b.name} id={b.name}>

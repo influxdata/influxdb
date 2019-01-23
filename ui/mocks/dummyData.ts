@@ -519,6 +519,21 @@ export const authResponse = {
   request: {},
 }
 
+export const bucket = {
+  links: {
+    labels: '/api/v2/buckets/034a10d6f7a6b000/labels',
+    log: '/api/v2/buckets/034a10d6f7a6b000/log',
+    org: '/api/v2/orgs/034a0adc49a6b000',
+    self: '/api/v2/buckets/034a10d6f7a6b000',
+  },
+  id: '034a10d6f7a6b000',
+  organizationID: '034a0adc49a6b000',
+  organization: 'default',
+  name: 'newbuck',
+  retentionRules: [],
+  labels: [],
+}
+
 export const setSetupParamsResponse = {
   data: {
     user: {

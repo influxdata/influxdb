@@ -76,7 +76,11 @@ export class SelectDataSourceStep extends PureComponent<Props> {
   }
 
   private get nextButtonStatus(): ComponentStatus {
-    const {type, telegrafPlugins} = this.props
+    const {type, telegrafPlugins, buckets} = this.props
+
+    if (!buckets || !buckets.length) {
+      return ComponentStatus.Disabled
+    }
 
     const isTypeEmpty = type === DataLoaderType.Empty
     const isStreamingWithoutPlugin =
