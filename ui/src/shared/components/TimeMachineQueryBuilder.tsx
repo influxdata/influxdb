@@ -14,16 +14,21 @@ import FunctionSelector from 'src/shared/components/FunctionSelector'
 import {loadBuckets, addTagSelector} from 'src/shared/actions/v2/queryBuilder'
 
 // Utils
-import {getActiveQuery} from 'src/shared/selectors/timeMachines'
+import {
+  getActiveQuery,
+  getActiveTimeMachine,
+} from 'src/shared/selectors/timeMachines'
 
 // Styles
 import 'src/shared/components/TimeMachineQueryBuilder.scss'
 
 // Types
 import {AppState} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
 
 interface StateProps {
   tagFiltersLength: number
+  moreTags: boolean
 }
 
 interface DispatchProps {
@@ -41,7 +46,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {tagFiltersLength, onAddTagSelector} = this.props
+    const {tagFiltersLength} = this.props
 
     return (
       <div className="query-builder">
@@ -56,12 +61,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
               {range(tagFiltersLength).map(i => (
                 <TagSelector key={i} index={i} />
               ))}
-              <Button
-                shape={ButtonShape.Square}
-                icon={IconFont.Plus}
-                onClick={onAddTagSelector}
-                customClass="query-builder--add-tag-selector"
-              />
+              {this.addButton}
             </div>
           </FancyScrollbar>
           <FunctionSelector />
@@ -69,12 +69,35 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
       </div>
     )
   }
+
+  private get addButton(): JSX.Element {
+    const {moreTags, onAddTagSelector} = this.props
+
+    if (!moreTags) {
+      return null
+    }
+
+    return (
+      <Button
+        shape={ButtonShape.Square}
+        icon={IconFont.Plus}
+        onClick={onAddTagSelector}
+        customClass="query-builder--add-tag-selector"
+      />
+    )
+  }
 }
 
 const mstp = (state: AppState): StateProps => {
   const tagFiltersLength = getActiveQuery(state).builderConfig.tags.length
+  const tags = getActiveTimeMachine(state).queryBuilder.tags
 
-  return {tagFiltersLength}
+  const {keys, keysStatus} = tags[tags.length - 1]
+
+  return {
+    tagFiltersLength,
+    moreTags: !(keys.length === 0 && keysStatus === RemoteDataState.Done),
+  }
 }
 
 const mdtp = {
