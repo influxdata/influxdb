@@ -1245,6 +1245,9 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 	if filter.After != nil {
 		val.Set("after", filter.After.String())
 	}
+	if filter.Limit > 0 {
+		val.Set("limit", strconv.Itoa(filter.Limit))
+	}
 	u.RawQuery = val.Encode()
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
