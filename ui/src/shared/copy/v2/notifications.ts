@@ -23,6 +23,11 @@ export const taskNotCreated = (additionalMessage: string): Notification => ({
   message: `Failed to create new task: ${additionalMessage}`,
 })
 
+export const taskCreatedSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'New task created successfully',
+})
+
 export const taskNotFound = (additionalMessage: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to find task: ${additionalMessage}`,
@@ -38,6 +43,11 @@ export const taskDeleteFailed = (additionalMessage: string): Notification => ({
   message: `Failed to delete task: ${additionalMessage}`,
 })
 
+export const taskDeleteSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Task was deleted successfully',
+})
+
 export const taskUpdateFailed = (additionalMessage: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to update task: ${additionalMessage}`,
@@ -45,7 +55,6 @@ export const taskUpdateFailed = (additionalMessage: string): Notification => ({
 
 export const taskUpdateSuccess = (): Notification => ({
   ...defaultSuccessNotification,
-  duration: FIVE_SECONDS,
   message: 'Task was updated successfully',
 })
 
