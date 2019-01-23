@@ -8,7 +8,7 @@ jobs:
          password: $QUAY_PASS
     working_directory: /Litmus
     steps:
-      - run: ./run_litmus_tests_oss.sh -o src/cloud/rest_api/orgs/test_gateway_create_org.py 
+      - run: ./run_litmus_tests_oss.sh -o src/cloud/rest_api/orgs/test_gateway_update_org.py 
 
   jstest:
     docker:
