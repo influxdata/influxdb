@@ -22,10 +22,11 @@ export async function renderQuery(
     return query
   }
 
-  let preamble = formatVariables(variables, query)
+  const {imports, body} = await extractImports(query)
+  let variableDelcarations = formatVariables(variables, query)
 
   if (query.includes(WINDOW_PERIOD)) {
-    const ast = await getAST(`${preamble}\n\n${query}`)
+    const ast = await getAST(`${variableDelcarations}\n\n${query}`)
 
     let windowPeriod: number
 
@@ -35,12 +36,20 @@ export async function renderQuery(
       windowPeriod = FALLBACK_WINDOW_PERIOD
     }
 
-    preamble += `\n${WINDOW_PERIOD} = ${windowPeriod}ms`
+    variableDelcarations += `\n${WINDOW_PERIOD} = ${windowPeriod}ms`
   }
 
-  const renderedQuery = preamble ? `${preamble}\n\n${query}` : query
+  return `${imports}\n\n${variableDelcarations}\n\n${body}`
+}
 
-  return renderedQuery
+async function extractImports(
+  query: string
+): Promise<{imports: string; body: string}> {
+  const ast = await getAST(query)
+  const {imports = [], body = []} = ast.files[0]
+  const importStatements = imports.map(i => i.location.source).join('\n')
+  const bodyStatements = body.map(b => b.location.source).join('\n')
+  return {imports: importStatements, body: bodyStatements}
 }
 
 function formatVariables(
