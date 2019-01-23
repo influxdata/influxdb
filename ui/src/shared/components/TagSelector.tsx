@@ -136,6 +136,7 @@ class TagSelector extends PureComponent<Props> {
               </Dropdown.Item>
             ))}
           </SearchableDropdown>
+          {this.selectedCounter}
           {index !== 0 && (
             <Button
               shape={ButtonShape.Square}
@@ -186,6 +187,25 @@ class TagSelector extends PureComponent<Props> {
         onSelectItem={this.handleSelectValue}
       />
     )
+  }
+
+  private get selectedCounter(): JSX.Element {
+    const {selectedValues} = this.props
+
+    const pluralizer = selectedValues.length === 1 ? '' : 's'
+
+    if (selectedValues.length > 0) {
+      return (
+        <div
+          className="tag-selector--count"
+          title={`${
+            selectedValues.length
+          } value${pluralizer} have been selected`}
+        >
+          {selectedValues.length}
+        </div>
+      )
+    }
   }
 
   private handleSelectTag = (tag: string): void => {

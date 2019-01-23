@@ -58,7 +58,7 @@ exports[`TaskForm rendering renders 1`] = `
                 disabledTitleText="This option is disabled"
                 id="every"
                 onClick={[Function]}
-                titleText="Every"
+                titleText="Run task at regular intervals"
                 value="interval"
               >
                 Every
@@ -69,7 +69,7 @@ exports[`TaskForm rendering renders 1`] = `
                 disabledTitleText="This option is disabled"
                 id="cron"
                 onClick={[Function]}
-                titleText="Cron"
+                titleText="Use cron syntax for more control over scheduling"
                 value="cron"
               >
                 Cron
