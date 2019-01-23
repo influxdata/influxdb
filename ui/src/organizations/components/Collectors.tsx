@@ -158,7 +158,7 @@ export default class Collectors extends PureComponent<Props, State> {
       return (
         <EmptyState size={ComponentSize.Medium}>
           <EmptyState.Text
-            text={`${orgName} does not own any Telegraf Configurations, why not create one?`}
+            text={`${orgName} does not own any Telegraf  Configurations, why not create one?`}
             highlightWords={['Telegraf', 'Configurations']}
           />
           {this.createButton}
@@ -168,7 +168,7 @@ export default class Collectors extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="No Telegraf Configuration buckets match your query" />
+        <EmptyState.Text text="No Telegraf  Configuration buckets match your query" />
       </EmptyState>
     )
   }
