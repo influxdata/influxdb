@@ -1,4 +1,5 @@
 // Libraries
+import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Utils
@@ -151,14 +152,23 @@ export default class Collectors extends PureComponent<Props, State> {
 
   private get emptyState(): JSX.Element {
     const {orgName} = this.props
+    const {searchTerm} = this.state
+
+    if (_.isEmpty(searchTerm)) {
+      return (
+        <EmptyState size={ComponentSize.Medium}>
+          <EmptyState.Text
+            text={`${orgName} does not own any Telegraf Configurations, why not create one?`}
+            highlightWords={['Telegraf', 'Configurations']}
+          />
+          {this.createButton}
+        </EmptyState>
+      )
+    }
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text
-          text={`${orgName} does not own any Telegraf  Configurations , why not create one?`}
-          highlightWords={['Telegraf', 'Configurations']}
-        />
-        {this.createButton}
+        <EmptyState.Text text="No Telegraf Configuration buckets match your query" />
       </EmptyState>
     )
   }

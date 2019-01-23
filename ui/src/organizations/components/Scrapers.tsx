@@ -1,4 +1,5 @@
 // Libraries
+import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // APIs
@@ -118,13 +119,23 @@ export default class Scrapers extends PureComponent<Props, State> {
 
   private get emptyState(): JSX.Element {
     const {orgName} = this.props
+    const {searchTerm} = this.state
+
+    if (_.isEmpty(searchTerm)) {
+      return (
+        <EmptyState size={ComponentSize.Medium}>
+          <EmptyState.Text
+            text={`${orgName} does not own any Scrapers, why not create one?`}
+            highlightWords={['Scrapers']}
+          />
+          {this.createScraperButton}
+        </EmptyState>
+      )
+    }
+
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text
-          text={`${orgName} does not own any Scrapers , why not create one?`}
-          highlightWords={['Scrapers']}
-        />
-        {this.createScraperButton}
+        <EmptyState.Text text="No Scraper buckets match your query" />
       </EmptyState>
     )
   }
