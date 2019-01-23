@@ -78,6 +78,8 @@ class SaveAsTaskForm extends PureComponent<Props> {
         onChangeScheduleType={this.handleChangeScheduleType}
         onChangeInput={this.handleChangeInput}
         onChangeTaskOrgID={this.handleChangeTaskOrgID}
+        onChangeToOrgName={this.handleChangeToOrgName}
+        onChangeToBucketName={this.handleChangeToBucketName}
         isInOverlay={true}
         onSubmit={this.handleSubmit}
         canSubmit={this.isFormValid}
@@ -117,6 +119,18 @@ class SaveAsTaskForm extends PureComponent<Props> {
     const {setTaskOption} = this.props
 
     setTaskOption({key: 'orgID', value: orgID})
+  }
+
+  private handleChangeToOrgName = (orgName: string) => {
+    const {setTaskOption} = this.props
+
+    setTaskOption({key: 'toOrgName', value: orgName})
+  }
+
+  private handleChangeToBucketName = (bucketName: string) => {
+    const {setTaskOption} = this.props
+
+    setTaskOption({key: 'toBucketName', value: bucketName})
   }
 
   private handleChangeScheduleType = (taskScheduleType: TaskSchedule) => {

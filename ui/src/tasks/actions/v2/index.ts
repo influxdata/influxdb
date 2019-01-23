@@ -34,6 +34,7 @@ import {AppState, Label} from 'src/types/v2'
 import {getDeep} from 'src/utils/wrappers'
 import {
   taskOptionsToFluxScript,
+  addDestinationToFluxScript,
   TaskOptionKeys,
   TaskOptions,
   TaskSchedule,
@@ -346,7 +347,10 @@ export const saveNewScript = (
     const {orgs} = await getState()
 
     const fluxTaskOptions = taskOptionsToFluxScript(taskOptions)
-    const scriptWithOptions = `${fluxTaskOptions}\n\n${script}`
+    const scriptWithOptions = addDestinationToFluxScript(
+      `${fluxTaskOptions}\n\n${script}`,
+      taskOptions
+    )
 
     let org = orgs.find(org => {
       return org.id === taskOptions.orgID

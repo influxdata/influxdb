@@ -24,7 +24,9 @@ export const defaultTaskOptions: TaskOptions = {
   offset: '',
   cron: '',
   taskScheduleType: TaskSchedule.unselected,
-  orgID: null,
+  orgID: '',
+  toBucketName: '',
+  toOrgName: '',
 }
 
 const defaultState: State = {
