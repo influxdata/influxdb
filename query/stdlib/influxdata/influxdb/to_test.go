@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/semantic"
-	finfluxdb "github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/models"
@@ -28,8 +27,8 @@ func TestTo_Query(t *testing.T) {
 			Want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
-						ID: "from0",
-						Spec: &finfluxdb.FromOpSpec{
+						ID: "influxDBFrom0",
+						Spec: &influxdb.FromOpSpec{
 							Bucket: "mydb",
 						},
 					},
@@ -68,7 +67,7 @@ func TestTo_Query(t *testing.T) {
 					},
 				},
 				Edges: []flux.Edge{
-					{Parent: "from0", Child: "to1"},
+					{Parent: "influxDBFrom0", Child: "to1"},
 				},
 			},
 		},

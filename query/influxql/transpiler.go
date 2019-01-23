@@ -12,9 +12,9 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/influxql"
 )
