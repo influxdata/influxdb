@@ -205,18 +205,29 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetTasksRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	tasks, _, err := h.TaskService.FindTasks(ctx, req.filter)
 	if err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	for _, task := range tasks {
 		if err := h.populateOrg(ctx, task); err != nil {
+			err = &platform.Error{
+				Err: err,
+				Msg: "could not identify organization",
+			}
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -359,23 +370,38 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetTaskRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	task, err := h.TaskService.FindTaskByID(ctx, req.TaskID)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.ENotFound,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.populateOrg(ctx, task); err != nil {
+		err = &platform.Error{
+			Err: err,
+			Msg: "could not identify organization",
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: task.ID})
 	if err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -414,22 +440,36 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeUpdateTaskRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 	task, err := h.TaskService.UpdateTask(ctx, req.TaskID, req.Update)
 	if err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: task.ID})
 	if err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.populateOrg(ctx, task); err != nil {
+		err = &platform.Error{
+			Err: err,
+			Msg: "could not identify organization",
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -473,11 +513,18 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeDeleteTaskRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.TaskService.DeleteTask(ctx, req.TaskID); err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -511,12 +558,19 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetLogsRequest(ctx, r, h.OrganizationService)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	logs, _, err := h.TaskService.FindLogs(ctx, req.filter)
 	if err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -578,12 +632,20 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetRunsRequest(ctx, r, h.OrganizationService)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	runs, _, err := h.TaskService.FindRuns(ctx, req.filter)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -680,17 +742,24 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeForceRunRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	run, err := h.TaskService.ForceRun(ctx, req.TaskID, req.Timestamp)
 	if err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
-		EncodeError(ctx, err, w)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -741,12 +810,20 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetRunRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	run, err := h.TaskService.FindRunByID(ctx, req.TaskID, req.RunID)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.ENotFound,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -823,12 +900,19 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeCancelRunRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	err = h.TaskService.CancelRun(ctx, req.TaskID, req.RunID)
 	if err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -839,12 +923,19 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeRetryRunRequest(ctx, r)
 	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EInvalid,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	run, err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID)
 	if err != nil {
+		err = &platform.Error{
+			Err: err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -910,7 +1001,7 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		if err.Error() == backend.ErrTaskNotFound.Error() {
 			// ErrTaskNotFound is expected as part of the FindTaskByID contract,
 			// so return that actual error instead of a different error that looks like it.
@@ -964,7 +1055,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
 	}
 
@@ -1049,7 +1140,7 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, err
 	}
 
@@ -1124,7 +1215,7 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
 	}
 
@@ -1171,7 +1262,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
 	}
 
@@ -1210,7 +1301,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		if err.Error() == backend.ErrRunNotFound.Error() {
 			// ErrRunNotFound is expected as part of the FindRunByID contract,
 			// so return that actual error instead of a different error that looks like it.
@@ -1249,7 +1340,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		if err.Error() == backend.ErrRunNotFound.Error() {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
@@ -1293,7 +1384,7 @@ func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduled
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		if err.Error() == backend.ErrRunNotFound.Error() {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
@@ -1340,7 +1431,7 @@ func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) e
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return err
 	}
 
