@@ -53,7 +53,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
                     <Component />
                   </ResourceFetcher>
                   <dt>
-                    Time is of the essence!
+                    Timing is everything!
                   </dt>
                   <dd>
                     This will set up local metric collection and allow you to explore the features of InfluxDB 2.0 quickly.
