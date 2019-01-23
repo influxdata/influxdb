@@ -10,17 +10,11 @@
     "exclude": ["src/api/**/*"]
   },
   "rules": {
+    "no-namespace": false,
     "object-literal-sort-keys": false,
     "ordered-imports": false,
-    "interface-name": [
-      true,
-      "never-prefix"
-    ],
-    "no-console": [
-      true,
-      "log",
-      "warn"
-    ],
+    "interface-name": [true, "never-prefix"],
+    "no-console": [true, "log", "warn"],
     "no-empty": false,
     "jsx-no-lambda": false,
     "max-classes-per-file": false,
