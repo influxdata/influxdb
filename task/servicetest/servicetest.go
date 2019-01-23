@@ -359,7 +359,29 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &orgID, Task: &task.ID})
+		// Limit 1 should only return the earlier run.
+		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &orgID, Task: &task.ID, Limit: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(runs) != 1 {
+			t.Fatalf("expected 1 run, got %v", runs)
+		}
+		if runs[0].ID != rc0.Created.RunID {
+			t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+		}
+		if exp := startedAt.Format(time.RFC3339Nano); runs[0].StartedAt != exp {
+			t.Fatalf("unexpectedStartedAt; want %s, got %s", exp, runs[0].StartedAt)
+		}
+		if runs[0].Status != backend.RunStarted.String() {
+			t.Fatalf("unexpected run status; want %s, got %s", backend.RunStarted.String(), runs[0].Status)
+		}
+		if runs[0].FinishedAt != "" {
+			t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
+		}
+
+		// Unspecified limit returns both runs.
+		runs, _, err = sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &orgID, Task: &task.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -392,7 +414,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[1].FinishedAt)
 		}
 
-		// look for a run that doesn't exit.
+		// Look for a run that doesn't exist.
 		_, err = sys.ts.FindRunByID(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
 		if err == nil {
 			t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
