@@ -6,20 +6,20 @@ import {Panel} from 'src/clockface'
 
 const supportLinks = [
   {
-    link: 'https://docs.influxdata.com/',
-    title: 'Managing Organizations & Members',
+    link: 'https://v2.docs.influxdata.com/v2.0/query-data/get-started/',
+    title: 'Get Started with Flux',
   },
   {
-    link: 'https://docs.influxdata.com/',
-    title: 'Importing & Exporting Dashboards',
+    link: 'https://v2.docs.influxdata.com/v2.0/visualize-data/explore-metrics/',
+    title: 'Explore Metrics',
   },
   {
-    link: 'https://docs.influxdata.com/',
-    title: 'Writing Tasks',
+    link: 'https://v2.docs.influxdata.com/v2.0/visualize-data/dashboards/',
+    title: 'Building Dashboards',
   },
   {
-    link: 'https://docs.influxdata.com/',
-    title: 'What are Swoggelz?',
+    link: 'https://v2.docs.influxdata.com/v2.0/process-data/write-a-task/',
+    title: 'Write a Task',
   },
 ]
 
