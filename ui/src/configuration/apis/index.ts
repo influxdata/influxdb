@@ -19,8 +19,8 @@ export const createLabel = async (label: Label): Promise<Label> => {
   return addLabelDefaults(data.label)
 }
 
-export const deleteLabel = async (label: Label): Promise<void> => {
-  await labelsAPI.labelsLabelIDDelete(label.id)
+export const deleteLabel = async (labelID: string): Promise<void> => {
+  await labelsAPI.labelsLabelIDDelete(labelID)
 }
 
 export const updateLabel = async (label: Label): Promise<Label> => {
