@@ -99,7 +99,7 @@ func (c *Client) findOrganizationByName(ctx context.Context, tx *bolt.Tx, n stri
 	if o == nil {
 		return nil, &influxdb.Error{
 			Code: influxdb.ENotFound,
-			Msg:  "organization not found",
+			Msg:  fmt.Sprintf("organization name \"%s\" not found", n),
 		}
 	}
 
