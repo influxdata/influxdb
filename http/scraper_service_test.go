@@ -113,6 +113,8 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "type": "prometheus",
 						  "url": "www.one.url",
 						  "links": {
+						    "bucket": "/api/v2/buckets/0000000000000212",
+						    "organization": "/api/v2/orgs/0000000000000211",
 						    "self": "/api/v2/scrapers/0000000000000111"
 						  }
 						},
@@ -126,6 +128,8 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "type": "prometheus",
 						  "url": "www.two.url",
 						  "links": {
+						    "bucket": "/api/v2/buckets/0000000000000212",
+						    "organization": "/api/v2/orgs/0000000000000211",
 						    "self": "/api/v2/scrapers/0000000000000222"
 						  }
                         }
@@ -210,7 +214,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 				t.Errorf("%q. handleGetScraperTargets() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetScraperTargets() = ***%s***", tt.name, diff)
+				t.Errorf("%q. handleGetScraperTargets() = ***%s***\n\ngot:\n%s\n\nwant:\n%s", tt.name, diff, string(body), tt.wants.body)
 			}
 		})
 	}
@@ -295,6 +299,8 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 					  "orgID": "0000000000000211",
 					  "organization": "org1",
                       "links": {
+                        "bucket": "/api/v2/buckets/0000000000000212",
+                        "organization": "/api/v2/orgs/0000000000000211",
                         "self": "/api/v2/scrapers/%[1]s"
                       }
                     }
@@ -518,6 +524,8 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 					  "bucket": "bucket1",
                       "bucketID": "0000000000000212",
                       "links": {
+                        "bucket": "/api/v2/buckets/0000000000000212",
+                        "organization": "/api/v2/orgs/0000000000000211",
                         "self": "/api/v2/scrapers/%[1]s"
                       }
                     }
@@ -643,6 +651,8 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 					  "bucket": "bucket1",
 					  "bucketID":"0000000000000212",
 		              "links":{
+		                "bucket": "/api/v2/buckets/0000000000000212",
+		                "organization": "/api/v2/orgs/0000000000000211",
 		                "self":"/api/v2/scrapers/%[1]s"
 		              }
 		            }`,
