@@ -11,7 +11,6 @@ const setup = (override = {}) => {
     bucket: 'a',
     org: 'a',
     onClickNext: jest.fn(),
-    onClickBack: jest.fn(),
     lineProtocolBody: '',
     precision: WritePrecision.Ns,
     setLPStatus: jest.fn(),

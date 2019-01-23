@@ -77,22 +77,13 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
       case DataLoaderType.LineProtocol:
         return (
           <div className="onboarding-step">
-            <LineProtocol
-              bucket={bucket}
-              org={org}
-              onClickNext={onClickNext}
-              onClickBack={onClickPrevious}
-            />
+            <LineProtocol bucket={bucket} org={org} onClickNext={onClickNext} />
           </div>
         )
       case DataLoaderType.Scraping:
         return (
           <div className="onboarding-step">
-            <Scraping
-              onClickNext={onClickNext}
-              onClickBack={onClickPrevious}
-              buckets={buckets}
-            />
+            <Scraping onClickNext={onClickNext} buckets={buckets} />
           </div>
         )
       case DataLoaderType.CSV:

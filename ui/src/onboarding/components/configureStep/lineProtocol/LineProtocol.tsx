@@ -29,7 +29,6 @@ interface OwnProps {
   bucket: string
   org: string
   onClickNext: () => void
-  onClickBack: () => void
 }
 
 interface StateProps {
@@ -65,10 +64,7 @@ export class LineProtocol extends PureComponent<Props> {
             </div>
           </FancyScrollbar>
         </div>
-        <OnboardingButtons
-          onClickBack={this.props.onClickBack}
-          autoFocusNext={true}
-        />
+        <OnboardingButtons autoFocusNext={true} />
       </Form>
     )
   }

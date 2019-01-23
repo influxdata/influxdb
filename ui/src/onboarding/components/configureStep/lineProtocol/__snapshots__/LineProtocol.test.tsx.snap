@@ -46,7 +46,6 @@ exports[`LineProtocol rendering renders! 1`] = `
     backButtonText="Previous"
     nextButtonStatus="default"
     nextButtonText="Continue"
-    onClickBack={[MockFunction]}
     showSkip={false}
     skipButtonText="Skip"
   />
