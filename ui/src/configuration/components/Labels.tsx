@@ -191,10 +191,10 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleDelete = async (id: string) => {
-    const {labels} = this.props
-    const label = labels.find(label => label.id === id)
+    const labelType = this.state.labelTypes.find(label => label.id === id)
+
     try {
-      await deleteLabel(label)
+      await deleteLabel(labelType.id)
       const labelTypes = this.state.labelTypes.filter(l => l.id !== id)
 
       this.setState({labelTypes})
