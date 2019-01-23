@@ -25,6 +25,8 @@ import {
   taskImportFailed,
   taskImportSuccess,
   taskUpdateSuccess,
+  taskCreatedSuccess,
+  taskDeleteSuccess,
 } from 'src/shared/copy/v2/notifications'
 
 // Types
@@ -244,6 +246,7 @@ export const deleteTask = (task: Task) => async dispatch => {
     await deleteTaskAPI(task.id)
 
     dispatch(populateTasks())
+    dispatch(notify(taskDeleteSuccess()))
   } catch (e) {
     console.error(e)
     const message = getErrorMessage(e)
@@ -332,6 +335,7 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
 
     dispatch(setCurrentTask(null))
     dispatch(goToTasks())
+    dispatch(notify(taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
     const message = getErrorMessage(e)
@@ -366,6 +370,7 @@ export const saveNewScript = (
     dispatch(clearTask())
     dispatch(goToTasks())
     dispatch(populateTasks())
+    dispatch(notify(taskCreatedSuccess()))
   } catch (e) {
     console.error(e)
     const message = _.get(e, 'response.data.error.message', '')
