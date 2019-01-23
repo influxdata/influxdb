@@ -23,6 +23,7 @@ builds:
       - -tags=assets
     env:
       - GO111MODULE=on
+      - CGO_ENABLED=0
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
     binary: influxd
     hooks:
