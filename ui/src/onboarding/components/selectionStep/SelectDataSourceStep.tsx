@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import classnames from 'classnames'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -52,7 +51,7 @@ export class SelectDataSourceStep extends PureComponent<Props> {
 
   public render() {
     return (
-      <div className={this.skippableClassName}>
+      <div className="onboarding-step">
         <Form onSubmit={this.handleClickNext}>
           <div className="wizard-step--scroll-area">
             <FancyScrollbar autoHide={false}>
@@ -188,18 +187,6 @@ export class SelectDataSourceStep extends PureComponent<Props> {
 
   private get isStreaming(): boolean {
     return this.props.substep === 'streaming'
-  }
-
-  private get skippableClassName(): string {
-    const {telegrafPlugins} = this.props
-    const pluginsSelected = telegrafPlugins.length > 0
-    const allConfigured = telegrafPlugins.every(
-      plugin => plugin.configured === 'configured'
-    )
-
-    return classnames('onboarding-step', {
-      'wizard--skippable': pluginsSelected && allConfigured,
-    })
   }
 }
 

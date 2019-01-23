@@ -224,13 +224,14 @@ class DataLoadersWizard extends PureComponent<Props> {
   }
 
   private get sideBarVisible() {
-    const {dataLoaders} = this.props
+    const {dataLoaders, currentStepIndex} = this.props
     const {telegrafPlugins, type} = dataLoaders
 
     const isStreaming = type === DataLoaderType.Streaming
     const isNotEmpty = telegrafPlugins.length > 0
+    const isConfigStep = currentStepIndex > 0
 
-    return isStreaming && isNotEmpty
+    return isStreaming && isNotEmpty && isConfigStep
   }
 
   private handleClickSideBarTab = (telegrafPluginID: string) => {

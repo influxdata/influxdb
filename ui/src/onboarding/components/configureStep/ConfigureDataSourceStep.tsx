@@ -64,24 +64,22 @@ export class ConfigureDataSourceStep extends PureComponent<Props> {
     } = this.props
 
     return (
-      <div className="onboarding-step wizard--skippable">
-        <ConfigureDataSourceSwitcher
-          buckets={buckets}
-          bucket={bucket}
-          org={org}
-          username={username}
-          telegrafPlugins={telegrafPlugins}
-          onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-          onAddConfigValue={onAddConfigValue}
-          onRemoveConfigValue={onRemoveConfigValue}
-          dataLoaderType={type}
-          currentIndex={+substep}
-          onSetConfigArrayValue={onSetConfigArrayValue}
-          onClickNext={this.handleNext}
-          onClickPrevious={this.handlePrevious}
-          onClickSkip={this.jumpToCompletionStep}
-        />
-      </div>
+      <ConfigureDataSourceSwitcher
+        buckets={buckets}
+        bucket={bucket}
+        org={org}
+        username={username}
+        telegrafPlugins={telegrafPlugins}
+        onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
+        onAddConfigValue={onAddConfigValue}
+        onRemoveConfigValue={onRemoveConfigValue}
+        dataLoaderType={type}
+        currentIndex={+substep}
+        onSetConfigArrayValue={onSetConfigArrayValue}
+        onClickNext={this.handleNext}
+        onClickPrevious={this.handlePrevious}
+        onClickSkip={this.jumpToCompletionStep}
+      />
     )
   }
 
