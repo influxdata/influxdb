@@ -10,8 +10,7 @@ import (
 )
 
 type influxCollector struct {
-	influxInfoDesc *prometheus.Desc
-
+	influxInfoDesc   *prometheus.Desc
 	influxUptimeDesc *prometheus.Desc
 	start            time.Time
 }
@@ -25,12 +24,12 @@ func NewInfluxCollector(procID platform.IDGenerator, build platform.BuildInfo) p
 			"influxdb_info",
 			"Information about the influxdb environment.",
 			nil, prometheus.Labels{
-				"version": build.Version,
-				"commit":  build.Commit,
-				"date":    build.Date,
-				"os":      runtime.GOOS,
-				"arch":    runtime.GOARCH,
-				"cpus":    strconv.Itoa(runtime.NumCPU()),
+				"version":    build.Version,
+				"commit":     build.Commit,
+				"build_date": build.Date,
+				"os":         runtime.GOOS,
+				"arch":       runtime.GOARCH,
+				"cpus":       strconv.Itoa(runtime.NumCPU()),
 			},
 		),
 		influxUptimeDesc: prometheus.NewDesc(
