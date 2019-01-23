@@ -8,7 +8,7 @@ jobs:
          password: $QUAY_PASS
     working_directory: /Litmus
     steps:
-      - run: python litmus_run_master.py
+      - run: ./run_litmus_tests_oss.sh -l tests_lists/gateway_api_tests.list 
 
   jstest:
     docker:
