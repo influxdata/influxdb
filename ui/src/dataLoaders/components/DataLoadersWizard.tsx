@@ -180,7 +180,7 @@ class DataLoadersWizard extends PureComponent<Props> {
 
   private handleSetBucketInfo = () => {
     const {bucket, buckets} = this.props
-    if (bucket || buckets.length) {
+    if (bucket || (buckets && buckets.length)) {
       const b = bucket || buckets[0]
       const {organization, organizationID, name, id} = b
 
