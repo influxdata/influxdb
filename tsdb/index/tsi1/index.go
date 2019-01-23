@@ -124,13 +124,22 @@ var WithLogFileBufferSize = func(sz int) IndexOption {
 	}
 }
 
+// WithSeriesIDCacheSize sets the size of the series id set cache.
+// If set to 0, then the cache is disabled.
+var WithSeriesIDCacheSize = func(sz int) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheSize = sz
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
 	partitions []*Partition
 	opened     bool
 
-	tagValueCache *TagValueSeriesIDCache
+	tagValueCache     *TagValueSeriesIDCache
+	tagValueCacheSize int
 
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
@@ -162,23 +171,24 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
-		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
-		maxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
-		logger:         zap.NewNop(),
-		version:        Version,
-		sfile:          sfile,
-		database:       database,
-		mSketch:        hll.NewDefaultPlus(),
-		mTSketch:       hll.NewDefaultPlus(),
-		sSketch:        hll.NewDefaultPlus(),
-		sTSketch:       hll.NewDefaultPlus(),
-		PartitionN:     DefaultPartitionN,
+		tagValueCacheSize: DefaultSeriesIDSetCacheSize,
+		maxLogFileSize:    tsdb.DefaultMaxIndexLogFileSize,
+		logger:            zap.NewNop(),
+		version:           Version,
+		sfile:             sfile,
+		database:          database,
+		mSketch:           hll.NewDefaultPlus(),
+		mTSketch:          hll.NewDefaultPlus(),
+		sSketch:           hll.NewDefaultPlus(),
+		sTSketch:          hll.NewDefaultPlus(),
+		PartitionN:        DefaultPartitionN,
 	}
 
 	for _, option := range options {
 		option(idx)
 	}
 
+	idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
 	return idx
 }
 
