@@ -108,4 +108,5 @@ type LabelFilter struct {
 // LabelMappingFilter represents a set of filters that restrict the returned results.
 type LabelMappingFilter struct {
 	ResourceID ID
+	ResourceType
 }
