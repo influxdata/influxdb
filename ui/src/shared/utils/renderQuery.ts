@@ -62,7 +62,7 @@ function formatVariables(
     .join('\n')
 }
 
-async function getAST(query: string): Promise<object> {
+async function getAST(query: string): Promise<{files}> {
   const {data} = await queryAPI.queryAstPost(undefined, undefined, {query})
 
   return data.ast
