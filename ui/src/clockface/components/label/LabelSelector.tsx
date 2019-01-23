@@ -251,6 +251,10 @@ class LabelSelector extends Component<Props, State> {
   private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     const {highlightedID} = this.state
 
+    if (!highlightedID) {
+      return
+    }
+
     switch (e.key) {
       case 'Escape':
         e.currentTarget.blur()
