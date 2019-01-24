@@ -5,7 +5,7 @@ import {AppState} from 'src/types/v2/index'
 import {Form, Input, InputType, ComponentSize} from 'src/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import OnboardingButtons from '../../OnboardingButtons'
-import {setTelegrafConfigName} from 'src/onboarding/actions/dataLoaders'
+import {setTelegrafConfigName} from 'src/dataLoaders/actions/dataLoaders'
 
 interface OwnProps {
   onClickNext: () => void

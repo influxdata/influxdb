@@ -11,7 +11,7 @@ import ArrayFormElement from 'src/onboarding/components/configureStep/streaming/
 import {ConfigFieldType, TelegrafPluginName} from 'src/types/v2/dataLoaders'
 
 // Actions
-import {setConfigArrayValue} from 'src/onboarding/actions/dataLoaders'
+import {setConfigArrayValue} from 'src/dataLoaders/actions/dataLoaders'
 
 interface Props {
   fieldName: string

@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {MultipleInput, MultiInputType} from 'src/clockface'
 
 // Actions
-import {setConfigArrayValue} from 'src/onboarding/actions/dataLoaders'
+import {setConfigArrayValue} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {TelegrafPluginName, ConfigFieldType} from 'src/types/v2/dataLoaders'

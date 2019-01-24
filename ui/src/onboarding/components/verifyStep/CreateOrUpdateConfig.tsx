@@ -8,7 +8,7 @@ import {Spinner} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
-import {createOrUpdateTelegrafConfigAsync} from 'src/onboarding/actions/dataLoaders'
+import {createOrUpdateTelegrafConfigAsync} from 'src/dataLoaders/actions/dataLoaders'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {createDashboardsForPlugins as createDashboardsForPluginsAction} from 'src/protos/actions/'
 

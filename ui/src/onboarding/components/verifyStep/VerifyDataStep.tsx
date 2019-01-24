@@ -13,7 +13,7 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {
   setActiveTelegrafPlugin,
   setPluginConfiguration,
-} from 'src/onboarding/actions/dataLoaders'
+} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {DataLoaderType, TelegrafPlugin} from 'src/types/v2/dataLoaders'

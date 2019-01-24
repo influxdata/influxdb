@@ -17,7 +17,7 @@ import {
   setCurrentStepIndex,
   setSubstepIndex,
   clearSteps,
-} from 'src/onboarding/actions/steps'
+} from 'src/dataLoaders/actions/steps'
 
 import {
   setDataLoadersType,
@@ -30,7 +30,7 @@ import {
   removePluginBundleWithPlugins,
   setConfigArrayValue,
   clearDataLoaders,
-} from 'src/onboarding/actions/dataLoaders'
+} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {Links} from 'src/types/v2/links'
