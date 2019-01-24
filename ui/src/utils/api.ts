@@ -12,7 +12,6 @@ import {
   SetupApi,
   ScraperTargetsApi,
   ProtosApi,
-  LabelsApi,
 } from 'src/api'
 
 import Client from '@influxdata/influx'
@@ -34,4 +33,3 @@ export const queryAPI = new QueryApi({basePath})
 export const setupAPI = new SetupApi({basePath})
 export const scraperTargetsApi = new ScraperTargetsApi({basePath})
 export const protosAPI = new ProtosApi({basePath})
-export const labelsAPI = new LabelsApi({basePath})

@@ -2,7 +2,7 @@
 import {PureComponent} from 'react'
 
 // APIs
-import {getLabels} from 'src/configuration/apis'
+import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -25,7 +25,7 @@ export default class GetLabels extends PureComponent<Props, State> {
   public state: State = {labels: null, loading: RemoteDataState.NotStarted}
 
   public async componentDidMount() {
-    const labels = await getLabels()
+    const labels = await client.labels.getAll()
     this.setState({labels, loading: RemoteDataState.Done})
   }
 
