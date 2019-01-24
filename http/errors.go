@@ -24,8 +24,8 @@ type AuthzError interface {
 }
 
 // CheckErrorStatus for status and any error in the response.
-func CheckErrorStatus(code int, res *http.Response, isPlatformError ...bool) error {
-	err := CheckError(res, true)
+func CheckErrorStatus(code int, res *http.Response) error {
+	err := CheckError(res)
 	if err != nil {
 		return err
 	}
@@ -43,8 +43,7 @@ func CheckErrorStatus(code int, res *http.Response, isPlatformError ...bool) err
 // be determined in that way, it will create a generic error message.
 //
 // If there is no error, then this returns nil.
-// THIS IS TEMPORARY. ADD AN OPTIONAL isPlatformError, TO DECODE platform.Error
-func CheckError(resp *http.Response, isPlatformError ...bool) (err error) {
+func CheckError(resp *http.Response) (err error) {
 	switch resp.StatusCode / 100 {
 	case 4, 5:
 		// We will attempt to parse this error outside of this block.

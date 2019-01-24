@@ -611,7 +611,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -665,7 +665,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -722,7 +722,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -767,7 +767,7 @@ func (s *AuthorizationService) SetAuthorizationStatus(ctx context.Context, id pl
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -794,7 +794,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 func authorizationIDPath(id platform.ID) string {

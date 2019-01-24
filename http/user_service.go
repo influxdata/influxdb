@@ -445,7 +445,7 @@ func (s *UserService) FindMe(ctx context.Context, id platform.ID) (*platform.Use
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -476,7 +476,7 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -540,7 +540,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -582,7 +582,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -622,7 +622,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -654,7 +654,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	}
 	defer resp.Body.Close()
 
-	return CheckErrorStatus(http.StatusNoContent, resp, true)
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 func userIDPath(id platform.ID) string {

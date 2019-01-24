@@ -558,7 +558,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -632,7 +632,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -683,7 +683,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -730,7 +730,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -761,7 +761,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 func bucketIDPath(id platform.ID) string {

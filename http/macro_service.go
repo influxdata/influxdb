@@ -411,7 +411,7 @@ func (s *MacroService) FindMacroByID(ctx context.Context, id platform.ID) (*plat
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -459,7 +459,7 @@ func (s *MacroService) FindMacros(ctx context.Context, filter platform.MacroFilt
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -507,7 +507,7 @@ func (s *MacroService) CreateMacro(ctx context.Context, m *platform.Macro) error
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -542,7 +542,7 @@ func (s *MacroService) UpdateMacro(ctx context.Context, id platform.ID, update *
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -582,7 +582,7 @@ func (s *MacroService) ReplaceMacro(ctx context.Context, macro *platform.Macro) 
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -613,7 +613,7 @@ func (s *MacroService) DeleteMacro(ctx context.Context, id platform.ID) error {
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 func macroIDPath(id platform.ID) string {

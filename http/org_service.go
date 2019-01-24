@@ -588,7 +588,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -638,7 +638,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -677,7 +677,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -709,7 +709,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 	}
 	defer resp.Body.Close()
 
-	return CheckErrorStatus(http.StatusNoContent, resp, true)
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 func organizationIDPath(id platform.ID) string {

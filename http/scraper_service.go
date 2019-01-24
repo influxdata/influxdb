@@ -277,7 +277,7 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]influxdb.ScraperTar
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -328,7 +328,7 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.Scra
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 	var targetResp targetResponse
@@ -383,7 +383,7 @@ func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.Scraper
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -415,7 +415,7 @@ func (s *ScraperService) RemoveTarget(ctx context.Context, id influxdb.ID) error
 	}
 	defer resp.Body.Close()
 
-	return CheckErrorStatus(http.StatusNoContent, resp, true)
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 // GetTargetByID returns a single target by ID.
@@ -438,7 +438,7 @@ func (s *ScraperService) GetTargetByID(ctx context.Context, id influxdb.ID) (*in
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 

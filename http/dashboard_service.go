@@ -983,7 +983,7 @@ func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1037,7 +1037,7 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return dashboards, 0, err
 	}
 
@@ -1078,7 +1078,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dash
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -1119,7 +1119,7 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, 
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1154,7 +1154,7 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id platform.ID) 
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 // AddDashboardCell adds a cell to a dashboard.
@@ -1185,7 +1185,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID,
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -1213,7 +1213,7 @@ func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID,
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 // UpdateDashboardCell replaces the dashboard cell with the provided ID.
@@ -1252,7 +1252,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1287,7 +1287,7 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1327,7 +1327,7 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1368,7 +1368,7 @@ func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platfor
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 

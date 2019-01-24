@@ -507,7 +507,7 @@ func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*plat
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -585,7 +585,7 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -667,7 +667,7 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id platform.ID, upd plat
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -698,7 +698,7 @@ func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
