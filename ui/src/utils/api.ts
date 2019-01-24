@@ -1,6 +1,5 @@
 import {
   TasksApi,
-  UsersApi,
   DashboardsApi,
   CellsApi,
   TelegrafsApi,
@@ -8,7 +7,6 @@ import {
   ViewsApi,
   WriteApi,
   SourcesApi,
-  DefaultApi,
   BucketsApi,
   OrganizationsApi,
   QueryApi,
@@ -24,10 +22,8 @@ const basePath = '/api/v2'
 
 export const client = new Client(basePath)
 
-export const baseAPI = new DefaultApi({basePath})
 export const viewsAPI = new ViewsApi({basePath})
 export const taskAPI = new TasksApi({basePath})
-export const usersAPI = new UsersApi({basePath})
 export const dashboardsAPI = new DashboardsApi({basePath})
 export const cellsAPI = new CellsApi({basePath})
 export const telegrafsAPI = new TelegrafsApi({basePath})
