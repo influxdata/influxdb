@@ -30,7 +30,13 @@ exports[`TimeMachineQueryBuilder can render with redux with defaults 1`] = `
         >
           <span
             class="dropdown--selected"
-          />
+          >
+            <div
+              class="waiting-text "
+            >
+              Loading
+            </div>
+          </span>
           <span
             class="dropdown--caret icon caret-down"
           />

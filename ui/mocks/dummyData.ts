@@ -1,11 +1,5 @@
-import {
-  Source,
-  SourceAuthenticationMethod,
-  Template,
-  SourceLinks,
-  TemplateType,
-  TemplateValueType,
-} from 'src/types'
+import {Template, SourceLinks, TemplateType, TemplateValueType} from 'src/types'
+import {Source} from 'src/api'
 import {Cell, Dashboard, Label} from 'src/types/v2'
 import {Links} from 'src/types/v2/links'
 import {Task} from 'src/types/v2/tasks'
@@ -123,14 +117,12 @@ export const sourceLinks: SourceLinks = {
 export const source: Source = {
   id: '16',
   name: 'ssl',
-  type: 'influx',
+  type: Source.TypeEnum.Self,
   username: 'admin',
   url: 'https://localhost:9086',
   insecureSkipVerify: true,
-  default: false,
   telegraf: 'telegraf',
   links: sourceLinks,
-  authentication: SourceAuthenticationMethod.Basic,
 }
 
 export const timeRange = {
@@ -583,7 +575,11 @@ export const setSetupParamsResponse = {
       userID: '033bc62520fe3000',
       user: 'iris',
       permissions: [
-        {action: 'read', resource: 'authorizations', orgID: '033bc62534be3000'},
+        {
+          action: 'read',
+          resource: 'authorizations',
+          orgID: '033bc62534be3000',
+        },
         {
           action: 'write',
           resource: 'authorizations',
