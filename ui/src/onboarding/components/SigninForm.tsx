@@ -20,7 +20,7 @@ import {
 } from 'src/clockface'
 
 // APIs
-import {signin} from 'src/onboarding/apis'
+import {client} from 'src/utils/api'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -107,7 +107,7 @@ class SigninForm extends PureComponent<Props, State> {
     const {username, password} = this.state
 
     try {
-      await signin({username, password})
+      await client.auth.signin(username, password)
       this.handleRedirect()
     } catch (error) {
       const message = get(error, 'response.data.msg', '')

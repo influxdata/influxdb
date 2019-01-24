@@ -1,7 +1,7 @@
 // Libraries
 import _ from 'lodash'
 
-import {baseAPI, setupAPI, sourcesAPI} from 'src/utils/api'
+import {setupAPI, sourcesAPI} from 'src/utils/api'
 
 // Utils
 import {
@@ -10,6 +10,7 @@ import {
   writeAPI,
   scraperTargetsApi,
 } from 'src/utils/api'
+
 import {
   Telegraf,
   WritePrecision,
@@ -64,19 +65,6 @@ export const setSetupParams = async (
     return result.data
   } catch (error) {
     console.error("Can't set setup parameters", error)
-    throw error
-  }
-}
-
-export const signin = async (params: {
-  username: string
-  password: string
-}): Promise<void> => {
-  const {username, password} = params
-  try {
-    await baseAPI.signinPost({auth: {username, password}})
-  } catch (error) {
-    console.error('Sign in has failed', error)
     throw error
   }
 }
