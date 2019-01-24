@@ -11,7 +11,7 @@ import {
   addConfigValue,
   removeConfigValue,
   setConfigArrayValue,
-} from 'src/onboarding/actions/dataLoaders'
+} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {

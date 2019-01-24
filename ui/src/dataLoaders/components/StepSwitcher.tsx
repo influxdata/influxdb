@@ -19,8 +19,8 @@ import {
   removePluginBundleWithPlugins,
   setPluginConfiguration,
   setConfigArrayValue,
-} from 'src/onboarding/actions/dataLoaders'
-import {setBucketInfo} from 'src/onboarding/actions/steps'
+} from 'src/dataLoaders/actions/dataLoaders'
+import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
 import {DataLoadersState, DataLoaderStep} from 'src/types/v2/dataLoaders'

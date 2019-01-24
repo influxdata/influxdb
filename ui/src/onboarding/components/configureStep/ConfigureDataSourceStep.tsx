@@ -7,14 +7,14 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import ConfigureDataSourceSwitcher from 'src/onboarding/components/configureStep/ConfigureDataSourceSwitcher'
 
 // Actions
-import {setActiveTelegrafPlugin} from 'src/onboarding/actions/dataLoaders'
+import {setActiveTelegrafPlugin} from 'src/dataLoaders/actions/dataLoaders'
 import {
   updateTelegrafPluginConfig,
   setPluginConfiguration,
   addConfigValue,
   removeConfigValue,
   setConfigArrayValue,
-} from 'src/onboarding/actions/dataLoaders'
+} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'

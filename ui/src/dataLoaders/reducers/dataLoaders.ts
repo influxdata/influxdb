@@ -13,7 +13,7 @@ import {getDeep} from 'src/utils/wrappers'
 import {validateURI} from 'src/shared/utils/validateURI'
 
 // Types
-import {Action} from 'src/onboarding/actions/dataLoaders'
+import {Action} from 'src/dataLoaders/actions/dataLoaders'
 import {
   DataLoaderType,
   LineProtocolTab,

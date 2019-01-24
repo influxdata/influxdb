@@ -15,8 +15,8 @@ import {
   setActiveTelegrafPlugin,
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
-} from 'src/onboarding/actions/dataLoaders'
-import {setBucketInfo} from 'src/onboarding/actions/steps'
+} from 'src/dataLoaders/actions/dataLoaders'
+import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
 import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'

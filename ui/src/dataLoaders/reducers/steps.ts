@@ -1,5 +1,5 @@
 // Types
-import {Action} from 'src/onboarding/actions/steps'
+import {Action} from 'src/dataLoaders/actions/steps'
 import {Substep} from 'src/types/v2/dataLoaders'
 
 export interface DataLoadersStepsState {

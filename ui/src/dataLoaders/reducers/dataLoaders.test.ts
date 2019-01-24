@@ -1,7 +1,7 @@
 // Reducer
 import dataLoadersReducer, {
   INITIAL_STATE,
-} from 'src/onboarding/reducers/dataLoaders'
+} from 'src/dataLoaders/reducers/dataLoaders'
 
 // Actions
 import {
@@ -23,7 +23,7 @@ import {
   setScraperTargetURL,
   setScraperTargetID,
   setTelegrafConfigName,
-} from 'src/onboarding/actions/dataLoaders'
+} from 'src/dataLoaders/actions/dataLoaders'
 
 // Mock Data
 import {

@@ -14,7 +14,7 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {
   setLPStatus as setLPStatusAction,
   writeLineProtocolAction,
-} from 'src/onboarding/actions/dataLoaders'
+} from 'src/dataLoaders/actions/dataLoaders'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
