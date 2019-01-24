@@ -46,7 +46,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
     const {tagFiltersLength} = this.props
 
     return (
-      <div className="query-builder">
+      <div className="query-builder" data-testid="query-builder">
         <div className="query-builder--buttons">
           <Form.Element label="Bucket">
             <QueryBuilderBucketDropdown />

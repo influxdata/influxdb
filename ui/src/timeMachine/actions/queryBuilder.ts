@@ -47,7 +47,9 @@ interface SetBuilderBucketsAction {
   payload: {buckets: string[]}
 }
 
-const setBuilderBuckets = (buckets: string[]): SetBuilderBucketsAction => ({
+export const setBuilderBuckets = (
+  buckets: string[]
+): SetBuilderBucketsAction => ({
   type: 'SET_BUILDER_BUCKETS',
   payload: {buckets},
 })
