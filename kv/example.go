@@ -158,7 +158,7 @@ func (c *ExampleService) FindUser(ctx context.Context, filter platform.UserFilte
 
 	var u *platform.User
 	err := c.kv.View(func(tx Tx) error {
-		return forEachExample(ctx, tx, func(usr *platform.User) bool {
+		return forEachExample(ctx, tx, false, func(usr *platform.User) bool {
 			if filterFn(usr) {
 				u = usr
 				return false
@@ -226,12 +226,27 @@ func (c *ExampleService) FindUsers(ctx context.Context, filter platform.UserFilt
 		return []*platform.User{u}, 1, nil
 	}
 
+	var offset, limit, count int
+	var descending bool
+	if len(opt) > 0 {
+		offset = opt[0].Offset
+		limit = opt[0].Limit
+		descending = opt[0].Descending
+	}
+
 	us := []*platform.User{}
 	filterFn := filterExamplesFn(filter)
 	err := c.kv.View(func(tx Tx) error {
-		return forEachExample(ctx, tx, func(u *platform.User) bool {
+		return forEachExample(ctx, tx, descending, func(u *platform.User) bool {
 			if filterFn(u) {
-				us = append(us, u)
+				if count >= offset {
+					us = append(us, u)
+				}
+				count++
+
+				if limit > 0 && len(us) >= limit {
+					return false
+				}
 			}
 			return true
 		})
@@ -311,7 +326,7 @@ func exampleIndexKey(n string) []byte {
 }
 
 // forEachExample will iterate through all examples while fn returns true.
-func forEachExample(ctx context.Context, tx Tx, fn func(*platform.User) bool) error {
+func forEachExample(ctx context.Context, tx Tx, descending bool, fn func(*platform.User) bool) error {
 	b, err := tx.Bucket(exampleBucket)
 	if err != nil {
 		return err
@@ -322,13 +337,26 @@ func forEachExample(ctx context.Context, tx Tx, fn func(*platform.User) bool) er
 		return err
 	}
 
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+	var k, v []byte
+	if descending {
+		k, v = cur.Last()
+	} else {
+		k, v = cur.First()
+	}
+
+	for k != nil {
 		u := &platform.User{}
 		if err := json.Unmarshal(v, u); err != nil {
 			return err
 		}
 		if !fn(u) {
 			break
+		}
+
+		if descending {
+			k, v = cur.Prev()
+		} else {
+			k, v = cur.Next()
 		}
 	}
 
