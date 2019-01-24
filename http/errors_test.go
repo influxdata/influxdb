@@ -38,4 +38,14 @@ func TestEncodeErrorWithError(t *testing.T) {
 	if errHeader != influxdb.EInternal {
 		t.Errorf("expected X-Platform-Error-Code: %s, got: %s", influxdb.EInternal, errHeader)
 	}
+
+	expected := &influxdb.Error{
+		Code: influxdb.EInternal,
+		Err:  err,
+	}
+
+	pe := http.CheckError(w.Result())
+	if pe.(*influxdb.Error).Err.Error() != expected.Err.Error() {
+		t.Errorf("errors encode err: got %s", w.Body.String())
+	}
 }

@@ -792,9 +792,12 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.ForceRun(ctx, req.TaskID, req.Timestamp)
 	if err != nil {
-		err = &platform.Error{
-			Err: err,
-			Msg: "failed to force run",
+		if err == backend.ErrRunNotFound {
+			err = &platform.Error{
+				Code: platform.ENotFound,
+				Msg:  "failed to force run",
+				Err:  err,
+			}
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -865,10 +868,12 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.FindRunByID(ctx, req.TaskID, req.RunID)
 	if err != nil {
-		err = &platform.Error{
-			Err:  err,
-			Code: platform.ENotFound,
-			Msg:  "failed to find run",
+		if err == backend.ErrRunNotFound {
+			err = &platform.Error{
+				Err:  err,
+				Msg:  "failed to find run",
+				Code: platform.ENotFound,
+			}
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -994,9 +999,12 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID)
 	if err != nil {
-		err = &platform.Error{
-			Err: err,
-			Msg: "failed to retry run",
+		if err == backend.ErrRunNotFound {
+			err = &platform.Error{
+				Code: platform.ENotFound,
+				Msg:  "failed to retry run",
+				Err:  err,
+			}
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -1069,10 +1077,11 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
-		if err.Error() == backend.ErrTaskNotFound.Error() {
+	if err := CheckError(resp); err != nil {
+		if platform.ErrorCode(err) == platform.ENotFound {
 			// ErrTaskNotFound is expected as part of the FindTaskByID contract,
 			// so return that actual error instead of a different error that looks like it.
+			// TODO cleanup backend task service error implementation
 			return nil, backend.ErrTaskNotFound
 		}
 		return nil, err
@@ -1123,7 +1132,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -1208,7 +1217,7 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1283,7 +1292,7 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -1333,7 +1342,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -1372,10 +1381,11 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
-		if err.Error() == backend.ErrRunNotFound.Error() {
+	if err := CheckError(resp); err != nil {
+		if platform.ErrorCode(err) == platform.ENotFound {
 			// ErrRunNotFound is expected as part of the FindRunByID contract,
 			// so return that actual error instead of a different error that looks like it.
+			// TODO cleanup backend error implementation
 			return nil, backend.ErrRunNotFound
 		}
 
@@ -1411,13 +1421,13 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
-		if err.Error() == backend.ErrRunNotFound.Error() {
+	if err := CheckError(resp); err != nil {
+		if platform.ErrorCode(err) == platform.ENotFound {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
+			// TODO cleanup backend task error implementation
 			return nil, backend.ErrRunNotFound
 		}
-
 		// RequestStillQueuedError is also part of the contract.
 		if e := backend.ParseRequestStillQueuedError(err.Error()); e != nil {
 			return nil, *e
@@ -1455,8 +1465,8 @@ func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduled
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
-		if err.Error() == backend.ErrRunNotFound.Error() {
+	if err := CheckError(resp); err != nil {
+		if platform.ErrorCode(err) == platform.ENotFound {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
 			return nil, backend.ErrRunNotFound
@@ -1502,7 +1512,7 @@ func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) e
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 

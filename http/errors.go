@@ -81,17 +81,22 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	w.Header().Set(PlatformErrorCodeHeader, code)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(httpCode)
-	e := &platform.Error{
-		Code: code,
-		Op:   platform.ErrorOp(err),
-		Msg:  platform.ErrorMessage(err),
-	}
+	var e error
 	if pe, ok := err.(*platform.Error); ok {
-		e.Err = pe.Err
+		e = &platform.Error{
+			Code: code,
+			Op:   platform.ErrorOp(err),
+			Msg:  platform.ErrorMessage(err),
+			Err:  pe.Err,
+		}
+	} else {
+		e = &platform.Error{
+			Code: platform.EInternal,
+			Err:  err,
+		}
 	}
 	b, _ := json.Marshal(e)
 	_, _ = w.Write(b)
-	return
 }
 
 // UnauthorizedError encodes a error message and status code for unauthorized access.
