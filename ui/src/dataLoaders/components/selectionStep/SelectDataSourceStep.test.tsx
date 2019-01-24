@@ -3,9 +3,9 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import {SelectDataSourceStep} from 'src/onboarding/components/selectionStep/SelectDataSourceStep'
-import StreamingSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
-import TypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
+import {SelectDataSourceStep} from 'src/dataLoaders/components/selectionStep/SelectDataSourceStep'
+import StreamingSelector from 'src/dataLoaders/components/selectionStep/StreamingSelector'
+import TypeSelector from 'src/dataLoaders/components/selectionStep/TypeSelector'
 import {ComponentStatus} from 'src/clockface'
 
 // Types
