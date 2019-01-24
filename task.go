@@ -26,7 +26,7 @@ type Task struct {
 	Organization    string `json:"org"`
 	Name            string `json:"name"`
 	Status          string `json:"status"`
-	Owner           User   `json:"owner"`
+	Owner           User   `json:"-"`
 	Flux            string `json:"flux"`
 	Every           string `json:"every,omitempty"`
 	Cron            string `json:"cron,omitempty"`

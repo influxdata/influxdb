@@ -108,8 +108,7 @@ type System struct {
 }
 
 func testTaskCRUD(t *testing.T, sys *System) {
-	orgID := idGen.ID()
-	userID := idGen.ID()
+	orgID, userID, _ := creds(t, sys)
 
 	// Create a task.
 	task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
@@ -118,6 +117,16 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	if !task.ID.Valid() {
 		t.Fatal("no task ID set")
+	}
+
+	findTask := func(tasks []*platform.Task, id platform.ID) *platform.Task {
+		for _, t := range tasks {
+			if t.ID == id {
+				return t
+			}
+		}
+		t.Fatalf("failed to find task by id %s", id)
+		return nil
 	}
 
 	// Look up a task the different ways we can.
@@ -137,28 +146,21 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fs) != 1 {
-		t.Fatalf("expected 1 task returned, got %d: %#v", len(fs), fs)
-	}
-	found["FindTasks with Organization filter"] = fs[0]
+	f = findTask(fs, task.ID)
+	found["FindTasks with Organization filter"] = f
 
 	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &userID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fs) != 1 {
-		t.Fatalf("expected 1 task returned, got %d: %#v", len(fs), fs)
-	}
-	found["FindTasks with User filter"] = fs[0]
+
+	f = findTask(fs, task.ID)
+	found["FindTasks with User filter"] = f
 
 	for fn, f := range found {
 		if f.OrganizationID != orgID {
 			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, orgID.String(), f.OrganizationID.String())
 		}
-		if f.Owner.ID != userID {
-			t.Fatalf("%s: wrong user returned; want %s, got %s", fn, userID.String(), f.Owner.ID.String())
-		}
-
 		if f.Name != "task #0" {
 			t.Fatalf(`%s: wrong name returned; want "task #0", got %q`, fn, f.Name)
 		}
