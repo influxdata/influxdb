@@ -297,8 +297,9 @@ func FindUsers(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   platform.ID
-		name string
+		ID          platform.ID
+		name        string
+		findOptions platform.FindOptions
 	}
 
 	type wants struct {
@@ -332,6 +333,96 @@ func FindUsers(
 						ID:   MustIDBase16(userOneID),
 						Name: "abc",
 					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find users by offset and limit",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Offset: 1,
+					Limit:  1,
+				},
+			},
+			wants: wants{
+				users: []*platform.User{
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find users by descending",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Descending: true,
+				},
+			},
+			wants: wants{
+				users: []*platform.User{
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "abc",
+					},
+				},
+			},
+		},
+		{
+			name: "find users by descending and limit",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Descending: true,
+					Limit:      1,
+				},
+			},
+			wants: wants{
+				users: []*platform.User{
 					{
 						ID:   MustIDBase16(userTwoID),
 						Name: "xyz",
@@ -457,7 +548,7 @@ func FindUsers(
 				filter.Name = &tt.args.name
 			}
 
-			users, _, err := s.FindUsers(ctx, filter)
+			users, _, err := s.FindUsers(ctx, filter, tt.args.findOptions)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
