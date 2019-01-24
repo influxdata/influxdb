@@ -55,7 +55,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 		// but more importantly, it should exercise concurrency to catch data races.
 
 		t.Run("Task CRUD", func(t *testing.T) {
-			// t.Parallel()
+			t.Parallel()
 			testTaskCRUD(t, sys)
 		})
 
@@ -108,15 +108,7 @@ type System struct {
 }
 
 func testTaskCRUD(t *testing.T, sys *System) {
-	orgID := idGen.ID()
-	userID := idGen.ID()
-	if sys.CredsFunc != nil {
-		var err error
-		orgID, userID, _, err = sys.CredsFunc()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	orgID, userID, _ := creds(t, sys)
 
 	// Create a task.
 	task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
@@ -125,6 +117,16 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	if !task.ID.Valid() {
 		t.Fatal("no task ID set")
+	}
+
+	findTask := func(tasks []*platform.Task, id platform.ID) *platform.Task {
+		for _, t := range tasks {
+			if t.ID == id {
+				return t
+			}
+		}
+		t.Fatalf("failed to find task by id %s", id)
+		return nil
 	}
 
 	// Look up a task the different ways we can.
@@ -144,19 +146,16 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fs) != 1 {
-		t.Fatalf("expected 1 task returned, got %d: %#v", len(fs), fs)
-	}
-	found["FindTasks with Organization filter"] = fs[0]
+	f = findTask(fs, task.ID)
+	found["FindTasks with Organization filter"] = f
 
 	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &userID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fs) != 1 {
-		t.Fatalf("expected 1 task returned, got %d: %#v", len(fs), fs)
-	}
-	found["FindTasks with User filter"] = fs[0]
+
+	f = findTask(fs, task.ID)
+	found["FindTasks with User filter"] = f
 
 	for fn, f := range found {
 		if f.OrganizationID != orgID {
