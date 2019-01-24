@@ -114,7 +114,7 @@
     "typescript": "^3.1.3"
   },
   "dependencies": {
-    "@influxdata/influx": "^0.1.1",
+    "@influxdata/influx": "^0.1.3",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",
     "bignumber.js": "^4.0.2",

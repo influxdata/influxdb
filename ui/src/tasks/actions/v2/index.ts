@@ -4,16 +4,6 @@ import _ from 'lodash'
 
 // APIs
 import {Task as TaskAPI, Organization} from 'src/api'
-import {
-  submitNewTask,
-  updateTaskFlux,
-  getUserTasks,
-  getTask,
-  updateTaskStatus as updateTaskStatusAPI,
-  deleteTask as deleteTaskAPI,
-  addTaskLabels as addTaskLabelsAPI,
-  removeTaskLabels as removeTaskLabelsAPI,
-} from 'src/tasks/api/v2'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -230,7 +220,7 @@ const removeTaskLabels = (
 
 export const updateTaskStatus = (task: Task) => async dispatch => {
   try {
-    await updateTaskStatusAPI(task.id, task.status)
+    await client.tasks.updateStatus(task.id, task.status)
 
     dispatch(populateTasks())
     dispatch(notify(taskUpdateSuccess()))
@@ -243,7 +233,7 @@ export const updateTaskStatus = (task: Task) => async dispatch => {
 
 export const deleteTask = (task: Task) => async dispatch => {
   try {
-    await deleteTaskAPI(task.id)
+    await client.tasks.delete(task.id)
 
     dispatch(populateTasks())
     dispatch(notify(taskDeleteSuccess()))
@@ -262,7 +252,7 @@ export const populateTasks = () => async (
     const {orgs} = getState()
 
     const user = await client.users.me()
-    const tasks = await getUserTasks(user)
+    const tasks = await client.tasks.getAllByUser(user)
 
     const mappedTasks = tasks.map(task => {
       const org = orgs.find(org => org.id === task.orgID)
@@ -288,7 +278,7 @@ export const selectTaskByID = (id: string) => async (
   try {
     const {orgs} = getState()
 
-    const task = await getTask(id)
+    const task = await client.tasks.get(id)
     const org = orgs.find(org => org.id === task.orgID)
 
     return dispatch(setCurrentTask({...task, organization: org}))
@@ -331,7 +321,7 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
       updatedTask.cron = taskOptions.cron
     }
 
-    await updateTaskFlux(task.id, updatedTask)
+    await client.tasks.update(task.id, updatedTask)
 
     dispatch(setCurrentTask(null))
     dispatch(goToTasks())
@@ -364,7 +354,7 @@ export const saveNewScript = (
       org = orgs[0]
     }
 
-    await submitNewTask(getDeep<string>(org, 'id', ''), scriptWithOptions)
+    await client.tasks.create(getDeep<string>(org, 'id', ''), scriptWithOptions)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
@@ -400,7 +390,7 @@ export const importScript = (script: string, fileName: string) => async (
     const {orgs} = await getState()
     const orgID = getDeep<string>(orgs, '0.id', '') // TODO org selection by user.
 
-    await submitNewTask(orgID, script)
+    await client.tasks.create(orgID, script)
 
     dispatch(populateTasks())
 
@@ -431,7 +421,7 @@ export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
       }
     })
 
-    const newLabels = await addTaskLabelsAPI(taskID, labelsToAdd)
+    const newLabels = await client.tasks.addLabels(taskID, labelsToAdd)
 
     dispatch(addTaskLabels(taskID, newLabels))
   } catch (error) {
@@ -444,7 +434,7 @@ export const removeTaskLabelsAsync = (
   labels: Label[]
 ) => async (dispatch): Promise<void> => {
   try {
-    await removeTaskLabelsAPI(taskID, labels)
+    await client.tasks.removeLabels(taskID, labels)
     dispatch(removeTaskLabels(taskID, labels))
   } catch (error) {
     console.error(error)

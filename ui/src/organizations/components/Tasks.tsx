@@ -8,9 +8,10 @@ import {Input, IconFont, ComponentSize, EmptyState} from 'src/clockface'
 import TaskList from 'src/organizations/components/TaskList'
 import FilterList from 'src/shared/components/Filter'
 
+import {client} from 'src/utils/api'
+
 // Types
 import {Task} from 'src/api'
-import {deleteTask} from 'src/tasks/api/v2/index'
 
 interface Props {
   tasks: Task[]
@@ -94,7 +95,7 @@ export default class Tasks extends PureComponent<Props, State> {
   }
 
   private handleDeleteTask = async (taskID: string) => {
-    await deleteTask(taskID)
+    await client.tasks.delete(taskID)
     this.props.onChange()
   }
 }
