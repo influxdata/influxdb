@@ -323,8 +323,9 @@ func FindOrganizations(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   platform.ID
-		name string
+		ID          platform.ID
+		name        string
+		findOptions platform.FindOptions
 	}
 
 	type wants struct {
@@ -361,6 +362,67 @@ func FindOrganizations(
 					{
 						ID:   MustIDBase16(orgTwoID),
 						Name: "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find organizations by offset and limit",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Offset: 1,
+					Limit:  1,
+				},
+			},
+			wants: wants{
+				organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find organizations by descending",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Descending: true,
+				},
+			},
+			wants: wants{
+				organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
 					},
 				},
 			},
@@ -485,7 +547,7 @@ func FindOrganizations(
 				filter.Name = &tt.args.name
 			}
 
-			organizations, _, err := s.FindOrganizations(ctx, filter)
+			organizations, _, err := s.FindOrganizations(ctx, filter, tt.args.findOptions)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
