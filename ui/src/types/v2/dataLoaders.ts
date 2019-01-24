@@ -59,6 +59,7 @@ export interface DataLoadersState {
   lineProtocolBody: string
   precision: WritePrecision
   scraperTarget: ScraperTarget
+  telegrafConfigName: string
 }
 
 export enum ConfigurationState {
@@ -192,4 +193,4 @@ export interface TelegrafPluginInfo {
   }
 }
 
-export type Substep = number | 'streaming'
+export type Substep = number | 'streaming' | 'config'

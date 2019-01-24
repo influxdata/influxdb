@@ -65,6 +65,7 @@ export type Action =
   | SetScraperTargetURL
   | SetScraperTargetID
   | ClearDataLoaders
+  | SetTelegrafConfigName
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -84,6 +85,16 @@ interface ClearDataLoaders {
 
 export const clearDataLoaders = (): ClearDataLoaders => ({
   type: 'CLEAR_DATA_LOADERS',
+})
+
+interface SetTelegrafConfigName {
+  type: 'SET_TELEGRAF_CONFIG_NAME'
+  payload: {name: string}
+}
+
+export const setTelegrafConfigName = (name: string): SetTelegrafConfigName => ({
+  type: 'SET_TELEGRAF_CONFIG_NAME',
+  payload: {name},
 })
 
 interface UpdateTelegrafPluginConfig {
@@ -284,7 +295,7 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
 ) => {
   const {
     dataLoading: {
-      dataLoaders: {telegrafPlugins, telegrafConfigID},
+      dataLoaders: {telegrafPlugins, telegrafConfigID, telegrafConfigName},
       steps: {org, bucket, orgID},
     },
   } = getState()
@@ -311,13 +322,17 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     const telegrafConfig = await getTelegrafConfig(telegrafConfigID)
     const id = _.get(telegrafConfig, 'id', '')
 
-    await updateTelegrafConfig(id, {...telegrafConfig, plugins})
+    await updateTelegrafConfig(id, {
+      ...telegrafConfig,
+      name: telegrafConfigName,
+      plugins,
+    })
     dispatch(setTelegrafConfigID(id))
     return
   }
 
   const telegrafRequest: TelegrafRequest = {
-    name: 'new config',
+    name: telegrafConfigName,
     agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
     organizationID: orgID,
     plugins,

@@ -173,10 +173,13 @@ export default class Collectors extends PureComponent<Props, State> {
     )
   }
 
-  private handleDownloadConfig = async (telegrafID: string) => {
+  private handleDownloadConfig = async (
+    telegrafID: string,
+    telegrafName: string
+  ) => {
     try {
       const config = await getTelegrafConfigTOML(telegrafID)
-      downloadTextFile(config, 'config.toml')
+      downloadTextFile(config, `${telegrafName || 'config'}.toml`)
     } catch (error) {
       notify(getTelegrafConfigFailed())
     }

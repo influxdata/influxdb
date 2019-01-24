@@ -22,6 +22,7 @@ import {
   setScraperTargetBucket,
   setScraperTargetURL,
   setScraperTargetID,
+  setTelegrafConfigName,
 } from 'src/onboarding/actions/dataLoaders'
 
 // Mock Data
@@ -396,6 +397,22 @@ describe('dataLoader reducer', () => {
       ...INITIAL_STATE,
       pluginBundles: [BundleName.Docker, BundleName.System],
       telegrafPlugins: [dockerTelegrafPlugin],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can set telegraf config name ', () => {
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+      },
+      setTelegrafConfigName('myConfig')
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      telegrafConfigName: 'myConfig',
     }
 
     expect(actual).toEqual(expected)

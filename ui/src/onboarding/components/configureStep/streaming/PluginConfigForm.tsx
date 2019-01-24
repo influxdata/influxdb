@@ -28,9 +28,6 @@ interface Props {
   onSetConfigArrayValue: typeof setConfigArrayValue
   onClickNext: () => void
   telegrafPlugins: TelegrafPlugin[]
-  currentIndex: number
-  onClickPrevious: () => void
-  onClickSkip: () => void
 }
 
 class PluginConfigForm extends PureComponent<Props> {
@@ -43,8 +40,6 @@ class PluginConfigForm extends PureComponent<Props> {
       onAddConfigValue,
       onRemoveConfigValue,
       onUpdateTelegrafPluginConfig,
-      onClickPrevious,
-      onClickSkip,
     } = this.props
     return (
       <Form onSubmit={this.props.onClickNext}>
@@ -72,13 +67,7 @@ class PluginConfigForm extends PureComponent<Props> {
             </div>
           </FancyScrollbar>
         </div>
-        <OnboardingButtons
-          onClickBack={onClickPrevious}
-          onClickSkip={onClickSkip}
-          showSkip={true}
-          skipButtonText={'Skip to Verify'}
-          autoFocusNext={this.autoFocus}
-        />
+        <OnboardingButtons autoFocusNext={this.autoFocus} />
       </Form>
     )
   }
