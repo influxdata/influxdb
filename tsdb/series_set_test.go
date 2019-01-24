@@ -119,8 +119,11 @@ func TestSeriesIDSet_RemoveSet(t *testing.T) {
 // Ensure that cloning is race-free.
 func TestSeriesIDSet_Clone_Race(t *testing.T) {
 	main := NewSeriesIDSet()
+	total := NewSeriesIDSet()
 	for i := uint64(0); i < 1024; i++ {
-		main.AddNoLock(NewSeriesID(i))
+		id := NewSeriesID(i)
+		main.AddNoLock(id)
+		total.AddNoLock(id)
 	}
 
 	// One test with a closure around the main SeriesIDSet,
@@ -130,26 +133,44 @@ func TestSeriesIDSet_Clone_Race(t *testing.T) {
 		clones := make([]*SeriesIDSet, n)
 		var wg sync.WaitGroup
 		wg.Add(n)
-		for i := 0; i < n; i++ {
+		for i := 1; i <= n; i++ {
 			go func(i int) {
 				defer wg.Done()
-				clones[i] = main.Clone()
+				clones[i-1] = main.Clone()
+
+				for j := 0; j < 1000; j++ {
+					id := NewSeriesID(uint64(j + (100000 * i)))
+					total.Add(id)
+					clones[i-1].AddNoLock(id)
+				}
 			}(i)
 		}
 
 		wg.Wait()
 		for _, o := range clones {
-			if !main.Equals(o) {
-				t.Fatalf("clone from goroutine wasn't equal to main")
+			if got, exp := o.Cardinality(), uint64(2024); got != exp {
+				t.Errorf("got cardinality %d, expected %d", got, exp)
 			}
 		}
+
+		// The original set should be unaffected
+		if got, exp := main.Cardinality(), uint64(1024); got != exp {
+			t.Errorf("got cardinality %d, expected %d", got, exp)
+		}
+
+		// Merging the clones should result in only 1024 shared values.
+		union := NewSeriesIDSet()
+		for _, o := range clones {
+			o.ForEachNoLock(func(id SeriesID) {
+				union.AddNoLock(id)
+			})
+		}
+
+		if !union.Equals(total) {
+			t.Fatal("union not equal to total")
+		}
 	}
-
-	main.SetCOW(false)
-	t.Run("without COW", test)
-
-	main.SetCOW(true)
-	t.Run("with COW", test)
+	t.Run("clone", test)
 }
 
 var resultBool bool
@@ -349,49 +370,41 @@ var ssResult *SeriesIDSet
 //
 // Typical results from an i7 laptop.
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/Clone-8         	   			   30000	     44171 ns/op	   47200 B/op	    1737 allocs/op
-// BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/Clone_COW-8     	  			  300000	      4554 ns/op	   17392 B/op	       7 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/Merge-8         	  			  100000	     17877 ns/op	   39008 B/op	      30 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/MergeInPlace-8  	  			  200000	      7367 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/Add-8           	   			   10000	    137460 ns/op	   62336 B/op	    2596 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/re-use/WriteTo-8       	   			   30000	     52896 ns/op	   35872 B/op	     866 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/Clone-8   	   			   30000	     41940 ns/op	   47200 B/op	    1737 allocs/op
-// BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/Clone_COW-8         	  300000	      4474 ns/op	   17392 B/op	       7 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/Merge-8             	  100000	     17624 ns/op	   39008 B/op	      30 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/MergeInPlace-8      	  100000	     17320 ns/op	   38880 B/op	      28 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/Add-8               	   10000	    167544 ns/op	  101216 B/op	    2624 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000/don't_re-use/WriteTo-8           	   20000	     66976 ns/op	   52897 B/op	     869 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/Clone-8                  	   10000	    179933 ns/op	  177072 B/op	    5895 allocs/op
-// BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/Clone_COW-8              	  100000	     18578 ns/op	   58736 B/op	       7 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/Merge-8                  	   20000	     77574 ns/op	  210656 B/op	      42 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/MergeInPlace-8           	  100000	     23645 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/Add-8                    	    2000	    689254 ns/op	  224161 B/op	    9572 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/re-use/WriteTo-8                	   10000	    199052 ns/op	  118791 B/op	    2945 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/Clone-8            	   10000	    183137 ns/op	  177073 B/op	    5895 allocs/op
-// BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/Clone_COW-8        	  100000	     19341 ns/op	   58736 B/op	       7 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/Merge-8            	   20000	     77502 ns/op	  210656 B/op	      42 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/MergeInPlace-8     	   20000	     72610 ns/op	  210528 B/op	      40 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/Add-8              	    2000	    724789 ns/op	  434691 B/op	    9612 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_10000/don't_re-use/WriteTo-8          	   10000	    215734 ns/op	  177159 B/op	    2948 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/Clone-8                 	    5000	    244971 ns/op	  377648 B/op	    6111 allocs/op
-// BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/Clone_COW-8             	  100000	     19284 ns/op	   58736 B/op	       7 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/Merge-8                 	   20000	     90580 ns/op	  210656 B/op	      42 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/MergeInPlace-8          	   50000	     24697 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/Add-8                   	     500	   3274456 ns/op	  758996 B/op	   19853 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/re-use/WriteTo-8               	    5000	    248791 ns/op	  122392 B/op	    3053 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/Clone-8           	    5000	    269152 ns/op	  377648 B/op	    6111 allocs/op
-// BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/Clone_COW-8       	  100000	     21428 ns/op	   58736 B/op	       7 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/Merge-8           	   20000	     85948 ns/op	  210657 B/op	      42 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/MergeInPlace-8    	   20000	     78142 ns/op	  210528 B/op	      40 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/Add-8             	     500	   3123753 ns/op	  969529 B/op	   19893 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_100000/don't_re-use/WriteTo-8         	   10000	    230657 ns/op	  180684 B/op	    3056 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/Clone-8                	    3000	    551781 ns/op	 2245424 B/op	    6111 allocs/op
-// BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/Clone_COW-8            	  100000	     16162 ns/op	   58736 B/op	       7 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/Merge-8                	   20000	     92104 ns/op	  210656 B/op	      42 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/MergeInPlace-8         	   50000	     27408 ns/op	       0 B/op	       0 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/Add-8                  	     100	  22573498 ns/op	 6420446 B/op	   30520 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/re-use/WriteTo-8              	    5000	    284901 ns/op	  123522 B/op	    3053 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/Clone-8          	    3000	    679284 ns/op	 2245424 B/op	    6111 allocs/op
-// BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/Clone_COW-8      	  100000	     16006 ns/op	   58736 B/op	       7 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/Merge-8          	   20000	     68965 ns/op	  210656 B/op	      42 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/MergeInPlace-8   	   20000	     64236 ns/op	  210528 B/op	      40 allocs/op
 // BenchmarkSeriesIDSet_Clone/cardinality_1000000/don't_re-use/Add-8            	     100	  21960668 ns/op	 6630979 B/op	   30560 allocs/op
@@ -405,14 +418,6 @@ func BenchmarkSeriesIDSet_Clone(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				ssResult = other.Clone()
 			}
-		})
-
-		b.Run("Clone_COW", func(b *testing.B) {
-			other.SetCOW(true)
-			for i := 0; i < b.N; i++ {
-				ssResult = other.Clone()
-			}
-			other.SetCOW(false)
 		})
 
 		b.Run("Merge", func(b *testing.B) {
