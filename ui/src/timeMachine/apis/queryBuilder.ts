@@ -14,7 +14,7 @@ export const LIMIT = 200
 
 type CancelableQuery = WrappedCancelablePromise<string[]>
 
-function findBuckets(url: string): CancelableQuery {
+export function findBuckets(url: string): CancelableQuery {
   const query = `buckets()
   |> sort(columns: ["name"])
   |> limit(n: ${LIMIT})`
@@ -27,7 +27,7 @@ function findBuckets(url: string): CancelableQuery {
   }
 }
 
-function findKeys(
+export function findKeys(
   url: string,
   bucket: string,
   tagsSelections: BuilderConfig['tags'],
@@ -57,7 +57,7 @@ v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, start: -${SEARCH_DURAT
   }
 }
 
-function findValues(
+export function findValues(
   url: string,
   bucket: string,
   tagsSelections: BuilderConfig['tags'],
@@ -81,7 +81,10 @@ v1.tagValues(bucket: "${bucket}", tag: "${key}", predicate: ${tagFilters}, start
   }
 }
 
-function extractCol(resp: ExecuteFluxQueryResult, colName: string): string[] {
+export function extractCol(
+  resp: ExecuteFluxQueryResult,
+  colName: string
+): string[] {
   const tables = parseResponse(resp.csv)
   const data = get(tables, '0.data', [])
 
@@ -104,7 +107,9 @@ function extractCol(resp: ExecuteFluxQueryResult, colName: string): string[] {
   return colValues
 }
 
-function formatTagFilterPredicate(tagsSelections: BuilderConfig['tags']) {
+export function formatTagFilterPredicate(
+  tagsSelections: BuilderConfig['tags']
+) {
   const validSelections = tagsSelections.filter(
     ({key, values}) => key && values.length
   )
@@ -124,7 +129,7 @@ function formatTagFilterPredicate(tagsSelections: BuilderConfig['tags']) {
   return `(r) => ${calls}`
 }
 
-function formatTagKeyFilterCall(tagsSelections: BuilderConfig['tags']) {
+export function formatTagKeyFilterCall(tagsSelections: BuilderConfig['tags']) {
   const keys = tagsSelections.map(({key}) => key)
 
   if (!keys.length) {
@@ -136,125 +141,10 @@ function formatTagKeyFilterCall(tagsSelections: BuilderConfig['tags']) {
   return `\n  |> filter(fn: (r) => ${fnBody})`
 }
 
-function formatSearchFilterCall(searchTerm: string) {
+export function formatSearchFilterCall(searchTerm: string) {
   if (!searchTerm) {
     return ''
   }
 
   return `\n  |> filter(fn: (r) => r._value =~ /(?i:${searchTerm})/)`
 }
-
-class QueryBuilderFetcher {
-  private findBucketsQuery: CancelableQuery
-  private findKeysQueries: CancelableQuery[] = []
-  private findValuesQueries: CancelableQuery[] = []
-  private findKeysCache: {[key: string]: string[]} = {}
-  private findValuesCache: {[key: string]: string[]} = {}
-  private findBucketsCache: {[key: string]: string[]} = {}
-
-  public async findBuckets(url: string): Promise<string[]> {
-    this.cancelFindBuckets()
-
-    const cacheKey = JSON.stringify([...arguments])
-    const cachedResult = this.findBucketsCache[cacheKey]
-
-    if (cachedResult) {
-      return Promise.resolve(cachedResult)
-    }
-
-    const pendingResult = findBuckets(url)
-
-    pendingResult.promise.then(result => {
-      this.findBucketsCache[cacheKey] = result
-    })
-
-    return pendingResult.promise
-  }
-
-  public cancelFindBuckets(): void {
-    if (this.findBucketsQuery) {
-      this.findBucketsQuery.cancel()
-    }
-  }
-
-  public async findKeys(
-    index: number,
-    url: string,
-    bucket: string,
-    tagsSelections: BuilderConfig['tags'],
-    searchTerm: string = ''
-  ): Promise<string[]> {
-    this.cancelFindKeys(index)
-
-    const cacheKey = JSON.stringify([...arguments].slice(1))
-    const cachedResult = this.findKeysCache[cacheKey]
-
-    if (cachedResult) {
-      return Promise.resolve(cachedResult)
-    }
-
-    const pendingResult = findKeys(url, bucket, tagsSelections, searchTerm)
-
-    this.findKeysQueries[index] = pendingResult
-
-    pendingResult.promise.then(result => {
-      this.findKeysCache[cacheKey] = result
-    })
-
-    return pendingResult.promise
-  }
-
-  public cancelFindKeys(index: number): void {
-    if (this.findKeysQueries[index]) {
-      this.findKeysQueries[index].cancel()
-    }
-  }
-
-  public async findValues(
-    index: number,
-    url: string,
-    bucket: string,
-    tagsSelections: BuilderConfig['tags'],
-    key: string,
-    searchTerm: string = ''
-  ): Promise<string[]> {
-    this.cancelFindValues(index)
-
-    const cacheKey = JSON.stringify([...arguments].slice(1))
-    const cachedResult = this.findValuesCache[cacheKey]
-
-    if (cachedResult) {
-      return Promise.resolve(cachedResult)
-    }
-
-    const pendingResult = findValues(
-      url,
-      bucket,
-      tagsSelections,
-      key,
-      searchTerm
-    )
-
-    this.findValuesQueries[index] = pendingResult
-
-    pendingResult.promise.then(result => {
-      this.findValuesCache[cacheKey] = result
-    })
-
-    return pendingResult.promise
-  }
-
-  public cancelFindValues(index: number): void {
-    if (this.findValuesQueries[index]) {
-      this.findValuesQueries[index].cancel()
-    }
-  }
-
-  public clearCache(): void {
-    this.findBucketsCache = {}
-    this.findKeysCache = {}
-    this.findValuesCache = {}
-  }
-}
-
-export const queryBuilderFetcher = new QueryBuilderFetcher()

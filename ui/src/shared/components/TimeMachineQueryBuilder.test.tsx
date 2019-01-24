@@ -6,7 +6,7 @@ import TimeMachineQueryBuilder from 'src/shared/components/TimeMachineQueryBuild
 import configureStore from 'src/store/configureStore'
 import {createMemoryHistory} from 'history'
 
-jest.mock('src/shared/actions/v2/queryBuilder')
+jest.mock('src/shared/apis/v2/queryBuilder')
 
 const localState = {
   app: {
@@ -41,6 +41,8 @@ function renderWithRedux(ui) {
 
 describe('TimeMachineQueryBuilder', () => {
   it('can render with redux with defaults', () => {
-    renderWithRedux(<TimeMachineQueryBuilder />)
+    const {getByTestId} = renderWithRedux(<TimeMachineQueryBuilder />)
+    const builder = getByTestId('query-builder')
+    expect(builder).toMatchSnapshot()
   })
 })

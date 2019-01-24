@@ -1,0 +1,246 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`TimeMachineQueryBuilder can render with redux with defaults 1`] = `
+<div
+  class="query-builder"
+  data-testid="query-builder"
+>
+  <div
+    class="query-builder--buttons"
+  >
+    <div
+      class="form--element"
+    >
+      <label
+        class="form--label"
+      >
+        <span>
+          Bucket
+        </span>
+      </label>
+      <div
+        class="dropdown dropdown-sm dropdown-default"
+        style="width: 100%;"
+      >
+        <button
+          class="dropdown--button button button-stretch button-disabled button-default button-sm"
+          disabled=""
+          title=""
+          type="button"
+        >
+          <span
+            class="dropdown--selected"
+          />
+          <span
+            class="dropdown--caret icon caret-down"
+          />
+        </button>
+      </div>
+    </div>
+  </div>
+  <div
+    class="query-builder--cards"
+  >
+    <div
+      class="fancy-scroll--container"
+      style="position: relative; overflow: hidden; width: 100%; height: 100%;"
+    >
+      <div
+        class="fancy-scroll--view"
+        style="position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px; overflow: scroll; margin-right: 0px; margin-bottom: 0px;"
+      >
+        <div
+          class="query-builder--tag-selectors"
+        >
+          <div
+            class="tag-selector"
+          >
+            <div
+              class="tag-selector--empty"
+            />
+          </div>
+          <button
+            class="button button-sm button-default button-square query-builder--add-tag-selector"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="button-icon icon plus"
+            />
+          </button>
+        </div>
+      </div>
+      <div
+        class="fancy-scroll--track-h"
+        style="position: absolute; height: 6px; opacity: 0; display: none;"
+      >
+        <div
+          class="fancy-scroll--thumb-h"
+          style="position: relative; display: block; height: 100%;"
+        />
+      </div>
+      <div
+        class="fancy-scroll--track-v"
+        style="position: absolute; width: 6px; opacity: 0; display: none;"
+      >
+        <div
+          class="fancy-scroll--thumb-v"
+          style="position: relative; display: block; width: 100%;"
+        />
+      </div>
+    </div>
+    <div
+      class="function-selector"
+    >
+      <h3>
+        Aggregate Functions
+      </h3>
+      <div
+        class="input input-sm function-selector--search"
+        style="width: 100%;"
+      >
+        <input
+          autocomplete="off"
+          class="input-field"
+          name=""
+          placeholder="Search functions..."
+          spellcheck="false"
+          title=""
+          value=""
+        />
+        <div
+          class="input-shadow"
+        />
+      </div>
+      <div
+        class="selector-list"
+      >
+        <div
+          class="fancy-scroll--container"
+          style="position: relative; overflow: hidden; width: 100%; height: 100%;"
+        >
+          <div
+            class="fancy-scroll--view"
+            style="position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px; overflow: scroll; margin-right: 0px; margin-bottom: 0px;"
+          >
+            <div
+              class="selector-list--item "
+              title="Click to filter by mean"
+            >
+              mean
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by median"
+            >
+              median
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by max"
+            >
+              max
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by min"
+            >
+              min
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by sum"
+            >
+              sum
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by derivative"
+            >
+              derivative
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by distinct"
+            >
+              distinct
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by count"
+            >
+              count
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by increase"
+            >
+              increase
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by skew"
+            >
+              skew
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by spread"
+            >
+              spread
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by stddev"
+            >
+              stddev
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by first"
+            >
+              first
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by last"
+            >
+              last
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by unique"
+            >
+              unique
+            </div>
+            <div
+              class="selector-list--item "
+              title="Click to filter by sort"
+            >
+              sort
+            </div>
+          </div>
+          <div
+            class="fancy-scroll--track-h"
+            style="position: absolute; height: 6px; opacity: 0; display: none;"
+          >
+            <div
+              class="fancy-scroll--thumb-h"
+              style="position: relative; display: block; height: 100%;"
+            />
+          </div>
+          <div
+            class="fancy-scroll--track-v"
+            style="position: absolute; width: 6px; opacity: 0; display: none;"
+          >
+            <div
+              class="fancy-scroll--thumb-v"
+              style="position: relative; display: block; width: 100%;"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
