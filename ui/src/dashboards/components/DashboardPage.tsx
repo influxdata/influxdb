@@ -21,7 +21,7 @@ import * as rangesActions from 'src/dashboards/actions/v2/ranges'
 import * as appActions from 'src/shared/actions/app'
 import * as notifyActions from 'src/shared/actions/notifications'
 import * as viewActions from 'src/dashboards/actions/v2/views'
-import {setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
+import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -37,7 +37,7 @@ import {loadDashboardLinks} from 'src/dashboards/apis/v2'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
-import {VEO_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
+import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 
 // Types
 import {

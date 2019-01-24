@@ -3,15 +3,15 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import TimeMachine from 'src/shared/components/TimeMachine'
+import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Actions
-import {setActiveTimeMachine} from 'src/shared/actions/v2/timeMachines'
+import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Utils
-import {DE_TIME_MACHINE_ID} from 'src/shared/constants/timeMachine'
+import {DE_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
-import {queryBuilderFetcher} from 'src/shared/apis/v2/queryBuilder'
+import {queryBuilderFetcher} from 'src/timeMachine/apis/queryBuilder'
 
 // Styles
 import './DataExplorer.scss'

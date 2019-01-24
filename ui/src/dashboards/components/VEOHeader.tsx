@@ -11,8 +11,8 @@ import {
   IconFont,
 } from 'src/clockface'
 import {Page} from 'src/pageLayout'
-import VisOptionsButton from 'src/shared/components/VisOptionsButton'
-import ViewTypeDropdown from 'src/shared/components/view_options/ViewTypeDropdown'
+import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
+import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 
 // Constants
 import {
