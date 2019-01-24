@@ -310,13 +310,26 @@ type Index struct {
 	sfile     *tsdb.SeriesFile
 }
 
+type EngineOption func(opts *tsdb.EngineOptions)
+
+// DisableTSICache allows the caller to disable the TSI bitset cache during a test.
+var DisableTSICache = func() EngineOption {
+	return func(opts *tsdb.EngineOptions) {
+		opts.Config.SeriesIDSetCacheSize = 0
+	}
+}
+
 // MustNewIndex will initialize a new index using the provide type. It creates
 // everything under the same root directory so it can be cleanly removed on Close.
 //
 // The index will not be opened.
-func MustNewIndex(index string) *Index {
+func MustNewIndex(index string, eopts ...EngineOption) *Index {
 	opts := tsdb.NewEngineOptions()
 	opts.IndexVersion = index
+
+	for _, opt := range eopts {
+		opt(&opts)
+	}
 
 	rootPath, err := ioutil.TempDir("", "influxdb-tsdb")
 	if err != nil {
@@ -357,8 +370,8 @@ func MustNewIndex(index string) *Index {
 
 // MustOpenNewIndex will initialize a new index using the provide type and opens
 // it.
-func MustOpenNewIndex(index string) *Index {
-	idx := MustNewIndex(index)
+func MustOpenNewIndex(index string, opts ...EngineOption) *Index {
+	idx := MustNewIndex(index, opts...)
 	idx.MustOpen()
 	return idx
 }
@@ -585,8 +598,14 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		tags = append(tags, pt.Tags())
 	}
 
-	runBenchmark := func(b *testing.B, index string, queryN int) {
-		idx := MustOpenNewIndex(index)
+	runBenchmark := func(b *testing.B, index string, queryN int, useTSICache bool) {
+		var idx *Index
+		if !useTSICache {
+			idx = MustOpenNewIndex(index, DisableTSICache())
+		} else {
+			idx = MustOpenNewIndex(index)
+		}
+
 		var wg sync.WaitGroup
 		begin := make(chan struct{})
 
@@ -659,13 +678,11 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 			for _, queryN := range queries {
 				b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
 					b.Run("cache", func(b *testing.B) {
-						tsi1.EnableBitsetCache = true
-						runBenchmark(b, indexType, queryN)
+						runBenchmark(b, indexType, queryN, true)
 					})
 
 					b.Run("no cache", func(b *testing.B) {
-						tsi1.EnableBitsetCache = false
-						runBenchmark(b, indexType, queryN)
+						runBenchmark(b, indexType, queryN, false)
 					})
 				})
 			}

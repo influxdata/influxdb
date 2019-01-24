@@ -26,9 +26,6 @@ import (
 // IndexName is the name of the index.
 const IndexName = tsdb.TSI1IndexName
 
-// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache.
-const DefaultSeriesIDSetCacheSize = 100
-
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.
 var ErrCompactionInterrupted = errors.New("tsi1: compaction interrupted")
@@ -42,17 +39,12 @@ func init() {
 		DefaultPartitionN = uint64(i)
 	}
 
-	// TODO(edd): To remove when feature finalised.
-	var err error
-	if os.Getenv("INFLUXDB_EXP_TSI_CACHING") != "" {
-		EnableBitsetCache, err = strconv.ParseBool(os.Getenv("INFLUXDB_EXP_TSI_CACHING"))
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
-		idx := NewIndex(sfile, db, WithPath(path), WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)))
+		idx := NewIndex(sfile, db,
+			WithPath(path),
+			WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)),
+			WithSeriesIDCacheSize(opt.Config.SeriesIDSetCacheSize),
+		)
 		return idx
 	})
 }
@@ -63,9 +55,6 @@ func init() {
 // it must also be a power of 2.
 //
 var DefaultPartitionN uint64 = 8
-
-// EnableBitsetCache determines if bitsets are cached.
-var EnableBitsetCache = true
 
 // An IndexOption is a functional option for changing the configuration of
 // an Index.
@@ -171,7 +160,7 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
-		tagValueCacheSize: DefaultSeriesIDSetCacheSize,
+		tagValueCacheSize: tsdb.DefaultSeriesIDSetCacheSize,
 		maxLogFileSize:    tsdb.DefaultMaxIndexLogFileSize,
 		logger:            zap.NewNop(),
 		version:           Version,
@@ -1004,7 +993,7 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	// Check series ID set cache...
-	if EnableBitsetCache {
+	if i.tagValueCacheSize > 0 {
 		if ss := i.tagValueCache.Get(name, key, value); ss != nil {
 			// Return a clone because the set is mutable.
 			return tsdb.NewSeriesIDSetIterator(ss.Clone()), nil
@@ -1022,7 +1011,7 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	}
 
 	itr := tsdb.MergeSeriesIDIterators(a...)
-	if !EnableBitsetCache {
+	if i.tagValueCacheSize == 0 {
 		return itr, nil
 	}
 
