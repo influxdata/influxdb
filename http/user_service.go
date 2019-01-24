@@ -272,8 +272,8 @@ func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserR
 }
 
 type usersResponse struct {
-	Links map[string]string `json:"links"`
-	Users []*userResponse   `json:"users"`
+	Links *platform.PagingLinks `json:"links"`
+	Users []*userResponse       `json:"users"`
 }
 
 func (us usersResponse) ToPlatform() []*platform.User {
@@ -284,11 +284,9 @@ func (us usersResponse) ToPlatform() []*platform.User {
 	return users
 }
 
-func newUsersResponse(users []*platform.User) *usersResponse {
+func newUsersResponse(users []*platform.User, f platform.UserFilter, opts platform.FindOptions) *usersResponse {
 	res := usersResponse{
-		Links: map[string]string{
-			"self": "/api/v2/users",
-		},
+		Links: newPagingLinks(usersPath, opts, f, len(users)),
 		Users: []*userResponse{},
 	}
 	for _, user := range users {
@@ -322,13 +320,13 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, _, err := h.UserService.FindUsers(ctx, req.filter)
+	users, _, err := h.UserService.FindUsers(ctx, req.filter, req.opts)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	err = encodeResponse(ctx, w, http.StatusOK, newUsersResponse(users))
+	err = encodeResponse(ctx, w, http.StatusOK, newUsersResponse(users, req.filter, req.opts))
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -337,11 +335,19 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 type getUsersRequest struct {
 	filter platform.UserFilter
+	opts   platform.FindOptions
 }
 
 func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersRequest, error) {
 	qp := r.URL.Query()
 	req := &getUsersRequest{}
+
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	req.opts = *opts
 
 	if userID := qp.Get("id"); userID != "" {
 		id, err := platform.IDFromString(userID)
@@ -510,7 +516,6 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 	}
 
 	query := url.Query()
-
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, 0, err
@@ -520,6 +525,14 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 	}
 	if filter.Name != nil {
 		query.Add("name", *filter.Name)
+	}
+
+	if len(opt) > 0 {
+		for k, vs := range opt[0].QueryParams() {
+			for _, v := range vs {
+				query.Add(k, v)
+			}
+		}
 	}
 
 	req.URL.RawQuery = query.Encode()

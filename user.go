@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"net/url"
 )
 
 // User is a user. 🎉
@@ -61,4 +62,20 @@ type UserUpdate struct {
 type UserFilter struct {
 	ID   *ID
 	Name *string
+}
+
+// QueryParams turns a user filter into query params
+//
+// It implements PagingFilter.
+func (f UserFilter) QueryParams() map[string][]string {
+	qp := url.Values{}
+	if f.ID != nil {
+		qp.Add("id", f.ID.String())
+	}
+
+	if f.Name != nil {
+		qp.Add("name", *f.Name)
+	}
+
+	return qp
 }
