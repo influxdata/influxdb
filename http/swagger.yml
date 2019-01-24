@@ -3592,6 +3592,12 @@ paths:
       tags:
         - Organizations
       summary: List all organizations
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Descending"
+        - $ref: "#/components/parameters/SortBy"
       responses:
         '200':
           description: A list of organizations
