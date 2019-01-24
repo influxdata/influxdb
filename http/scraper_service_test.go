@@ -8,10 +8,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
+	platcontext "github.com/influxdata/influxdb/context"
+	httpMock "github.com/influxdata/influxdb/http/mock"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
@@ -184,10 +188,15 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.ScraperTargetStoreService
-			h.OrganizationService = tt.fields.OrganizationService
-			h.BucketService = tt.fields.BucketService
+			h := NewScraperHandler(
+				logger.New(os.Stdout),
+				mock.NewUserService(),
+				&mock.UserResourceMappingService{},
+				mock.NewLabelService(),
+				tt.fields.ScraperTargetStoreService,
+				tt.fields.BucketService,
+				tt.fields.OrganizationService,
+			)
 
 			r := httptest.NewRequest("GET", "http://any.tld", nil)
 
@@ -313,10 +322,15 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.ScraperTargetStoreService
-			h.OrganizationService = tt.fields.OrganizationService
-			h.BucketService = tt.fields.BucketService
+			h := NewScraperHandler(
+				logger.New(os.Stdout),
+				mock.NewUserService(),
+				&mock.UserResourceMappingService{},
+				mock.NewLabelService(),
+				tt.fields.ScraperTargetStoreService,
+				tt.fields.BucketService,
+				tt.fields.OrganizationService,
+			)
 
 			r := httptest.NewRequest("GET", "http://any.tld", nil)
 
@@ -415,9 +429,15 @@ func TestService_handleDeleteScraperTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.Service
-
+			h := NewScraperHandler(
+				logger.New(os.Stdout),
+				mock.NewUserService(),
+				&mock.UserResourceMappingService{},
+				mock.NewLabelService(),
+				tt.fields.Service,
+				mock.NewBucketService(),
+				&mock.OrganizationService{},
+			)
 			r := httptest.NewRequest("GET", "http://any.tld", nil)
 
 			r = r.WithContext(context.WithValue(
@@ -494,7 +514,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 					},
 				},
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					AddTargetF: func(ctx context.Context, st *platform.ScraperTarget) error {
+					AddTargetF: func(ctx context.Context, st *platform.ScraperTarget, userID platform.ID) error {
 						st.ID = targetOneID
 						return nil
 					},
@@ -538,10 +558,15 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.ScraperTargetStoreService
-			h.OrganizationService = tt.fields.OrganizationService
-			h.BucketService = tt.fields.BucketService
+			h := NewScraperHandler(
+				logger.New(os.Stdout),
+				mock.NewUserService(),
+				&mock.UserResourceMappingService{},
+				mock.NewLabelService(),
+				tt.fields.ScraperTargetStoreService,
+				tt.fields.BucketService,
+				tt.fields.OrganizationService,
+			)
 
 			st, err := json.Marshal(tt.args.target)
 			if err != nil {
@@ -549,6 +574,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 			}
 
 			r := httptest.NewRequest("GET", "http://any.tld", bytes.NewReader(st))
+			r = r.WithContext(platcontext.SetAuthorizer(r.Context(), &platform.Authorization{}))
 			w := httptest.NewRecorder()
 
 			h.handlePostScraperTarget(w, r)
@@ -614,7 +640,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 					},
 				},
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					UpdateTargetF: func(ctx context.Context, t *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, t *platform.ScraperTarget, userID platform.ID) (*platform.ScraperTarget, error) {
 						if t.ID == targetOneID {
 							return t, nil
 						}
@@ -680,7 +706,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 					},
 				},
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					UpdateTargetF: func(ctx context.Context, upd *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+					UpdateTargetF: func(ctx context.Context, upd *platform.ScraperTarget, userID platform.ID) (*platform.ScraperTarget, error) {
 						return nil, &platform.Error{
 							Code: platform.ENotFound,
 							Msg:  platform.ErrScraperTargetNotFound,
@@ -707,10 +733,15 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewScraperHandler()
-			h.ScraperStorageService = tt.fields.ScraperTargetStoreService
-			h.OrganizationService = tt.fields.OrganizationService
-			h.BucketService = tt.fields.BucketService
+			h := NewScraperHandler(
+				logger.New(os.Stdout),
+				mock.NewUserService(),
+				&mock.UserResourceMappingService{},
+				mock.NewLabelService(),
+				tt.fields.ScraperTargetStoreService,
+				tt.fields.BucketService,
+				tt.fields.OrganizationService,
+			)
 
 			var err error
 			st := make([]byte, 0)
@@ -732,7 +763,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 						Value: tt.args.id,
 					},
 				}))
-
+			r = r.WithContext(platcontext.SetAuthorizer(r.Context(), &platform.Authorization{}))
 			w := httptest.NewRecorder()
 
 			h.handlePatchScraperTarget(w, r)
@@ -765,29 +796,52 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.
 			t.Fatalf("failed to populate scraper targets")
 		}
 	}
+	for _, m := range f.UserResourceMappings {
+		if err := svc.PutUserResourceMapping(ctx, m); err != nil {
+			t.Fatalf("failed to populate user resource mapping")
+		}
+	}
 
-	handler := NewScraperHandler()
-	handler.ScraperStorageService = svc
-	handler.OrganizationService = &mock.OrganizationService{
-		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
-			return &platform.Organization{
-				ID:   id,
-				Name: "org1",
-			}, nil
+	handler := NewScraperHandler(
+		logger.New(os.Stdout),
+		mock.NewUserService(),
+		&mock.UserResourceMappingService{},
+		mock.NewLabelService(),
+		svc,
+		&mock.BucketService{
+			FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+				return &platform.Bucket{
+					ID:   id,
+					Name: "bucket1",
+				}, nil
+			},
 		},
-	}
-	handler.BucketService = &mock.BucketService{
-		FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-			return &platform.Bucket{
-				ID:   id,
-				Name: "bucket1",
-			}, nil
+		&mock.OrganizationService{
+			FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+				return &platform.Organization{
+					ID:   id,
+					Name: "org1",
+				}, nil
+			},
 		},
-	}
-	server := httptest.NewServer(handler)
-	client := ScraperService{
-		Addr:     server.URL,
-		OpPrefix: inmem.OpPrefix,
+	)
+	userID, _ := platform.IDFromString("020f755c3c082002")
+	server := httptest.NewServer(httpMock.NewAuthMiddlewareHandler(
+		handler, &platform.Authorization{
+			UserID: *userID,
+			Token:  "tok",
+		},
+	))
+	client := struct {
+		platform.UserResourceMappingService
+		ScraperService
+	}{
+		UserResourceMappingService: svc,
+		ScraperService: ScraperService{
+			Token:    "tok",
+			Addr:     server.URL,
+			OpPrefix: inmem.OpPrefix,
+		},
 	}
 	done := server.Close
 

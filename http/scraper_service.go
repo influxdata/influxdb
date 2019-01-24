@@ -8,6 +8,7 @@ import (
 	"path"
 
 	"github.com/influxdata/influxdb"
+	pctx "github.com/influxdata/influxdb/context"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -15,40 +16,82 @@ import (
 // ScraperHandler represents an HTTP API handler for scraper targets.
 type ScraperHandler struct {
 	*httprouter.Router
-	Logger                *zap.Logger
-	ScraperStorageService influxdb.ScraperTargetStoreService
-	BucketService         influxdb.BucketService
-	OrganizationService   influxdb.OrganizationService
+	Logger                     *zap.Logger
+	UserService                influxdb.UserService
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
+	ScraperStorageService      influxdb.ScraperTargetStoreService
+	BucketService              influxdb.BucketService
+	OrganizationService        influxdb.OrganizationService
 }
 
 const (
-	targetPath = "/api/v2/scrapers"
+	targetsPath            = "/api/v2/scrapers"
+	targetsIDMembersPath   = targetsPath + "/:id/members"
+	targetsIDMembersIDPath = targetsPath + "/:id/members/:userID"
+	targetsIDOwnersPath    = targetsPath + "/:id/owners"
+	targetsIDOwnersIDPath  = targetsPath + "/:id/owners/:userID"
+	targetsIDLabelsPath    = targetsPath + "/:id/labels"
+	targetsIDLabelsIDPath  = targetsPath + "/:id/labels/:lid"
 )
 
 // NewScraperHandler returns a new instance of ScraperHandler.
-func NewScraperHandler() *ScraperHandler {
+func NewScraperHandler(
+	logger *zap.Logger,
+	userService influxdb.UserService,
+	userResourceMappingService influxdb.UserResourceMappingService,
+	labelService influxdb.LabelService,
+	scraperStorageService influxdb.ScraperTargetStoreService,
+	bucketService influxdb.BucketService,
+	organizationService influxdb.OrganizationService,
+) *ScraperHandler {
 	h := &ScraperHandler{
-		Router: NewRouter(),
+		Router:                     NewRouter(),
+		Logger:                     logger,
+		UserService:                userService,
+		UserResourceMappingService: userResourceMappingService,
+		LabelService:               labelService,
+		ScraperStorageService:      scraperStorageService,
+		BucketService:              bucketService,
+		OrganizationService:        organizationService,
 	}
-	h.HandlerFunc("POST", targetPath, h.handlePostScraperTarget)
-	h.HandlerFunc("GET", targetPath, h.handleGetScraperTargets)
-	h.HandlerFunc("GET", targetPath+"/:id", h.handleGetScraperTarget)
-	h.HandlerFunc("PATCH", targetPath+"/:id", h.handlePatchScraperTarget)
-	h.HandlerFunc("DELETE", targetPath+"/:id", h.handleDeleteScraperTarget)
+	h.HandlerFunc("POST", targetsPath, h.handlePostScraperTarget)
+	h.HandlerFunc("GET", targetsPath, h.handleGetScraperTargets)
+	h.HandlerFunc("GET", targetsPath+"/:id", h.handleGetScraperTarget)
+	h.HandlerFunc("PATCH", targetsPath+"/:id", h.handlePatchScraperTarget)
+	h.HandlerFunc("DELETE", targetsPath+"/:id", h.handleDeleteScraperTarget)
+
+	h.HandlerFunc("POST", targetsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Member))
+	h.HandlerFunc("GET", targetsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Member))
+	h.HandlerFunc("DELETE", targetsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, influxdb.Member))
+
+	h.HandlerFunc("POST", targetsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Owner))
+	h.HandlerFunc("GET", targetsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Owner))
+	h.HandlerFunc("DELETE", targetsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, influxdb.Owner))
+
+	h.HandlerFunc("GET", targetsIDLabelsPath, newGetLabelsHandler(h.LabelService))
+	h.HandlerFunc("POST", targetsIDLabelsPath, newPostLabelHandler(h.LabelService))
+	h.HandlerFunc("DELETE", targetsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
+
 	return h
 }
 
 // handlePostScraperTarget is HTTP handler for the POST /api/v2/scrapers route.
 func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	req, err := decodeScraperTargetAddRequest(ctx, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := h.ScraperStorageService.AddTarget(ctx, req); err != nil {
+	auth, err := pctx.GetAuthorizer(ctx)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.ScraperStorageService.AddTarget(ctx, req, auth.GetUserID()); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -91,7 +134,13 @@ func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http
 		return
 	}
 
-	target, err := h.ScraperStorageService.UpdateTarget(ctx, update)
+	auth, err := pctx.GetAuthorizer(ctx)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	target, err := h.ScraperStorageService.UpdateTarget(ctx, update, auth.GetUserID())
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -207,7 +256,7 @@ type ScraperService struct {
 
 // ListTargets returns a list of all scraper targets.
 func (s *ScraperService) ListTargets(ctx context.Context) ([]influxdb.ScraperTarget, error) {
-	url, err := newURL(s.Addr, targetPath)
+	url, err := newURL(s.Addr, targetsPath)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +296,7 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]influxdb.ScraperTar
 
 // UpdateTarget updates a single scraper target with changeset.
 // Returns the new target state after update.
-func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget) (*influxdb.ScraperTarget, error) {
+func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
 	if !update.ID.Valid() {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -291,8 +340,8 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.Scra
 }
 
 // AddTarget creates a new scraper target and sets target.ID with the new identifier.
-func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.ScraperTarget) error {
-	url, err := newURL(s.Addr, targetPath)
+func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.ScraperTarget, userID influxdb.ID) error {
+	url, err := newURL(s.Addr, targetsPath)
 	if err != nil {
 		return err
 	}
@@ -402,7 +451,7 @@ func (s *ScraperService) GetTargetByID(ctx context.Context, id influxdb.ID) (*in
 }
 
 func targetIDPath(id influxdb.ID) string {
-	return path.Join(targetPath, id.String())
+	return path.Join(targetsPath, id.String())
 }
 
 type getTargetsLinks struct {
@@ -430,7 +479,7 @@ type targetResponse struct {
 func (h *ScraperHandler) newListTargetsResponse(ctx context.Context, targets []influxdb.ScraperTarget) (getTargetsResponse, error) {
 	res := getTargetsResponse{
 		Links: getTargetsLinks{
-			Self: targetPath,
+			Self: targetsPath,
 		},
 		Targets: make([]targetResponse, 0, len(targets)),
 	}

@@ -659,6 +659,326 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/scrapers/{scraperTargetID}/labels':
+    get:
+      tags:
+        - ScraperTargets
+      summary: list all labels for a scraper targets
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+      responses:
+        '200':
+          description: a list of all labels for a scraper target
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - ScraperTargets
+      summary: add a label to a scraper target
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: a list of all labels for a scraper target
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    $ref: "#/components/schemas/Labels"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/scrapers/{scraperTargetID}/labels/{label}':
+    delete:
+      tags:
+        - ScraperTargets
+      summary: delete a label from a scraper target
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: scraper target not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - ScraperTargets
+      summary: update a label from a scraper target
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+        - in: path
+          name: label
+          schema:
+            type: string
+          required: true
+          description: the label name
+      requestBody:
+        description: label update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Label"
+      responses:
+        '200':
+          description: updated successfully
+        '404':
+          description: scraper target not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/scrapers/{scraperTargetID}/members':
+    get:
+      tags:
+        - Users
+        - ScraperTargets
+      summary: List all users with member privileges for a scraper target
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+      responses:
+        '200':
+          description: a list of scraper target members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceMembers"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - ScraperTargets
+      summary: Add scraper target member
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+      requestBody:
+        description: user to add as member
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
+      responses:
+        '201':
+          description: member added to scraper targets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceMember"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/scrapers/{scraperTargetID}/members/{userID}':
+    delete:
+      tags:
+        - Users
+        - ScraperTargets
+      summary: removes a member from a scraper target
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of member to remove
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+      responses:
+        '204':
+          description: member removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/scrapers/{scraperTargetID}/owners':
+    get:
+      tags:
+        - Users
+        - ScraperTargets
+      summary: List all owners of a scraper target
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+      responses:
+        '200':
+          description: a list of scraper target owners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceOwners"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+        - ScraperTargets
+      summary: Add scraper target owner
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+      requestBody:
+        description: user to add as owner
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddResourceMemberRequestBody"
+      responses:
+        '201':
+          description: scraper target owner added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceOwner"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/scrapers/{scraperTargetID}/owners/{userID}':
+    delete:
+      tags:
+        - Users
+        - ScraperTargets
+      summary: removes an owner from a scraper target
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: userID
+          schema:
+            type: string
+          required: true
+          description: ID of owner to remove
+        - in: path
+          name: scraperTargetID
+          schema:
+            type: string
+          required: true
+          description: ID of the scraper target
+      responses:
+        '204':
+          description: owner removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /macros:
     get:
       tags:

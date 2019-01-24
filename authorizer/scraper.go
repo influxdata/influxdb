@@ -11,13 +11,15 @@ var _ influxdb.ScraperTargetStoreService = (*ScraperTargetStoreService)(nil)
 // ScraperTargetStoreService wraps a influxdb.ScraperTargetStoreService and authorizes actions
 // against it appropriately.
 type ScraperTargetStoreService struct {
+	influxdb.UserResourceMappingService
 	s influxdb.ScraperTargetStoreService
 }
 
 // NewScraperTargetStoreService constructs an instance of an authorizing scraper target store serivce.
-func NewScraperTargetStoreService(s influxdb.ScraperTargetStoreService) *ScraperTargetStoreService {
+func NewScraperTargetStoreService(s influxdb.ScraperTargetStoreService, urm influxdb.UserResourceMappingService) *ScraperTargetStoreService {
 	return &ScraperTargetStoreService{
-		s: s,
+		UserResourceMappingService: urm,
+		s:                          s,
 	}
 }
 
@@ -94,7 +96,7 @@ func (s *ScraperTargetStoreService) ListTargets(ctx context.Context) ([]influxdb
 }
 
 // AddTarget checks to see if the authorizer on context has write access to the global scraper target resource.
-func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.ScraperTarget) error {
+func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
 	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.ScraperResourceType, st.OrgID)
 	if err != nil {
 		return err
@@ -104,11 +106,11 @@ func (s *ScraperTargetStoreService) AddTarget(ctx context.Context, st *influxdb.
 		return err
 	}
 
-	return s.s.AddTarget(ctx, st)
+	return s.s.AddTarget(ctx, st, userID)
 }
 
 // UpdateTarget checks to see if the authorizer on context has write access to the scraper target provided.
-func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influxdb.ScraperTarget) (*influxdb.ScraperTarget, error) {
+func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
 	st, err := s.s.GetTargetByID(ctx, upd.ID)
 	if err != nil {
 		return nil, err
@@ -118,7 +120,7 @@ func (s *ScraperTargetStoreService) UpdateTarget(ctx context.Context, upd *influ
 		return nil, err
 	}
 
-	return s.s.UpdateTarget(ctx, upd)
+	return s.s.UpdateTarget(ctx, upd, userID)
 }
 
 // RemoveTarget checks to see if the authorizer on context has write access to the scraper target provided.

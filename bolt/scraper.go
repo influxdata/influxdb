@@ -45,7 +45,7 @@ func (c *Client) ListTargets(ctx context.Context) (list []platform.ScraperTarget
 }
 
 // AddTarget add a new scraper target into storage.
-func (c *Client) AddTarget(ctx context.Context, target *platform.ScraperTarget) (err error) {
+func (c *Client) AddTarget(ctx context.Context, target *platform.ScraperTarget, userID platform.ID) (err error) {
 	if !target.OrgID.Valid() {
 		return &platform.Error{
 			Code: platform.EInvalid,
@@ -62,7 +62,16 @@ func (c *Client) AddTarget(ctx context.Context, target *platform.ScraperTarget) 
 	}
 	err = c.db.Update(func(tx *bolt.Tx) error {
 		target.ID = c.IDGenerator.ID()
-		return c.putTarget(ctx, tx, target)
+		if err := c.putTarget(ctx, tx, target); err != nil {
+			return err
+		}
+		urm := &platform.UserResourceMapping{
+			ResourceID:   target.ID,
+			UserID:       userID,
+			UserType:     platform.Owner,
+			ResourceType: platform.ScraperResourceType,
+		}
+		return c.createUserResourceMapping(ctx, tx, urm)
 	})
 	if err != nil {
 		return &platform.Error{
@@ -87,7 +96,13 @@ func (c *Client) RemoveTarget(ctx context.Context, id platform.ID) error {
 				Err:  err,
 			}
 		}
-		return tx.Bucket(scraperBucket).Delete(encID)
+		if err = tx.Bucket(scraperBucket).Delete(encID); err != nil {
+			return nil
+		}
+		return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+			ResourceID:   id,
+			ResourceType: platform.ScraperResourceType,
+		})
 	})
 	if err != nil {
 		return &platform.Error{
@@ -99,7 +114,7 @@ func (c *Client) RemoveTarget(ctx context.Context, id platform.ID) error {
 }
 
 // UpdateTarget updates a scraper target.
-func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (target *platform.ScraperTarget, err error) {
+func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarget, userID platform.ID) (target *platform.ScraperTarget, err error) {
 	op := getOp(platform.OpUpdateTarget)
 	var pe *platform.Error
 	if !update.ID.Valid() {

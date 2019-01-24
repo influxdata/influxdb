@@ -192,6 +192,7 @@ go_memstats_gc_cpu_fraction 1.972734963012756e-05
 // and influxdb.ScraperTargetStoreService interface.
 type mockStorage struct {
 	sync.RWMutex
+	influxdb.UserResourceMappingService
 	TotalGatherJobs chan struct{}
 	Metrics         map[time.Time]Metrics
 	Targets         []influxdb.ScraperTarget
@@ -218,7 +219,7 @@ func (s *mockStorage) ListTargets(ctx context.Context) (targets []influxdb.Scrap
 	return s.Targets, nil
 }
 
-func (s *mockStorage) AddTarget(ctx context.Context, t *influxdb.ScraperTarget) error {
+func (s *mockStorage) AddTarget(ctx context.Context, t *influxdb.ScraperTarget, userID influxdb.ID) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.Targets == nil {
@@ -259,7 +260,7 @@ func (s *mockStorage) GetTargetByID(ctx context.Context, id influxdb.ID) (target
 
 }
 
-func (s *mockStorage) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget) (target *influxdb.ScraperTarget, err error) {
+func (s *mockStorage) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID influxdb.ID) (target *influxdb.ScraperTarget, err error) {
 	s.Lock()
 	defer s.Unlock()
 
