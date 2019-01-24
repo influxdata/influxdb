@@ -150,7 +150,7 @@ func (c *Client) FindUser(ctx context.Context, filter platform.UserFilter) (*pla
 	filterFn := filterUsersFn(filter)
 
 	err = c.db.View(func(tx *bolt.Tx) error {
-		return forEachUser(ctx, tx, func(usr *platform.User) bool {
+		return forEachUser(ctx, tx, false, func(usr *platform.User) bool {
 			if filterFn(usr) {
 				u = usr
 				return false
@@ -221,12 +221,27 @@ func (c *Client) FindUsers(ctx context.Context, filter platform.UserFilter, opt 
 		return []*platform.User{u}, 1, nil
 	}
 
+	var offset, limit, count int
+	var descending bool
+	if len(opt) > 0 {
+		offset = opt[0].Offset
+		limit = opt[0].Limit
+		descending = opt[0].Descending
+	}
+
 	us := []*platform.User{}
 	filterFn := filterUsersFn(filter)
 	err := c.db.View(func(tx *bolt.Tx) error {
-		return forEachUser(ctx, tx, func(u *platform.User) bool {
+		return forEachUser(ctx, tx, descending, func(u *platform.User) bool {
 			if filterFn(u) {
-				us = append(us, u)
+				if count >= offset {
+					us = append(us, u)
+				}
+				count++
+
+				if limit > 0 && len(us) >= limit {
+					return false
+				}
 			}
 			return true
 		})
@@ -295,15 +310,29 @@ func userIndexKey(n string) []byte {
 }
 
 // forEachUser will iterate through all users while fn returns true.
-func forEachUser(ctx context.Context, tx *bolt.Tx, fn func(*platform.User) bool) error {
+func forEachUser(ctx context.Context, tx *bolt.Tx, descending bool, fn func(*platform.User) bool) error {
 	cur := tx.Bucket(userBucket).Cursor()
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+
+	var k, v []byte
+	if descending {
+		k, v = cur.Last()
+	} else {
+		k, v = cur.First()
+	}
+
+	for k != nil {
 		u := &platform.User{}
 		if err := json.Unmarshal(v, u); err != nil {
 			return err
 		}
 		if !fn(u) {
 			break
+		}
+
+		if descending {
+			k, v = cur.Prev()
+		} else {
+			k, v = cur.Next()
 		}
 	}
 
