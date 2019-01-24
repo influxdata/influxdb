@@ -67,20 +67,23 @@ func (l *Label) Validate() error {
 // LabelMapping is used to map resource to its labels.
 // It should not be shared directly over the HTTP API.
 type LabelMapping struct {
-	LabelID    ID `json:"labelID"`
-	ResourceID ID
-	ResourceType
+	LabelID      ID `json:"labelID"`
+	ResourceID   ID `json:"resourceID"`
+	ResourceType `json:"resourceType"`
 }
 
 // Validate returns an error if the mapping is invalid.
 func (l *LabelMapping) Validate() error {
-
-	// todo(leodido) > check LabelID is valid too?
-
+	if !l.LabelID.Valid() {
+		return &Error{
+			Code: EInvalid,
+			Msg:  "label id is required",
+		}
+	}
 	if !l.ResourceID.Valid() {
 		return &Error{
 			Code: EInvalid,
-			Msg:  "resourceID is required",
+			Msg:  "resource id is required",
 		}
 	}
 	if err := l.ResourceType.Valid(); err != nil {
