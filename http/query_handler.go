@@ -17,7 +17,6 @@ import (
 	"github.com/influxdata/flux/parser"
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus"
@@ -107,14 +106,22 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
-		EncodeError(ctx, errors.MalformedDataf("invalid json: %v", err), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "invalid json",
+			Err:  err,
+		}, w)
 		return
 	}
 
 	pkg := parser.ParseSource(request.Query)
 	if ast.Check(pkg) > 0 {
 		err := ast.GetError(pkg)
-		EncodeError(ctx, errors.InvalidDataf("invalid AST: %v", err), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "invalid AST",
+			Err:  err,
+		}, w)
 		return
 	}
 
@@ -134,7 +141,11 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 
 	var req QueryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		EncodeError(ctx, errors.MalformedDataf("invalid json: %v", err), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "invalid json",
+			Err:  err,
+		}, w)
 		return
 	}
 
@@ -160,13 +171,21 @@ func (h *FluxHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		EncodeError(ctx, errors.MalformedDataf("invalid json: %v", err), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "invalid json",
+			Err:  err,
+		}, w)
 		return
 	}
 
 	spec, err := flux.Compile(ctx, req.Query, h.Now())
 	if err != nil {
-		EncodeError(ctx, errors.InvalidDataf("invalid spec: %v", err), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EUnprocessableEntity,
+			Msg:  "invalid spec",
+			Err:  err,
+		}, w)
 		return
 	}
 

@@ -10,7 +10,6 @@ import (
 	"github.com/golang/gddo/httputil"
 	platform "github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -125,7 +124,10 @@ func decodeGetTelegrafRequest(ctx context.Context, r *http.Request) (i platform.
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return i, errors.InvalidDataf("url missing id")
+		return i, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	if err := i.DecodeFromString(id); err != nil {
@@ -254,7 +256,10 @@ func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.T
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 	i := new(platform.ID)
 	if err := i.DecodeFromString(id); err != nil {

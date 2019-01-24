@@ -133,12 +133,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}).Observe(duration.Seconds())
 		if h.Logger != nil {
 			errField := zap.Skip()
-			if errStr := w.Header().Get(ErrorHeader); errStr != "" {
+			if errStr := w.Header().Get(PlatformErrorCodeHeader); errStr != "" {
 				errField = zap.Error(errors.New(errStr))
 			}
 			errReferenceField := zap.Skip()
-			if errReference := w.Header().Get(ReferenceHeader); errReference != "" {
-				errReferenceField = zap.String("reference", errReference)
+			if errReference := w.Header().Get(PlatformErrorCodeHeader); errReference != "" {
+				errReferenceField = zap.String("error_code", PlatformErrorCodeHeader)
 			}
 
 			h.Logger.Debug("Request",

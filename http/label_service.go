@@ -9,8 +9,6 @@ import (
 	"path"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -188,7 +186,10 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -233,7 +234,10 @@ func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -326,7 +330,10 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -383,7 +390,10 @@ func decodePostLabelMappingRequest(ctx context.Context, r *http.Request) (*postL
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var rid platform.ID

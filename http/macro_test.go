@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,6 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
@@ -214,14 +214,17 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 			fields: fields{
 				&mock.MacroService{
 					FindMacroByIDF: func(ctx context.Context, id platform.ID) (*platform.Macro, error) {
-						return nil, kerrors.Errorf(kerrors.NotFound, "macro with ID %v not found", id)
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  fmt.Sprintf("macro with ID %v not found", id),
+						}
 					},
 				},
 			},
 			wants: wants{
 				statusCode:  404,
-				contentType: "",
-				body:        ``,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"code":"not found","message":"macro with ID 75650d0a636f6d70 not found"}`,
 			},
 		},
 		{
@@ -239,7 +242,7 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"code":"invalid","message":"An internal error has occurred.","error":"id must have a length of 16 bytes"}`,
+				body:        `{"code":"invalid","message":"id must have a length of 16 bytes"}`,
 			},
 		},
 	}
@@ -350,9 +353,9 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 				macro: `{"data": "nonsense"}`,
 			},
 			wants: wants{
-				statusCode:  422,
-				contentType: "",
-				body:        "",
+				statusCode:  400,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"code":"invalid","message":"missing macro name"}`,
 			},
 		},
 		{
@@ -370,8 +373,8 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			},
 			wants: wants{
 				statusCode:  400,
-				contentType: "",
-				body:        "",
+				contentType: "application/json; charset=utf-8",
+				body:        `{"code":"invalid","message":"invalid character 'h' looking for beginning of value"}`,
 			},
 		},
 	}
@@ -462,9 +465,9 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 				update: `{}`,
 			},
 			wants: wants{
-				statusCode:  422,
-				contentType: "",
-				body:        ``,
+				statusCode:  400,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"code":"invalid","message":"no fields supplied in update"}`,
 			},
 		},
 	}
@@ -543,7 +546,10 @@ func TestMacroService_handleDeleteMacro(t *testing.T) {
 			fields: fields{
 				&mock.MacroService{
 					DeleteMacroF: func(ctx context.Context, id platform.ID) error {
-						return kerrors.Errorf(kerrors.NotFound, "macro with ID %v not found", id)
+						return &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  fmt.Sprintf("macro with ID %v not found", id),
+						}
 					},
 				},
 			},

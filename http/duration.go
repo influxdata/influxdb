@@ -5,11 +5,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb"
 )
 
 // ErrInvalidDuration is returned when parsing a malformatted duration.
-var ErrInvalidDuration = errors.New("invalid duration", errors.MalformedData)
+var ErrInvalidDuration = &influxdb.Error{
+	Code: influxdb.EInvalid,
+	Msg:  "invalid duration",
+}
 
 // ParseDuration parses a time duration from a string.
 // This is needed instead of time.ParseDuration because this will support

@@ -190,7 +190,10 @@ type postViewRequest struct {
 func decodePostViewRequest(ctx context.Context, r *http.Request) (*postViewRequest, error) {
 	c := &platform.View{}
 	if err := json.NewDecoder(r.Body).Decode(c); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  err.Error(),
+		}
 	}
 	return &postViewRequest{
 		View: c,
@@ -317,7 +320,7 @@ func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewReq
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, &platform.Error{
 			Code: platform.EInvalid,
-			Err:  err,
+			Msg:  err.Error(),
 		}
 	}
 
@@ -334,7 +337,8 @@ func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewReq
 	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, &platform.Error{
-			Err: err,
+			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 

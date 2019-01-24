@@ -13,9 +13,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/mock"
-
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
@@ -522,7 +520,10 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
 						if !id.Valid() {
-							return nil, errors.New("invalid user ID")
+							return nil, &platform.Error{
+								Code: platform.EInvalid,
+								Msg:  "invalid user id",
+							}
 						}
 						return &platform.User{
 							ID:   id,
@@ -533,7 +534,10 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
 						if !id.Valid() {
-							return nil, errors.New("invalid org ID")
+							return nil, &platform.Error{
+								Code: platform.EInvalid,
+								Msg:  "invalid org ID",
+							}
 						}
 						return &platform.Organization{
 							ID:   id,

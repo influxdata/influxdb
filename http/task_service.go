@@ -15,7 +15,6 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
@@ -279,7 +278,10 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request) (*getTasksReque
 			return nil, err
 		}
 		if lim < 1 || lim > platform.TaskMaxPageSize {
-			return nil, kerrors.InvalidDataf("limit must be between 1 and %d", platform.TaskMaxPageSize)
+			return nil, &platform.Error{
+				Code: platform.EUnprocessableEntity,
+				Msg:  fmt.Sprintf("limit must be between 1 and %d", platform.TaskMaxPageSize),
+			}
 		}
 		req.filter.Limit = lim
 	} else {
@@ -427,7 +429,10 @@ func decodeGetTaskRequest(ctx context.Context, r *http.Request) (*getTaskRequest
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -499,7 +504,10 @@ func decodeUpdateTaskRequest(ctx context.Context, r *http.Request) (*updateTaskR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("you must provide a task ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a task ID",
+		}
 	}
 
 	var i platform.ID
@@ -552,7 +560,10 @@ func decodeDeleteTaskRequest(ctx context.Context, r *http.Request) (*deleteTaskR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("you must provide a task ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a task ID",
+		}
 	}
 
 	var i platform.ID
@@ -603,7 +614,10 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("you must provide a task ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a task ID",
+		}
 	}
 
 	req := &getLogsRequest{}
@@ -680,7 +694,10 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("you must provide a task ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a task ID",
+		}
 	}
 
 	req := &getRunsRequest{}
@@ -722,7 +739,10 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 		}
 
 		if i < 1 || i > 100 {
-			return nil, kerrors.InvalidDataf("limit must be between 1 and 100")
+			return nil, &platform.Error{
+				Code: platform.EUnprocessableEntity,
+				Msg:  "limit must be between 1 and 100",
+			}
 		}
 
 		req.filter.Limit = i
@@ -747,7 +767,10 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	}
 
 	if at != "" && bt != "" && !beforeTime.After(afterTime) {
-		return nil, kerrors.InvalidDataf("beforeTime must be later than afterTime")
+		return nil, &platform.Error{
+			Code: platform.EUnprocessableEntity,
+			Msg:  "beforeTime must be later than afterTime",
+		}
 	}
 
 	return req, nil
@@ -791,7 +814,10 @@ func decodeForceRunRequest(ctx context.Context, r *http.Request) (forceRunReques
 	params := httprouter.ParamsFromContext(ctx)
 	tid := params.ByName("id")
 	if tid == "" {
-		return forceRunRequest{}, kerrors.InvalidDataf("you must provide a task ID")
+		return forceRunRequest{}, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a task ID",
+		}
 	}
 
 	var ti platform.ID
@@ -863,11 +889,17 @@ func decodeGetRunRequest(ctx context.Context, r *http.Request) (*getRunRequest, 
 	params := httprouter.ParamsFromContext(ctx)
 	tid := params.ByName("id")
 	if tid == "" {
-		return nil, kerrors.InvalidDataf("you must provide a task ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a task ID",
+		}
 	}
 	rid := params.ByName("rid")
 	if rid == "" {
-		return nil, kerrors.InvalidDataf("you must provide a run ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a run ID",
+		}
 	}
 
 	var ti, ri platform.ID
@@ -893,11 +925,17 @@ func decodeCancelRunRequest(ctx context.Context, r *http.Request) (*cancelRunReq
 	params := httprouter.ParamsFromContext(ctx)
 	rid := params.ByName("rid")
 	if rid == "" {
-		return nil, kerrors.InvalidDataf("you must provide a run ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a run ID",
+		}
 	}
 	tid := params.ByName("id")
 	if tid == "" {
-		return nil, kerrors.InvalidDataf("you must provide a task ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a task ID",
+		}
 	}
 
 	var i platform.ID
@@ -977,11 +1015,17 @@ func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunReque
 	params := httprouter.ParamsFromContext(ctx)
 	tid := params.ByName("id")
 	if tid == "" {
-		return nil, kerrors.InvalidDataf("you must provide a task ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a task ID",
+		}
 	}
 	rid := params.ByName("rid")
 	if rid == "" {
-		return nil, kerrors.InvalidDataf("you must provide a run ID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "you must provide a run ID",
+		}
 	}
 
 	var ti, ri platform.ID
