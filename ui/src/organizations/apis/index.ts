@@ -6,7 +6,6 @@ import {getDeep} from 'src/utils/wrappers'
 
 import {
   orgsAPI,
-  bucketsAPI,
   dashboardsAPI,
   telegrafsAPI,
   scraperTargetsApi,
@@ -14,7 +13,6 @@ import {
 
 // Types
 import {
-  Bucket,
   Organization,
   ResourceOwner,
   Telegraf,
@@ -85,52 +83,6 @@ export const getOwners = async (
     return data.users
   } catch (error) {
     console.error('Could not get owners for org', error)
-    throw error
-  }
-}
-
-// Buckets
-export const getBuckets = async (org: Organization): Promise<Bucket[]> => {
-  try {
-    const {data} = await bucketsAPI.bucketsGet(org.name)
-
-    return data.buckets
-  } catch (error) {
-    console.error('Could not get buckets for org', error)
-    throw error
-  }
-}
-
-export const createBucket = async (
-  org: Organization,
-  bucket: Bucket
-): Promise<Bucket> => {
-  try {
-    const {data} = await bucketsAPI.bucketsPost(org.name, bucket)
-
-    return data
-  } catch (error) {
-    console.error('Could not get buckets for org', error)
-    throw error
-  }
-}
-
-export const updateBucket = async (bucket: Bucket): Promise<Bucket> => {
-  try {
-    const {data} = await bucketsAPI.bucketsBucketIDPatch(bucket.id, bucket)
-
-    return data
-  } catch (error) {
-    console.error('Could not update bucket for org', error)
-    throw error
-  }
-}
-
-export const deleteBucket = async (bucket: Bucket): Promise<void> => {
-  try {
-    await bucketsAPI.bucketsBucketIDDelete(bucket.id)
-  } catch (error) {
-    console.error('Could not delete buckets from org', error)
     throw error
   }
 }

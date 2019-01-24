@@ -6,7 +6,6 @@ import _ from 'lodash'
 
 // APIs
 import {
-  getBuckets,
   getDashboards,
   getMembers,
   getOwners,
@@ -15,6 +14,10 @@ import {
 } from 'src/organizations/apis'
 
 import {client} from 'src/utils/api'
+
+const getBuckets = async (org: Organization) => {
+  return client.buckets.getAllByOrg(org)
+}
 
 const getTasks = async (org: Organization) => {
   return client.tasks.getAllByOrg(org)

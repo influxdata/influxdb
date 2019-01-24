@@ -3,7 +3,7 @@ import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // APIs
-import {getBuckets} from 'src/organizations/apis'
+import {client} from 'src/utils/api'
 
 // Components
 import {
@@ -49,6 +49,8 @@ interface Props {
 interface State {
   schedule: TaskSchedule
 }
+
+const getBuckets = (org: Organization) => client.buckets.getAllByOrg(org)
 
 export default class TaskForm extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
