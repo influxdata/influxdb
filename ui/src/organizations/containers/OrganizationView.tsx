@@ -9,11 +9,16 @@ import {
   getBuckets,
   getDashboards,
   getMembers,
-  getTasks,
   getOwners,
   getCollectors,
   getScrapers,
 } from 'src/organizations/apis'
+
+import {client} from 'src/utils/api'
+
+const getTasks = async (org: Organization) => {
+  return client.tasks.getAllByOrg(org)
+}
 
 // Actions
 import {updateOrg} from 'src/organizations/actions'

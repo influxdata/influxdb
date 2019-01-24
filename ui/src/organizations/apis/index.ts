@@ -8,7 +8,6 @@ import {
   orgsAPI,
   bucketsAPI,
   dashboardsAPI,
-  taskAPI,
   telegrafsAPI,
   scraperTargetsApi,
 } from 'src/utils/api'
@@ -16,7 +15,6 @@ import {
 // Types
 import {
   Bucket,
-  Task,
   Organization,
   ResourceOwner,
   Telegraf,
@@ -153,17 +151,6 @@ export const getDashboards = async (
     return result
   } catch (error) {
     console.error('Could not get buckets for org', error)
-    throw error
-  }
-}
-
-export const getTasks = async (org: Organization): Promise<Task[]> => {
-  try {
-    const {data} = await taskAPI.tasksGet(null, null, org.name)
-
-    return data.tasks
-  } catch (error) {
-    console.error('Could not get tasks for org', error)
     throw error
   }
 }
