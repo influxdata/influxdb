@@ -1,6 +1,9 @@
 package influxdb
 
-import "context"
+import (
+	"context"
+	"net/url"
+)
 
 // Organization is an organization. 🎉
 type Organization struct {
@@ -51,4 +54,20 @@ type OrganizationUpdate struct {
 type OrganizationFilter struct {
 	Name *string
 	ID   *ID
+}
+
+// QueryParams turns a user filter into query params
+//
+// It implements PagingFilter.
+func (f OrganizationFilter) QueryParams() map[string][]string {
+	qp := url.Values{}
+	if f.ID != nil {
+		qp.Add("id", f.ID.String())
+	}
+
+	if f.Name != nil {
+		qp.Add("name", *f.Name)
+	}
+
+	return qp
 }

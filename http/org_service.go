@@ -84,8 +84,8 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService,
 }
 
 type orgsResponse struct {
-	Links         map[string]string `json:"links"`
-	Organizations []*orgResponse    `json:"orgs"`
+	Links         *platform.PagingLinks `json:"links"`
+	Organizations []*orgResponse        `json:"orgs"`
 }
 
 func (o orgsResponse) ToPlatform() []*platform.Organization {
@@ -96,11 +96,9 @@ func (o orgsResponse) ToPlatform() []*platform.Organization {
 	return orgs
 }
 
-func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
+func newOrgsResponse(orgs []*platform.Organization, f platform.OrganizationFilter, opts platform.FindOptions) *orgsResponse {
 	res := orgsResponse{
-		Links: map[string]string{
-			"self": "/api/v2/orgs",
-		},
+		Links:         newPagingLinks(organizationsPath, opts, f, len(orgs)),
 		Organizations: []*orgResponse{},
 	}
 	for _, org := range orgs {
@@ -236,13 +234,13 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgs, _, err := h.OrganizationService.FindOrganizations(ctx, req.filter)
+	orgs, _, err := h.OrganizationService.FindOrganizations(ctx, req.filter, req.opts)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newOrgsResponse(orgs)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgsResponse(orgs, req.filter, req.opts)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -250,11 +248,19 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 
 type getOrgsRequest struct {
 	filter platform.OrganizationFilter
+	opts   platform.FindOptions
 }
 
 func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest, error) {
 	qp := r.URL.Query()
 	req := &getOrgsRequest{}
+
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	req.opts = *opts
 
 	if orgID := qp.Get("id"); orgID != "" {
 		id, err := platform.IDFromString(orgID)
@@ -555,6 +561,15 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 	if filter.ID != nil {
 		qp.Add("id", filter.ID.String())
 	}
+
+	if len(opt) > 0 {
+		for k, vs := range opt[0].QueryParams() {
+			for _, v := range vs {
+				qp.Add(k, v)
+			}
+		}
+	}
+
 	url.RawQuery = qp.Encode()
 
 	req, err := http.NewRequest("GET", url.String(), nil)
