@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import {EmptyState} from 'src/clockface'
 
 // APIs
-import {getLabels} from 'src/configuration/apis'
+import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -35,7 +35,7 @@ class FetchLabels extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const labels = await getLabels()
+    const labels = await client.labels.getAll()
     this.setState({ready: RemoteDataState.Done, labels})
   }
 

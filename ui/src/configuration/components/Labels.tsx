@@ -18,7 +18,7 @@ import LabelList from 'src/configuration/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
 // API
-import {createLabel, deleteLabel, updateLabel} from 'src/configuration/apis'
+import {client} from 'src/utils/api'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -136,10 +136,10 @@ class Labels extends PureComponent<Props, State> {
 
   private handleCreateLabel = async (labelType: LabelType) => {
     try {
-      const newLabel = await createLabel({
-        name: labelType.name,
-        properties: this.labelProperties(labelType),
-      })
+      const newLabel = await client.labels.create(
+        labelType.name,
+        this.labelProperties(labelType)
+      )
       const labelTypes = [...this.state.labelTypes, this.labelType(newLabel)]
       this.setState({labelTypes})
     } catch (error) {
@@ -150,11 +150,10 @@ class Labels extends PureComponent<Props, State> {
 
   private handleUpdateLabel = async (labelType: LabelType) => {
     try {
-      const label = await updateLabel({
-        id: labelType.id,
-        name: labelType.name,
-        properties: this.labelProperties(labelType),
-      })
+      const label = await client.labels.update(
+        labelType.id,
+        this.labelProperties(labelType)
+      )
 
       const labelTypes = this.state.labelTypes.map(l => {
         if (l.id === labelType.id) {
@@ -194,7 +193,7 @@ class Labels extends PureComponent<Props, State> {
     const labelType = this.state.labelTypes.find(label => label.id === id)
 
     try {
-      await deleteLabel(labelType.id)
+      await client.labels.delete(labelType.id)
       const labelTypes = this.state.labelTypes.filter(l => l.id !== id)
 
       this.setState({labelTypes})
