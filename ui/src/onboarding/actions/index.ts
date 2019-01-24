@@ -5,10 +5,11 @@ import {SetupSuccess, SetupError} from 'src/shared/copy/notifications'
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
+import {client} from 'src/utils/api'
+
 // Types
 import {
   SetupParams,
-  signin as signinAJAX,
   setSetupParams as setSetupParamsAJAX,
 } from 'src/onboarding/apis'
 
@@ -75,10 +76,9 @@ export const setupAdmin = (setupParams: SetupParams) => async dispatch => {
     dispatch(setOrganizationID(orgID))
     dispatch(setBucketID(bucketID))
 
-    await signinAJAX({
-      username: setupParams.username,
-      password: setupParams.password,
-    })
+    const {username, password} = setupParams
+
+    await client.auth.signin(username, password)
     dispatch(notify(SetupSuccess))
   } catch (err) {
     console.error(err)
