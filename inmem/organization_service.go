@@ -3,6 +3,7 @@ package inmem
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -30,8 +31,9 @@ func (s *Service) loadOrganization(id platform.ID) (*platform.Organization, *pla
 	return b, nil
 }
 
-func (s *Service) forEachOrganization(ctx context.Context, fn func(b *platform.Organization) bool) error {
+func (s *Service) forEachOrganization(ctx context.Context, descending bool, fn func(o *platform.Organization) bool) error {
 	var err error
+	os := make([]*platform.Organization, 0)
 	s.organizationKV.Range(func(k, v interface{}) bool {
 		o, ok := v.(*platform.Organization)
 		if !ok {
@@ -39,17 +41,50 @@ func (s *Service) forEachOrganization(ctx context.Context, fn func(b *platform.O
 			return false
 		}
 
-		return fn(o)
+		os = append(os, o)
+		return true
 	})
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	sort.Slice(os, func(i, j int) bool {
+		if descending {
+			return os[i].ID.String() > os[j].ID.String()
+		}
+		return os[i].ID.String() < os[j].ID.String()
+	})
+
+	for _, o := range os {
+		if !fn(o) {
+			return nil
+		}
+	}
+
+	return nil
 }
 
-func (s *Service) filterOrganizations(ctx context.Context, fn func(b *platform.Organization) bool) ([]*platform.Organization, *platform.Error) {
+func (s *Service) filterOrganizations(ctx context.Context, fn func(b *platform.Organization) bool, opts ...platform.FindOptions) ([]*platform.Organization, *platform.Error) {
+	var offset, limit, count int
+	var descending bool
+	if len(opts) > 0 {
+		offset = opts[0].Offset
+		limit = opts[0].Limit
+		descending = opts[0].Descending
+	}
+
 	orgs := []*platform.Organization{}
-	err := s.forEachOrganization(ctx, func(o *platform.Organization) bool {
+	err := s.forEachOrganization(ctx, descending, func(o *platform.Organization) bool {
 		if fn(o) {
-			orgs = append(orgs, o)
+			if count >= offset {
+				orgs = append(orgs, o)
+			}
+			count += 1
+		}
+
+		if limit > 0 && len(orgs) >= limit {
+			return false
 		}
 		return true
 	})
@@ -142,7 +177,7 @@ func (s *Service) FindOrganizations(ctx context.Context, filter platform.Organiz
 		}
 	}
 
-	orgs, pe := s.filterOrganizations(ctx, filterFunc)
+	orgs, pe := s.filterOrganizations(ctx, filterFunc, opt...)
 	if pe != nil {
 		return nil, 0, &platform.Error{
 			Err: pe,
