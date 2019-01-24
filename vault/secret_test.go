@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	"github.com/influxdata/influxdb"
+	influxdbtesting "github.com/influxdata/influxdb/testing"
 	"github.com/influxdata/influxdb/vault"
-	testcontainer "github.com/testcontainers/testcontainer-go"
+	testcontainer "github.com/testcontainers/testcontainers-go"
 )
 
-func initSecretService(f platformtesting.SecretServiceFields, t *testing.T) (platform.SecretService, func()) {
+func initSecretService(f influxdbtesting.SecretServiceFields, t *testing.T) (influxdb.SecretService, func()) {
 	token := "test"
 	ctx := context.Background()
 	vaultC, err := testcontainer.RunContainer(ctx, "vault", testcontainer.RequestContainer{
@@ -50,5 +50,5 @@ func initSecretService(f platformtesting.SecretServiceFields, t *testing.T) (pla
 }
 
 func TestSecretService(t *testing.T) {
-	platformtesting.SecretService(initSecretService, t)
+	influxdbtesting.SecretService(initSecretService, t)
 }
