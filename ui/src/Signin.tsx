@@ -3,9 +3,10 @@ import React, {ReactElement, PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
+import {client} from 'src/utils/api'
+
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {getMe} from 'src/shared/apis/v2/user'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -71,7 +72,7 @@ export class Signin extends PureComponent<Props, State> {
 
   private checkForLogin = async () => {
     try {
-      await getMe()
+      await client.users.me()
     } catch (error) {
       const {
         location: {pathname},

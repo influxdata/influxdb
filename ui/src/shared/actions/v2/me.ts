@@ -1,5 +1,5 @@
 import {MeState} from 'src/shared/reducers/v2/me'
-import {getMe as getMeAPI} from 'src/shared/apis/v2/user'
+import {client} from 'src/utils/api'
 
 export enum ActionTypes {
   SetMe = 'SET_ME',
@@ -23,7 +23,7 @@ export const setMe = me => ({
 
 export const getMe = () => async dispatch => {
   try {
-    const user = await getMeAPI()
+    const user = await client.users.me()
 
     dispatch(setMe(user))
   } catch (e) {

@@ -14,7 +14,7 @@ import {
   addTaskLabels as addTaskLabelsAPI,
   removeTaskLabels as removeTaskLabelsAPI,
 } from 'src/tasks/api/v2'
-import {getMe} from 'src/shared/apis/v2/user'
+import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
   taskNotCreated,
@@ -261,7 +261,7 @@ export const populateTasks = () => async (
   try {
     const {orgs} = getState()
 
-    const user = await getMe()
+    const user = await client.users.me()
     const tasks = await getUserTasks(user)
 
     const mappedTasks = tasks.map(task => {
