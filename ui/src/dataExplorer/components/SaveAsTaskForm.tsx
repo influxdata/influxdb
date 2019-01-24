@@ -15,9 +15,9 @@ import {
 } from 'src/tasks/actions/v2'
 
 // Utils
-import {timeRangeVariables} from 'src/shared/utils/queryBuilder'
+import {timeRangeVariables} from 'src/shared/utils/timeRangeVariables'
 import {renderQuery} from 'src/shared/utils/renderQuery'
-import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {AppState, Organization, InfluxLanguage, TimeRange} from 'src/types/v2'

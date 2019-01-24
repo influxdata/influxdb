@@ -9,7 +9,7 @@ import QueryViewSwitcher from 'src/shared/components/QueryViewSwitcher'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
-import {timeRangeVariables} from 'src/shared/utils/queryBuilder'
+import {timeRangeVariables} from 'src/shared/utils/timeRangeVariables'
 
 // Types
 import {TimeRange} from 'src/types'

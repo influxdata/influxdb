@@ -10,7 +10,7 @@ import TableSidebar from 'src/shared/components/tables/TableSidebar'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Actions
-import {setFieldOptions as setFieldOptionsAction} from 'src/shared/actions/v2/timeMachines'
+import {setFieldOptions as setFieldOptionsAction} from 'src/timeMachine/actions'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'

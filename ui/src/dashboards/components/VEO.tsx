@@ -4,13 +4,13 @@ import {connect} from 'react-redux'
 
 // Components
 import VEOHeader from 'src/dashboards/components/VEOHeader'
-import TimeMachine from 'src/shared/components/TimeMachine'
+import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Actions
-import {setName} from 'src/shared/actions/v2/timeMachines'
+import {setName} from 'src/timeMachine/actions'
 
 // Utils
-import {getActiveTimeMachine} from 'src/shared/selectors/timeMachines'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {Source, AppState, DashboardQuery, View, NewView} from 'src/types/v2'

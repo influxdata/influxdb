@@ -1,0 +1,61 @@
+@import "src/style/modules";
+
+.query-tab {
+  background: rgba($g3-castle, .45);
+  margin: 0 1px;
+  border-radius: 5px 5px 0 0;
+  display: inline-flex;
+  flex: 0 1 auto;
+  justify-content: space-between;
+  align-items: center;
+  color: $g10-wolf;
+  font-weight: 700;
+  padding: 0 12px;
+  font-size: $ix-text-tiny;
+  cursor: pointer !important;
+  @include no-user-select();
+
+  .query-tab--hide {
+    display: none;
+  }
+
+  .query-tab--name {
+    margin: 0 $ix-marg-a 0 $ix-marg-a;
+    width: 30px;
+  }
+
+  &.active {
+    flex: 0 0 auto;
+    background: $g3-castle;
+    color: $g16-pearl;
+
+    .query-tab--hide {
+      display: inline-flex;
+    }
+
+    .query-tab--name {
+      margin: 0 $ix-marg-a 0 $ix-marg-b;
+      width: auto;
+    }
+  }
+  
+  &:hover:not(.active) {
+    color: $g14-chromium;
+  }
+}
+
+.query-tab--name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  
+}
+
+.query-tab--close, .query-tab--hide {
+  margin-bottom: 2px;
+  color: $g7-graphite;
+
+  &:hover {
+    color: $g16-pearl;
+  }
+}
