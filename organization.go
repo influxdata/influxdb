@@ -1,6 +1,10 @@
 package influxdb
 
-import "context"
+import (
+	"context"
+	"net/url"
+	"sort"
+)
 
 // Organization is an organization. 🎉
 type Organization struct {
@@ -28,7 +32,7 @@ type OrganizationService interface {
 
 	// Returns a list of organizations that match filter and the total count of matching organizations.
 	// Additional options provide pagination & sorting.
-	FindOrganizations(ctx context.Context, filter OrganizationFilter, opt ...FindOptions) ([]*Organization, int, error)
+	FindOrganizations(ctx context.Context, filter OrganizationFilter, opts FindOptions) ([]*Organization, int, error)
 
 	// Creates a new organization and sets b.ID with the new identifier.
 	CreateOrganization(ctx context.Context, b *Organization) error
@@ -51,4 +55,40 @@ type OrganizationUpdate struct {
 type OrganizationFilter struct {
 	Name *string
 	ID   *ID
+}
+
+// QueryParams turns a user filter into query params
+//
+// It implements PagingFilter.
+func (f OrganizationFilter) QueryParams() map[string][]string {
+	qp := url.Values{}
+	if f.ID != nil {
+		qp.Add("id", f.ID.String())
+	}
+
+	if f.Name != nil {
+		qp.Add("name", *f.Name)
+	}
+
+	return qp
+}
+
+// SortOrganizations sorts a slice of organizations by a field.
+func SortOrganizations(opts FindOptions, orgs []*Organization) {
+	var sorter func(i, j int) bool
+	switch opts.SortBy {
+	case "Name":
+		sorter = func(i, j int) bool {
+			return orgs[i].Name < orgs[j].Name
+		}
+	default:
+		sorter = func(i, j int) bool {
+			if opts.Descending {
+				return orgs[i].ID > orgs[j].ID
+			}
+			return orgs[i].ID < orgs[j].ID
+		}
+	}
+
+	sort.Slice(orgs, sorter)
 }
