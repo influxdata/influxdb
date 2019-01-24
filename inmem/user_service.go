@@ -3,6 +3,7 @@ package inmem
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -28,8 +29,9 @@ func (s *Service) loadUser(id platform.ID) (*platform.User, *platform.Error) {
 	return b, nil
 }
 
-func (s *Service) forEachUser(ctx context.Context, fn func(b *platform.User) bool) error {
+func (s *Service) forEachUser(ctx context.Context, descending bool, fn func(b *platform.User) bool) error {
 	var err error
+	us := make([]*platform.User, 0)
 	s.userKV.Range(func(k, v interface{}) bool {
 		o, ok := v.(*platform.User)
 		if !ok {
@@ -37,8 +39,22 @@ func (s *Service) forEachUser(ctx context.Context, fn func(b *platform.User) boo
 			return false
 		}
 
-		return fn(o)
+		us = append(us, o)
+		return true
 	})
+
+	sort.Slice(us, func(i, j int) bool {
+		if descending {
+			return us[i].ID.String() > us[j].ID.String()
+		}
+		return us[i].ID.String() < us[j].ID.String()
+	})
+
+	for _, b := range us {
+		if !fn(b) {
+			return nil
+		}
+	}
 
 	return err
 }
@@ -77,7 +93,7 @@ func (s *Service) FindUser(ctx context.Context, filter platform.UserFilter) (*pl
 	if filter.Name != nil {
 		var u *platform.User
 
-		err := s.forEachUser(ctx, func(user *platform.User) bool {
+		err := s.forEachUser(ctx, false, func(user *platform.User) bool {
 			if user.Name == *filter.Name {
 				u = user
 				return false
@@ -133,10 +149,25 @@ func (s *Service) FindUsers(ctx context.Context, filter platform.UserFilter, opt
 		return []*platform.User{u}, 1, nil
 	}
 
-	users := []*platform.User{}
+	var offset, limit, count int
+	var descending bool
+	if len(opt) > 0 {
+		offset = opt[0].Offset
+		limit = opt[0].Limit
+		descending = opt[0].Descending
+	}
 
-	err := s.forEachUser(ctx, func(user *platform.User) bool {
-		users = append(users, user)
+	users := []*platform.User{}
+	err := s.forEachUser(ctx, descending, func(user *platform.User) bool {
+		if count >= offset {
+			users = append(users, user)
+		}
+		count += 1
+
+		if limit > 0 && len(users) >= limit {
+			return false
+		}
+
 		return true
 	})
 
