@@ -8,22 +8,19 @@ import QueryBuilder from 'src/timeMachine/components/QueryBuilder'
 
 jest.mock('src/timeMachine/apis/queryBuilder')
 
-let setInitialState
-describe('QueryBuilder', () => {
-  beforeEach(() => {
-    setInitialState = state => {
-      return {
-        ...state,
-        sources: {
-          activeSourceID: source.id,
-          sources: {
-            [source.id]: source,
-          },
-        },
-      }
-    }
-  })
+const setInitialState = state => {
+  return {
+    ...state,
+    sources: {
+      activeSourceID: source.id,
+      sources: {
+        [source.id]: source,
+      },
+    },
+  }
+}
 
+describe('QueryBuilder', () => {
   it('can select a bucket', async () => {
     const {getByTestId, getAllByTestId, queryAllByTestId} = renderWithRedux(
       <QueryBuilder />,
@@ -36,9 +33,7 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(bucketsDropdownClosed)
 
-    const bucketItems = await waitForElement(() =>
-      getAllByTestId(/dropdown--item/)
-    )
+    const bucketItems = getAllByTestId(/dropdown--item/)
 
     expect(bucketItems.length).toBe(2)
 
@@ -66,9 +61,7 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(keysButton)
 
-    const keyMenuItems = await waitForElement(() =>
-      getAllByTestId(/dropdown--item/)
-    )
+    const keyMenuItems = getAllByTestId(/dropdown--item/)
 
     expect(keyMenuItems.length).toBe(2)
 
