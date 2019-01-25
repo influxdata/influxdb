@@ -93,14 +93,23 @@ func SortDashboards(opts FindOptions, ds []*Dashboard) {
 	switch opts.SortBy {
 	case "CreatedAt":
 		sorter = func(i, j int) bool {
+			if opts.Descending {
+				return ds[i].Meta.CreatedAt.After(ds[j].Meta.CreatedAt)
+			}
 			return ds[j].Meta.CreatedAt.After(ds[i].Meta.CreatedAt)
 		}
 	case "UpdatedAt":
 		sorter = func(i, j int) bool {
+			if opts.Descending {
+				return ds[i].Meta.UpdatedAt.After(ds[j].Meta.UpdatedAt)
+			}
 			return ds[j].Meta.UpdatedAt.After(ds[i].Meta.UpdatedAt)
 		}
 	case "Name":
 		sorter = func(i, j int) bool {
+			if opts.Descending {
+				return ds[i].Name > ds[j].Name
+			}
 			return ds[i].Name < ds[j].Name
 		}
 	default:
