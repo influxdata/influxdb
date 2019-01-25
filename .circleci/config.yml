@@ -4,7 +4,7 @@ jobs:
     machine: true
     steps:
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io 
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/orgs/test_gateway_create_org.py --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/results quay.io/influxdb/litmus:latest 
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/orgs/test_gateway_create_org.py --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest 
       - run: ls -l
       - store_artifacts:
           path: ~/project
