@@ -1,14 +1,10 @@
 version: 2
 jobs:
   litmus_nightly:
-    docker:
-      - image: quay.io/influxdb/litmus:PR-2383
-        auth:
-         username: $QUAY_USER
-         password: $QUAY_PASS
-    working_directory: /Litmus
+    machine: true
     steps:
-      - run: ./run_litmus_tests_oss.sh -o src/cloud/rest_api/orgs/test_gateway_update_org.py 
+      - run: docker login -u="${$QUAY_USER}" -p="${$QUAY_PASS}" quay.io 
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/orgs/test_gateway_create_org.py --net host -v /var/run/docker.sock:/var/run/docker.sock quay.io/influxdb/litmus:latest 
 
   jstest:
     docker:
