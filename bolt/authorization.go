@@ -158,7 +158,7 @@ func (c *Client) FindAuthorizations(ctx context.Context, filter platform.Authori
 
 	as := []*platform.Authorization{}
 	err := c.db.View(func(tx *bolt.Tx) error {
-		auths, err := c.findAuthorizations(ctx, tx, filter)
+		auths, err := c.findAuthorizations(ctx, tx, filter, opt...)
 		if err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func (c *Client) FindAuthorizations(ctx context.Context, filter platform.Authori
 	return as, len(as), nil
 }
 
-func (c *Client) findAuthorizations(ctx context.Context, tx *bolt.Tx, f platform.AuthorizationFilter) ([]*platform.Authorization, error) {
+func (c *Client) findAuthorizations(ctx context.Context, tx *bolt.Tx, f platform.AuthorizationFilter, opt ...platform.FindOptions) ([]*platform.Authorization, error) {
 	// If the users name was provided, look up user by ID first
 	if f.User != nil {
 		u, err := c.findUserByName(ctx, tx, *f.User)
@@ -186,11 +186,26 @@ func (c *Client) findAuthorizations(ctx context.Context, tx *bolt.Tx, f platform
 		f.UserID = &u.ID
 	}
 
+	var offset, limit, count int
+	var descending bool
+	if len(opt) > 0 {
+		offset = opt[0].Offset
+		limit = opt[0].Limit
+		descending = opt[0].Descending
+	}
+
 	as := []*platform.Authorization{}
 	filterFn := filterAuthorizationsFn(f)
-	err := c.forEachAuthorization(ctx, tx, func(a *platform.Authorization) bool {
+	err := c.forEachAuthorization(ctx, tx, descending, func(a *platform.Authorization) bool {
 		if filterFn(a) {
-			as = append(as, a)
+			if count >= offset {
+				as = append(as, a)
+			}
+			count++
+
+			if limit > 0 && len(as) >= limit {
+				return false
+			}
 		}
 		return true
 	})
@@ -323,16 +338,29 @@ func decodeAuthorization(b []byte, a *platform.Authorization) error {
 }
 
 // forEachAuthorization will iterate through all authorizations while fn returns true.
-func (c *Client) forEachAuthorization(ctx context.Context, tx *bolt.Tx, fn func(*platform.Authorization) bool) error {
+func (c *Client) forEachAuthorization(ctx context.Context, tx *bolt.Tx, descending bool, fn func(*platform.Authorization) bool) error {
 	cur := tx.Bucket(authorizationBucket).Cursor()
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
-		a := &platform.Authorization{}
 
+	var k, v []byte
+	if descending {
+		k, v = cur.Last()
+	} else {
+		k, v = cur.First()
+	}
+
+	for k != nil {
+		a := &platform.Authorization{}
 		if err := decodeAuthorization(v, a); err != nil {
 			return err
 		}
 		if !fn(a) {
 			break
+		}
+
+		if descending {
+			k, v = cur.Prev()
+		} else {
+			k, v = cur.Next()
 		}
 	}
 
