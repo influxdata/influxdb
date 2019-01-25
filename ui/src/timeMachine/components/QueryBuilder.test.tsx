@@ -33,9 +33,8 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(bucketsDropdownClosed)
 
-    const bucketItems = await waitForElement(
-      () => getAllByTestId(/dropdown--item/),
-      {timeout: 10000}
+    const bucketItems = await waitForElement(() =>
+      getAllByTestId(/dropdown--item/)
     )
 
     expect(bucketItems.length).toBe(2)
