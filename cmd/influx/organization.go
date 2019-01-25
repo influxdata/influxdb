@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
@@ -25,7 +25,7 @@ func organizationF(cmd *cobra.Command, args []string) {
 	cmd.Usage()
 }
 
-// Create Command
+// OrganizationCreateFlags represents flags for organizatin creation command.
 type OrganizationCreateFlags struct {
 	name string
 }
@@ -45,7 +45,7 @@ func init() {
 	organizationCmd.AddCommand(organizationCreateCmd)
 }
 
-func newOrganizationService(f Flags) (platform.OrganizationService, error) {
+func newOrganizationService(f Flags) (influxdb.OrganizationService, error) {
 	if flags.local {
 		boltFile, err := fs.BoltFile()
 		if err != nil {
@@ -71,7 +71,7 @@ func organizationCreateF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
-	o := &platform.Organization{
+	o := &influxdb.Organization{
 		Name: organizationCreateFlags.name,
 	}
 
@@ -120,20 +120,20 @@ func organizationFindF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
-	filter := platform.OrganizationFilter{}
+	filter := influxdb.OrganizationFilter{}
 	if organizationFindFlags.name != "" {
 		filter.Name = &organizationFindFlags.name
 	}
 
 	if organizationFindFlags.id != "" {
-		id, err := platform.IDFromString(organizationFindFlags.id)
+		id, err := influxdb.IDFromString(organizationFindFlags.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %s: %v", organizationFindFlags.id, err)
 		}
 		filter.ID = id
 	}
 
-	orgs, _, err := orgSvc.FindOrganizations(context.Background(), filter)
+	orgs, _, err := orgSvc.FindOrganizations(context.Background(), filter, influxdb.FindOptions{})
 	if err != nil {
 		return fmt.Errorf("failed find orgs: %v", err)
 	}
@@ -182,12 +182,12 @@ func organizationUpdateF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
-	var id platform.ID
+	var id influxdb.ID
 	if err := id.DecodeFromString(organizationUpdateFlags.id); err != nil {
 		return fmt.Errorf("failed to decode org id %s: %v", organizationUpdateFlags.id, err)
 	}
 
-	update := platform.OrganizationUpdate{}
+	update := influxdb.OrganizationUpdate{}
 	if organizationUpdateFlags.name != "" {
 		update.Name = &organizationUpdateFlags.name
 	}
@@ -224,7 +224,7 @@ func organizationDeleteF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
-	var id platform.ID
+	var id influxdb.ID
 	if err := id.DecodeFromString(organizationDeleteFlags.id); err != nil {
 		return fmt.Errorf("failed to decode org id %s: %v", organizationDeleteFlags.id, err)
 	}
@@ -302,13 +302,13 @@ func organizationMembersListF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("must specify exactly one of id and name")
 	}
 
-	filter := platform.OrganizationFilter{}
+	filter := influxdb.OrganizationFilter{}
 	if organizationMembersListFlags.name != "" {
 		filter.Name = &organizationMembersListFlags.name
 	}
 
 	if organizationMembersListFlags.id != "" {
-		var fID platform.ID
+		var fID influxdb.ID
 		err := fID.DecodeFromString(organizationMembersListFlags.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersListFlags.id, err)
@@ -321,9 +321,9 @@ func organizationMembersListF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to find org: %v", err)
 	}
 
-	mappingFilter := platform.UserResourceMappingFilter{
+	mappingFilter := influxdb.UserResourceMappingFilter{
 		ResourceID: organization.ID,
-		UserType:   platform.Member,
+		UserType:   influxdb.Member,
 	}
 
 	mappings, _, err := mappingSvc.FindUserResourceMappings(context.Background(), mappingFilter)
@@ -386,13 +386,13 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 		Token: flags.token,
 	}
 
-	filter := platform.OrganizationFilter{}
+	filter := influxdb.OrganizationFilter{}
 	if organizationMembersAddFlags.name != "" {
 		filter.Name = &organizationMembersListFlags.name
 	}
 
 	if organizationMembersAddFlags.id != "" {
-		var fID platform.ID
+		var fID influxdb.ID
 		err := fID.DecodeFromString(organizationMembersAddFlags.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersAddFlags.id, err)
@@ -405,16 +405,16 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to find org: %v", err)
 	}
 
-	var memberID platform.ID
+	var memberID influxdb.ID
 	err = memberID.DecodeFromString(organizationMembersAddFlags.memberID)
 	if err != nil {
 		return fmt.Errorf("failed to decode member id %s: %v", organizationMembersAddFlags.memberID, err)
 	}
 
-	mapping := &platform.UserResourceMapping{
+	mapping := &influxdb.UserResourceMapping{
 		ResourceID: organization.ID,
 		UserID:     memberID,
-		UserType:   platform.Member,
+		UserType:   influxdb.Member,
 	}
 
 	if err = mappingS.CreateUserResourceMapping(context.Background(), mapping); err != nil {
@@ -467,13 +467,13 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 		Token: flags.token,
 	}
 
-	filter := platform.OrganizationFilter{}
+	filter := influxdb.OrganizationFilter{}
 	if organizationMembersRemoveFlags.name != "" {
 		filter.Name = &organizationMembersRemoveFlags.name
 	}
 
 	if organizationMembersRemoveFlags.id != "" {
-		var fID platform.ID
+		var fID influxdb.ID
 		err := fID.DecodeFromString(organizationMembersRemoveFlags.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %s: %v", organizationMembersRemoveFlags.id, err)
@@ -486,7 +486,7 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to find organization: %v", err)
 	}
 
-	var memberID platform.ID
+	var memberID influxdb.ID
 	err = memberID.DecodeFromString(organizationMembersRemoveFlags.memberID)
 	if err != nil {
 		return fmt.Errorf("failed to decode member id %s: %v", organizationMembersRemoveFlags.memberID, err)

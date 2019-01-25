@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/influxdata/flux/repl"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
@@ -91,7 +91,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parsing flux script: %s", err)
 	}
 
-	t := &platform.Task{
+	t := &influxdb.Task{
 		Flux: flux,
 	}
 
@@ -101,11 +101,11 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 			Token: flags.token,
 		}
 
-		filter := platform.OrganizationFilter{
+		filter := influxdb.OrganizationFilter{
 			Name: &taskCreateFlags.org,
 		}
 
-		orgs, _, err := ow.FindOrganizations(context.Background(), filter)
+		orgs, _, err := ow.FindOrganizations(context.Background(), filter, influxdb.FindOptions{})
 		if err != nil {
 			return err
 		}
@@ -131,7 +131,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if taskCreateFlags.orgID != "" {
-		id, err := platform.IDFromString(taskCreateFlags.orgID)
+		id, err := influxdb.IDFromString(taskCreateFlags.orgID)
 		if err != nil {
 			return fmt.Errorf("error parsing organization id: %v", err)
 		}
@@ -166,7 +166,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// taskFindFlags define the Find Command
+// TaskFindFlags define the find command flags
 type TaskFindFlags struct {
 	user  string
 	id    string
@@ -186,7 +186,7 @@ func init() {
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
 	taskFindCmd.Flags().StringVarP(&taskFindFlags.orgID, "org-id", "", "", "task organization ID")
-	taskFindCmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", platform.TaskDefaultPageSize, "the number of tasks to find")
+	taskFindCmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", influxdb.TaskDefaultPageSize, "the number of tasks to find")
 
 	taskCmd.AddCommand(taskFindCmd)
 }
@@ -197,9 +197,9 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 		Token: flags.token,
 	}
 
-	filter := platform.TaskFilter{}
+	filter := influxdb.TaskFilter{}
 	if taskFindFlags.user != "" {
-		id, err := platform.IDFromString(taskFindFlags.user)
+		id, err := influxdb.IDFromString(taskFindFlags.user)
 		if err != nil {
 			return err
 		}
@@ -207,23 +207,23 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	if taskFindFlags.orgID != "" {
-		id, err := platform.IDFromString(taskFindFlags.orgID)
+		id, err := influxdb.IDFromString(taskFindFlags.orgID)
 		if err != nil {
 			return err
 		}
 		filter.Organization = id
 	}
 
-	if taskFindFlags.limit < 1 || taskFindFlags.limit > platform.TaskMaxPageSize {
-		return fmt.Errorf("limit must be between 1 and %d", platform.TaskMaxPageSize)
+	if taskFindFlags.limit < 1 || taskFindFlags.limit > influxdb.TaskMaxPageSize {
+		return fmt.Errorf("limit must be between 1 and %d", influxdb.TaskMaxPageSize)
 	}
 	filter.Limit = taskFindFlags.limit
 
-	var tasks []*platform.Task
+	var tasks []*influxdb.Task
 	var err error
 
 	if taskFindFlags.id != "" {
-		id, err := platform.IDFromString(taskFindFlags.id)
+		id, err := influxdb.IDFromString(taskFindFlags.id)
 		if err != nil {
 			return err
 		}
@@ -295,12 +295,12 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 		Token: flags.token,
 	}
 
-	var id platform.ID
+	var id influxdb.ID
 	if err := id.DecodeFromString(taskUpdateFlags.id); err != nil {
 		return err
 	}
 
-	update := platform.TaskUpdate{}
+	update := influxdb.TaskUpdate{}
 	if taskUpdateFlags.status != "" {
 		update.Status = &taskUpdateFlags.status
 	}
@@ -368,7 +368,7 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 		Token: flags.token,
 	}
 
-	var id platform.ID
+	var id influxdb.ID
 	err := id.DecodeFromString(taskDeleteFlags.id)
 	if err != nil {
 		return err
@@ -438,15 +438,15 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 		Token: flags.token,
 	}
 
-	var filter platform.LogFilter
-	id, err := platform.IDFromString(taskLogFindFlags.taskID)
+	var filter influxdb.LogFilter
+	id, err := influxdb.IDFromString(taskLogFindFlags.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = id
 
 	if taskLogFindFlags.runID != "" {
-		id, err := platform.IDFromString(taskLogFindFlags.runID)
+		id, err := influxdb.IDFromString(taskLogFindFlags.runID)
 		if err != nil {
 			return err
 		}
@@ -454,7 +454,7 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	if taskLogFindFlags.orgID != "" {
-		id, err := platform.IDFromString(taskLogFindFlags.orgID)
+		id, err := influxdb.IDFromString(taskLogFindFlags.orgID)
 		if err != nil {
 			return err
 		}
@@ -519,26 +519,26 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 		Token: flags.token,
 	}
 
-	filter := platform.RunFilter{
+	filter := influxdb.RunFilter{
 		Limit:      taskRunFindFlags.limit,
 		AfterTime:  taskRunFindFlags.afterTime,
 		BeforeTime: taskRunFindFlags.beforeTime,
 	}
-	taskID, err := platform.IDFromString(taskRunFindFlags.taskID)
+	taskID, err := influxdb.IDFromString(taskRunFindFlags.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = taskID
 
-	orgID, err := platform.IDFromString(taskRunFindFlags.orgID)
+	orgID, err := influxdb.IDFromString(taskRunFindFlags.orgID)
 	if err != nil {
 		return err
 	}
 	filter.Org = orgID
 
-	var runs []*platform.Run
+	var runs []*influxdb.Run
 	if taskRunFindFlags.runID != "" {
-		id, err := platform.IDFromString(taskRunFindFlags.runID)
+		id, err := influxdb.IDFromString(taskRunFindFlags.runID)
 		if err != nil {
 			return err
 		}
@@ -607,7 +607,7 @@ func runRetryF(cmd *cobra.Command, args []string) error {
 		Token: flags.token,
 	}
 
-	var taskID, runID platform.ID
+	var taskID, runID influxdb.ID
 	if err := taskID.DecodeFromString(runRetryFlags.taskID); err != nil {
 		return err
 	}
