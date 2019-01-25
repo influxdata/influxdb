@@ -2881,6 +2881,9 @@ paths:
       summary: List all authorizations
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Descending'
         - in: query
           name: userID
           schema:
