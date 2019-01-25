@@ -243,6 +243,8 @@ func (c *Client) FindOrganizations(ctx context.Context, filter influxdb.Organiza
 		}
 	}
 
+	influxdb.SortOrganizations(opts, os)
+
 	return os, len(os), nil
 }
 
