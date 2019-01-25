@@ -1,0 +1,36 @@
+// Libraries
+import React from 'react'
+import {shallow} from 'enzyme'
+
+// Components
+import {LineProtocolTabs} from 'src/dataLoaders/components/configureStep/lineProtocol/LineProtocolTabs'
+
+import {LineProtocolTab} from 'src/types/v2/dataLoaders'
+
+const setup = (override?) => {
+  const props = {
+    tabs: [
+      LineProtocolTab.UploadFile,
+      LineProtocolTab.EnterManually,
+      LineProtocolTab.EnterURL,
+    ],
+    bucket: 'a',
+    org: 'a',
+    ...override,
+  }
+
+  const wrapper = shallow(<LineProtocolTabs {...props} />)
+
+  return {wrapper}
+}
+
+describe('LineProtocolTabs', () => {
+  describe('rendering', () => {
+    it('renders!', () => {
+      const {wrapper} = setup()
+      expect(wrapper.exists()).toBe(true)
+
+      expect(wrapper).toMatchSnapshot()
+    })
+  })
+})
