@@ -3,7 +3,7 @@ jobs:
   litmus_nightly:
     machine: true
     steps:
-      - run: docker login -u="${$QUAY_USER}" -p="${$QUAY_PASS}" quay.io 
+      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io 
       - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/orgs/test_gateway_create_org.py --net host -v /var/run/docker.sock:/var/run/docker.sock quay.io/influxdb/litmus:latest 
 
   jstest:
