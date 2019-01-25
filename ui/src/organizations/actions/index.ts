@@ -2,12 +2,7 @@
 import {Dispatch} from 'redux'
 
 // APIs
-import {
-  getOrganizations as getOrganizationsAPI,
-  createOrg as createOrgAPI,
-  deleteOrg as deleteOrgAPI,
-  updateOrg as updateOrgAPI,
-} from 'src/organizations/apis'
+import {client} from 'src/utils/api'
 
 // Types
 import {Organization} from 'src/api'
@@ -77,7 +72,7 @@ export const getOrganizations = () => async (
   dispatch: Dispatch<SetOrganizations>
 ): Promise<void> => {
   try {
-    const organizations = await getOrganizationsAPI()
+    const organizations = await client.organizations.getAll()
     dispatch(setOrgs(organizations))
   } catch (e) {
     console.error(e)
@@ -88,7 +83,7 @@ export const createOrg = (org: Organization) => async (
   dispatch: Dispatch<AddOrg>
 ): Promise<void> => {
   try {
-    const createdOrg = await createOrgAPI(org)
+    const createdOrg = await client.organizations.create(org)
     dispatch(addOrg(createdOrg))
   } catch (e) {
     console.error(e)
@@ -99,7 +94,7 @@ export const deleteOrg = (org: Organization) => async (
   dispatch: Dispatch<RemoveOrg>
 ): Promise<void> => {
   try {
-    await deleteOrgAPI(org)
+    await client.organizations.delete(org.id)
     dispatch(removeOrg(org))
   } catch (e) {
     console.error(e)
@@ -110,7 +105,7 @@ export const updateOrg = (org: Organization) => async (
   dispatch: Dispatch<EditOrg>
 ) => {
   try {
-    const updatedOrg = await updateOrgAPI(org)
+    const updatedOrg = await client.organizations.update(org.id, org)
     dispatch(editOrg(updatedOrg))
   } catch (e) {
     console.error(e)

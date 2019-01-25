@@ -14,7 +14,8 @@ import {Panel, Spinner} from 'src/clockface'
 import {VERSION, GIT_SHA} from 'src/shared/constants'
 
 // APIs
-import {getOrganizations, getDashboards} from 'src/organizations/apis'
+import {getDashboards} from 'src/organizations/apis'
+import {client} from 'src/utils/api'
 
 // Types
 import {Dashboard, MeState} from 'src/types/v2'
@@ -23,6 +24,8 @@ import {Organization} from 'src/api'
 interface Props {
   me: MeState
 }
+
+const getOrganizations = () => client.organizations.getAll()
 
 class ResourceLists extends PureComponent<Props> {
   public render() {

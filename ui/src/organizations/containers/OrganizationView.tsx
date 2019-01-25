@@ -5,13 +5,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // APIs
-import {
-  getDashboards,
-  getMembers,
-  getOwners,
-  getCollectors,
-  getScrapers,
-} from 'src/organizations/apis'
+import {getDashboards, getCollectors, getScrapers} from 'src/organizations/apis'
 
 import {client} from 'src/utils/api'
 
@@ -246,7 +240,10 @@ class OrganizationView extends PureComponent<Props> {
   }
 
   private getOwnersAndMembers = async (org: Organization) => {
-    const allMembers = await Promise.all([getOwners(org), getMembers(org)])
+    const allMembers = await Promise.all([
+      client.organizations.owners(org.id),
+      client.organizations.members(org.id),
+    ])
 
     return [].concat(...allMembers)
   }
