@@ -6,7 +6,6 @@ import {
   ViewsApi,
   WriteApi,
   SourcesApi,
-  BucketsApi,
   OrganizationsApi,
   QueryApi,
   SetupApi,
@@ -27,7 +26,6 @@ export const telegrafsAPI = new TelegrafsApi({basePath})
 export const authorizationsAPI = new AuthorizationsApi({basePath})
 export const writeAPI = new WriteApi({basePath})
 export const sourcesAPI = new SourcesApi({basePath})
-export const bucketsAPI = new BucketsApi({basePath})
 export const orgsAPI = new OrganizationsApi({basePath})
 export const queryAPI = new QueryApi({basePath})
 export const setupAPI = new SetupApi({basePath})

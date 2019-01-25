@@ -25,7 +25,7 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 import {ruleToString} from 'src/utils/formatting'
 
 // APIs
-import {createBucket, updateBucket, deleteBucket} from 'src/organizations/apis'
+import {client} from 'src/utils/api'
 
 // Types
 import {OverlayState} from 'src/types/v2'
@@ -109,12 +109,12 @@ export default class Buckets extends PureComponent<Props, State> {
   }
 
   private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {
-    await updateBucket(updatedBucket)
+    await client.buckets.update(updatedBucket.id, updatedBucket)
     this.props.onChange()
   }
   private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
     const {onChange, notify} = this.props
-    await deleteBucket(deletedBucket)
+    await client.buckets.delete(deletedBucket.id)
     onChange()
     notify(bucketDeleted(deletedBucket.name))
   }
@@ -123,7 +123,7 @@ export default class Buckets extends PureComponent<Props, State> {
     org: Organization,
     bucket: Bucket
   ): Promise<void> => {
-    await createBucket(org, bucket)
+    await client.buckets.create(org, bucket)
     this.props.onChange()
     this.handleCloseModal()
   }

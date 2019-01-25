@@ -12,7 +12,6 @@ import {
 
 // APIs
 import {readSource} from 'src/sources/apis'
-import {getBuckets} from 'src/shared/apis/v2/buckets'
 import {executeQueryAsync} from 'src/logs/api/v2'
 
 // Data
@@ -297,30 +296,7 @@ export const setBuckets = (buckets: Bucket[]): SetBucketsAction => ({
   },
 })
 
-export const populateBucketsAsync = (source: Source = null) => async (
-  dispatch
-): Promise<void> => {
-  try {
-    const buckets = await getBuckets(source)
-
-    if (buckets && buckets.length > 0) {
-      dispatch(setBuckets(buckets))
-      if (source && source.telegraf) {
-        const defaultBucket = buckets.find(
-          bucket => bucket.name === source.telegraf
-        )
-
-        await dispatch(setBucketAsync(defaultBucket))
-      } else {
-        await dispatch(setBucketAsync(buckets[0]))
-      }
-    }
-  } catch (e) {
-    dispatch(setBuckets([]))
-    dispatch(setBucketAsync(null))
-    throw new Error('Failed to populate buckets')
-  }
-}
+export const populateBucketsAsync = () => async (): Promise<void> => {}
 
 export const getSourceAndPopulateBucketsAsync = (id: string) => async (
   dispatch
@@ -330,7 +306,6 @@ export const getSourceAndPopulateBucketsAsync = (id: string) => async (
   dispatch(setSource(source))
 
   try {
-    await dispatch(populateBucketsAsync(source))
     await dispatch(clearSearchData(SearchStatus.UpdatingSource))
   } catch (e) {
     await dispatch(clearSearchData(SearchStatus.SourceError))
