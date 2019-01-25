@@ -4,15 +4,10 @@ import {
   SetupParams,
   getTelegrafConfigs,
   createTelegrafConfig,
-  getAuthorizationToken,
 } from 'src/onboarding/apis'
 
-import {telegrafConfig, token} from 'mocks/dummyData'
-import {
-  telegrafsAPI,
-  authorizationsAPI,
-  setupAPI,
-} from 'src/onboarding/apis/mocks'
+import {telegrafConfig} from 'mocks/dummyData'
+import {telegrafsAPI, setupAPI} from 'src/onboarding/apis/mocks'
 
 jest.mock('src/utils/api', () => require('src/onboarding/apis/mocks'))
 
@@ -56,19 +51,6 @@ describe('Onboarding.Apis', () => {
       const result = await createTelegrafConfig(telegrafConfig)
 
       expect(result).toEqual(telegrafConfig)
-    })
-  })
-
-  describe('getAuthorizationToken', () => {
-    it('should return a token', async () => {
-      const username = 'iris'
-      const result = await getAuthorizationToken(username)
-
-      expect(result).toEqual(token)
-      expect(authorizationsAPI.authorizationsGet).toBeCalledWith(
-        undefined,
-        username
-      )
     })
   })
 })

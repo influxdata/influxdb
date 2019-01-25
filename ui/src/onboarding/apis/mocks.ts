@@ -1,6 +1,5 @@
 import {
   getTelegrafConfigsResponse,
-  authResponse,
   createTelegrafConfigResponse,
   setSetupParamsResponse,
 } from 'mocks/dummyData'
@@ -12,7 +11,6 @@ const telegrafsPost = jest.fn(() =>
 const telegrafsTelegrafIDPut = jest.fn(() =>
   Promise.resolve(createTelegrafConfigResponse)
 )
-const authorizationsGet = jest.fn(() => Promise.resolve(authResponse))
 const setupPost = jest.fn(() => Promise.resolve(setSetupParamsResponse))
 const setupGet = jest.fn(() => Promise.resolve({data: {allowed: true}}))
 
@@ -25,8 +23,4 @@ export const telegrafsAPI = {
 export const setupAPI = {
   setupPost,
   setupGet,
-}
-
-export const authorizationsAPI = {
-  authorizationsGet,
 }

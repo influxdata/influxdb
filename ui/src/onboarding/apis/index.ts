@@ -4,12 +4,7 @@ import _ from 'lodash'
 import {setupAPI, sourcesAPI} from 'src/utils/api'
 
 // Utils
-import {
-  telegrafsAPI,
-  authorizationsAPI,
-  writeAPI,
-  scraperTargetsApi,
-} from 'src/utils/api'
+import {telegrafsAPI, writeAPI, scraperTargetsApi} from 'src/utils/api'
 
 import {
   Telegraf,
@@ -96,17 +91,6 @@ export const getTelegrafConfigs = async (org: string): Promise<Telegraf[]> => {
     const data = await telegrafsAPI.telegrafsGet(org)
 
     return getDeep<Telegraf[]>(data, 'data.configurations', [])
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-export const getAuthorizationToken = async (
-  username: string
-): Promise<string> => {
-  try {
-    const data = await authorizationsAPI.authorizationsGet(undefined, username)
-    return getDeep<string>(data, 'data.authorizations.0.token', '')
   } catch (error) {
     console.error(error)
   }
