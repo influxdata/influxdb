@@ -117,7 +117,10 @@ class TagSelector extends PureComponent<Props> {
 
     return (
       <>
-        <div className="tag-selector--top">
+        <div
+          className="tag-selector--top"
+          data-testid="tag-selector--top-button"
+        >
           <SearchableDropdown
             searchTerm={keysSearchTerm}
             searchPlaceholder="Search keys..."
@@ -126,6 +129,8 @@ class TagSelector extends PureComponent<Props> {
             onChange={this.handleSelectTag}
             status={toComponentStatus(keysStatus)}
             titleText="No Tags Found"
+            testid="tag-selector--dropdown"
+            buttonTestId="tag-selector--dropdown-button"
           >
             {keys.map(key => (
               <Dropdown.Item key={key} id={key} value={key}>
