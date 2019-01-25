@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -246,7 +245,11 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 
 		mappings, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
 		if err != nil {
-			EncodeError(ctx, errors.InternalErrorf("Error loading dashboard owners: %v", err), w)
+			EncodeError(ctx, &platform.Error{
+				Code: platform.EInternal,
+				Msg:  "Error loading dashboard owners",
+				Err:  err,
+			}, w)
 			return
 		}
 
@@ -349,7 +352,11 @@ func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := h.DashboardService.CreateDashboard(ctx, req.Dashboard); err != nil {
-		EncodeError(ctx, errors.InternalErrorf("Error loading dashboards: %v", err), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInternal,
+			Msg:  "Error loading dashboards",
+			Err:  err,
+		}, w)
 		return
 	}
 
@@ -409,7 +416,10 @@ func decodeGetDashboardRequest(ctx context.Context, r *http.Request) (*getDashbo
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -453,7 +463,10 @@ func decodeGetDashboardLogRequest(ctx context.Context, r *http.Request) (*getDas
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -513,7 +526,10 @@ func decodeDeleteDashboardRequest(ctx context.Context, r *http.Request) (*delete
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -562,14 +578,20 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 	req := &patchDashboardRequest{}
 	upd := platform.DashboardUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
-		return nil, errors.MalformedDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 	req.Upd = upd
 
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
@@ -579,7 +601,10 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 	req.DashboardID = i
 
 	if err := req.Valid(); err != nil {
-		return nil, errors.MalformedDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
 	return req, nil
@@ -588,7 +613,10 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 // Valid validates that the dashboard ID is non zero valued and update has expected values set.
 func (r *patchDashboardRequest) Valid() error {
 	if !r.DashboardID.Valid() {
-		return fmt.Errorf("missing dashboard ID")
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "missing dashboard ID",
+		}
 	}
 
 	if pe := r.Upd.Valid(); pe != nil {
@@ -609,7 +637,10 @@ func decodePostDashboardCellRequest(ctx context.Context, r *http.Request) (*post
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
 		return nil, err
@@ -662,7 +693,10 @@ func decodePutDashboardCellRequest(ctx context.Context, r *http.Request) (*putDa
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
 		return nil, err
@@ -708,7 +742,10 @@ func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*de
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
 		return nil, err
@@ -716,7 +753,10 @@ func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*de
 
 	cellID := params.ByName("cellID")
 	if cellID == "" {
-		return nil, errors.InvalidDataf("url missing cellID")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing cellID",
+		}
 	}
 	if err := req.cellID.DecodeFromString(cellID); err != nil {
 		return nil, err
@@ -943,7 +983,7 @@ func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -997,7 +1037,7 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return dashboards, 0, err
 	}
 
@@ -1038,7 +1078,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dash
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -1079,7 +1119,7 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, 
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1114,7 +1154,7 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id platform.ID) 
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 // AddDashboardCell adds a cell to a dashboard.
@@ -1145,7 +1185,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID,
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -1173,7 +1213,7 @@ func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID,
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 // UpdateDashboardCell replaces the dashboard cell with the provided ID.
@@ -1212,7 +1252,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1247,7 +1287,7 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1287,7 +1327,7 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -1328,7 +1368,7 @@ func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platfor
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 

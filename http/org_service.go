@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	platform "github.com/influxdata/influxdb"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -211,7 +210,10 @@ func decodeGetOrgRequest(ctx context.Context, r *http.Request) (*getOrgRequest, 
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -297,7 +299,10 @@ func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*del
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -342,7 +347,10 @@ func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgReque
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -392,7 +400,10 @@ func decodeGetSecretsRequest(ctx context.Context, r *http.Request) (*getSecretsR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -432,7 +443,10 @@ func decodePatchSecretsRequest(ctx context.Context, r *http.Request) (*patchSecr
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -477,7 +491,10 @@ func decodeDeleteSecretsRequest(ctx context.Context, r *http.Request) (*deleteSe
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -571,7 +588,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -588,7 +605,10 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 // CreateOrganization creates an organization.
 func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platform.Organization) error {
 	if o.Name == "" {
-		return kerrors.InvalidDataf("organization name is required")
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "organization name is required",
+		}
 	}
 
 	url, err := newURL(s.Addr, organizationPath)
@@ -618,7 +638,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -657,7 +677,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -689,7 +709,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 	}
 	defer resp.Body.Close()
 
-	return CheckErrorStatus(http.StatusNoContent, resp, true)
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 func organizationIDPath(id platform.ID) string {
@@ -727,7 +747,10 @@ func decodeGetOrganizationLogRequest(ctx context.Context, r *http.Request) (*get
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID

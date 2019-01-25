@@ -792,40 +792,40 @@ func TestService_handlePatchDashboard(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `
-{
-  "id": "020f755c3c082000",
-  "orgID": "0000000000000001",
-  "name": "example",
-  "description": "",
-  "labels": [],
-  "meta": {
-    "createdAt": "2012-11-10T23:00:00Z",
-    "updatedAt": "2012-11-11T01:00:00Z"
-  },
-  "cells": [
-    {
-      "id": "da7aba5e5d81e550",
-      "x": 1,
-      "y": 2,
-      "w": 3,
-      "h": 4,
-      "links": {
-        "self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
-        "view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
-      }
-    }
-  ],
-  "links": {
-    "self": "/api/v2/dashboards/020f755c3c082000",
-    "org": "/api/v2/orgs/0000000000000001",
-    "members": "/api/v2/dashboards/020f755c3c082000/members",
-    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
-    "log": "/api/v2/dashboards/020f755c3c082000/log",
-    "cells": "/api/v2/dashboards/020f755c3c082000/cells",
-    "labels": "/api/v2/dashboards/020f755c3c082000/labels"
-  }
-}
-`,
+		{
+		  "id": "020f755c3c082000",
+		  "orgID": "0000000000000001",
+		  "name": "example",
+		  "description": "",
+		  "labels": [],
+		  "meta": {
+		    "createdAt": "2012-11-10T23:00:00Z",
+		    "updatedAt": "2012-11-11T01:00:00Z"
+		  },
+		  "cells": [
+		    {
+		      "id": "da7aba5e5d81e550",
+		      "x": 1,
+		      "y": 2,
+		      "w": 3,
+		      "h": 4,
+		      "links": {
+		        "self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+		        "view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
+		      }
+		    }
+		  ],
+		  "links": {
+		    "self": "/api/v2/dashboards/020f755c3c082000",
+		    "org": "/api/v2/orgs/0000000000000001",
+		    "members": "/api/v2/dashboards/020f755c3c082000/members",
+		    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
+		    "log": "/api/v2/dashboards/020f755c3c082000/log",
+		    "cells": "/api/v2/dashboards/020f755c3c082000/cells",
+		    "labels": "/api/v2/dashboards/020f755c3c082000/labels"
+		  }
+		}
+		`,
 			},
 		},
 		{

@@ -11,7 +11,6 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -217,7 +216,10 @@ func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -258,7 +260,10 @@ func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -389,7 +394,10 @@ func decodePatchUserRequest(ctx context.Context, r *http.Request) (*patchUserReq
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -437,7 +445,7 @@ func (s *UserService) FindMe(ctx context.Context, id platform.ID) (*platform.Use
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -468,7 +476,7 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -532,7 +540,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -574,7 +582,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -614,7 +622,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -646,7 +654,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	}
 	defer resp.Body.Close()
 
-	return CheckErrorStatus(http.StatusNoContent, resp, true)
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 func userIDPath(id platform.ID) string {
@@ -684,7 +692,10 @@ func decodeGetUserLogRequest(ctx context.Context, r *http.Request) (*getUserLogR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID

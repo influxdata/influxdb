@@ -9,7 +9,6 @@ import (
 	"path"
 
 	platform "github.com/influxdata/influxdb"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -97,7 +96,10 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var rid platform.ID
@@ -111,7 +113,10 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 	}
 
 	if !u.ID.Valid() {
-		return nil, kerrors.InvalidDataf("user id missing or invalid")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "user id missing or invalid",
+		}
 	}
 
 	return &postMemberRequest{
@@ -171,7 +176,10 @@ func decodeGetMembersRequest(ctx context.Context, r *http.Request) (*getMembersR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -215,7 +223,10 @@ func decodeDeleteMemberRequest(ctx context.Context, r *http.Request) (*deleteMem
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing resource id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing resource id",
+		}
 	}
 
 	var rid platform.ID
@@ -225,7 +236,10 @@ func decodeDeleteMemberRequest(ctx context.Context, r *http.Request) (*deleteMem
 
 	id = params.ByName("userID")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing member id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing member id",
+		}
 	}
 
 	var mid platform.ID

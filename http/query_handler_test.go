@@ -210,6 +210,7 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 			name:   "error from bad json",
 			w:      httptest.NewRecorder(),
 			r:      httptest.NewRequest("POST", "/api/v2/query/ast", bytes.NewBufferString(`error!`)),
+			want:   `{"code":"invalid","message":"invalid json","error":"invalid character 'e' looking for beginning of value"}`,
 			status: http.StatusBadRequest,
 		},
 	}
@@ -249,6 +250,7 @@ func TestFluxHandler_postFluxSpec(t *testing.T) {
 			name:   "error from bad json",
 			w:      httptest.NewRecorder(),
 			r:      httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`error!`)),
+			want:   `{"code":"invalid","message":"invalid json","error":"invalid character 'e' looking for beginning of value"}`,
 			status: http.StatusBadRequest,
 		},
 		{
@@ -256,6 +258,7 @@ func TestFluxHandler_postFluxSpec(t *testing.T) {
 			w:      httptest.NewRecorder(),
 			r:      httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`{"query": "from()"}`)),
 			now:    func() time.Time { return time.Unix(0, 0).UTC() },
+			want:   `{"code":"unprocessable entity","message":"invalid spec","error":"error calling function \"from\": must specify one of bucket or bucketID"}`,
 			status: http.StatusUnprocessableEntity,
 		},
 		{

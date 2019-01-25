@@ -2,12 +2,12 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
 )
 
 // decodeFindOptions returns a FindOptions decoded from http request.
@@ -31,7 +31,10 @@ func decodeFindOptions(ctx context.Context, r *http.Request) (*platform.FindOpti
 		}
 
 		if l < 1 || l > platform.MaxPageSize {
-			return nil, errors.InvalidDataf("limit must be between 1 and %d", platform.MaxPageSize)
+			return nil, &platform.Error{
+				Code: platform.EInvalid,
+				Msg:  fmt.Sprintf("limit must be between 1 and %d", platform.MaxPageSize),
+			}
 		}
 
 		opts.Limit = l

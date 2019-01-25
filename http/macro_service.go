@@ -9,7 +9,6 @@ import (
 	"path"
 
 	platform "github.com/influxdata/influxdb"
-	kerrors "github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -115,7 +114,11 @@ func (h *MacroHandler) handleGetMacros(w http.ResponseWriter, r *http.Request) {
 
 	macros, err := h.MacroService.FindMacros(ctx, req.filter, req.opts)
 	if err != nil {
-		EncodeError(ctx, kerrors.InternalErrorf("could not read macros: %v", err), w)
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInternal,
+			Msg:  "could not read macros",
+			Err:  err,
+		}, w)
 		return
 	}
 
@@ -130,14 +133,17 @@ func requestMacroID(ctx context.Context) (platform.ID, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	urlID := params.ByName("id")
 	if urlID == "" {
-		return platform.InvalidID(), kerrors.InvalidDataf("url missing id")
+		return platform.InvalidID(), &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	id, err := platform.IDFromString(urlID)
 	if err != nil {
 		return platform.InvalidID(), &platform.Error{
 			Code: platform.EInvalid,
-			Err:  err,
+			Msg:  err.Error(),
 		}
 	}
 
@@ -221,7 +227,10 @@ func decodePostMacroRequest(ctx context.Context, r *http.Request) (*postMacroReq
 
 	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {
-		return nil, kerrors.MalformedDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  err.Error(),
+		}
 	}
 
 	req := &postMacroRequest{
@@ -229,7 +238,10 @@ func decodePostMacroRequest(ctx context.Context, r *http.Request) (*postMacroReq
 	}
 
 	if err := req.Valid(); err != nil {
-		return nil, kerrors.InvalidDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  err.Error(),
+		}
 	}
 
 	return req, nil
@@ -271,7 +283,10 @@ func decodePatchMacroRequest(ctx context.Context, r *http.Request) (*patchMacroR
 
 	err := json.NewDecoder(r.Body).Decode(u)
 	if err != nil {
-		return nil, kerrors.MalformedDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  err.Error(),
+		}
 	}
 
 	id, err := requestMacroID(ctx)
@@ -285,7 +300,10 @@ func decodePatchMacroRequest(ctx context.Context, r *http.Request) (*patchMacroR
 	}
 
 	if err := req.Valid(); err != nil {
-		return nil, kerrors.InvalidDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  err.Error(),
+		}
 	}
 
 	return req, nil
@@ -326,7 +344,10 @@ func decodePutMacroRequest(ctx context.Context, r *http.Request) (*putMacroReque
 
 	err := json.NewDecoder(r.Body).Decode(m)
 	if err != nil {
-		return nil, kerrors.MalformedDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
 	req := &putMacroRequest{
@@ -334,7 +355,10 @@ func decodePutMacroRequest(ctx context.Context, r *http.Request) (*putMacroReque
 	}
 
 	if err := req.Valid(); err != nil {
-		return nil, kerrors.InvalidDataf(err.Error())
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
 	return req, nil
@@ -387,7 +411,7 @@ func (s *MacroService) FindMacroByID(ctx context.Context, id platform.ID) (*plat
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -435,7 +459,7 @@ func (s *MacroService) FindMacros(ctx context.Context, filter platform.MacroFilt
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -451,7 +475,10 @@ func (s *MacroService) FindMacros(ctx context.Context, filter platform.MacroFilt
 // CreateMacro creates a new macro and assigns it an platform.ID
 func (s *MacroService) CreateMacro(ctx context.Context, m *platform.Macro) error {
 	if err := m.Valid(); err != nil {
-		return kerrors.InvalidDataf(err.Error())
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
 	}
 
 	url, err := newURL(s.Addr, macroPath)
@@ -480,7 +507,7 @@ func (s *MacroService) CreateMacro(ctx context.Context, m *platform.Macro) error
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -515,7 +542,7 @@ func (s *MacroService) UpdateMacro(ctx context.Context, id platform.ID, update *
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -555,7 +582,7 @@ func (s *MacroService) ReplaceMacro(ctx context.Context, macro *platform.Macro) 
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -586,7 +613,7 @@ func (s *MacroService) DeleteMacro(ctx context.Context, id platform.ID) error {
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 func macroIDPath(id platform.ID) string {

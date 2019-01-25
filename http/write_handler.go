@@ -303,7 +303,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 func compressWithGzip(data io.Reader) (io.Reader, error) {

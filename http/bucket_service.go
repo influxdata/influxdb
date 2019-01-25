@@ -11,7 +11,6 @@ import (
 	"time"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -102,7 +101,10 @@ func (b *bucket) toPlatform() (*platform.Bucket, error) {
 	if len(b.RetentionRules) > 0 {
 		d = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
 		if d < time.Second {
-			return nil, errors.InvalidDataf("expiration seconds must be greater than or equal to one second")
+			return nil, &platform.Error{
+				Code: platform.EUnprocessableEntity,
+				Msg:  "expiration seconds must be greater than or equal to one second",
+			}
 		}
 	}
 
@@ -156,7 +158,10 @@ func (b *bucketUpdate) toPlatform() (*platform.BucketUpdate, error) {
 	if len(b.RetentionRules) > 0 {
 		d = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
 		if d < time.Second {
-			return nil, errors.InvalidDataf("expiration seconds must be greater than or equal to one second")
+			return nil, &platform.Error{
+				Code: platform.EUnprocessableEntity,
+				Msg:  "expiration seconds must be greater than or equal to one second",
+			}
 		}
 	}
 
@@ -324,7 +329,10 @@ func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketReq
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -364,7 +372,10 @@ func decodeDeleteBucketRequest(ctx context.Context, r *http.Request) (*deleteBuc
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
@@ -480,17 +491,26 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  err.Error(),
+		}
 	}
 
 	bu := &bucketUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(bu); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  err.Error(),
+		}
 	}
 
 	upd, err := bu.toPlatform()
@@ -538,7 +558,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -561,7 +581,6 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 			Code: platform.ENotFound,
 			Op:   s.OpPrefix + platform.OpFindBucket,
 			Msg:  "bucket not found",
-			Err:  ErrNotFound,
 		}
 	}
 
@@ -613,7 +632,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, 0, err
 	}
 
@@ -664,7 +683,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return err
 	}
 
@@ -711,7 +730,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 	}
 	defer resp.Body.Close()
 
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
@@ -742,7 +761,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	}
 	defer resp.Body.Close()
 
-	return CheckError(resp, true)
+	return CheckError(resp)
 }
 
 func bucketIDPath(id platform.ID) string {
@@ -780,7 +799,10 @@ func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucket
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "url missing id",
+		}
 	}
 
 	var i platform.ID

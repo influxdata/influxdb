@@ -167,7 +167,7 @@ func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequ
 	}
 	defer resp.Body.Close()
 	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp, true); err != nil {
+	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
 
