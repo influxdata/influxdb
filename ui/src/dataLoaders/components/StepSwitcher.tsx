@@ -4,8 +4,8 @@ import _ from 'lodash'
 
 // Components
 import SelectDataSourceStep from 'src/dataLoaders/components/selectionStep/SelectDataSourceStep'
-import ConfigureDataSourceStep from 'src/onboarding/components/configureStep/ConfigureDataSourceStep'
-import VerifyDataStep from 'src/onboarding/components/verifyStep/VerifyDataStep'
+import ConfigureDataSourceStep from 'src/dataLoaders/components/configureStep/ConfigureDataSourceStep'
+import VerifyDataStep from 'src/dataLoaders/components/verifyStep/VerifyDataStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
