@@ -4,12 +4,12 @@ import {renderWithRedux} from 'src/mockState'
 import {source} from 'mocks/dummyData'
 import {waitForElement, fireEvent} from 'react-testing-library'
 
-import TimeMachineQueryBuilder from 'src/shared/components/TimeMachineQueryBuilder'
+import QueryBuilder from 'src/timeMachine/components/QueryBuilder'
 
-jest.mock('src/shared/apis/v2/queryBuilder')
+jest.mock('src/timeMachine/apis/queryBuilder')
 
 let setInitialState
-describe('TimeMachineQueryBuilder', () => {
+describe('QueryBuilder', () => {
   beforeEach(() => {
     setInitialState = state => {
       return {
@@ -26,7 +26,7 @@ describe('TimeMachineQueryBuilder', () => {
 
   it('can select a bucket', async () => {
     const {getByTestId, getAllByTestId, queryAllByTestId} = renderWithRedux(
-      <TimeMachineQueryBuilder />,
+      <QueryBuilder />,
       setInitialState
     )
 
@@ -58,7 +58,7 @@ describe('TimeMachineQueryBuilder', () => {
       getByTestId,
       getAllByTestId,
       queryAllByTestId,
-    } = renderWithRedux(<TimeMachineQueryBuilder />, setInitialState)
+    } = renderWithRedux(<QueryBuilder />, setInitialState)
 
     let keysButton = await waitForElement(() => getByText('tk1'))
 
@@ -82,7 +82,7 @@ describe('TimeMachineQueryBuilder', () => {
 
   it('can select a tag value', async () => {
     const {getByText, getByTestId, queryAllByTestId} = renderWithRedux(
-      <TimeMachineQueryBuilder />,
+      <QueryBuilder />,
       setInitialState
     )
 

@@ -1,9 +1,5 @@
 // APIs
-<<<<<<< HEAD:ui/src/timeMachine/actions/queryBuilder.ts
-import {queryBuilderFetcher} from 'src/timeMachine/apis/queryBuilder'
-=======
-import {queryBuilderFetcher} from 'src/shared/apis/v2/QueryBuilderFetcher'
->>>>>>> test(query-builder): mock findBuckets:ui/src/shared/actions/v2/queryBuilder.ts
+import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 
 // Utils
 import {

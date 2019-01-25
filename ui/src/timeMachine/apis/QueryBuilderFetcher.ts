@@ -3,7 +3,7 @@ import {
   findBuckets,
   findKeys,
   findValues,
-} from 'src/shared/apis/v2/queryBuilder'
+} from 'src/timeMachine/apis/queryBuilder'
 
 // Types
 import {BuilderConfig} from 'src/types/v2'
