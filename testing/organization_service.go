@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 )
 
@@ -20,8 +20,8 @@ var organizationCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []*platform.Organization) []*platform.Organization {
-		out := append([]*platform.Organization(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*influxdb.Organization) []*influxdb.Organization {
+		out := append([]*influxdb.Organization(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID.String() > out[j].ID.String()
 		})
@@ -31,17 +31,17 @@ var organizationCmpOptions = cmp.Options{
 
 // OrganizationFields will include the IDGenerator, and organizations
 type OrganizationFields struct {
-	IDGenerator   platform.IDGenerator
-	Organizations []*platform.Organization
+	IDGenerator   influxdb.IDGenerator
+	Organizations []*influxdb.Organization
 }
 
 // OrganizationService tests all the service functions.
 func OrganizationService(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()), t *testing.T,
+	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()), t *testing.T,
 ) {
 	tests := []struct {
 		name string
-		fn   func(init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
+		fn   func(init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
 			t *testing.T)
 	}{
 		{
@@ -78,15 +78,15 @@ func OrganizationService(
 
 // CreateOrganization testing
 func CreateOrganization(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
+	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		organization *platform.Organization
+		organization *influxdb.Organization
 	}
 	type wants struct {
 		err           error
-		organizations []*platform.Organization
+		organizations []*influxdb.Organization
 	}
 
 	tests := []struct {
@@ -99,16 +99,16 @@ func CreateOrganization(
 			name: "create organizations with empty set",
 			fields: OrganizationFields{
 				IDGenerator:   mock.NewIDGenerator(orgOneID, t),
-				Organizations: []*platform.Organization{},
+				Organizations: []*influxdb.Organization{},
 			},
 			args: args{
-				organization: &platform.Organization{
+				organization: &influxdb.Organization{
 					Name: "name1",
 					ID:   MustIDBase16(orgOneID),
 				},
 			},
 			wants: wants{
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						Name: "name1",
 						ID:   MustIDBase16(orgOneID),
@@ -120,7 +120,7 @@ func CreateOrganization(
 			name: "basic create organization",
 			fields: OrganizationFields{
 				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -128,13 +128,13 @@ func CreateOrganization(
 				},
 			},
 			args: args{
-				organization: &platform.Organization{
+				organization: &influxdb.Organization{
 					ID:   MustIDBase16(orgTwoID),
 					Name: "organization2",
 				},
 			},
 			wants: wants{
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -150,7 +150,7 @@ func CreateOrganization(
 			name: "names should be unique",
 			fields: OrganizationFields{
 				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -158,21 +158,21 @@ func CreateOrganization(
 				},
 			},
 			args: args{
-				organization: &platform.Organization{
+				organization: &influxdb.Organization{
 					ID:   MustIDBase16(orgOneID),
 					Name: "organization1",
 				},
 			},
 			wants: wants{
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
 					},
 				},
-				err: &platform.Error{
-					Code: platform.EConflict,
-					Op:   platform.OpCreateOrganization,
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
+					Op:   influxdb.OpCreateOrganization,
 					Msg:  "organization with name organization1 already exists",
 				},
 			},
@@ -181,7 +181,7 @@ func CreateOrganization(
 			name: "create organization with no id",
 			fields: OrganizationFields{
 				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -189,12 +189,12 @@ func CreateOrganization(
 				},
 			},
 			args: args{
-				organization: &platform.Organization{
+				organization: &influxdb.Organization{
 					Name: "organization2",
 				},
 			},
 			wants: wants{
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -221,7 +221,7 @@ func CreateOrganization(
 			defer s.DeleteOrganization(ctx, tt.args.organization.ID)
 			// }
 
-			organizations, _, err := s.FindOrganizations(ctx, platform.OrganizationFilter{})
+			organizations, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{}, influxdb.FindOptions{})
 			diffPlatformErrors(tt.name, err, nil, opPrefix, t)
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
 				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
@@ -232,15 +232,15 @@ func CreateOrganization(
 
 // FindOrganizationByID testing
 func FindOrganizationByID(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
+	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		id platform.ID
+		id influxdb.ID
 	}
 	type wants struct {
 		err          error
-		organization *platform.Organization
+		organization *influxdb.Organization
 	}
 
 	tests := []struct {
@@ -252,7 +252,7 @@ func FindOrganizationByID(
 		{
 			name: "basic find organization by id",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -267,7 +267,7 @@ func FindOrganizationByID(
 				id: MustIDBase16(orgTwoID),
 			},
 			wants: wants{
-				organization: &platform.Organization{
+				organization: &influxdb.Organization{
 					ID:   MustIDBase16(orgTwoID),
 					Name: "organization2",
 				},
@@ -276,7 +276,7 @@ func FindOrganizationByID(
 		{
 			name: "didn't find organization by id",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -292,9 +292,9 @@ func FindOrganizationByID(
 			},
 			wants: wants{
 				organization: nil,
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindOrganizationByID,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindOrganizationByID,
 					Msg:  "organization not found",
 				},
 			},
@@ -319,16 +319,17 @@ func FindOrganizationByID(
 
 // FindOrganizations testing
 func FindOrganizations(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
+	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		ID   platform.ID
-		name string
+		ID          influxdb.ID
+		name        string
+		findOptions influxdb.FindOptions
 	}
 
 	type wants struct {
-		organizations []*platform.Organization
+		organizations []*influxdb.Organization
 		err           error
 	}
 	tests := []struct {
@@ -340,7 +341,7 @@ func FindOrganizations(
 		{
 			name: "find all organizations",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "abc",
@@ -353,7 +354,7 @@ func FindOrganizations(
 			},
 			args: args{},
 			wants: wants{
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "abc",
@@ -368,7 +369,7 @@ func FindOrganizations(
 		{
 			name: "find organization by id",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "abc",
@@ -383,7 +384,7 @@ func FindOrganizations(
 				ID: MustIDBase16(orgTwoID),
 			},
 			wants: wants{
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgTwoID),
 						Name: "xyz",
@@ -394,7 +395,7 @@ func FindOrganizations(
 		{
 			name: "find organization by name",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "abc",
@@ -409,7 +410,7 @@ func FindOrganizations(
 				name: "xyz",
 			},
 			wants: wants{
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgTwoID),
 						Name: "xyz",
@@ -420,7 +421,7 @@ func FindOrganizations(
 		{
 			name: "find organization by id not exists",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "abc",
@@ -435,10 +436,10 @@ func FindOrganizations(
 				ID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				organizations: []*platform.Organization{},
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindOrganizations,
+				organizations: []*influxdb.Organization{},
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindOrganizations,
 					Msg:  "organization not found",
 				},
 			},
@@ -446,7 +447,7 @@ func FindOrganizations(
 		{
 			name: "find organization by name not exists",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "abc",
@@ -461,11 +462,101 @@ func FindOrganizations(
 				name: "na",
 			},
 			wants: wants{
-				organizations: []*platform.Organization{},
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindOrganizations,
+				organizations: []*influxdb.Organization{},
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindOrganizations,
 					Msg:  "organization name \"na\" not found",
+				},
+			},
+		},
+		{
+			name: "find orgs by offset and limit",
+			fields: OrganizationFields{
+				Organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Offset: 1,
+					Limit:  1,
+				},
+			},
+			wants: wants{
+				organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find orgs by descending",
+			fields: OrganizationFields{
+				Organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Descending: true,
+				},
+			},
+			wants: wants{
+				organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
+					},
+				},
+			},
+		},
+		{
+			name: "find orgs by descending and limit",
+			fields: OrganizationFields{
+				Organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Descending: true,
+					Limit:      1,
+				},
+			},
+			wants: wants{
+				organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "xyz",
+					},
 				},
 			},
 		},
@@ -477,7 +568,7 @@ func FindOrganizations(
 			defer done()
 			ctx := context.Background()
 
-			filter := platform.OrganizationFilter{}
+			filter := influxdb.OrganizationFilter{}
 			if tt.args.ID.Valid() {
 				filter.ID = &tt.args.ID
 			}
@@ -485,7 +576,7 @@ func FindOrganizations(
 				filter.Name = &tt.args.name
 			}
 
-			organizations, _, err := s.FindOrganizations(ctx, filter)
+			organizations, _, err := s.FindOrganizations(ctx, filter, tt.args.findOptions)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
@@ -497,7 +588,7 @@ func FindOrganizations(
 
 // DeleteOrganization testing
 func DeleteOrganization(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
+	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -505,7 +596,7 @@ func DeleteOrganization(
 	}
 	type wants struct {
 		err           error
-		organizations []*platform.Organization
+		organizations []*influxdb.Organization
 	}
 
 	tests := []struct {
@@ -517,7 +608,7 @@ func DeleteOrganization(
 		{
 			name: "delete organizations using exist id",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "orgA",
 						ID:   MustIDBase16(orgOneID),
@@ -532,7 +623,7 @@ func DeleteOrganization(
 				ID: orgOneID,
 			},
 			wants: wants{
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						Name: "orgB",
 						ID:   MustIDBase16(orgTwoID),
@@ -543,7 +634,7 @@ func DeleteOrganization(
 		{
 			name: "delete organizations using id that does not exist",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "orgA",
 						ID:   MustIDBase16(orgOneID),
@@ -558,12 +649,12 @@ func DeleteOrganization(
 				ID: "1234567890654321",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpDeleteOrganization,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpDeleteOrganization,
 					Msg:  "organization not found",
 				},
-				organizations: []*platform.Organization{
+				organizations: []*influxdb.Organization{
 					{
 						Name: "orgA",
 						ID:   MustIDBase16(orgOneID),
@@ -585,8 +676,8 @@ func DeleteOrganization(
 			err := s.DeleteOrganization(ctx, MustIDBase16(tt.args.ID))
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			filter := platform.OrganizationFilter{}
-			organizations, _, err := s.FindOrganizations(ctx, filter)
+			filter := influxdb.OrganizationFilter{}
+			organizations, _, err := s.FindOrganizations(ctx, filter, influxdb.FindOptions{})
 			diffPlatformErrors(tt.name, err, nil, opPrefix, t)
 
 			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
@@ -598,7 +689,7 @@ func DeleteOrganization(
 
 // FindOrganization testing
 func FindOrganization(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
+	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -606,7 +697,7 @@ func FindOrganization(
 	}
 
 	type wants struct {
-		organization *platform.Organization
+		organization *influxdb.Organization
 		err          error
 	}
 
@@ -619,7 +710,7 @@ func FindOrganization(
 		{
 			name: "find organization by name",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "abc",
@@ -634,7 +725,7 @@ func FindOrganization(
 				name: "abc",
 			},
 			wants: wants{
-				organization: &platform.Organization{
+				organization: &influxdb.Organization{
 					ID:   MustIDBase16(orgOneID),
 					Name: "abc",
 				},
@@ -643,15 +734,15 @@ func FindOrganization(
 		{
 			name: "missing organization returns error",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{},
+				Organizations: []*influxdb.Organization{},
 			},
 			args: args{
 				name: "abc",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindOrganization,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindOrganization,
 					Msg:  "organization name \"abc\" not found",
 				},
 			},
@@ -663,7 +754,7 @@ func FindOrganization(
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			filter := platform.OrganizationFilter{}
+			filter := influxdb.OrganizationFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
 			}
@@ -680,16 +771,16 @@ func FindOrganization(
 
 // UpdateOrganization testing
 func UpdateOrganization(
-	init func(OrganizationFields, *testing.T) (platform.OrganizationService, string, func()),
+	init func(OrganizationFields, *testing.T) (influxdb.OrganizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
 		name string
-		id   platform.ID
+		id   influxdb.ID
 	}
 	type wants struct {
 		err          error
-		organization *platform.Organization
+		organization *influxdb.Organization
 	}
 
 	tests := []struct {
@@ -701,7 +792,7 @@ func UpdateOrganization(
 		{
 			name: "update id not exists",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -717,9 +808,9 @@ func UpdateOrganization(
 				name: "changed",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpUpdateOrganization,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpUpdateOrganization,
 					Msg:  "organization not found",
 				},
 			},
@@ -727,7 +818,7 @@ func UpdateOrganization(
 		{
 			name: "update name",
 			fields: OrganizationFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
 						Name: "organization1",
@@ -743,7 +834,7 @@ func UpdateOrganization(
 				name: "changed",
 			},
 			wants: wants{
-				organization: &platform.Organization{
+				organization: &influxdb.Organization{
 					ID:   MustIDBase16(orgOneID),
 					Name: "changed",
 				},
@@ -757,7 +848,7 @@ func UpdateOrganization(
 			defer done()
 			ctx := context.Background()
 
-			upd := platform.OrganizationUpdate{}
+			upd := influxdb.OrganizationUpdate{}
 			if tt.args.name != "" {
 				upd.Name = &tt.args.name
 			}
