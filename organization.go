@@ -79,6 +79,9 @@ func SortOrganizations(opts FindOptions, orgs []*Organization) {
 	switch opts.SortBy {
 	case "Name":
 		sorter = func(i, j int) bool {
+			if opts.Descending {
+				return orgs[i].Name > orgs[j].Name
+			}
 			return orgs[i].Name < orgs[j].Name
 		}
 	default:
