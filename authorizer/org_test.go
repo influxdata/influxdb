@@ -300,7 +300,7 @@ func TestOrgService_FindOrganizations(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			orgs, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{})
+			orgs, _, err := s.FindOrganizations(ctx, influxdb.OrganizationFilter{}, influxdb.FindOptions{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(orgs, tt.wants.orgs, orgCmpOptions...); diff != "" {

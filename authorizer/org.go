@@ -83,10 +83,10 @@ func (s *OrgService) FindOrganization(ctx context.Context, filter influxdb.Organ
 }
 
 // FindOrganizations retrieves all organizations that match the provided filter and then filters the list down to only the resources that are authorized.
-func (s *OrgService) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
+func (s *OrgService) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opts influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
 	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
 	// will likely be expensive.
-	os, _, err := s.s.FindOrganizations(ctx, filter, opt...)
+	os, _, err := s.s.FindOrganizations(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, err
 	}
