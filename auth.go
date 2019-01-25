@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"fmt"
+	"net/url"
 )
 
 var (
@@ -109,4 +110,26 @@ type AuthorizationFilter struct {
 
 	UserID *ID
 	User   *string
+}
+
+// QueryParams turns a user filter into query params.
+func (f AuthorizationFilter) QueryParams() map[string][]string {
+	qp := url.Values{}
+	if f.ID != nil {
+		qp.Add("id", f.ID.String())
+	}
+
+	if f.UserID != nil {
+		qp.Add("userID", f.UserID.String())
+	}
+
+	if f.User != nil {
+		qp.Add("user", *f.User)
+	}
+
+	if f.Token != nil {
+		qp.Add("token", *f.Token)
+	}
+
+	return qp
 }

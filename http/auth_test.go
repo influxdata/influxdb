@@ -92,7 +92,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 				body: fmt.Sprintf(`
 {
   "links": {
-    "self": "/api/v2/authorizations"
+    "self": "/api/v2/authorizations?descending=false&limit=20&offset=0"
   },
   "authorizations": [
     {
@@ -133,6 +133,78 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 			},
 		},
 		{
+			name: "get authorizations by offset and limit",
+			fields: fields{
+				&mock.AuthorizationService{
+					FindAuthorizationsFn: func(ctx context.Context, filter platform.AuthorizationFilter, opts ...platform.FindOptions) ([]*platform.Authorization, int, error) {
+						return []*platform.Authorization{
+							{
+								ID:          platformtesting.MustIDBase16("6669646573207375"),
+								Token:       "example",
+								UserID:      platformtesting.MustIDBase16("6c7574652c206f6e"),
+								OrgID:       platformtesting.MustIDBase16("9d70616e656d2076"),
+								Description: "t2",
+								Permissions: platform.OperPermissions(),
+							},
+						}, 1, nil
+					},
+				},
+				&mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						return &platform.User{
+							ID:   id,
+							Name: id.String(),
+						}, nil
+					},
+				},
+				&mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   id,
+							Name: id.String(),
+						}, nil
+					},
+				},
+			},
+			args: args{
+				map[string][]string{
+					"offset": {"1"},
+					"limit":  {"1"},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(`
+{
+  "links": {
+    "prev": "/api/v2/authorizations?descending=false&limit=1&offset=0",
+    "self": "/api/v2/authorizations?descending=false&limit=1&offset=1",
+    "next": "/api/v2/authorizations?descending=false&limit=1&offset=2"
+  },
+  "authorizations": [
+    {
+      "links": {
+        "user": "/api/v2/users/6c7574652c206f6e",
+        "self": "/api/v2/authorizations/6669646573207375"
+      },
+      "id": "6669646573207375",
+      "userID": "6c7574652c206f6e",
+      "user": "6c7574652c206f6e",
+	  "org": "9d70616e656d2076",
+	  "orgID": "9d70616e656d2076",
+      "status": "",
+      "token": "example",
+	  "description": "t2",
+	  "permissions": %s
+    }
+  ]
+}
+`,
+					MustMarshal(platform.OperPermissions())),
+			},
+		},
+		{
 			name: "get all authorizations when there are none",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
@@ -148,7 +220,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/authorizations"
+    "self": "/api/v2/authorizations?descending=false&limit=20&offset=0"
   },
   "authorizations": []
 }`,

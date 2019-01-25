@@ -137,16 +137,13 @@ func newPermissionsResponse(ctx context.Context, ps []platform.Permission, svc p
 }
 
 type authsResponse struct {
-	Links map[string]string `json:"links"`
-	Auths []*authResponse   `json:"authorizations"`
+	Links *platform.PagingLinks `json:"links"`
+	Auths []*authResponse       `json:"authorizations"`
 }
 
-func newAuthsResponse(as []*authResponse) *authsResponse {
+func newAuthsResponse(as []*authResponse, f platform.AuthorizationFilter, opts platform.FindOptions) *authsResponse {
 	return &authsResponse{
-		// TODO(desa): update links to include paging and filter information
-		Links: map[string]string{
-			"self": "/api/v2/authorizations",
-		},
+		Links: newPagingLinks("/api/v2/authorizations", opts, f, len(as)),
 		Auths: as,
 	}
 }
@@ -310,8 +307,7 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 		return
 	}
 
-	opts := platform.FindOptions{}
-	as, _, err := h.AuthorizationService.FindAuthorizations(ctx, req.filter, opts)
+	as, _, err := h.AuthorizationService.FindAuthorizations(ctx, req.filter, req.opts)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -340,7 +336,7 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 		auths[i] = newAuthResponse(a, o, u, ps)
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(auths)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(auths, req.filter, req.opts)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -348,12 +344,19 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 
 type getAuthorizationsRequest struct {
 	filter platform.AuthorizationFilter
+	opts   platform.FindOptions
 }
 
 func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getAuthorizationsRequest, error) {
 	qp := r.URL.Query()
 
 	req := &getAuthorizationsRequest{}
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	req.opts = *opts
 
 	userID := qp.Get("userID")
 	if userID != "" {
@@ -653,6 +656,14 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 
 	if filter.User != nil {
 		query.Add("user", *filter.User)
+	}
+
+	if len(opt) > 0 {
+		for k, vs := range opt[0].QueryParams() {
+			for _, v := range vs {
+				query.Add(k, v)
+			}
+		}
 	}
 
 	req.URL.RawQuery = query.Encode()
