@@ -2,6 +2,7 @@ package inmem
 
 import (
 	"context"
+	"sort"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -134,10 +135,7 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 			return false
 		}
 
-		if filterF(&a) {
-			as = append(as, &a)
-		}
-
+		as = append(as, &a)
 		return true
 	})
 
@@ -145,7 +143,36 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 		return nil, 0, err
 	}
 
-	return as, len(as), nil
+	var offset, limit, count int
+	var descending bool
+	if len(opt) > 0 {
+		offset = opt[0].Offset
+		limit = opt[0].Limit
+		descending = opt[0].Descending
+	}
+
+	sort.Slice(as, func(i, j int) bool {
+		if descending {
+			return as[i].ID.String() > as[j].ID.String()
+		}
+		return as[i].ID.String() < as[j].ID.String()
+	})
+
+	authorizations := make([]*platform.Authorization, 0)
+	for _, a := range as {
+		if filterF(a) {
+			if count >= offset {
+				authorizations = append(authorizations, a)
+			}
+			count++
+		}
+
+		if limit > 0 && len(authorizations) >= limit {
+			break
+		}
+	}
+
+	return authorizations, len(authorizations), nil
 }
 
 // CreateAuthorization sets a.Token and a.ID and creates an platform.Authorization
