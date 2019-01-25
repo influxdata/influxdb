@@ -798,9 +798,10 @@ func FindAuthorizations(
 	t *testing.T,
 ) {
 	type args struct {
-		ID     platform.ID
-		UserID platform.ID
-		token  string
+		ID          platform.ID
+		UserID      platform.ID
+		token       string
+		findOptions platform.FindOptions
 	}
 
 	type wants struct {
@@ -867,6 +868,123 @@ func FindAuthorizations(
 						Token:       "rand2",
 						Status:      platform.Active,
 						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
+					},
+				},
+			},
+		},
+		{
+			name: "find authorizations by offset and limit",
+			fields: AuthorizationFields{
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   MustIDBase16(userOneID),
+					},
+					{
+						Name: "regularuser",
+						ID:   MustIDBase16(userTwoID),
+					},
+				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Permissions: allUsersPermission(MustIDBase16(orgOneID)),
+					},
+					{
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Offset: 1,
+					Limit:  1,
+				},
+			},
+			wants: wants{
+				authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Status:      platform.Active,
+						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
+					},
+				},
+			},
+		},
+		{
+			name: "find authorizations by descending",
+			fields: AuthorizationFields{
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   MustIDBase16(userOneID),
+					},
+					{
+						Name: "regularuser",
+						ID:   MustIDBase16(userTwoID),
+					},
+				},
+				Orgs: []*platform.Organization{
+					{
+						Name: "o1",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Permissions: allUsersPermission(MustIDBase16(orgOneID)),
+					},
+					{
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
+					},
+				},
+			},
+			args: args{
+				findOptions: platform.FindOptions{
+					Descending: true,
+				},
+			},
+			wants: wants{
+				authorizations: []*platform.Authorization{
+					{
+						ID:          MustIDBase16(authTwoID),
+						UserID:      MustIDBase16(userTwoID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand2",
+						Status:      platform.Active,
+						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
+					},
+					{
+						ID:          MustIDBase16(authOneID),
+						UserID:      MustIDBase16(userOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Token:       "rand1",
+						Status:      platform.Active,
+						Permissions: allUsersPermission(MustIDBase16(orgOneID)),
 					},
 				},
 			},
@@ -1024,7 +1142,7 @@ func FindAuthorizations(
 				filter.Token = &tt.args.token
 			}
 
-			authorizations, _, err := s.FindAuthorizations(ctx, filter)
+			authorizations, _, err := s.FindAuthorizations(ctx, filter, tt.args.findOptions)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 			if diff := cmp.Diff(authorizations, tt.wants.authorizations, authorizationCmpOptions...); diff != "" {
 				t.Errorf("authorizations are different -got/+want\ndiff %s", diff)
