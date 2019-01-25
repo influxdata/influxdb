@@ -3,7 +3,6 @@ package testing
 import (
 	"bytes"
 	"context"
-	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -12,20 +11,14 @@ import (
 )
 
 const (
-	orgOneID = "020f755c3c083000"
-	orgTwoID = "020f755c3c083001"
+	orgOneID   = "020f755c3c083000"
+	orgTwoID   = "020f755c3c083001"
+	orgThreeID = "020f755c3c083002"
 )
 
 var organizationCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
-	}),
-	cmp.Transformer("Sort", func(in []*influxdb.Organization) []*influxdb.Organization {
-		out := append([]*influxdb.Organization(nil), in...) // Copy input to avoid mutating it
-		sort.Slice(out, func(i, j int) bool {
-			return out[i].ID.String() > out[j].ID.String()
-		})
-		return out
 	}),
 }
 
@@ -436,7 +429,7 @@ func FindOrganizations(
 				ID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				organizations: []*influxdb.Organization{},
+				// organizations: []*influxdb.Organization{},
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpFindOrganizations,
@@ -462,7 +455,7 @@ func FindOrganizations(
 				name: "na",
 			},
 			wants: wants{
-				organizations: []*influxdb.Organization{},
+				// organizations: []*influxdb.Organization{},
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpFindOrganizations,
@@ -471,7 +464,7 @@ func FindOrganizations(
 			},
 		},
 		{
-			name: "find orgs by offset and limit",
+			name: "find organizations by offset and limit",
 			fields: OrganizationFields{
 				Organizations: []*influxdb.Organization{
 					{
@@ -500,7 +493,7 @@ func FindOrganizations(
 			},
 		},
 		{
-			name: "find orgs by descending",
+			name: "find organizations in descending order",
 			fields: OrganizationFields{
 				Organizations: []*influxdb.Organization{
 					{
@@ -532,7 +525,7 @@ func FindOrganizations(
 			},
 		},
 		{
-			name: "find orgs by descending and limit",
+			name: "find organizations by limit in descending order",
 			fields: OrganizationFields{
 				Organizations: []*influxdb.Organization{
 					{
@@ -556,6 +549,87 @@ func FindOrganizations(
 					{
 						ID:   MustIDBase16(orgTwoID),
 						Name: "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find organizations sorted by name in descending order",
+			fields: OrganizationFields{
+				Organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "a",
+					},
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "z",
+					},
+					{
+						ID:   MustIDBase16(orgThreeID),
+						Name: "b",
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					SortBy:     "Name",
+					Descending: true,
+				},
+			},
+			wants: wants{
+				organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "z",
+					},
+					{
+						ID:   MustIDBase16(orgThreeID),
+						Name: "b",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "a",
+					},
+				},
+			},
+		},
+		{
+			name: "find organizations sorted by name in ascending order",
+			fields: OrganizationFields{
+				Organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "a",
+					},
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "z",
+					},
+					{
+						ID:   MustIDBase16(orgThreeID),
+						Name: "b",
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					SortBy: "Name",
+				},
+			},
+			wants: wants{
+				organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "a",
+					},
+					{
+						ID:   MustIDBase16(orgThreeID),
+						Name: "b",
+					},
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "z",
 					},
 				},
 			},
