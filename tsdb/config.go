@@ -66,6 +66,9 @@ const (
 	// DefaultMaxIndexLogFileSize is the default threshold, in bytes, when an index
 	// write-ahead log file will compact into an index file.
 	DefaultMaxIndexLogFileSize = 1 * 1024 * 1024 // 1MB
+
+	// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache in the TSI index.
+	DefaultSeriesIDSetCacheSize = 100
 )
 
 // Config holds the configuration for the tsbd package.
@@ -120,6 +123,11 @@ type Config struct {
 	// be compacted less frequently, store more series in-memory, and provide higher write throughput.
 	MaxIndexLogFileSize toml.Size `toml:"max-index-log-file-size"`
 
+	// SeriesIDSetCacheSize is the number items that can be cached within the TSI index. TSI caching can help
+	// with query performance when the same tag key/value predicates are commonly used on queries.
+	// Setting series-id-set-cache-size to 0 disables the cache.
+	SeriesIDSetCacheSize int `toml:"series-id-set-cache-size"`
+
 	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
 
 	// TSMWillNeed controls whether we hint to the kernel that we intend to
@@ -148,7 +156,8 @@ func NewConfig() Config {
 		MaxValuesPerTag:          DefaultMaxValuesPerTag,
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 
-		MaxIndexLogFileSize: toml.Size(DefaultMaxIndexLogFileSize),
+		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
+		SeriesIDSetCacheSize: DefaultSeriesIDSetCacheSize,
 
 		TraceLoggingEnabled: false,
 		TSMWillNeed:         false,
@@ -164,7 +173,11 @@ func (c *Config) Validate() error {
 	}
 
 	if c.MaxConcurrentCompactions < 0 {
-		return errors.New("max-concurrent-compactions must be greater than 0")
+		return errors.New("max-concurrent-compactions must be non-negative")
+	}
+
+	if c.SeriesIDSetCacheSize < 0 {
+		return errors.New("series-id-set-cache-size must be non-negative")
 	}
 
 	valid := false
@@ -205,5 +218,7 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"max-series-per-database":            c.MaxSeriesPerDatabase,
 		"max-values-per-tag":                 c.MaxValuesPerTag,
 		"max-concurrent-compactions":         c.MaxConcurrentCompactions,
+		"max-index-log-file-size":            c.MaxIndexLogFileSize,
+		"series-id-set-cache-size":           c.SeriesIDSetCacheSize,
 	}), nil
 }
