@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import SelectDataSourceStep from 'src/onboarding/components/selectionStep/SelectDataSourceStep'
+import SelectDataSourceStep from 'src/dataLoaders/components/selectionStep/SelectDataSourceStep'
 import ConfigureDataSourceStep from 'src/onboarding/components/configureStep/ConfigureDataSourceStep'
 import VerifyDataStep from 'src/onboarding/components/verifyStep/VerifyDataStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'

@@ -5,8 +5,8 @@ import _ from 'lodash'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ComponentStatus, Form} from 'src/clockface'
-import TypeSelector from 'src/onboarding/components/selectionStep/TypeSelector'
-import StreamingSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
+import TypeSelector from 'src/dataLoaders/components/selectionStep/TypeSelector'
+import StreamingSelector from 'src/dataLoaders/components/selectionStep/StreamingSelector'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 

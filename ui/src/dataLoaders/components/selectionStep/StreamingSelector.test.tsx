@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import StreamingSelector from 'src/onboarding/components/selectionStep/StreamingSelector'
+import StreamingSelector from 'src/dataLoaders/components/selectionStep/StreamingSelector'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import {Input} from 'src/clockface'
 
