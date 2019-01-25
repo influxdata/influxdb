@@ -208,6 +208,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -217,6 +218,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to find tasks",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -295,6 +297,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EUnauthorized,
+			Msg:  "failed to get authorizer",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -305,6 +308,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -373,6 +377,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -383,6 +388,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.ENotFound,
+			Msg:  "failed to find task",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -401,6 +407,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to find resource labels",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -443,6 +450,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -451,6 +459,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to update task",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -460,6 +469,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to find resource labels",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -516,6 +526,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -524,6 +535,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	if err := h.TaskService.DeleteTask(ctx, req.TaskID); err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to delete task",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -561,6 +573,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -570,6 +583,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to find task logs",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -635,6 +649,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -645,6 +660,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to find runs",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -745,6 +761,7 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -754,6 +771,7 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to force run",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -813,6 +831,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -823,6 +842,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.ENotFound,
+			Msg:  "failed to find run",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -903,6 +923,7 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -912,6 +933,7 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to cancel run",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -926,6 +948,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err:  err,
 			Code: platform.EInvalid,
+			Msg:  "failed to decode request",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -935,6 +958,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = &platform.Error{
 			Err: err,
+			Msg: "failed to retry run",
 		}
 		EncodeError(ctx, err, w)
 		return
