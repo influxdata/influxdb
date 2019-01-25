@@ -61,12 +61,12 @@ func CheckError(resp *http.Response) (err error) {
 	if parseErr != nil {
 		return parseErr
 	}
-	err = pe
-	return err
+	return pe
 }
 
 // EncodeError encodes err with the appropriate status code and format,
-// sets the X-Influx-Error and X-Influx-Reference headers on the response,
+// sets the X-Platform-Error-Code headers on the response.
+// We're no longer using X-Influx-Error and X-Influx-Reference.
 // and sets the response status to the corresponding status code.
 func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 	if err == nil {
