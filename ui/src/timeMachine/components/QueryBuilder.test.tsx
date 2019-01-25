@@ -29,13 +29,11 @@ describe('QueryBuilder', () => {
       getByText,
     } = renderWithRedux(<QueryBuilder />, setInitialState)
 
-    let bucketsDropdownClosed = await waitForElement(() => getByText('b1'))
+    const bucketsDropdownClosed = await waitForElement(() => getByText('b1'))
 
     fireEvent.click(bucketsDropdownClosed)
 
-    const bucketItems = await waitForElement(() =>
-      getAllByTestId(/dropdown--item/)
-    )
+    const bucketItems = getAllByTestId(/dropdown--item/)
 
     expect(bucketItems.length).toBe(2)
 
@@ -43,11 +41,11 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(b2)
 
-    bucketsDropdownClosed = await waitForElement(() =>
+    const closedDropdown = await waitForElement(() =>
       getByTestId('buckets--button')
     )
 
-    expect(bucketsDropdownClosed.textContent).toBe('b2')
+    expect(closedDropdown.textContent).toBe('b2')
     expect(queryAllByTestId(/dropdown--item/).length).toBe(0)
   })
 
