@@ -21,7 +21,7 @@ func TestEngine_WriteAndIndex(t *testing.T) {
 
 	// Calling WritePoints when the engine is not open will return
 	// ErrEngineClosed.
-	if got, exp := engine.Write1xPoints(nil), storage.ErrEngineClosed; got != exp {
+	if got, exp := engine.Engine.WritePoints(context.TODO(), nil), storage.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -34,12 +34,12 @@ func TestEngine_WriteAndIndex(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{pt}); err != nil {
 		t.Fatal(err)
 	}
 
 	pt.SetTime(time.Unix(2, 3))
-	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{pt}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -57,7 +57,7 @@ func TestEngine_WriteAndIndex(t *testing.T) {
 
 	// and ensure that we can still write data
 	pt.SetTime(time.Unix(2, 6))
-	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{pt}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -74,7 +74,7 @@ func TestEngine_TimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{pt}); err == nil {
 		t.Fatal("expected error: got nil")
 	}
 
@@ -85,7 +85,7 @@ func TestEngine_TimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{pt}); err == nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -95,25 +95,34 @@ func TestWrite_TimeField(t *testing.T) {
 	defer engine.Close()
 	engine.MustOpen()
 
+	name := tsdb.EncodeNameString(engine.org, engine.bucket)
+
 	pt := models.MustNewPoint(
-		"cpu",
-		models.NewTags(map[string]string{}),
+		name,
+		models.NewTags(map[string]string{"_f": "time", "_m": "cpu"}),
 		map[string]interface{}{"time": 1.0},
 		time.Unix(1, 2),
 	)
 
-	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{pt}); err == nil {
 		t.Fatal("expected error: got nil")
 	}
 
-	pt = models.MustNewPoint(
-		"cpu",
-		models.NewTags(map[string]string{}),
-		map[string]interface{}{"value": 1.1, "time": 1.0},
+	var points []models.Point
+	points = append(points, models.MustNewPoint(
+		name,
+		models.NewTags(map[string]string{"_f": "time", "_m": "cpu"}),
+		map[string]interface{}{"time": 1.0},
 		time.Unix(1, 2),
-	)
+	))
+	points = append(points, models.MustNewPoint(
+		name,
+		models.NewTags(map[string]string{"_f": "value", "_m": "cpu"}),
+		map[string]interface{}{"value": 1.1},
+		time.Unix(1, 2),
+	))
 
-	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
+	if err := engine.Engine.WritePoints(context.TODO(), points); err == nil {
 		t.Fatal("expected error: got nil")
 	}
 }
@@ -123,27 +132,31 @@ func TestEngine_WriteAddNewField(t *testing.T) {
 	defer engine.Close()
 	engine.MustOpen()
 
-	pt := models.MustNewPoint(
-		"cpu",
-		models.NewTags(map[string]string{"host": "server"}),
+	name := tsdb.EncodeNameString(engine.org, engine.bucket)
+
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{models.MustNewPoint(
+		name,
+		models.NewTags(map[string]string{"_f": "value", "_m": "cpu", "host": "server"}),
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
-	)
-
-	err := engine.Write1xPoints([]models.Point{pt})
-	if err != nil {
+	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	pt = models.MustNewPoint(
-		"cpu",
-		models.NewTags(map[string]string{"host": "server"}),
-		map[string]interface{}{"value": 1.0, "value2": 2.0},
-		time.Unix(1, 2),
-	)
-
-	err = engine.Write1xPoints([]models.Point{pt})
-	if err != nil {
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{
+		models.MustNewPoint(
+			name,
+			models.NewTags(map[string]string{"_f": "value", "_m": "cpu", "host": "server"}),
+			map[string]interface{}{"value": 1.0},
+			time.Unix(1, 2),
+		),
+		models.MustNewPoint(
+			name,
+			models.NewTags(map[string]string{"_f": "value2", "_m": "cpu", "host": "server"}),
+			map[string]interface{}{"value2": 2.0},
+			time.Unix(1, 2),
+		),
+	}); err != nil {
 		t.Fatalf(err.Error())
 	}
 
@@ -157,27 +170,34 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	defer engine.Close()
 	engine.MustOpen()
 
-	pt := models.MustNewPoint(
-		"cpu",
-		models.NewTags(map[string]string{"host": "server"}),
+	orgID, _ := influxdb.IDFromString("3131313131313131")
+	bucketID, _ := influxdb.IDFromString("8888888888888888")
+
+	err := engine.Engine.WritePoints(context.TODO(), []models.Point{models.MustNewPoint(
+		tsdb.EncodeNameString(engine.org, engine.bucket),
+		models.NewTags(map[string]string{"_f": "value", "_m": "cpu", "host": "server"}),
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
-	)
-
-	err := engine.Write1xPoints([]models.Point{pt})
+	)})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	pt = models.MustNewPoint(
-		"cpu",
-		models.NewTags(map[string]string{"host": "server"}),
-		map[string]interface{}{"value": 1.0, "value2": 2.0},
-		time.Unix(1, 3),
-	)
-
 	// Same org, different bucket.
-	err = engine.Write1xPointsWithOrgBucket([]models.Point{pt}, "3131313131313131", "8888888888888888")
+	err = engine.Engine.WritePoints(context.TODO(), []models.Point{
+		models.MustNewPoint(
+			tsdb.EncodeNameString(*orgID, *bucketID),
+			models.NewTags(map[string]string{"_f": "value", "_m": "cpu", "host": "server"}),
+			map[string]interface{}{"value": 1.0},
+			time.Unix(1, 3),
+		),
+		models.MustNewPoint(
+			tsdb.EncodeNameString(*orgID, *bucketID),
+			models.NewTags(map[string]string{"_f": "value2", "_m": "cpu", "host": "server"}),
+			map[string]interface{}{"value2": 2.0},
+			time.Unix(1, 3),
+		),
+	})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -228,7 +248,7 @@ func TestEngineClose_RemoveIndex(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := engine.Write1xPoints([]models.Point{pt})
+	err := engine.Engine.WritePoints(context.TODO(), []models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -261,7 +281,7 @@ func TestEngine_WALDisabled(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
+	if err := engine.Engine.WritePoints(context.TODO(), []models.Point{pt}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -282,7 +302,7 @@ func BenchmarkDeleteBucket(b *testing.B) {
 			)
 		}
 
-		if err := engine.Write1xPoints(points); err != nil {
+		if err := engine.Engine.WritePoints(context.TODO(), points); err != nil {
 			panic(err)
 		}
 	}
@@ -352,6 +372,7 @@ func (e *Engine) MustOpen() {
 	}
 }
 
+/*
 // Write1xPoints converts old style points into the new 2.0 engine format.
 // This allows us to use the old `models` package helper functions and still write
 // the points in the correct format.
@@ -381,6 +402,7 @@ func (e *Engine) Write1xPointsWithOrgBucket(pts []models.Point, org, bucket stri
 	}
 	return e.Engine.WritePoints(context.TODO(), points)
 }
+*/
 
 // Close closes the engine and removes all temporary data.
 func (e *Engine) Close() error {

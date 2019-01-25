@@ -185,7 +185,7 @@ func BenchmarkIndex_TagSets(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	points, err := models.ParsePoints(data)
+	points, err := models.ParsePoints(data, []byte("mm"))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	points, err := models.ParsePoints(data)
+	points, err := models.ParsePoints(data, []byte("mm"))
 	if err != nil {
 		b.Fatal(err)
 	}
