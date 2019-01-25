@@ -15,8 +15,9 @@ import {
 } from 'src/shared/copy/notifications'
 
 // APIs
-import {getOrganizations, getDashboards} from 'src/organizations/apis'
+import {getDashboards} from 'src/organizations/apis'
 import {createScraperTarget} from 'src/onboarding/apis'
+import {client} from 'src/utils/api'
 
 // Types
 import {
@@ -34,6 +35,8 @@ interface Props extends OnboardingStepProps {
   orgID: string
   bucketID: string
 }
+
+const getOrganizations = () => client.organizations.getAll()
 
 @ErrorHandling
 class CompletionStep extends PureComponent<Props> {
