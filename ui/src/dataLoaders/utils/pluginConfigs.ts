@@ -2,7 +2,7 @@
 import {
   telegrafPluginsInfo,
   pluginsByBundle,
-} from 'src/onboarding/constants/pluginConfigs'
+} from 'src/dataLoaders/constants/pluginConfigs'
 
 // Types
 import {

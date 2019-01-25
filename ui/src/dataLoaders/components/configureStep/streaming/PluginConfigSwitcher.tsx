@@ -7,7 +7,7 @@ import PluginConfigForm from 'src/dataLoaders/components/configureStep/streaming
 import EmptyDataSourceState from 'src/dataLoaders/components/configureStep/EmptyDataSourceState'
 
 // Utils
-import {getConfigFields} from 'src/onboarding/utils/pluginConfigs'
+import {getConfigFields} from 'src/dataLoaders/utils/pluginConfigs'
 
 // Actions
 import {

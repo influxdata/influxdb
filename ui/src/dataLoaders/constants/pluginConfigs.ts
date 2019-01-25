@@ -260,7 +260,7 @@ import {
   LogoKubernetes,
   LogoNginx,
   LogoRedis,
-} from 'src/onboarding/graphics'
+} from 'src/dataLoaders/graphics'
 
 export const BUNDLE_LOGOS = {
   [BundleName.System]: LogoCpu,

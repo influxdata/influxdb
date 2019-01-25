@@ -5,7 +5,11 @@ import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import {GridSizer} from 'src/clockface'
-import {IconCSV, IconLineProtocol, IconStreaming} from 'src/onboarding/graphics'
+import {
+  IconCSV,
+  IconLineProtocol,
+  IconStreaming,
+} from 'src/dataLoaders/graphics'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'

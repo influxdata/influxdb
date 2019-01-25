@@ -43,7 +43,7 @@ import {
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
 import {Bucket} from 'src/api'
-import PluginsSideBar from 'src/onboarding/components/PluginsSideBar'
+import PluginsSideBar from 'src/dataLoaders/components/PluginsSideBar'
 
 export interface DataLoaderStepProps {
   links: Links

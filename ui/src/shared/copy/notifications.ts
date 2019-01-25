@@ -8,7 +8,7 @@ type NotificationExcludingMessage = Pick<
 >
 
 import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
-import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/onboarding/constants/pluginConfigs'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
 const defaultErrorNotification: NotificationExcludingMessage = {
   type: 'error',

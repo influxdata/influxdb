@@ -4,7 +4,7 @@ import classnames from 'classnames'
 
 // Types
 import {IconFont} from 'src/clockface'
-import {SideBarTabStatus as TabStatus} from 'src/onboarding/components/side_bar/SideBar'
+import {SideBarTabStatus as TabStatus} from 'src/dataLoaders/components/side_bar/SideBar'
 
 interface Props {
   label: string

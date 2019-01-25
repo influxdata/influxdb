@@ -29,7 +29,7 @@ import {
 } from 'src/clockface'
 import {Organization, Dashboard} from 'src/api'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/onboarding/constants/pluginConfigs'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
 interface Props extends OnboardingStepProps {
   orgID: string

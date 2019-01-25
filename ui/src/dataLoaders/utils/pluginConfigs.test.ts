@@ -2,7 +2,7 @@
 import {
   isPluginInBundle,
   isPluginUniqueToBundle,
-} from 'src/onboarding/utils/pluginConfigs'
+} from 'src/dataLoaders/utils/pluginConfigs'
 
 // Types
 import {BundleName} from 'src/types/v2/dataLoaders'

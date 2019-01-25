@@ -3,10 +3,10 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import SideBarTab from 'src/onboarding/components/side_bar/SideBarTab'
+import SideBarTab from 'src/dataLoaders/components/side_bar/SideBarTab'
 
 // Types
-import {SideBarTabStatus as TabStatus} from 'src/onboarding/components/side_bar/SideBar'
+import {SideBarTabStatus as TabStatus} from 'src/dataLoaders/components/side_bar/SideBar'
 
 // Constants
 import {IconFont} from 'src/clockface'

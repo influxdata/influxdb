@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import SideBarButton from 'src/onboarding/components/side_bar/SideBarButton'
+import SideBarButton from 'src/dataLoaders/components/side_bar/SideBarButton'
 import {ComponentColor} from 'src/clockface'
 
 const onClick = jest.fn(() => {})
