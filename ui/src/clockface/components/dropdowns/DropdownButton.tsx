@@ -23,7 +23,7 @@ interface Props {
   size?: ComponentSize
   icon?: IconFont
   title?: string
-  testid: string
+  testID: string
 }
 
 @ErrorHandling
@@ -36,7 +36,7 @@ class DropdownButton extends Component<Props> {
   }
 
   public render() {
-    const {onClick, children, title, testid} = this.props
+    const {onClick, children, title, testID} = this.props
     return (
       <button
         className={this.classname}
@@ -44,7 +44,7 @@ class DropdownButton extends Component<Props> {
         disabled={this.isDisabled}
         title={title}
         type={ButtonType.Button}
-        data-testid={testid}
+        data-testid={testID}
       >
         {this.icon}
         <span className="dropdown--selected">{children}</span>

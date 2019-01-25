@@ -43,8 +43,8 @@ export interface Props {
   mode?: DropdownMode
   titleText?: string
   menuHeader?: JSX.Element
-  testid: string
-  buttonTestId: string
+  testID: string
+  buttonTestID: string
 }
 
 interface State {
@@ -124,7 +124,7 @@ class Dropdown extends Component<Props, State> {
       icon,
       children,
       titleText,
-      buttonTestId,
+      buttonTestID,
     } = this.props
     const {expanded} = this.state
 
@@ -150,7 +150,7 @@ class Dropdown extends Component<Props, State> {
         onClick={this.toggleMenu}
         status={status}
         title={titleText}
-        testid={buttonTestId}
+        testID={buttonTestID}
       >
         {dropdownLabel}
       </DropdownButton>
@@ -164,7 +164,7 @@ class Dropdown extends Component<Props, State> {
       menuHeader,
       menuColor,
       children,
-      testid,
+      testID,
     } = this.props
     const {expanded} = this.state
 
@@ -181,7 +181,7 @@ class Dropdown extends Component<Props, State> {
           >
             <div
               className="dropdown--menu"
-              data-testid={`dropdown--menu ${testid}`}
+              data-testid={`dropdown--menu ${testID}`}
             >
               {menuHeader && menuHeader}
               {React.Children.map(children, (child: JSX.Element) => {

@@ -129,8 +129,8 @@ class TagSelector extends PureComponent<Props> {
             onChange={this.handleSelectTag}
             status={toComponentStatus(keysStatus)}
             titleText="No Tags Found"
-            testid="tag-selector--dropdown"
-            buttonTestId="tag-selector--dropdown-button"
+            testID="tag-selector--dropdown"
+            buttonTestID="tag-selector--dropdown-button"
           >
             {keys.map(key => (
               <Dropdown.Item key={key} id={key} value={key}>
