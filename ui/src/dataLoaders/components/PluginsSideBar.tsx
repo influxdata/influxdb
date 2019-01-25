@@ -1,8 +1,8 @@
 import React, {Component} from 'react'
 
 // Components
-import SideBar from 'src/onboarding/components/side_bar/SideBar'
-import {SideBarTabStatus as TabStatus} from 'src/onboarding/components/side_bar/SideBar'
+import SideBar from 'src/dataLoaders/components/side_bar/SideBar'
+import {SideBarTabStatus as TabStatus} from 'src/dataLoaders/components/side_bar/SideBar'
 
 import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
 

@@ -9,7 +9,7 @@ import {Form} from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Constants
-import {telegrafPluginsInfo} from 'src/onboarding/constants/pluginConfigs'
+import {telegrafPluginsInfo} from 'src/dataLoaders/constants/pluginConfigs'
 import {telegrafPlugin} from 'mocks/dummyData'
 
 // Types

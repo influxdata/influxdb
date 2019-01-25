@@ -40,7 +40,7 @@ import {
   telegrafConfig,
   dockerTelegrafPlugin,
 } from 'mocks/dummyData'
-import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/onboarding/constants/pluginConfigs'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
 // Types
 import {

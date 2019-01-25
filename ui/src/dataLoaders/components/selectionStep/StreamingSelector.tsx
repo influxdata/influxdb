@@ -21,7 +21,7 @@ import {
 import {
   PLUGIN_BUNDLE_OPTIONS,
   BUNDLE_LOGOS,
-} from 'src/onboarding/constants/pluginConfigs'
+} from 'src/dataLoaders/constants/pluginConfigs'
 
 // Types
 import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'

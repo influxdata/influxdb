@@ -8,7 +8,7 @@ import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import {Input} from 'src/clockface'
 
 // Constants
-import {PLUGIN_BUNDLE_OPTIONS} from 'src/onboarding/constants/pluginConfigs'
+import {PLUGIN_BUNDLE_OPTIONS} from 'src/dataLoaders/constants/pluginConfigs'
 
 const setup = (override = {}) => {
   const props = {

@@ -3,8 +3,8 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Components
-import SideBarTab from 'src/onboarding/components/side_bar/SideBarTab'
-import SideBarButton from 'src/onboarding/components/side_bar/SideBarButton'
+import SideBarTab from 'src/dataLoaders/components/side_bar/SideBarTab'
+import SideBarButton from 'src/dataLoaders/components/side_bar/SideBarButton'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import {ComponentSpacer, Stack, Alignment} from 'src/clockface'
 

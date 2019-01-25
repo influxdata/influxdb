@@ -12,13 +12,13 @@ import {
 } from 'src/onboarding/apis/index'
 
 // Utils
-import {createNewPlugin} from 'src/onboarding/utils/pluginConfigs'
+import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
 
 // Constants
 import {
   pluginsByBundle,
   telegrafPluginsInfo,
-} from 'src/onboarding/constants/pluginConfigs'
+} from 'src/dataLoaders/constants/pluginConfigs'
 
 // Types
 import {

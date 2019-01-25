@@ -3,9 +3,9 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import PluginsSideBar from 'src/onboarding/components/PluginsSideBar'
+import PluginsSideBar from 'src/dataLoaders/components/PluginsSideBar'
 import {cpuTelegrafPlugin, diskTelegrafPlugin} from 'mocks/dummyData'
-import SideBarTab from 'src/onboarding/components/side_bar/SideBarTab'
+import SideBarTab from 'src/dataLoaders/components/side_bar/SideBarTab'
 
 const onClick = jest.fn(() => {})
 

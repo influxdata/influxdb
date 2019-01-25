@@ -8,7 +8,7 @@ import {
   isPluginInBundle,
   isPluginUniqueToBundle,
   getConfigFields,
-} from 'src/onboarding/utils/pluginConfigs'
+} from 'src/dataLoaders/utils/pluginConfigs'
 import {getDeep} from 'src/utils/wrappers'
 import {validateURI} from 'src/shared/utils/validateURI'
 
@@ -24,7 +24,7 @@ import {
 } from 'src/types/v2/dataLoaders'
 import {RemoteDataState} from 'src/types'
 import {WritePrecision} from 'src/api'
-import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/onboarding/constants/pluginConfigs'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
 export const INITIAL_STATE: DataLoadersState = {
   telegrafPlugins: [],
