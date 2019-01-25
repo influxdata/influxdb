@@ -36,7 +36,9 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(bucketsDropdownClosed)
 
-    const bucketItems = getAllByTestId(/dropdown--item/)
+    const bucketItems = await waitForElement(() =>
+      getAllByTestId(/dropdown--item/)
+    )
 
     expect(bucketItems.length).toBe(2)
 
@@ -64,7 +66,9 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(keysButton)
 
-    const keyMenuItems = getAllByTestId(/dropdown--item/)
+    const keyMenuItems = await waitForElement(() =>
+      getAllByTestId(/dropdown--item/)
+    )
 
     expect(keyMenuItems.length).toBe(2)
 
