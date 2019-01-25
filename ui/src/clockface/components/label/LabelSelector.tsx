@@ -79,6 +79,7 @@ class LabelSelector extends Component<Props, State> {
               onKeyDown={this.handleKeyDown}
               onChange={this.handleInputChange}
               size={inputSize}
+              autoFocus={true}
             />
             {this.suggestionMenu}
           </div>
