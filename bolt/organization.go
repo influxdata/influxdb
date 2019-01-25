@@ -7,7 +7,7 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	influxdbcontext "github.com/influxdata/influxdb/context"
 )
 
@@ -144,7 +144,7 @@ func (c *Client) FindOrganization(ctx context.Context, filter influxdb.Organizat
 
 	var o *influxdb.Organization
 	err := c.db.View(func(tx *bolt.Tx) error {
-		return forEachOrganization(ctx, tx, func(org *influxdb.Organization) bool {
+		return forEachOrganization(ctx, tx, influxdb.FindOptions{}, func(org *influxdb.Organization) bool {
 			if filterFn(org) {
 				o = org
 				return false
@@ -190,7 +190,7 @@ func filterOrganizationsFn(filter influxdb.OrganizationFilter) func(o *influxdb.
 // FindOrganizations retrives all organizations that match an arbitrary organization filter.
 // Filters using ID, or Name should be efficient.
 // Other filters will do a linear scan across all organizations searching for a match.
-func (c *Client) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
+func (c *Client) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opts influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
 	op := getOp(influxdb.OpFindOrganizations)
 	if filter.ID != nil {
 		o, err := c.FindOrganizationByID(ctx, *filter.ID)
@@ -216,12 +216,21 @@ func (c *Client) FindOrganizations(ctx context.Context, filter influxdb.Organiza
 		return []*influxdb.Organization{o}, 1, nil
 	}
 
+	var count int
+	offset := opts.Offset
+	limit := opts.Limit
 	os := []*influxdb.Organization{}
 	filterFn := filterOrganizationsFn(filter)
 	err := c.db.View(func(tx *bolt.Tx) error {
-		return forEachOrganization(ctx, tx, func(o *influxdb.Organization) bool {
+		return forEachOrganization(ctx, tx, opts, func(o *influxdb.Organization) bool {
 			if filterFn(o) {
-				os = append(os, o)
+				if count >= offset {
+					os = append(os, o)
+				}
+				count++
+			}
+			if limit > 0 && len(os) >= limit {
+				return false
 			}
 			return true
 		})
@@ -311,15 +320,29 @@ func organizationIndexKey(n string) []byte {
 }
 
 // forEachOrganization will iterate through all organizations while fn returns true.
-func forEachOrganization(ctx context.Context, tx *bolt.Tx, fn func(*influxdb.Organization) bool) error {
+func forEachOrganization(ctx context.Context, tx *bolt.Tx, opts influxdb.FindOptions, fn func(*influxdb.Organization) bool) error {
 	cur := tx.Bucket(organizationBucket).Cursor()
-	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+
+	var k, v []byte
+	if opts.Descending {
+		k, v = cur.Last()
+	} else {
+		k, v = cur.First()
+	}
+
+	for k != nil {
 		o := &influxdb.Organization{}
 		if err := json.Unmarshal(v, o); err != nil {
 			return err
 		}
 		if !fn(o) {
 			break
+		}
+
+		if opts.Descending {
+			k, v = cur.Prev()
+		} else {
+			k, v = cur.Next()
 		}
 	}
 
