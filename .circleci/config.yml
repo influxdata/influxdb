@@ -1,5 +1,13 @@
 version: 2
 jobs:
+  litmus_nightly:
+    machine: true
+    steps:
+      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - store_artifacts:
+          path: ~/project
+  
   jstest:
     docker:
       - image: circleci/golang:1.11-node-browsers
@@ -188,6 +196,10 @@ workflows:
           filters:
             branches:
               only: master
+      - litmus_nightly:
+          requires:
+            - deploy-nightly
+
   release:
     jobs:
       - gotest:
