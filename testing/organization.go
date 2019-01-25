@@ -491,15 +491,15 @@ func FindOrganizations(
 			},
 		},
 		{
-			name: "find organizations in descending order",
+			name: "find organizations by id in descending order",
 			fields: OrganizationFields{
 				Organizations: []*influxdb.Organization{
 					{
-						ID:   MustIDBase16(orgOneID),
+						ID:   influxdb.ID(2),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDBase16(orgTwoID),
+						ID:   influxdb.ID(1),
 						Name: "xyz",
 					},
 				},
@@ -512,26 +512,26 @@ func FindOrganizations(
 			wants: wants{
 				organizations: []*influxdb.Organization{
 					{
-						ID:   MustIDBase16(orgTwoID),
-						Name: "xyz",
+						ID:   influxdb.ID(2),
+						Name: "abc",
 					},
 					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "abc",
+						ID:   influxdb.ID(1),
+						Name: "xyz",
 					},
 				},
 			},
 		},
 		{
-			name: "find organizations by limit in descending order",
+			name: "find organizations by id in descending order with limit 1",
 			fields: OrganizationFields{
 				Organizations: []*influxdb.Organization{
 					{
-						ID:   MustIDBase16(orgOneID),
+						ID:   influxdb.ID(2),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDBase16(orgTwoID),
+						ID:   influxdb.ID(1),
 						Name: "xyz",
 					},
 				},
@@ -545,7 +545,37 @@ func FindOrganizations(
 			wants: wants{
 				organizations: []*influxdb.Organization{
 					{
+						ID:   influxdb.ID(2),
+						Name: "abc",
+					},
+				},
+			},
+		},
+		{
+			name: "find organizations sorting by name in descending order with limit 1",
+			fields: OrganizationFields{
+				Organizations: []*influxdb.Organization{
+					{
 						ID:   MustIDBase16(orgTwoID),
+						Name: "abc",
+					},
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				findOptions: influxdb.FindOptions{
+					Descending: true,
+					Limit:      1,
+					SortBy:     "Name",
+				},
+			},
+			wants: wants{
+				organizations: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
 						Name: "xyz",
 					},
 				},
