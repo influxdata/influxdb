@@ -58,6 +58,7 @@ v1.6.0 [2018-07-05]
 -	[#10300](https://github.com/influxdata/influxdb/pull/10300): Improve Compaction Performance.
 -	[#10130](https://github.com/influxdata/influxdb/pull/10130): client/v2: support custom dialer, not just socks proxy.
 -	[#10586](https://github.com/influxdata/influxdb/pull/10586): Update flux to 0.11.0.
+-	[#11525](https://github.com/influxdata/influxdb/pull/11525): Allow TSI bitset cache to be configured.
 
 ### Bugfixes
 
