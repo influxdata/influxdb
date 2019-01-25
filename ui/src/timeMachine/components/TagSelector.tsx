@@ -119,7 +119,7 @@ class TagSelector extends PureComponent<Props> {
       <>
         <div
           className="tag-selector--top"
-          data-testid="tag-selector--top-button"
+          data-testid={`tag-selector--container ${index}`}
         >
           <SearchableDropdown
             searchTerm={keysSearchTerm}

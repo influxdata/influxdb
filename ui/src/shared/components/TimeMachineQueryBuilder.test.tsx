@@ -24,7 +24,7 @@ describe('TimeMachineQueryBuilder', () => {
     }
   })
 
-  it.only('can select a bucket', async () => {
+  it('can select a bucket', async () => {
     const {getByTestId, getAllByTestId, queryAllByTestId} = renderWithRedux(
       <TimeMachineQueryBuilder />,
       setInitialState
@@ -52,7 +52,7 @@ describe('TimeMachineQueryBuilder', () => {
     expect(queryAllByTestId(/dropdown--item/).length).toBe(0)
   })
 
-  it('can select a measurement', async () => {
+  it('can select a tag', async () => {
     const {
       getByText,
       getByTestId,
@@ -72,9 +72,26 @@ describe('TimeMachineQueryBuilder', () => {
 
     fireEvent.click(tk2)
 
-    keysButton = getByTestId('tag-selector--dropdown')
+    keysButton = await waitForElement(() =>
+      getByTestId('tag-selector--dropdown-button')
+    )
 
-    expect(keysButton.innerText).toBe('tk2')
-    expect(queryAllByTestId(/dropdown--item/).length).toBe(null)
+    expect(keysButton.innerHTML.includes('tk2')).toBe(true)
+    expect(queryAllByTestId(/dropdown--item/).length).toBe(0)
+  })
+
+  it('can select a tag value', async () => {
+    const {getByText, getByTestId, queryAllByTestId} = renderWithRedux(
+      <TimeMachineQueryBuilder />,
+      setInitialState
+    )
+
+    const tagValue = await waitForElement(() => getByText('tv1'))
+
+    fireEvent.click(tagValue)
+
+    await waitForElement(() => getByTestId('tag-selector--container 1'))
+
+    expect(queryAllByTestId(/tag-selector--container/).length).toBe(2)
   })
 })
