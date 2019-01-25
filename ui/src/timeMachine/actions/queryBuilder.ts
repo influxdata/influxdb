@@ -1,5 +1,5 @@
 // APIs
-import {queryBuilderFetcher} from 'src/timeMachine/apis/queryBuilder'
+import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 
 // Utils
 import {
@@ -47,7 +47,9 @@ interface SetBuilderBucketsAction {
   payload: {buckets: string[]}
 }
 
-const setBuilderBuckets = (buckets: string[]): SetBuilderBucketsAction => ({
+export const setBuilderBuckets = (
+  buckets: string[]
+): SetBuilderBucketsAction => ({
   type: 'SET_BUILDER_BUCKETS',
   payload: {buckets},
 })
