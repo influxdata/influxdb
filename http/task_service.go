@@ -462,9 +462,12 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	task, err := h.TaskService.UpdateTask(ctx, req.TaskID, req.Update)
 	if err != nil {
-		err = &platform.Error{
+		err := &platform.Error{
 			Err: err,
 			Msg: "failed to update task",
+		}
+		if err.Err == backend.ErrTaskNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -541,9 +544,12 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.TaskService.DeleteTask(ctx, req.TaskID); err != nil {
-		err = &platform.Error{
+		err := &platform.Error{
 			Err: err,
 			Msg: "failed to delete task",
+		}
+		if err.Err == backend.ErrTaskNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -592,9 +598,12 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 
 	logs, _, err := h.TaskService.FindLogs(ctx, req.filter)
 	if err != nil {
-		err = &platform.Error{
+		err := &platform.Error{
 			Err: err,
 			Msg: "failed to find task logs",
+		}
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -671,10 +680,12 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 
 	runs, _, err := h.TaskService.FindRuns(ctx, req.filter)
 	if err != nil {
-		err = &platform.Error{
-			Err:  err,
-			Code: platform.EInvalid,
-			Msg:  "failed to find runs",
+		err := &platform.Error{
+			Err: err,
+			Msg: "failed to find runs",
+		}
+		if err.Err == backend.ErrTaskNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -792,12 +803,12 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.ForceRun(ctx, req.TaskID, req.Timestamp)
 	if err != nil {
-		if err == backend.ErrRunNotFound {
-			err = &platform.Error{
-				Code: platform.ENotFound,
-				Msg:  "failed to force run",
-				Err:  err,
-			}
+		err := &platform.Error{
+			Err: err,
+			Msg: "failed to force run",
+		}
+		if err.Err == backend.ErrTaskNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -868,12 +879,12 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.FindRunByID(ctx, req.TaskID, req.RunID)
 	if err != nil {
-		if err == backend.ErrRunNotFound {
-			err = &platform.Error{
-				Err:  err,
-				Msg:  "failed to find run",
-				Code: platform.ENotFound,
-			}
+		err := &platform.Error{
+			Err: err,
+			Msg: "failed to find run",
+		}
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -974,9 +985,12 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 
 	err = h.TaskService.CancelRun(ctx, req.TaskID, req.RunID)
 	if err != nil {
-		err = &platform.Error{
+		err := &platform.Error{
 			Err: err,
 			Msg: "failed to cancel run",
+		}
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -999,12 +1013,12 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID)
 	if err != nil {
-		if err == backend.ErrRunNotFound {
-			err = &platform.Error{
-				Code: platform.ENotFound,
-				Msg:  "failed to retry run",
-				Err:  err,
-			}
+		err := &platform.Error{
+			Err: err,
+			Msg: "failed to retry run",
+		}
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
