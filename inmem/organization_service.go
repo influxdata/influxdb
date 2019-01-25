@@ -4,58 +4,77 @@ import (
 	"context"
 	"fmt"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 )
 
 const (
 	errOrganizationNotFound = "organization not found"
 )
 
-func (s *Service) loadOrganization(id platform.ID) (*platform.Organization, *platform.Error) {
+func (s *Service) loadOrganization(id influxdb.ID) (*influxdb.Organization, *influxdb.Error) {
 	i, ok := s.organizationKV.Load(id.String())
 	if !ok {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
 			Msg:  errOrganizationNotFound,
 		}
 	}
 
-	b, ok := i.(*platform.Organization)
+	b, ok := i.(*influxdb.Organization)
 	if !ok {
-		return nil, &platform.Error{
-			Code: platform.EInternal,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInternal,
 			Msg:  fmt.Sprintf("type %T is not a organization", i),
 		}
 	}
 	return b, nil
 }
 
-func (s *Service) forEachOrganization(ctx context.Context, fn func(b *platform.Organization) bool) error {
+func (s *Service) forEachOrganization(ctx context.Context, opts influxdb.FindOptions, fn func(b *influxdb.Organization) bool) error {
 	var err error
+	orgs := make([]*influxdb.Organization, 0)
 	s.organizationKV.Range(func(k, v interface{}) bool {
-		o, ok := v.(*platform.Organization)
+		o, ok := v.(*influxdb.Organization)
 		if !ok {
 			err = fmt.Errorf("type %T is not a organization", v)
 			return false
 		}
 
-		return fn(o)
+		orgs = append(orgs, o)
+		return true
 	})
+
+	influxdb.SortOrganizations(opts, orgs)
+
+	for _, o := range orgs {
+		if !fn(o) {
+			return nil
+		}
+	}
 
 	return err
 }
 
-func (s *Service) filterOrganizations(ctx context.Context, fn func(b *platform.Organization) bool) ([]*platform.Organization, *platform.Error) {
-	orgs := []*platform.Organization{}
-	err := s.forEachOrganization(ctx, func(o *platform.Organization) bool {
+func (s *Service) filterOrganizations(ctx context.Context, fn func(b *influxdb.Organization) bool, opts influxdb.FindOptions) ([]*influxdb.Organization, *influxdb.Error) {
+	var count int
+	offset := opts.Offset
+	limit := opts.Limit
+	orgs := []*influxdb.Organization{}
+	err := s.forEachOrganization(ctx, opts, func(o *influxdb.Organization) bool {
 		if fn(o) {
-			orgs = append(orgs, o)
+			if count >= offset {
+				orgs = append(orgs, o)
+			}
+			count++
+		}
+		if limit > 0 && len(orgs) >= limit {
+			return false
 		}
 		return true
 	})
 
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
@@ -64,11 +83,11 @@ func (s *Service) filterOrganizations(ctx context.Context, fn func(b *platform.O
 }
 
 // FindOrganizationByID returns a single organization by ID.
-func (s *Service) FindOrganizationByID(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+func (s *Service) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
 	o, pe := s.loadOrganization(id)
 	if pe != nil {
-		return nil, &platform.Error{
-			Op:  OpPrefix + platform.OpFindOrganizationByID,
+		return nil, &influxdb.Error{
+			Op:  OpPrefix + influxdb.OpFindOrganizationByID,
 			Err: pe,
 		}
 	}
@@ -76,11 +95,11 @@ func (s *Service) FindOrganizationByID(ctx context.Context, id platform.ID) (*pl
 }
 
 // FindOrganization returns the first organization that matches a filter.
-func (s *Service) FindOrganization(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-	op := OpPrefix + platform.OpFindOrganization
+func (s *Service) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+	op := OpPrefix + influxdb.OpFindOrganization
 	if filter.ID == nil && filter.Name == nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Op:   op,
 			Msg:  "no filter parameters provided",
 		}
@@ -89,7 +108,7 @@ func (s *Service) FindOrganization(ctx context.Context, filter platform.Organiza
 	if filter.ID != nil {
 		o, err := s.FindOrganizationByID(ctx, *filter.ID)
 		if err != nil {
-			return nil, &platform.Error{
+			return nil, &influxdb.Error{
 				Op:  op,
 				Err: err,
 			}
@@ -97,9 +116,9 @@ func (s *Service) FindOrganization(ctx context.Context, filter platform.Organiza
 		return o, nil
 	}
 
-	orgs, n, err := s.FindOrganizations(ctx, filter)
+	orgs, n, err := s.FindOrganizations(ctx, filter, influxdb.FindOptions{Limit: 1})
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Op:  op,
 			Err: err,
 		}
@@ -110,8 +129,8 @@ func (s *Service) FindOrganization(ctx context.Context, filter platform.Organiza
 			msg = fmt.Sprintf("organization name \"%s\" not found", *filter.Name)
 		}
 
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
 			Op:   op,
 			Msg:  msg,
 		}
@@ -121,30 +140,30 @@ func (s *Service) FindOrganization(ctx context.Context, filter platform.Organiza
 }
 
 // FindOrganizations returns a list of organizations that match filter and the total count of matching organizations.
-func (s *Service) FindOrganizations(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
-	op := OpPrefix + platform.OpFindOrganizations
+func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opts influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
+	op := OpPrefix + influxdb.OpFindOrganizations
 	if filter.ID != nil {
 		o, err := s.FindOrganizationByID(ctx, *filter.ID)
 		if err != nil {
-			return nil, 0, &platform.Error{
+			return nil, 0, &influxdb.Error{
 				Op:  op,
 				Err: err,
 			}
 		}
 
-		return []*platform.Organization{o}, 1, nil
+		return []*influxdb.Organization{o}, 1, nil
 	}
 
-	filterFunc := func(o *platform.Organization) bool { return true }
+	filterFunc := func(o *influxdb.Organization) bool { return true }
 	if filter.Name != nil {
-		filterFunc = func(o *platform.Organization) bool {
+		filterFunc = func(o *influxdb.Organization) bool {
 			return o.Name == *filter.Name
 		}
 	}
 
-	orgs, pe := s.filterOrganizations(ctx, filterFunc)
+	orgs, pe := s.filterOrganizations(ctx, filterFunc, opts)
 	if pe != nil {
-		return nil, 0, &platform.Error{
+		return nil, 0, &influxdb.Error{
 			Err: pe,
 			Op:  op,
 		}
@@ -156,8 +175,8 @@ func (s *Service) FindOrganizations(ctx context.Context, filter platform.Organiz
 			msg = fmt.Sprintf("organization name \"%s\" not found", *filter.Name)
 		}
 
-		return orgs, 0, &platform.Error{
-			Code: platform.ENotFound,
+		return orgs, 0, &influxdb.Error{
+			Code: influxdb.ENotFound,
 			Op:   op,
 			Msg:  msg,
 		}
@@ -166,10 +185,10 @@ func (s *Service) FindOrganizations(ctx context.Context, filter platform.Organiz
 	return orgs, len(orgs), nil
 }
 
-func (s *Service) findOrganizationByName(ctx context.Context, n string) (*platform.Organization, *platform.Error) {
-	o, err := s.FindOrganization(ctx, platform.OrganizationFilter{Name: &n})
+func (s *Service) findOrganizationByName(ctx context.Context, n string) (*influxdb.Organization, *influxdb.Error) {
+	o, err := s.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &n})
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
@@ -177,11 +196,11 @@ func (s *Service) findOrganizationByName(ctx context.Context, n string) (*platfo
 }
 
 // CreateOrganization creates a new organization and sets b.ID with the new identifier.
-func (s *Service) CreateOrganization(ctx context.Context, o *platform.Organization) error {
-	op := OpPrefix + platform.OpCreateOrganization
-	if _, err := s.FindOrganization(ctx, platform.OrganizationFilter{Name: &o.Name}); err == nil {
-		return &platform.Error{
-			Code: platform.EConflict,
+func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
+	op := OpPrefix + influxdb.OpCreateOrganization
+	if _, err := s.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &o.Name}); err == nil {
+		return &influxdb.Error{
+			Code: influxdb.EConflict,
 			Op:   op,
 			Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
 		}
@@ -190,7 +209,7 @@ func (s *Service) CreateOrganization(ctx context.Context, o *platform.Organizati
 	o.ID = s.IDGenerator.ID()
 	err := s.PutOrganization(ctx, o)
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Op:  op,
 			Err: err,
 		}
@@ -199,18 +218,18 @@ func (s *Service) CreateOrganization(ctx context.Context, o *platform.Organizati
 }
 
 // PutOrganization will put a organization without setting an ID.
-func (s *Service) PutOrganization(ctx context.Context, o *platform.Organization) error {
+func (s *Service) PutOrganization(ctx context.Context, o *influxdb.Organization) error {
 	s.organizationKV.Store(o.ID.String(), o)
 	return nil
 }
 
 // UpdateOrganization updates a organization according the parameters set on upd.
-func (s *Service) UpdateOrganization(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error) {
+func (s *Service) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	o, err := s.FindOrganizationByID(ctx, id)
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
-			Op:  OpPrefix + platform.OpUpdateOrganization,
+			Op:  OpPrefix + influxdb.OpUpdateOrganization,
 		}
 	}
 
@@ -224,11 +243,11 @@ func (s *Service) UpdateOrganization(ctx context.Context, id platform.ID, upd pl
 }
 
 // DeleteOrganization deletes a organization and prunes it from the index.
-func (s *Service) DeleteOrganization(ctx context.Context, id platform.ID) error {
+func (s *Service) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
 	if _, err := s.FindOrganizationByID(ctx, id); err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
-			Op:  OpPrefix + platform.OpDeleteOrganization,
+			Op:  OpPrefix + influxdb.OpDeleteOrganization,
 		}
 	}
 	s.organizationKV.Delete(id.String())
