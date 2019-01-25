@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/check"
-	"github.com/spf13/cobra"
-	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/influxdata/influxdb/kit/check"
+	"github.com/spf13/cobra"
 )
 
 var pingCmd = &cobra.Command{
@@ -30,17 +30,13 @@ func pingF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("got %d from '%s'", resp.StatusCode, url)
 	}
 
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
 	var healthResponse check.Response
-	if err = json.Unmarshal(b, &healthResponse); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&healthResponse); err != nil {
 		return err
 	}
 
