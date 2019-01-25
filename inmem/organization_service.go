@@ -57,17 +57,15 @@ func (s *Service) forEachOrganization(ctx context.Context, opts influxdb.FindOpt
 
 func (s *Service) filterOrganizations(ctx context.Context, fn func(b *influxdb.Organization) bool, opts influxdb.FindOptions) ([]*influxdb.Organization, *influxdb.Error) {
 	var count int
-	offset := opts.Offset
-	limit := opts.Limit
 	orgs := []*influxdb.Organization{}
 	err := s.forEachOrganization(ctx, opts, func(o *influxdb.Organization) bool {
 		if fn(o) {
-			if count >= offset {
+			if count >= opts.Offset {
 				orgs = append(orgs, o)
 			}
 			count++
 		}
-		if limit > 0 && len(orgs) >= limit {
+		if opts.Limit > 0 && len(orgs) >= opts.Limit {
 			return false
 		}
 		return true

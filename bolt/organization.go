@@ -217,20 +217,15 @@ func (c *Client) FindOrganizations(ctx context.Context, filter influxdb.Organiza
 	}
 
 	var count int
-	offset := opts.Offset
-	limit := opts.Limit
-	os := []*influxdb.Organization{}
+	orgs := []*influxdb.Organization{}
 	filterFn := filterOrganizationsFn(filter)
 	err := c.db.View(func(tx *bolt.Tx) error {
 		return forEachOrganization(ctx, tx, opts, func(o *influxdb.Organization) bool {
 			if filterFn(o) {
-				if count >= offset {
-					os = append(os, o)
+				if count >= opts.Offset {
+					orgs = append(orgs, o)
 				}
 				count++
-			}
-			if limit > 0 && len(os) >= limit {
-				return false
 			}
 			return true
 		})
@@ -243,9 +238,19 @@ func (c *Client) FindOrganizations(ctx context.Context, filter influxdb.Organiza
 		}
 	}
 
-	influxdb.SortOrganizations(opts, os)
+	// Sorting
+	influxdb.SortOrganizations(opts, orgs)
 
-	return os, len(os), nil
+	// Limiting
+	if opts.Limit > 0 && len(orgs) >= opts.Limit {
+		copy(orgs[opts.Limit:], orgs[len(orgs):])
+		for k, n := opts.Limit, len(orgs); k < n; k++ {
+			orgs[k] = nil
+		}
+		orgs = orgs[:opts.Limit]
+	}
+
+	return orgs, len(orgs), nil
 }
 
 // CreateOrganization creates a influxdb organization and sets b.ID.
