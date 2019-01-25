@@ -429,7 +429,6 @@ func FindOrganizations(
 				ID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				// organizations: []*influxdb.Organization{},
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpFindOrganizations,
@@ -455,7 +454,6 @@ func FindOrganizations(
 				name: "na",
 			},
 			wants: wants{
-				// organizations: []*influxdb.Organization{},
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpFindOrganizations,

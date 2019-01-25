@@ -175,7 +175,7 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 			msg = fmt.Sprintf("organization name \"%s\" not found", *filter.Name)
 		}
 
-		return orgs, 0, &influxdb.Error{
+		return nil, 0, &influxdb.Error{
 			Code: influxdb.ENotFound,
 			Op:   op,
 			Msg:  msg,
