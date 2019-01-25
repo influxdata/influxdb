@@ -22,14 +22,14 @@ const setInitialState = state => {
 
 describe('QueryBuilder', () => {
   it('can select a bucket', async () => {
-    const {getByTestId, getAllByTestId, queryAllByTestId} = renderWithRedux(
-      <QueryBuilder />,
-      setInitialState
-    )
+    const {
+      getByTestId,
+      getAllByTestId,
+      queryAllByTestId,
+      getByText,
+    } = renderWithRedux(<QueryBuilder />, setInitialState)
 
-    let bucketsDropdownClosed = await waitForElement(() =>
-      getByTestId('buckets--button')
-    )
+    let bucketsDropdownClosed = await waitForElement(() => getByText('b1'))
 
     fireEvent.click(bucketsDropdownClosed)
 
