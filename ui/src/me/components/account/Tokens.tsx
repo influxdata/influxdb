@@ -10,7 +10,7 @@ import FilterList from 'src/shared/components/Filter'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 // APIs
-import {getAuthorizations} from 'src/authorizations/apis'
+import {client} from 'src/utils/api'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -31,6 +31,8 @@ enum AuthSearchKeys {
 interface Props {
   onNotify: NotificationAction
 }
+
+const getAuthorizations = () => client.authorizations.getAll()
 
 export class Tokens extends PureComponent<Props, State> {
   constructor(props) {
