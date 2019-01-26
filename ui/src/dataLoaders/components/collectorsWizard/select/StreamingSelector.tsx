@@ -30,7 +30,6 @@ import {Bucket} from 'src/api'
 export interface Props {
   buckets: Bucket[]
   bucket: string
-  selectedBucket: string
   pluginBundles: BundleName[]
   telegrafPlugins: TelegrafPlugin[]
   onTogglePluginBundle: (telegrafPlugin: string, isSelected: boolean) => void
@@ -128,9 +127,7 @@ class StreamingSelector extends PureComponent<Props, State> {
   }
 
   private get selectedBucketID(): string {
-    const {bucket, selectedBucket, buckets} = this.props
-
-    return selectedBucket || bucket || _.get(buckets, '0.name', 'empty')
+    return this.props.bucket || 'empty'
   }
 
   private get dropdownBuckets(): JSX.Element[] {

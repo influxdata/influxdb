@@ -38,6 +38,11 @@ import {RemoteDataState} from 'src/types'
 import {WritePrecision} from 'src/api'
 
 export enum DataLoaderStep {
+  'Configure',
+  'Verify',
+}
+
+export enum CollectorsStep {
   'Select',
   'Configure',
   'Verify',

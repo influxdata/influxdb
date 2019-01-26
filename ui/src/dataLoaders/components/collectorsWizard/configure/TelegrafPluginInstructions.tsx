@@ -1,32 +1,39 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {AppState} from 'src/types/v2/index'
+
+// Components
 import {Form, Input, InputType, ComponentSize} from 'src/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import {setTelegrafConfigName} from 'src/dataLoaders/actions/dataLoaders'
 
-interface OwnProps {
-  onClickNext: () => void
-  onClickPrevious: () => void
-}
+// Actions
+import {setTelegrafConfigName} from 'src/dataLoaders/actions/dataLoaders'
+import {
+  incrementCurrentStepIndex,
+  decrementCurrentStepIndex,
+} from 'src/dataLoaders/actions/steps'
+
+// Types
+import {AppState} from 'src/types/v2/index'
 
 interface DispatchProps {
   onSetTelegrafConfigName: typeof setTelegrafConfigName
+  onIncrementStep: typeof incrementCurrentStepIndex
+  onDecrementStep: typeof decrementCurrentStepIndex
 }
 
 interface StateProps {
   telegrafConfigName: string
 }
 
-type Props = OwnProps & DispatchProps & StateProps
+type Props = DispatchProps & StateProps
 
-class TelegrafPluginInstructions extends PureComponent<Props> {
+export class TelegrafPluginInstructions extends PureComponent<Props> {
   public render() {
-    const {onClickPrevious, onClickNext, telegrafConfigName} = this.props
+    const {telegrafConfigName, onDecrementStep, onIncrementStep} = this.props
     return (
-      <Form onSubmit={onClickNext}>
+      <Form onSubmit={onIncrementStep}>
         <div className="wizard-step--scroll-area">
           <FancyScrollbar autoHide={false}>
             <div className="wizard-step--scroll-content">
@@ -52,10 +59,11 @@ class TelegrafPluginInstructions extends PureComponent<Props> {
             </div>
           </FancyScrollbar>
         </div>
-        <OnboardingButtons onClickBack={onClickPrevious} />
+        <OnboardingButtons onClickBack={onDecrementStep} />
       </Form>
     )
   }
+
   private handleNameInput = (e: ChangeEvent<HTMLInputElement>) => {
     this.props.onSetTelegrafConfigName(e.target.value)
   }
@@ -73,8 +81,10 @@ const mstp = ({
 
 const mdtp: DispatchProps = {
   onSetTelegrafConfigName: setTelegrafConfigName,
+  onIncrementStep: incrementCurrentStepIndex,
+  onDecrementStep: decrementCurrentStepIndex,
 }
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
 )(TelegrafPluginInstructions)

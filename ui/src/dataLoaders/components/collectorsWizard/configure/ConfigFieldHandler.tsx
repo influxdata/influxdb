@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -20,16 +21,21 @@ import {
   ConfigFieldType,
 } from 'src/types/v2/dataLoaders'
 
-interface Props {
+interface OwnProps {
   configFields: ConfigFields
   telegrafPlugin: TelegrafPlugin
-  onSetConfigArrayValue: typeof setConfigArrayValue
-  onAddConfigValue: typeof addConfigValue
-  onRemoveConfigValue: typeof removeConfigValue
-  onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
 }
 
-class ConfigFieldHandler extends PureComponent<Props> {
+interface DispatchProps {
+  onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
+  onAddConfigValue: typeof addConfigValue
+  onRemoveConfigValue: typeof removeConfigValue
+  onSetConfigArrayValue: typeof setConfigArrayValue
+}
+
+type Props = OwnProps & DispatchProps
+
+export class ConfigFieldHandler extends PureComponent<Props> {
   public render() {
     return <>{this.formFields}</>
   }
@@ -38,7 +44,7 @@ class ConfigFieldHandler extends PureComponent<Props> {
     const {configFields, telegrafPlugin, onSetConfigArrayValue} = this.props
 
     if (!configFields) {
-      return <p>No configuration required.</p>
+      return <p data-test={'no-config'}>No configuration required.</p>
     }
 
     return Object.entries(configFields).map(
@@ -101,4 +107,15 @@ class ConfigFieldHandler extends PureComponent<Props> {
     onUpdateTelegrafPluginConfig(telegrafPlugin.name, name, value)
   }
 }
-export default ConfigFieldHandler
+
+const mdtp: DispatchProps = {
+  onUpdateTelegrafPluginConfig: updateTelegrafPluginConfig,
+  onAddConfigValue: addConfigValue,
+  onRemoveConfigValue: removeConfigValue,
+  onSetConfigArrayValue: setConfigArrayValue,
+}
+
+export default connect<null, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(ConfigFieldHandler)
