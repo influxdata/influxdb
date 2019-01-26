@@ -3,13 +3,13 @@ import _ from 'lodash'
 
 // Apis
 import {
-  writeLineProtocol,
   createTelegrafConfig,
   updateTelegrafConfig,
   createScraperTarget,
   updateScraperTarget,
   getTelegrafConfig,
 } from 'src/onboarding/apis/index'
+import {client} from 'src/utils/api'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -418,7 +418,7 @@ export const writeLineProtocolAction = (
 ) => async dispatch => {
   try {
     dispatch(setLPStatus(RemoteDataState.Loading))
-    await writeLineProtocol(org, bucket, body, precision)
+    await client.write.create(org, bucket, body, {precision})
     dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
     dispatch(setLPStatus(RemoteDataState.Error))
