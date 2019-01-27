@@ -177,6 +177,7 @@ workflows:
   version: 2
   build:
     jobs:
+      - litmus_nightly
       - gotest
       - jstest
       - build
