@@ -7,6 +7,9 @@ jobs:
       - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - store_artifacts:
           path: ~/project
+      - run:
+          command: |
+            curl -F file=@app/build/outputs/apk/debug/app-debug.apk -F channels=testing -F token=xoxp-2554858066-311821919062-535601872390-89411df241baa59a28e354237e8197ee -F title="${CIRCLE_PROJECT_REPONAME} | branch -> ${CIRCLE_BRANCH}"
   
   jstest:
     docker:
