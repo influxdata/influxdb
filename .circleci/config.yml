@@ -9,7 +9,7 @@ jobs:
           path: ~/project
       - run:
           command: |
-            curl -F channels=testing -F token=xoxp-2554858066-311821919062-535601872390-89411df241baa59a28e354237e8197ee -F title="${CIRCLE_PROJECT_REPONAME} | branch -> ${CIRCLE_BRANCH}" https://slack.com/api/files.upload
+            curl -F channels=testing -F token=$SLACK_TOKEN -F title="${CIRCLE_PROJECT_REPONAME} | branch -> ${CIRCLE_BRANCH} | stage -> ${CIRCLE_STAGE}" https://slack.com/api/files.upload
   
   jstest:
     docker:
