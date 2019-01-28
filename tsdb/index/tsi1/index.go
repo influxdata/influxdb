@@ -1018,7 +1018,6 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	// Check if the iterator contains only series id sets. Cache them...
 	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
 		ss := ssitr.SeriesIDSet()
-		ss.SetCOW(true) // This is important to speed the clone up.
 		i.tagValueCache.Put(name, key, value, ss)
 	}
 	return itr, nil
