@@ -49,3 +49,37 @@ func NewService() *Service {
 func (s *Service) WithTime(fn func() time.Time) {
 	s.time = fn
 }
+
+// Flush removes all data from the in-memory store
+func (s *Service) Flush() {
+	s.flush(&s.authorizationKV)
+	s.flush(&s.organizationKV)
+	s.flush(&s.bucketKV)
+	s.flush(&s.userKV)
+	s.flush(&s.dashboardKV)
+	s.flush(&s.viewKV)
+	s.flush(&s.macroKV)
+	s.flush(&s.dbrpMappingKV)
+	s.flush(&s.userResourceMappingKV)
+	s.flush(&s.labelKV)
+	s.flush(&s.labelMappingKV)
+	s.flush(&s.scraperTargetKV)
+	s.flush(&s.telegrafConfigKV)
+	s.flush(&s.onboardingKV)
+	s.flush(&s.basicAuthKV)
+}
+
+func (s *Service) flush(m *sync.Map) {
+	keys := []interface{}{}
+	f := func(key, value interface{}) bool {
+		keys = append(keys, key)
+		return true
+	}
+
+	m.Range(f)
+
+	for _, k := range keys {
+		m.Delete(k)
+	}
+
+}

@@ -458,7 +458,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	h.Logger = httpLogger
 	h.Tracer = opentracing.GlobalTracer()
 
-	m.httpServer.Handler = h
+	m.httpServer.Handler = http.DebugFlush(h, m.svc)
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
 	if err != nil {
@@ -483,36 +483,4 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}(httpLogger)
 
 	return nil
-}
-
-func (m *Launcher) OrganizationService() platform.OrganizationService {
-	return m.apibackend.OrganizationService
-}
-
-func (m *Launcher) QueryController() *pcontrol.Controller {
-	return m.queryController
-}
-
-func (m *Launcher) BucketService() platform.BucketService {
-	return m.apibackend.BucketService
-}
-
-func (m *Launcher) UserService() platform.UserService {
-	return m.apibackend.UserService
-}
-
-func (m *Launcher) AuthorizationService() platform.AuthorizationService {
-	return m.apibackend.AuthorizationService
-}
-
-func (m *Launcher) TaskService() platform.TaskService {
-	return m.apibackend.TaskService
-}
-
-func (m *Launcher) TaskStore() taskbackend.Store {
-	return m.taskStore
-}
-
-func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
-	return m.scheduler
 }
