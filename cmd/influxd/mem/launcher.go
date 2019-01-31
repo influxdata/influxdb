@@ -277,7 +277,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		macroSvc  platform.MacroService         = m.svc
 		bucketSvc platform.BucketService        = m.svc
 		//sourceSvc        platform.SourceService                   = m.svc
-		//sessionSvc       platform.SessionService                  = m.svc
+		sessionSvc   platform.SessionService   = m.svc
 		basicAuthSvc platform.BasicAuthService = m.svc
 		dashboardSvc platform.DashboardService = m.svc
 		/*
@@ -420,8 +420,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		PointsWriter:         pointsWriter,
 		AuthorizationService: authSvc,
 		// Wrap the BucketService in a storage backed one that will ensure deleted buckets are removed from the storage engine.
-		BucketService: storage.NewBucketService(bucketSvc, m.engine),
-		//SessionService:                  sessionSvc,
+		BucketService:              storage.NewBucketService(bucketSvc, m.engine),
+		SessionService:             sessionSvc,
 		UserService:                userSvc,
 		OrganizationService:        orgSvc,
 		UserResourceMappingService: userResourceSvc,
