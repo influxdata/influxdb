@@ -52,7 +52,7 @@ jobs:
       # so, we have to add all the go stuff and nc stuff here
       - run: apt-get install -y netcat-openbsd
       - run:
-          command: make run
+          command: ./bin/linux/influxd
           background: true
       - run: make e2e
       - store_test_results:
