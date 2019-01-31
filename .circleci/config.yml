@@ -46,7 +46,8 @@ jobs:
           TERM: xterm
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
-      - checkout
+      - attach_workspace:
+        at: /home/circleci
       # Run npm install, using Circle's cache if applicable.
       - restore_cache:
           name: Restore npm package cache
