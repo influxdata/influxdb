@@ -71,6 +71,7 @@ export default class Scrapers extends PureComponent<Props, State> {
           scrapers={this.configurations}
           emptyState={this.emptyState}
           onDeleteScraper={this.handleDeleteScraper}
+          onUpdateScraper={this.handleUpdateScraper}
         />
         <DataLoadersWizard
           visible={this.isOverlayVisible}
@@ -159,6 +160,11 @@ export default class Scrapers extends PureComponent<Props, State> {
         <EmptyState.Text text="No Scraper buckets match your query" />
       </EmptyState>
     )
+  }
+
+  private handleUpdateScraper = async (scraper: ScraperTargetResponse) => {
+    await client.scrapers.update(scraper.id, scraper)
+    this.props.onChange()
   }
 
   private handleDeleteScraper = async (scraper: ScraperTargetResponse) => {

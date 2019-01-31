@@ -3,9 +3,6 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
-// APIs
-import {deleteDashboard} from 'src/dashboards/apis'
-
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {ComponentSize, EmptyState, Input, IconFont} from 'src/clockface'
@@ -17,6 +14,7 @@ import {Dashboard} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {deleteDashboard, updateDashboard} from 'src/dashboards/apis/v2'
 
 interface OwnProps {
   dashboards: Dashboard[]
@@ -66,6 +64,7 @@ class Dashboards extends PureComponent<Props, State> {
               dashboards={ds}
               emptyState={this.emptyState}
               onDeleteDashboard={this.handleDeleteDashboard}
+              onUpdateDashboard={this.handleUpdateDashboard}
               orgID={orgID}
               router={router}
             />
@@ -73,6 +72,11 @@ class Dashboards extends PureComponent<Props, State> {
         </FilterList>
       </>
     )
+  }
+
+  private handleUpdateDashboard = async (dashboard: Dashboard) => {
+    await updateDashboard(dashboard)
+    this.props.onChange()
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {

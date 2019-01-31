@@ -112,6 +112,7 @@ export default class Buckets extends PureComponent<Props, State> {
     await client.buckets.update(updatedBucket.id, updatedBucket)
     this.props.onChange()
   }
+
   private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
     const {onChange, notify} = this.props
     await client.buckets.delete(deletedBucket.id)

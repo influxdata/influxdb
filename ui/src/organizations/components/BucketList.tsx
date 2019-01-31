@@ -83,6 +83,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
                 onEditBucket={this.handleStartEdit}
                 onDeleteBucket={onDeleteBucket}
                 onAddData={this.handleStartAddData}
+                onUpdateBucket={this.handleUpdateBucket}
               />
             ))}
           </IndexList.Body>

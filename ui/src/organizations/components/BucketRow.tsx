@@ -15,6 +15,7 @@ import {
 // Types
 import {Bucket} from 'src/api'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import EditableName from 'src/shared/components/EditableName'
 
 export interface PrettyBucket extends Bucket {
   ruleString: string
@@ -25,6 +26,7 @@ interface Props {
   onEditBucket: (b: PrettyBucket) => void
   onDeleteBucket: (b: PrettyBucket) => void
   onAddData: (b: PrettyBucket, d: DataLoaderType) => void
+  onUpdateBucket: (b: PrettyBucket) => void
 }
 
 export default class BucketRow extends PureComponent<Props> {
@@ -34,9 +36,11 @@ export default class BucketRow extends PureComponent<Props> {
       <>
         <IndexList.Row>
           <IndexList.Cell>
-            <a href="#" onClick={this.handleEditBucket}>
-              <span>{bucket.name}</span>
-            </a>
+            <EditableName
+              onUpdate={this.handleUpdateBucketName}
+              name={bucket.name}
+              onEditName={this.handleEditBucket}
+            />
           </IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
@@ -76,6 +80,10 @@ export default class BucketRow extends PureComponent<Props> {
         </IndexList.Row>
       </>
     )
+  }
+
+  private handleUpdateBucketName = (value: string) => {
+    this.props.onUpdateBucket({...this.props.bucket, name: value})
   }
 
   private handleEditBucket = (): void => {

@@ -33,6 +33,7 @@ interface OwnProps {
   dashboards: Dashboard[]
   emptyState: JSX.Element
   onDeleteDashboard: (dashboard: Dashboard) => void
+  onUpdateDashboard: (dashboard: Dashboard) => void
 }
 
 type Props = DispatchProps & OwnProps
@@ -73,13 +74,14 @@ class DashboardList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    const {onDeleteDashboard} = this.props
+    const {onDeleteDashboard, onUpdateDashboard} = this.props
 
     return this.props.dashboards.map(d => (
       <DashboardRow
         dashboard={d}
         key={d.id}
         onDeleteDashboard={onDeleteDashboard}
+        onUpdateDashboard={onUpdateDashboard}
         onCloneDashboard={this.handleCloneDashboard}
       />
     ))
