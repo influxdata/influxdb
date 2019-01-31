@@ -60,9 +60,10 @@ jobs:
           key: chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
           paths:
             - ~/.cache/npm
-
+      - run:
+          command: make run
+          background: true
       - run: make e2e
-
       - store_test_results:
           path: junit-results
 
