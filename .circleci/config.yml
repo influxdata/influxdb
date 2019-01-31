@@ -32,7 +32,7 @@ jobs:
             {
               "channel":"#testing",
               "text":"FAIL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM, Build URL: $CIRCLE_BUILD_URL",
-              "username:"CircleCI Nightly Litmus OSS Litmus Tests",
+              "username":"CircleCI Nightly Litmus OSS Litmus Tests",
               "icon_emoji":":circleci-fail:"
             }
             EOF
