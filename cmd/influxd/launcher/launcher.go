@@ -20,7 +20,6 @@ import (
 	protofs "github.com/influxdata/influxdb/fs"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
@@ -148,12 +147,10 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	m.logger.Info("Stopping", zap.String("service", "nats"))
 	m.natsServer.Close()
 
-	/*
-		m.logger.Info("Stopping", zap.String("service", "bolt"))
-		if err := m.boltClient.Close(); err != nil {
-			m.logger.Info("failed closing bolt", zap.Error(err))
-		}
-	*/
+	m.logger.Info("Stopping", zap.String("service", "bolt"))
+	if err := m.boltClient.Close(); err != nil {
+		m.logger.Info("failed closing bolt", zap.Error(err))
+	}
 
 	m.logger.Info("Stopping", zap.String("service", "query"))
 	if err := m.queryController.Shutdown(ctx); err != nil && err != context.Canceled {
@@ -271,20 +268,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	tracer.IDGenerator = snowflake.NewIDGenerator()
 	opentracing.SetGlobalTracer(tracer)
 
-	/*
-		m.boltClient = bolt.NewClient()
-		m.boltClient.Path = m.boltPath
-		m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
-	*/
+	m.boltClient = bolt.NewClient()
+	m.boltClient.Path = m.boltPath
+	m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
 
-	m.boltClient = inmem.NewService()
-
-	/*
-		if err := m.boltClient.Open(ctx); err != nil {
-			m.logger.Error("failed opening bolt", zap.Error(err))
-			return err
-		}
-	*/
+	if err := m.boltClient.Open(ctx); err != nil {
+		m.logger.Error("failed opening bolt", zap.Error(err))
+		return err
+	}
 
 	store := bolt.NewKVStore(m.boltPath)
 	store.WithDB(m.boltClient.DB())
