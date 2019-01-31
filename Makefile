@@ -69,7 +69,11 @@ $(CMDS): $(SOURCES)
 
 node_modules: ui/node_modules
 
-e2e:
+# phony target to wait for server to be alive
+ping:
+	./etc/pinger.sh
+
+e2e: ping
 	make -C ui e2e
 
 chronograf_lint:
@@ -157,4 +161,4 @@ run: chronogiraffe
 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist
+.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping
