@@ -10,7 +10,13 @@ describe('The Login Page', () => {
       user = u
     })
 
+    cy.createUser()
+
     cy.visit('/')
+  })
+
+  afterEach(() => {
+    cy.flush()
   })
 
   it('can login', () => {

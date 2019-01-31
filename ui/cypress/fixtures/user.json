@@ -1,4 +1,6 @@
 {
-  "username": "watts",
-  "password": "cfziu"
+  "username": "u1",
+  "password": "password",
+  "org": "deforg",
+  "bucket": "defbuck"
 }
