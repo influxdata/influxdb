@@ -7,6 +7,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/rand"
 	"github.com/influxdata/influxdb/snowflake"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // OpPrefix is the op prefix.
@@ -49,3 +50,19 @@ func NewService() *Service {
 func (s *Service) WithTime(fn func() time.Time) {
 	s.time = fn
 }
+
+// ID returns a unique ID for this service.
+func (s *Service) ID() platform.ID {
+	return s.IDGenerator.ID()
+}
+
+// PrometheusCollectors returns all collectors for the inmem service.
+func (s *Service) PrometheusCollectors() []prometheus.Collector {
+	return nil
+}
+
+// Describe returns all descriptions of the collector.
+func (s *Service) Describe(ch chan<- *prometheus.Desc) {}
+
+// Collect returns the current state of all metrics of the collector.
+func (s *Service) Collect(ch chan<- prometheus.Metric) {}
