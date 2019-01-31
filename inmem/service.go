@@ -29,6 +29,7 @@ type Service struct {
 	telegrafConfigKV      sync.Map
 	onboardingKV          sync.Map
 	basicAuthKV           sync.Map
+	sessionKV             sync.Map
 
 	TokenGenerator platform.TokenGenerator
 	IDGenerator    platform.IDGenerator
@@ -67,6 +68,7 @@ func (s *Service) Flush() {
 	s.flush(&s.telegrafConfigKV)
 	s.flush(&s.onboardingKV)
 	s.flush(&s.basicAuthKV)
+	s.flush(&s.sessionKV)
 }
 
 func (s *Service) flush(m *sync.Map) {
