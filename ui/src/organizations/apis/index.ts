@@ -4,10 +4,10 @@ import _ from 'lodash'
 // Utils
 import {getDeep} from 'src/utils/wrappers'
 
-import {dashboardsAPI, telegrafsAPI, scraperTargetsApi} from 'src/utils/api'
+import {dashboardsAPI, telegrafsAPI} from 'src/utils/api'
 
 // Types
-import {Organization, Telegraf, ScraperTargetResponses} from 'src/api'
+import {Organization, Telegraf} from 'src/api'
 import {Dashboard} from 'src/types/v2'
 
 // CRUD APIs for Organizations and Organization resources
@@ -67,25 +67,6 @@ export const deleteTelegrafConfig = async (
     const response = await telegrafsAPI.telegrafsTelegrafIDDelete(telegrafID)
 
     return response.data
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-// Scrapers
-export const getScrapers = async (): Promise<ScraperTargetResponses> => {
-  try {
-    const response = await scraperTargetsApi.scrapersGet()
-
-    return response.data
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-export const deleteScraper = async (scraperTargetID: string): Promise<void> => {
-  try {
-    await scraperTargetsApi.scrapersScraperTargetIDDelete(scraperTargetID)
   } catch (error) {
     console.error(error)
   }

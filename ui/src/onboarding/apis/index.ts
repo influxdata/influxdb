@@ -1,18 +1,10 @@
 // Libraries
 import _ from 'lodash'
 
-import {setupAPI, sourcesAPI} from 'src/utils/api'
-
 // Utils
-import {telegrafsAPI, scraperTargetsApi} from 'src/utils/api'
+import {telegrafsAPI, setupAPI, sourcesAPI} from 'src/utils/api'
 
-import {
-  Telegraf,
-  TelegrafRequest,
-  OnboardingResponse,
-  ScraperTargetRequest,
-  ScraperTargetResponse,
-} from 'src/api'
+import {Telegraf, TelegrafRequest, OnboardingResponse} from 'src/api'
 
 import {getDeep} from 'src/utils/wrappers'
 
@@ -121,33 +113,4 @@ export const updateTelegrafConfig = async (
   } catch (error) {
     console.error(error)
   }
-}
-
-export const createScraperTarget = async (
-  url: string,
-  orgID: string,
-  bucketID: string
-): Promise<ScraperTargetResponse> => {
-  const response = await scraperTargetsApi.scrapersPost({
-    name: 'new target',
-    type: ScraperTargetRequest.TypeEnum.Prometheus,
-    url,
-    orgID,
-    bucketID,
-  })
-
-  return response.data
-}
-
-export const updateScraperTarget = async (
-  id: string,
-  url: string,
-  bucketID: string
-): Promise<ScraperTargetResponse> => {
-  const response = await scraperTargetsApi.scrapersScraperTargetIDPatch(id, {
-    url,
-    bucketID,
-  })
-
-  return response.data
 }

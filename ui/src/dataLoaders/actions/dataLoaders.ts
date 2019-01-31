@@ -5,11 +5,10 @@ import _ from 'lodash'
 import {
   createTelegrafConfig,
   updateTelegrafConfig,
-  createScraperTarget,
-  updateScraperTarget,
   getTelegrafConfig,
 } from 'src/onboarding/apis/index'
 import {client} from 'src/utils/api'
+import {ScraperTargetRequest} from 'src/api'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -440,9 +439,15 @@ export const saveScraperTarget = () => async (
 
   try {
     if (id) {
-      await updateScraperTarget(id, url, bucketID)
+      await client.scrapers.update(id, {url, bucketID})
     } else {
-      const newTarget = await createScraperTarget(url, orgID, bucketID)
+      const newTarget = await client.scrapers.create({
+        name: 'new target',
+        type: ScraperTargetRequest.TypeEnum.Prometheus,
+        url,
+        bucketID,
+        orgID,
+      })
       dispatch(setScraperTargetID(newTarget.id))
     }
   } catch (error) {
