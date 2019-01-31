@@ -49,6 +49,7 @@ type Launcher struct {
 	wg      sync.WaitGroup
 	cancel  func()
 	running bool
+	inmem   bool
 
 	developerMode     bool
 	logLevel          string
@@ -176,6 +177,12 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Flag:    "log-level",
 				Default: "info",
 				Desc:    "supported log levels are debug, info, and error",
+			},
+			{
+				DestP:   &m.inmem,
+				Flag:    "inmem",
+				Default: true,
+				Desc:    "run influx backed with an in-memory store",
 			},
 			{
 				DestP:   &m.httpBindAddress,
