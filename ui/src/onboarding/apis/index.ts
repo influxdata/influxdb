@@ -4,11 +4,10 @@ import _ from 'lodash'
 import {setupAPI, sourcesAPI} from 'src/utils/api'
 
 // Utils
-import {telegrafsAPI, writeAPI, scraperTargetsApi} from 'src/utils/api'
+import {telegrafsAPI, scraperTargetsApi} from 'src/utils/api'
 
 import {
   Telegraf,
-  WritePrecision,
   TelegrafRequest,
   OnboardingResponse,
   ScraperTargetRequest,
@@ -94,25 +93,6 @@ export const getTelegrafConfigs = async (org: string): Promise<Telegraf[]> => {
   } catch (error) {
     console.error(error)
   }
-}
-
-export const writeLineProtocol = async (
-  org: string,
-  bucket: string,
-  body: string,
-  precision: WritePrecision
-): Promise<any> => {
-  const data = await writeAPI.writePost(
-    org,
-    bucket,
-    body,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    precision
-  )
-  return data
 }
 
 export const createTelegrafConfig = async (
