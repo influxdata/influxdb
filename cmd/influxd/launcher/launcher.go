@@ -15,11 +15,11 @@ import (
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
 	protofs "github.com/influxdata/influxdb/fs"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
@@ -64,7 +64,7 @@ type Launcher struct {
 	protosPath      string
 	secretStore     string
 
-	boltClient *inmem.Service
+	boltClient *bolt.Client
 	engine     *storage.Engine
 
 	queryController *pcontrol.Controller
@@ -146,12 +146,10 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	m.logger.Info("Stopping", zap.String("service", "nats"))
 	m.natsServer.Close()
 
-	/*
-		m.logger.Info("Stopping", zap.String("service", "bolt"))
-		if err := m.boltClient.Close(); err != nil {
-			m.logger.Info("failed closing bolt", zap.Error(err))
-		}
-	*/
+	m.logger.Info("Stopping", zap.String("service", "bolt"))
+	if err := m.boltClient.Close(); err != nil {
+		m.logger.Info("failed closing bolt", zap.Error(err))
+	}
 
 	m.logger.Info("Stopping", zap.String("service", "query"))
 	if err := m.queryController.Shutdown(ctx); err != nil && err != context.Canceled {
@@ -269,20 +267,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	tracer.IDGenerator = snowflake.NewIDGenerator()
 	opentracing.SetGlobalTracer(tracer)
 
-	/*
-		m.boltClient = bolt.NewClient()
-		m.boltClient.Path = m.boltPath
-		m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
-	*/
+	m.boltClient = bolt.NewClient()
+	m.boltClient.Path = m.boltPath
+	m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
 
-	m.boltClient = inmem.NewService()
-
-	/*
-		if err := m.boltClient.Open(ctx); err != nil {
-			m.logger.Error("failed opening bolt", zap.Error(err))
-			return err
-		}
-	*/
+	if err := m.boltClient.Open(ctx); err != nil {
+		m.logger.Error("failed opening bolt", zap.Error(err))
+		return err
+	}
 
 	m.reg = prom.NewRegistry()
 	m.reg.MustRegister(
@@ -532,42 +524,34 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	return nil
 }
 
-// OrganizationService returns the API backend's organization service.
 func (m *Launcher) OrganizationService() platform.OrganizationService {
 	return m.apibackend.OrganizationService
 }
 
-// QueryController returns the launcher's query controller.
 func (m *Launcher) QueryController() *pcontrol.Controller {
 	return m.queryController
 }
 
-// BucketService returns the launcher's bucket service.
 func (m *Launcher) BucketService() platform.BucketService {
 	return m.apibackend.BucketService
 }
 
-// UserService returns the launcher's user service.
 func (m *Launcher) UserService() platform.UserService {
 	return m.apibackend.UserService
 }
 
-// AuthorizationService returns the launcher's authorization service.
 func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
 }
 
-// TaskService returns the launcher's task service.
 func (m *Launcher) TaskService() platform.TaskService {
 	return m.apibackend.TaskService
 }
 
-// TaskStore returns the launcher's task store.
 func (m *Launcher) TaskStore() taskbackend.Store {
 	return m.taskStore
 }
 
-// TaskScheduler returns the launcher's task scheduler.
 func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
 	return m.scheduler
 }
