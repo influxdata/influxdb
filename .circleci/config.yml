@@ -26,7 +26,8 @@ jobs:
               "icon_emoji":":circleci-pass:"
             }
             EOF
-            ) https://slack.com/api/chat.postMessage
+            )
+            https://slack.com/api/chat.postMessage
       - run:
           name: Litmus Nightly Tests Fail
           when: on_fail
