@@ -209,6 +209,7 @@ workflows:
       - gotest
       - jstest
       - build 
+      - litmus_nightly
 
   nightly:
     triggers:
