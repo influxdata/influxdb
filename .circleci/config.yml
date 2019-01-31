@@ -64,7 +64,7 @@ jobs:
       - run: make protoc
       - run: make build
       - run:
-          command: ./bin/linux/influxd
+          command: ./bin/linux/influxd --inmem
           background: true
       - run: make e2e
       - store_test_results:

@@ -52,6 +52,7 @@ func main() {
 		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 		m.Shutdown(ctx)
+		return
 	}
 
 	m := launcher.NewLauncher()
