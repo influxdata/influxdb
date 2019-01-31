@@ -1,6 +1,7 @@
 package inmem
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ type Service struct {
 	onboardingKV          sync.Map
 	basicAuthKV           sync.Map
 	sessionKV             sync.Map
+	sourceKV              sync.Map
 
 	TokenGenerator platform.TokenGenerator
 	IDGenerator    platform.IDGenerator
@@ -38,11 +40,13 @@ type Service struct {
 
 // NewService creates an instance of a Service.
 func NewService() *Service {
-	return &Service{
+	s := &Service{
 		TokenGenerator: rand.NewTokenGenerator(64),
 		IDGenerator:    snowflake.NewIDGenerator(),
 		time:           time.Now,
 	}
+	s.initializeSources(context.TODO())
+	return s
 }
 
 // WithTime sets the function for computing the current time. Used for updating meta data
@@ -69,6 +73,7 @@ func (s *Service) Flush() {
 	s.flush(&s.onboardingKV)
 	s.flush(&s.basicAuthKV)
 	s.flush(&s.sessionKV)
+	s.flush(&s.sourceKV)
 }
 
 func (s *Service) flush(m *sync.Map) {
