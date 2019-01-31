@@ -49,19 +49,8 @@ jobs:
       - attach_workspace:
         at: /home/circleci
       # Run npm install, using Circle's cache if applicable.
-      - restore_cache:
-          name: Restore npm package cache
-          keys:
-            # Only cache on exact package-lock.json match, as in Circle's npm example:
-            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       # so, we have to add all the go stuff and nc stuff here
       - run: apt-get install -y netcat-openbsd
-      - run: make node_modules
-      - save_cache:
-          name: Save npm package cache
-          key: chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
-          paths:
-            - ~/.cache/npm
       - run:
           command: make run
           background: true
