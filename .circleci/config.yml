@@ -27,7 +27,7 @@ jobs:
             }
             EOF
             )
-            https://slack.com/api/chat.postMessage
+            --url https://slack.com/api/chat.postMessage
       - run:
           name: Litmus Nightly Tests Fail
           when: on_fail
