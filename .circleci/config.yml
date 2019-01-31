@@ -60,7 +60,7 @@ jobs:
           name: Restore npm package cache
           keys:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
-      - run: apt-get install -y netcat-openbsd
+      - run: sudo apt-get install -y netcat-openbsd
       - run: make proto
       - run: make build
       - run:
