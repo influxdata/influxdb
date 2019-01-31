@@ -4,16 +4,10 @@ jobs:
     machine: true
     steps:
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      #- run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_users_tests.list --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
-      - run:
-          name: Set Env Var
-          command: |
-            echo  'export MESSAGE="Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB[$CIRCLE_BUILD_NUM]($CIRCLE_BUILD_URL)"' >> $BASH_ENV
-            source $BASH_ENV
-            echo $MESSAGE
+      #- run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Nightly Tests Success
-          when: on_success
+          when: on_fail
           command: |
             curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_TOKEN" \
@@ -29,9 +23,20 @@ jobs:
             )
       - run:
           name: Litmus Nightly Tests Fail
-          when: on_fail
+          when: on_success
           command: |
-            curl -X POST -H "Authorization: Bearer $SLACK_TOKEN" -H 'Content-type: application/json; charset=utf-8' --data '{"channel":"#testing","text":"FAIL: $MESSAGE","username:"CircleCI Nightly Litmus OSS Litmus Tests","icon_emoji":":circleci-fail:"}' https://slack.com/api/chat.postMessage
+            curl -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_TOKEN" \
+            -H "Content-type: application/json; charset=utf-8" \
+            --data @<(cat <<EOF
+            {
+              "channel":"#testing",
+              "text":"FAIL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM, Build URL: $CIRCLE_BUILD_URL",
+              "username:"CircleCI Nightly Litmus OSS Litmus Tests",
+              "icon_emoji":":circleci-fail:"
+            }
+            EOF
+            )
       - store_artifacts:
           path: ~/project 
  
