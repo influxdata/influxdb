@@ -24,10 +24,7 @@ import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
 import FilterList from 'src/shared/components/Filter'
 
 // APIS
-import {
-  getTelegrafConfigTOML,
-  deleteTelegrafConfig,
-} from 'src/organizations/apis/index'
+import {client} from 'src/utils/api'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -178,14 +175,14 @@ export default class Collectors extends PureComponent<Props, State> {
     telegrafName: string
   ) => {
     try {
-      const config = await getTelegrafConfigTOML(telegrafID)
+      const config = await client.telegrafConfigs.getTOML(telegrafID)
       downloadTextFile(config, `${telegrafName || 'config'}.toml`)
     } catch (error) {
       notify(getTelegrafConfigFailed())
     }
   }
   private handleDeleteTelegraf = async (telegrafID: string) => {
-    await deleteTelegrafConfig(telegrafID)
+    await client.telegrafConfigs.delete(telegrafID)
     this.props.onChange()
   }
 
