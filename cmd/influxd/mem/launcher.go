@@ -271,15 +271,15 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.WithLogger(m.logger)
 
 	var (
-		orgSvc    platform.OrganizationService  = m.svc
-		authSvc   platform.AuthorizationService = m.svc
-		userSvc   platform.UserService          = m.svc
-		macroSvc  platform.MacroService         = m.svc
-		bucketSvc platform.BucketService        = m.svc
-		//sourceSvc        platform.SourceService                   = m.svc
-		sessionSvc   platform.SessionService   = m.svc
-		basicAuthSvc platform.BasicAuthService = m.svc
-		dashboardSvc platform.DashboardService = m.svc
+		orgSvc       platform.OrganizationService  = m.svc
+		authSvc      platform.AuthorizationService = m.svc
+		userSvc      platform.UserService          = m.svc
+		macroSvc     platform.MacroService         = m.svc
+		bucketSvc    platform.BucketService        = m.svc
+		sourceSvc    platform.SourceService        = m.svc
+		sessionSvc   platform.SessionService       = m.svc
+		basicAuthSvc platform.BasicAuthService     = m.svc
+		dashboardSvc platform.DashboardService     = m.svc
 		/*
 			dashboardLogSvc  platform.DashboardOperationLogService    = m.svc
 			userLogSvc       platform.UserOperationLogService         = m.svc
@@ -432,8 +432,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			BucketOperationLogService:       bucketLogSvc,
 			UserOperationLogService:         userLogSvc,
 			OrganizationOperationLogService: orgLogSvc,
-			SourceService:                   sourceSvc,
 		*/
+		SourceService:             sourceSvc,
 		MacroService:              macroSvc,
 		BasicAuthService:          basicAuthSvc,
 		OnboardingService:         onboardingSvc,

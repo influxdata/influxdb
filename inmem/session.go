@@ -24,7 +24,7 @@ func (s *Service) RenewSession(ctx context.Context, session *platform.Session, n
 
 // FindSession retrieves the session found at the provided key.
 func (s *Service) FindSession(ctx context.Context, key string) (*platform.Session, error) {
-	result, found := s.telegrafConfigKV.Load(key)
+	result, found := s.sessionKV.Load(key)
 	if !found {
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
@@ -61,7 +61,7 @@ func (s *Service) FindSession(ctx context.Context, key string) (*platform.Sessio
 }
 
 func (s *Service) PutSession(ctx context.Context, sess *platform.Session) error {
-	s.sessionKV.Store(sess.ID, *sess)
+	s.sessionKV.Store(sess.Key, *sess)
 	return nil
 }
 
