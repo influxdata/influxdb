@@ -159,6 +159,12 @@ chronogiraffe: subdirs generate $(CMDS)
 run: chronogiraffe
 	./bin/$(GOOS)/influxd --developer-mode=true
 
+# assume this is running from circleci
+proto:
+	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip
+	unzip -d /tmp /tmp/protoc.zip
+	chmod +x /tmp/bin/protoc
+	mv /tmp/bin/protoc /usr/bin
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping
+.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping proto
