@@ -8,7 +8,7 @@ jobs:
       - run:
           name: Set Env Var
           command: |
-            echo  "export MESSAGE="Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB[$CIRCLE_BUILD_NUM]\($CIRCLE_BUILD_URL\)" >> $BASH_ENV
+            echo  'export MESSAGE="Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB[$CIRCLE_BUILD_NUM]($CIRCLE_BUILD_URL)"' >> $BASH_ENV
             source $BASH_ENV
       - run:
           name: Litmus Nightly Tests Success
