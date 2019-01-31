@@ -44,16 +44,17 @@ jobs:
         environment:
           ## this enables colors in the output
           TERM: xterm
-    working_directory: /go/src/github.com/influxdata/platform
+    working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-
       # Run npm install, using Circle's cache if applicable.
       - restore_cache:
           name: Restore npm package cache
           keys:
             # Only cache on exact package-lock.json match, as in Circle's npm example:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
+      # so, we have to add all the go stuff and nc stuff here
+      - run: apt-get install -y netcat-openbsd
       - run: make node_modules
       - save_cache:
           name: Save npm package cache
@@ -66,10 +67,8 @@ jobs:
       - run: make e2e
       - store_test_results:
           path: junit-results
-
       - store_artifacts:
           path: cypress/videos
-
       - store_artifacts:
           path: cypress/screenshots
 
@@ -252,7 +251,6 @@ workflows:
   version: 2
   build:
     jobs:
-      - e2e
       - gotest
       - jstest
       - build
@@ -260,6 +258,10 @@ workflows:
           requires:
             - build
 
+  e2e:
+    jobs:
+      - build
+      - e2e
   nightly:
     triggers:
       - schedule:
