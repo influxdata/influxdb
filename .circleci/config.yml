@@ -68,11 +68,11 @@ jobs:
           background: true
       - run: make e2e
       - store_test_results:
-          path: junit-results
+          path: ui/junit-results
       - store_artifacts:
-          path: cypress/videos
+          path: ui/cypress/videos
       - store_artifacts:
-          path: cypress/screenshots
+          path: ui/cypress/screenshots
   jstest:
     docker:
       - image: circleci/golang:1.11-node-browsers
