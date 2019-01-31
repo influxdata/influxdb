@@ -261,7 +261,9 @@ workflows:
   e2e:
     jobs:
       - build
-      - e2e
+      - e2e:
+          requires:
+            - build
   nightly:
     triggers:
       - schedule:
