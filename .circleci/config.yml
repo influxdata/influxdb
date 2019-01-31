@@ -10,6 +10,7 @@ jobs:
           command: |
             echo  'export MESSAGE="Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB[$CIRCLE_BUILD_NUM]($CIRCLE_BUILD_URL)"' >> $BASH_ENV
             source $BASH_ENV
+            echo $MESSAGE
       - run:
           name: Litmus Nightly Tests Success
           when: on_success
@@ -19,7 +20,7 @@ jobs:
           name: Litmus Nightly Tests Fail
           when: on_fail
           command: |
-            curl -X POST -H "Authorization: Bearer $SLACK_TOKEN" -H 'Content-type: application/json; charset=utf-8' --data '{"channel":"#testing","text":"Example Litmus nightly Test Passes","username:"CircleCI Nightly Litmus Tests","icon_emoji":":circleci-fail:"}' https://slack.com/api/chat.postMessage
+            curl -X POST -H "Authorization: Bearer $SLACK_TOKEN" -H 'Content-type: application/json; charset=utf-8' --data '{"channel":"#testing","text":"FAIL: $MESSAGE","username:"CircleCI Nightly Litmus OSS Litmus Tests","icon_emoji":":circleci-fail:"}' https://slack.com/api/chat.postMessage
       - store_artifacts:
           path: ~/project 
  
