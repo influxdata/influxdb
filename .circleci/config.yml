@@ -165,6 +165,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
+<<<<<<< HEAD
             - project
             - bin/linux/influxd
             - bin/linux/influx
@@ -172,6 +173,9 @@ jobs:
             - etc/litmus_fail_notify.sh
             - /go/src/github.com/influxdata/influxdb
           paths:
+=======
+            - go/src/github.com/influxdata/influxdb
+>>>>>>> hack
 
   deploy-nightly:
     docker:
