@@ -15,7 +15,7 @@ jobs:
           name: Litmus Nightly Tests Success
           when: on_success
           command: |
-            curl -X POST -H "Authorization: Bearer $SLACK_TOKEN" -H "Content-type: application/json; charset=utf-8" --data @<(cat <<EOF {"channel":"#testing","text":"SUCCESSFUL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM", Build URL: '$CIRCLE_BUILD_URL'","username:"CircleCI Nightly Litmus OSS Litmus Tests","icon_emoji":":circleci-pass:"}EOF) https://slack.com/api/chat.postMessage
+            curl -X POST -H "Authorization: Bearer $SLACK_TOKEN" -H "Content-type: application/json; charset=utf-8" --data @<(cat <<EOF {"channel":"#testing","text":"SUCCESSFUL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM, Build URL: $CIRCLE_BUILD_URL","username:"CircleCI Nightly Litmus OSS Litmus Tests","icon_emoji":":circleci-pass:"}EOF) https://slack.com/api/chat.postMessage
       - run:
           name: Litmus Nightly Tests Fail
           when: on_fail
