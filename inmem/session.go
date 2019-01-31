@@ -7,10 +7,6 @@ import (
 	platform "github.com/influxdata/influxdb"
 )
 
-var (
-	sessionBucket = []byte("sessionsv1")
-)
-
 // RenewSession extends the expire time to newExpiration.
 func (s *Service) RenewSession(ctx context.Context, session *platform.Session, newExpiration time.Time) error {
 	if session == nil {

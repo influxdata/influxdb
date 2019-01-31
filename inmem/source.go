@@ -7,10 +7,6 @@ import (
 	platform "github.com/influxdata/influxdb"
 )
 
-var (
-	sourceBucket = []byte("sourcesv1")
-)
-
 // DefaultSource is the default source.
 var DefaultSource = platform.Source{
 	Default: true,
