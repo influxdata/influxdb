@@ -62,6 +62,7 @@ jobs:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: sudo apt-get install -y netcat-openbsd
       - run: make protoc
+      - run: mkdir -p /home/circleci/.influxdbv2/protos # hack to get this dir
       - run: make build
       - run:
           command: ./bin/linux/influxd --inmem
