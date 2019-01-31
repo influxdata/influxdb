@@ -38,7 +38,7 @@ jobs:
             EOF
             )
       - store_artifacts:
-          path: ~/project 
+          path: ~/project
  
   jstest:
     docker:
@@ -208,7 +208,7 @@ workflows:
     jobs:
       - gotest
       - jstest
-      - build 
+      - build
 
   nightly:
     triggers:
