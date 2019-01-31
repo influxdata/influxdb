@@ -460,7 +460,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	if logs[0].Time != fmtTimelog {
 		t.Fatalf("expected: %q, got: %q", fmtTimelog, logs[0].Time)
 	}
-	if "log4" != logs[0].Message {
+	if logs[0].Message != "log4" {
 		t.Fatalf("expected: %q, got: %q", "log4", logs[0].Message)
 	}
 
