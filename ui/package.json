@@ -27,9 +27,9 @@
     "lint": "npm run tslint && npm run tsc && npm run tsc:cypress",
     "tslint": "tslint -c ./tslint.json '{src,cypress}/**/*.ts?(x)'",
     "tslint:fix": "tslint --fix -c ./tslint.json '{src,cypress}/**/*.ts?(x)'",
-    "tsc": "tsc -p ./tsconfig.json --noEmit --pretty",
+    "tsc": "tsc -p ./tsconfig.json --noEmit --pretty --skipLibCheck",
     "tsc:watch": "tsc -p ./tsconfig.json --noEmit --pretty -w",
-    "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty",
+    "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",
     "cypress:open": "cypress open"
   },
   "jest": {
