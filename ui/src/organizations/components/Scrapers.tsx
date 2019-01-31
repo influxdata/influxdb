@@ -3,7 +3,7 @@ import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // APIs
-import {deleteScraper} from 'src/organizations/apis/index'
+import {client} from 'src/utils/api'
 
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
@@ -23,12 +23,12 @@ import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {ScraperTargetResponses, ScraperTargetResponse, Bucket} from 'src/api'
+import {ScraperTargetResponse, Bucket} from 'src/api'
 import {OverlayState} from 'src/types/v2'
 import {DataLoaderType, DataLoaderStep} from 'src/types/v2/dataLoaders'
 
 interface Props {
-  scrapers: ScraperTargetResponses
+  scrapers: ScraperTargetResponse[]
   onChange: () => void
   orgName: string
   buckets: Bucket[]
@@ -96,11 +96,11 @@ export default class Scrapers extends PureComponent<Props, State> {
     const {scrapers} = this.props
     const {searchTerm} = this.state
 
-    if (!scrapers || !scrapers.configurations) {
+    if (!scrapers || !scrapers) {
       return []
     }
 
-    return scrapers.configurations.filter(c => {
+    return scrapers.filter(c => {
       if (!searchTerm) {
         return true
       }
@@ -162,7 +162,7 @@ export default class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleDeleteScraper = async (scraper: ScraperTargetResponse) => {
-    await deleteScraper(scraper.id)
+    await client.scrapers.deleteScraper(scraper.id)
     this.props.onChange()
   }
 

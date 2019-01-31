@@ -6,7 +6,6 @@ import {
   SourcesApi,
   QueryApi,
   SetupApi,
-  ScraperTargetsApi,
   ProtosApi,
 } from 'src/api'
 
@@ -23,5 +22,4 @@ export const telegrafsAPI = new TelegrafsApi({basePath})
 export const sourcesAPI = new SourcesApi({basePath})
 export const queryAPI = new QueryApi({basePath})
 export const setupAPI = new SetupApi({basePath})
-export const scraperTargetsApi = new ScraperTargetsApi({basePath})
 export const protosAPI = new ProtosApi({basePath})
