@@ -61,7 +61,7 @@ jobs:
           keys:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: sudo apt-get install -y netcat-openbsd
-      - run: make proto
+      - run: make protoc
       - run: make build
       - run:
           command: ./bin/linux/influxd
@@ -171,7 +171,7 @@ jobs:
           name: Restore npm package cache
           keys:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
-      - run: make proto
+      - run: make protoc
       - run: make build
       - persist_to_workspace:
           root: .
