@@ -4,7 +4,7 @@ jobs:
     machine: true
     steps:
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_users_tests.list --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      #- run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_users_tests.list --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Set Env Var
           command: |
@@ -15,7 +15,7 @@ jobs:
           name: Litmus Nightly Tests Success
           when: on_success
           command: |
-            curl -X POST -H "Authorization: Bearer $SLACK_TOKEN" -H "Content-type: application/json; charset=utf-8" --data '{"channel":"#testing","text":"SUCCESSFUL: Branch: '$CIRCLE_BRANCH', Job: '$CIRCLE_JOB', Build: '$CIRCLE_BUILD_NUM', Build URL: '$CIRCLE_BUILD_URL'","username:"CircleCI Nightly Litmus OSS Litmus Tests","icon_emoji":":circleci-pass:"}' https://slack.com/api/chat.postMessage
+            curl -X POST -H "Authorization: Bearer $SLACK_TOKEN" -H "Content-type: application/json; charset=utf-8" --data '{"channel":"#testing","text":"SUCCESSFUL: Branch: '$CIRCLE_BRANCH' Job: '$CIRCLE_JOB'","username:"CircleCI Nightly Litmus OSS Litmus Tests","icon_emoji":":circleci-pass:"}' https://slack.com/api/chat.postMessage
       - run:
           name: Litmus Nightly Tests Fail
           when: on_fail
