@@ -5,13 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"path"
-	"strconv"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
+	"net/http"
+	"path"
 )
 
 // OrgHandler represents an HTTP API handler for orgs.
@@ -758,29 +756,14 @@ func decodeGetOrganizationLogRequest(ctx context.Context, r *http.Request) (*get
 		return nil, err
 	}
 
-	opts := platform.DefaultOperationLogFindOptions
-	qp := r.URL.Query()
-	if v := qp.Get("desc"); v == "false" {
-		opts.Descending = false
-	}
-	if v := qp.Get("limit"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Limit = i
-	}
-	if v := qp.Get("offset"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Offset = i
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
 	}
 
 	return &getOrganizationLogRequest{
 		OrganizationID: i,
-		opts:           opts,
+		opts:           *opts,
 	}, nil
 }
 
