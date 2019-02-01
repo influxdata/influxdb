@@ -38,7 +38,7 @@ const flush = () => {
 
 // DOM node getters
 const getByDataTest = (dataTest: string): Cypress.Chainable => {
-  return cy.get(`[data-test="${dataTest}"]`)
+  return cy.get(`[data-testid="${dataTest}"]`)
 }
 
 const getByInputName = (name: string): Cypress.Chainable => {
