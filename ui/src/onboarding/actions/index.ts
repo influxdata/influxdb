@@ -8,10 +8,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {client} from 'src/utils/api'
 
 // Types
-import {
-  SetupParams,
-  setSetupParams as setSetupParamsAJAX,
-} from 'src/onboarding/apis'
+import {SetupParams} from 'src/onboarding/apis'
 
 export type Action =
   | SetSetupParams
@@ -65,18 +62,18 @@ export const setBucketID = (bucketID: string): SetBucketID => ({
   payload: {bucketID},
 })
 
-export const setupAdmin = (setupParams: SetupParams) => async dispatch => {
+export const setupAdmin = (params: SetupParams) => async dispatch => {
   try {
-    dispatch(setSetupParams(setupParams))
-    const onboardingResponse = await setSetupParamsAJAX(setupParams)
+    dispatch(setSetupParams(params))
+    const response = await client.setup.create(params)
 
-    const {id: orgID} = onboardingResponse.org
-    const {id: bucketID} = onboardingResponse.bucket
+    const {id: orgID} = response.org
+    const {id: bucketID} = response.bucket
 
     dispatch(setOrganizationID(orgID))
     dispatch(setBucketID(bucketID))
 
-    const {username, password} = setupParams
+    const {username, password} = params
 
     await client.auth.signin(username, password)
     dispatch(notify(SetupSuccess))

@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {InjectedRouter} from 'react-router'
 
 // APIs
-import {getSetupStatus} from 'src/onboarding/apis'
+import {client} from 'src/utils/api'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -50,12 +50,12 @@ export class Setup extends PureComponent<Props, State> {
       return
     }
 
-    const isSetupAllowed = await getSetupStatus()
+    const {allowed} = await client.setup.status()
     this.setState({
       loading: RemoteDataState.Done,
     })
 
-    if (!isSetupAllowed) {
+    if (!allowed) {
       return
     }
 
