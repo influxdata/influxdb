@@ -101,7 +101,7 @@
     "@types/uuid": "^3.4.3",
     "autoprefixer": "^6.3.1",
     "babel-loader": "^8.0.5",
-    "cypress": "^3.1.4",
+    "cypress": "^3.1.5",
     "enzyme": "^3.6.0",
     "enzyme-adapter-react-16": "^1.6.0",
     "enzyme-to-json": "^3.3.4",
