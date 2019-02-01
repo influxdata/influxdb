@@ -36,7 +36,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 				FindTelegrafConfigsF: func(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
 					if filter.OrganizationID != nil && *filter.OrganizationID == platform.ID(2) {
 						return []*platform.TelegrafConfig{
-							&platform.TelegrafConfig{
+							{
 								ID:             platform.ID(1),
 								OrganizationID: platform.ID(2),
 								Name:           "tc1",
@@ -86,7 +86,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 			svc: &mock.TelegrafConfigStore{
 				FindTelegrafConfigsF: func(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
 					return []*platform.TelegrafConfig{
-						&platform.TelegrafConfig{
+						{
 							ID:             platform.ID(1),
 							OrganizationID: platform.ID(2),
 							Name:           "my config",
@@ -722,7 +722,7 @@ func Test_newTelegrafResponses(t *testing.T) {
 		{
 			args: args{
 				tcs: []*platform.TelegrafConfig{
-					&platform.TelegrafConfig{
+					{
 						ID:             platform.ID(1),
 						OrganizationID: platform.ID(2),
 						Name:           "my config",
