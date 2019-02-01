@@ -266,6 +266,30 @@ export const timeMachineReducer = (
       return setYAxis(state, {scale})
     }
 
+    case 'SET_X': {
+      const {x} = action.payload
+
+      return setViewProperties(state, {x})
+    }
+
+    case 'SET_FILL': {
+      const {fill} = action.payload
+
+      return setViewProperties(state, {fill})
+    }
+
+    case 'SET_HISTOGRAM_POSITION': {
+      const {position} = action.payload
+
+      return setViewProperties(state, {position})
+    }
+
+    case 'SET_BIN_COUNT': {
+      const {binCount} = action.payload
+
+      return setViewProperties(state, {binCount})
+    }
+
     case 'SET_PREFIX': {
       const {prefix} = action.payload
 
@@ -303,6 +327,7 @@ export const timeMachineReducer = (
         case ViewType.Gauge:
         case ViewType.SingleStat:
         case ViewType.XY:
+        case ViewType.Histogram:
           return setViewProperties(state, {colors})
         case ViewType.LinePlusSingleStat:
           return setViewProperties(state, {

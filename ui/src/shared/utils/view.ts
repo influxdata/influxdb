@@ -1,7 +1,9 @@
 import {ViewType, ViewShape} from 'src/types/v2'
+import {HistogramPosition} from 'src/minard'
 import {
   XYView,
   XYViewGeom,
+  HistogramView,
   LinePlusSingleStatView,
   SingleStatView,
   TableView,
@@ -13,6 +15,7 @@ import {
   InfluxLanguage,
   QueryEditMode,
 } from 'src/types/v2/dashboards'
+import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
@@ -114,6 +117,20 @@ const NEW_VIEW_CREATORS = {
       type: ViewType.XY,
       shape: ViewShape.ChronografV2,
       geom: XYViewGeom.Line,
+    },
+  }),
+  [ViewType.Histogram]: (): NewView<HistogramView> => ({
+    ...defaultView(),
+    properties: {
+      queries: [],
+      type: ViewType.Histogram,
+      x: '_value',
+      fill: 'table',
+      position: HistogramPosition.Stacked,
+      binCount: 30,
+      colors: DEFAULT_LINE_COLORS,
+      note: '',
+      showNoteWhenEmpty: false,
     },
   }),
   [ViewType.SingleStat]: (): NewView<SingleStatView> => ({

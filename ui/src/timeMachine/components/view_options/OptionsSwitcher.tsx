@@ -6,6 +6,7 @@ import LineOptions from 'src/timeMachine/components/view_options/LineOptions'
 import GaugeOptions from 'src/timeMachine/components/view_options/GaugeOptions'
 import SingleStatOptions from 'src/timeMachine/components/view_options/SingleStatOptions'
 import TableOptions from 'src/timeMachine/components/view_options/TableOptions'
+import HistogramOptions from 'src/timeMachine/components/view_options/HistogramOptions'
 
 // Types
 import {ViewType, View, NewView} from 'src/types/v2'
@@ -34,6 +35,8 @@ class OptionsSwitcher extends PureComponent<Props> {
         return <SingleStatOptions />
       case ViewType.Table:
         return <TableOptions />
+      case ViewType.Histogram:
+        return <HistogramOptions {...view.properties} />
       default:
         return <div />
     }

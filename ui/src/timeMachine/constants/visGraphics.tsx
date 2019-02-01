@@ -360,6 +360,12 @@ export const VIS_GRAPHICS = [
     graphic: GRAPHIC_SVGS[ViewType.LinePlusSingleStat],
   },
   {
+    type: ViewType.Histogram,
+    name: 'Histogram',
+    // TODO: Create a histogarm graphic
+    graphic: GRAPHIC_SVGS[ViewType.XY],
+  },
+  {
     type: ViewType.SingleStat,
     name: 'Single Stat',
     graphic: GRAPHIC_SVGS[ViewType.SingleStat],
