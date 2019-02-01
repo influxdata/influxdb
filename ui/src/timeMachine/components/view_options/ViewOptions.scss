@@ -19,14 +19,17 @@
 }
 
 .view-options--header {
-  font-size: 16px;
-  font-weight: 500;
   @include no-user-select();
+  font-weight: 500;
+  color: $g11-sidewalk;
+}
+
+h4.view-options--header {
+  font-size: 16px;
   padding-top: $ix-marg-c;
   border-top: $ix-border solid $g5-pepper;
   margin-top: $ix-marg-b;
   margin-bottom: $ix-marg-c;
-  color: $g11-sidewalk;
 
   *:first-child > & {
     margin-top: 0;
@@ -35,3 +38,10 @@
   }
 }
 
+h5.view-options--header {
+  font-size: 14px;
+  border-bottom: $ix-border solid $g5-pepper;
+  margin-top: $ix-marg-d;
+  margin-bottom: $ix-marg-c;
+  padding-bottom: $ix-marg-a;
+}

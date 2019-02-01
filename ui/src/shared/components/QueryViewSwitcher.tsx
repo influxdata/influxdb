@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {AutoSizer} from 'react-virtualized'
 
 // Components
 import GaugeChart from 'src/shared/components/GaugeChart'
@@ -7,6 +8,7 @@ import SingleStat from 'src/shared/components/SingleStat'
 import SingleStatTransform from 'src/shared/components/SingleStatTransform'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
 import DygraphContainer from 'src/shared/components/DygraphContainer'
+import Histogram from 'src/shared/components/Histogram'
 
 // Types
 import {
@@ -82,6 +84,14 @@ export default class QueryViewSwitcher extends PureComponent<Props> {
               )}
             </SingleStatTransform>
           </DygraphContainer>
+        )
+      case ViewType.Histogram:
+        return (
+          <AutoSizer>
+            {({width, height}) => (
+              <Histogram width={width} height={height} tables={tables} />
+            )}
+          </AutoSizer>
         )
       default:
         return <div />
