@@ -1,3 +1,5 @@
+required = ["github.com/influxdata/platform/pkg/data/gen"]
+
 [[constraint]]
   name = "collectd.org"
   version = "0.3.0"
@@ -7,8 +9,8 @@
   branch = "master"
 
 [[constraint]]
-  name = "github.com/RoaringBitmap/roaring"
-  version = "0.4.3"
+  name = "github.com/influxdata/roaring"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/boltdb/bolt"
@@ -29,10 +31,6 @@
 [[constraint]]
   name = "github.com/golang/snappy"
   revision = "d9eb7a3d35ec988b8585d4a0068e462c27d28380"
-
-[[constraint]]
-  name = "github.com/influxdata/influxql"
-  revision = "145e0677ff6418fa00ee7e5dd434305631ab44ea"
 
 [[constraint]]
   name = "github.com/mattn/go-isatty"
@@ -66,6 +64,14 @@
   name = "github.com/prometheus/client_golang"
   revision = "661e31bf844dfca9aeba15f27ea8aa0d485ad212"
 
+[[constraint]]
+  name = "github.com/klauspost/pgzip"
+  version = "1.1.0"
+
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/influxdata/flux"
+  version = "0.12.0"

@@ -35,6 +35,8 @@
 package uuid // import "github.com/influxdata/influxdb/uuid"
 
 import (
+	"crypto/rand"
+	"net"
 	"sync/atomic"
 	"time"
 )
@@ -43,8 +45,26 @@ import (
 type UUID [16]byte
 
 var timeBase = time.Date(1582, time.October, 15, 0, 0, 0, 0, time.UTC).Unix()
-var hardwareAddr []byte
+var hardwareAddr = hwAddrFunc()
 var clockSeq uint32
+
+func hwAddrFunc() [6]byte {
+	u := [6]byte{}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		rand.Reader.Read(u[:])
+		return u
+	}
+	for _, iface := range ifaces {
+		if len(iface.HardwareAddr) >= 6 {
+			copy(u[:], iface.HardwareAddr)
+			return u
+		}
+	}
+	rand.Reader.Read(u[:])
+	return u
+}
 
 // TimeUUID generates a new time based UUID (version 1) using the current
 // time as the timestamp.
@@ -68,7 +88,7 @@ func FromTime(aTime time.Time) UUID {
 	u[8] = byte(clock >> 8)
 	u[9] = byte(clock)
 
-	copy(u[10:], hardwareAddr)
+	copy(u[10:], hardwareAddr[:])
 
 	u[6] |= 0x10 // set version to 1 (time based uuid)
 	u[8] &= 0x3F // clear variant

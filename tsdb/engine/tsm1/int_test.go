@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"reflect"
@@ -604,43 +605,125 @@ func BenchmarkIntegerEncoderPackedSimple(b *testing.B) {
 	}
 }
 
-func BenchmarkIntegerDecoderPackedSimple(b *testing.B) {
-	x := make([]int64, 1024)
-	enc := NewIntegerEncoder(1024)
-	for i := 0; i < len(x); i++ {
-		// Small amount of randomness prevents RLE from being used
-		x[i] = int64(i) + int64(rand.Intn(10))
-		enc.Write(x[i])
+func BenchmarkIntegerBatch_DecodeAllUncompressed(b *testing.B) {
+	benchmarks := []struct {
+		n int
+	}{
+		{5},
+		{55},
+		{555},
+		{1000},
 	}
-	bytes, _ := enc.Bytes()
 
-	b.ResetTimer()
+	values := []int64{
+		-2352281900722994752, 1438442655375607923, -4110452567888190110,
+		-1221292455668011702, -1941700286034261841, -2836753127140407751,
+		1432686216250034552, 3663244026151507025, -3068113732684750258,
+		-1949953187327444488, 3713374280993588804, 3226153669854871355,
+		-2093273755080502606, 1006087192578600616, -2272122301622271655,
+		2533238229511593671, -4450454445568858273, 2647789901083530435,
+		2761419461769776844, -1324397441074946198, -680758138988210958,
+		94468846694902125, -2394093124890745254, -2682139311758778198,
+	}
 
-	var dec IntegerDecoder
-	for i := 0; i < b.N; i++ {
-		dec.SetBytes(bytes)
-		for dec.Next() {
+	for _, bm := range benchmarks {
+		rand.Seed(int64(bm.n * 1e3))
+
+		enc := NewIntegerEncoder(bm.n)
+		for i := 0; i < bm.n; i++ {
+			enc.Write(values[rand.Int()%len(values)])
 		}
+		bytes, _ := enc.Bytes()
+
+		b.Run(fmt.Sprintf("%d", bm.n), func(b *testing.B) {
+			b.SetBytes(int64(len(bytes)))
+			b.ReportAllocs()
+
+			dst := make([]int64, bm.n)
+			for i := 0; i < b.N; i++ {
+				var dec IntegerDecoder
+				dec.SetBytes(bytes)
+				var n int
+				for dec.Next() {
+					dst[n] = dec.Read()
+					n++
+				}
+			}
+		})
 	}
 }
 
-func BenchmarkIntegerDecoderRLE(b *testing.B) {
-	x := make([]int64, 1024)
-	enc := NewIntegerEncoder(1024)
-	for i := 0; i < len(x); i++ {
-		x[i] = int64(i)
-		enc.Write(x[i])
+func BenchmarkIntegerBatch_DecodeAllPackedSimple(b *testing.B) {
+	benchmarks := []struct {
+		n int
+	}{
+		{5},
+		{55},
+		{555},
+		{1000},
 	}
-	bytes, _ := enc.Bytes()
+	for _, bm := range benchmarks {
+		rand.Seed(int64(bm.n * 1e3))
 
-	b.ResetTimer()
-
-	var dec IntegerDecoder
-	dec.SetBytes(bytes)
-
-	for i := 0; i < b.N; i++ {
-		dec.SetBytes(bytes)
-		for dec.Next() {
+		enc := NewIntegerEncoder(bm.n)
+		for i := 0; i < bm.n; i++ {
+			// Small amount of randomness prevents RLE from being used
+			enc.Write(int64(i) + int64(rand.Intn(10)))
 		}
+		bytes, _ := enc.Bytes()
+
+		b.Run(fmt.Sprintf("%d", bm.n), func(b *testing.B) {
+			b.SetBytes(int64(len(bytes)))
+			b.ReportAllocs()
+
+			dst := make([]int64, bm.n)
+			for i := 0; i < b.N; i++ {
+				var dec IntegerDecoder
+				dec.SetBytes(bytes)
+				var n int
+				for dec.Next() {
+					dst[n] = dec.Read()
+					n++
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkIntegerBatch_DecodeAllRLE(b *testing.B) {
+	benchmarks := []struct {
+		n     int
+		delta int64
+	}{
+		{5, 1},
+		{55, 1},
+		{555, 1},
+		{1000, 1},
+		{1000, 0},
+	}
+	for _, bm := range benchmarks {
+		enc := NewIntegerEncoder(bm.n)
+		acc := int64(0)
+		for i := 0; i < bm.n; i++ {
+			enc.Write(acc)
+			acc += bm.delta
+		}
+		bytes, _ := enc.Bytes()
+
+		b.Run(fmt.Sprintf("%d_delta_%d", bm.n, bm.delta), func(b *testing.B) {
+			b.SetBytes(int64(len(bytes)))
+			b.ReportAllocs()
+
+			dst := make([]int64, bm.n)
+			for i := 0; i < b.N; i++ {
+				var dec IntegerDecoder
+				dec.SetBytes(bytes)
+				var n int
+				for dec.Next() {
+					dst[n] = dec.Read()
+					n++
+				}
+			}
+		})
 	}
 }

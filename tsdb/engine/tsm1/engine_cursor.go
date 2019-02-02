@@ -7,5 +7,5 @@ import (
 )
 
 func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator, error) {
-	return &cursorIterator{e: e}, nil
+	return &arrayCursorIterator{e: e}, nil
 }

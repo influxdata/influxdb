@@ -911,3 +911,29 @@ func TestClientProxy(t *testing.T) {
 		t.Fatalf("no http request was received")
 	}
 }
+
+func TestClient_QueryAsChunk(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data Response
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Influxdb-Version", "1.3.1")
+		w.WriteHeader(http.StatusOK)
+		enc := json.NewEncoder(w)
+		_ = enc.Encode(data)
+		_ = enc.Encode(data)
+	}))
+	defer ts.Close()
+
+	config := HTTPConfig{Addr: ts.URL}
+	c, err := NewHTTPClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := Query{Chunked: true}
+	resp, err := c.QueryAsChunk(query)
+	defer resp.Close()
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime"
 	"sort"
 	"time"
 
@@ -162,6 +163,12 @@ type EngineOptions struct {
 	ShardID       uint64
 	InmemIndex    interface{} // shared in-memory index
 
+	// Limits the concurrent number of TSM files that can be loaded at once.
+	OpenLimiter limiter.Fixed
+
+	// CompactionDisabled specifies shards should not schedule compactions.
+	// This option is intended for offline tooling.
+	CompactionDisabled          bool
 	CompactionPlannerCreator    CompactionPlannerCreator
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate
@@ -189,13 +196,15 @@ type EngineOptions struct {
 	FileStoreObserver FileStoreObserver
 }
 
-// NewEngineOptions returns the default options.
+// NewEngineOptions constructs an EngineOptions object with safe default values.
+// This should only be used in tests; production environments should read from a config file.
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
 		EngineVersion: DefaultEngine,
 		IndexVersion:  DefaultIndex,
 		Config:        NewConfig(),
 		WALEnabled:    true,
+		OpenLimiter:   limiter.NewFixed(runtime.GOMAXPROCS(0)),
 	}
 }
 

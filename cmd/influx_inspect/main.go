@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/help"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/report"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/reporttsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/seriesfile"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/tsm"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
@@ -95,6 +96,11 @@ func (m *Main) Run(args ...string) error {
 		name := report.NewCommand()
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("report: %s", err)
+		}
+	case "reporttsi":
+		name := reporttsi.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("reporttsi: %s", err)
 		}
 	case "verify":
 		name := tsm.NewCommand()

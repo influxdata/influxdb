@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/escape"
 )
 
 // MarshalTags converts a tag set to bytes for use as a lookup key.
@@ -96,12 +95,4 @@ func MakeTagsKey(keys []string, tags models.Tags) []byte {
 	}
 
 	return b
-}
-
-// MeasurementFromSeriesKey returns the name of the measurement from a key that
-// contains a measurement name.
-func MeasurementFromSeriesKey(key []byte) []byte {
-	// Ignoring the error because the func returns "missing fields"
-	k, _ := models.ParseName(key)
-	return escape.Unescape(k)
 }

@@ -82,6 +82,7 @@ func TestIntegerValues_Exclude(t *testing.T) {
 		{"excl all but first and last", 12, 16, []int64{10, 18}},
 		{"excl none in middle", 13, 13, []int64{10, 12, 14, 16, 18}},
 		{"excl middle", 14, 14, []int64{10, 12, 16, 18}},
+		{"excl suffix", 16, 18, []int64{10, 12, 14}},
 	}
 
 	for _, tc := range cases {
@@ -172,10 +173,14 @@ func BenchmarkIntegerValues_ExcludeLast_10000(b *testing.B) {
 }
 
 func benchInclude(b *testing.B, vals IntegerValues, min, max int64) {
+	tmp := append(IntegerValues{}, vals...)
+	n := len(vals)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		vals.Include(min, max)
+		vals = vals[:n]
+		copy(vals, tmp)
 	}
 }
 

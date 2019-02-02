@@ -187,21 +187,6 @@ func (fs *FileSet) LastContiguousIndexFilesByLevel(level int) []*IndexFile {
 	return a
 }
 
-/*
-// SeriesIDIterator returns an iterator over all series in the index.
-func (fs *FileSet) SeriesIDIterator() tsdb.SeriesIDIterator {
-	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
-	for _, f := range fs.files {
-		itr := f.SeriesIDIterator()
-		if itr == nil {
-			continue
-		}
-		a = append(a, itr)
-	}
-	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
-}
-*/
-
 // Measurement returns a measurement by name.
 func (fs *FileSet) Measurement(name []byte) MeasurementElem {
 	for _, f := range fs.files {
@@ -395,41 +380,62 @@ func (fs *FileSet) TagValueIterator(name, key []byte) TagValueIterator {
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
-func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
-	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
-	for _, f := range fs.files {
-		itr := f.TagValueSeriesIDIterator(name, key, value)
-		if itr != nil {
-			a = append(a, itr)
+func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+	ss := tsdb.NewSeriesIDSet()
+
+	var ftss *tsdb.SeriesIDSet
+	for i := len(fs.files) - 1; i >= 0; i-- {
+		f := fs.files[i]
+
+		// Remove tombstones set in previous file.
+		if ftss != nil && ftss.Cardinality() > 0 {
+			ss = ss.AndNot(ftss)
+		}
+
+		// Fetch tag value series set for this file and merge into overall set.
+		fss, err := f.TagValueSeriesIDSet(name, key, value)
+		if err != nil {
+			return nil, err
+		} else if fss != nil {
+			ss.Merge(fss)
+		}
+
+		// Fetch tombstone set to be processed on next file.
+		if ftss, err = f.TombstoneSeriesIDSet(); err != nil {
+			return nil, err
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...)
+	return tsdb.NewSeriesIDSetIterator(ss), nil
 }
 
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
-	// Iterate over all the files and merge the sketches into the result.
+	sketch, tSketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for _, f := range fs.files {
-		if err := f.MergeMeasurementsSketches(sketch, tsketch); err != nil {
+		if s, t, err := f.MeasurementsSketches(); err != nil {
+			return nil, nil, err
+		} else if err := sketch.Merge(s); err != nil {
+			return nil, nil, err
+		} else if err := tSketch.Merge(t); err != nil {
 			return nil, nil, err
 		}
 	}
-	return sketch, tsketch, nil
+	return sketch, tSketch, nil
 }
 
 // SeriesSketches returns the merged measurement sketches for the FileSet.
 func (fs *FileSet) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
-	// Iterate over all the files and merge the sketches into the result.
+	sketch, tSketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for _, f := range fs.files {
-		if err := f.MergeSeriesSketches(sketch, tsketch); err != nil {
+		if s, t, err := f.SeriesSketches(); err != nil {
+			return nil, nil, err
+		} else if err := sketch.Merge(s); err != nil {
+			return nil, nil, err
+		} else if err := tSketch.Merge(t); err != nil {
 			return nil, nil, err
 		}
 	}
-	return sketch, tsketch, nil
+	return sketch, tSketch, nil
 }
 
 // File represents a log or index file.
@@ -453,11 +459,11 @@ type File interface {
 	// Series iteration.
 	MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 	TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
-	TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator
+	TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error)
 
 	// Sketches for cardinality estimation
-	MergeMeasurementsSketches(s, t estimator.Sketch) error
-	MergeSeriesSketches(s, t estimator.Sketch) error
+	MeasurementsSketches() (s, t estimator.Sketch, err error)
+	SeriesSketches() (s, t estimator.Sketch, err error)
 
 	// Bitmap series existance.
 	SeriesIDSet() (*tsdb.SeriesIDSet, error)
@@ -496,6 +502,9 @@ func newFileSetSeriesIDIterator(fs *FileSet, itr tsdb.SeriesIDIterator) tsdb.Ser
 		fs.Release()
 		return nil
 	}
+	if itr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
+		return &fileSetSeriesIDSetIterator{fs: fs, itr: itr}
+	}
 	return &fileSetSeriesIDIterator{fs: fs, itr: itr}
 }
 
@@ -506,6 +515,26 @@ func (itr *fileSetSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 func (itr *fileSetSeriesIDIterator) Close() error {
 	itr.once.Do(func() { itr.fs.Release() })
 	return itr.itr.Close()
+}
+
+// fileSetSeriesIDSetIterator attaches a fileset to an iterator that is released on close.
+type fileSetSeriesIDSetIterator struct {
+	once sync.Once
+	fs   *FileSet
+	itr  tsdb.SeriesIDSetIterator
+}
+
+func (itr *fileSetSeriesIDSetIterator) Next() (tsdb.SeriesIDElem, error) {
+	return itr.itr.Next()
+}
+
+func (itr *fileSetSeriesIDSetIterator) Close() error {
+	itr.once.Do(func() { itr.fs.Release() })
+	return itr.itr.Close()
+}
+
+func (itr *fileSetSeriesIDSetIterator) SeriesIDSet() *tsdb.SeriesIDSet {
+	return itr.itr.SeriesIDSet()
 }
 
 // fileSetMeasurementIterator attaches a fileset to an iterator that is released on close.

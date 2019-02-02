@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/pkg/file"
 )
 
 // Stream is a convenience function for creating a tar of a shard dir. It walks over the directory and subdirs,
@@ -101,7 +103,7 @@ func Restore(r io.Reader, dir string) error {
 		}
 	}
 
-	return syncDir(dir)
+	return file.SyncDir(dir)
 }
 
 // extractFile copies the next file from tr into dir, using the file's base name.
@@ -159,5 +161,5 @@ func extractFile(tr *tar.Reader, dir string) error {
 		return err
 	}
 
-	return renameFile(tmp, destPath)
+	return file.RenameFile(tmp, destPath)
 }

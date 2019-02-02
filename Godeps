@@ -1,6 +1,5 @@
 collectd.org 2ce144541b8903101fb8f1483cc0497a68798122
 github.com/BurntSushi/toml a368813c5e648fee92e5f6c30e3944ff9d5e8895
-github.com/RoaringBitmap/roaring d6540aab65a17321470b1661bfc52da1823871e9
 github.com/beorn7/perks 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
 github.com/bmizerany/pat 6226ea591a40176dd3ff9cd8eff81ed6ca721a00
 github.com/boltdb/bolt 2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8
@@ -10,15 +9,18 @@ github.com/dgrijalva/jwt-go 06ea1031745cb8b3dab3f6a236daf2b0aa468b7e
 github.com/dgryski/go-bitstream 9f22ccc24718d9643ac427c8c897ae1a01575783
 github.com/glycerine/go-unsnap-stream 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 github.com/gogo/protobuf 1adfc126b41513cc696b209667c8656ea7aac67c
-github.com/golang/protobuf 925541529c1fa6821df4e44ce2723319eb2be768
+github.com/golang/protobuf b4deda0973fb4c70b50d226b1af49f3da59f5265
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
 github.com/google/go-cmp 3af367b6b30c263d47e8895973edcca9a49cf029
-github.com/influxdata/influxql 145e0677ff6418fa00ee7e5dd434305631ab44ea
+github.com/influxdata/influxql 5e999e6a81820d4450f2a1f35c5597b569258f01
+github.com/influxdata/roaring fc520f41fab6dcece280e8d4853d87a09a67f9e0
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
-github.com/influxdata/yamux 1f58ded512de5feabbe30b60c7d33a7a896c5f16
-github.com/influxdata/yarpc f0da2db138cad2fb425541938fc28dd5a5bc6918
 github.com/jsternberg/zap-logfmt ac4bd917e18a4548ce6e0e765b29a4e7f397b0b6
 github.com/jwilder/encoding b4e1701a28efcc637d9afcca7d38e495fe909a09
+github.com/klauspost/compress 6c8db69c4b49dd4df1fff66996cf556176d0b9bf
+github.com/klauspost/cpuid ae7887de9fa5d2db4eaa8174a7eff2c1ac00f2da
+github.com/klauspost/crc32 cb6bfca970f6908083f26f39a79009d608efd5cd
+github.com/klauspost/pgzip 0bf5dcad4ada2814c3c00f996a982270bb81a506
 github.com/mattn/go-isatty 6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c
 github.com/matttproud/golang_protobuf_extensions 3247c84500bff8d9fb6d579d800f20b3e091582c
 github.com/mschoch/smat 90eadee771aeab36e8bf796039b8c261bebebe4f
@@ -43,3 +45,5 @@ golang.org/x/sync 1d60e4601c6fd243af51cc01ddf169918a5407ca
 golang.org/x/sys d8e400bc7db4870d786864138af681469693d18c
 golang.org/x/text f21a4dfb5e38f5895301dc265a8def02365cc3d0
 golang.org/x/time 26559e0f760e39c24d730d3224364aef164ee23f
+google.golang.org/genproto ff3583edef7de132f219f0efc00e097cabcc0ec0
+google.golang.org/grpc 168a6198bcb0ef175f7dacec0b8691fc141dc9b8

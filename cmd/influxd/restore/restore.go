@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"compress/gzip"
+	gzip "github.com/klauspost/pgzip"
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	tarstream "github.com/influxdata/influxdb/pkg/tar"
@@ -440,7 +440,7 @@ func (cmd *Command) uploadShardsLegacy() error {
 	}
 
 	for _, fn := range backupFiles {
-		parts := strings.Split(fn, ".")
+		parts := strings.Split(filepath.Base(fn), ".")
 
 		if len(parts) != 4 {
 			cmd.StderrLogger.Printf("Skipping mis-named backup file: %s", fn)

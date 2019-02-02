@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -93,14 +92,14 @@ func typeArr(a []string) []interface{} {
 		var t string
 		switch ty {
 		case "float64":
-			t = fmt.Sprintf("%v", rand.Intn(1000))
+			t = fmt.Sprintf("%v", time.Now().Nanosecond()%1000)
 		case "int":
-			t = fmt.Sprintf("%vi", rand.Intn(1000))
+			t = fmt.Sprintf("%vi", time.Now().Nanosecond()%1000)
 		case "bool":
-			b := rand.Intn(2) == 1
+			b := time.Now().Nanosecond()%2 == 1
 			t = fmt.Sprintf("%t", b)
 		default:
-			t = fmt.Sprintf("%v", rand.Intn(1000))
+			t = fmt.Sprintf("%v", time.Now().Nanosecond()%1000)
 		}
 		i[j] = t
 	}

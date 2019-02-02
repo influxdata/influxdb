@@ -107,6 +107,11 @@ func TestEngine_Digest(t *testing.T) {
 		}
 		defer dr.Close()
 
+		_, err = dr.ReadManifest()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		got := []span{}
 
 		for {
@@ -394,14 +399,14 @@ func TestEngine_Export(t *testing.T) {
 	}
 
 	// TEST 1: did we get any extra files not found in the store?
-	for k, _ := range fileData {
+	for k := range fileData {
 		if _, ok := fileNames[k]; !ok {
 			t.Errorf("exported a file not in the store: %s", k)
 		}
 	}
 
 	// TEST 2: did we miss any files that the store had?
-	for k, _ := range fileNames {
+	for k := range fileNames {
 		if _, ok := fileData[k]; !ok {
 			t.Errorf("failed to export a file from the store: %s", k)
 		}
@@ -1705,6 +1710,47 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	}
 }
 
+func TestEngine_ShouldCompactCache(t *testing.T) {
+	nowTime := time.Now()
+
+	e, err := NewEngine(inmem.IndexName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	e.SetEnabled(false)
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+	defer e.Close()
+
+	e.CacheFlushMemorySizeThreshold = 1024
+	e.CacheFlushWriteColdDuration = time.Minute
+
+	if e.ShouldCompactCache(nowTime) {
+		t.Fatal("nothing written to cache, so should not compact")
+	}
+
+	if err := e.WritePointsString("m,k=v f=3i"); err != nil {
+		t.Fatal(err)
+	}
+
+	if e.ShouldCompactCache(nowTime) {
+		t.Fatal("cache size < flush threshold and nothing written to FileStore, so should not compact")
+	}
+
+	if !e.ShouldCompactCache(nowTime.Add(time.Hour)) {
+		t.Fatal("last compaction was longer than flush write cold threshold, so should compact")
+	}
+
+	e.CacheFlushMemorySizeThreshold = 1
+	if !e.ShouldCompactCache(nowTime) {
+		t.Fatal("cache size > flush threshold, so should compact")
+	}
+}
+
 // Ensure engine can create an ascending cursor for cache and tsm values.
 func TestEngine_CreateCursor_Ascending(t *testing.T) {
 	t.Parallel()
@@ -1753,12 +1799,12 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 			}
 			defer cur.Close()
 
-			fcur := cur.(tsdb.FloatBatchCursor)
-			ts, vs := fcur.Next()
-			if !cmp.Equal([]int64{2, 3, 10, 11}, ts) {
+			fcur := cur.(tsdb.FloatArrayCursor)
+			a := fcur.Next()
+			if !cmp.Equal([]int64{2, 3, 10, 11}, a.Timestamps) {
 				t.Fatal("unexpect timestamps")
 			}
-			if !cmp.Equal([]float64{1.2, 1.3, 10.1, 11.2}, vs) {
+			if !cmp.Equal([]float64{1.2, 1.3, 10.1, 11.2}, a.Values) {
 				t.Fatal("unexpect timestamps")
 			}
 		})
@@ -1813,12 +1859,12 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 			}
 			defer cur.Close()
 
-			fcur := cur.(tsdb.FloatBatchCursor)
-			ts, vs := fcur.Next()
-			if !cmp.Equal([]int64{11, 10, 3, 2}, ts) {
+			fcur := cur.(tsdb.FloatArrayCursor)
+			a := fcur.Next()
+			if !cmp.Equal([]int64{11, 10, 3, 2}, a.Timestamps) {
 				t.Fatal("unexpect timestamps")
 			}
-			if !cmp.Equal([]float64{11.2, 10.1, 1.3, 1.2}, vs) {
+			if !cmp.Equal([]float64{11.2, 10.1, 1.3, 1.2}, a.Values) {
 				t.Fatal("unexpect timestamps")
 			}
 		})
@@ -1971,6 +2017,40 @@ func TestEngine_WritePoints_Reload(t *testing.T) {
 	}
 }
 
+func TestEngine_Invalid_UTF8(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			name := []byte{255, 112, 114, 111, 99} // A known invalid UTF-8 string
+			field := []byte{255, 110, 101, 116}    // A known invalid UTF-8 string
+			p := MustParsePointString(fmt.Sprintf("%s,host=A %s=1.1 6000000000", name, field))
+
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
+
+			if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+				t.Fatalf("create series index error: %v", err)
+			}
+
+			if err := e.WritePoints([]models.Point{p}); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+
+			// Re-open the engine
+			if err := e.Reopen(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
@@ -2306,7 +2386,7 @@ func NewEngine(index string) (*Engine, error) {
 
 	opt := tsdb.NewEngineOptions()
 	opt.IndexVersion = index
-	if index == "inmem" {
+	if index == tsdb.InmemIndexName {
 		opt.InmemIndex = inmem.NewIndex(db, sfile)
 	}
 	// Initialise series id sets. Need to do this as it's normally done at the

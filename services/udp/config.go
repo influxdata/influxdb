@@ -100,7 +100,7 @@ type Configs []Config
 // Diagnostics returns one set of diagnostics for all of the Configs.
 func (c Configs) Diagnostics() (*diagnostics.Diagnostics, error) {
 	d := &diagnostics.Diagnostics{
-		Columns: []string{"enabled", "bind-address", "database", "retention-policy", "batch-size", "batch-pending", "batch-timeout"},
+		Columns: []string{"enabled", "bind-address", "database", "retention-policy", "batch-size", "batch-pending", "batch-timeout", "precision"},
 	}
 
 	for _, cc := range c {
@@ -109,7 +109,7 @@ func (c Configs) Diagnostics() (*diagnostics.Diagnostics, error) {
 			continue
 		}
 
-		r := []interface{}{true, cc.BindAddress, cc.Database, cc.RetentionPolicy, cc.BatchSize, cc.BatchPending, cc.BatchTimeout}
+		r := []interface{}{true, cc.BindAddress, cc.Database, cc.RetentionPolicy, cc.BatchSize, cc.BatchPending, cc.BatchTimeout, cc.Precision}
 		d.AddRow(r)
 	}
 

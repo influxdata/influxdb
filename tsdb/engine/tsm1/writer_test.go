@@ -583,3 +583,41 @@ func TestTSMWriter_Write_MaxKey(t *testing.T) {
 		t.Fatalf("expected max key length error writing key: %v", err)
 	}
 }
+
+type fakeSyncer bool
+
+func (f *fakeSyncer) Sync() error {
+	*f = true
+	return nil
+}
+
+func TestTSMWriter_Sync(t *testing.T) {
+	f := &struct {
+		io.Writer
+		fakeSyncer
+	}{
+		Writer: ioutil.Discard,
+	}
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values := []tsm1.Value{tsm1.NewValue(0, 1.0)}
+	if err := w.Write([]byte("cpu"), values); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+
+	}
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if !f.fakeSyncer {
+		t.Fatal("failed to sync")
+	}
+}

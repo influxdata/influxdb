@@ -1,0 +1,33 @@
+package tsm1
+
+import (
+	"context"
+
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
+)
+
+{{range .}}
+
+// build{{.Name}}ArrayCursor creates an array cursor for a {{.name}} field.
+func (q *arrayCursorIterator) build{{.Name}}ArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) tsdb.{{.Name}}ArrayCursor {
+	key := q.seriesFieldKeyBytes(name, tags, field)
+	cacheValues := q.e.Cache.Values(key)
+	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
+	if opt.Ascending {
+		if q.asc.{{.Name}} == nil {
+			q.asc.{{.Name}} = new{{.Name}}ArrayAscendingCursor()
+		}
+		q.asc.{{.Name}}.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
+		return q.asc.{{.Name}}
+	} else {
+		if q.desc.{{.Name}} == nil {
+			q.desc.{{.Name}} = new{{.Name}}ArrayDescendingCursor()
+		}
+		q.desc.{{.Name}}.reset(opt.SeekTime(), opt.StopTime(), cacheValues, keyCursor)
+		return q.desc.{{.Name}}
+	}
+}
+
+{{end}}

@@ -64,6 +64,9 @@ enabled = true
 
 [continuous_queries]
 enabled = true
+
+[tls]
+ciphers = ["cipher"]
 `); err != nil {
 		t.Fatal(err)
 	}
@@ -97,6 +100,8 @@ enabled = true
 		t.Fatalf("unexpected subscriber enabled: %v", c.Subscriber.Enabled)
 	} else if !c.ContinuousQuery.Enabled {
 		t.Fatalf("unexpected continuous query enabled: %v", c.ContinuousQuery.Enabled)
+	} else if c.TLS.Ciphers[0] != "cipher" {
+		t.Fatalf("unexpected tls: %q", c.TLS.Ciphers)
 	}
 }
 
@@ -150,6 +155,9 @@ enabled = true
 
 [continuous_queries]
 enabled = true
+
+[tls]
+min-version = "tls1.0"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -179,6 +187,8 @@ enabled = true
 		case "INFLUXDB_COORDINATOR_QUERY_TIMEOUT":
 			// duration type
 			return "1m"
+		case "INFLUXDB_TLS_MIN_VERSION":
+			return "tls1.2"
 		}
 		return ""
 	}
@@ -225,6 +235,10 @@ enabled = true
 
 	if c.Coordinator.QueryTimeout != influxtoml.Duration(time.Minute) {
 		t.Fatalf("unexpected query timeout: %v", c.Coordinator.QueryTimeout)
+	}
+
+	if c.TLS.MinVersion != "tls1.2" {
+		t.Fatalf("unexpected tls min version: %q", c.TLS.MinVersion)
 	}
 }
 

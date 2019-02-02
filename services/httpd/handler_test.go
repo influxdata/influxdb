@@ -2,6 +2,8 @@ package httpd_test
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,12 +23,18 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/internal"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -576,7 +584,7 @@ func TestHandler_PromWrite(t *testing.T) {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
-		expFields := models.Fields{"f64": 1.2}
+		expFields := models.Fields{"value": 1.2}
 		if !reflect.DeepEqual(fields, expFields) {
 			t.Fatalf("fields don't match\n\texp: %v\n\tgot: %v", expFields, fields)
 		}
@@ -599,10 +607,11 @@ func TestHandler_PromRead(t *testing.T) {
 	req := &remote.ReadRequest{
 		Queries: []*remote.Query{{
 			Matchers: []*remote.LabelMatcher{
-				{Type: remote.MatchType_EQUAL, Name: "eq", Value: "a"},
-				{Type: remote.MatchType_NOT_EQUAL, Name: "neq", Value: "b"},
-				{Type: remote.MatchType_REGEX_MATCH, Name: "regex", Value: "c"},
-				{Type: remote.MatchType_REGEX_NO_MATCH, Name: "neqregex", Value: "d"},
+				{
+					Type:  remote.MatchType_EQUAL,
+					Name:  "__name__",
+					Value: "value",
+				},
 			},
 			StartTimestampMs: 1,
 			EndTimestampMs:   2,
@@ -614,31 +623,116 @@ func TestHandler_PromRead(t *testing.T) {
 	}
 	compressed := snappy.Encode(nil, data)
 	b := bytes.NewReader(compressed)
-
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
-		if stmt.String() != `SELECT f64 FROM foo.._ WHERE eq = 'a' AND neq != 'b' AND regex =~ /c/ AND neqregex !~ /d/ AND time >= '1970-01-01T00:00:00.001Z' AND time <= '1970-01-01T00:00:00.002Z' GROUP BY *` {
-			t.Fatalf("unexpected query: %s", stmt.String())
-		} else if ctx.Database != `foo` {
-			t.Fatalf("unexpected db: %s", ctx.Database)
-		}
-		row := &models.Row{
-			Name:    "_",
-			Tags:    map[string]string{"foo": "bar"},
-			Columns: []string{"time", "f64"},
-			Values:  [][]interface{}{{time.Unix(23, 0), 1.2}},
-		}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{row})}
-		return nil
-	}
-
 	w := httptest.NewRecorder()
 
-	h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo", b))
+	// Number of results in the result set
+	var i int64
+	h.Store.ResultSet.NextFn = func() bool {
+		i++
+		return i <= 2
+	}
+
+	// data for each cursor.
+	h.Store.ResultSet.CursorFn = func() tsdb.Cursor {
+		cursor := internal.NewFloatArrayCursorMock()
+
+		var i int64
+		cursor.NextFn = func() *tsdb.FloatArray {
+			i++
+			ts := []int64{22000000 * i, 10000000000 * i}
+			vs := []float64{2.3, 2992.33}
+			if i > 2 {
+				ts, vs = nil, nil
+			}
+			return &tsdb.FloatArray{Timestamps: ts, Values: vs}
+		}
+
+		return cursor
+	}
+
+	// Tags for each cursor.
+	h.Store.ResultSet.TagsFn = func() models.Tags {
+		return models.NewTags(map[string]string{
+			"host":         fmt.Sprintf("server-%d", i),
+			"_measurement": "mem",
+		})
+	}
+
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/read?db=foo&rp=bar", b))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
 	}
 
+	reqBuf, err := snappy.Decode(nil, w.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var resp remote.ReadResponse
+	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
+		t.Fatal(err)
+	}
+
+	expResults := []*remote.QueryResult{
+		{
+			Timeseries: []*remote.TimeSeries{
+				{
+					Labels: []*remote.LabelPair{
+						{Name: "host", Value: "server-1"},
+					},
+					Samples: []*remote.Sample{
+						{TimestampMs: 22, Value: 2.3},
+						{TimestampMs: 10000, Value: 2992.33},
+						{TimestampMs: 44, Value: 2.3},
+						{TimestampMs: 20000, Value: 2992.33},
+					},
+				},
+				{
+					Labels: []*remote.LabelPair{
+						{Name: "host", Value: "server-2"},
+					},
+					Samples: []*remote.Sample{
+						{TimestampMs: 22, Value: 2.3},
+						{TimestampMs: 10000, Value: 2992.33},
+						{TimestampMs: 44, Value: 2.3},
+						{TimestampMs: 20000, Value: 2992.33},
+					},
+				},
+			},
+		},
+	}
+
+	if !reflect.DeepEqual(resp.Results, expResults) {
+		t.Fatalf("Results differ:\n%v", cmp.Diff(resp.Results, expResults))
+	}
+}
+
+func TestHandler_PromRead_NoResults(t *testing.T) {
+	req := &remote.ReadRequest{Queries: []*remote.Query{&remote.Query{
+		Matchers: []*remote.LabelMatcher{
+			{
+				Type:  remote.MatchType_EQUAL,
+				Name:  "__name__",
+				Value: "value",
+			},
+		},
+		StartTimestampMs: 0,
+		EndTimestampMs:   models.MaxNanoTime / int64(time.Millisecond),
+	}}}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+
+	b := bytes.NewReader(compressed)
+	h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo", b))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
 	reqBuf, err := snappy.Decode(nil, w.Body.Bytes())
 	if err != nil {
 		t.Fatal(err.Error())
@@ -648,17 +742,279 @@ func TestHandler_PromRead(t *testing.T) {
 	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
 		t.Fatal(err.Error())
 	}
+}
 
-	expLabels := []*remote.LabelPair{{Name: "foo", Value: "bar"}}
-	expSamples := []*remote.Sample{{TimestampMs: 23000, Value: 1.2}}
-
-	ts := resp.Results[0].Timeseries[0]
-
-	if !reflect.DeepEqual(expLabels, ts.Labels) {
-		t.Fatalf("unexpected labels\n\texp: %v\n\tgot: %v", expLabels, ts.Labels)
+func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
+	req := &remote.ReadRequest{Queries: []*remote.Query{&remote.Query{
+		Matchers: []*remote.LabelMatcher{
+			{
+				Type:  remote.MatchType_EQUAL,
+				Name:  "__name__",
+				Value: "value",
+			},
+		},
+		StartTimestampMs: 0,
+		EndTimestampMs:   models.MaxNanoTime / int64(time.Millisecond),
+	}}}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
 	}
-	if !reflect.DeepEqual(expSamples, ts.Samples) {
-		t.Fatalf("unexpectd samples\n\texp: %v\n\tgot: %v", expSamples, ts.Samples)
+	compressed := snappy.Encode(nil, data)
+
+	unsupported := []tsdb.Cursor{
+		internal.NewIntegerArrayCursorMock(),
+		internal.NewBooleanArrayCursorMock(),
+		internal.NewUnsignedArrayCursorMock(),
+		internal.NewStringArrayCursorMock(),
+	}
+
+	for _, cursor := range unsupported {
+		h := NewHandler(false)
+		w := httptest.NewRecorder()
+		var lb bytes.Buffer
+		h.Logger = logger.New(&lb)
+
+		more := true
+		h.Store.ResultSet.NextFn = func() bool { defer func() { more = false }(); return more }
+
+		// Set the cursor type that will be returned while iterating over
+		// the mock store.
+		h.Store.ResultSet.CursorFn = func() tsdb.Cursor {
+			return cursor
+		}
+
+		b := bytes.NewReader(compressed)
+		h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo", b))
+		if w.Code != http.StatusOK {
+			t.Fatalf("unexpected status: %d", w.Code)
+		}
+		reqBuf, err := snappy.Decode(nil, w.Body.Bytes())
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		var resp remote.ReadResponse
+		if err := proto.Unmarshal(reqBuf, &resp); err != nil {
+			t.Fatal(err.Error())
+		}
+
+		if !strings.Contains(lb.String(), "cursor_type=") {
+			t.Fatalf("got log message %q, expected to contain \"cursor_type\"", lb.String())
+		}
+	}
+}
+
+func TestHandler_Flux_DisabledByDefault(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+
+	body := bytes.NewBufferString(`from(bucket:"db/rp") |> range(start:-1h) |> last()`)
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v2/query", body))
+	if got := w.Code; !cmp.Equal(got, http.StatusForbidden) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	exp := "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.\n"
+	if got := string(w.Body.Bytes()); !cmp.Equal(got, exp) {
+		t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, exp))
+	}
+}
+
+func TestHandler_Flux_QueryJSON(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	qry := "foo"
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(lang.FluxCompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		if c, ok := compiler.(lang.FluxCompiler); !ok {
+			t.Fatal("expected lang.FluxCompiler")
+		} else if exp := qry; c.Query != exp {
+			t.Fatalf("unexpected query -got/+exp\n%s", cmp.Diff(c.Query, exp))
+		}
+		called = true
+		return internal.NewFluxQueryMock(), nil
+	}
+
+	q := client.QueryRequest{Query: qry}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(q); err != nil {
+		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", &body)
+	req.Header.Add("content-type", "application/json")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux_SpecJSON(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(lang.SpecCompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		called = true
+		return internal.NewFluxQueryMock(), nil
+	}
+
+	q := client.QueryRequest{Spec: &flux.Spec{}}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(q); err != nil {
+		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", &body)
+	req.Header.Add("content-type", "application/json")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux_QueryText(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	qry := "bar"
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(lang.FluxCompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		if c, ok := compiler.(lang.FluxCompiler); !ok {
+			t.Fatal("expected lang.FluxCompiler")
+		} else if exp := qry; c.Query != exp {
+			t.Fatalf("unexpected query -got/+exp\n%s", cmp.Diff(c.Query, exp))
+		}
+		called = true
+		return internal.NewFluxQueryMock(), nil
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", bytes.NewBufferString(qry))
+	req.Header.Add("content-type", "application/vnd.flux")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux(t *testing.T) {
+
+	queryBytes := func(qs string) io.Reader {
+		var b bytes.Buffer
+		q := &client.QueryRequest{Query: qs}
+		if err := json.NewEncoder(&b).Encode(q); err != nil {
+			t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+		}
+		return &b
+	}
+
+	tests := []struct {
+		name    string
+		reqFn   func() *http.Request
+		expCode int
+		expBody string
+	}{
+		{
+			name: "no media type",
+			reqFn: func() *http.Request {
+				return MustNewRequest("POST", "/api/v2/query", nil)
+			},
+			expCode: http.StatusBadRequest,
+			expBody: "{\"error\":\"mime: no media type\"}\n",
+		},
+		{
+			name: "200 OK",
+			reqFn: func() *http.Request {
+				req := MustNewRequest("POST", "/api/v2/query", queryBytes("foo"))
+				req.Header.Add("content-type", "application/json")
+				return req
+			},
+			expCode: http.StatusOK,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, test.reqFn())
+			if got := w.Code; !cmp.Equal(got, test.expCode) {
+				t.Fatalf("unexpected status: %d", got)
+			}
+
+			if test.expBody != "" {
+				if got := string(w.Body.Bytes()); !cmp.Equal(got, test.expBody) {
+					t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, test.expBody))
+				}
+			}
+		})
+	}
+}
+
+func TestHandler_Flux_Auth(t *testing.T) {
+	// Create the handler to be tested.
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog(), WithAuthentication()))
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
+	h.MetaClient.UserFn = func(username string) (meta.User, error) {
+		if username != "user1" {
+			return nil, meta.ErrUserNotFound
+		}
+		return &meta.UserInfo{
+			Name:  "user1",
+			Hash:  "abcd",
+			Admin: true,
+		}, nil
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+		if u != "user1" {
+			return nil, fmt.Errorf("unexpected user: exp: user1, got: %s", u)
+		} else if p != "abcd" {
+			return nil, fmt.Errorf("unexpected password: exp: abcd, got: %s", p)
+		}
+		return h.MetaClient.User(u)
+	}
+
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		return internal.NewFluxQueryMock(), nil
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", bytes.NewBufferString("bar"))
+	req.Header.Set("content-type", "application/vnd.flux")
+	req.Header.Set("Authorization", "Token user1:abcd")
+	// Test the handler with valid user and password in the URL parameters.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	req.Header.Set("Authorization", "Token user1:efgh")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusUnauthorized) {
+		t.Fatalf("unexpected status: %d", got)
 	}
 }
 
@@ -961,19 +1317,18 @@ func TestThrottler_Handler(t *testing.T) {
 		throttler := httpd.NewThrottler(2, 1)
 		throttler.EnqueueTimeout = 1 * time.Millisecond
 
-		resp := make(chan struct{})
+		begin, end := make(chan struct{}), make(chan struct{})
 		h := throttler.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			resp <- struct{}{}
+			begin <- struct{}{}
+			end <- struct{}{}
 		}))
 
-		pending := make(chan struct{}, 2)
-
 		// First two requests should execute immediately.
-		go func() { pending <- struct{}{}; h.ServeHTTP(nil, nil) }()
-		go func() { pending <- struct{}{}; h.ServeHTTP(nil, nil) }()
+		go func() { h.ServeHTTP(nil, nil) }()
+		go func() { h.ServeHTTP(nil, nil) }()
 
-		<-pending
-		<-pending
+		<-begin
+		<-begin
 
 		// Third request should be enqueued but timeout.
 		w := httptest.NewRecorder()
@@ -985,8 +1340,8 @@ func TestThrottler_Handler(t *testing.T) {
 		}
 
 		// Allow 2 existing requests to complete.
-		<-resp
-		<-resp
+		<-end
+		<-end
 	})
 
 	t.Run("ErrFull", func(t *testing.T) {
@@ -1031,14 +1386,49 @@ type Handler struct {
 	StatementExecutor HandlerStatementExecutor
 	QueryAuthorizer   HandlerQueryAuthorizer
 	PointsWriter      HandlerPointsWriter
+	Store             *internal.StorageStoreMock
+	Controller        *internal.FluxControllerMock
+}
+
+type configOption func(c *httpd.Config)
+
+func WithAuthentication() configOption {
+	return func(c *httpd.Config) {
+		c.AuthEnabled = true
+		c.SharedSecret = "super secret key"
+	}
+}
+
+func WithFlux() configOption {
+	return func(c *httpd.Config) {
+		c.FluxEnabled = true
+	}
+}
+
+func WithNoLog() configOption {
+	return func(c *httpd.Config) {
+		c.LogEnabled = false
+	}
+}
+
+// NewHandlerConfig returns a new instance of httpd.Config with
+// authentication configured.
+func NewHandlerConfig(opts ...configOption) httpd.Config {
+	config := httpd.NewConfig()
+	for _, opt := range opts {
+		opt(&config)
+	}
+	return config
 }
 
 // NewHandler returns a new instance of Handler.
 func NewHandler(requireAuthentication bool) *Handler {
-	config := httpd.NewConfig()
-	config.AuthEnabled = requireAuthentication
-	config.SharedSecret = "super secret key"
-	return NewHandlerWithConfig(config)
+	var opts []configOption
+	if requireAuthentication {
+		opts = append(opts, WithAuthentication())
+	}
+
+	return NewHandlerWithConfig(NewHandlerConfig(opts...))
 }
 
 func NewHandlerWithConfig(config httpd.Config) *Handler {
@@ -1047,14 +1437,24 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	}
 
 	h.MetaClient = &internal.MetaClientMock{}
+	h.Store = internal.NewStorageStoreMock()
+	h.Controller = internal.NewFluxControllerMock()
 
 	h.Handler.MetaClient = h.MetaClient
+	h.Handler.Store = h.Store
 	h.Handler.QueryExecutor = query.NewExecutor()
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
 	h.Handler.PointsWriter = &h.PointsWriter
 	h.Handler.Version = "0.0.0"
 	h.Handler.BuildType = "OSS"
+	h.Handler.Controller = h.Controller
+
+	if testing.Verbose() {
+		l := logger.New(os.Stdout)
+		h.Handler.Logger = l
+	}
+
 	return h
 }
 

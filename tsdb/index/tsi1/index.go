@@ -24,16 +24,15 @@ import (
 )
 
 // IndexName is the name of the index.
-const IndexName = "tsi1"
+const IndexName = tsdb.TSI1IndexName
 
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.
 var ErrCompactionInterrupted = errors.New("tsi1: compaction interrupted")
 
 func init() {
-	// FIXME(edd): Remove this.
-	if os.Getenv("TSI_PARTITIONS") != "" {
-		i, err := strconv.Atoi(os.Getenv("TSI_PARTITIONS"))
+	if os.Getenv("INFLUXDB_EXP_TSI_PARTITIONS") != "" {
+		i, err := strconv.Atoi(os.Getenv("INFLUXDB_EXP_TSI_PARTITIONS"))
 		if err != nil {
 			panic(err)
 		}
@@ -41,7 +40,11 @@ func init() {
 	}
 
 	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
-		idx := NewIndex(sfile, db, WithPath(path), WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)))
+		idx := NewIndex(sfile, db,
+			WithPath(path),
+			WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)),
+			WithSeriesIDCacheSize(opt.Config.SeriesIDSetCacheSize),
+		)
 		return idx
 	})
 }
@@ -86,21 +89,62 @@ var WithMaximumLogFileSize = func(size int64) IndexOption {
 	}
 }
 
+// DisableFsync disables flushing and syncing of underlying files. Primarily this
+// impacts the LogFiles. This option can be set when working with the index in
+// an offline manner, for cases where a hard failure can be overcome by re-running the tooling.
+var DisableFsync = func() IndexOption {
+	return func(i *Index) {
+		i.disableFsync = true
+	}
+}
+
+// WithLogFileBufferSize sets the size of the buffer used within LogFiles.
+// Typically appending an entry to a LogFile involves writing 11 or 12 bytes, so
+// depending on how many new series are being created within a batch, it may
+// be appropriate to set this.
+var WithLogFileBufferSize = func(sz int) IndexOption {
+	return func(i *Index) {
+		if sz > 1<<17 { // 128K
+			sz = 1 << 17
+		} else if sz < 1<<12 {
+			sz = 1 << 12 // 4K (runtime default)
+		}
+		i.logfileBufferSize = sz
+	}
+}
+
+// WithSeriesIDCacheSize sets the size of the series id set cache.
+// If set to 0, then the cache is disabled.
+var WithSeriesIDCacheSize = func(sz int) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheSize = sz
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
 	partitions []*Partition
 	opened     bool
 
+	tagValueCache     *TagValueSeriesIDCache
+	tagValueCacheSize int
+
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
 	disableCompactions bool        // Initially disables compactions on the index.
 	maxLogFileSize     int64       // Maximum size of a LogFile before it's compacted.
+	logfileBufferSize  int         // The size of the buffer used by the LogFile.
+	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
 	logger             *zap.Logger // Index's logger.
 
 	// The following must be set when initializing an Index.
 	sfile    *tsdb.SeriesFile // series lookup file
 	database string           // Name of database.
+
+	// Cached sketches.
+	mSketch, mTSketch estimator.Sketch // Measurement sketches
+	sSketch, sTSketch estimator.Sketch // Series sketches
 
 	// Index's version.
 	version int
@@ -116,18 +160,24 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
-		maxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
-		logger:         zap.NewNop(),
-		version:        Version,
-		sfile:          sfile,
-		database:       database,
-		PartitionN:     DefaultPartitionN,
+		tagValueCacheSize: tsdb.DefaultSeriesIDSetCacheSize,
+		maxLogFileSize:    tsdb.DefaultMaxIndexLogFileSize,
+		logger:            zap.NewNop(),
+		version:           Version,
+		sfile:             sfile,
+		database:          database,
+		mSketch:           hll.NewDefaultPlus(),
+		mTSketch:          hll.NewDefaultPlus(),
+		sSketch:           hll.NewDefaultPlus(),
+		sTSketch:          hll.NewDefaultPlus(),
+		PartitionN:        DefaultPartitionN,
 	}
 
 	for _, option := range options {
 		option(idx)
 	}
 
+	idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
 	return idx
 }
 
@@ -147,6 +197,10 @@ func (i *Index) Bytes() int {
 	b += int(unsafe.Sizeof(i.logger))
 	b += int(unsafe.Sizeof(i.sfile))
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
+	b += int(unsafe.Sizeof(i.mSketch)) + i.mSketch.Bytes()
+	b += int(unsafe.Sizeof(i.mTSketch)) + i.mTSketch.Bytes()
+	b += int(unsafe.Sizeof(i.sSketch)) + i.sSketch.Bytes()
+	b += int(unsafe.Sizeof(i.sTSketch)) + i.sTSketch.Bytes()
 	b += int(unsafe.Sizeof(i.database)) + len(i.database)
 	b += int(unsafe.Sizeof(i.version))
 	b += int(unsafe.Sizeof(i.PartitionN))
@@ -206,6 +260,8 @@ func (i *Index) Open() error {
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
+		p.nosync = i.disableFsync
+		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
 	}
@@ -237,6 +293,13 @@ func (i *Index) Open() error {
 		if err := <-errC; err != nil {
 			return err
 		}
+	}
+
+	// Refresh cached sketches.
+	if err := i.updateSeriesSketches(); err != nil {
+		return err
+	} else if err := i.updateMeasurementSketches(); err != nil {
+		return err
 	}
 
 	// Mark opened.
@@ -316,6 +379,34 @@ func (i *Index) availableThreads() int {
 		return len(i.partitions)
 	}
 	return n
+}
+
+// updateMeasurementSketches rebuilds the cached measurement sketches.
+func (i *Index) updateMeasurementSketches() error {
+	for j := 0; j < int(i.PartitionN); j++ {
+		if s, t, err := i.partitions[j].MeasurementsSketches(); err != nil {
+			return err
+		} else if i.mSketch.Merge(s); err != nil {
+			return err
+		} else if i.mTSketch.Merge(t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// updateSeriesSketches rebuilds the cached series sketches.
+func (i *Index) updateSeriesSketches() error {
+	for j := 0; j < int(i.PartitionN); j++ {
+		if s, t, err := i.partitions[j].SeriesSketches(); err != nil {
+			return err
+		} else if i.sSketch.Merge(s); err != nil {
+			return err
+		} else if i.sTSketch.Merge(t); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SetFieldSet sets a shared field set from the engine.
@@ -526,6 +617,16 @@ func (i *Index) DropMeasurement(name []byte) error {
 			return err
 		}
 	}
+
+	// Update sketches under lock.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.mTSketch.Add(name)
+	if err := i.updateSeriesSketches(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -562,7 +663,54 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 				if idx >= len(i.partitions) {
 					return // No more work.
 				}
-				errC <- i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+
+				ids, err := i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+
+				var updateCache bool
+				for _, id := range ids {
+					if id != 0 {
+						updateCache = true
+						break
+					}
+				}
+
+				if !updateCache {
+					errC <- err
+					continue
+				}
+
+				// Some cached bitset results may need to be updated.
+				i.tagValueCache.RLock()
+				for j, id := range ids {
+					if id == 0 {
+						continue
+					}
+
+					name := pNames[idx][j]
+					tags := pTags[idx][j]
+					if i.tagValueCache.measurementContainsSets(name) {
+						for _, pair := range tags {
+							// TODO(edd): It's not clear to me yet whether it will be better to take a lock
+							// on every series id set, or whether to gather them all up under the cache rlock
+							// and then take the cache lock and update them all at once (without invoking a lock
+							// on each series id set).
+							//
+							// Taking the cache lock will block all queries, but is one lock. Taking each series set
+							// lock might be many lock/unlocks but will only block a query that needs that particular set.
+							//
+							// Need to think on it, but I think taking a lock on each series id set is the way to go.
+							//
+							// One other option here is to take a lock on the series id set when we first encounter it
+							// and then keep it locked until we're done with all the ids.
+							//
+							// Note: this will only add `id` to the set if it exists.
+							i.tagValueCache.addToSet(name, pair.Key, pair.Value, id) // Takes a lock on the series id set
+						}
+					}
+				}
+				i.tagValueCache.RUnlock()
+
+				errC <- err
 			}
 		}()
 	}
@@ -573,12 +721,58 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 			return err
 		}
 	}
+
+	// Update sketches under lock.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	for _, key := range keys {
+		i.sSketch.Add(key)
+	}
+	for _, name := range names {
+		i.mSketch.Add(name)
+	}
+
 	return nil
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
+	ids, err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
+	if err != nil {
+		return err
+	}
+
+	i.mu.Lock()
+	i.sSketch.Add(key)
+	i.mSketch.Add(name)
+	i.mu.Unlock()
+
+	if ids[0] == 0 {
+		return nil // No new series, nothing further to update.
+	}
+
+	// If there are cached sets for any of the tag pairs, they will need to be
+	// updated with the series id.
+	i.tagValueCache.RLock()
+	if i.tagValueCache.measurementContainsSets(name) {
+		for _, pair := range tags {
+			// TODO(edd): It's not clear to me yet whether it will be better to take a lock
+			// on every series id set, or whether to gather them all up under the cache rlock
+			// and then take the cache lock and update them all at once (without invoking a lock
+			// on each series id set).
+			//
+			// Taking the cache lock will block all queries, but is one lock. Taking each series set
+			// lock might be many lock/unlocks but will only block a query that needs that particular set.
+			//
+			// Need to think on it, but I think taking a lock on each series id set is the way to go.
+			//
+			// Note this will only add `id` to the set if it exists.
+			i.tagValueCache.addToSet(name, pair.Key, pair.Value, ids[0]) // Takes a lock on the series id set
+		}
+	}
+	i.tagValueCache.RUnlock()
+	return nil
 }
 
 // InitializeSeries is a no-op. This only applies to the in-memory index.
@@ -594,12 +788,27 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 		return err
 	}
 
+	// Add sketch tombstone.
+	i.mu.Lock()
+	i.sTSketch.Add(key)
+	i.mu.Unlock()
+
 	if !cascade {
 		return nil
 	}
 
-	// Extract measurement name.
-	name, _ := models.ParseKeyBytes(key)
+	// Extract measurement name & tags.
+	name, tags := models.ParseKeyBytes(key)
+
+	// If there are cached sets for any of the tag pairs, they will need to be
+	// updated with the series id.
+	i.tagValueCache.RLock()
+	if i.tagValueCache.measurementContainsSets(name) {
+		for _, pair := range tags {
+			i.tagValueCache.delete(name, pair.Key, pair.Value, seriesID) // Takes a lock on the series id set
+		}
+	}
+	i.tagValueCache.RUnlock()
 
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {
@@ -615,60 +824,35 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	return nil
 }
 
+// DropSeriesGlobal is a no-op on the tsi1 index.
+func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
+
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
-func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
+func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {
-		return err
+		return false, err
 	} else if ok {
-		return nil
+		return false, nil
 	}
 
 	// If no more series exist in the measurement then delete the measurement.
-	return i.DropMeasurement(name)
+	return true, i.DropMeasurement(name)
 }
 
-// MeasurementsSketches returns the two sketches for the index by merging all
-// instances of the type sketch types in all the partitions.
+// MeasurementsSketches returns the two measurement sketches for the index.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	s, ts := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for _, p := range i.partitions {
-		// Get partition's measurement sketches and merge.
-		ps, pts, err := p.MeasurementsSketches()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err := s.Merge(ps); err != nil {
-			return nil, nil, err
-		} else if err := ts.Merge(pts); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return s, ts, nil
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.mSketch.Clone(), i.mTSketch.Clone(), nil
 }
 
-// SeriesSketches returns the two sketches for the index by merging all
-// instances of the type sketch types in all the partitions.
+// SeriesSketches returns the two series sketches for the index.
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	s, ts := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for _, p := range i.partitions {
-		// Get partition's measurement sketches and merge.
-		ps, pts, err := p.SeriesSketches()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err := s.Merge(ps); err != nil {
-			return nil, nil, err
-		} else if err := ts.Merge(pts); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return s, ts, nil
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.sSketch.Clone(), i.sTSketch.Clone(), nil
 }
 
 // Since indexes are not shared across shards, the count returned by SeriesN
@@ -808,14 +992,35 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+	// Check series ID set cache...
+	if i.tagValueCacheSize > 0 {
+		if ss := i.tagValueCache.Get(name, key, value); ss != nil {
+			// Return a clone because the set is mutable.
+			return tsdb.NewSeriesIDSetIterator(ss.Clone()), nil
+		}
+	}
+
 	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
-		itr := p.TagValueSeriesIDIterator(name, key, value)
-		if itr != nil {
+		itr, err := p.TagValueSeriesIDIterator(name, key, value)
+		if err != nil {
+			return nil, err
+		} else if itr != nil {
 			a = append(a, itr)
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...), nil
+
+	itr := tsdb.MergeSeriesIDIterators(a...)
+	if i.tagValueCacheSize == 0 {
+		return itr, nil
+	}
+
+	// Check if the iterator contains only series id sets. Cache them...
+	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
+		ss := ssitr.SeriesIDSet()
+		i.tagValueCache.Put(name, key, value, ss)
+	}
+	return itr, nil
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.

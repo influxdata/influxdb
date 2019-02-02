@@ -168,7 +168,7 @@ type TagValGenerator struct {
 }
 
 func NewTagValGenerator(tagKey string, nVals int) *TagValGenerator {
-	tvg := &TagValGenerator{Key: tagKey}
+	tvg := &TagValGenerator{Key: tagKey, Vals: make([]string, 0, nVals)}
 	for i := 0; i < nVals; i++ {
 		tvg.Vals = append(tvg.Vals, fmt.Sprintf("tagValue%d", i))
 	}
@@ -200,7 +200,7 @@ type TagSetGenerator struct {
 }
 
 func NewTagSetGenerator(nSets int, nTagVals ...int) *TagSetGenerator {
-	tsg := &TagSetGenerator{}
+	tsg := &TagSetGenerator{TagVals: make([]*TagValGenerator, 0, nSets)}
 	for i := 0; i < nSets; i++ {
 		nVals := nTagVals[0]
 		if i < len(nTagVals) {

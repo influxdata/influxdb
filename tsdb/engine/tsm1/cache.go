@@ -197,8 +197,9 @@ type Cache struct {
 	// This number is the number of pending or failed WriteSnaphot attempts since the last successful one.
 	snapshotAttempts int
 
-	stats        *CacheStatistics
-	lastSnapshot time.Time
+	stats         *CacheStatistics
+	lastSnapshot  time.Time
+	lastWriteTime time.Time
 
 	// A one time synchronization used to initial the cache with a store.  Since the store can allocate a
 	// a large amount memory across shards, we lazily create it.
@@ -208,7 +209,7 @@ type Cache struct {
 
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
 // Only used for engine caches, never for snapshots.
-func NewCache(maxSize uint64, path string) *Cache {
+func NewCache(maxSize uint64) *Cache {
 	c := &Cache{
 		maxSize:      maxSize,
 		store:        emptyStore{},
@@ -362,6 +363,10 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	// Update the memory size stat
 	c.updateMemSize(int64(addedSize))
 	atomic.AddInt64(&c.stats.WriteOK, 1)
+
+	c.mu.Lock()
+	c.lastWriteTime = time.Now()
+	c.mu.Unlock()
 
 	return werr
 }
@@ -760,6 +765,12 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 // WithLogger sets the logger on the CacheLoader.
 func (cl *CacheLoader) WithLogger(log *zap.Logger) {
 	cl.Logger = log.With(zap.String("service", "cacheloader"))
+}
+
+func (c *Cache) LastWriteTime() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.lastWriteTime
 }
 
 // UpdateAge updates the age statistic based on the current time.

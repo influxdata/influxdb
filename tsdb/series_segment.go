@@ -118,7 +118,7 @@ func (s *SeriesSegment) InitForWrite() (err error) {
 	// Only calculcate segment data size if writing.
 	for s.size = uint32(SeriesSegmentHeaderSize); s.size < uint32(len(s.data)); {
 		flag, _, _, sz := ReadSeriesEntry(s.data[s.size:])
-		if flag == 0 {
+		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
 		s.size += uint32(sz)
@@ -237,7 +237,7 @@ func (s *SeriesSegment) MaxSeriesID() uint64 {
 func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id uint64, offset int64, key []byte) error) error {
 	for pos := uint32(SeriesSegmentHeaderSize); pos < uint32(len(s.data)); {
 		flag, id, key, sz := ReadSeriesEntry(s.data[pos:])
-		if flag == 0 {
+		if !IsValidSeriesEntryFlag(flag) {
 			break
 		}
 
@@ -368,7 +368,7 @@ func (hdr *SeriesSegmentHeader) WriteTo(w io.Writer) (n int64, err error) {
 func ReadSeriesEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) {
 	// If flag byte is zero then no more entries exist.
 	flag, data = uint8(data[0]), data[1:]
-	if flag == 0 {
+	if !IsValidSeriesEntryFlag(flag) {
 		return 0, 0, nil, 1
 	}
 
@@ -395,4 +395,14 @@ func AppendSeriesEntry(dst []byte, flag uint8, id uint64, key []byte) []byte {
 		panic(fmt.Sprintf("unreachable: invalid flag: %d", flag))
 	}
 	return dst
+}
+
+// IsValidSeriesEntryFlag returns true if flag is valid.
+func IsValidSeriesEntryFlag(flag byte) bool {
+	switch flag {
+	case SeriesEntryInsertFlag, SeriesEntryTombstoneFlag:
+		return true
+	default:
+		return false
+	}
 }

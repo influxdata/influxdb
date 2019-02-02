@@ -15,6 +15,7 @@ func TestConfig_Parse(t *testing.T) {
 dir = "/var/lib/influxdb/data"
 wal-dir = "/var/lib/influxdb/wal"
 wal-fsync-delay = "10s"
+tsm-use-madv-willneed = true
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -31,6 +32,9 @@ wal-fsync-delay = "10s"
 	}
 	if got, exp := c.WALFsyncDelay, time.Duration(10*time.Second); time.Duration(got).Nanoseconds() != exp.Nanoseconds() {
 		t.Errorf("unexpected wal-fsync-delay:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+	if got, exp := c.TSMWillNeed, true; got != exp {
+		t.Errorf("unexpected tsm-madv-willneed:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
 	}
 }
 
@@ -57,14 +61,19 @@ func TestConfig_Validate_Error(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	c.Index = "inmem"
+	c.Index = tsdb.InmemIndexName
 	if err := c.Validate(); err != nil {
 		t.Error(err)
 	}
 
-	c.Index = "tsi1"
+	c.Index = tsdb.TSI1IndexName
 	if err := c.Validate(); err != nil {
 		t.Error(err)
+	}
+
+	c.SeriesIDSetCacheSize = -1
+	if err := c.Validate(); err == nil || err.Error() != "series-id-set-cache-size must be non-negative" {
+		t.Errorf("unexpected error: %s", err)
 	}
 }
 

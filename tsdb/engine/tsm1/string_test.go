@@ -2,9 +2,13 @@ package tsm1
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"testing"
 	"testing/quick"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/internal/testutil"
 )
 
 func Test_StringEncoder_NoValues(t *testing.T) {
@@ -173,5 +177,53 @@ func Test_StringDecoder_CorruptSetBytes(t *testing.T) {
 		if err := dec.SetBytes([]byte(c)); err == nil {
 			t.Fatalf("exp an err, got nil: %q", c)
 		}
+	}
+}
+
+func BenchmarkStringDecoder_DecodeAll(b *testing.B) {
+	benchmarks := []struct {
+		n int
+		w int
+	}{
+		{1, 10},
+		{55, 10},
+		{550, 10},
+		{1000, 10},
+	}
+	for _, bm := range benchmarks {
+		rand.Seed(int64(bm.n * 1e3))
+
+		s := NewStringEncoder(bm.n)
+		for c := 0; c < bm.n; c++ {
+			s.Write(testutil.MakeSentence(bm.w))
+		}
+		s.Flush()
+		bytes, err := s.Bytes()
+		if err != nil {
+			b.Fatalf("unexpected error: %v", err)
+		}
+
+		b.Run(fmt.Sprintf("%d", bm.n), func(b *testing.B) {
+			b.SetBytes(int64(len(bytes)))
+			b.ReportAllocs()
+
+			dst := make([]string, bm.n)
+			for i := 0; i < b.N; i++ {
+				var it StringDecoder
+				if err := it.SetBytes(bytes); err != nil {
+					b.Fatalf("unexpected error creating float decoder: %v", err)
+				}
+
+				i := 0
+				for it.Next() {
+					dst[i] = it.Read()
+					i++
+				}
+
+				if len(dst) != bm.n {
+					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(dst), bm.n))
+				}
+			}
+		})
 	}
 }

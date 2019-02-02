@@ -109,6 +109,7 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT log10(value) FROM cpu`,
 		`SELECT sin(value) - sin(1.3) FROM cpu`,
 		`SELECT value FROM cpu WHERE sin(value) > 0.5`,
+		`SELECT sum("out")/sum("in") FROM (SELECT derivative("out") AS "out", derivative("in") AS "in" FROM "m0" WHERE time >= now() - 5m GROUP BY "index") GROUP BY time(1m) fill(none)`,
 	} {
 		t.Run(tt, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt)
@@ -373,6 +374,59 @@ func TestCompile_Failures(t *testing.T) {
 				t.Error("expected error")
 			} else if have, want := err.Error(), tt.err; have != want {
 				t.Errorf("unexpected error: %s != %s", have, want)
+			}
+		})
+	}
+}
+
+func TestPrepare_MapShardsTimeRange(t *testing.T) {
+	for _, tt := range []struct {
+		s          string
+		start, end string
+	}{
+		{
+			s:     `SELECT max(value) FROM cpu WHERE time >= '2018-09-03T15:00:00Z' AND time <= '2018-09-03T16:00:00Z' GROUP BY time(10m)`,
+			start: "2018-09-03T15:00:00Z",
+			end:   "2018-09-03T16:00:00Z",
+		},
+		{
+			s:     `SELECT derivative(mean(value)) FROM cpu WHERE time >= '2018-09-03T15:00:00Z' AND time <= '2018-09-03T16:00:00Z' GROUP BY time(10m)`,
+			start: "2018-09-03T14:50:00Z",
+			end:   "2018-09-03T16:00:00Z",
+		},
+		{
+			s:     `SELECT moving_average(mean(value), 3) FROM cpu WHERE time >= '2018-09-03T15:00:00Z' AND time <= '2018-09-03T16:00:00Z' GROUP BY time(10m)`,
+			start: "2018-09-03T14:30:00Z",
+			end:   "2018-09-03T16:00:00Z",
+		},
+	} {
+		t.Run(tt.s, func(t *testing.T) {
+			stmt, err := influxql.ParseStatement(tt.s)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			s := stmt.(*influxql.SelectStatement)
+
+			opt := query.CompileOptions{}
+			c, err := query.Compile(s, opt)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			shardMapper := ShardMapper{
+				MapShardsFn: func(_ influxql.Sources, tr influxql.TimeRange) query.ShardGroup {
+					if got, want := tr.Min, mustParseTime(tt.start); !got.Equal(want) {
+						t.Errorf("unexpected start time: got=%s want=%s", got, want)
+					}
+					if got, want := tr.Max, mustParseTime(tt.end); !got.Equal(want) {
+						t.Errorf("unexpected end time: got=%s want=%s", got, want)
+					}
+					return &ShardGroup{}
+				},
+			}
+
+			if _, err := c.Prepare(&shardMapper, query.SelectOptions{}); err != nil {
+				t.Fatalf("unexpected error: %s", err)
 			}
 		})
 	}

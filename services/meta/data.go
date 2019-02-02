@@ -34,6 +34,10 @@ const (
 
 	// MinRetentionPolicyDuration represents the minimum duration for a policy.
 	MinRetentionPolicyDuration = time.Hour
+
+	// MaxNameLen is the maximum length of a database or retention policy name.
+	// InfluxDB uses the name for the directory name on disk.
+	MaxNameLen = 255
 )
 
 // Data represents the top level collection of all metadata.
@@ -79,6 +83,8 @@ func (data *Data) CloneDatabases() []DatabaseInfo {
 func (data *Data) CreateDatabase(name string) error {
 	if name == "" {
 		return ErrDatabaseNameRequired
+	} else if len(name) > MaxNameLen {
+		return ErrNameTooLong
 	} else if data.Database(name) != nil {
 		return nil
 	}
@@ -129,6 +135,8 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 		return ErrRetentionPolicyRequired
 	} else if rpi.Name == "" {
 		return ErrRetentionPolicyNameRequired
+	} else if len(rpi.Name) > MaxNameLen {
+		return ErrNameTooLong
 	} else if rpi.ReplicaN < 1 {
 		return ErrReplicationFactorTooLow
 	}
@@ -871,7 +879,7 @@ func (data *Data) importOneDB(other Data, backupDBName, restoreDBName, backupRPN
 		for j, sgImport := range rpImport.ShardGroups {
 			data.MaxShardGroupID++
 			rpImport.ShardGroups[j].ID = data.MaxShardGroupID
-			for k, _ := range sgImport.Shards {
+			for k := range sgImport.Shards {
 				data.MaxShardID++
 				shardIDMap[sgImport.Shards[k].ID] = data.MaxShardID
 				sgImport.Shards[k].ID = data.MaxShardID
@@ -1579,6 +1587,7 @@ type UserInfo struct {
 type User interface {
 	query.Authorizer
 	ID() string
+	AuthorizeUnrestricted() bool
 }
 
 func (u *UserInfo) ID() string {
@@ -1602,6 +1611,11 @@ func (u *UserInfo) AuthorizeSeriesRead(database string, measurement []byte, tags
 // AuthorizeSeriesWrite is used to limit access per-series (enterprise only)
 func (u *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
+}
+
+// AuthorizeUnrestricted allows admins to shortcut access checks.
+func (u *UserInfo) AuthorizeUnrestricted() bool {
+	return u.Admin
 }
 
 // clone returns a deep copy of si.

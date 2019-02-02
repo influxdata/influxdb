@@ -19,9 +19,9 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
-
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -1000,8 +1000,8 @@ func (c *Client) WithLogger(log *zap.Logger) {
 
 // snapshot saves the current meta data to disk.
 func snapshot(path string, data *Data) error {
-	file := filepath.Join(path, metaFile)
-	tmpFile := file + "tmp"
+	filename := filepath.Join(path, metaFile)
+	tmpFile := filename + "tmp"
 
 	f, err := os.Create(tmpFile)
 	if err != nil {
@@ -1029,7 +1029,7 @@ func snapshot(path string, data *Data) error {
 		return err
 	}
 
-	return renameFile(tmpFile, file)
+	return file.RenameFile(tmpFile, filename)
 }
 
 // Load loads the current meta data from disk.

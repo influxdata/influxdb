@@ -1,6 +1,7 @@
 package subscriber
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"os"
@@ -42,6 +43,9 @@ type Config struct {
 
 	// The number of in-flight writes buffered in the write channel.
 	WriteBufferSize int `toml:"write-buffer-size"`
+
+	// TLS is a base tls config to use for https clients.
+	TLS *tls.Config `toml:"-"`
 }
 
 // NewConfig returns a new instance of a subscriber config.

@@ -1,6 +1,7 @@
 package tsm1_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -131,31 +132,40 @@ func Test_BooleanDecoder_Corrupt(t *testing.T) {
 	}
 }
 
-func BenchmarkBooleanDecoder_2048(b *testing.B) { benchmarkBooleanDecoder(b, 2048) }
-
-func benchmarkBooleanDecoder(b *testing.B, size int) {
-	e := tsm1.NewBooleanEncoder(size)
-	for i := 0; i < size; i++ {
-		e.Write(i&1 == 1)
+func BenchmarkBooleanDecoder_DecodeAll(b *testing.B) {
+	benchmarks := []int{
+		1,
+		55,
+		555,
+		1000,
 	}
-	bytes, err := e.Bytes()
-	if err != nil {
-		b.Fatalf("unexpected error: %v", err)
-	}
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		var d tsm1.BooleanDecoder
-		d.SetBytes(bytes)
-
-		var n int
-		for d.Next() {
-			_ = d.Read()
-			n++
+	for _, size := range benchmarks {
+		e := tsm1.NewBooleanEncoder(size)
+		for i := 0; i < size; i++ {
+			e.Write(i&1 == 1)
 		}
-		if n != size {
-			b.Fatalf("expected to read %d booleans, but read %d", size, n)
+		bytes, err := e.Bytes()
+		if err != nil {
+			b.Fatalf("unexpected error: %v", err)
 		}
+
+		b.Run(fmt.Sprintf("%d", size), func(b *testing.B) {
+			b.SetBytes(int64(len(bytes)))
+
+			dst := make([]bool, size)
+			for i := 0; i < b.N; i++ {
+				var d tsm1.BooleanDecoder
+				d.SetBytes(bytes)
+
+				var n int
+				for d.Next() {
+					dst[n] = d.Read()
+					n++
+				}
+				if n != size {
+					b.Fatalf("expected to read %d booleans, but read %d", size, n)
+				}
+			}
+		})
 	}
 }

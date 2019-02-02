@@ -9,8 +9,7 @@ pipeline {
 
       when {
         anyOf {
-          branch 'master'
-          expression { BRANCH_NAME ==~ /^\d+(.\d+)*$/ }
+          expression { BRANCH_NAME ==~ /^1(.\d+)*$/ }
         }
       }
 
@@ -48,7 +47,7 @@ pipeline {
     stage('64bit') {
       agent {
         docker {
-          image 'golang:1.9.2'
+          image 'golang:1.11'
         }
       }
 

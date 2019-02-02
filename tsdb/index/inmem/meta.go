@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/pkg/radix"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -1181,7 +1182,7 @@ func (e *tagKeyValueEntry) ids() seriesIDs {
 	for id := range e.m {
 		a = append(a, id)
 	}
-	sort.Sort(a)
+	radix.SortUint64s(a)
 
 	e.a = a
 	return e.a

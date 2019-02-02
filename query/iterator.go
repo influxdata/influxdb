@@ -305,6 +305,29 @@ func NewFilterIterator(input Iterator, cond influxql.Expr, opt IteratorOptions) 
 	}
 }
 
+// NewTagSubsetIterator will strip each of the points to a subset of the tag key values
+// for each point it processes.
+func NewTagSubsetIterator(input Iterator, opt IteratorOptions) Iterator {
+	if input == nil {
+		return nil
+	}
+
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatTagSubsetIterator(input, opt)
+	case IntegerIterator:
+		return newIntegerTagSubsetIterator(input, opt)
+	case UnsignedIterator:
+		return newUnsignedTagSubsetIterator(input, opt)
+	case StringIterator:
+		return newStringTagSubsetIterator(input, opt)
+	case BooleanIterator:
+		return newBooleanTagSubsetIterator(input, opt)
+	default:
+		panic(fmt.Sprintf("unsupported tag subset iterator type: %T", input))
+	}
+}
+
 // NewDedupeIterator returns an iterator that only outputs unique points.
 // This iterator maintains a serialized copy of each row so it is inefficient
 // to use on large datasets. It is intended for small datasets such as meta queries.
@@ -664,7 +687,10 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 }
 
 func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {
-	subOpt, err := newIteratorOptionsStmt(stmt, SelectOptions{})
+	subOpt, err := newIteratorOptionsStmt(stmt, SelectOptions{
+		Authorizer: opt.Authorizer,
+		MaxSeriesN: opt.MaxSeriesN,
+	})
 	if err != nil {
 		return IteratorOptions{}, err
 	}
@@ -1307,10 +1333,8 @@ func (p reverseStringSlice) Less(i, j int) bool { return p[i] > p[j] }
 func (p reverseStringSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 func abs(v int64) int64 {
-	if v < 0 {
-		return -v
-	}
-	return v
+	sign := v >> 63
+	return (v ^ sign) - sign
 }
 
 // IteratorEncoder is an encoder for encoding an iterator's points to w.

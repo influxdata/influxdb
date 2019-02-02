@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -23,7 +24,6 @@ import (
 	"github.com/influxdata/influxdb/services/opentsdb"
 	"github.com/influxdata/influxdb/services/precreator"
 	"github.com/influxdata/influxdb/services/retention"
-	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
 	itoml "github.com/influxdata/influxdb/toml"
@@ -49,7 +49,6 @@ type Config struct {
 	Subscriber     subscriber.Config `toml:"subscriber"`
 	HTTPD          httpd.Config      `toml:"http"`
 	Logging        logger.Config     `toml:"logging"`
-	Storage        storage.Config    `toml:"ifql"`
 	GraphiteInputs []graphite.Config `toml:"graphite"`
 	CollectdInputs []collectd.Config `toml:"collectd"`
 	OpenTSDBInputs []opentsdb.Config `toml:"opentsdb"`
@@ -62,6 +61,9 @@ type Config struct {
 
 	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
 	BindAddress string `toml:"bind-address"`
+
+	// TLS provides configuration options for all https endpoints.
+	TLS tlsconfig.Config `toml:"tls"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -76,7 +78,6 @@ func NewConfig() *Config {
 	c.Subscriber = subscriber.NewConfig()
 	c.HTTPD = httpd.NewConfig()
 	c.Logging = logger.NewConfig()
-	c.Storage = storage.NewConfig()
 
 	c.GraphiteInputs = []graphite.Config{graphite.NewConfig()}
 	c.CollectdInputs = []collectd.Config{collectd.NewConfig()}
@@ -186,6 +187,10 @@ func (c *Config) Validate() error {
 		if err := collectd.Validate(); err != nil {
 			return fmt.Errorf("invalid collectd config: %v", err)
 		}
+	}
+
+	if err := c.TLS.Validate(); err != nil {
+		return err
 	}
 
 	return nil
