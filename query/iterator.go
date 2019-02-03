@@ -563,7 +563,7 @@ type IteratorOptions struct {
 	// This can be VarRef or a Call.
 	Expr influxql.Expr
 
-	// Auxilary tags or values to also retrieve for the point.
+	// Auxiliary tags or values to also retrieve for the point.
 	Aux []influxql.VarRef
 
 	// Data sources from which to receive data. This is only used for encoding

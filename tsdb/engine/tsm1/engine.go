@@ -2654,7 +2654,7 @@ func (e *Engine) createVarRefSeriesIterator(ctx context.Context, ref *influxql.V
 		}
 	}
 
-	// Build auxilary cursors.
+	// Build auxiliary cursors.
 	// Tag values should be returned if the field doesn't exist.
 	var aux []cursorAt
 	if len(opt.Aux) > 0 {

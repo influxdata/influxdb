@@ -6345,13 +6345,13 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
 		},
 		&Query{
-			name:    "non-existant tag and field",
+			name:    "non-existent tag and field",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select foo from where_events where tenant != 'paul' AND foo = 'bar'`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
 		},
 		&Query{
-			name:    "non-existant tag or field",
+			name:    "non-existent tag or field",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select foo from where_events where tenant != 'paul' OR foo = 'bar'`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"],["2009-11-10T23:00:06Z","bap"]]}]}]}`,
@@ -7010,7 +7010,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "Drop non-existant measurement",
+			name:    "Drop non-existent measurement",
 			command: `DROP MEASUREMENT doesntexist`,
 			exp:     `{"results":[{"statement_id":0}]}`,
 			params:  url.Values{"db": []string{"db0"}},
