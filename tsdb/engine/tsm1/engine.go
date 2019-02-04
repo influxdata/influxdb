@@ -1484,17 +1484,33 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return nil
 	}
 
-	// Ensure keys are sorted since lower layers require them to be.
-	if !bytesutil.IsSorted(seriesKeys) {
-		bytesutil.Sort(seriesKeys)
-	}
-
 	// Min and max time in the engine are slightly different from the query language values.
 	if min == influxql.MinTime {
 		min = math.MinInt64
 	}
 	if max == influxql.MaxTime {
 		max = math.MaxInt64
+	}
+
+	overlapsTimeRangeMinMax := false
+	e.FileStore.Apply(func(r TSMFile) error {
+		if r.OverlapsTimeRange(min, max) {
+			overlapsTimeRangeMinMax = true
+		}
+		return nil
+	})
+
+	if !overlapsTimeRangeMinMax && e.Cache.store.count() > 0 {
+		overlapsTimeRangeMinMax = true
+	}
+
+	if !overlapsTimeRangeMinMax {
+		return nil
+	}
+
+	// Ensure keys are sorted since lower layers require them to be.
+	if !bytesutil.IsSorted(seriesKeys) {
+		bytesutil.Sort(seriesKeys)
 	}
 
 	// Run the delete on each TSM file in parallel

@@ -1,3 +1,10 @@
+v1.8.0 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#10504](https://github.com/influxdata/influxdb/issue/10504): Delete rebuilds series index when series to be deleted are outside timerange.
+
 v1.7.0 [unreleased]
 -------------------
 
