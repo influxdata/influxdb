@@ -350,6 +350,19 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	urm := &platform.UserResourceMapping{
+		UserID:       auth.GetUserID(),
+		UserType:     platform.Owner,
+		ResourceType: platform.TasksResourceType,
+		ResourceID:   req.Task.ID,
+	}
+	if err := h.UserResourceMappingService.CreateUserResourceMapping(ctx, urm); err != nil {
+		err = &platform.Error{
+			Err: err,
+			Msg: "failed to add user permissions",
+		}
+	}
+
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task, []*platform.Label{})); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -553,6 +566,17 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		}
 		EncodeError(ctx, err, w)
 		return
+	}
+	// clean up resource maps for deleted task
+	urms, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
+		ResourceID:   req.TaskID,
+		ResourceType: platform.TasksResourceType,
+	})
+
+	if err == nil {
+		for _, m := range urms {
+			h.UserResourceMappingService.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID)
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
