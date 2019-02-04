@@ -3,9 +3,10 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import PluginConfigSwitcher from 'src/dataLoaders/components/configureStep/streaming/PluginConfigSwitcher'
+import {PluginConfigSwitcher} from 'src/dataLoaders/components/collectorsWizard/configure/PluginConfigSwitcher'
+import TelegrafPluginInstructions from 'src/dataLoaders/components/collectorsWizard/configure/TelegrafPluginInstructions'
 import EmptyDataSourceState from 'src/dataLoaders/components/configureStep/EmptyDataSourceState'
-import PluginConfigForm from 'src/dataLoaders/components/configureStep/streaming/PluginConfigForm'
+import PluginConfigForm from 'src/dataLoaders/components/collectorsWizard/configure/PluginConfigForm'
 
 // Constants
 import {telegrafPlugin, token} from 'mocks/dummyData'
@@ -32,7 +33,7 @@ const setup = (override = {}) => {
   return {wrapper}
 }
 
-describe('Onboarding.Components.ConfigureStep.Streaming.PluginConfigSwitcher', () => {
+describe('DataLoading.Components.Collectors.Configure.PluginConfigSwitcher', () => {
   describe('if no telegraf plugins', () => {
     it('renders empty data source state', () => {
       const {wrapper} = setup()
@@ -43,12 +44,24 @@ describe('Onboarding.Components.ConfigureStep.Streaming.PluginConfigSwitcher', (
     })
   })
 
-  describe('if has telegraf plugins', () => {
+  describe('if has active telegraf plugin', () => {
     it('renders plugin config form', () => {
       const {wrapper} = setup({
-        telegrafPlugins: [telegrafPlugin],
+        telegrafPlugins: [{...telegrafPlugin, active: true}],
       })
       const form = wrapper.find(PluginConfigForm)
+
+      expect(wrapper.exists()).toBe(true)
+      expect(form.exists()).toBe(true)
+    })
+  })
+
+  describe('if has no active telegraf plugin', () => {
+    it('renders telegraf instructions', () => {
+      const {wrapper} = setup({
+        telegrafPlugins: [{...telegrafPlugin, active: false}],
+      })
+      const form = wrapper.find(TelegrafPluginInstructions)
 
       expect(wrapper.exists()).toBe(true)
       expect(form.exists()).toBe(true)

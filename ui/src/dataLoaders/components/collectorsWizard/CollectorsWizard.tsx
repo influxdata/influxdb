@@ -6,7 +6,8 @@ import _ from 'lodash'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
-import StepSwitcher from 'src/dataLoaders/components/StepSwitcher'
+import CollectorsStepSwitcher from 'src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'
+import PluginsSideBar from 'src/dataLoaders/components/PluginsSideBar'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -15,32 +16,27 @@ import {
   incrementCurrentStepIndex,
   decrementCurrentStepIndex,
   setCurrentStepIndex,
-  setSubstepIndex,
   clearSteps,
 } from 'src/dataLoaders/actions/steps'
 
 import {
-  setDataLoadersType,
   clearDataLoaders,
+  setActiveTelegrafPlugin,
+  setPluginConfiguration,
 } from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {Links} from 'src/types/v2/links'
-import {DataLoaderType, Substep} from 'src/types/v2/dataLoaders'
+import {Substep, TelegrafPlugin} from 'src/types/v2/dataLoaders'
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
 import {Bucket} from 'src/api'
 
-export interface DataLoaderStepProps {
-  links: Links
+export interface CollectorsStepProps {
   currentStepIndex: number
-  substep: Substep
-  onSetCurrentStepIndex: (stepNumber: number) => void
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
-  onSetSubstepIndex: (index: number, subStep: Substep) => void
   notify: (message: Notification | NotificationFunc) => void
-  onCompleteSetup: () => void
   onExit: () => void
 }
 
@@ -48,37 +44,34 @@ interface OwnProps {
   onCompleteSetup: () => void
   visible: boolean
   buckets: Bucket[]
-  startingType?: DataLoaderType
   startingStep?: number
-  startingSubstep?: Substep
 }
 
 interface DispatchProps {
   notify: (message: Notification | NotificationFunc) => void
   onSetBucketInfo: typeof setBucketInfo
-  onSetDataLoadersType: typeof setDataLoadersType
   onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
   onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
   onSetCurrentStepIndex: typeof setCurrentStepIndex
-  onSetSubstepIndex: typeof setSubstepIndex
   onClearDataLoaders: typeof clearDataLoaders
   onClearSteps: typeof clearSteps
+  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
+  onSetPluginConfiguration: typeof setPluginConfiguration
 }
 
 interface StateProps {
   links: Links
+  telegrafPlugins: TelegrafPlugin[]
   currentStepIndex: number
   substep: Substep
   username: string
   bucket: string
-  org: string
-  type: DataLoaderType
 }
 
 type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
-class DataLoadersWizard extends PureComponent<Props> {
+class CollectorsWizard extends PureComponent<Props> {
   public componentDidMount() {
     this.handleSetBucketInfo()
     this.handleSetStartingValues()
@@ -94,31 +87,25 @@ class DataLoadersWizard extends PureComponent<Props> {
   }
 
   public render() {
-    const {
-      currentStepIndex,
-      visible,
-      bucket,
-      org,
-      onSetBucketInfo,
-      buckets,
-      type,
-    } = this.props
+    const {visible, buckets, telegrafPlugins, currentStepIndex} = this.props
 
     return (
       <WizardOverlay
         visible={visible}
-        title={'Data Loading'}
+        title={'Create a Telegraf Config'}
         onDismis={this.handleDismiss}
       >
         <div className="wizard-contents">
+          <PluginsSideBar
+            telegrafPlugins={telegrafPlugins}
+            onTabClick={this.handleClickSideBarTab}
+            title="Plugins to Configure"
+            visible={this.sideBarVisible}
+            currentStepIndex={currentStepIndex}
+          />
           <div className="wizard-step--container">
-            <StepSwitcher
-              currentStepIndex={currentStepIndex}
-              onboardingStepProps={this.stepProps}
-              bucketName={bucket}
-              onSetBucketInfo={onSetBucketInfo}
-              type={type}
-              org={org}
+            <CollectorsStepSwitcher
+              stepProps={this.stepProps}
               buckets={buckets}
             />
           </div>
@@ -129,7 +116,6 @@ class DataLoadersWizard extends PureComponent<Props> {
 
   private handleSetBucketInfo = () => {
     const {bucket, buckets} = this.props
-
     if (!bucket && (buckets && buckets.length)) {
       const {organization, organizationID, name, id} = buckets[0]
 
@@ -138,23 +124,11 @@ class DataLoadersWizard extends PureComponent<Props> {
   }
 
   private handleSetStartingValues = () => {
-    const {startingStep, startingType, startingSubstep} = this.props
+    const {startingStep} = this.props
 
     const hasStartingStep = startingStep || startingStep === 0
-    const hasStartingSubstep = startingSubstep || startingSubstep === 0
-    const hasStartingType =
-      startingType || startingType === DataLoaderType.Empty
 
-    if (hasStartingType) {
-      this.props.onSetDataLoadersType(startingType)
-    }
-
-    if (hasStartingSubstep) {
-      this.props.onSetSubstepIndex(
-        hasStartingStep ? startingStep : 0,
-        startingSubstep
-      )
-    } else if (hasStartingStep) {
+    if (hasStartingStep) {
       this.props.onSetCurrentStepIndex(startingStep)
     }
   }
@@ -165,29 +139,43 @@ class DataLoadersWizard extends PureComponent<Props> {
     this.props.onClearSteps()
   }
 
-  private get stepProps(): DataLoaderStepProps {
+  private get sideBarVisible() {
+    const {telegrafPlugins, currentStepIndex} = this.props
+
+    const isNotEmpty = telegrafPlugins.length > 0
+    const isConfigStep = currentStepIndex > 0
+
+    return isNotEmpty && isConfigStep
+  }
+
+  private handleClickSideBarTab = (tabID: string) => {
     const {
-      links,
+      onSetActiveTelegrafPlugin,
+      telegrafPlugins,
+      onSetPluginConfiguration,
+    } = this.props
+
+    const activeTelegrafPlugin = telegrafPlugins.find(tp => tp.active)
+    if (!!activeTelegrafPlugin) {
+      onSetPluginConfiguration(activeTelegrafPlugin.name)
+    }
+
+    onSetActiveTelegrafPlugin(tabID)
+  }
+
+  private get stepProps(): CollectorsStepProps {
+    const {
       notify,
-      substep,
-      onCompleteSetup,
       currentStepIndex,
-      onSetCurrentStepIndex,
-      onSetSubstepIndex,
       onDecrementCurrentStepIndex,
       onIncrementCurrentStepIndex,
     } = this.props
 
     return {
-      substep,
       currentStepIndex,
-      onSetCurrentStepIndex,
-      onSetSubstepIndex,
       onIncrementCurrentStepIndex,
       onDecrementCurrentStepIndex,
-      links,
       notify,
-      onCompleteSetup,
       onExit: this.handleDismiss,
     }
   }
@@ -196,33 +184,32 @@ class DataLoadersWizard extends PureComponent<Props> {
 const mstp = ({
   links,
   dataLoading: {
-    dataLoaders: {type},
-    steps: {currentStep, substep, bucket, org},
+    dataLoaders: {telegrafPlugins},
+    steps: {currentStep, substep, bucket},
   },
   me: {name},
 }: AppState): StateProps => ({
   links,
-  type,
+  telegrafPlugins,
   currentStepIndex: currentStep,
   substep,
   username: name,
   bucket,
-  org,
 })
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
   onSetBucketInfo: setBucketInfo,
-  onSetDataLoadersType: setDataLoadersType,
   onIncrementCurrentStepIndex: incrementCurrentStepIndex,
   onDecrementCurrentStepIndex: decrementCurrentStepIndex,
   onSetCurrentStepIndex: setCurrentStepIndex,
-  onSetSubstepIndex: setSubstepIndex,
   onClearDataLoaders: clearDataLoaders,
   onClearSteps: clearSteps,
+  onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
+  onSetPluginConfiguration: setPluginConfiguration,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(DataLoadersWizard)
+)(CollectorsWizard)
