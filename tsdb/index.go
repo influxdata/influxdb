@@ -42,7 +42,7 @@ type Index interface {
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DropSeries(seriesID uint64, key []byte, cascade bool) error
-	DropMeasurementIfSeriesNotExist(name []byte) error
+	DropMeasurementIfSeriesNotExist(name []byte) (bool, error)
 
 	// Used to clean up series in inmem index that were dropped with a shard.
 	DropSeriesGlobal(key []byte) error
@@ -942,7 +942,7 @@ func (itr *measurementSliceIterator) Next() (name []byte, err error) {
 }
 
 // MergeMeasurementIterators returns an iterator that merges a set of iterators.
-// Iterators that are first in the list take precendence and a deletion by those
+// Iterators that are first in the list take precedence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeMeasurementIterators(itrs ...MeasurementIterator) MeasurementIterator {
 	if len(itrs) == 0 {

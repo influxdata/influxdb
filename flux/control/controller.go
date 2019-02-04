@@ -10,8 +10,9 @@ import (
 )
 
 type MetaClient = inputs.MetaClient
+type Authorizer = inputs.Authorizer
 
-func NewController(mc MetaClient, reader fstorage.Reader, logger *zap.Logger) *control.Controller {
+func NewController(mc MetaClient, reader fstorage.Reader, auth Authorizer, authEnabled bool, logger *zap.Logger) *control.Controller {
 	// flux
 	var (
 		concurrencyQuota = 10
@@ -23,15 +24,14 @@ func NewController(mc MetaClient, reader fstorage.Reader, logger *zap.Logger) *c
 		ConcurrencyQuota:     concurrencyQuota,
 		MemoryBytesQuota:     int64(memoryBytesQuota),
 		Logger:               logger,
-		Verbose:              false,
 	}
 
-	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reader})
+	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reader, MetaClient: mc, Authorizer: auth, AuthEnabled: authEnabled})
 	if err != nil {
 		panic(err)
 	}
 
-	err = inputs.InjectBucketDependencies(cc.ExecutorDependencies, mc)
+	err = inputs.InjectBucketDependencies(cc.ExecutorDependencies, inputs.BucketDependencies{MetaClient: mc, Authorizer: auth, AuthEnabled: authEnabled})
 	if err != nil {
 		panic(err)
 	}

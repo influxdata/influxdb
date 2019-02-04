@@ -1484,17 +1484,33 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return nil
 	}
 
-	// Ensure keys are sorted since lower layers require them to be.
-	if !bytesutil.IsSorted(seriesKeys) {
-		bytesutil.Sort(seriesKeys)
-	}
-
 	// Min and max time in the engine are slightly different from the query language values.
 	if min == influxql.MinTime {
 		min = math.MinInt64
 	}
 	if max == influxql.MaxTime {
 		max = math.MaxInt64
+	}
+
+	overlapsTimeRangeMinMax := false
+	e.FileStore.Apply(func(r TSMFile) error {
+		if r.OverlapsTimeRange(min, max) {
+			overlapsTimeRangeMinMax = true
+		}
+		return nil
+	})
+
+	if !overlapsTimeRangeMinMax && e.Cache.store.count() > 0 {
+		overlapsTimeRangeMinMax = true
+	}
+
+	if !overlapsTimeRangeMinMax {
+		return nil
+	}
+
+	// Ensure keys are sorted since lower layers require them to be.
+	if !bytesutil.IsSorted(seriesKeys) {
+		bytesutil.Sort(seriesKeys)
 	}
 
 	// Run the delete on each TSM file in parallel
@@ -1685,8 +1701,19 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			ids.Add(sid)
 		}
 
+		fielsetChanged := false
 		for k := range measurements {
-			if err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
+			if dropped, err := e.index.DropMeasurementIfSeriesNotExist([]byte(k)); err != nil {
+				return err
+			} else if dropped {
+				if err := e.cleanupMeasurement([]byte(k)); err != nil {
+					return err
+				}
+				fielsetChanged = true
+			}
+		}
+		if fielsetChanged {
+			if err := e.fieldset.Save(); err != nil {
 				return err
 			}
 		}
@@ -1706,9 +1733,6 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 			name, tags := e.sfile.Series(id)
 			if err1 := e.sfile.DeleteSeriesID(id); err1 != nil {
 				err = err1
-			}
-
-			if err != nil {
 				return
 			}
 
@@ -1729,13 +1753,7 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	return nil
 }
 
-// DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name []byte) error {
-	// Delete the bulk of data outside of the fields lock.
-	if err := e.deleteMeasurement(name); err != nil {
-		return err
-	}
-
+func (e *Engine) cleanupMeasurement(name []byte) error {
 	// A sentinel error message to cause DeleteWithLock to not delete the measurement
 	abortErr := fmt.Errorf("measurements still exist")
 
@@ -1744,10 +1762,11 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 	// were writes to the measurement while we are deleting it.
 	if err := e.fieldset.DeleteWithLock(string(name), func() error {
 		encodedName := models.EscapeMeasurement(name)
+		sep := len(encodedName)
 
 		// First scan the cache to see if any series exists for this measurement.
 		if err := e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-			if bytes.HasPrefix(k, encodedName) {
+			if bytes.HasPrefix(k, encodedName) && (k[sep] == ',' || k[sep] == keyFieldSeparator[0]) {
 				return abortErr
 			}
 			return nil
@@ -1756,8 +1775,8 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		}
 
 		// Check the filestore.
-		return e.FileStore.WalkKeys(name, func(k []byte, typ byte) error {
-			if bytes.HasPrefix(k, encodedName) {
+		return e.FileStore.WalkKeys(name, func(k []byte, _ byte) error {
+			if bytes.HasPrefix(k, encodedName) && (k[sep] == ',' || k[sep] == keyFieldSeparator[0]) {
 				return abortErr
 			}
 			return nil
@@ -1768,11 +1787,11 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return err
 	}
 
-	return e.fieldset.Save()
+	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) deleteMeasurement(name []byte) error {
+func (e *Engine) DeleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
 	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 	itr, err := indexSet.MeasurementSeriesByExprIterator(name, nil)
@@ -2669,7 +2688,7 @@ func (e *Engine) createVarRefSeriesIterator(ctx context.Context, ref *influxql.V
 		}
 	}
 
-	// Build auxilary cursors.
+	// Build auxiliary cursors.
 	// Tag values should be returned if the field doesn't exist.
 	var aux []cursorAt
 	if len(opt.Aux) > 0 {

@@ -192,7 +192,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 
-	// Test handler with valid JWT token carrying non-existant user.
+	// Test handler with valid JWT token carrying non-existent user.
 	_, signedToken = MustJWTToken("bad_user", h.Config.SharedSecret, false)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
 
@@ -970,6 +970,51 @@ func TestHandler_Flux(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandler_Flux_Auth(t *testing.T) {
+	// Create the handler to be tested.
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog(), WithAuthentication()))
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
+	h.MetaClient.UserFn = func(username string) (meta.User, error) {
+		if username != "user1" {
+			return nil, meta.ErrUserNotFound
+		}
+		return &meta.UserInfo{
+			Name:  "user1",
+			Hash:  "abcd",
+			Admin: true,
+		}, nil
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+		if u != "user1" {
+			return nil, fmt.Errorf("unexpected user: exp: user1, got: %s", u)
+		} else if p != "abcd" {
+			return nil, fmt.Errorf("unexpected password: exp: abcd, got: %s", p)
+		}
+		return h.MetaClient.User(u)
+	}
+
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		return internal.NewFluxQueryMock(), nil
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", bytes.NewBufferString("bar"))
+	req.Header.Set("content-type", "application/vnd.flux")
+	req.Header.Set("Authorization", "Token user1:abcd")
+	// Test the handler with valid user and password in the URL parameters.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	req.Header.Set("Authorization", "Token user1:efgh")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusUnauthorized) {
+		t.Fatalf("unexpected status: %d", got)
 	}
 }
 

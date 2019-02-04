@@ -6,6 +6,8 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/query/functions/inputs/storage"
 	"github.com/pkg/errors"
 )
@@ -39,6 +41,8 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 	}
 	currentTime := w.Start + execute.Time(w.Period)
 
+	deps := a.Dependencies()[inputs.FromKind].(Dependencies)
+
 	var db, rp string
 	if i := strings.IndexByte(spec.Bucket, '/'); i == -1 {
 		db = spec.Bucket
@@ -47,7 +51,29 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 		db = spec.Bucket[:i]
 	}
 
-	deps := a.Dependencies()[inputs.FromKind].(Dependencies)
+	// validate and resolve db/rp
+	di := deps.MetaClient.Database(db)
+	if di == nil {
+		return nil, errors.New("no database")
+	}
+
+	if deps.AuthEnabled {
+		user := meta.UserFromContext(a.Context())
+		if user == nil {
+			return nil, errors.New("createFromSource: no user")
+		}
+		if err := deps.Authorizer.AuthorizeDatabase(user, influxql.ReadPrivilege, db); err != nil {
+			return nil, err
+		}
+	}
+
+	if rp == "" {
+		rp = di.DefaultRetentionPolicy
+	}
+
+	if rpi := di.RetentionPolicy(rp); rpi == nil {
+		return nil, errors.New("invalid retention policy")
+	}
 
 	return storage.NewSource(
 		dsid,
@@ -61,7 +87,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 			SeriesOffset:    spec.SeriesOffset,
 			Descending:      spec.Descending,
 			OrderByTime:     spec.OrderByTime,
-			GroupMode:       storage.GroupMode(spec.GroupMode),
+			GroupMode:       storage.ToGroupMode(spec.GroupMode),
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
 		},
@@ -71,13 +97,23 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 	), nil
 }
 
+type Authorizer interface {
+	AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error
+}
+
 type Dependencies struct {
-	Reader storage.Reader
+	Reader      storage.Reader
+	MetaClient  MetaClient
+	Authorizer  Authorizer
+	AuthEnabled bool
 }
 
 func (d Dependencies) Validate() error {
 	if d.Reader == nil {
 		return errors.New("missing reader dependency")
+	}
+	if d.AuthEnabled && d.Authorizer == nil {
+		return errors.New("validate Dependencies: missing Authorizer")
 	}
 	return nil
 }

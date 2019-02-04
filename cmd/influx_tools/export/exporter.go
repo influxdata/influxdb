@@ -138,7 +138,7 @@ func (e *exporter) loadShardGroups() error {
 	min := time.Unix(0, models.MinNanoTime)
 	max := time.Unix(0, models.MaxNanoTime)
 
-	groups, err := e.metaClient.ShardGroupsByTimeRange(e.db, e.rp, min, max)
+	groups, err := e.metaClient.NodeShardGroupsByTimeRange(e.db, e.rp, min, max)
 	if err != nil {
 		return err
 	}

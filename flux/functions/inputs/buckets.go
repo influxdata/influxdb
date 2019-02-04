@@ -6,9 +6,11 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 )
 
@@ -18,7 +20,8 @@ func init() {
 
 type BucketsDecoder struct {
 	deps  BucketDependencies
-	alloc *execute.Allocator
+	alloc *memory.Allocator
+	user  meta.User
 }
 
 func (bd *BucketsDecoder) Connect() error {
@@ -64,14 +67,28 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 		Type:  flux.TInt,
 	})
 
-	for _, bucket := range bd.deps.Databases() {
-		rp := bucket.RetentionPolicy(bucket.DefaultRetentionPolicy)
-		b.AppendString(0, bucket.Name)
-		b.AppendString(1, "")
-		b.AppendString(2, "influxdb")
-		b.AppendString(3, "")
-		b.AppendString(4, rp.Name)
-		b.AppendInt(5, rp.Duration.Nanoseconds())
+	var hasAccess func(db string) bool
+	if bd.user == nil {
+		hasAccess = func(db string) bool {
+			return true
+		}
+	} else {
+		hasAccess = func(db string) bool {
+			return bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.ReadPrivilege, db) == nil ||
+				bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.WritePrivilege, db) == nil
+		}
+	}
+
+	for _, bucket := range bd.deps.MetaClient.Databases() {
+		if hasAccess(bucket.Name) {
+			rp := bucket.RetentionPolicy(bucket.DefaultRetentionPolicy)
+			b.AppendString(0, bucket.Name)
+			b.AppendString(1, "")
+			b.AppendString(2, "influxdb")
+			b.AppendString(3, "")
+			b.AppendString(4, rp.Name)
+			b.AppendInt(5, rp.Duration.Nanoseconds())
+		}
 	}
 
 	return b.Table()
@@ -87,7 +104,15 @@ func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 	// so there's no need to inject custom dependencies for buckets()
 	deps := a.Dependencies()[inputs.BucketsKind].(BucketDependencies)
 
-	bd := &BucketsDecoder{deps: deps, alloc: a.Allocator()}
+	var user meta.User
+	if deps.AuthEnabled {
+		user = meta.UserFromContext(a.Context())
+		if user == nil {
+			return nil, errors.New("createBucketsSource: no user")
+		}
+	}
+
+	bd := &BucketsDecoder{deps: deps, alloc: a.Allocator(), user: user}
 
 	return inputs.CreateSourceFromDecoder(bd, dsid, a)
 
@@ -95,13 +120,28 @@ func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 
 type MetaClient interface {
 	Databases() []meta.DatabaseInfo
+	Database(name string) *meta.DatabaseInfo
 }
 
-type BucketDependencies MetaClient
+type BucketDependencies struct {
+	MetaClient  MetaClient
+	Authorizer  Authorizer
+	AuthEnabled bool
+}
+
+func (d BucketDependencies) Validate() error {
+	if d.MetaClient == nil {
+		return errors.New("validate BucketDependencies: missing MetaClient")
+	}
+	if d.AuthEnabled && d.Authorizer == nil {
+		return errors.New("validate BucketDependencies: missing Authorizer")
+	}
+	return nil
+}
 
 func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependencies) error {
-	if deps == nil {
-		return errors.New("bucket store dependency")
+	if err := deps.Validate(); err != nil {
+		return err
 	}
 	depsMap[inputs.BucketsKind] = deps
 	return nil

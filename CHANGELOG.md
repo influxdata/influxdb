@@ -4,6 +4,7 @@ v1.8.0 [unreleased]
 ### Bugfixes
 
 -	[#10503](https://github.com/influxdata/influxdb/pull/10503): Delete rebuilds series index when series to be deleted are only found in cache.
+-	[#10504](https://github.com/influxdata/influxdb/issue/10504): Delete rebuilds series index when series to be deleted are outside timerange.
 
 v1.7.0 [unreleased]
 -------------------
@@ -63,6 +64,9 @@ v1.6.0 [2018-07-05]
 -	[#10215](https://github.com/influxdata/influxdb/pull/10215): Switch digests to use snappy compression.
 -	[#10321](https://github.com/influxdata/influxdb/pull/10321): Changes /ping route to return status code 200 instead of 204 when verbose is set.
 -	[#10300](https://github.com/influxdata/influxdb/pull/10300): Improve Compaction Performance.
+-	[#10130](https://github.com/influxdata/influxdb/pull/10130): client/v2: support custom dialer, not just socks proxy.
+-	[#10586](https://github.com/influxdata/influxdb/pull/10586): Update flux to 0.11.0.
+-	[#11525](https://github.com/influxdata/influxdb/pull/11525): Allow TSI bitset cache to be configured.
 
 ### Bugfixes
 
@@ -104,6 +108,9 @@ v1.6.0 [2018-07-05]
 -	[#9884](https://github.com/influxdata/influxdb/pull/9884): Add -series-file flag to dumptsi command help.
 -	[#10423](https://github.com/influxdata/influxdb/pull/10423): Fix panic in IndexSet.
 -	[#10494](https://github.com/influxdata/influxdb/pull/10494): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice.
+-	[#10549](https://github.com/influxdata/influxdb/pull/10549): Pass the query authorizer to subqueries.
+-	[#10664](https://github.com/influxdata/influxdb/pull/10664): Marked functions that always return floats as always returning floats.
+-	[#10276](https://github.com/influxdata/influxdb/pull/10276): Fix bug with incorrect ABS results for negative integer values.
 
 v1.5.4 [2018-06-21]
 -------------------

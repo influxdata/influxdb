@@ -1,3 +1,5 @@
+required = ["github.com/influxdata/platform/pkg/data/gen"]
+
 [[constraint]]
   name = "collectd.org"
   version = "0.3.0"
@@ -72,4 +74,4 @@
 
 [[constraint]]
   name = "github.com/influxdata/flux"
-  version = "0.7.0"
+  version = "0.12.0"

@@ -563,7 +563,7 @@ type IteratorOptions struct {
 	// This can be VarRef or a Call.
 	Expr influxql.Expr
 
-	// Auxilary tags or values to also retrieve for the point.
+	// Auxiliary tags or values to also retrieve for the point.
 	Aux []influxql.VarRef
 
 	// Data sources from which to receive data. This is only used for encoding
@@ -687,7 +687,10 @@ func newIteratorOptionsStmt(stmt *influxql.SelectStatement, sopt SelectOptions) 
 }
 
 func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectStatement, opt IteratorOptions) (IteratorOptions, error) {
-	subOpt, err := newIteratorOptionsStmt(stmt, SelectOptions{})
+	subOpt, err := newIteratorOptionsStmt(stmt, SelectOptions{
+		Authorizer: opt.Authorizer,
+		MaxSeriesN: opt.MaxSeriesN,
+	})
 	if err != nil {
 		return IteratorOptions{}, err
 	}
@@ -1330,10 +1333,8 @@ func (p reverseStringSlice) Less(i, j int) bool { return p[i] > p[j] }
 func (p reverseStringSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 func abs(v int64) int64 {
-	if v < 0 {
-		return -v
-	}
-	return v
+	sign := v >> 63
+	return (v ^ sign) - sign
 }
 
 // IteratorEncoder is an encoder for encoding an iterator's points to w.
