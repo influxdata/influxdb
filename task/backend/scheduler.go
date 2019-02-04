@@ -10,7 +10,7 @@ import (
 	"time"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -659,8 +659,8 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		}
 	}()
 
-	// TODO(mr): handle res.IsRetryable().
-	_, err = rp.Wait()
+	// TODO(mr): handle rr.IsRetryable().
+	rr, err := rp.Wait()
 	close(ready)
 	if err != nil {
 		if err == ErrRunCanceled {
@@ -673,6 +673,13 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		}
 
 		runLogger.Info("Failed to wait for execution result", zap.Error(err))
+		// TODO(mr): retry?
+		r.updateRunState(qr, RunFail, runLogger)
+		atomic.StoreUint32(r.state, runnerIdle)
+		return
+	}
+	if err := rr.Err(); err != nil {
+		runLogger.Info("Run failed to execute", zap.Error(err))
 		// TODO(mr): retry?
 		r.updateRunState(qr, RunFail, runLogger)
 		atomic.StoreUint32(r.state, runnerIdle)
