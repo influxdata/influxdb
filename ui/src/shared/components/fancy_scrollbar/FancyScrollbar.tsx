@@ -81,8 +81,6 @@ class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
         autoHideDuration={250}
         autoHeight={autoHeight}
         autoHeightMax={maxHeight}
-        thumbStartColor="#fff"
-        thumbStopColor="#000"
       >
         {children}
       </Scrollbars>
