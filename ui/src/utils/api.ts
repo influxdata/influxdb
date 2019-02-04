@@ -4,7 +4,6 @@ import {
   ViewsApi,
   SourcesApi,
   QueryApi,
-  SetupApi,
   ProtosApi,
 } from 'src/api'
 
@@ -19,5 +18,4 @@ export const dashboardsAPI = new DashboardsApi({basePath})
 export const cellsAPI = new CellsApi({basePath})
 export const sourcesAPI = new SourcesApi({basePath})
 export const queryAPI = new QueryApi({basePath})
-export const setupAPI = new SetupApi({basePath})
 export const protosAPI = new ProtosApi({basePath})
