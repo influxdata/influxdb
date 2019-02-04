@@ -4,11 +4,13 @@
 */
 
 .markdown-cell {
-  height: calc(100% - 20px) !important;
+  position: absolute !important;
+  top: 0;
+  left: 0;
 }
 
 .markdown-cell--contents {
-  padding: 8px 16px;
+  padding: 16px;
   font-size: 13px;
 }
 
