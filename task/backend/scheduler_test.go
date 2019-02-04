@@ -483,7 +483,7 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	pollForRunStatus(t, rl, task.ID, 2, 1, backend.RunStarted.String())
 
-	// Finish with failure.
+	// Finish with failure to create the run.
 	promises[0].Finish(nil, errors.New("forced failure"))
 	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
@@ -491,7 +491,7 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	pollForRunStatus(t, rl, task.ID, 2, 1, backend.RunFail.String())
 
-	// One more run, but cancel this time.
+	// Create a new run that starts but fails.
 	s.Tick(8)
 	promises, err = e.PollForNumberRunning(task.ID, 1)
 	if err != nil {
@@ -499,6 +499,20 @@ func TestScheduler_RunLog(t *testing.T) {
 	}
 
 	pollForRunStatus(t, rl, task.ID, 3, 2, backend.RunStarted.String())
+	promises[0].Finish(mock.NewRunResult(errors.New("started but failed to finish properly"), false), nil)
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	pollForRunStatus(t, rl, task.ID, 3, 2, backend.RunFail.String())
+
+	// One more run, but cancel this time.
+	s.Tick(9)
+	promises, err = e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pollForRunStatus(t, rl, task.ID, 4, 3, backend.RunStarted.String())
 
 	// Finish with failure.
 	promises[0].Cancel()
@@ -506,7 +520,7 @@ func TestScheduler_RunLog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pollForRunStatus(t, rl, task.ID, 3, 2, backend.RunCanceled.String())
+	pollForRunStatus(t, rl, task.ID, 4, 3, backend.RunCanceled.String())
 }
 
 func TestScheduler_Metrics(t *testing.T) {
