@@ -2,11 +2,6 @@
 import _ from 'lodash'
 
 // Apis
-import {
-  createTelegrafConfig,
-  updateTelegrafConfig,
-  getTelegrafConfig,
-} from 'src/onboarding/apis/index'
 import {client} from 'src/utils/api'
 import {ScraperTargetRequest} from 'src/api'
 
@@ -310,23 +305,23 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     },
   }
 
-  let plugins: Plugin[] = [influxDB2Out]
-  telegrafPlugins.forEach(tp => {
-    if (tp.configured === ConfigurationState.Configured) {
-      plugins = [...plugins, tp.plugin || createNewPlugin(tp.name)]
-    }
-  })
+  const plugins = telegrafPlugins.reduce(
+    (acc, tp) => {
+      if (tp.configured === ConfigurationState.Configured) {
+        return [...acc, tp.plugin || createNewPlugin(tp.name)]
+      }
+
+      return acc
+    },
+    [influxDB2Out]
+  )
 
   if (telegrafConfigID) {
-    const telegrafConfig = await getTelegrafConfig(telegrafConfigID)
-    const id = _.get(telegrafConfig, 'id', '')
-
-    await updateTelegrafConfig(id, {
-      ...telegrafConfig,
+    await client.telegrafConfigs.update(telegrafConfigID, {
       name: telegrafConfigName,
       plugins,
     })
-    dispatch(setTelegrafConfigID(id))
+    dispatch(setTelegrafConfigID(telegrafConfigID))
     return
   }
 
@@ -337,7 +332,7 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     plugins,
   }
 
-  const created = await createTelegrafConfig(telegrafRequest)
+  const created = await client.telegrafConfigs.create(telegrafRequest)
   dispatch(setTelegrafConfigID(created.id))
 }
 

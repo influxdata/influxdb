@@ -5,8 +5,12 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // APIs
-import {getDashboards, getCollectors} from 'src/organizations/apis'
+import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
+
+const getCollectors = async (org: Organization) => {
+  return client.telegrafConfigs.getAllByOrg(org)
+}
 
 const getScrapers = async () => {
   return await client.scrapers.getAll()

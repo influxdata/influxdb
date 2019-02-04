@@ -162,7 +162,7 @@ export default class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleDeleteScraper = async (scraper: ScraperTargetResponse) => {
-    await client.scrapers.deleteScraper(scraper.id)
+    await client.scrapers.delete(scraper.id)
     this.props.onChange()
   }
 
