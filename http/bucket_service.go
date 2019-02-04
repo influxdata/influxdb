@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"strconv"
 	"time"
 
 	platform "github.com/influxdata/influxdb"
@@ -810,29 +809,14 @@ func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucket
 		return nil, err
 	}
 
-	opts := platform.DefaultOperationLogFindOptions
-	qp := r.URL.Query()
-	if v := qp.Get("desc"); v == "false" {
-		opts.Descending = false
-	}
-	if v := qp.Get("limit"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Limit = i
-	}
-	if v := qp.Get("offset"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Offset = i
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
 	}
 
 	return &getBucketLogRequest{
 		BucketID: i,
-		opts:     opts,
+		opts:     *opts,
 	}, nil
 }
 

@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
-	"strconv"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
@@ -474,29 +473,14 @@ func decodeGetDashboardLogRequest(ctx context.Context, r *http.Request) (*getDas
 		return nil, err
 	}
 
-	opts := platform.DefaultOperationLogFindOptions
-	qp := r.URL.Query()
-	if v := qp.Get("desc"); v == "false" {
-		opts.Descending = false
-	}
-	if v := qp.Get("limit"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Limit = i
-	}
-	if v := qp.Get("offset"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Offset = i
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
 	}
 
 	return &getDashboardLogRequest{
 		DashboardID: i,
-		opts:        opts,
+		opts:        *opts,
 	}, nil
 }
 
