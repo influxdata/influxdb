@@ -9,16 +9,11 @@ import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {ToggleWizard} from 'src/types/wizard'
-
 interface Props {
   children: any
   visible: boolean
   title: string
-  toggleVisibility: ToggleWizard
-  resetWizardState: () => void
   maxWidth?: number
-  jumpStep: number
   onDismiss: () => void
 }
 
