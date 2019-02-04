@@ -7966,6 +7966,8 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 		fmt.Sprintf(`gpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 		fmt.Sprintf(`gpu,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 		fmt.Sprintf(`disk,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`_,__name__=metric1 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`_,__name__=metric2 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -8104,6 +8106,12 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 			name:    `show tag values with key and measurement matches regular expression where time`,
 			command: `SHOW TAG VALUES FROM /[cg]pu/ WITH KEY = host WHERE time > 0`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"],["host","server02"]]},{"name":"gpu","columns":["key","value"],"values":[["host","server02"],["host","server03"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag values with key where label starts with underscore`,
+			command: `SHOW TAG VALUES FROM "_" WITH KEY = "__name__" WHERE "__name__" = 'metric1'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"_","columns":["key","value"],"values":[["__name__","metric1"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
