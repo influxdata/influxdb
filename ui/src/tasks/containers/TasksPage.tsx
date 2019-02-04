@@ -17,6 +17,7 @@ import {
   updateTaskStatus,
   deleteTask,
   selectTask,
+  cloneTask,
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
   setDropdownOrgID as setDropdownOrgIDAction,
@@ -30,6 +31,7 @@ import {allOrganizationsID} from 'src/tasks/constants'
 
 // Types
 import {Task as TaskAPI, User, Organization} from 'src/api'
+import {AppState} from 'src/types/v2'
 
 interface Task extends TaskAPI {
   organization: Organization
@@ -45,6 +47,7 @@ interface ConnectedDispatchProps {
   populateTasks: typeof populateTasks
   updateTaskStatus: typeof updateTaskStatus
   deleteTask: typeof deleteTask
+  cloneTask: typeof cloneTask
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
@@ -115,6 +118,7 @@ class TasksPage extends PureComponent<Props, State> {
                 onActivate={this.handleActivate}
                 onDelete={this.handleDelete}
                 onCreate={this.handleCreateTask}
+                onClone={this.handleClone}
                 onSelect={this.props.selectTask}
                 onAddTaskLabels={onAddTaskLabels}
                 onRemoveTaskLabels={onRemoveTaskLabels}
@@ -131,12 +135,17 @@ class TasksPage extends PureComponent<Props, State> {
   public componentDidMount() {
     this.props.populateTasks()
   }
+
   private handleActivate = (task: Task) => {
     this.props.updateTaskStatus(task)
   }
 
   private handleDelete = (task: Task) => {
     this.props.deleteTask(task)
+  }
+
+  private handleClone = (task: Task) => {
+    this.props.cloneTask(task)
   }
 
   private handleCreateTask = () => {
@@ -217,7 +226,7 @@ class TasksPage extends PureComponent<Props, State> {
 const mstp = ({
   tasks: {tasks, searchTerm, showInactive, dropdownOrgID},
   orgs,
-}): ConnectedStateProps => {
+}: AppState): ConnectedStateProps => {
   return {
     tasks,
     searchTerm,
@@ -232,6 +241,7 @@ const mdtp: ConnectedDispatchProps = {
   updateTaskStatus,
   deleteTask,
   selectTask,
+  cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
   setDropdownOrgID: setDropdownOrgIDAction,

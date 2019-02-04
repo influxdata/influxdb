@@ -17,6 +17,8 @@ import {
   taskUpdateSuccess,
   taskCreatedSuccess,
   taskDeleteSuccess,
+  taskCloneSuccess,
+  taskCloneFailed,
 } from 'src/shared/copy/v2/notifications'
 
 // Types
@@ -241,6 +243,19 @@ export const deleteTask = (task: Task) => async dispatch => {
     console.error(e)
     const message = getErrorMessage(e)
     dispatch(notify(taskDeleteFailed(message)))
+  }
+}
+
+export const cloneTask = (task: Task) => async dispatch => {
+  try {
+    await client.tasks.create(task.orgID, task.flux, task.name)
+
+    dispatch(notify(taskCloneSuccess(task.name)))
+    dispatch(populateTasks())
+  } catch (e) {
+    console.error(e)
+    const message = getErrorMessage(e)
+    dispatch(notify(taskCloneFailed(task.name, message)))
   }
 }
 
