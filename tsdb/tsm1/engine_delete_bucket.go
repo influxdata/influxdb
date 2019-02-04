@@ -132,6 +132,14 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 		return err
 	}
 
+	// ApplySerialEntryFn cannot return an error in this invocation.
+	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+		if bytes.HasPrefix(k, name) {
+			delete(possiblyDead.keys, string(k))
+		}
+		return nil
+	})
+
 	if len(possiblyDead.keys) > 0 {
 		buf := make([]byte, 1024)
 
