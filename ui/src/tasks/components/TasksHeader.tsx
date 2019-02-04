@@ -21,13 +21,22 @@ interface Props {
   setShowInactive: () => void
   showInactive: boolean
   toggleOverlay: () => void
+  showOrgDropdown?: boolean
+  showFilter?: boolean
 }
 
 export default class TasksHeader extends PureComponent<Props> {
+  public static defaultProps: {
+    showOrgDropdown: boolean
+    showFilter: boolean
+  } = {
+    showOrgDropdown: true,
+    showFilter: true,
+  }
+
   public render() {
     const {
       onCreateTask,
-      setSearchTerm,
       setShowInactive,
       showInactive,
       toggleOverlay,
@@ -36,7 +45,7 @@ export default class TasksHeader extends PureComponent<Props> {
     return (
       <Page.Header fullWidth={false}>
         <Page.Header.Left>
-          <Page.Title title="Tasks" />
+          <Page.Title title={this.pageTitle} />
         </Page.Header.Left>
         <Page.Header.Right>
           <SlideToggle.Label text="Show Inactive" />
@@ -45,11 +54,8 @@ export default class TasksHeader extends PureComponent<Props> {
             size={ComponentSize.ExtraSmall}
             onChange={setShowInactive}
           />
-          <SearchWidget
-            placeholderText="Filter tasks by name..."
-            onSearch={setSearchTerm}
-          />
-          <TaskOrgDropdown />
+          {this.filterSearch}
+          {this.orgDropDown}
           <Button
             text="Import"
             icon={IconFont.Import}
@@ -65,5 +71,37 @@ export default class TasksHeader extends PureComponent<Props> {
         </Page.Header.Right>
       </Page.Header>
     )
+  }
+
+  private get pageTitle() {
+    const {showOrgDropdown} = this.props
+
+    if (showOrgDropdown) {
+      return 'Tasks'
+    }
+    return ''
+  }
+
+  private get filterSearch(): JSX.Element {
+    const {setSearchTerm, showFilter} = this.props
+
+    if (showFilter) {
+      return (
+        <SearchWidget
+          placeholderText="Filter tasks by name..."
+          onSearch={setSearchTerm}
+        />
+      )
+    }
+    return <></>
+  }
+
+  private get orgDropDown(): JSX.Element {
+    const {showOrgDropdown} = this.props
+
+    if (showOrgDropdown) {
+      return <TaskOrgDropdown />
+    }
+    return <></>
   }
 }

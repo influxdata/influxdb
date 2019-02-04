@@ -20,10 +20,6 @@ const getBuckets = async (org: Organization) => {
   return client.buckets.getAllByOrg(org)
 }
 
-const getTasks = async (org: Organization) => {
-  return client.tasks.getAllByOrg(org)
-}
-
 // Actions
 import {updateOrg} from 'src/organizations/actions'
 import * as notifyActions from 'src/shared/actions/notifications'
@@ -36,7 +32,7 @@ import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSecti
 import Members from 'src/organizations/components/Members'
 import Buckets from 'src/organizations/components/Buckets'
 import Dashboards from 'src/organizations/components/Dashboards'
-import Tasks from 'src/organizations/components/Tasks'
+import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
@@ -48,7 +44,6 @@ import {
   ResourceOwner,
   Bucket,
   Organization,
-  Task,
   Telegraf,
   ScraperTargetResponse,
 } from '@influxdata/influx'
@@ -56,9 +51,21 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Task} from 'src/tasks/containers/TasksPage'
 
 interface StateProps {
   org: Organization
+}
+
+const getTasks = async (org: Organization): Promise<Task[]> => {
+  const tasks = await client.tasks.getAllByOrg(org)
+  const mappedTasks = tasks.map(task => {
+    return {
+      ...task,
+      organization: org,
+    }
+  })
+  return mappedTasks
 }
 
 interface DispatchProps {
@@ -71,7 +78,7 @@ type Props = StateProps & WithRouterProps & DispatchProps
 @ErrorHandling
 class OrganizationView extends PureComponent<Props> {
   public render() {
-    const {org, params, notify} = this.props
+    const {org, params, notify, router} = this.props
 
     return (
       <Page titleTag={org.name}>
@@ -171,10 +178,11 @@ class OrganizationView extends PureComponent<Props> {
                       loading={loading}
                       spinnerComponent={<TechnoSpinner />}
                     >
-                      <Tasks
+                      <OrgTasksPage
                         tasks={tasks}
                         orgName={org.name}
                         onChange={fetch}
+                        router={router}
                       />
                     </SpinnerContainer>
                   )}
