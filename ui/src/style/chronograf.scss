@@ -18,7 +18,6 @@
 @import 'src/shared/components/ColorDropdown';
 @import 'src/shared/components/avatar/Avatar';
 @import 'src/shared/components/tables/TableGraphs';
-@import 'src/shared/components/fancy_scrollbar/FancyScrollbar';
 @import 'src/shared/components/notifications/Notifications';
 @import 'src/shared/components/threesizer/Threesizer';
 @import 'src/shared/components/graph_tips/GraphTips';
@@ -42,3 +41,6 @@
 @import 'src/logs/components/logs_table/LogsTable';
 @import 'src/logs/components/expandable_message/ExpandableMessage';
 @import 'src/logs/components/logs_message/LogsMessage';
+
+// External
+@import '../../node_modules/@influxdata/react-custom-scrollbars/dist/styles.css';

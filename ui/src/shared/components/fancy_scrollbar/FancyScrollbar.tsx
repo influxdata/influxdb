@@ -2,7 +2,7 @@
 import React, {Component} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
-import {Scrollbars} from 'react-custom-scrollbars'
+import {Scrollbars} from '@influxdata/react-custom-scrollbars'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -19,11 +19,13 @@ interface Props {
   className?: string
   scrollTop?: number
   scrollLeft?: number
+  thumbStartColor?: string
+  thumbStopColor?: string
 }
 
 @ErrorHandling
 class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
-  public static defaultProps = {
+  public static defaultProps: DefaultProps = {
     autoHide: true,
     autoHeight: false,
     maxHeight: null,
@@ -57,10 +59,6 @@ class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
     this.updateScroll()
   }
 
-  public handleMakeDiv = (className: string) => (props): JSX.Element => {
-    return <div {...props} className={`fancy-scroll--${className}`} />
-  }
-
   public render() {
     const {
       autoHide,
@@ -70,6 +68,8 @@ class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
       maxHeight,
       setScrollTop,
       style,
+      thumbStartColor,
+      thumbStopColor,
     } = this.props
 
     return (
@@ -85,11 +85,8 @@ class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
         autoHideDuration={250}
         autoHeight={autoHeight}
         autoHeightMax={maxHeight}
-        renderTrackHorizontal={this.handleMakeDiv('track-h')}
-        renderTrackVertical={this.handleMakeDiv('track-v')}
-        renderThumbHorizontal={this.handleMakeDiv('thumb-h')}
-        renderThumbVertical={this.handleMakeDiv('thumb-v')}
-        renderView={this.handleMakeDiv('view')}
+        thumbStartColor={thumbStartColor}
+        thumbStopColor={thumbStopColor}
       >
         {children}
       </Scrollbars>
