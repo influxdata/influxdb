@@ -192,7 +192,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 
-	// Test handler with valid JWT token carrying non-existant user.
+	// Test handler with valid JWT token carrying non-existent user.
 	_, signedToken = MustJWTToken("bad_user", h.Config.SharedSecret, false)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
 

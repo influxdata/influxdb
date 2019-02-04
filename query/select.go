@@ -801,7 +801,7 @@ func buildAuxIterator(ctx context.Context, ic IteratorCreator, sources influxql.
 		return nil, err
 	}
 
-	// Merge iterators to read auxilary fields.
+	// Merge iterators to read auxiliary fields.
 	input, err := Iterators(inputs).Merge(opt)
 	if err != nil {
 		Iterators(inputs).Close()

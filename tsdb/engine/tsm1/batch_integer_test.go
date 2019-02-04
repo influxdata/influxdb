@@ -48,7 +48,7 @@ func TestIntegerArrayEncodeAll_NoValues(t *testing.T) {
 	}
 
 	if len(b) > 0 {
-		t.Fatalf("unexpected lenght: exp 0, got %v", len(b))
+		t.Fatalf("unexpected length: exp 0, got %v", len(b))
 	}
 
 	var dec IntegerDecoder

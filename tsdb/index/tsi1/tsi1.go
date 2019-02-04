@@ -32,7 +32,7 @@ type MeasurementIterator interface {
 }
 
 // MergeMeasurementIterators returns an iterator that merges a set of iterators.
-// Iterators that are first in the list take precendence and a deletion by those
+// Iterators that are first in the list take precedence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeMeasurementIterators(itrs ...MeasurementIterator) MeasurementIterator {
 	if len(itrs) == 0 {
@@ -180,7 +180,7 @@ func (itr *tsdbTagKeyIteratorAdapter) Next() ([]byte, error) {
 }
 
 // MergeTagKeyIterators returns an iterator that merges a set of iterators.
-// Iterators that are first in the list take precendence and a deletion by those
+// Iterators that are first in the list take precedence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeTagKeyIterators(itrs ...TagKeyIterator) TagKeyIterator {
 	if len(itrs) == 0 {
@@ -318,7 +318,7 @@ func (itr *tsdbTagValueIteratorAdapter) Next() ([]byte, error) {
 }
 
 // MergeTagValueIterators returns an iterator that merges a set of iterators.
-// Iterators that are first in the list take precendence and a deletion by those
+// Iterators that are first in the list take precedence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeTagValueIterators(itrs ...TagValueIterator) TagValueIterator {
 	if len(itrs) == 0 {
