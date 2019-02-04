@@ -82,7 +82,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 			},
 			args: args{
 				map[string][]string{
-					"limit": []string{"1"},
+					"limit": {"1"},
 				},
 			},
 			wants: wants{
@@ -113,7 +113,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 			},
 			args: args{
 				map[string][]string{
-					"orgID": []string{"0000000000000001"},
+					"orgID": {"0000000000000001"},
 				},
 			},
 			wants: wants{

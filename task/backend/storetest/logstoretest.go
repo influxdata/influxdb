@@ -330,6 +330,11 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 	if reflect.DeepEqual(returnedRun, rr2) {
 		t.Fatalf("updateing returned run modified RunStore data")
 	}
+
+	_, err = reader.FindRunByID(ctx, task.Org, 0xccc)
+	if err != backend.ErrRunNotFound {
+		t.Fatalf("expected finding run with invalid ID to return %v, got %v", backend.ErrRunNotFound, err)
+	}
 }
 
 func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {

@@ -39,6 +39,8 @@ const QueryBuilderBucketDropdown: SFC<Props> = props => {
       onChange={bucket => onSelectBucket(bucket, true)}
       buttonSize={ComponentSize.Small}
       status={toComponentStatus(bucketsStatus)}
+      testID="buckets"
+      buttonTestID="buckets--button"
     >
       {buckets.map(bucket => (
         <Dropdown.Item key={bucket} id={bucket} value={bucket}>

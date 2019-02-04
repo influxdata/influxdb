@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // APIs
-import {getSetupStatus} from 'src/onboarding/apis'
+import {client} from 'src/utils/api'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -65,8 +65,8 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
   public async componentDidMount() {
     this.setState({loading: RemoteDataState.Loading})
     try {
-      const canSetUp = await getSetupStatus()
-      if (!canSetUp) {
+      const {allowed} = await client.setup.status()
+      if (!allowed) {
         this.setState({isSetupComplete: true})
       }
       this.setState({loading: RemoteDataState.Done})

@@ -28,7 +28,7 @@ export default class SearchableDropdown extends Component<Props> {
   }
 
   public render() {
-    const {searchTerm, searchPlaceholder, buttonSize} = this.props
+    const {searchTerm, searchPlaceholder, buttonSize, testID} = this.props
 
     const dropdownProps = omit(this.props, [
       'searchTerm',
@@ -50,6 +50,7 @@ export default class SearchableDropdown extends Component<Props> {
             autoFocus={true}
           />
         }
+        testID={testID}
       />
     )
   }

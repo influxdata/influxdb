@@ -4,7 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // apis
-import {getSetupStatus} from 'src/onboarding/apis'
+import {client} from 'src/utils/api'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -28,9 +28,9 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
     }
   }
   public async componentDidMount() {
-    const isSetupAllowed = await getSetupStatus()
+    const {allowed} = await client.setup.status()
 
-    if (isSetupAllowed) {
+    if (allowed) {
       this.props.router.push('/onboarding/0')
     }
 

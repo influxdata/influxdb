@@ -5,9 +5,16 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // APIs
-import {getDashboards, getCollectors, getScrapers} from 'src/organizations/apis'
-
+import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
+
+const getCollectors = async (org: Organization) => {
+  return client.telegrafConfigs.getAllByOrg(org)
+}
+
+const getScrapers = async () => {
+  return await client.scrapers.getAll()
+}
 
 const getBuckets = async (org: Organization) => {
   return client.buckets.getAllByOrg(org)
@@ -43,7 +50,7 @@ import {
   Organization,
   Task,
   Telegraf,
-  ScraperTargetResponses,
+  ScraperTargetResponse,
 } from 'src/api'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
@@ -197,7 +204,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="scrapers_tab"
                 title="Scrapers"
               >
-                <GetOrgResources<ScraperTargetResponses>
+                <GetOrgResources<ScraperTargetResponse[]>
                   organization={org}
                   fetcher={getScrapers}
                 >

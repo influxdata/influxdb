@@ -7,7 +7,7 @@ import {Spinner} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Apis
-import {getAuthorizationToken} from 'src/onboarding/apis/index'
+import {client} from 'src/utils/api'
 
 // types
 import {RemoteDataState} from 'src/types'
@@ -35,7 +35,9 @@ class FetchAuthToken extends PureComponent<Props, State> {
     const {username} = this.props
 
     this.setState({loading: RemoteDataState.Loading})
-    const authToken = await getAuthorizationToken(username)
+    const authToken = await client.authorizations.getAuthorizationToken(
+      username
+    )
 
     this.setState({authToken, loading: RemoteDataState.Done})
   }

@@ -64,7 +64,7 @@ exports[`Account rendering renders! 1`] = `
           Array [
             Object {
               "description": "im a token",
-              "id": "030444b11fb10000",
+              "id": 1,
               "links": Object {
                 "self": "/api/v2/authorizations/030444b11fb10000",
                 "user": "/api/v2/users/030444b10a710000",
@@ -91,7 +91,7 @@ exports[`Account rendering renders! 1`] = `
             },
             Object {
               "description": "im a token",
-              "id": "1",
+              "id": 2,
               "links": Object {
                 "self": "/api/v2/authorizations/030444b11fb10000",
                 "user": "/api/v2/users/030444b10a710000",
@@ -131,7 +131,7 @@ exports[`Account rendering renders! 1`] = `
             Array [
               Object {
                 "description": "im a token",
-                "id": "030444b11fb10000",
+                "id": 1,
                 "links": Object {
                   "self": "/api/v2/authorizations/030444b11fb10000",
                   "user": "/api/v2/users/030444b10a710000",
@@ -158,7 +158,7 @@ exports[`Account rendering renders! 1`] = `
               },
               Object {
                 "description": "im a token",
-                "id": "1",
+                "id": 2,
                 "links": Object {
                   "self": "/api/v2/authorizations/030444b11fb10000",
                   "user": "/api/v2/users/030444b10a710000",
@@ -250,7 +250,7 @@ exports[`Account rendering renders! 1`] = `
                     auth={
                       Object {
                         "description": "im a token",
-                        "id": "030444b11fb10000",
+                        "id": 1,
                         "links": Object {
                           "self": "/api/v2/authorizations/030444b11fb10000",
                           "user": "/api/v2/users/030444b10a710000",
@@ -276,7 +276,7 @@ exports[`Account rendering renders! 1`] = `
                         "userID": "030444b10a710000",
                       }
                     }
-                    key="030444b11fb10000"
+                    key="1"
                     onClickDescription={[Function]}
                   >
                     <IndexListRow
@@ -296,7 +296,7 @@ exports[`Account rendering renders! 1`] = `
                               className="index-list--cell"
                             >
                               <a
-                                data-test="token-description-030444b11fb10000"
+                                data-test="token-description-1"
                                 href="#"
                                 onClick={[Function]}
                               >
@@ -366,7 +366,7 @@ exports[`Account rendering renders! 1`] = `
                     auth={
                       Object {
                         "description": "im a token",
-                        "id": "1",
+                        "id": 2,
                         "links": Object {
                           "self": "/api/v2/authorizations/030444b11fb10000",
                           "user": "/api/v2/users/030444b10a710000",
@@ -392,7 +392,7 @@ exports[`Account rendering renders! 1`] = `
                         "userID": "030444b10a710000",
                       }
                     }
-                    key="1"
+                    key="2"
                     onClickDescription={[Function]}
                   >
                     <IndexListRow
@@ -412,7 +412,7 @@ exports[`Account rendering renders! 1`] = `
                               className="index-list--cell"
                             >
                               <a
-                                data-test="token-description-1"
+                                data-test="token-description-2"
                                 href="#"
                                 onClick={[Function]}
                               >

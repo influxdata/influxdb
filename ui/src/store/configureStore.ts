@@ -28,12 +28,9 @@ import protosReducer from 'src/protos/reducers'
 import {LocalStorage} from 'src/types/localStorage'
 import {AppState} from 'src/types/v2'
 
-type ReducerState = Pick<
-  AppState,
-  Exclude<keyof AppState, 'VERSION' | 'timeRange'>
->
+type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
-const rootReducer = combineReducers<ReducerState>({
+export const rootReducer = combineReducers<ReducerState>({
   ...sharedReducers,
   ranges: rangesReducer,
   dashboards: dashboardsReducer,
@@ -49,6 +46,7 @@ const rootReducer = combineReducers<ReducerState>({
   noteEditor: noteEditorReducer,
   dataLoading: dataLoadingReducer,
   protos: protosReducer,
+  VERSION: () => '',
 })
 
 const composeEnhancers =
