@@ -37,19 +37,23 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
         title="Telegraf Setup Instructions"
         onDismiss={onDismiss}
       >
-        {collector && (
-          <TelegrafInstructions
-            notify={notify}
-            authToken={this.authToken}
-            configID={collector.id}
-          />
-        )}
+        <TelegrafInstructions
+          notify={notify}
+          authToken={this.authToken}
+          configID={get(collector, 'id', '')}
+        />
       </WizardOverlay>
     )
   }
 
   private get authToken(): string {
-    const plugin = this.props.collector.plugins.find(
+    const {collector} = this.props
+
+    if (!collector) {
+      return ''
+    }
+
+    const plugin = collector.plugins.find(
       p => p.name === TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2
     )
 
