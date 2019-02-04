@@ -18,12 +18,8 @@ func TestRetentionService(t *testing.T) {
 	now := time.Date(2018, 4, 10, 23, 12, 33, 0, time.UTC)
 
 	t.Run("no buckets", func(t *testing.T) {
-		if err := service.expireData(nil, now); err != nil {
-			t.Error(err)
-		}
-		if err := service.expireData([]*platform.Bucket{}, now); err != nil {
-			t.Error(err)
-		}
+		service.expireData(nil, now)
+		service.expireData([]*platform.Bucket{}, now)
 	})
 
 	// Generate some buckets to expire
@@ -77,9 +73,7 @@ func TestRetentionService(t *testing.T) {
 	}
 
 	t.Run("multiple buckets", func(t *testing.T) {
-		if err := service.expireData(buckets, now); err != nil {
-			t.Error(err)
-		}
+		service.expireData(buckets, now)
 		if !reflect.DeepEqual(gotMatched, expMatched) {
 			t.Fatalf("got\n%#v\nexpected\n%#v", gotMatched, expMatched)
 		}

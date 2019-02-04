@@ -78,42 +78,40 @@ func (s *retentionEnforcer) run() {
 	}
 
 	now := time.Now().UTC()
-	labels := s.metrics.Labels()
-	labels["status"] = "ok"
-
-	if err := s.expireData(buckets, now); err != nil {
-		log.Error("Deletion not successful", zap.Error(err))
-		labels["status"] = "error"
-	}
-	s.metrics.CheckDuration.With(labels).Observe(time.Since(now).Seconds())
-	s.metrics.Checks.With(labels).Inc()
+	s.expireData(buckets, now)
+	s.metrics.CheckDuration.With(s.metrics.Labels()).Observe(time.Since(now).Seconds())
 }
 
 // expireData runs a delete operation on the storage engine.
 //
 // Any series data that (1) belongs to a bucket in the provided list and
 // (2) falls outside the bucket's indicated retention period will be deleted.
-func (s *retentionEnforcer) expireData(buckets []*platform.Bucket, now time.Time) error {
+func (s *retentionEnforcer) expireData(buckets []*platform.Bucket, now time.Time) {
 	logger, logEnd := logger.NewOperation(s.logger, "Data deletion", "data_deletion")
 	defer logEnd()
 
+	labels := s.metrics.Labels()
 	for _, b := range buckets {
 		if b.RetentionPeriod == 0 {
 			continue
 		}
 
+		labels["status"] = "ok"
+		labels["org_id"] = b.OrganizationID.String()
+		labels["bucket_id"] = b.ID.String()
+
 		max := now.Add(-b.RetentionPeriod).UnixNano()
 		err := s.Engine.DeleteBucketRange(b.OrganizationID, b.ID, math.MinInt64, max)
 		if err != nil {
-			// TODO(jeff): metrics?
+			labels["status"] = "error"
 			logger.Info("unable to delete bucket range",
 				zap.String("bucket id", b.ID.String()),
 				zap.String("org id", b.OrganizationID.String()),
 				zap.Error(err))
 		}
-	}
 
-	return nil
+		s.metrics.Checks.With(labels).Inc()
+	}
 }
 
 // getBucketInformation returns a slice of buckets to run retention on.

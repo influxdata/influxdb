@@ -552,11 +552,10 @@ func (c *Cache) Values(key []byte) Values {
 func (c *Cache) DeleteBucketRange(name []byte, min, max int64) {
 	c.init()
 
+	// TODO(edd/jeff): find a way to optimize lock usage
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// TODO(jeff): could optimzie lock usage, and figure a way out to
-	// avoid storing all of the entry keys to delete.
 	var toDelete [][]byte
 	var total uint64
 
