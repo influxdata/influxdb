@@ -773,7 +773,7 @@ func TestTaskUserResourceMap(t *testing.T) {
 	}
 
 	r := httptest.NewRequest("POST", "http://any.url/v1", bytes.NewReader(b))
-	ctx := pcontext.SetAuthorizer(context.TODO(), &platform.Authorization{UserID: 2})
+	ctx := pcontext.SetAuthorizer(context.Background(), &platform.Authorization{UserID: 2})
 	r = r.WithContext(ctx)
 
 	w := httptest.NewRecorder()
@@ -814,7 +814,6 @@ func TestTaskUserResourceMap(t *testing.T) {
 
 	if created.UserID != deletedUser {
 		t.Fatalf("deleted user (%s) doesn't match created user (%s)", deletedUser, created.UserID)
-
 	}
 
 	if created.ResourceID != deletedResource {

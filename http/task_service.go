@@ -573,7 +573,9 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		ResourceType: platform.TasksResourceType,
 	})
 
-	if err == nil {
+	if err != nil {
+		h.logger.Warn("failed to pull user resource mapping", zap.Error(err))
+	} else {
 		for _, m := range urms {
 			h.UserResourceMappingService.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID)
 		}
