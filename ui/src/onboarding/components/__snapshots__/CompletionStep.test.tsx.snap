@@ -101,7 +101,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
                     I've got this...
                   </dt>
                   <dd>
-                    Jump into Influx 2.0 and set up data collection when you’re ready.
+                    Jump into InfluxDB 2.0 and set up data collection when you’re ready.
                   </dd>
                 </div>
               </GridColumn>
