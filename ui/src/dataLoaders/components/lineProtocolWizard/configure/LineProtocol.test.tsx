@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import {LineProtocol} from 'src/dataLoaders/components/configureStep/lineProtocol/LineProtocol'
+import {LineProtocol} from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocol'
 import {WritePrecision} from 'src/api'
 
 const setup = (override = {}) => {
@@ -15,6 +15,11 @@ const setup = (override = {}) => {
     precision: WritePrecision.Ns,
     setLPStatus: jest.fn(),
     writeLineProtocolAction: jest.fn(),
+    currentStepIndex: 0,
+    onIncrementCurrentStepIndex: jest.fn(),
+    onDecrementCurrentStepIndex: jest.fn(),
+    notify: jest.fn(),
+    onExit: jest.fn(),
     ...override,
   }
   const wrapper = shallow(<LineProtocol {...props} />)

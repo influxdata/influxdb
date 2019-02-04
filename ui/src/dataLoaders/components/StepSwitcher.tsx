@@ -4,7 +4,6 @@ import _ from 'lodash'
 
 // Components
 import ConfigureDataSourceStep from 'src/dataLoaders/components/configureStep/ConfigureDataSourceStep'
-import VerifyDataStep from 'src/dataLoaders/components/verifyStep/VerifyDataStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
@@ -46,14 +45,6 @@ class StepSwitcher extends PureComponent<Props> {
             bucket={bucketName}
             org={org}
             type={type}
-          />
-        )
-      case DataLoaderStep.Verify:
-        return (
-          <VerifyDataStep
-            {...onboardingStepProps}
-            type={type}
-            stepIndex={currentStepIndex}
           />
         )
       default:
