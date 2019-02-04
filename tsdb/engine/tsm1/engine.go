@@ -1630,6 +1630,24 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return err
 	}
 
+	// The seriesKeys slice is mutated if they are still found in the cache.
+	cacheKeys := e.Cache.Keys()
+	for i := 0; i < len(seriesKeys); i++ {
+		seriesKey := seriesKeys[i]
+		// Already crossed out
+		if len(seriesKey) == 0 {
+			continue
+		}
+
+		j := bytesutil.SearchBytes(cacheKeys, seriesKey)
+		if j < len(cacheKeys) {
+			cacheSeriesKey, _ := SeriesAndFieldFromCompositeKey(cacheKeys[j])
+			if bytes.Equal(seriesKey, cacheSeriesKey) {
+				seriesKeys[i] = emptyBytes
+			}
+		}
+	}
+
 	// Have we deleted all values for the series? If so, we need to remove
 	// the series from the index.
 	hasDeleted := false
