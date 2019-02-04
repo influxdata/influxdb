@@ -10,6 +10,7 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CollectorList from 'src/organizations/components/CollectorList'
 import TelegrafExplainer from 'src/organizations/components/TelegrafExplainer'
+import TelegrafInstructionsOverlay from 'src/organizations/components/TelegrafInstructionsOverlay'
 import {
   Button,
   ComponentColor,
@@ -60,8 +61,10 @@ interface DispatchProps {
 type Props = OwnProps & DispatchProps
 
 interface State {
-  overlayState: OverlayState
+  dataLoaderOverlay: OverlayState
   searchTerm: string
+  instructionsOverlay: OverlayState
+  collectorID?: string
 }
 
 @ErrorHandling
@@ -70,8 +73,10 @@ export class Collectors extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      overlayState: OverlayState.Closed,
+      dataLoaderOverlay: OverlayState.Closed,
       searchTerm: '',
+      instructionsOverlay: OverlayState.Closed,
+      collectorID: null,
     }
   }
 
@@ -108,6 +113,7 @@ export class Collectors extends PureComponent<Props, State> {
                     onDownloadConfig={this.handleDownloadConfig}
                     onDelete={this.handleDeleteTelegraf}
                     onUpdate={this.handleUpdateTelegraf}
+                    onOpenInstructions={this.handleOpenInstructions}
                   />
                 )}
               </FilterList>
@@ -123,17 +129,44 @@ export class Collectors extends PureComponent<Props, State> {
           </Grid.Row>
         </Grid>
         <CollectorsWizard
-          visible={this.isOverlayVisible}
+          visible={this.isDataLoaderVisible}
           onCompleteSetup={this.handleDismissDataLoaders}
           startingStep={0}
           buckets={buckets}
+        />
+        <TelegrafInstructionsOverlay
+          visible={this.isInstructionsVisible}
+          collector={this.selectedCollector}
+          onDismiss={this.handleCloseInstructions}
         />
       </>
     )
   }
 
-  private get isOverlayVisible(): boolean {
-    return this.state.overlayState === OverlayState.Open
+  private get selectedCollector() {
+    return this.props.collectors.find(c => c.id === this.state.collectorID)
+  }
+
+  private get isDataLoaderVisible(): boolean {
+    return this.state.dataLoaderOverlay === OverlayState.Open
+  }
+
+  private get isInstructionsVisible(): boolean {
+    return this.state.instructionsOverlay === OverlayState.Open
+  }
+
+  private handleOpenInstructions = (collectorID: string): void => {
+    this.setState({
+      instructionsOverlay: OverlayState.Open,
+      collectorID,
+    })
+  }
+
+  private handleCloseInstructions = (): void => {
+    this.setState({
+      instructionsOverlay: OverlayState.Closed,
+      collectorID: null,
+    })
   }
 
   private get createButton(): JSX.Element {
@@ -157,11 +190,11 @@ export class Collectors extends PureComponent<Props, State> {
 
     onSetDataLoadersType(DataLoaderType.Scraping)
 
-    this.setState({overlayState: OverlayState.Open})
+    this.setState({dataLoaderOverlay: OverlayState.Open})
   }
 
   private handleDismissDataLoaders = () => {
-    this.setState({overlayState: OverlayState.Closed})
+    this.setState({dataLoaderOverlay: OverlayState.Closed})
     this.props.onChange()
   }
 

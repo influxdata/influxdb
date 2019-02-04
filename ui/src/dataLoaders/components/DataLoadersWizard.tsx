@@ -108,7 +108,7 @@ class DataLoadersWizard extends PureComponent<Props> {
       <WizardOverlay
         visible={visible}
         title={'Data Loading'}
-        onDismis={this.handleDismiss}
+        onDismiss={this.handleDismiss}
       >
         <div className="wizard-contents">
           <div className="wizard-step--container">

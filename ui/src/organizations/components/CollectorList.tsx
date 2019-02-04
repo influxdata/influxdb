@@ -16,6 +16,7 @@ interface Props {
   onDownloadConfig: (telegrafID: string, telegrafName: string) => void
   onDelete: (telegrafID: string) => void
   onUpdate: (telegraf: Telegraf) => void
+  onOpenInstructions: (telegrafID: string) => void
 }
 
 export default class CollectorList extends PureComponent<Props> {
@@ -38,7 +39,13 @@ export default class CollectorList extends PureComponent<Props> {
   }
 
   public get collectorsList(): JSX.Element[] {
-    const {collectors, onDownloadConfig, onDelete, onUpdate} = this.props
+    const {
+      collectors,
+      onDownloadConfig,
+      onDelete,
+      onUpdate,
+      onOpenInstructions,
+    } = this.props
 
     if (collectors !== undefined) {
       return collectors.map(collector => (
@@ -49,6 +56,7 @@ export default class CollectorList extends PureComponent<Props> {
           onDownloadConfig={onDownloadConfig}
           onDelete={onDelete}
           onUpdate={onUpdate}
+          onOpenInstructions={onOpenInstructions}
         />
       ))
     }

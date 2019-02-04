@@ -93,7 +93,7 @@ class CollectorsWizard extends PureComponent<Props> {
       <WizardOverlay
         visible={visible}
         title={'Create a Telegraf Config'}
-        onDismis={this.handleDismiss}
+        onDismiss={this.handleDismiss}
       >
         <div className="wizard-contents">
           <PluginsSideBar

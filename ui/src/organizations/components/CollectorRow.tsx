@@ -20,6 +20,7 @@ interface Props {
   onDownloadConfig: (telegrafID: string, telegrafName: string) => void
   onDelete: (telegrafID: string) => void
   onUpdate: (telegraf: Telegraf) => void
+  onOpenInstructions: (telegrafID: string) => void
 }
 
 export default class CollectorRow extends PureComponent<Props> {
@@ -42,6 +43,12 @@ export default class CollectorRow extends PureComponent<Props> {
                 color={ComponentColor.Secondary}
                 text={'Download Config'}
                 onClick={this.handleDownloadConfig}
+              />
+              <Button
+                size={ComponentSize.ExtraSmall}
+                color={ComponentColor.Secondary}
+                text={'Instructions'}
+                onClick={this.handleOpenInstructions}
               />
               <ConfirmationButton
                 size={ComponentSize.ExtraSmall}
@@ -69,5 +76,8 @@ export default class CollectorRow extends PureComponent<Props> {
   }
   private handleDeleteConfig = (): void => {
     this.props.onDelete(this.props.collector.id)
+  }
+  private handleOpenInstructions = (): void => {
+    this.props.onOpenInstructions(this.props.collector.id)
   }
 }
