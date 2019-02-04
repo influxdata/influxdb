@@ -370,6 +370,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		}
 
 		EncodeError(ctx, err, w)
+		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task, []*platform.Label{})); err != nil {
