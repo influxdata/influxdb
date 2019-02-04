@@ -33,6 +33,7 @@ import (
 	"github.com/influxdata/influxdb/services/udp"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/platform/storage/reads"
 	client "github.com/influxdata/usage-client/v1"
 	"go.uber.org/zap"
 
@@ -280,7 +281,8 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	}
 	srv := httpd.NewService(c)
 	srv.Handler.MetaClient = s.MetaClient
-	srv.Handler.QueryAuthorizer = meta.NewQueryAuthorizer(s.MetaClient)
+	authorizer := meta.NewQueryAuthorizer(s.MetaClient)
+	srv.Handler.QueryAuthorizer = authorizer
 	srv.Handler.WriteAuthorizer = meta.NewWriteAuthorizer(s.MetaClient)
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.Monitor = s.Monitor
@@ -289,18 +291,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.BuildType = "OSS"
 	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
 	srv.Handler.Store = ss
-	srv.Handler.Controller = control.NewController(ss, s.Logger)
-
-	s.Services = append(s.Services, srv)
-}
-
-func (s *Server) appendStorageService(c storage.Config) {
-	if !c.Enabled {
-		return
-	}
-	srv := storage.NewService(c)
-	srv.MetaClient = s.MetaClient
-	srv.TSDBStore = s.TSDBStore
+	srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.Logger)
 
 	s.Services = append(s.Services, srv)
 }
@@ -401,7 +392,6 @@ func (s *Server) Open() error {
 	s.appendSnapshotterService()
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
-	s.appendStorageService(s.config.Storage)
 	s.appendRetentionPolicyService(s.config.Retention)
 	for _, i := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(i); err != nil {

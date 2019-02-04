@@ -14,7 +14,7 @@ func NewContextWithLogger(ctx context.Context, log *zap.Logger) context.Context 
 }
 
 // LoggerFromContext returns the zap.Logger associated with ctx or nil if no logger has been assigned.
-func LoggerFromContext(ctx context.Context) *zap.Logger {
+func FromContext(ctx context.Context) *zap.Logger {
 	l, _ := ctx.Value(loggerContextKey{}).(*zap.Logger)
 	return l
 }

@@ -98,7 +98,10 @@ func (v MathValuer) Call(name string, args []interface{}) (interface{}, bool) {
 			switch arg0 := arg0.(type) {
 			case float64:
 				return math.Abs(arg0), true
-			case int64, uint64:
+			case int64:
+				sign := arg0 >> 63
+				return (arg0 ^ sign) - sign, true
+			case uint64:
 				return arg0, true
 			default:
 				return nil, true

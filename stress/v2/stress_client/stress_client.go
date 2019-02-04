@@ -72,7 +72,7 @@ type stressClient struct {
 	wconc int
 	qconc int
 
-	// Manage Read and Write concurrency seperately
+	// Manage Read and Write concurrency separately
 	wc *ConcurrencyLimiter
 	rc *ConcurrencyLimiter
 }
@@ -131,7 +131,7 @@ func (sc *stressClient) directiveListen() {
 		sc.Lock()
 		switch d.Property {
 		// addresses is a []string of target InfluxDB instance(s) for the test
-		// comes in as a "|" seperated array of addresses
+		// comes in as a "|" separated array of addresses
 		case "addresses":
 			addr := strings.Split(d.Value, "|")
 			sc.addresses = addr

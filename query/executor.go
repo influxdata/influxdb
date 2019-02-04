@@ -93,12 +93,12 @@ var OpenAuthorizer = openAuthorizer{}
 // AuthorizeDatabase returns true to allow any operation on a database.
 func (a openAuthorizer) AuthorizeDatabase(influxql.Privilege, string) bool { return true }
 
-// AuthorizeSeriesRead allows accesss to any series.
+// AuthorizeSeriesRead allows access to any series.
 func (a openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 
-// AuthorizeSeriesWrite allows accesss to any series.
+// AuthorizeSeriesWrite allows access to any series.
 func (a openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
@@ -425,7 +425,7 @@ func (q *Task) Monitor(fn MonitorFunc) {
 	go q.monitor(fn)
 }
 
-// Error returns any asynchronous error that may have occured while executing
+// Error returns any asynchronous error that may have occurred while executing
 // the query.
 func (q *Task) Error() error {
 	q.mu.Lock()

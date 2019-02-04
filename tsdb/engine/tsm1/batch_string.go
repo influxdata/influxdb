@@ -9,12 +9,59 @@ import (
 )
 
 var (
-	errStringBatchDecodeInvalidStringLength = fmt.Errorf("StringBatchDecodeAll: invalid encoded string length")
-	errStringBatchDecodeLengthOverflow      = fmt.Errorf("StringBatchDecodeAll: length overflow")
-	errStringBatchDecodeShortBuffer         = fmt.Errorf("StringBatchDecodeAll: short buffer")
+	errStringBatchDecodeInvalidStringLength = fmt.Errorf("StringArrayDecodeAll: invalid encoded string length")
+	errStringBatchDecodeLengthOverflow      = fmt.Errorf("StringArrayDecodeAll: length overflow")
+	errStringBatchDecodeShortBuffer         = fmt.Errorf("StringArrayDecodeAll: short buffer")
 )
 
-func StringBatchDecodeAll(b []byte, dst []string) ([]string, error) {
+// StringArrayEncodeAll encodes src into b, returning b and any error encountered.
+// The returned slice may be of a different length and capactity to b.
+//
+// Currently only the string compression scheme used snappy.
+func StringArrayEncodeAll(src []string, b []byte) ([]byte, error) {
+	srcSz := 2 + len(src)*binary.MaxVarintLen32 // strings should't be longer than 64kb
+	for i := range src {
+		srcSz += len(src[i])
+	}
+
+	// determine the maximum possible length needed for the buffer, which
+	// includes the compressed size
+	var compressedSz = 0
+	if len(src) > 0 {
+		compressedSz = snappy.MaxEncodedLen(srcSz) + 1 /* header */
+	}
+	totSz := srcSz + compressedSz
+
+	if cap(b) < totSz {
+		b = make([]byte, totSz)
+	} else {
+		b = b[:totSz]
+	}
+
+	// Shortcut to snappy encoding nothing.
+	if len(src) == 0 {
+		b[0] = stringCompressedSnappy << 4
+		return b[:2], nil
+	}
+
+	// write the data to be compressed *after* the space needed for snappy
+	// compression. The compressed data is at the start of the allocated buffer,
+	// ensuring the entire capacity is returned and available for subsequent use.
+	dta := b[compressedSz:]
+	n := 0
+	for i := range src {
+		n += binary.PutUvarint(dta[n:], uint64(len(src[i])))
+		n += copy(dta[n:], src[i])
+	}
+	dta = dta[:n]
+
+	dst := b[:compressedSz]
+	dst[0] = stringCompressedSnappy << 4
+	res := snappy.Encode(dst[1:], dta)
+	return dst[:len(res)+1], nil
+}
+
+func StringArrayDecodeAll(b []byte, dst []string) ([]string, error) {
 	// First byte stores the encoding type, only have snappy format
 	// currently so ignore for now.
 	if len(b) > 0 {

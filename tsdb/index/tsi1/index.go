@@ -26,9 +26,6 @@ import (
 // IndexName is the name of the index.
 const IndexName = tsdb.TSI1IndexName
 
-// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache.
-const DefaultSeriesIDSetCacheSize = 100
-
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.
 var ErrCompactionInterrupted = errors.New("tsi1: compaction interrupted")
@@ -42,17 +39,12 @@ func init() {
 		DefaultPartitionN = uint64(i)
 	}
 
-	// TODO(edd): To remove when feature finalised.
-	var err error
-	if os.Getenv("INFLUXDB_EXP_TSI_CACHING") != "" {
-		EnableBitsetCache, err = strconv.ParseBool(os.Getenv("INFLUXDB_EXP_TSI_CACHING"))
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
-		idx := NewIndex(sfile, db, WithPath(path), WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)))
+		idx := NewIndex(sfile, db,
+			WithPath(path),
+			WithMaximumLogFileSize(int64(opt.Config.MaxIndexLogFileSize)),
+			WithSeriesIDCacheSize(opt.Config.SeriesIDSetCacheSize),
+		)
 		return idx
 	})
 }
@@ -63,9 +55,6 @@ func init() {
 // it must also be a power of 2.
 //
 var DefaultPartitionN uint64 = 8
-
-// EnableBitsetCache determines if bitsets are cached.
-var EnableBitsetCache = true
 
 // An IndexOption is a functional option for changing the configuration of
 // an Index.
@@ -124,13 +113,22 @@ var WithLogFileBufferSize = func(sz int) IndexOption {
 	}
 }
 
+// WithSeriesIDCacheSize sets the size of the series id set cache.
+// If set to 0, then the cache is disabled.
+var WithSeriesIDCacheSize = func(sz int) IndexOption {
+	return func(i *Index) {
+		i.tagValueCacheSize = sz
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
 	partitions []*Partition
 	opened     bool
 
-	tagValueCache *TagValueSeriesIDCache
+	tagValueCache     *TagValueSeriesIDCache
+	tagValueCacheSize int
 
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
@@ -162,23 +160,24 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
-		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
-		maxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
-		logger:         zap.NewNop(),
-		version:        Version,
-		sfile:          sfile,
-		database:       database,
-		mSketch:        hll.NewDefaultPlus(),
-		mTSketch:       hll.NewDefaultPlus(),
-		sSketch:        hll.NewDefaultPlus(),
-		sTSketch:       hll.NewDefaultPlus(),
-		PartitionN:     DefaultPartitionN,
+		tagValueCacheSize: tsdb.DefaultSeriesIDSetCacheSize,
+		maxLogFileSize:    tsdb.DefaultMaxIndexLogFileSize,
+		logger:            zap.NewNop(),
+		version:           Version,
+		sfile:             sfile,
+		database:          database,
+		mSketch:           hll.NewDefaultPlus(),
+		mTSketch:          hll.NewDefaultPlus(),
+		sSketch:           hll.NewDefaultPlus(),
+		sTSketch:          hll.NewDefaultPlus(),
+		PartitionN:        DefaultPartitionN,
 	}
 
 	for _, option := range options {
 		option(idx)
 	}
 
+	idx.tagValueCache = NewTagValueSeriesIDCache(idx.tagValueCacheSize)
 	return idx
 }
 
@@ -384,7 +383,6 @@ func (i *Index) availableThreads() int {
 
 // updateMeasurementSketches rebuilds the cached measurement sketches.
 func (i *Index) updateMeasurementSketches() error {
-	i.mSketch, i.mTSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for j := 0; j < int(i.PartitionN); j++ {
 		if s, t, err := i.partitions[j].MeasurementsSketches(); err != nil {
 			return err
@@ -399,7 +397,6 @@ func (i *Index) updateMeasurementSketches() error {
 
 // updateSeriesSketches rebuilds the cached series sketches.
 func (i *Index) updateSeriesSketches() error {
-	i.sSketch, i.sTSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for j := 0; j < int(i.PartitionN); j++ {
 		if s, t, err := i.partitions[j].SeriesSketches(); err != nil {
 			return err
@@ -832,16 +829,16 @@ func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
-func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
+func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {
-		return err
+		return false, err
 	} else if ok {
-		return nil
+		return false, nil
 	}
 
 	// If no more series exist in the measurement then delete the measurement.
-	return i.DropMeasurement(name)
+	return true, i.DropMeasurement(name)
 }
 
 // MeasurementsSketches returns the two measurement sketches for the index.
@@ -996,7 +993,7 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	// Check series ID set cache...
-	if EnableBitsetCache {
+	if i.tagValueCacheSize > 0 {
 		if ss := i.tagValueCache.Get(name, key, value); ss != nil {
 			// Return a clone because the set is mutable.
 			return tsdb.NewSeriesIDSetIterator(ss.Clone()), nil
@@ -1014,14 +1011,13 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	}
 
 	itr := tsdb.MergeSeriesIDIterators(a...)
-	if !EnableBitsetCache {
+	if i.tagValueCacheSize == 0 {
 		return itr, nil
 	}
 
 	// Check if the iterator contains only series id sets. Cache them...
 	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
 		ss := ssitr.SeriesIDSet()
-		ss.SetCOW(true) // This is important to speed the clone up.
 		i.tagValueCache.Put(name, key, value, ss)
 	}
 	return itr, nil

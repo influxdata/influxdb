@@ -41,6 +41,7 @@ type CommandLine struct {
 	Host            string
 	Port            int
 	Database        string
+	Type            QueryLanguage
 	Ssl             bool
 	RetentionPolicy string
 	ClientVersion   string
@@ -140,12 +141,17 @@ func (c *CommandLine) Run() error {
 	c.SetPrecision(c.ClientConfig.Precision)
 
 	if c.Execute != "" {
-		// Make the non-interactive mode send everything through the CLI's parser
-		// the same way the interactive mode works
-		lines := strings.Split(c.Execute, "\n")
-		for _, line := range lines {
-			if err := c.ParseCommand(line); err != nil {
-				return err
+		switch c.Type {
+		case QueryLanguageFlux:
+			return c.ExecuteFluxQuery(c.Execute)
+		default:
+			// Make the non-interactive mode send everything through the CLI's parser
+			// the same way the interactive mode works
+			lines := strings.Split(c.Execute, "\n")
+			for _, line := range lines {
+				if err := c.ParseCommand(line); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -177,18 +183,19 @@ func (c *CommandLine) Run() error {
 		if err != nil {
 			return err
 		}
-		return c.ExecuteQuery(string(cmd))
+
+		switch c.Type {
+		case QueryLanguageFlux:
+			return c.ExecuteFluxQuery(string(cmd))
+		default:
+			return c.ExecuteQuery(string(cmd))
+		}
 	}
 
 	if !c.IgnoreSignals {
 		// register OS signals for graceful termination
 		signal.Notify(c.osSignals, syscall.SIGINT, syscall.SIGTERM)
 	}
-
-	c.Line = liner.NewLiner()
-	defer c.Line.Close()
-
-	c.Line.SetMultiLineMode(true)
 
 	if len(c.ServerVersion) == 0 {
 		fmt.Printf("WARN: Connected to %s, but found no server version.\n", c.Client.Addr())
@@ -198,6 +205,20 @@ func (c *CommandLine) Run() error {
 	}
 
 	c.Version()
+
+	if c.Type == QueryLanguageFlux {
+		repl, err := getFluxREPL(c.Host, c.Port, c.Ssl)
+		if err != nil {
+			return err
+		}
+		repl.Run()
+		os.Exit(0)
+	}
+
+	c.Line = liner.NewLiner()
+	defer c.Line.Close()
+
+	c.Line.SetMultiLineMode(true)
 
 	// Only load/write history if HOME environment variable is set.
 	var historyDir string
@@ -1140,6 +1161,12 @@ func (c *CommandLine) gopher() {
 // Version prints the CLI version.
 func (c *CommandLine) Version() {
 	fmt.Println("InfluxDB shell version:", c.ClientVersion)
+	switch c.Type {
+	case QueryLanguageFlux:
+		fmt.Println("Enter a Flux query")
+	default:
+		fmt.Println("Enter an InfluxQL query")
+	}
 }
 
 func (c *CommandLine) exit() {
@@ -1148,4 +1175,58 @@ func (c *CommandLine) exit() {
 	// release line resources
 	c.Line.Close()
 	c.Line = nil
+}
+
+func (c *CommandLine) ExecuteFluxQuery(query string) error {
+	ctx := context.Background()
+	if !c.IgnoreSignals {
+		done := make(chan struct{})
+		defer close(done)
+
+		var cancel func()
+		ctx, cancel = context.WithCancel(ctx)
+		go func() {
+			select {
+			case <-done:
+			case <-c.osSignals:
+				cancel()
+			}
+		}()
+	}
+
+	repl, err := getFluxREPL(c.Host, c.Port, c.Ssl)
+	if err != nil {
+		return err
+	}
+
+	return repl.Input(query)
+}
+
+type QueryLanguage uint8
+
+const (
+	QueryLanguageInfluxQL QueryLanguage = iota
+	QueryLanguageFlux
+)
+
+func (l *QueryLanguage) Set(s string) error {
+	switch s {
+	case "influxql":
+		*l = QueryLanguageInfluxQL
+	case "flux":
+		*l = QueryLanguageFlux
+	default:
+		return fmt.Errorf("%q not supported: specify influxql or flux", s)
+	}
+	return nil
+}
+
+func (l *QueryLanguage) String() string {
+	switch *l {
+	case QueryLanguageInfluxQL:
+		return "influxql"
+	case QueryLanguageFlux:
+		return "flux"
+	}
+	return fmt.Sprintf("QueryLanguage(%d)", uint8(*l))
 }

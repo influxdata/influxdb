@@ -66,6 +66,22 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:2db61829af54102979eca26f14f65e6076b5cbe7c400e806cd3b730f89aeea27"
+  name = "github.com/apache/arrow"
+  packages = [
+    "go/arrow",
+    "go/arrow/array",
+    "go/arrow/internal/bitutil",
+    "go/arrow/internal/cpu",
+    "go/arrow/internal/debug",
+    "go/arrow/math",
+    "go/arrow/memory",
+  ]
+  pruneopts = "UT"
+  revision = "f66fa805e89aef948581876ac802b1ffc6430f5c"
+
+[[projects]]
+  branch = "master"
   digest = "1:861e7c55835e36c4bb41132ee48a4669429096cc184b634b99809822b416f66b"
   name = "github.com/apex/log"
   packages = [
@@ -149,6 +165,14 @@
   version = "v1.3.1"
 
 [[projects]]
+  digest = "1:1659cb76cbd08a29826688d006e7a3d9279d6ca8a12155acb7b20164958987d3"
+  name = "github.com/c-bata/go-prompt"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e99fbc797b795e0a7a94affc8d44f6a0350d85f0"
+  version = "v0.2.1"
+
+[[projects]]
   digest = "1:bf525707b4455ed126b3b091939a3693f608385c73d8dfdeb748e510bcda1338"
   name = "github.com/caarlos0/ctrlc"
   packages = ["."]
@@ -229,7 +253,7 @@
   version = "v1.4.0"
 
 [[projects]]
-  digest = "1:5f5294d365235addc741355c640fd47ac30c7317875f95ac1e9a99ebe4f0ab7f"
+  digest = "1:84fa2f03428ad6597620424756169cdb2a47ef1ef6c1fc94100f2de809ea0b72"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -250,6 +274,7 @@
     "plugin/union",
     "plugin/unmarshal",
     "proto",
+    "protoc-gen-gogo",
     "protoc-gen-gogo/descriptor",
     "protoc-gen-gogo/generator",
     "protoc-gen-gogo/generator/internal/remap",
@@ -387,29 +412,39 @@
   version = "v0.3.6"
 
 [[projects]]
-  branch = "master"
-  digest = "1:ee19d49e5e08eed14432f6b082fae33db9e3da7f2ea049254f8276036e9c7cc9"
+  digest = "1:9608dc2c0716b655b535fc0f20f42472e43b6cead49f4c9ad20eded341c5df3b"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
+    "arrow",
     "ast",
     "compiler",
     "control",
     "csv",
     "execute",
+    "functions",
     "functions/inputs",
+    "functions/outputs",
     "functions/transformations",
+    "influxql",
+    "internal/parser",
+    "internal/pkg/syncutil",
+    "internal/scanner",
+    "internal/token",
     "interpreter",
     "iocounter",
     "lang",
+    "memory",
     "options",
     "parser",
     "plan",
+    "repl",
     "semantic",
     "values",
   ]
   pruneopts = "UT"
-  revision = "331c3678304cd48fac3e47f4f80cdfe27a8e880d"
+  revision = "8c9d0ad49204d3bbb171e96d872cf663ee7f1b4d"
+  version = "v0.12.0"
 
 [[projects]]
   branch = "master"
@@ -424,31 +459,49 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:a52531fd6b0bc36b4ec92336ed67a5a05a2ee75b3525d721096b47037cd22c88"
+  digest = "1:ce365a2909a7ef5c9f9ca3059ba235318977065f1941589246fd111f71c0c62a"
+  name = "github.com/influxdata/line-protocol"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "32c6aa80de5eb09d190ad284a8214a531c6bce57"
+
+[[projects]]
+  branch = "master"
+  digest = "1:211733975798a6f796a57d0f1bd3e3be2f8ada48c6d3289b98fefa6345a76fbf"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
     "logger",
     "models",
     "pkg/binaryutil",
+    "pkg/bloom",
     "pkg/bytesutil",
+    "pkg/data/gen",
+    "pkg/encoding/simple8b",
     "pkg/escape",
-    "pkg/estimator",
+    "pkg/file",
     "pkg/limiter",
+    "pkg/metrics",
     "pkg/mmap",
+    "pkg/pool",
     "pkg/rhh",
     "pkg/slices",
     "pkg/snowflake",
+    "query",
     "query/functions/inputs/storage",
     "storage/reads",
     "storage/reads/datatypes",
+    "telegraf/plugins",
+    "telegraf/plugins/inputs",
+    "telegraf/plugins/outputs",
     "toml",
     "tsdb",
     "tsdb/cursors",
-    "tsdb/defaults",
+    "tsdb/tsi1",
+    "tsdb/tsm1",
   ]
   pruneopts = "UT"
-  revision = "a005792a8c866fe404c86f2a153978ce74358306"
+  revision = "0f79e4ea3248354c789cba274542e0a8e55971db"
 
 [[projects]]
   branch = "master"
@@ -507,6 +560,17 @@
   pruneopts = "UT"
   revision = "06af60a4461b70d84a2b173d92f9f425d78baf55"
   version = "v3.11.0"
+
+[[projects]]
+  digest = "1:15ec2166e33ef6c60b344a04d050eec79193517e7f5082b6233b2d09ef0d10b8"
+  name = "github.com/kisielk/gotool"
+  packages = [
+    ".",
+    "internal/load",
+  ]
+  pruneopts = "UT"
+  revision = "80517062f582ea3340cd4baf70e86d539ae7d84d"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:d5f48855170be8f523ecb23af1886a6b142b44ec64015fa91a03bd02076ceff4"
@@ -577,6 +641,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:325f68c3bd3044dcf51d46e802136cd239817e1fb130b5f3466a4cec4dd427d3"
+  name = "github.com/mattn/go-tty"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "13ff1204f104d52c3f7645ec027ecbcf9026429e"
+
+[[projects]]
+  branch = "master"
   digest = "1:36aebe90a13cf9128280ac834399b8bebf83685283c78df279d61c46bb2a8d83"
   name = "github.com/mattn/go-zglob"
   packages = [
@@ -624,11 +696,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:f97482f69f8d8e853db82a02f036dfad1ba6250d29d870fdebca4683deaa117c"
+  digest = "1:c48feb65fcd3ba2f41af6d7b91a7543aa4524de0e03f275f437161478a588b17"
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
-    "ext",
     "log",
   ]
   pruneopts = "UT"
@@ -665,6 +736,14 @@
   pruneopts = "UT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:4f43b3c1b7e44980a5f3c593f8bf0e18844dc44f451a071c93e77e28cf990db6"
+  name = "github.com/pkg/term"
+  packages = ["termios"]
+  pruneopts = "UT"
+  revision = "bffc007b7fd5a70e20e28f5b7649bb84671ef436"
 
 [[projects]]
   digest = "1:70f78dea42b8c0ff38ecf5487eaa79006fa2193fc804fc7c1d7222745d9e2522"
@@ -724,6 +803,14 @@
   pruneopts = "UT"
   revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
   version = "v1.2.0"
+
+[[projects]]
+  digest = "1:6f22dc7092f07889c9221dee0486231806e5a8adb9653ad53786e9839a228ac7"
+  name = "github.com/segmentio/kafka-go"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c6db9435477f3cb658e2dd0fa93e02118c870251"
+  version = "v0.2.0"
 
 [[projects]]
   digest = "1:eaa6698f44de8f2977e93c9b946e60a8af75f565058658aad2df8032b55c84e5"
@@ -878,6 +965,20 @@
   revision = "fbb02b2291d28baffd63558aa44b4b56f178d650"
 
 [[projects]]
+  branch = "master"
+  digest = "1:ef14d82562109d84ffea95e11945c59bb5547e0ef8e4933fac5e3ac6be3a662e"
+  name = "golang.org/x/tools"
+  packages = [
+    "go/ast/astutil",
+    "go/buildutil",
+    "go/internal/cgo",
+    "go/loader",
+    "go/types/typeutil",
+  ]
+  pruneopts = "UT"
+  revision = "45ff765b4815d34d8b80220fd05c79063b185ce1"
+
+[[projects]]
   digest = "1:4b8f3d164fcba1aed1e5ec63edb518b7d436b001f01e06c7f9c2335498b4c5a3"
   name = "google.golang.org/appengine"
   packages = [
@@ -944,6 +1045,31 @@
   pruneopts = "UT"
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
 
+[[projects]]
+  digest = "1:ec626c5a8d1abbb2e052d195da2d089ff6a3afb60fa7cd45638d648da96d41dd"
+  name = "honnef.co/go/tools"
+  packages = [
+    "callgraph",
+    "callgraph/static",
+    "cmd/megacheck",
+    "cmd/staticcheck",
+    "deprecated",
+    "functions",
+    "internal/sharedcheck",
+    "lint",
+    "lint/lintutil",
+    "simple",
+    "ssa",
+    "ssa/ssautil",
+    "staticcheck",
+    "staticcheck/vrp",
+    "unused",
+    "version",
+  ]
+  pruneopts = "UT"
+  revision = "d73ab98e7c39fdcf9ba65062e43d34310f198353"
+  version = "2017.2.2"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
@@ -968,12 +1094,17 @@
     "github.com/influxdata/flux/csv",
     "github.com/influxdata/flux/execute",
     "github.com/influxdata/flux/functions/inputs",
+    "github.com/influxdata/flux/functions/outputs",
     "github.com/influxdata/flux/functions/transformations",
     "github.com/influxdata/flux/lang",
+    "github.com/influxdata/flux/memory",
     "github.com/influxdata/flux/options",
     "github.com/influxdata/flux/plan",
+    "github.com/influxdata/flux/repl",
+    "github.com/influxdata/flux/values",
     "github.com/influxdata/influxql",
     "github.com/influxdata/platform/models",
+    "github.com/influxdata/platform/pkg/data/gen",
     "github.com/influxdata/platform/query/functions/inputs/storage",
     "github.com/influxdata/platform/storage/reads",
     "github.com/influxdata/platform/storage/reads/datatypes",
@@ -985,10 +1116,10 @@
     "github.com/klauspost/pgzip",
     "github.com/mattn/go-isatty",
     "github.com/opentracing/opentracing-go",
-    "github.com/opentracing/opentracing-go/ext",
     "github.com/paulbellamy/ratecounter",
     "github.com/peterh/liner",
     "github.com/pkg/errors",
+    "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/retailnext/hllpp",
     "github.com/tinylib/msgp/msgp",

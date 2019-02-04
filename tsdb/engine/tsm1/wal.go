@@ -122,7 +122,7 @@ func NewWAL(path string) *WAL {
 	return &WAL{
 		path: path,
 
-		// these options should be overriden by any options in the config
+		// these options should be overridden by any options in the config
 		SegmentSize: DefaultSegmentSize,
 		closing:     make(chan struct{}),
 		syncWaiters: make(chan chan error, 1024),

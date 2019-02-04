@@ -373,25 +373,21 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 		return nil
 	}
 
-	// If this is a partial write error, that is also ok.
-	if _, ok := err.(tsdb.PartialWriteError); ok {
+	// Except tsdb.ErrShardNotFound no error can be handled here
+	if err != tsdb.ErrShardNotFound {
 		atomic.AddInt64(&w.stats.WriteErr, 1)
 		return err
 	}
 
 	// If we've written to shard that should exist on the current node, but the store has
 	// not actually created this shard, tell it to create it and retry the write
-	if err == tsdb.ErrShardNotFound {
-		err = w.TSDBStore.CreateShard(database, retentionPolicy, shard.ID, true)
-		if err != nil {
-			w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
-
-			atomic.AddInt64(&w.stats.WriteErr, 1)
-			return err
-		}
+	if err = w.TSDBStore.CreateShard(database, retentionPolicy, shard.ID, true); err != nil {
+		w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
+		atomic.AddInt64(&w.stats.WriteErr, 1)
+		return err
 	}
-	err = w.TSDBStore.WriteToShard(shard.ID, points)
-	if err != nil {
+
+	if err = w.TSDBStore.WriteToShard(shard.ID, points); err != nil {
 		w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
 		atomic.AddInt64(&w.stats.WriteErr, 1)
 		return err
