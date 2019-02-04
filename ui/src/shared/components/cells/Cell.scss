@@ -25,7 +25,16 @@ $cell--header-size: 36px;
   z-index: $z--cell-view;
 
   > .single-stat {
-    border-radius: 0 0 $radius $radius;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: $radius;
+  }
+
+  .time-machine-tables {
+    padding-top: 0;
   }
 }
 
