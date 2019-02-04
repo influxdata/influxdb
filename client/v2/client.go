@@ -84,6 +84,10 @@ type Client interface {
 	// the UDP client.
 	Query(q Query) (*Response, error)
 
+	// QueryCtx makes an InfluxDB Query on the database. This will fail if using
+	// the UDP client.
+	QueryCtx(ctx context.Context, q Query) (*Response, error)
+
 	// QueryAsChunk makes an InfluxDB Query on the database. This will fail if using
 	// the UDP client.
 	QueryAsChunk(q Query) (*ChunkedResponse, error)
@@ -507,7 +511,12 @@ type Result struct {
 
 // Query sends a command to the server and returns the Response.
 func (c *client) Query(q Query) (*Response, error) {
-	req, err := c.createDefaultRequest(q)
+	return c.QueryCtx(nil, q)
+}
+
+// QueryCtx sends a command to the server and returns the Response.
+func (c *client) QueryCtx(ctx context.Context, q Query) (*Response, error) {
+	req, err := c.createDefaultRequest(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -577,7 +586,7 @@ func (c *client) Query(q Query) (*Response, error) {
 
 // QueryAsChunk sends a command to the server and returns the Response.
 func (c *client) QueryAsChunk(q Query) (*ChunkedResponse, error) {
-	req, err := c.createDefaultRequest(q)
+	req, err := c.createDefaultRequest(nil, q)
 	if err != nil {
 		return nil, err
 	}
@@ -626,7 +635,7 @@ func checkResponse(resp *http.Response) error {
 	return nil
 }
 
-func (c *client) createDefaultRequest(q Query) (*http.Request, error) {
+func (c *client) createDefaultRequest(ctx context.Context, q Query) (*http.Request, error) {
 	u := c.url
 	u.Path = path.Join(u.Path, "query")
 
@@ -638,6 +647,10 @@ func (c *client) createDefaultRequest(q Query) (*http.Request, error) {
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if ctx != nil {
+		req = req.WithContext(ctx)
 	}
 
 	req.Header.Set("Content-Type", "")
