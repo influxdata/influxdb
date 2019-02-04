@@ -350,6 +350,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// add User resource map
 	urm := &platform.UserResourceMapping{
 		UserID:       auth.GetUserID(),
 		UserType:     platform.Owner,
@@ -357,10 +358,18 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		ResourceID:   req.Task.ID,
 	}
 	if err := h.UserResourceMappingService.CreateUserResourceMapping(ctx, urm); err != nil {
+		// clean up the task if we fail to map the user and resource
+		// TODO(lh): Multi step creates could benefit from a service wide transactional request
+		if derr := h.TaskService.DeleteTask(ctx, req.Task.ID); derr != nil {
+			err = fmt.Errorf("%s: failed to clean up task", err.Error())
+		}
+
 		err = &platform.Error{
 			Err: err,
 			Msg: "failed to add user permissions",
 		}
+
+		EncodeError(ctx, err, w)
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task, []*platform.Label{})); err != nil {
