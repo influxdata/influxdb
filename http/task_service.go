@@ -350,6 +350,29 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// add User resource map
+	urm := &platform.UserResourceMapping{
+		UserID:       auth.GetUserID(),
+		UserType:     platform.Owner,
+		ResourceType: platform.TasksResourceType,
+		ResourceID:   req.Task.ID,
+	}
+	if err := h.UserResourceMappingService.CreateUserResourceMapping(ctx, urm); err != nil {
+		// clean up the task if we fail to map the user and resource
+		// TODO(lh): Multi step creates could benefit from a service wide transactional request
+		if derr := h.TaskService.DeleteTask(ctx, req.Task.ID); derr != nil {
+			err = fmt.Errorf("%s: failed to clean up task: %s", err.Error(), derr.Error())
+		}
+
+		err = &platform.Error{
+			Err: err,
+			Msg: "failed to add user permissions",
+		}
+
+		EncodeError(ctx, err, w)
+		return
+	}
+
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task, []*platform.Label{})); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -553,6 +576,21 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		}
 		EncodeError(ctx, err, w)
 		return
+	}
+	// clean up resource maps for deleted task
+	urms, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
+		ResourceID:   req.TaskID,
+		ResourceType: platform.TasksResourceType,
+	})
+
+	if err != nil {
+		h.logger.Warn("failed to pull user resource mapping", zap.Error(err))
+	} else {
+		for _, m := range urms {
+			if err := h.UserResourceMappingService.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
+				h.logger.Warn(fmt.Sprintf("failed to remove user resource mapping for task %s", m.ResourceID.String()), zap.Error(err))
+			}
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
