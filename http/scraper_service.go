@@ -77,17 +77,35 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	h.HandlerFunc("PATCH", targetsPath+"/:id", h.handlePatchScraperTarget)
 	h.HandlerFunc("DELETE", targetsPath+"/:id", h.handleDeleteScraperTarget)
 
-	h.HandlerFunc("POST", targetsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Member))
-	h.HandlerFunc("GET", targetsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Member))
-	h.HandlerFunc("DELETE", targetsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, influxdb.Member))
+	memberBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               influxdb.ScraperResourceType,
+		UserType:                   influxdb.Member,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", targetsIDMembersPath, newPostMemberHandler(memberBackend))
+	h.HandlerFunc("GET", targetsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("DELETE", targetsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
-	h.HandlerFunc("POST", targetsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Owner))
-	h.HandlerFunc("GET", targetsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Owner))
-	h.HandlerFunc("DELETE", targetsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, influxdb.Owner))
+	ownerBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               influxdb.ScraperResourceType,
+		UserType:                   influxdb.Owner,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", targetsIDOwnersPath, newPostMemberHandler(ownerBackend))
+	h.HandlerFunc("GET", targetsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("DELETE", targetsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
-	h.HandlerFunc("GET", targetsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", targetsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", targetsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", targetsIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", targetsIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", targetsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
 	return h
 }
