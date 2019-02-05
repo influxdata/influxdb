@@ -854,18 +854,33 @@ func TestHandler_PromRead_NilResultSet(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/read?db=foo&rp=bar", b))
-	if w.Code != http.StatusNotFound {
+	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
 	}
-	var got map[string]string
-	if err = json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-		t.Fatalf("error json-decoding response body: %v", err)
+
+	if w.Header().Get("Content-Type") != "application/x-protobuf" {
+		t.Fatalf("Got unexpected \"Content-Type\" header value:\n%v", cmp.Diff("application/x-protobuf", w.Header().Get("Content-Type")))
 	}
-	expected := map[string]string{
-		"error": "no result set found",
+	if w.Header().Get("Content-Encoding") != "snappy" {
+		t.Fatalf("Got unexpected \"Content-Encoding\" header value:\n%v", cmp.Diff("snappy", w.Header().Get("Content-Encoding")))
 	}
-	if !reflect.DeepEqual(got, expected) {
-		t.Fatalf("Results differ:\n%v", cmp.Diff(got, expected))
+
+	decompressed, err := snappy.Decode(nil, w.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := new(remote.ReadResponse)
+	err = proto.Unmarshal(decompressed, resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := &remote.ReadResponse{
+		Results: []*remote.QueryResult{{}},
+	}
+	if !reflect.DeepEqual(resp, expected) {
+		t.Fatalf("Results differ:\n%v", cmp.Diff(expected, resp))
 	}
 }
 
