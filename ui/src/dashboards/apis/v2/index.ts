@@ -1,5 +1,5 @@
 // Libraries
-import {dashboardsAPI, cellsAPI} from 'src/utils/api'
+import {dashboardsAPI} from 'src/utils/api'
 import _ from 'lodash'
 
 // Utils
@@ -18,6 +18,7 @@ import {
 } from 'src/types/v2'
 
 import {Cell as CellTypeAPI} from 'src/api'
+import {client} from 'src/utils/api'
 
 // Utils
 import {
@@ -101,12 +102,9 @@ export const addCell = async (
   dashboardID: string,
   cell: NewCell
 ): Promise<Cell> => {
-  const {data} = await cellsAPI.dashboardsDashboardIDCellsPost(
-    dashboardID,
-    cell
-  )
+  const result = await client.dashboards.createCell(dashboardID, cell)
 
-  const cellWithID = {...data, dashboardID}
+  const cellWithID = {...result, dashboardID}
 
   return cellWithID
 }
@@ -115,16 +113,16 @@ export const updateCells = async (
   id: string,
   cells: Cell[]
 ): Promise<Cell[]> => {
-  const {data} = await cellsAPI.dashboardsDashboardIDCellsPut(id, cells)
+  const result = await client.dashboards.updateAllCells(id, cells)
 
-  return addDashboardIDToCells(data.cells, id)
+  return addDashboardIDToCells(result, id)
 }
 
 export const deleteCell = async (
   dashboardID: string,
   cell: Cell
 ): Promise<void> => {
-  await cellsAPI.dashboardsDashboardIDCellsCellIDDelete(dashboardID, cell.id)
+  await client.dashboards.deleteCell(dashboardID, cell.id)
 }
 
 export const addDashboardLabels = async (
