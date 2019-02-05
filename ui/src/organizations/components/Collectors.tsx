@@ -104,6 +104,7 @@ export class Collectors extends PureComponent<Props, State> {
                     emptyState={this.emptyState}
                     onDownloadConfig={this.handleDownloadConfig}
                     onDelete={this.handleDeleteTelegraf}
+                    onUpdate={this.handleUpdateTelegraf}
                   />
                 )}
               </FilterList>
@@ -195,6 +196,11 @@ export class Collectors extends PureComponent<Props, State> {
 
   private handleDeleteTelegraf = async (telegrafID: string) => {
     await client.telegrafConfigs.delete(telegrafID)
+    this.props.onChange()
+  }
+
+  private handleUpdateTelegraf = async (telegraf: Telegraf) => {
+    await client.telegrafConfigs.update(telegraf.id, telegraf)
     this.props.onChange()
   }
 

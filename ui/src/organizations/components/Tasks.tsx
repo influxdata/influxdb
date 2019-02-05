@@ -57,6 +57,7 @@ export default class Tasks extends PureComponent<Props, State> {
               tasks={ts}
               emptyState={this.emptyState}
               onDelete={this.handleDeleteTask}
+              onUpdate={this.handleUpdateTask}
             />
           )}
         </FilterList>
@@ -92,6 +93,11 @@ export default class Tasks extends PureComponent<Props, State> {
         <EmptyState.Text text="No Tasks match your query" />
       </EmptyState>
     )
+  }
+
+  private handleUpdateTask = async (task: Task) => {
+    await client.tasks.update(task.id, task)
+    this.props.onChange()
   }
 
   private handleDeleteTask = async (taskID: string) => {

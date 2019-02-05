@@ -12,6 +12,7 @@ interface Props {
   scrapers: ScraperTargetResponse[]
   emptyState: JSX.Element
   onDeleteScraper: (scraper) => void
+  onUpdateScraper: (scraper: ScraperTargetResponse) => void
 }
 
 export default class ScraperList extends PureComponent<Props> {
@@ -34,7 +35,7 @@ export default class ScraperList extends PureComponent<Props> {
   }
 
   public get scrapersList(): JSX.Element[] {
-    const {scrapers, onDeleteScraper} = this.props
+    const {scrapers, onDeleteScraper, onUpdateScraper} = this.props
 
     if (scrapers !== undefined) {
       return scrapers.map(scraper => (
@@ -42,6 +43,7 @@ export default class ScraperList extends PureComponent<Props> {
           key={scraper.id}
           scraper={scraper}
           onDeleteScraper={onDeleteScraper}
+          onUpdateScraper={onUpdateScraper}
         />
       ))
     }

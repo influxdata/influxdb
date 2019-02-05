@@ -12,12 +12,14 @@ import {
   ComponentSpacer,
 } from 'src/clockface'
 import {Telegraf} from 'src/api'
+import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   collector: Telegraf
   bucket: string
   onDownloadConfig: (telegrafID: string, telegrafName: string) => void
   onDelete: (telegrafID: string) => void
+  onUpdate: (telegraf: Telegraf) => void
 }
 
 export default class CollectorRow extends PureComponent<Props> {
@@ -26,7 +28,12 @@ export default class CollectorRow extends PureComponent<Props> {
     return (
       <>
         <IndexList.Row>
-          <IndexList.Cell>{collector.name}</IndexList.Cell>
+          <IndexList.Cell>
+            <EditableName
+              onUpdate={this.handleUpdateConfig}
+              name={collector.name}
+            />
+          </IndexList.Cell>
           <IndexList.Cell>{bucket}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ComponentSpacer align={Alignment.Right}>
@@ -47,6 +54,11 @@ export default class CollectorRow extends PureComponent<Props> {
         </IndexList.Row>
       </>
     )
+  }
+
+  private handleUpdateConfig = (name: string) => {
+    const {onUpdate, collector} = this.props
+    onUpdate({...collector, name})
   }
 
   private handleDownloadConfig = (): void => {

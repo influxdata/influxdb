@@ -9,10 +9,12 @@ import {
   Alignment,
 } from 'src/clockface'
 import {ScraperTargetResponse} from 'src/api'
+import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   scraper: ScraperTargetResponse
   onDeleteScraper: (scraper) => void
+  onUpdateScraper: (scraper: ScraperTargetResponse) => void
 }
 
 export default class ScraperRow extends PureComponent<Props> {
@@ -21,7 +23,12 @@ export default class ScraperRow extends PureComponent<Props> {
     return (
       <>
         <IndexList.Row>
-          <IndexList.Cell>{scraper.url}</IndexList.Cell>
+          <IndexList.Cell>
+            <EditableName
+              onUpdate={this.handleUpdateScraper}
+              name={scraper.url}
+            />
+          </IndexList.Cell>
           <IndexList.Cell>{scraper.bucket}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
@@ -35,5 +42,10 @@ export default class ScraperRow extends PureComponent<Props> {
         </IndexList.Row>
       </>
     )
+  }
+
+  private handleUpdateScraper = (name: string) => {
+    const {onUpdateScraper, scraper} = this.props
+    onUpdateScraper({...scraper, url: name})
   }
 }

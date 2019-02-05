@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Link} from 'react-router'
 
 // Components
 import {
@@ -12,10 +11,12 @@ import {
 
 // Api
 import {Task} from 'src/api'
+import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   task: Task
   onDelete: (taskID: string) => void
+  onUpdate: (task: Task) => void
 }
 
 export default class TaskRow extends PureComponent<Props> {
@@ -26,9 +27,13 @@ export default class TaskRow extends PureComponent<Props> {
       <>
         <IndexList.Row key={task.id}>
           <IndexList.Cell>
-            <Link to={`/tasks/${task.id}`}>{task.name}</Link>
+            <EditableName
+              onUpdate={this.handleUpdateTask}
+              name={task.name}
+              hrefValue={`/tasks/${task.id}`}
+            />
           </IndexList.Cell>
-          <IndexList.Cell>{task.owner.name}</IndexList.Cell>
+          <IndexList.Cell>{task.name}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
               size={ComponentSize.ExtraSmall}
@@ -40,6 +45,11 @@ export default class TaskRow extends PureComponent<Props> {
         </IndexList.Row>
       </>
     )
+  }
+
+  private handleUpdateTask = (name: string) => {
+    const {onUpdate, task} = this.props
+    onUpdate({...task, name})
   }
 
   private handleDeleteTask = (): void => {

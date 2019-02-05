@@ -15,6 +15,7 @@ interface Props {
   emptyState: JSX.Element
   onDownloadConfig: (telegrafID: string, telegrafName: string) => void
   onDelete: (telegrafID: string) => void
+  onUpdate: (telegraf: Telegraf) => void
 }
 
 export default class CollectorList extends PureComponent<Props> {
@@ -37,7 +38,7 @@ export default class CollectorList extends PureComponent<Props> {
   }
 
   public get collectorsList(): JSX.Element[] {
-    const {collectors, onDownloadConfig, onDelete} = this.props
+    const {collectors, onDownloadConfig, onDelete, onUpdate} = this.props
 
     if (collectors !== undefined) {
       return collectors.map(collector => (
@@ -47,6 +48,7 @@ export default class CollectorList extends PureComponent<Props> {
           bucket={getDeep<string>(collector, 'plugins.0.config.bucket', '')}
           onDownloadConfig={onDownloadConfig}
           onDelete={onDelete}
+          onUpdate={onUpdate}
         />
       ))
     }
