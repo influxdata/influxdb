@@ -41,6 +41,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {Telegraf, Bucket} from 'src/api'
 import {OverlayState} from 'src/types/v2'
+import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
+import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 interface OwnProps {
   collectors: Telegraf[]
@@ -52,6 +54,7 @@ interface OwnProps {
 
 interface DispatchProps {
   onSetBucketInfo: typeof setBucketInfo
+  onSetDataLoadersType: typeof setDataLoadersType
 }
 
 type Props = OwnProps & DispatchProps
@@ -145,12 +148,15 @@ export class Collectors extends PureComponent<Props, State> {
   }
 
   private handleAddCollector = () => {
-    const {buckets, onSetBucketInfo} = this.props
+    const {buckets, onSetBucketInfo, onSetDataLoadersType} = this.props
 
     if (buckets && buckets.length) {
       const {organization, organizationID, name, id} = buckets[0]
       onSetBucketInfo(organization, organizationID, name, id)
     }
+
+    onSetDataLoadersType(DataLoaderType.Scraping)
+
     this.setState({overlayState: OverlayState.Open})
   }
 
@@ -215,6 +221,7 @@ export class Collectors extends PureComponent<Props, State> {
 
 const mdtp: DispatchProps = {
   onSetBucketInfo: setBucketInfo,
+  onSetDataLoadersType: setDataLoadersType,
 }
 
 export default connect<null, DispatchProps, OwnProps>(
