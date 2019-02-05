@@ -1,7 +1,6 @@
-import {QueryResponse} from 'src/logs/api/v2'
 import {SearchStatus} from 'src/types/logs'
 
-export const fluxResponse: QueryResponse = {
+export const fluxResponse = {
   tables: [
     {
       id: 'd7cc1e08-4b17-4309-885b-6798402bdae2',

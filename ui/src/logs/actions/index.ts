@@ -4,7 +4,6 @@ import uuid from 'uuid'
 import {getDeep} from 'src/utils/wrappers'
 import {serverToUIConfig} from 'src/logs/utils/config'
 import {
-  getTableData,
   buildTableQueryConfig,
   validateTailQuery,
   validateOlderQuery,
@@ -12,7 +11,6 @@ import {
 
 // APIs
 import {client} from 'src/utils/api'
-import {executeQueryAsync} from 'src/logs/api/v2'
 
 // Data
 import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
@@ -628,10 +626,6 @@ export const fetchLogTailAsync = (logTailID: number) => async (
 
   const upperUTC = Date.parse(logQuery.upper)
   dispatch(setCurrentTailUpperBound(upperUTC))
-
-  const logSeries = await getTableData(executeQueryAsync, logQuery)
-
-  dispatch(updateLogsTailData(logSeries, logTailID, upperUTC))
 }
 
 export const updateLogsTailData = (
@@ -799,11 +793,6 @@ export const fetchOlderChunkAsync = (olderBatchID: string) => async (
   }
   const nextOlderUpperBound = new Date(logQuery.lower).valueOf()
   await dispatch(setNextOlderUpperBound(nextOlderUpperBound))
-
-  const logSeries = await getTableData(executeQueryAsync, logQuery)
-  if (logSeries.values.length > 0) {
-    await dispatch(updateOlderLogs(logSeries, olderBatchID))
-  }
 }
 
 export const updateOlderLogs = (
