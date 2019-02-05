@@ -23,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
 	infprom "github.com/influxdata/influxdb/prometheus"
@@ -65,6 +66,7 @@ type Launcher struct {
 	secretStore     string
 
 	boltClient *bolt.Client
+	kvService  *kv.Service
 	engine     *storage.Engine
 
 	queryController *pcontrol.Controller
@@ -273,6 +275,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	if err := m.boltClient.Open(ctx); err != nil {
 		m.logger.Error("failed opening bolt", zap.Error(err))
+		return err
+	}
+
+	store := bolt.NewKVStore(m.boltPath)
+	store.WithDB(m.boltClient.DB())
+
+	m.kvService = kv.NewService(store)
+	m.kvService.Logger = m.logger.With(zap.String("store", "kv"))
+	if err := m.kvService.Initialize(ctx); err != nil {
+		m.logger.Error("failed to initialize kv service", zap.Error(err))
 		return err
 	}
 
