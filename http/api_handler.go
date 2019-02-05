@@ -70,6 +70,7 @@ type APIBackend struct {
 	ChronografService               *server.Service
 	ProtoService                    influxdb.ProtoService
 	OrgLookupService                authorizer.OrganizationService
+	ViewService                     influxdb.ViewService
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
