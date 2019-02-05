@@ -121,7 +121,7 @@ class CompletionStep extends PureComponent<Props> {
                         />
                         <dt>I've got this...</dt>
                         <dd>
-                          Jump into Influx 2.0 and set up data collection when
+                          Jump into InfluxDB 2.0 and set up data collection when
                           you’re ready.
                         </dd>
                       </div>
