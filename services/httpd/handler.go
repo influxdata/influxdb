@@ -1149,6 +1149,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 			)
 		}
 	}
+
 	respond(resp)
 }
 
