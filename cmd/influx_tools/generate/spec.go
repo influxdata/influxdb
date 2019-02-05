@@ -41,39 +41,32 @@ func (t *TagCardinalities) Set(tags string) error {
 	return nil
 }
 
-type Spec struct {
-	StartTime               string
-	Database                string
-	Retention               string
-	ReplicaN                int
-	ShardCount              int
-	ShardDuration           time.Duration
-	Tags                    TagCardinalities
-	PointsPerSeriesPerShard int
+type StorageSpec struct {
+	StartTime     string
+	Database      string
+	Retention     string
+	ReplicaN      int
+	ShardCount    int
+	ShardDuration time.Duration
 }
 
-func (a *Spec) AddFlags(fs *flag.FlagSet) {
+func (a *StorageSpec) AddFlags(fs *flag.FlagSet) {
 	fs.StringVar(&a.StartTime, "start-time", "", "Start time")
 	fs.StringVar(&a.Database, "db", "db", "Name of database to create")
 	fs.StringVar(&a.Retention, "rp", "rp", "Name of retention policy")
 	fs.IntVar(&a.ReplicaN, "rf", 1, "Replication factor")
 	fs.IntVar(&a.ShardCount, "shards", 1, "Number of shards to create")
 	fs.DurationVar(&a.ShardDuration, "shard-duration", 24*time.Hour, "Shard duration (default 24h)")
-	a.Tags = []int{10, 10, 10}
-	fs.Var(&a.Tags, "t", "Tag cardinality")
-	fs.IntVar(&a.PointsPerSeriesPerShard, "p", 100, "Points per series per shard")
 }
 
-func (a *Spec) Plan(server server.Interface) (*Plan, error) {
-	plan := &Plan{
-		Database:                a.Database,
-		Retention:               a.Retention,
-		ReplicaN:                a.ReplicaN,
-		ShardCount:              a.ShardCount,
-		ShardDuration:           a.ShardDuration,
-		Tags:                    a.Tags,
-		PointsPerSeriesPerShard: a.PointsPerSeriesPerShard,
-		DatabasePath:            filepath.Join(server.TSDBConfig().Dir, a.Database),
+func (a *StorageSpec) Plan(server server.Interface) (*StoragePlan, error) {
+	plan := &StoragePlan{
+		Database:      a.Database,
+		Retention:     a.Retention,
+		ReplicaN:      a.ReplicaN,
+		ShardCount:    a.ShardCount,
+		ShardDuration: a.ShardDuration,
+		DatabasePath:  filepath.Join(server.TSDBConfig().Dir, a.Database),
 	}
 
 	if a.StartTime != "" {
@@ -89,4 +82,23 @@ func (a *Spec) Plan(server server.Interface) (*Plan, error) {
 	}
 
 	return plan, nil
+}
+
+type SchemaSpec struct {
+	Tags                    TagCardinalities
+	PointsPerSeriesPerShard int
+}
+
+func (s *SchemaSpec) AddFlags(fs *flag.FlagSet) {
+	s.Tags = []int{10, 10, 10}
+	fs.Var(&s.Tags, "t", "Tag cardinality")
+	fs.IntVar(&s.PointsPerSeriesPerShard, "p", 100, "Points per series per shard")
+}
+
+func (s *SchemaSpec) Plan(sp *StoragePlan) (*SchemaPlan, error) {
+	return &SchemaPlan{
+		StoragePlan:             sp,
+		Tags:                    s.Tags,
+		PointsPerSeriesPerShard: s.PointsPerSeriesPerShard,
+	}, nil
 }
