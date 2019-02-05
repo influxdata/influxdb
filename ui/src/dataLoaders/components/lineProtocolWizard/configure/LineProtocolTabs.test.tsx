@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import {LineProtocolTabs} from 'src/dataLoaders/components/configureStep/lineProtocol/LineProtocolTabs'
+import {LineProtocolTabs} from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocolTabs'
 
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 

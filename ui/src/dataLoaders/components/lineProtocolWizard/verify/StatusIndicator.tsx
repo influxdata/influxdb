@@ -1,18 +1,21 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
+import {connect} from 'react-redux'
 
 import {SparkleSpinner} from 'src/clockface'
 
 // Types
 import {RemoteDataState} from 'src/types'
+import {AppState} from 'src/types/v2'
 
-interface Props {
+interface StateProps {
   status: RemoteDataState
-  onClickRetry: () => void
 }
 
-class StatusIndicator extends PureComponent<Props> {
+type Props = StateProps
+
+export class StatusIndicator extends PureComponent<Props> {
   public render() {
     const {status} = this.props
     return (
@@ -52,4 +55,15 @@ class StatusIndicator extends PureComponent<Props> {
   }
 }
 
-export default StatusIndicator
+const mstp = ({
+  dataLoading: {
+    dataLoaders: {lpStatus},
+  },
+}: AppState): StateProps => ({
+  status: lpStatus,
+})
+
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(StatusIndicator)

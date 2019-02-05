@@ -3,9 +3,9 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
-import PrecisionDropdown from 'src/dataLoaders/components/configureStep/lineProtocol/PrecisionDropdown'
-import TabSelector from 'src/dataLoaders/components/configureStep/lineProtocol/TabSelector'
-import TabBody from 'src/dataLoaders/components/configureStep/lineProtocol/TabBody'
+import PrecisionDropdown from 'src/dataLoaders/components/lineProtocolWizard/configure/PrecisionDropdown'
+import TabSelector from 'src/dataLoaders/components/lineProtocolWizard/configure/TabSelector'
+import TabBody from 'src/dataLoaders/components/lineProtocolWizard/configure/TabBody'
 
 // Types
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'

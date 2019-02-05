@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import StatusIndicator from 'src/dataLoaders/components/verifyStep/lineProtocol/StatusIndicator'
+import {StatusIndicator} from 'src/dataLoaders/components/lineProtocolWizard/verify/StatusIndicator'
 
 // Types
 import {RemoteDataState} from 'src/types'

@@ -5,6 +5,7 @@ import _ from 'lodash'
 // Components
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
+import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 
 // Types
 import {Substep, DataLoaderType} from 'src/types/v2/dataLoaders'
@@ -33,7 +34,6 @@ class DataLoaderSwitcher extends PureComponent<Props> {
     } = this.props
 
     switch (type) {
-      case DataLoaderType.LineProtocol:
       case DataLoaderType.Scraping:
       case DataLoaderType.Empty:
         return (
@@ -51,7 +51,14 @@ class DataLoaderSwitcher extends PureComponent<Props> {
           <CollectorsWizard
             visible={visible}
             onCompleteSetup={onCompleteSetup}
-            startingStep={0}
+            buckets={buckets}
+          />
+        )
+      case DataLoaderType.LineProtocol:
+        return (
+          <LineProtocolWizard
+            onCompleteSetup={onCompleteSetup}
+            visible={visible}
             buckets={buckets}
           />
         )
