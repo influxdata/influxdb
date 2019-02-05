@@ -361,7 +361,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		// clean up the task if we fail to map the user and resource
 		// TODO(lh): Multi step creates could benefit from a service wide transactional request
 		if derr := h.TaskService.DeleteTask(ctx, req.Task.ID); derr != nil {
-			err = fmt.Errorf("%s: failed to clean up task", err.Error())
+			err = fmt.Errorf("%s: failed to clean up task: %s", err.Error(), derr.Error())
 		}
 
 		err = &platform.Error{
@@ -587,7 +587,9 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		h.logger.Warn("failed to pull user resource mapping", zap.Error(err))
 	} else {
 		for _, m := range urms {
-			h.UserResourceMappingService.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID)
+			if err := h.UserResourceMappingService.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
+				h.logger.Warn(fmt.Sprintf("failed to remove user resource mapping for task %s", m.ResourceID.String()), zap.Error(err))
+			}
 		}
 	}
 
