@@ -28,7 +28,7 @@ class DataStreaming extends PureComponent<Props> {
 
     return (
       <>
-        <CreateOrUpdateConfig org={org} authToken={authToken}>
+        <CreateOrUpdateConfig org={org}>
           {() => (
             <TelegrafInstructions
               notify={notify}

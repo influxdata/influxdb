@@ -36,7 +36,6 @@ import {
   processesTelegrafPlugin,
   systemTelegrafPlugin,
   redisTelegrafPlugin,
-  token,
   telegrafConfig,
   dockerTelegrafPlugin,
   swapTelegrafPlugin,
@@ -488,7 +487,7 @@ describe('dataLoader reducer', () => {
         },
       },
     })
-    await createOrUpdateTelegrafConfigAsync(token)(dispatch, getState)
+    await createOrUpdateTelegrafConfigAsync()(dispatch, getState)
 
     expect(dispatch).toBeCalledWith(setTelegrafConfigID(telegrafConfig.id))
   })
