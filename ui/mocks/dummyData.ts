@@ -17,6 +17,7 @@ import {
   TelegrafPluginInputNet,
   TelegrafPluginInputProcstat,
   TelegrafPluginInputDocker,
+  TelegrafPluginInputSwap,
   Task as TaskApi,
   Organization,
 } from 'src/api'
@@ -398,6 +399,12 @@ export const systemTelegrafPlugin = {
 export const redisTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputRedis.NameEnum.Redis,
+}
+
+export const swapTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputSwap.NameEnum.Swap,
+  configured: ConfigurationState.Configured,
 }
 
 export const redisPlugin = {
