@@ -33,6 +33,7 @@ import {
   TaskOptions,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
+import {incrementCloneName} from 'src/utils/naming'
 
 export type Action =
   | SetNewScript
@@ -246,9 +247,11 @@ export const deleteTask = (task: Task) => async dispatch => {
   }
 }
 
-export const cloneTask = (task: Task) => async dispatch => {
+export const cloneTask = (task: Task, tasks: Tasks[]) => async dispatch => {
   try {
-    await client.tasks.create(task.orgID, task.flux, task.name)
+    const allTaskNames = tasks.map(t => t.name)
+    const clonedName = incrementCloneName(allTaskNames, task.name)
+    await client.tasks.create(task.orgID, task.flux, clonedName)
 
     dispatch(notify(taskCloneSuccess(task.name)))
     dispatch(populateTasks())

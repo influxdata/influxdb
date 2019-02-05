@@ -145,7 +145,8 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private handleClone = (task: Task) => {
-    this.props.cloneTask(task)
+    const {tasks} = this.props
+    this.props.cloneTask(task, tasks)
   }
 
   private handleCreateTask = () => {
