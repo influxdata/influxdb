@@ -36,9 +36,9 @@ import {
   processesTelegrafPlugin,
   systemTelegrafPlugin,
   redisTelegrafPlugin,
-  token,
   telegrafConfig,
   dockerTelegrafPlugin,
+  swapTelegrafPlugin,
 } from 'mocks/dummyData'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
@@ -487,7 +487,7 @@ describe('dataLoader reducer', () => {
         },
       },
     })
-    await createOrUpdateTelegrafConfigAsync(token)(dispatch, getState)
+    await createOrUpdateTelegrafConfigAsync()(dispatch, getState)
 
     expect(dispatch).toBeCalledWith(setTelegrafConfigID(telegrafConfig.id))
   })
@@ -506,6 +506,7 @@ describe('dataLoader reducer', () => {
         memTelegrafPlugin,
         netTelegrafPlugin,
         processesTelegrafPlugin,
+        swapTelegrafPlugin,
       ])
     )
   })

@@ -1,9 +1,10 @@
 // Libraries
-import {dashboardsAPI, cellsAPI} from 'src/utils/api'
+import {dashboardsAPI} from 'src/utils/api'
 import _ from 'lodash'
 
 // Utils
 import {addLabelDefaults} from 'src/shared/utils/labels'
+import {incrementCloneName} from 'src/utils/naming'
 
 // Types
 
@@ -17,6 +18,7 @@ import {
 } from 'src/types/v2'
 
 import {Cell as CellTypeAPI} from 'src/api'
+import {client} from 'src/utils/api'
 
 // Utils
 import {
@@ -100,12 +102,9 @@ export const addCell = async (
   dashboardID: string,
   cell: NewCell
 ): Promise<Cell> => {
-  const {data} = await cellsAPI.dashboardsDashboardIDCellsPost(
-    dashboardID,
-    cell
-  )
+  const result = await client.dashboards.createCell(dashboardID, cell)
 
-  const cellWithID = {...data, dashboardID}
+  const cellWithID = {...result, dashboardID}
 
   return cellWithID
 }
@@ -114,16 +113,16 @@ export const updateCells = async (
   id: string,
   cells: Cell[]
 ): Promise<Cell[]> => {
-  const {data} = await cellsAPI.dashboardsDashboardIDCellsPut(id, cells)
+  const result = await client.dashboards.updateAllCells(id, cells)
 
-  return addDashboardIDToCells(data.cells, id)
+  return addDashboardIDToCells(result, id)
 }
 
 export const deleteCell = async (
   dashboardID: string,
   cell: Cell
 ): Promise<void> => {
-  await cellsAPI.dashboardsDashboardIDCellsCellIDDelete(dashboardID, cell.id)
+  await client.dashboards.deleteCell(dashboardID, cell.id)
 }
 
 export const addDashboardLabels = async (
@@ -199,10 +198,23 @@ export const addCellUpdateView = async (
   return updateView(dashboard.id, createdCell.id, view)
 }
 
-export const cloneDashboard = async (dashboardToClone: Dashboard) => {
+export const cloneDashboard = async (
+  dashboardToClone: Dashboard,
+  dashboards: Dashboard[]
+) => {
+  const allDashboardNames = dashboards.map(d => d.name)
+
+  const clonedName = incrementCloneName(
+    allDashboardNames,
+    dashboardToClone.name
+  )
+
   const dashboardNoCells = _.omit(dashboardToClone, ['cells'])
 
-  const createdDashboard = await createDashboard(dashboardNoCells)
+  const createdDashboard = await createDashboard({
+    ...dashboardNoCells,
+    name: clonedName,
+  })
 
   const cells = dashboardToClone.cells
 

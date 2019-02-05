@@ -59,7 +59,10 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
             </div>
           </FancyScrollbar>
         </div>
-        <OnboardingButtons onClickBack={onDecrementStep} />
+        <OnboardingButtons
+          onClickBack={onDecrementStep}
+          nextButtonText={'Create and Verify'}
+        />
       </Form>
     )
   }

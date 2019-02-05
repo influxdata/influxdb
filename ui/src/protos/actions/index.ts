@@ -1,11 +1,7 @@
 // Libraries
 import {Dispatch} from 'redux'
 
-// APIs
-import {
-  getProtos as getProtosAJAX,
-  createDashFromProto as createDashFromProtoAJAX,
-} from 'src/protos/apis/'
+import {client} from 'src/utils/api'
 
 // Utils
 import {addDashboardIDToCells} from 'src/dashboards/apis/v2/'
@@ -46,7 +42,7 @@ export const loadProto = (proto: Proto): LoadProtoAction => ({
 
 export const getProtos = () => async (dispatch: Dispatch<Action>) => {
   try {
-    const {protos} = await getProtosAJAX()
+    const protos = await client.protos.getAll()
 
     protos.forEach(p => {
       dispatch(loadProto(p))
@@ -61,7 +57,7 @@ export const createDashFromProto = (
   orgID: string
 ) => async dispatch => {
   try {
-    const {dashboards} = await createDashFromProtoAJAX(protoID, orgID)
+    const dashboards = await client.dashboards.createFromProto(protoID, orgID)
 
     dashboards.forEach((d: Dashboard) => {
       const updatedDashboard = {

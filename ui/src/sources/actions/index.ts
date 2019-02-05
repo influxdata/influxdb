@@ -2,12 +2,7 @@
 import {Dispatch} from 'redux'
 
 // APIs
-import {
-  readSources as readSourcesAJAX,
-  createSource as createSourceAJAX,
-  updateSource as updateSourceAJAX,
-  deleteSource as deleteSourceAJAX,
-} from 'src/sources/apis'
+import {client} from 'src/utils/api'
 
 // Types
 import {GetState} from 'src/types/v2'
@@ -70,17 +65,15 @@ export const removeSource = (sourceID: string): RemoveSourceAction => ({
 })
 
 export const readSources = () => async (dispatch: Dispatch<Action>) => {
-  const sources = await readSourcesAJAX()
+  const sources = await client.sources.getAll()
 
   dispatch(setSources(sources))
 }
 
 export const createSource = (attrs: Partial<Source>) => async (
-  dispatch: Dispatch<Action>,
-  getState: GetState
+  dispatch: Dispatch<Action>
 ) => {
-  const sourcesLink = getState().links.sources
-  const source = await createSourceAJAX(sourcesLink, attrs)
+  const source = await client.sources.create('', attrs)
 
   dispatch(setSource(source))
 }
@@ -88,7 +81,7 @@ export const createSource = (attrs: Partial<Source>) => async (
 export const updateSource = (source: Source) => async (
   dispatch: Dispatch<Action>
 ) => {
-  const updatedSource = await updateSourceAJAX(source.id, source)
+  const updatedSource = await client.sources.update(source.id, source)
 
   dispatch(setSource(updatedSource))
 }
@@ -103,7 +96,7 @@ export const deleteSource = (sourceID: string) => async (
     throw new Error(`no source with ID "${sourceID}" exists`)
   }
 
-  await deleteSourceAJAX(source)
+  await client.sources.delete(source.id)
 
   dispatch(removeSource(sourceID))
 }

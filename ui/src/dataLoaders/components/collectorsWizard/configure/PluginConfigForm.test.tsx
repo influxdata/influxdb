@@ -58,4 +58,15 @@ describe('DataLoaders.Components.CollectorsWizard.Configure.PluginConfigForm', (
       expect(onboardingButtons.exists()).toBe(true)
     })
   })
+
+  it('has a link to documentation containing plugin name', () => {
+    const {wrapper} = setup({
+      telegrafPlugin,
+    })
+
+    const link = wrapper.find({'data-test': 'docs-link'})
+
+    expect(link.exists()).toBe(true)
+    expect(link.prop('href')).toContain(telegrafPlugin.name)
+  })
 })

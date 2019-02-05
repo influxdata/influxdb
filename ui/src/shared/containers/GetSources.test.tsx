@@ -6,8 +6,6 @@ import {SpinnerContainer} from 'src/clockface'
 
 import {source} from 'mocks/dummyData'
 
-jest.mock('src/sources/apis', () => require('mocks/sources/apis'))
-
 const onReadSources = jest.fn(() => Promise.resolve())
 
 const setup = (override?) => {
