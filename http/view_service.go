@@ -9,10 +9,32 @@ import (
 	"fmt"
 	"net/http"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
+
+// ViewBackend is all services and associated parameters required to construct
+// the ScraperHandler.
+type ViewBackend struct {
+	Logger *zap.Logger
+
+	ViewService                influxdb.ViewService
+	UserService                influxdb.UserService
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
+}
+
+// NewViewBackend returns a new instance of ViewBackend.
+func NewViewBackend(b *APIBackend) *ViewBackend {
+	return &ViewBackend{
+		Logger: b.Logger.With(zap.String("handler", "scraper")),
+
+		ViewService:  b.ViewService,
+		UserService:  b.UserService,
+		LabelService: b.LabelService,
+	}
+}
 
 // ViewHandler is the handler for the view service
 type ViewHandler struct {
@@ -20,10 +42,10 @@ type ViewHandler struct {
 
 	Logger *zap.Logger
 
-	ViewService                platform.ViewService
-	UserResourceMappingService platform.UserResourceMappingService
-	LabelService               platform.LabelService
-	UserService                platform.UserService
+	ViewService                influxdb.ViewService
+	UserService                influxdb.UserService
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
 }
 
 const (
@@ -38,14 +60,15 @@ const (
 )
 
 // NewViewHandler returns a new instance of ViewHandler.
-func NewViewHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, userService platform.UserService) *ViewHandler {
+func NewViewHandler(b *ViewBackend) *ViewHandler {
 	h := &ViewHandler{
 		Router: NewRouter(),
-		Logger: zap.NewNop(),
+		Logger: b.Logger,
 
-		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
-		UserService:                userService,
+		ViewService:                b.ViewService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
 	}
 
 	h.HandlerFunc("POST", viewsPath, h.handlePostViews)
@@ -55,9 +78,35 @@ func NewViewHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("DELETE", viewsIDPath, h.handleDeleteView)
 	h.HandlerFunc("PATCH", viewsIDPath, h.handlePatchView)
 
-	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", viewsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", viewsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
+	memberBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               influxdb.ViewsResourceType,
+		UserType:                   influxdb.Member,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", viewsIDMembersPath, newPostMemberHandler(memberBackend))
+	h.HandlerFunc("GET", viewsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("DELETE", viewsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
+
+	ownerBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               influxdb.ViewsResourceType,
+		UserType:                   influxdb.Owner,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", viewsIDOwnersPath, newPostMemberHandler(ownerBackend))
+	h.HandlerFunc("GET", viewsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("DELETE", viewsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
+
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", viewsIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", viewsIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", viewsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
 	return h
 }
@@ -68,18 +117,18 @@ type viewLinks struct {
 }
 
 type viewResponse struct {
-	platform.View
+	influxdb.View
 	Links viewLinks `json:"links"`
 }
 
 func (r viewResponse) MarshalJSON() ([]byte, error) {
-	props, err := platform.MarshalViewPropertiesJSON(r.Properties)
+	props, err := influxdb.MarshalViewPropertiesJSON(r.Properties)
 	if err != nil {
 		return nil, err
 	}
 
 	return json.Marshal(struct {
-		platform.ViewContents
+		influxdb.ViewContents
 		Links      viewLinks       `json:"links"`
 		Properties json.RawMessage `json:"properties"`
 	}{
@@ -89,7 +138,7 @@ func (r viewResponse) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func newViewResponse(c *platform.View) viewResponse {
+func newViewResponse(c *influxdb.View) viewResponse {
 	return viewResponse{
 		Links: viewLinks{
 			Self:   fmt.Sprintf("/api/v2/views/%s", c.ID),
@@ -118,14 +167,14 @@ func (h *ViewHandler) handleGetViews(w http.ResponseWriter, r *http.Request) {
 }
 
 type getViewsRequest struct {
-	filter platform.ViewFilter
+	filter influxdb.ViewFilter
 }
 
 func decodeGetViewsRequest(ctx context.Context, r *http.Request) *getViewsRequest {
 	qp := r.URL.Query()
 
 	return &getViewsRequest{
-		filter: platform.ViewFilter{
+		filter: influxdb.ViewFilter{
 			Types: qp["type"],
 		},
 	}
@@ -140,7 +189,7 @@ type getViewsResponse struct {
 	Views []viewResponse `json:"views"`
 }
 
-func newGetViewsResponse(views []*platform.View) getViewsResponse {
+func newGetViewsResponse(views []*influxdb.View) getViewsResponse {
 	res := getViewsResponse{
 		Links: getViewsLinks{
 			Self: "/api/v2/views",
@@ -176,14 +225,14 @@ func (h *ViewHandler) handlePostViews(w http.ResponseWriter, r *http.Request) {
 }
 
 type postViewRequest struct {
-	View *platform.View
+	View *influxdb.View
 }
 
 func decodePostViewRequest(ctx context.Context, r *http.Request) (*postViewRequest, error) {
-	c := &platform.View{}
+	c := &influxdb.View{}
 	if err := json.NewDecoder(r.Body).Decode(c); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
@@ -215,20 +264,20 @@ func (h *ViewHandler) handleGetView(w http.ResponseWriter, r *http.Request) {
 }
 
 type getViewRequest struct {
-	ViewID platform.ID
+	ViewID influxdb.ID
 }
 
 func decodeGetViewRequest(ctx context.Context, r *http.Request) (*getViewRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -257,20 +306,20 @@ func (h *ViewHandler) handleDeleteView(w http.ResponseWriter, r *http.Request) {
 }
 
 type deleteViewRequest struct {
-	ViewID platform.ID
+	ViewID influxdb.ID
 }
 
 func decodeDeleteViewRequest(ctx context.Context, r *http.Request) (*deleteViewRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -302,16 +351,16 @@ func (h *ViewHandler) handlePatchView(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchViewRequest struct {
-	ViewID platform.ID
-	Upd    platform.ViewUpdate
+	ViewID influxdb.ID
+	Upd    influxdb.ViewUpdate
 }
 
-func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewRequest, *platform.Error) {
+func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewRequest, *influxdb.Error) {
 	req := &patchViewRequest{}
-	upd := platform.ViewUpdate{}
+	upd := influxdb.ViewUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
@@ -321,15 +370,15 @@ func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewReq
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
@@ -337,7 +386,7 @@ func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewReq
 	req.ViewID = i
 
 	if err := req.Valid(); err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
@@ -346,10 +395,10 @@ func decodePatchViewRequest(ctx context.Context, r *http.Request) (*patchViewReq
 }
 
 // Valid validates that the view ID is non zero valued and update has expected values set.
-func (r *patchViewRequest) Valid() *platform.Error {
+func (r *patchViewRequest) Valid() *influxdb.Error {
 	if !r.ViewID.Valid() {
-		return &platform.Error{
-			Code: platform.EInvalid,
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "missing view ID",
 		}
 	}
