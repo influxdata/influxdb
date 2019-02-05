@@ -97,6 +97,10 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	return b.Table()
 }
 
+func (bd *BucketsDecoder) Close() error {
+	return nil
+}
+
 func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
 	_, ok := prSpec.(*influxdb.BucketsProcedureSpec)
 	if !ok {

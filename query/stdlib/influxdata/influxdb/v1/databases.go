@@ -78,7 +78,6 @@ func (bd *DatabasesDecoder) Connect() error {
 }
 
 func (bd *DatabasesDecoder) Fetch() (bool, error) {
-
 	b, _, err := bd.deps.DBRP.FindMany(bd.ctx, platform.DBRPMappingFilter{})
 	if err != nil {
 		return false, err
@@ -151,6 +150,10 @@ func (bd *DatabasesDecoder) Decode() (flux.Table, error) {
 	}
 
 	return b.Table()
+}
+
+func (bd *DatabasesDecoder) Close() error {
+	return nil
 }
 
 func createDatabasesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {

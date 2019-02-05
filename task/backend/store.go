@@ -14,7 +14,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/task/options"
 )
@@ -197,24 +196,26 @@ func (t *UpdateTaskRequest) UpdateFlux(oldFlux string) error {
 		return errors.New("cannot specify both every and cron")
 	}
 	if t.Name != "" || !t.IsZero() {
-		op := make(map[string]values.Value, 5)
+		op := make(map[string]ast.Expression, 5)
 		if t.Name != "" {
-			op["name"] = values.NewString(t.Name)
+			op["name"] = &ast.StringLiteral{Value: t.Name}
 		}
 		if t.Every != 0 {
-			op["every"] = values.NewDuration(values.Duration(t.Every))
+			d := ast.Duration{Magnitude: int64(t.Every), Unit: "ns"}
+			op["every"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
 		}
 		if t.Cron != "" {
-			op["cron"] = values.NewString(t.Cron)
+			op["cron"] = &ast.StringLiteral{Value: t.Cron}
 		}
 		if t.Offset != 0 {
-			op["offset"] = values.NewDuration(values.Duration(t.Offset))
+			d := ast.Duration{Magnitude: int64(t.Offset), Unit: "ns"}
+			op["offset"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
 		}
 		if t.Concurrency != 0 {
-			op["concurrency"] = values.NewInt(t.Concurrency)
+			op["concurrency"] = &ast.IntegerLiteral{Value: t.Concurrency}
 		}
 		if t.Retry != 0 {
-			op["retry"] = values.NewInt(t.Retry)
+			op["retry"] = &ast.IntegerLiteral{Value: t.Retry}
 		}
 		ok, err := edit.Option(parsed, "task", edit.OptionObjectFn(op))
 		if err != nil {
