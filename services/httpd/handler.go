@@ -1082,9 +1082,11 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	resp := &remote.ReadResponse{
 		Results: []*remote.QueryResult{{}},
 	}
+
 	if rs == nil {
 		respond(resp)
 		return
