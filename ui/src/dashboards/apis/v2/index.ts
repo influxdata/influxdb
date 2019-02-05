@@ -4,6 +4,7 @@ import _ from 'lodash'
 
 // Utils
 import {addLabelDefaults} from 'src/shared/utils/labels'
+import {incrementCloneName} from 'src/utils/naming'
 
 // Types
 
@@ -199,10 +200,23 @@ export const addCellUpdateView = async (
   return updateView(dashboard.id, createdCell.id, view)
 }
 
-export const cloneDashboard = async (dashboardToClone: Dashboard) => {
+export const cloneDashboard = async (
+  dashboardToClone: Dashboard,
+  dashboards: Dashboard[]
+) => {
+  const allDashboardNames = dashboards.map(d => d.name)
+
+  const clonedName = incrementCloneName(
+    allDashboardNames,
+    dashboardToClone.name
+  )
+
   const dashboardNoCells = _.omit(dashboardToClone, ['cells'])
 
-  const createdDashboard = await createDashboard(dashboardNoCells)
+  const createdDashboard = await createDashboard({
+    ...dashboardNoCells,
+    name: clonedName,
+  })
 
   const cells = dashboardToClone.cells
 

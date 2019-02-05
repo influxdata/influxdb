@@ -48,6 +48,19 @@ export const taskDeleteSuccess = (): Notification => ({
   message: 'Task was deleted successfully',
 })
 
+export const taskCloneSuccess = (taskName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully cloned task ${taskName}`,
+})
+
+export const taskCloneFailed = (
+  taskName: string,
+  additionalMessage: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to clone task ${taskName}: ${additionalMessage} `,
+})
+
 export const taskUpdateFailed = (additionalMessage: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to update task: ${additionalMessage}`,

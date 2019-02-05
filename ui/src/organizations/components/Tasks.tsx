@@ -58,6 +58,7 @@ export default class Tasks extends PureComponent<Props, State> {
               emptyState={this.emptyState}
               onDelete={this.handleDeleteTask}
               onUpdate={this.handleUpdateTask}
+              onClone={this.handleCloneTask}
             />
           )}
         </FilterList>
@@ -102,6 +103,11 @@ export default class Tasks extends PureComponent<Props, State> {
 
   private handleDeleteTask = async (taskID: string) => {
     await client.tasks.delete(taskID)
+    this.props.onChange()
+  }
+
+  private handleCloneTask = async (task: Task) => {
+    await client.tasks.create(task.orgID, task.flux)
     this.props.onChange()
   }
 }

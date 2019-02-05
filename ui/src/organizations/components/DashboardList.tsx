@@ -58,14 +58,17 @@ class DashboardList extends PureComponent<Props> {
   private handleCloneDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
-    const {router, notify, orgID} = this.props
+    const {router, notify, orgID, dashboards} = this.props
     const name = `${dashboard.name} (clone)`
     try {
-      const data = await cloneDashboard({
-        ...dashboard,
-        name,
-        orgID,
-      })
+      const data = await cloneDashboard(
+        {
+          ...dashboard,
+          name,
+          orgID,
+        },
+        dashboards
+      )
 
       router.push(`/dashboards/${data.id}`)
     } catch (error) {

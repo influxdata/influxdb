@@ -13,6 +13,7 @@ interface Props {
   emptyState: JSX.Element
   onDelete: (taskID: string) => void
   onUpdate: (task: Task) => void
+  onClone: (task: Task) => void
 }
 
 export default class TaskList extends PureComponent<Props> {
@@ -32,13 +33,14 @@ export default class TaskList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    const {tasks, onDelete, onUpdate} = this.props
+    const {tasks, onDelete, onClone, onUpdate} = this.props
     return tasks.map(task => (
       <TaskRow
         key={task.id}
         task={task}
         onDelete={onDelete}
         onUpdate={onUpdate}
+        onClone={onClone}
       />
     ))
   }
