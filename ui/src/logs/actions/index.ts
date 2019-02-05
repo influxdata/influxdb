@@ -11,7 +11,7 @@ import {
 } from 'src/logs/utils/logQuery'
 
 // APIs
-import {readSource} from 'src/sources/apis'
+import {client} from 'src/utils/api'
 import {executeQueryAsync} from 'src/logs/api/v2'
 
 // Data
@@ -301,7 +301,7 @@ export const populateBucketsAsync = () => async (): Promise<void> => {}
 export const getSourceAndPopulateBucketsAsync = (id: string) => async (
   dispatch
 ): Promise<void> => {
-  const source = await readSource(id)
+  const source = await client.sources.get(id)
 
   dispatch(setSource(source))
 

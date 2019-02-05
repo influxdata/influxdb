@@ -8,7 +8,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {client} from 'src/utils/api'
 
 // Types
-import {SetupParams} from 'src/onboarding/apis'
+import {ISetupParams} from '@influxdata/influx'
 
 export type Action =
   | SetSetupParams
@@ -18,10 +18,10 @@ export type Action =
 
 interface SetSetupParams {
   type: 'SET_SETUP_PARAMS'
-  payload: {setupParams: SetupParams}
+  payload: {setupParams: ISetupParams}
 }
 
-export const setSetupParams = (setupParams: SetupParams): SetSetupParams => ({
+export const setSetupParams = (setupParams: ISetupParams): SetSetupParams => ({
   type: 'SET_SETUP_PARAMS',
   payload: {setupParams},
 })
@@ -62,7 +62,7 @@ export const setBucketID = (bucketID: string): SetBucketID => ({
   payload: {bucketID},
 })
 
-export const setupAdmin = (params: SetupParams) => async dispatch => {
+export const setupAdmin = (params: ISetupParams) => async dispatch => {
   try {
     dispatch(setSetupParams(params))
     const response = await client.setup.create(params)
