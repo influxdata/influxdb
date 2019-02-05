@@ -1,0 +1,27 @@
+package gen
+
+import (
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+)
+
+{{range .}}
+{{ $typename := print .name "Array" }}
+{{ $tsdbname := print .Name "Array" }}
+type {{$typename}} struct {
+	tsdb.{{$tsdbname}}
+}
+
+func new{{$tsdbname}}Len(sz int) *{{$typename}} {
+	return &{{$typename}}{
+		{{$tsdbname}}: tsdb.{{$tsdbname}}{
+			Timestamps: make([]int64, sz),
+			Values: make([]{{.Type}}, sz),
+		},
+	}
+}
+
+func (a *{{$typename}}) Encode(b []byte) ([]byte, error) {
+	return tsm1.Encode{{$tsdbname}}Block(&a.{{$tsdbname}}, b)
+}
+{{end}}

@@ -6,15 +6,16 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math"
 	"os"
+	"strings"
+	"text/template"
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/generate"
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/profile"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
+	"github.com/influxdata/influxdb/pkg/data/gen"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/platform/pkg/data/gen"
 )
 
 // Command represents the program execution for "store query".
@@ -28,14 +29,17 @@ type Command struct {
 
 	configPath  string
 	printOnly   bool
+	example     bool
 	noTSI       bool
 	concurrency int
-	spec        generate.Spec
+	schemaPath  string
+	storageSpec generate.StorageSpec
+	schemaSpec  generate.SchemaSpec
 
 	profile profile.Config
 }
 
-type SeriesGeneratorFilter func(sgi meta.ShardGroupInfo, g SeriesGenerator) SeriesGenerator
+type SeriesGeneratorFilter func(sgi meta.ShardGroupInfo, g gen.SeriesGenerator) gen.SeriesGenerator
 
 type Dependencies struct {
 	Server server.Interface
@@ -62,73 +66,121 @@ func (cmd *Command) Run(args []string) (err error) {
 		return err
 	}
 
+	if cmd.example {
+		return cmd.printExample()
+	}
+
 	err = cmd.server.Open(cmd.configPath)
 	if err != nil {
 		return err
 	}
 
-	plan, err := cmd.spec.Plan(cmd.server)
+	storagePlan, err := cmd.storageSpec.Plan(cmd.server)
 	if err != nil {
 		return err
 	}
 
-	plan.PrintPlan(cmd.Stdout)
+	storagePlan.PrintPlan(cmd.Stdout)
+
+	var spec *gen.Spec
+	if cmd.schemaPath != "" {
+		var err error
+		spec, err = gen.NewSpecFromPath(cmd.schemaPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		schemaPlan, err := cmd.schemaSpec.Plan(storagePlan)
+		if err != nil {
+			return err
+		}
+
+		schemaPlan.PrintPlan(cmd.Stdout)
+		spec = cmd.planToSpec(schemaPlan)
+	}
 
 	if cmd.printOnly {
 		return nil
 	}
 
-	if err = plan.InitFileSystem(cmd.server.MetaClient()); err != nil {
+	if err = storagePlan.InitFileSystem(cmd.server.MetaClient()); err != nil {
 		return err
 	}
 
-	return cmd.exec(plan)
+	return cmd.exec(storagePlan, spec)
 }
 
 func (cmd *Command) parseFlags(args []string) error {
 	fs := flag.NewFlagSet("gen-init", flag.ContinueOnError)
 	fs.StringVar(&cmd.configPath, "config", "", "Config file")
+	fs.StringVar(&cmd.schemaPath, "schema", "", "Schema TOML file")
 	fs.BoolVar(&cmd.printOnly, "print", false, "Print data spec only")
 	fs.BoolVar(&cmd.noTSI, "no-tsi", false, "Skip building TSI index")
+	fs.BoolVar(&cmd.example, "example", false, "Print an example toml schema to STDOUT")
 	fs.IntVar(&cmd.concurrency, "c", 1, "Number of shards to generate concurrently")
 	fs.StringVar(&cmd.profile.CPU, "cpuprofile", "", "Collect a CPU profile")
 	fs.StringVar(&cmd.profile.Memory, "memprofile", "", "Collect a memory profile")
-	cmd.spec.AddFlags(fs)
+	cmd.storageSpec.AddFlags(fs)
+	cmd.schemaSpec.AddFlags(fs)
 
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	if cmd.spec.Database == "" {
+	if cmd.example {
+		return nil
+	}
+
+	if cmd.storageSpec.Database == "" {
 		return errors.New("database is required")
 	}
 
-	if cmd.spec.Retention == "" {
+	if cmd.storageSpec.Retention == "" {
 		return errors.New("retention policy is required")
 	}
 
 	return nil
 }
 
-func (cmd *Command) exec(p *generate.Plan) error {
-	groups := p.ShardGroups()
-	gens := make([]SeriesGenerator, len(groups))
+var (
+	tomlSchema = template.Must(template.New("schema").Parse(`
+title = "CLI schema"
+
+[[measurements]]
+name = "m0"
+sample = 1.0
+tags = [
+{{- range $i, $e := .Tags }}
+	{ name = "tag{{$i}}", source = { type = "sequence", format = "value%s", start = 0, count = {{$e}} } },{{ end }}
+]
+fields = [
+	{ name = "v0", count = {{ .PointsPerSeriesPerShard }}, source = 1.0 },
+]`))
+)
+
+func (cmd *Command) planToSpec(p *generate.SchemaPlan) *gen.Spec {
+	var sb strings.Builder
+	if err := tomlSchema.Execute(&sb, p); err != nil {
+		panic(err)
+	}
+
+	spec, err := gen.NewSpecFromToml(sb.String())
+	if err != nil {
+		panic(err)
+	}
+	return spec
+}
+
+func (cmd *Command) exec(storagePlan *generate.StoragePlan, spec *gen.Spec) error {
+	groups := storagePlan.ShardGroups()
+	gens := make([]gen.SeriesGenerator, len(groups))
 	for i := range gens {
-		var (
-			name []byte
-			keys []string
-			tv   []gen.CountableSequence
-		)
-
-		name = []byte("m0")
-		tv = make([]gen.CountableSequence, len(p.Tags))
-		setTagVals(p.Tags, tv)
-		keys = make([]string, len(p.Tags))
-		setTagKeys("tag", keys)
-
 		sgi := groups[i]
-		vg := gen.NewIntegerConstantValuesSequence(p.PointsPerSeriesPerShard, sgi.StartTime, p.ShardDuration/time.Duration(p.PointsPerSeriesPerShard), 1)
-		gens[i] = NewSeriesGenerator(name, []byte("v0"), vg, gen.NewTagsValuesSequenceKeysValues(keys, tv))
+		tr := gen.TimeRange{
+			Start: sgi.StartTime,
+			End:   sgi.EndTime,
+		}
+		gens[i] = gen.NewSeriesGeneratorFromSpec(spec, tr)
 		if cmd.filter != nil {
 			gens[i] = cmd.filter(sgi, gens[i])
 		}
@@ -145,19 +197,136 @@ func (cmd *Command) exec(p *generate.Plan) error {
 	}()
 
 	g := Generator{Concurrency: cmd.concurrency, BuildTSI: !cmd.noTSI}
-	return g.Run(context.Background(), p.Database, p.ShardPath(), p.NodeShardGroups(), gens)
+	return g.Run(context.Background(), storagePlan.Database, storagePlan.ShardPath(), storagePlan.NodeShardGroups(), gens)
 }
 
-func setTagVals(tags []int, tv []gen.CountableSequence) {
-	for j := range tags {
-		tv[j] = gen.NewCounterByteSequenceCount(tags[j])
-	}
-}
+const exampleSchema = `title = "CLI schema"
 
-func setTagKeys(prefix string, keys []string) {
-	tw := int(math.Ceil(math.Log10(float64(len(keys)))))
-	tf := fmt.Sprintf("%s%%0%dd", prefix, tw)
-	for i := range keys {
-		keys[i] = fmt.Sprintf(tf, i)
-	}
+# limit the maximum number of series generated across all measurements
+#
+# series-limit: integer, optional (default: unlimited)
+# multiple measurements are merged together
+[[measurements]]
+# name of measurement
+
+name = "cpu"
+
+# sample: float; where 0 < sample ≤ 1.0 (default: 0.5)
+#   sample a subset of the tag set
+#
+# sample 25% of the tags
+#
+# sample = 0.25
+
+# Keys for defining a tag
+#
+# name: string, required
+#   Name of field
+#
+# source: array<string> or object
+# 
+#   A literal array of string values defines the tag values.
+#
+#   An object defines more complex generators. The type key determines the
+#   type of generator.
+#
+# source types:
+#
+# type: "sequence" 
+#   generate a sequence of tag values
+#
+#       format: string
+#           a format string for the values (default: "value%s")
+#       start: int (default: 0)
+#           beginning value 
+#       count: int, required
+#           ending value
+#
+# type: "file"
+#   generate a sequence of tag values from a file source.
+#   The data in the file is sorted, deduplicated and verified is valid UTF-8
+#
+#       path: string
+#           absolute path or relative path to current toml file
+tags = [
+    # example sequence tag source. The range of values are automatically prefixed with 0s
+    # to ensure correct sort behavior.
+    { name = "host",   source = { type = "sequence", format = "host-%s", start = 0, count = 5 } },
+
+    # tags can also be sourced from a file. The path is relative to the schema.toml.
+    # Each value must be on a new line. The file is also sorted, validated for UTF-8 and deduplicated.
+    # { name = "region", source = { type = "file", path = "files/regions.txt" } },
+
+    # Example string array source, which is also deduplicated and sorted
+    { name = "region", source = ["us-west-01","us-west-02","us-east"] },
+]
+
+# Keys for defining a field
+#
+# name: string, required
+#   Name of field
+#
+# count: int, required
+#   Number of values to generate. When multiple fields have the same 
+#   count, they will share timestamps.
+#
+# time-precision: string (default: ms)
+#   The precision for generated timestamps. 
+#   One of ns, us, ms, s, m, h
+#
+# source: int, float, boolean, string, array or object
+# 
+#   A literal int, float, boolean or string will produce 
+#   a constant value of the same data type.
+#
+#   A literal array of homogeneous values will generate a repeating 
+#   sequence.
+#
+#   An object defines more complex generators. The type key determines the
+#   type of generator.
+#
+# source types:
+#
+# type: "rand<float>" 
+#   generate random float values
+#       seed: seed to random number generator (default: 0)
+#       min:  minimum value (default: 0.0)
+#       max:  maximum value (default: 1.0)
+#
+# type: "zipf<integer>" 
+#   generate random integer values using a Zipf distribution
+#   The generator generates values k ∈ [0, imax] such that P(k) 
+#   is proportional to (v + k) ** (-s). Requirements: s > 1 and v ≥ 1.
+#   See https://golang.org/pkg/math/rand/#NewZipf for more information.
+#
+#       seed: seed to random number generator (default: 0)
+#       s:    float > 1 (required)
+#       v:    float ≥ 1 (required)
+#       imax: integer (required)
+#
+fields = [
+    # Example constant float
+    { name = "system", count = 5000, source = 2.5 },
+    
+    # Example random floats
+    { name = "user",   count = 5000, source = { type = "rand<float>", seed = 10, min = 0.0, max = 1.0 } },
+]
+
+# Multiple measurements may be defined.
+[[measurements]]
+name = "mem"
+tags = [
+    { name = "host",   source = { type = "sequence", format = "host-%s", start = 0, count = 5 } },
+    { name = "region", source = ["us-west-01","us-west-02","us-east"] },
+]
+fields = [
+    # An example of a sequence of integer values
+    { name = "free", count = 17, source = [10,15,20,25,30,35,30], time-precision = "ms" },
+    { name = "low_mem", count = 17, source = [false,true,true], time-precision = "ms" },
+]
+`
+
+func (cmd *Command) printExample() error {
+	fmt.Fprint(cmd.Stdout, exampleSchema)
+	return nil
 }
