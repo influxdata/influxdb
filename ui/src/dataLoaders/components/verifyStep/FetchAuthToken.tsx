@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Spinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Apis
@@ -44,9 +44,12 @@ class FetchAuthToken extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <Spinner loading={this.state.loading}>
+      <SpinnerContainer
+        loading={this.state.loading}
+        spinnerComponent={<TechnoSpinner />}
+      >
         {this.props.children(this.state.authToken)}
-      </Spinner>
+      </SpinnerContainer>
     )
   }
 }

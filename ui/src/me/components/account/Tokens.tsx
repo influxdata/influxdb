@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {IconFont, Input, Spinner} from 'src/clockface'
+import {IconFont, Input, SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import TokenList from 'src/me/components/account/TokensList'
 import FilterList from 'src/shared/components/Filter'
@@ -59,7 +59,10 @@ export class Tokens extends PureComponent<Props, State> {
         </TabbedPageHeader>
         <ResourceFetcher<Authorization[]> fetcher={getAuthorizations}>
           {(fetchedAuths, loading) => (
-            <Spinner loading={loading}>
+            <SpinnerContainer
+              loading={loading}
+              spinnerComponent={<TechnoSpinner />}
+            >
               <FilterList<Authorization>
                 list={fetchedAuths}
                 searchTerm={searchTerm}
@@ -73,7 +76,7 @@ export class Tokens extends PureComponent<Props, State> {
                   />
                 )}
               </FilterList>
-            </Spinner>
+            </SpinnerContainer>
           )}
         </ResourceFetcher>
       </>
