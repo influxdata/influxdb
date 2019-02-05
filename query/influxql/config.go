@@ -8,6 +8,6 @@ import (
 type Config struct {
 	DefaultDatabase        string
 	DefaultRetentionPolicy string
-	NowFn                  func() time.Time
+	Now                    time.Time
 	Cluster                string
 }
