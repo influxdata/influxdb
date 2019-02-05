@@ -54,7 +54,7 @@ c.end = end
 	})
 }
 
-func (c *{{$type}}) Err() error        { return nil }
+func (c *{{$type}}) Err() error { return nil }
 
 // close closes the cursor and any dependent cursors.
 func (c *{{$type}}) Close() {
@@ -82,12 +82,12 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).value
+			c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).RawValue()
 			c.cache.pos++
 			c.tsm.pos++
 		} else if ckey < tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).value
+			c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).RawValue()
 			c.cache.pos++
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -125,7 +125,7 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos < len(cvals) {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).value
+				c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).RawValue()
 				pos++
 				c.cache.pos++
 			}
@@ -228,7 +228,7 @@ func (c *{{$type}}) reset(seek, end int64, cacheValues Values, tsmKeyCursor *Key
 	}
 }
 
-func (c *{{$type}}) Err() error        { return nil }
+func (c *{{$type}}) Err() error { return nil }
 
 func (c *{{$type}}) Close() {
 	if c.tsm.keyCursor != nil {
@@ -254,12 +254,12 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).value
+			c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).RawValue()
 			c.cache.pos--
 			c.tsm.pos--
 		} else if ckey > tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).value
+			c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).RawValue()
 			c.cache.pos--
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -292,7 +292,7 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos >= 0 {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).value
+				c.res.Values[pos] = cvals[c.cache.pos].({{.Name}}Value).RawValue()
 				pos++
 				c.cache.pos--
 			}

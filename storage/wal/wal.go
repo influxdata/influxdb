@@ -1,8 +1,7 @@
-package tsm1
+package wal
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -18,28 +17,13 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/pool"
+	"github.com/influxdata/influxdb/tsdb/value"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
-
-// Log describes an interface for a durable disk-based log.
-type Log interface {
-	Open() error
-	Close() error
-	Path() string
-
-	LastWriteTime() time.Time
-	DiskSizeBytes() int64
-
-	WriteMulti(values map[string][]Value) (int, error)
-	DeleteRange(keys [][]byte, min, max int64) (int, error)
-
-	CloseSegment() error
-	ClosedSegments() ([]string, error)
-	Remove(files []string) error
-}
 
 const (
 	// DefaultSegmentSize of 10MB is the size at which segment files will be rolled over.
@@ -68,11 +52,14 @@ const (
 	// WriteWALEntryType indicates a write entry.
 	WriteWALEntryType WalEntryType = 0x01
 
-	// DeleteWALEntryType indicates a delete entry.
-	DeleteWALEntryType WalEntryType = 0x02
+	// DeleteWALEntryType indicates a delete entry. Deprecated.
+	_ WalEntryType = 0x02
 
-	// DeleteRangeWALEntryType indicates a delete range entry.
-	DeleteRangeWALEntryType WalEntryType = 0x03
+	// DeleteRangeWALEntryType indicates a delete range entry. Deprecated.
+	_ WalEntryType = 0x03
+
+	// DeleteBucketRangeWALEntryType indicates a delete bucket range entry.
+	DeleteBucketRangeWALEntryType WalEntryType = 0x04
 )
 
 var (
@@ -97,7 +84,8 @@ type WAL struct {
 	mu            sync.RWMutex
 	lastWriteTime time.Time
 
-	path string
+	path    string
+	enabled bool
 
 	// write variables
 	currentSegmentID     int
@@ -120,7 +108,9 @@ type WAL struct {
 	// SegmentSize is the file size at which a segment file will be rotated
 	SegmentSize int
 
-	tracker *walTracker
+	tracker             *walTracker
+	defaultMetricLabels prometheus.Labels // N.B this must not be mutated after Open is called.
+
 	limiter limiter.Fixed
 }
 
@@ -128,7 +118,8 @@ type WAL struct {
 func NewWAL(path string) *WAL {
 	logger := zap.NewNop()
 	return &WAL{
-		path: path,
+		path:    path,
+		enabled: true,
 
 		// these options should be overriden by any options in the config
 		SegmentSize: DefaultSegmentSize,
@@ -137,7 +128,6 @@ func NewWAL(path string) *WAL {
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
 		traceLogger: logger,
-		tracker:     newWALTracker(newWALMetrics(nil), nil),
 	}
 }
 
@@ -154,12 +144,26 @@ func (l *WAL) WithFsyncDelay(delay time.Duration) {
 	l.syncDelay = delay
 }
 
+// SetEnabled sets if the WAL is enabled and should be called before the WAL is opened.
+func (l *WAL) SetEnabled(enabled bool) {
+	l.enabled = enabled
+}
+
 // WithLogger sets the WAL's logger.
 func (l *WAL) WithLogger(log *zap.Logger) {
 	l.logger = log.With(zap.String("service", "wal"))
 
 	if l.traceLogging {
 		l.traceLogger = l.logger
+	}
+}
+
+// SetDefaultMetricLabels sets the default labels for metrics on the engine.
+// It must be called before the Engine is opened.
+func (l *WAL) SetDefaultMetricLabels(labels prometheus.Labels) {
+	l.defaultMetricLabels = make(prometheus.Labels, len(labels))
+	for k, v := range labels {
+		l.defaultMetricLabels[k] = v
 	}
 }
 
@@ -175,6 +179,20 @@ func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if !l.enabled {
+		return nil
+	}
+
+	// Initialise metrics for trackers.
+	mmu.Lock()
+	if wms == nil {
+		wms = newWALMetrics(l.defaultMetricLabels)
+	}
+	mmu.Unlock()
+
+	// Set the shared metrics for the tracker
+	l.tracker = newWALTracker(wms, l.defaultMetricLabels)
+
 	l.traceLogger.Info("tsm1 WAL starting", zap.Int("segment_size", l.SegmentSize))
 	l.traceLogger.Info("tsm1 WAL writing", zap.String("path", l.path))
 
@@ -182,7 +200,7 @@ func (l *WAL) Open() error {
 		return err
 	}
 
-	segments, err := segmentFileNames(l.path)
+	segments, err := SegmentFileNames(l.path)
 	if err != nil {
 		return err
 	}
@@ -299,8 +317,12 @@ func (l *WAL) sync() {
 
 // WriteMulti writes the given values to the WAL. It returns the WAL segment ID to
 // which the points were written. If an error is returned the segment ID should
-// be ignored.
-func (l *WAL) WriteMulti(values map[string][]Value) (int, error) {
+// be ignored. If the WAL is disabled, -1 and nil is returned.
+func (l *WAL) WriteMulti(values map[string][]value.Value) (int, error) {
+	if !l.enabled {
+		return -1, nil
+	}
+
 	entry := &WriteWALEntry{
 		Values: values,
 	}
@@ -317,8 +339,13 @@ func (l *WAL) WriteMulti(values map[string][]Value) (int, error) {
 
 // ClosedSegments returns a slice of the names of the closed segment files.
 func (l *WAL) ClosedSegments() ([]string, error) {
+	if !l.enabled {
+		return nil, nil
+	}
+
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+
 	// Not loading files from disk so nothing to do
 	if l.path == "" {
 		return nil, nil
@@ -329,7 +356,7 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 		currentFile = l.currentSegmentWriter.path()
 	}
 
-	files, err := segmentFileNames(l.path)
+	files, err := SegmentFileNames(l.path)
 	if err != nil {
 		return nil, err
 	}
@@ -349,15 +376,20 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 
 // Remove deletes the given segment file paths from disk and cleans up any associated objects.
 func (l *WAL) Remove(files []string) error {
+	if !l.enabled {
+		return nil
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	for _, fn := range files {
 		l.traceLogger.Info("Removing WAL file", zap.String("path", fn))
 		os.RemoveAll(fn)
 	}
 
 	// Refresh the on-disk size stats
-	segments, err := segmentFileNames(l.path)
+	segments, err := SegmentFileNames(l.path)
 	if err != nil {
 		return err
 	}
@@ -470,8 +502,13 @@ func (l *WAL) rollSegment() error {
 
 // CloseSegment closes the current segment if it is non-empty and opens a new one.
 func (l *WAL) CloseSegment() error {
+	if !l.enabled {
+		return nil
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	if l.currentSegmentWriter == nil || l.currentSegmentWriter.size > 0 {
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight
@@ -483,32 +520,18 @@ func (l *WAL) CloseSegment() error {
 	return nil
 }
 
-// Delete deletes the given keys, returning the segment ID for the operation.
-func (l *WAL) Delete(keys [][]byte) (int, error) {
-	if len(keys) == 0 {
-		return 0, nil
-	}
-	entry := &DeleteWALEntry{
-		Keys: keys,
+// DeleteBucketRange deletes the data inside of the bucket between the two times, returning
+// the segment ID for the operation.
+func (l *WAL) DeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) (int, error) {
+	if !l.enabled {
+		return -1, nil
 	}
 
-	id, err := l.writeToLog(entry)
-	if err != nil {
-		return -1, err
-	}
-	return id, nil
-}
-
-// DeleteRange deletes the given keys within the given time range,
-// returning the segment ID for the operation.
-func (l *WAL) DeleteRange(keys [][]byte, min, max int64) (int, error) {
-	if len(keys) == 0 {
-		return 0, nil
-	}
-	entry := &DeleteRangeWALEntry{
-		Keys: keys,
-		Min:  min,
-		Max:  max,
+	entry := &DeleteBucketRangeWALEntry{
+		OrgID:    orgID,
+		BucketID: bucketID,
+		Min:      min,
+		Max:      max,
 	}
 
 	id, err := l.writeToLog(entry)
@@ -522,6 +545,10 @@ func (l *WAL) DeleteRange(keys [][]byte, min, max int64) (int, error) {
 func (l *WAL) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if !l.enabled {
+		return nil
+	}
 
 	l.once.Do(func() {
 		// Close, but don't set to nil so future goroutines can still be signaled
@@ -538,8 +565,8 @@ func (l *WAL) Close() error {
 	return nil
 }
 
-// segmentFileNames will return all files that are WAL segment files in sorted order by ascending ID.
-func segmentFileNames(dir string) ([]string, error) {
+// SegmentFileNames will return all files that are WAL segment files in sorted order by ascending ID.
+func SegmentFileNames(dir string) ([]string, error) {
 	names, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("%s*.%s", WALFilePrefix, WALFileExtension)))
 	if err != nil {
 		return nil, err
@@ -666,10 +693,11 @@ type WALEntry interface {
 
 // WriteWALEntry represents a write of points.
 type WriteWALEntry struct {
-	Values map[string][]Value
+	Values map[string][]value.Value
 	sz     int
 }
 
+// MarshalSize returns the number of bytes the entry takes when marshaled.
 func (w *WriteWALEntry) MarshalSize() int {
 	if w.sz > 0 || len(w.Values) == 0 {
 		return w.sz
@@ -687,17 +715,17 @@ func (w *WriteWALEntry) MarshalSize() int {
 		encLen += 8 * len(v) // timestamps (8)
 
 		switch v[0].(type) {
-		case FloatValue, IntegerValue, UnsignedValue:
+		case value.FloatValue, value.IntegerValue, value.UnsignedValue:
 			encLen += 8 * len(v)
-		case BooleanValue:
+		case value.BooleanValue:
 			encLen += 1 * len(v)
-		case StringValue:
+		case value.StringValue:
 			for _, vv := range v {
-				str, ok := vv.(StringValue)
+				str, ok := vv.(value.StringValue)
 				if !ok {
 					return 0
 				}
-				encLen += 4 + len(str.value)
+				encLen += 4 + len(str.RawValue())
 			}
 		default:
 			return 0
@@ -746,15 +774,15 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 
 	for k, v := range w.Values {
 		switch v[0].(type) {
-		case FloatValue:
+		case value.FloatValue:
 			curType = float64EntryType
-		case IntegerValue:
+		case value.IntegerValue:
 			curType = integerEntryType
-		case UnsignedValue:
+		case value.UnsignedValue:
 			curType = unsignedEntryType
-		case BooleanValue:
+		case value.BooleanValue:
 			curType = booleanEntryType
-		case StringValue:
+		case value.StringValue:
 			curType = stringEntryType
 		default:
 			return nil, fmt.Errorf("unsupported value type: %T", v[0])
@@ -774,41 +802,41 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 			n += 8
 
 			switch vv := vv.(type) {
-			case FloatValue:
+			case value.FloatValue:
 				if curType != float64EntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				binary.BigEndian.PutUint64(dst[n:n+8], math.Float64bits(vv.value))
+				binary.BigEndian.PutUint64(dst[n:n+8], math.Float64bits(vv.RawValue()))
 				n += 8
-			case IntegerValue:
+			case value.IntegerValue:
 				if curType != integerEntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.value))
+				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.RawValue()))
 				n += 8
-			case UnsignedValue:
+			case value.UnsignedValue:
 				if curType != unsignedEntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.value))
+				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.RawValue()))
 				n += 8
-			case BooleanValue:
+			case value.BooleanValue:
 				if curType != booleanEntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				if vv.value {
+				if vv.RawValue() {
 					dst[n] = 1
 				} else {
 					dst[n] = 0
 				}
 				n++
-			case StringValue:
+			case value.StringValue:
 				if curType != stringEntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				binary.BigEndian.PutUint32(dst[n:n+4], uint32(len(vv.value)))
+				binary.BigEndian.PutUint32(dst[n:n+4], uint32(len(vv.RawValue())))
 				n += 4
-				n += copy(dst[n:], vv.value)
+				n += copy(dst[n:], vv.RawValue())
 			default:
 				return nil, fmt.Errorf("unsupported value found in %T slice: %T", v[0].Value(), vv)
 			}
@@ -863,13 +891,13 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				return ErrWALCorrupt
 			}
 
-			values := make([]Value, 0, nvals)
+			values := make([]value.Value, 0, nvals)
 			for j := 0; j < nvals; j++ {
 				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 				v := math.Float64frombits((binary.BigEndian.Uint64(b[i : i+8])))
 				i += 8
-				values = append(values, NewFloatValue(un, v))
+				values = append(values, value.NewFloatValue(un, v))
 			}
 			w.Values[k] = values
 		case integerEntryType:
@@ -877,13 +905,13 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				return ErrWALCorrupt
 			}
 
-			values := make([]Value, 0, nvals)
+			values := make([]value.Value, 0, nvals)
 			for j := 0; j < nvals; j++ {
 				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 				v := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
-				values = append(values, NewIntegerValue(un, v))
+				values = append(values, value.NewIntegerValue(un, v))
 			}
 			w.Values[k] = values
 
@@ -892,13 +920,13 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				return ErrWALCorrupt
 			}
 
-			values := make([]Value, 0, nvals)
+			values := make([]value.Value, 0, nvals)
 			for j := 0; j < nvals; j++ {
 				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 				v := binary.BigEndian.Uint64(b[i : i+8])
 				i += 8
-				values = append(values, NewUnsignedValue(un, v))
+				values = append(values, value.NewUnsignedValue(un, v))
 			}
 			w.Values[k] = values
 
@@ -907,7 +935,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				return ErrWALCorrupt
 			}
 
-			values := make([]Value, 0, nvals)
+			values := make([]value.Value, 0, nvals)
 			for j := 0; j < nvals; j++ {
 				un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
@@ -915,15 +943,15 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				v := b[i]
 				i += 1
 				if v == 1 {
-					values = append(values, NewBooleanValue(un, true))
+					values = append(values, value.NewBooleanValue(un, true))
 				} else {
-					values = append(values, NewBooleanValue(un, false))
+					values = append(values, value.NewBooleanValue(un, false))
 				}
 			}
 			w.Values[k] = values
 
 		case stringEntryType:
-			values := make([]Value, 0, nvals)
+			values := make([]value.Value, 0, nvals)
 			for j := 0; j < nvals; j++ {
 				if i+12 > len(b) {
 					return ErrWALCorrupt
@@ -945,7 +973,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := string(b[i : i+length])
 				i += length
-				values = append(values, NewStringValue(un, v))
+				values = append(values, value.NewStringValue(un, v))
 			}
 			w.Values[k] = values
 
@@ -961,152 +989,70 @@ func (w *WriteWALEntry) Type() WalEntryType {
 	return WriteWALEntryType
 }
 
-// DeleteWALEntry represents the deletion of multiple series.
-type DeleteWALEntry struct {
-	Keys [][]byte
-	sz   int
-}
-
-// MarshalBinary returns a binary representation of the entry in a new byte slice.
-func (w *DeleteWALEntry) MarshalBinary() ([]byte, error) {
-	b := make([]byte, w.MarshalSize())
-	return w.Encode(b)
-}
-
-// UnmarshalBinary deserializes the byte slice into w.
-func (w *DeleteWALEntry) UnmarshalBinary(b []byte) error {
-	if len(b) == 0 {
-		return nil
-	}
-
-	// b originates from a pool. Copy what needs to be retained.
-	buf := make([]byte, len(b))
-	copy(buf, b)
-	w.Keys = bytes.Split(buf, []byte("\n"))
-	return nil
-}
-
-func (w *DeleteWALEntry) MarshalSize() int {
-	if w.sz > 0 || len(w.Keys) == 0 {
-		return w.sz
-	}
-
-	encLen := len(w.Keys) // newlines
-	for _, k := range w.Keys {
-		encLen += len(k)
-	}
-
-	w.sz = encLen
-
-	return encLen
-}
-
-// Encode converts the DeleteWALEntry into a byte slice, appending to dst.
-func (w *DeleteWALEntry) Encode(dst []byte) ([]byte, error) {
-	sz := w.MarshalSize()
-
-	if len(dst) < sz {
-		dst = make([]byte, sz)
-	}
-
-	var n int
-	for _, k := range w.Keys {
-		n += copy(dst[n:], k)
-		n += copy(dst[n:], "\n")
-	}
-
-	// We return n-1 to strip off the last newline so that unmarshalling the value
-	// does not produce an empty string
-	return []byte(dst[:n-1]), nil
-}
-
-// Type returns DeleteWALEntryType.
-func (w *DeleteWALEntry) Type() WalEntryType {
-	return DeleteWALEntryType
-}
-
-// DeleteRangeWALEntry represents the deletion of multiple series.
-type DeleteRangeWALEntry struct {
-	Keys     [][]byte
+// DeleteBucketRangeWALEntry represents the deletion of data in a bucket.
+type DeleteBucketRangeWALEntry struct {
+	OrgID    influxdb.ID
+	BucketID influxdb.ID
 	Min, Max int64
-	sz       int
 }
 
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
-func (w *DeleteRangeWALEntry) MarshalBinary() ([]byte, error) {
+func (w *DeleteBucketRangeWALEntry) MarshalBinary() ([]byte, error) {
 	b := make([]byte, w.MarshalSize())
 	return w.Encode(b)
 }
 
 // UnmarshalBinary deserializes the byte slice into w.
-func (w *DeleteRangeWALEntry) UnmarshalBinary(b []byte) error {
-	if len(b) < 16 {
+func (w *DeleteBucketRangeWALEntry) UnmarshalBinary(b []byte) error {
+	if len(b) != 2*influxdb.IDLength+16 {
 		return ErrWALCorrupt
 	}
 
-	w.Min = int64(binary.BigEndian.Uint64(b[:8]))
-	w.Max = int64(binary.BigEndian.Uint64(b[8:16]))
-
-	i := 16
-	for i < len(b) {
-		if i+4 > len(b) {
-			return ErrWALCorrupt
-		}
-		sz := int(binary.BigEndian.Uint32(b[i : i+4]))
-		i += 4
-
-		if i+sz > len(b) {
-			return ErrWALCorrupt
-		}
-
-		// b originates from a pool. Copy what needs to be retained.
-		buf := make([]byte, sz)
-		copy(buf, b[i:i+sz])
-		w.Keys = append(w.Keys, buf)
-		i += sz
+	if err := w.OrgID.Decode(b[0:influxdb.IDLength]); err != nil {
+		return err
 	}
+	if err := w.BucketID.Decode(b[influxdb.IDLength : 2*influxdb.IDLength]); err != nil {
+		return err
+	}
+	w.Min = int64(binary.BigEndian.Uint64(b[2*influxdb.IDLength : 2*influxdb.IDLength+8]))
+	w.Max = int64(binary.BigEndian.Uint64(b[2*influxdb.IDLength+8 : 2*influxdb.IDLength+16]))
+
 	return nil
 }
 
-func (w *DeleteRangeWALEntry) MarshalSize() int {
-	if w.sz > 0 {
-		return w.sz
-	}
-
-	sz := 16 + len(w.Keys)*4
-	for _, k := range w.Keys {
-		sz += len(k)
-	}
-
-	w.sz = sz
-
-	return sz
+// MarshalSize returns the number of bytes the entry takes when marshaled.
+func (w *DeleteBucketRangeWALEntry) MarshalSize() int {
+	return 2*influxdb.IDLength + 16
 }
 
-// Encode converts the DeleteRangeWALEntry into a byte slice, appending to b.
-func (w *DeleteRangeWALEntry) Encode(b []byte) ([]byte, error) {
+// Encode converts the entry into a byte stream using b if it is large enough.
+// If b is too small, a newly allocated slice is returned.
+func (w *DeleteBucketRangeWALEntry) Encode(b []byte) ([]byte, error) {
 	sz := w.MarshalSize()
-
 	if len(b) < sz {
 		b = make([]byte, sz)
 	}
 
-	binary.BigEndian.PutUint64(b[:8], uint64(w.Min))
-	binary.BigEndian.PutUint64(b[8:16], uint64(w.Max))
-
-	i := 16
-	for _, k := range w.Keys {
-		binary.BigEndian.PutUint32(b[i:i+4], uint32(len(k)))
-		i += 4
-		i += copy(b[i:], k)
+	orgID, err := w.OrgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+	bucketID, err := w.BucketID.Encode()
+	if err != nil {
+		return nil, err
 	}
 
-	return b[:i], nil
+	copy(b, orgID)
+	copy(b[influxdb.IDLength:], bucketID)
+	binary.BigEndian.PutUint64(b[2*influxdb.IDLength:], uint64(w.Min))
+	binary.BigEndian.PutUint64(b[2*influxdb.IDLength+8:], uint64(w.Max))
+
+	return b[:sz], nil
 }
 
-// Type returns DeleteRangeWALEntryType.
-func (w *DeleteRangeWALEntry) Type() WalEntryType {
-	return DeleteRangeWALEntryType
+// Type returns DeleteBucketRangeWALEntryType.
+func (w *DeleteBucketRangeWALEntry) Type() WalEntryType {
+	return DeleteBucketRangeWALEntryType
 }
 
 // WALSegmentWriter writes WAL segments.
@@ -1250,12 +1196,10 @@ func (r *WALSegmentReader) Next() bool {
 	switch WalEntryType(entryType) {
 	case WriteWALEntryType:
 		r.entry = &WriteWALEntry{
-			Values: make(map[string][]Value),
+			Values: make(map[string][]value.Value),
 		}
-	case DeleteWALEntryType:
-		r.entry = &DeleteWALEntry{}
-	case DeleteRangeWALEntryType:
-		r.entry = &DeleteRangeWALEntry{}
+	case DeleteBucketRangeWALEntryType:
+		r.entry = &DeleteBucketRangeWALEntry{}
 	default:
 		r.err = fmt.Errorf("unknown wal entry type: %v", entryType)
 		return true
@@ -1310,20 +1254,3 @@ func idFromFileName(name string) (int, error) {
 
 	return int(id), err
 }
-
-// NopWAL implements the Log interface and provides a no-op WAL implementation.
-type NopWAL struct{}
-
-func (w NopWAL) Open() error  { return nil }
-func (w NopWAL) Close() error { return nil }
-func (w NopWAL) Path() string { return "" }
-
-func (w NopWAL) LastWriteTime() time.Time { return time.Time{} }
-func (w NopWAL) DiskSizeBytes() int64     { return 0 }
-
-func (w NopWAL) WriteMulti(values map[string][]Value) (int, error)      { return 0, nil }
-func (w NopWAL) DeleteRange(keys [][]byte, min, max int64) (int, error) { return 0, nil }
-
-func (w NopWAL) CloseSegment() error               { return nil }
-func (w NopWAL) ClosedSegments() ([]string, error) { return nil, nil }
-func (w NopWAL) Remove(files []string) error       { return nil }

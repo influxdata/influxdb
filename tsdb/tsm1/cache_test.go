@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/influxdata/influxdb/storage/wal"
+
 	"github.com/golang/snappy"
 )
 
@@ -167,7 +169,7 @@ func TestCache_CacheWriteMulti_TypeConflict(t *testing.T) {
 	}
 }
 
-func TestCache_Cache_DeleteRange(t *testing.T) {
+func TestCache_Cache_DeleteBucketRange(t *testing.T) {
 	v0 := NewValue(1, 1.0)
 	v1 := NewValue(2, 2.0)
 	v2 := NewValue(3, 3.0)
@@ -187,7 +189,7 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteRange([][]byte{[]byte("bar")}, 2, math.MaxInt64)
+	c.DeleteBucketRange([]byte("bar"), 2, math.MaxInt64)
 
 	if exp, keys := [][]byte{[]byte("bar"), []byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after delete, exp %v, got %v", exp, keys)
@@ -206,7 +208,7 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 	}
 }
 
-func TestCache_DeleteRange_NoValues(t *testing.T) {
+func TestCache_DeleteBucketRange_NoValues(t *testing.T) {
 	v0 := NewValue(1, 1.0)
 	v1 := NewValue(2, 2.0)
 	v2 := NewValue(3, 3.0)
@@ -226,7 +228,7 @@ func TestCache_DeleteRange_NoValues(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteRange([][]byte{[]byte("foo")}, math.MinInt64, math.MaxInt64)
+	c.DeleteBucketRange([]byte("foo"), math.MinInt64, math.MaxInt64)
 
 	if exp, keys := 0, len(c.Keys()); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
@@ -241,7 +243,7 @@ func TestCache_DeleteRange_NoValues(t *testing.T) {
 	}
 }
 
-func TestCache_DeleteRange_NotSorted(t *testing.T) {
+func TestCache_DeleteBucketRange_NotSorted(t *testing.T) {
 	v0 := NewValue(1, 1.0)
 	v1 := NewValue(3, 3.0)
 	v2 := NewValue(2, 2.0)
@@ -261,7 +263,7 @@ func TestCache_DeleteRange_NotSorted(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteRange([][]byte{[]byte("foo")}, 1, 3)
+	c.DeleteBucketRange([]byte("foo"), 1, 3)
 
 	if exp, keys := 0, len(c.Keys()); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after delete, exp %v, got %v", exp, keys)
@@ -276,49 +278,10 @@ func TestCache_DeleteRange_NotSorted(t *testing.T) {
 	}
 }
 
-func TestCache_Cache_Delete(t *testing.T) {
-	v0 := NewValue(1, 1.0)
-	v1 := NewValue(2, 2.0)
-	v2 := NewValue(3, 3.0)
-	values := Values{v0, v1, v2}
-	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
-
-	c := NewCache(30 * valuesSize)
-
-	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
-		t.Fatalf("failed to write key foo to cache: %s", err.Error())
-	}
-	if n := c.Size(); n != 2*valuesSize+6 {
-		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
-	}
-
-	if exp, keys := [][]byte{[]byte("bar"), []byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
-		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
-	}
-
-	c.Delete([][]byte{[]byte("bar")})
-
-	if exp, keys := [][]byte{[]byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
-		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
-	}
-
-	if got, exp := c.Size(), valuesSize+3; exp != got {
-		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
-	}
-
-	if got, exp := len(c.Values([]byte("bar"))), 0; got != exp {
-		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := len(c.Values([]byte("foo"))), 3; got != exp {
-		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func TestCache_Cache_Delete_NonExistent(t *testing.T) {
+func TestCache_DeleteBucketRange_NonExistent(t *testing.T) {
 	c := NewCache(1024)
 
-	c.Delete([][]byte{[]byte("bar")})
+	c.DeleteBucketRange([]byte("bar"), math.MinInt64, math.MaxInt64)
 
 	if got, exp := c.Size(), uint64(0); exp != got {
 		t.Fatalf("cache size incorrect exp %d, got %d", exp, got)
@@ -604,7 +567,7 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	dir := mustTempDir()
 	defer os.RemoveAll(dir)
 	f := mustTempFile(dir)
-	w := NewWALSegmentWriter(f)
+	w := wal.NewWALSegmentWriter(f)
 
 	p1 := NewValue(1, 1.1)
 	p2 := NewValue(1, int64(1))
@@ -616,7 +579,7 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 		"baz": {p3},
 	}
 
-	entry := &WriteWALEntry{
+	entry := &wal.WriteWALEntry{
 		Values: values,
 	}
 
@@ -676,7 +639,7 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 	dir := mustTempDir()
 	defer os.RemoveAll(dir)
 	f1, f2 := mustTempFile(dir), mustTempFile(dir)
-	w1, w2 := NewWALSegmentWriter(f1), NewWALSegmentWriter(f2)
+	w1, w2 := wal.NewWALSegmentWriter(f1), wal.NewWALSegmentWriter(f2)
 
 	p1 := NewValue(1, 1.1)
 	p2 := NewValue(1, int64(1))
@@ -685,8 +648,8 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 
 	// Write first and second segment.
 
-	segmentWrite := func(w *WALSegmentWriter, values map[string][]Value) {
-		entry := &WriteWALEntry{
+	segmentWrite := func(w *wal.WALSegmentWriter, values map[string][]Value) {
+		entry := &wal.WriteWALEntry{
 			Values: values,
 		}
 		if err := w1.Write(mustMarshalEntry(entry)); err != nil {
@@ -732,73 +695,6 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 	}
 	if values := cache.Values([]byte("qux")); !reflect.DeepEqual(values, Values{p4}) {
 		t.Fatalf("cache key qux not as expected, got %v, exp %v", values, Values{p4})
-	}
-}
-
-// Ensure the CacheLoader can load deleted series
-func TestCacheLoader_LoadDeleted(t *testing.T) {
-	// Create a WAL segment.
-	dir := mustTempDir()
-	defer os.RemoveAll(dir)
-	f := mustTempFile(dir)
-	w := NewWALSegmentWriter(f)
-
-	p1 := NewValue(1, 1.0)
-	p2 := NewValue(2, 2.0)
-	p3 := NewValue(3, 3.0)
-
-	values := map[string][]Value{
-		"foo": {p1, p2, p3},
-	}
-
-	entry := &WriteWALEntry{
-		Values: values,
-	}
-
-	if err := w.Write(mustMarshalEntry(entry)); err != nil {
-		t.Fatal("write points", err)
-	}
-
-	if err := w.Flush(); err != nil {
-		t.Fatalf("flush error: %v", err)
-	}
-
-	dentry := &DeleteRangeWALEntry{
-		Keys: [][]byte{[]byte("foo")},
-		Min:  2,
-		Max:  3,
-	}
-
-	if err := w.Write(mustMarshalEntry(dentry)); err != nil {
-		t.Fatal("write points", err)
-	}
-
-	if err := w.Flush(); err != nil {
-		t.Fatalf("flush error: %v", err)
-	}
-
-	// Load the cache using the segment.
-	cache := NewCache(1024)
-	loader := NewCacheLoader([]string{f.Name()})
-	if err := loader.Load(cache); err != nil {
-		t.Fatalf("failed to load cache: %s", err.Error())
-	}
-
-	// Check the cache.
-	if values := cache.Values([]byte("foo")); !reflect.DeepEqual(values, Values{p1}) {
-		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
-	}
-
-	// Reload the cache using the segment.
-	cache = NewCache(1024)
-	loader = NewCacheLoader([]string{f.Name()})
-	if err := loader.Load(cache); err != nil {
-		t.Fatalf("failed to load cache: %s", err.Error())
-	}
-
-	// Check the cache.
-	if values := cache.Values([]byte("foo")); !reflect.DeepEqual(values, Values{p1}) {
-		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
 	}
 }
 
@@ -857,7 +753,7 @@ func mustTempFile(dir string) *os.File {
 	return f
 }
 
-func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
+func mustMarshalEntry(entry wal.WALEntry) (wal.WalEntryType, []byte) {
 	bytes := make([]byte, 1024<<2)
 
 	b, err := entry.Encode(bytes)

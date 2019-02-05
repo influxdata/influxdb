@@ -212,8 +212,8 @@ type FloatValues []FloatValue
 func NewFloatArrayFromValues(v FloatValues) *tsdb.FloatArray {
 	a := tsdb.NewFloatArrayLen(len(v))
 	for i, val := range v {
-		a.Timestamps[i] = val.unixnano
-		a.Values[i] = val.value
+		a.Timestamps[i] = val.UnixNano()
+		a.Values[i] = val.RawValue()
 	}
 	return a
 }
@@ -442,8 +442,8 @@ func encodeFloatValuesBlock(buf []byte, values []FloatValue) ([]byte, error) {
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsenc.Write(v.unixnano)
-			venc.Write(v.value)
+			tsenc.Write(v.UnixNano())
+			venc.Write(v.RawValue())
 		}
 		venc.Flush()
 
@@ -482,8 +482,8 @@ type IntegerValues []IntegerValue
 func NewIntegerArrayFromValues(v IntegerValues) *tsdb.IntegerArray {
 	a := tsdb.NewIntegerArrayLen(len(v))
 	for i, val := range v {
-		a.Timestamps[i] = val.unixnano
-		a.Values[i] = val.value
+		a.Timestamps[i] = val.UnixNano()
+		a.Values[i] = val.RawValue()
 	}
 	return a
 }
@@ -712,8 +712,8 @@ func encodeIntegerValuesBlock(buf []byte, values []IntegerValue) ([]byte, error)
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsenc.Write(v.unixnano)
-			venc.Write(v.value)
+			tsenc.Write(v.UnixNano())
+			venc.Write(v.RawValue())
 		}
 		venc.Flush()
 
@@ -752,8 +752,8 @@ type UnsignedValues []UnsignedValue
 func NewUnsignedArrayFromValues(v UnsignedValues) *tsdb.UnsignedArray {
 	a := tsdb.NewUnsignedArrayLen(len(v))
 	for i, val := range v {
-		a.Timestamps[i] = val.unixnano
-		a.Values[i] = val.value
+		a.Timestamps[i] = val.UnixNano()
+		a.Values[i] = val.RawValue()
 	}
 	return a
 }
@@ -982,8 +982,8 @@ func encodeUnsignedValuesBlock(buf []byte, values []UnsignedValue) ([]byte, erro
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsenc.Write(v.unixnano)
-			venc.Write(int64(v.value))
+			tsenc.Write(v.UnixNano())
+			venc.Write(int64(v.RawValue()))
 		}
 		venc.Flush()
 
@@ -1022,8 +1022,8 @@ type StringValues []StringValue
 func NewStringArrayFromValues(v StringValues) *tsdb.StringArray {
 	a := tsdb.NewStringArrayLen(len(v))
 	for i, val := range v {
-		a.Timestamps[i] = val.unixnano
-		a.Values[i] = val.value
+		a.Timestamps[i] = val.UnixNano()
+		a.Values[i] = val.RawValue()
 	}
 	return a
 }
@@ -1252,8 +1252,8 @@ func encodeStringValuesBlock(buf []byte, values []StringValue) ([]byte, error) {
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsenc.Write(v.unixnano)
-			venc.Write(v.value)
+			tsenc.Write(v.UnixNano())
+			venc.Write(v.RawValue())
 		}
 		venc.Flush()
 
@@ -1292,8 +1292,8 @@ type BooleanValues []BooleanValue
 func NewBooleanArrayFromValues(v BooleanValues) *tsdb.BooleanArray {
 	a := tsdb.NewBooleanArrayLen(len(v))
 	for i, val := range v {
-		a.Timestamps[i] = val.unixnano
-		a.Values[i] = val.value
+		a.Timestamps[i] = val.UnixNano()
+		a.Values[i] = val.RawValue()
 	}
 	return a
 }
@@ -1522,8 +1522,8 @@ func encodeBooleanValuesBlock(buf []byte, values []BooleanValue) ([]byte, error)
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsenc.Write(v.unixnano)
-			venc.Write(v.value)
+			tsenc.Write(v.UnixNano())
+			venc.Write(v.RawValue())
 		}
 		venc.Flush()
 

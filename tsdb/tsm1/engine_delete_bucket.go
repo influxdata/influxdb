@@ -11,10 +11,10 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// DeleteBucket removes all TSM data belonging to a bucket, and removes all index
+// DeleteBucketRange removes all TSM data belonging to a bucket, and removes all index
 // and series file data associated with the bucket. The provided time range ensures
 // that only bucket data for that range is removed.
-func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
+func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	// TODO(jeff): we need to block writes to this prefix while deletes are in progress
 	// otherwise we can end up in a situation where we have staged data in the cache or
 	// WAL that was deleted from the index, or worse. This needs to happen at a higher
@@ -76,9 +76,6 @@ func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
 		return err
 	}
 
-	// TODO(jeff): add a DeletePrefix to the Cache and WAL.
-	// TODO(jeff): add a Tombstone entry into the WAL for deletes.
-
 	var deleteKeys [][]byte
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
@@ -99,11 +96,8 @@ func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
 	// Sort the series keys because ApplyEntryFn iterates over the keys randomly.
 	bytesutil.Sort(deleteKeys)
 
-	// Delete from the cache and WAL.
-	e.Cache.DeleteRange(deleteKeys, min, max)
-	if _, err := e.WAL.DeleteRange(deleteKeys, min, max); err != nil {
-		return err
-	}
+	// Delete from the cache.
+	e.Cache.DeleteBucketRange(name, min, max)
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.
@@ -137,6 +131,14 @@ func (e *Engine) DeleteBucket(name []byte, min, max int64) error {
 	}); err != nil {
 		return err
 	}
+
+	// ApplySerialEntryFn cannot return an error in this invocation.
+	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+		if bytes.HasPrefix(k, name) {
+			delete(possiblyDead.keys, string(k))
+		}
+		return nil
+	})
 
 	if len(possiblyDead.keys) > 0 {
 		buf := make([]byte, 1024)

@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
@@ -422,7 +423,7 @@ func collectWALFiles(path string) ([]string, error) {
 
 	var paths []string
 	for _, fi := range fis {
-		if filepath.Ext(fi.Name()) != "."+tsm1.WALFileExtension {
+		if filepath.Ext(fi.Name()) != "."+wal.WALFileExtension {
 			continue
 		}
 		paths = append(paths, filepath.Join(path, fi.Name()))

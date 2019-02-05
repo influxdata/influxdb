@@ -106,7 +106,7 @@ func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor,
 }
 
 
-func (c *{{.name}}MultiShardArrayCursor) Err() error        { return c.err }
+func (c *{{.name}}MultiShardArrayCursor) Err() error { return c.err }
 
 func (c *{{.name}}MultiShardArrayCursor) Stats() cursors.CursorStats {
 	return c.{{.Name}}ArrayCursor.Stats()
@@ -200,17 +200,17 @@ func (c {{$type}}) Next() {{$arrayType}} {
 	var acc {{.Type}}
 
 	for {
-    	for _, v := range a.Values {
-    		acc += v
-    	}
+		for _, v := range a.Values {
+			acc += v
+		}
 		a = c.{{.Name}}ArrayCursor.Next()
-    	if len(a.Timestamps) == 0 {
+		if len(a.Timestamps) == 0 {
 			c.ts[0] = ts
 			c.vs[0] = acc
 			c.res.Timestamps = c.ts[:]
 			c.res.Values = c.vs[:]
 			return c.res
-    	}
+		}
 	}
 }
 
@@ -230,11 +230,11 @@ func (c *integer{{.Name}}CountArrayCursor) Next() *cursors.IntegerArray {
 		return &cursors.IntegerArray{}
 	}
 
-    ts := a.Timestamps[0]
-    var acc int64
-    for {
-    	acc += int64(len(a.Timestamps))
-    	a = c.{{.Name}}ArrayCursor.Next()
+	ts := a.Timestamps[0]
+	var acc int64
+	for {
+		acc += int64(len(a.Timestamps))
+		a = c.{{.Name}}ArrayCursor.Next()
 		if len(a.Timestamps) == 0 {
 			res := cursors.NewIntegerArrayLen(1)
 			res.Timestamps[0] = ts
