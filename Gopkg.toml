@@ -75,3 +75,7 @@ required = ["github.com/influxdata/platform/pkg/data/gen"]
 [[constraint]]
   name = "github.com/influxdata/flux"
   version = "0.12.0"
+
+[[constraint]]
+  name = "github.com/spf13/cast"
+  version = "1.3.x"
