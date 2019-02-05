@@ -17,6 +17,7 @@ const setup = (override = {}) => {
     task: tasks[0],
     onActivate: jest.fn(),
     onDelete: jest.fn(),
+    onClone: jest.fn(),
     onSelect: jest.fn(),
     onEditLabels: jest.fn(),
     ...override,

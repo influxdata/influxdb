@@ -107,7 +107,7 @@ export default class Tasks extends PureComponent<Props, State> {
   }
 
   private handleCloneTask = async (task: Task) => {
-    await client.tasks.create(task.orgID, task.flux, task.name)
+    await client.tasks.create(task.orgID, task.flux)
     this.props.onChange()
   }
 }
