@@ -808,8 +808,9 @@ func TestTaskUserResourceMap(t *testing.T) {
 		},
 	}
 
-	h := NewTaskHandler(urms, mock.NewLabelService(), zaptest.NewLogger(t), mock.NewUserService())
-	h.OrganizationService = mockOrgService()
+	taskBackend := NewMockTaskBackend()
+	taskBackend.UserResourceMappingService = urms
+	h := NewTaskHandler(taskBackend)
 	taskID := platform.ID(1)
 
 	h.TaskService = &mock.TaskService{
