@@ -39,6 +39,7 @@ import {
   token,
   telegrafConfig,
   dockerTelegrafPlugin,
+  swapTelegrafPlugin,
 } from 'mocks/dummyData'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
@@ -506,6 +507,7 @@ describe('dataLoader reducer', () => {
         memTelegrafPlugin,
         netTelegrafPlugin,
         processesTelegrafPlugin,
+        swapTelegrafPlugin,
       ])
     )
   })

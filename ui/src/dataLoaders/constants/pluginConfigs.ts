@@ -43,6 +43,7 @@ export const pluginsByBundle: PluginBundles = {
     TelegrafPluginInputMem.NameEnum.Mem,
     TelegrafPluginInputNet.NameEnum.Net,
     TelegrafPluginInputProcesses.NameEnum.Processes,
+    TelegrafPluginInputSwap.NameEnum.Swap,
   ],
   [BundleName.Docker]: [TelegrafPluginInputDocker.NameEnum.Docker],
   [BundleName.Kubernetes]: [TelegrafPluginInputKubernetes.NameEnum.Kubernetes],
