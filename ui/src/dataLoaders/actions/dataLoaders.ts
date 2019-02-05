@@ -283,7 +283,7 @@ export const removePluginBundleWithPlugins = (
   dispatch(removeBundlePlugins(bundle))
 }
 
-export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
+export const createOrUpdateTelegrafConfigAsync = () => async (
   dispatch,
   getState: GetState
 ) => {
@@ -299,7 +299,7 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     type: TelegrafPluginOutputInfluxDBV2.TypeEnum.Output,
     config: {
       urls: ['http://127.0.0.1:9999'],
-      token: authToken,
+      token: '$INFLUX_TOKEN',
       organization: org,
       bucket,
     },

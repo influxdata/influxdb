@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.2 [unreleased]
 
 ## Features
+1. [11693](https://github.com/influxdata/influxdb/pull/11693): Save the $INFLUX_TOKEN environmental variable in telegraf configs
 
 ## Bug Fixes
 1. [11678](https://github.com/influxdata/influxdb/pull/11678): Update the System Telegraf Plugin bundle to include the swap plugin
