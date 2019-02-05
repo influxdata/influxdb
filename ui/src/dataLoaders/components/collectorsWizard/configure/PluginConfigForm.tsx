@@ -50,7 +50,10 @@ export class PluginConfigForm extends PureComponent<Props> {
                 For more information about this plugin, see{' '}
                 <a
                   target="_blank"
-                  href={`https://github.com/influxdata/telegraf/tree/master/plugins/inputs/${name}`}
+                  data-test="docs-link"
+                  href={`https://github.com/influxdata/telegraf/tree/master/plugins/inputs/${
+                    telegrafPlugin.name
+                  }`}
                 >
                   Documentation
                 </a>
