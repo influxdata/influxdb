@@ -1076,15 +1076,14 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
 	}
 
-	resp := &remote.ReadResponse{
-		Results: []*remote.QueryResult{{}},
-	}
-
 	ctx := context.Background()
 	rs, err := h.Store.Read(ctx, readRequest)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	resp := &remote.ReadResponse{
+		Results: []*remote.QueryResult{{}},
 	}
 	if rs == nil {
 		respond(resp)
