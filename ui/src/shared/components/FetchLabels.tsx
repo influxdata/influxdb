@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {EmptyState} from 'src/clockface'
+import {EmptyState, SpinnerContainer, TechnoSpinner} from 'src/clockface'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -20,7 +20,7 @@ interface Props {
 
 interface State {
   labels: Label[]
-  ready: RemoteDataState
+  loading: RemoteDataState
 }
 
 @ErrorHandling
@@ -30,17 +30,19 @@ class FetchLabels extends PureComponent<Props, State> {
 
     this.state = {
       labels: [],
-      ready: RemoteDataState.NotStarted,
+      loading: RemoteDataState.NotStarted,
     }
   }
 
   public async componentDidMount() {
     const labels = await client.labels.getAll()
-    this.setState({ready: RemoteDataState.Done, labels})
+    this.setState({loading: RemoteDataState.Done, labels})
   }
 
   public render() {
-    if (this.state.ready === RemoteDataState.Error) {
+    const {loading} = this.state
+
+    if (loading === RemoteDataState.Error) {
       return (
         <EmptyState>
           <EmptyState.Text text="Could not load labels" />
@@ -48,11 +50,11 @@ class FetchLabels extends PureComponent<Props, State> {
       )
     }
 
-    if (this.state.ready !== RemoteDataState.Done) {
-      return <div className="page-spinner" />
-    }
-
-    return this.props.children(this.state.labels)
+    return (
+      <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
+        {this.props.children(this.state.labels)}
+      </SpinnerContainer>
+    )
   }
 }
 
