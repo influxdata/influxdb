@@ -84,7 +84,7 @@ func (r *ring) reset() {
 // getPartition retrieves the hash ring partition associated with the provided
 // key.
 func (r *ring) getPartition(key []byte) *partition {
-	return r.partitions[int(xxhash.Sum64(key)%partitions)]
+	return r.partitions[int(xxhash.Sum64(key)%uint64(len(r.partitions)))]
 }
 
 // entry returns the entry for the given key.

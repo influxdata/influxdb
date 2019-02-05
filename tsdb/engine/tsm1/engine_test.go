@@ -816,7 +816,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 	}
 }
 
-// Ensure engine can create an iterator with auxilary fields.
+// Ensure engine can create an iterator with auxiliary fields.
 func TestEngine_CreateIterator_Aux(t *testing.T) {
 	t.Parallel()
 

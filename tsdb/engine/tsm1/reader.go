@@ -713,7 +713,7 @@ type indirectIndex struct {
 	// Using this offset slice we can find `Key 2` by doing a binary search
 	// over the offsets slice.  Instead of comparing the value in the offsets
 	// (e.g. `62`), we use that as an index into the underlying index to
-	// retrieve the key at postion `62` and perform our comparisons with that.
+	// retrieve the key at position `62` and perform our comparisons with that.
 
 	// When we have identified the correct position in the index for a given
 	// key, we could perform another binary search or a linear scan.  This
@@ -825,7 +825,7 @@ func (d *indirectIndex) search(key []byte) int {
 		_, k := readKey(d.b[ofs:])
 
 		// The search may have returned an i == 0 which could indicated that the value
-		// searched should be inserted at postion 0.  Make sure the key in the index
+		// searched should be inserted at position 0.  Make sure the key in the index
 		// matches the search value.
 		if !bytes.Equal(key, k) {
 			return len(d.b)

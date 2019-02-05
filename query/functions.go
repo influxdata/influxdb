@@ -73,7 +73,18 @@ func (m FunctionTypeMapper) CallType(name string, args []influxql.DataType) (inf
 
 	// Handle functions implemented by the query engine.
 	switch name {
-	case "median", "integral", "stddev":
+	case "median", "integral", "stddev",
+		"derivative", "non_negative_derivative",
+		"moving_average",
+		"exponential_moving_average",
+		"double_exponential_moving_average",
+		"triple_exponential_moving_average",
+		"relative_strength_index",
+		"triple_exponential_derivative",
+		"kaufmans_efficiency_ratio",
+		"kaufmans_adaptive_moving_average",
+		"chande_momentum_oscillator",
+		"holt_winters", "holt_winters_with_fit":
 		return influxql.Float, nil
 	case "elapsed":
 		return influxql.Integer, nil

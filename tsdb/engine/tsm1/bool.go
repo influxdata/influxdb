@@ -52,7 +52,7 @@ func (e *BooleanEncoder) Write(b bool) {
 	}
 
 	// Use 1 bit for each boolean value, shift the current byte
-	// by 1 and set the least signficant bit acordingly
+	// by 1 and set the least significant bit accordingly
 	e.b = e.b << 1
 	if b {
 		e.b |= 1

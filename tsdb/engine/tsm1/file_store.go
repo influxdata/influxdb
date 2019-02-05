@@ -298,7 +298,7 @@ func (f *FileStore) Count() int {
 }
 
 // Files returns the slice of TSM files currently loaded. This is only used for
-// tests, and the files aren't guaranteed to stay valid in the presense of compactions.
+// tests, and the files aren't guaranteed to stay valid in the presence of compactions.
 func (f *FileStore) Files() []TSMFile {
 	f.mu.RLock()
 	defer f.mu.RUnlock()

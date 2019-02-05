@@ -66,6 +66,22 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:2db61829af54102979eca26f14f65e6076b5cbe7c400e806cd3b730f89aeea27"
+  name = "github.com/apache/arrow"
+  packages = [
+    "go/arrow",
+    "go/arrow/array",
+    "go/arrow/internal/bitutil",
+    "go/arrow/internal/cpu",
+    "go/arrow/internal/debug",
+    "go/arrow/math",
+    "go/arrow/memory",
+  ]
+  pruneopts = "UT"
+  revision = "f66fa805e89aef948581876ac802b1ffc6430f5c"
+
+[[projects]]
+  branch = "master"
   digest = "1:861e7c55835e36c4bb41132ee48a4669429096cc184b634b99809822b416f66b"
   name = "github.com/apex/log"
   packages = [
@@ -396,10 +412,11 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:0b0ea8025758a29d96ab42295b3bdd80039f31f755709c868642f92d779b17e3"
+  digest = "1:9608dc2c0716b655b535fc0f20f42472e43b6cead49f4c9ad20eded341c5df3b"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
+    "arrow",
     "ast",
     "compiler",
     "control",
@@ -426,8 +443,8 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "909b6fc7f5eb885db79026c83ee634ad30530b5e"
-  version = "v0.9.0"
+  revision = "8c9d0ad49204d3bbb171e96d872cf663ee7f1b4d"
+  version = "v0.12.0"
 
 [[projects]]
   branch = "master"
@@ -450,7 +467,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ae06251bec697aa7e667b4cc98e4b6d1b68467e8790a4a7be7962e0e162fb11e"
+  digest = "1:211733975798a6f796a57d0f1bd3e3be2f8ada48c6d3289b98fefa6345a76fbf"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -484,7 +501,7 @@
     "tsdb/tsm1",
   ]
   pruneopts = "UT"
-  revision = "b7a836197710a8ae6732d6fb8d81561711a664b8"
+  revision = "0f79e4ea3248354c789cba274542e0a8e55971db"
 
 [[projects]]
   branch = "master"
@@ -1029,12 +1046,13 @@
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
 
 [[projects]]
-  digest = "1:6eaf68fa53735d0b557c7a4d5411d3ad97d98d0afdb0969252d6506e67600285"
+  digest = "1:ec626c5a8d1abbb2e052d195da2d089ff6a3afb60fa7cd45638d648da96d41dd"
   name = "honnef.co/go/tools"
   packages = [
     "callgraph",
     "callgraph/static",
     "cmd/megacheck",
+    "cmd/staticcheck",
     "deprecated",
     "functions",
     "internal/sharedcheck",

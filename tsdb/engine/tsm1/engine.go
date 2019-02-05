@@ -1484,17 +1484,33 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return nil
 	}
 
-	// Ensure keys are sorted since lower layers require them to be.
-	if !bytesutil.IsSorted(seriesKeys) {
-		bytesutil.Sort(seriesKeys)
-	}
-
 	// Min and max time in the engine are slightly different from the query language values.
 	if min == influxql.MinTime {
 		min = math.MinInt64
 	}
 	if max == influxql.MaxTime {
 		max = math.MaxInt64
+	}
+
+	overlapsTimeRangeMinMax := false
+	e.FileStore.Apply(func(r TSMFile) error {
+		if r.OverlapsTimeRange(min, max) {
+			overlapsTimeRangeMinMax = true
+		}
+		return nil
+	})
+
+	if !overlapsTimeRangeMinMax && e.Cache.store.count() > 0 {
+		overlapsTimeRangeMinMax = true
+	}
+
+	if !overlapsTimeRangeMinMax {
+		return nil
+	}
+
+	// Ensure keys are sorted since lower layers require them to be.
+	if !bytesutil.IsSorted(seriesKeys) {
+		bytesutil.Sort(seriesKeys)
 	}
 
 	// Run the delete on each TSM file in parallel
@@ -1612,6 +1628,24 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	// The seriesKeys slice is mutated if they are still found in the cache.
+	cacheKeys := e.Cache.Keys()
+	for i := 0; i < len(seriesKeys); i++ {
+		seriesKey := seriesKeys[i]
+		// Already crossed out
+		if len(seriesKey) == 0 {
+			continue
+		}
+
+		j := bytesutil.SearchBytes(cacheKeys, seriesKey)
+		if j < len(cacheKeys) {
+			cacheSeriesKey, _ := SeriesAndFieldFromCompositeKey(cacheKeys[j])
+			if bytes.Equal(seriesKey, cacheSeriesKey) {
+				seriesKeys[i] = emptyBytes
+			}
+		}
 	}
 
 	// Have we deleted all values for the series? If so, we need to remove
@@ -1974,7 +2008,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level1Groups := e.CompactionPlan.PlanLevel(1)
 			level2Groups := e.CompactionPlan.PlanLevel(2)
 			level3Groups := e.CompactionPlan.PlanLevel(3)
-			level4Groups := e.CompactionPlan.Plan(e.FileStore.LastModified())
+			level4Groups := e.CompactionPlan.Plan(e.LastModified())
 			atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, int64(len(level4Groups)))
 
 			// If no full compactions are need, see if an optimize is needed
@@ -2654,7 +2688,7 @@ func (e *Engine) createVarRefSeriesIterator(ctx context.Context, ref *influxql.V
 		}
 	}
 
-	// Build auxilary cursors.
+	// Build auxiliary cursors.
 	// Tag values should be returned if the field doesn't exist.
 	var aux []cursorAt
 	if len(opt.Aux) > 0 {
