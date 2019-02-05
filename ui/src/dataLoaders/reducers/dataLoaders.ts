@@ -36,7 +36,7 @@ export const INITIAL_STATE: DataLoadersState = {
   telegrafConfigID: null,
   pluginBundles: [],
   scraperTarget: {bucket: '', url: QUICKSTART_SCRAPER_TARGET_URL},
-  telegrafConfigName: 'new config',
+  telegrafConfigName: 'Name this Configuration',
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
