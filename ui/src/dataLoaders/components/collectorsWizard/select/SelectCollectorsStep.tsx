@@ -14,17 +14,12 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {
   addPluginBundleWithPlugins,
   removePluginBundleWithPlugins,
-  setDataLoadersType,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
-import {
-  TelegrafPlugin,
-  DataLoaderType,
-  BundleName,
-} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
 import {Bucket} from 'src/api'
 import {AppState} from 'src/types/v2'
 
@@ -33,7 +28,6 @@ export interface OwnProps extends CollectorsStepProps {
 }
 
 export interface StateProps {
-  type: DataLoaderType
   bucket: string
   telegrafPlugins: TelegrafPlugin[]
   pluginBundles: BundleName[]
@@ -42,7 +36,6 @@ export interface StateProps {
 export interface DispatchProps {
   onAddPluginBundle: typeof addPluginBundleWithPlugins
   onRemovePluginBundle: typeof removePluginBundleWithPlugins
-  onSetDataLoadersType: typeof setDataLoadersType
   onSetBucketInfo: typeof setBucketInfo
 }
 
@@ -50,12 +43,6 @@ type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
 export class SelectCollectorsStep extends PureComponent<Props> {
-  public componentDidMount() {
-    if (this.props.type !== DataLoaderType.Streaming) {
-      this.props.onSetDataLoadersType(DataLoaderType.Streaming)
-    }
-  }
-
   public render() {
     return (
       <div className="onboarding-step">
@@ -88,17 +75,13 @@ export class SelectCollectorsStep extends PureComponent<Props> {
   }
 
   private get nextButtonStatus(): ComponentStatus {
-    const {type, telegrafPlugins, buckets} = this.props
+    const {telegrafPlugins, buckets} = this.props
 
     if (!buckets || !buckets.length) {
       return ComponentStatus.Disabled
     }
 
-    const isTypeEmpty = type === DataLoaderType.Empty
-    const isStreamingWithoutPlugin =
-      type === DataLoaderType.Streaming && !telegrafPlugins.length
-
-    if (isTypeEmpty || isStreamingWithoutPlugin) {
+    if (!telegrafPlugins.length) {
       return ComponentStatus.Disabled
     }
 
@@ -132,18 +115,16 @@ export class SelectCollectorsStep extends PureComponent<Props> {
 
 const mstp = ({
   dataLoading: {
-    dataLoaders: {telegrafPlugins, pluginBundles, type},
+    dataLoaders: {telegrafPlugins, pluginBundles},
     steps: {bucket},
   },
 }: AppState): StateProps => ({
-  type,
   telegrafPlugins,
   bucket,
   pluginBundles,
 })
 
 const mdtp: DispatchProps = {
-  onSetDataLoadersType: setDataLoadersType,
   onAddPluginBundle: addPluginBundleWithPlugins,
   onRemovePluginBundle: removePluginBundleWithPlugins,
   onSetBucketInfo: setBucketInfo,
