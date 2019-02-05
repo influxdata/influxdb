@@ -19,7 +19,7 @@ type Command struct {
 
 	configPath string
 	printOnly  bool
-	spec       generate.Spec
+	spec       generate.StorageSpec
 }
 
 // NewCommand returns a new instance of Command.

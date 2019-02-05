@@ -66,6 +66,22 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:4c65d504ca4d20db4c77d05b3abd25f30d0536114417eac172ad470e5581617e"
+  name = "github.com/apache/arrow"
+  packages = [
+    "go/arrow",
+    "go/arrow/array",
+    "go/arrow/internal/bitutil",
+    "go/arrow/internal/cpu",
+    "go/arrow/internal/debug",
+    "go/arrow/math",
+    "go/arrow/memory",
+  ]
+  pruneopts = "UT"
+  revision = "f5df77359953ed06e1dce47edffc03340e2ff3ea"
+
+[[projects]]
+  branch = "master"
   digest = "1:861e7c55835e36c4bb41132ee48a4669429096cc184b634b99809822b416f66b"
   name = "github.com/apex/log"
   packages = [
@@ -396,10 +412,11 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:e892d35e57d857a44c3f07e5fe4b4cdeb28c4b5cec5c62fe838894c11f631513"
+  digest = "1:9608dc2c0716b655b535fc0f20f42472e43b6cead49f4c9ad20eded341c5df3b"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
+    "arrow",
     "ast",
     "compiler",
     "control",
@@ -410,7 +427,10 @@
     "functions/outputs",
     "functions/transformations",
     "influxql",
+    "internal/parser",
     "internal/pkg/syncutil",
+    "internal/scanner",
+    "internal/token",
     "interpreter",
     "iocounter",
     "lang",
@@ -423,8 +443,8 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "899c777004b1f39a95a1422beede164ea44877d2"
-  version = "v0.7.2"
+  revision = "8c9d0ad49204d3bbb171e96d872cf663ee7f1b4d"
+  version = "v0.12.0"
 
 [[projects]]
   branch = "master"
@@ -446,8 +466,7 @@
   revision = "32c6aa80de5eb09d190ad284a8214a531c6bce57"
 
 [[projects]]
-  branch = "master"
-  digest = "1:38f69bc2178087c2021679cc2d8076c057b5590b913459118faa14ef02f27832"
+  digest = "1:211733975798a6f796a57d0f1bd3e3be2f8ada48c6d3289b98fefa6345a76fbf"
   name = "github.com/influxdata/platform"
   packages = [
     ".",
@@ -481,7 +500,7 @@
     "tsdb/tsm1",
   ]
   pruneopts = "UT"
-  revision = "da7e0f615a0fe464c0c754da58095e0ea32bc83b"
+  revision = "0f79e4ea3248354c789cba274542e0a8e55971db"
 
 [[projects]]
   branch = "master"
@@ -793,6 +812,14 @@
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:08d65904057412fc0270fc4812a1c90c594186819243160dc779a402d4b6d0bc"
+  name = "github.com/spf13/cast"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8c9545af88b134710ab1cd196795e7f2388358d7"
+  version = "v1.3.0"
+
+[[projects]]
   digest = "1:eaa6698f44de8f2977e93c9b946e60a8af75f565058658aad2df8032b55c84e5"
   name = "github.com/tinylib/msgp"
   packages = ["msgp"]
@@ -1026,12 +1053,13 @@
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
 
 [[projects]]
-  digest = "1:6eaf68fa53735d0b557c7a4d5411d3ad97d98d0afdb0969252d6506e67600285"
+  digest = "1:ec626c5a8d1abbb2e052d195da2d089ff6a3afb60fa7cd45638d648da96d41dd"
   name = "honnef.co/go/tools"
   packages = [
     "callgraph",
     "callgraph/static",
     "cmd/megacheck",
+    "cmd/staticcheck",
     "deprecated",
     "functions",
     "internal/sharedcheck",
@@ -1101,6 +1129,7 @@
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/retailnext/hllpp",
+    "github.com/spf13/cast",
     "github.com/tinylib/msgp/msgp",
     "github.com/xlab/treeprint",
     "go.uber.org/zap",

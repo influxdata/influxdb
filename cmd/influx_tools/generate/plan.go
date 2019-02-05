@@ -16,35 +16,28 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Plan struct {
-	Database                string
-	Retention               string
-	ReplicaN                int
-	StartTime               time.Time
-	ShardCount              int
-	ShardDuration           time.Duration
-	Tags                    TagCardinalities
-	PointsPerSeriesPerShard int
-	DatabasePath            string
+type StoragePlan struct {
+	Database      string
+	Retention     string
+	ReplicaN      int
+	StartTime     time.Time
+	ShardCount    int
+	ShardDuration time.Duration
+	DatabasePath  string
 
 	info   *meta.DatabaseInfo
 	groups []meta.ShardGroupInfo
 }
 
-func (p *Plan) String() string {
+func (p *StoragePlan) String() string {
 	sb := new(strings.Builder)
 	p.PrintPlan(sb)
 	return sb.String()
 }
 
-func (p *Plan) PrintPlan(w io.Writer) {
+func (p *StoragePlan) PrintPlan(w io.Writer) {
 	tw := tabwriter.NewWriter(w, 25, 4, 2, ' ', 0)
 	fmt.Fprintf(tw, "Data Path\t%s\n", p.ShardPath())
-	fmt.Fprintf(tw, "Tag cardinalities\t%s\n", p.Tags)
-	fmt.Fprintf(tw, "Points per series per shard\t%d\n", p.PointsPerSeriesPerShard)
-	fmt.Fprintf(tw, "Total points per shard\t%d\n", p.Tags.Cardinality()*p.PointsPerSeriesPerShard)
-	fmt.Fprintf(tw, "Total series\t%d\n", p.Tags.Cardinality())
-	fmt.Fprintf(tw, "Total points\t%d\n", p.Tags.Cardinality()*p.ShardCount*p.PointsPerSeriesPerShard)
 	fmt.Fprintf(tw, "Shard Count\t%d\n", p.ShardCount)
 	fmt.Fprintf(tw, "Database\t%s/%s (Shard duration: %s)\n", p.Database, p.Retention, p.ShardDuration)
 	fmt.Fprintf(tw, "Start time\t%s\n", p.StartTime)
@@ -52,20 +45,20 @@ func (p *Plan) PrintPlan(w io.Writer) {
 	tw.Flush()
 }
 
-func (p *Plan) ShardPath() string {
+func (p *StoragePlan) ShardPath() string {
 	return filepath.Join(p.DatabasePath, p.Retention)
 }
 
 // TimeSpan returns the total duration for which the data set.
-func (p *Plan) TimeSpan() time.Duration {
+func (p *StoragePlan) TimeSpan() time.Duration {
 	return p.ShardDuration * time.Duration(p.ShardCount)
 }
 
-func (p *Plan) EndTime() time.Time {
+func (p *StoragePlan) EndTime() time.Time {
 	return p.StartTime.Add(p.TimeSpan())
 }
 
-func (p *Plan) InitMetadata(client server.MetaClient) (err error) {
+func (p *StoragePlan) InitMetadata(client server.MetaClient) (err error) {
 	if err = client.DropDatabase(p.Database); err != nil {
 		return err
 	}
@@ -85,7 +78,7 @@ func (p *Plan) InitMetadata(client server.MetaClient) (err error) {
 
 // InitFileSystem initializes the file system structure, cleaning up
 // existing files and re-creating the appropriate shard directories.
-func (p *Plan) InitFileSystem(client server.MetaClient) error {
+func (p *StoragePlan) InitFileSystem(client server.MetaClient) error {
 	var err error
 	if err = os.RemoveAll(p.DatabasePath); err != nil {
 		return err
@@ -117,15 +110,15 @@ func (p *Plan) InitFileSystem(client server.MetaClient) error {
 }
 
 // NodeShardGroups returns ShardGroupInfo with Shards limited to the current node
-func (p *Plan) NodeShardGroups() []meta.ShardGroupInfo {
+func (p *StoragePlan) NodeShardGroups() []meta.ShardGroupInfo {
 	return p.groups
 }
 
-func (p *Plan) ShardGroups() []meta.ShardGroupInfo {
+func (p *StoragePlan) ShardGroups() []meta.ShardGroupInfo {
 	return p.info.RetentionPolicy(p.info.DefaultRetentionPolicy).ShardGroups
 }
 
-func (p *Plan) createShardGroupMetadata(client server.MetaClient, rp string) error {
+func (p *StoragePlan) createShardGroupMetadata(client server.MetaClient, rp string) error {
 	ts := p.StartTime.Truncate(p.ShardDuration).UTC()
 
 	var err error
@@ -141,13 +134,13 @@ func (p *Plan) createShardGroupMetadata(client server.MetaClient, rp string) err
 	return nil
 }
 
-func (p *Plan) TimeRange() (start, end time.Time) {
+func (p *StoragePlan) TimeRange() (start, end time.Time) {
 	start = p.StartTime.Truncate(p.ShardDuration).UTC()
 	end = start.Add(time.Duration(p.ShardDuration.Nanoseconds() * int64(p.ShardCount)))
 	return start, end
 }
 
-func (p *Plan) Validate() error {
+func (p *StoragePlan) Validate() error {
 	// build default values
 	def := &planDefaults{}
 	WalkPlan(def, p)
@@ -164,7 +157,7 @@ type Visitor interface {
 
 type Node interface{ node() }
 
-func (*Plan) node() {}
+func (*StoragePlan) node() {}
 
 func WalkPlan(v Visitor, node Node) {
 	if v = v.Visit(node); v == nil {
@@ -172,7 +165,7 @@ func WalkPlan(v Visitor, node Node) {
 	}
 
 	switch n := node.(type) {
-	case *Plan:
+	case *StoragePlan:
 
 	default:
 		panic(fmt.Sprintf("WalkConfig: unexpected node type %T", n))
@@ -185,7 +178,7 @@ type planValidator struct {
 
 func (v *planValidator) Visit(node Node) Visitor {
 	switch n := node.(type) {
-	case *Plan:
+	case *StoragePlan:
 		if n.DatabasePath == "" {
 			v.errs.Add(errors.New("missing DataPath"))
 		}
@@ -205,7 +198,7 @@ type planDefaults struct{}
 
 func (v *planDefaults) Visit(node Node) Visitor {
 	switch n := node.(type) {
-	case *Plan:
+	case *StoragePlan:
 		if n.DatabasePath == "" {
 			n.DatabasePath = "${HOME}/.influxdb/data"
 		}
@@ -227,4 +220,26 @@ func (v *planDefaults) Visit(node Node) Visitor {
 	}
 
 	return v
+}
+
+type SchemaPlan struct {
+	StoragePlan             *StoragePlan
+	Tags                    TagCardinalities
+	PointsPerSeriesPerShard int
+}
+
+func (p *SchemaPlan) String() string {
+	sb := new(strings.Builder)
+	p.PrintPlan(sb)
+	return sb.String()
+}
+
+func (p *SchemaPlan) PrintPlan(w io.Writer) {
+	tw := tabwriter.NewWriter(w, 25, 4, 2, ' ', 0)
+	fmt.Fprintf(tw, "Tag cardinalities\t%s\n", p.Tags)
+	fmt.Fprintf(tw, "Points per series per shard\t%d\n", p.PointsPerSeriesPerShard)
+	fmt.Fprintf(tw, "Total points per shard\t%d\n", p.Tags.Cardinality()*p.PointsPerSeriesPerShard)
+	fmt.Fprintf(tw, "Total series\t%d\n", p.Tags.Cardinality())
+	fmt.Fprintf(tw, "Total points\t%d\n", p.Tags.Cardinality()*p.StoragePlan.ShardCount*p.PointsPerSeriesPerShard)
+	_ = tw.Flush()
 }

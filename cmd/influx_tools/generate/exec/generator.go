@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/errlist"
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/shard"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/data/gen"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -24,7 +25,7 @@ type Generator struct {
 	sfile *tsdb.SeriesFile
 }
 
-func (g *Generator) Run(ctx context.Context, database, shardPath string, groups []meta.ShardGroupInfo, gens []SeriesGenerator) (err error) {
+func (g *Generator) Run(ctx context.Context, database, shardPath string, groups []meta.ShardGroupInfo, gens []gen.SeriesGenerator) (err error) {
 	limit := make(chan struct{}, g.Concurrency)
 	for i := 0; i < g.Concurrency; i++ {
 		limit <- struct{}{}
@@ -127,7 +128,7 @@ func (g *Generator) Run(ctx context.Context, database, shardPath string, groups 
 // seriesBatchSize specifies the number of series keys passed to the index.
 const seriesBatchSize = 1000
 
-func (g *Generator) writeShard(idx seriesIndex, sg SeriesGenerator, id uint64, path string) error {
+func (g *Generator) writeShard(idx seriesIndex, sg gen.SeriesGenerator, id uint64, path string) error {
 	sw := shard.NewWriter(id, path)
 	defer sw.Close()
 
@@ -152,7 +153,7 @@ func (g *Generator) writeShard(idx seriesIndex, sg SeriesGenerator, id uint64, p
 			tags = tags[:0]
 		}
 
-		vg := sg.ValuesGenerator()
+		vg := sg.TimeValuesGenerator()
 
 		key := tsm1.SeriesFieldKeyBytes(string(seriesKey), string(sg.Field()))
 		for vg.Next() {

@@ -1,0 +1,30 @@
+[
+	{
+		"Name":"Float",
+		"name":"float",
+		"Type":"float64",
+		"Rand":"Float64"
+	},
+	{
+		"Name":"Integer",
+		"name":"integer",
+		"Type":"int64",
+		"Rand":"Int64"
+	},
+	{
+		"Name":"Unsigned",
+		"name":"unsigned",
+		"Type":"uint64",
+		"Rand":"Uint64"
+	},
+	{
+		"Name":"String",
+		"name":"string",
+		"Type":"string"
+	},
+	{
+		"Name":"Boolean",
+		"name":"boolean",
+		"Type":"bool"
+	}
+]

@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/errlist"
+	"github.com/influxdata/influxdb/pkg/data/gen"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
-	"github.com/influxdata/platform/pkg/data/gen"
 )
 
 const (
