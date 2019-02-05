@@ -15,12 +15,13 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	ifql "github.com/influxdata/flux/influxql"
 	"github.com/influxdata/flux/memory"
-	"github.com/influxdata/flux/querytest"
+	fluxquerytest "github.com/influxdata/flux/querytest"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/query/influxql"
+	"github.com/influxdata/influxdb/query/querytest"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
@@ -144,7 +145,7 @@ var skipTests = map[string]string{
 	"SelectorMath_31":          "Transpiler: unimplemented functions: top and bottom (https://github.com/influxdata/platform/issues/1601)",
 }
 
-var querier = querytest.NewQuerier()
+var querier = fluxquerytest.NewQuerier()
 
 func withEachInfluxQLFile(t testing.TB, fn func(prefix, caseName string)) {
 	dir, err := os.Getwd()
@@ -235,7 +236,7 @@ func testGeneratedInfluxQL(t testing.TB, prefix, queryExt string) {
 	}
 }
 
-func resultsFromQuerier(querier *querytest.Querier, compiler flux.Compiler) (flux.ResultIterator, error) {
+func resultsFromQuerier(querier *fluxquerytest.Querier, compiler flux.Compiler) (flux.ResultIterator, error) {
 	req := &query.ProxyRequest{
 		Request: query.Request{
 			Compiler: compiler,
@@ -250,18 +251,15 @@ func resultsFromQuerier(querier *querytest.Querier, compiler flux.Compiler) (flu
 	return decoder.Decode(ioutil.NopCloser(jsonBuf))
 }
 
-func influxQLCompiler(query, filename string) querytest.FromInfluxJSONCompiler {
+func influxQLCompiler(query, filename string) *fluxquerytest.ReplaceSpecCompiler {
 	compiler := influxql.NewCompiler(dbrpMappingSvcE2E)
 	compiler.Cluster = "cluster"
 	compiler.DB = "db0"
 	compiler.Query = query
-	return querytest.FromInfluxJSONCompiler{
-		Compiler:  compiler,
-		InputFile: filename,
-	}
+	return querytest.FromInfluxJSONCompiler(compiler, filename)
 }
 
-func queryToJSON(querier *querytest.Querier, req *query.ProxyRequest) (io.ReadCloser, error) {
+func queryToJSON(querier *fluxquerytest.Querier, req *query.ProxyRequest) (io.ReadCloser, error) {
 	var buf bytes.Buffer
 	_, err := querier.Query(context.Background(), &buf, req.Request.Compiler, req.Dialect)
 	if err != nil {
