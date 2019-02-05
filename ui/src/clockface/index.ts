@@ -35,6 +35,8 @@ import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 import Select from 'src/clockface/components/Select'
 import Grid from 'src/clockface/components/grid_layout/Grid'
 import QuestionMarkTooltip from 'src/clockface/components/tooltips/QuestionMarkTooltip'
+import SpinnerContainer from 'src/clockface/components/spinners/SpinnerContainer'
+import TechnoSpinner from 'src/clockface/components/spinners/TechnoSpinner'
 
 // Import Types
 import {
@@ -103,7 +105,9 @@ export {
   SparkleSpinner,
   Sort,
   Spinner,
+  SpinnerContainer,
   Stack,
+  TechnoSpinner,
   WizardFullScreen,
   WizardProgressHeader,
   WizardOverlay,
