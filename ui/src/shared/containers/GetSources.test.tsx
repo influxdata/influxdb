@@ -5,8 +5,6 @@ import MockChild from 'mocks/MockChild'
 
 import {source} from 'mocks/dummyData'
 
-jest.mock('src/sources/apis', () => require('mocks/sources/apis'))
-
 const onReadSources = jest.fn(() => Promise.resolve())
 
 const setup = (override?) => {

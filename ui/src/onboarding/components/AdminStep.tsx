@@ -27,9 +27,9 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {SetupParams} from 'src/onboarding/apis'
+import {ISetupParams} from '@influxdata/influx'
 
-interface State extends SetupParams {
+interface State extends ISetupParams {
   confirmPassword: string
   isAlreadySet: boolean
   isPassMismatched: boolean

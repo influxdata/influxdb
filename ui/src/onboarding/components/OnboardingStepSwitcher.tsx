@@ -9,13 +9,13 @@ import CompletionStep from 'src/onboarding/components/CompletionStep'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {SetupParams} from 'src/onboarding/apis'
+import {ISetupParams} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {setupAdmin} from 'src/onboarding/actions'
 
 interface Props {
   onboardingStepProps: OnboardingStepProps
-  setupParams: SetupParams
+  setupParams: ISetupParams
   currentStepIndex: number
   onSetupAdmin: typeof setupAdmin
   orgID: string
