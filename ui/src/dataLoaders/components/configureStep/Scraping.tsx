@@ -56,7 +56,7 @@ export class Scraping extends PureComponent<Props> {
   }
 
   public render() {
-    const {scraperBucket, onSetScraperTargetURL, url} = this.props
+    const {scraperBucket, onSetScraperTargetURL, url, buckets} = this.props
 
     return (
       <Form onSubmit={this.handleSubmit}>
@@ -70,7 +70,7 @@ export class Scraping extends PureComponent<Props> {
               </h5>
               <ScraperTarget
                 bucket={scraperBucket}
-                buckets={this.buckets}
+                buckets={buckets}
                 onSelectBucket={this.handleSelectBucket}
                 onChangeURL={onSetScraperTargetURL}
                 url={url}
@@ -87,25 +87,12 @@ export class Scraping extends PureComponent<Props> {
     )
   }
 
-  private get buckets(): string[] {
-    const {buckets} = this.props
+  private handleSelectBucket = (bucket: Bucket) => {
+    const {onSetBucketInfo, onSetScraperTargetBucket} = this.props
+    const {organization, organizationID, id, name} = bucket
 
-    return buckets.map(b => b.name)
-  }
-
-  private handleSelectBucket = (bucket: string) => {
-    const {buckets, onSetScraperTargetBucket, onSetBucketInfo} = this.props
-    if (!buckets || !buckets.length) {
-      return
-    }
-
-    const findBucket = buckets.find(b => b.name === bucket)
-    const bucketID = findBucket.id
-    const org = findBucket.organization
-    const orgID = findBucket.organizationID
-
-    onSetBucketInfo(org, orgID, bucket, bucketID)
-    onSetScraperTargetBucket(bucket)
+    onSetBucketInfo(organization, organizationID, name, id)
+    onSetScraperTargetBucket(bucket.name)
   }
 
   private get nextButtonStatus(): ComponentStatus {

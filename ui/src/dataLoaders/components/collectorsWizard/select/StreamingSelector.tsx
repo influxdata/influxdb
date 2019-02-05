@@ -11,7 +11,6 @@ import {
   Input,
   IconFont,
   ComponentSize,
-  Dropdown,
   FormElement,
   Grid,
   Columns,
@@ -22,6 +21,7 @@ import {
   PLUGIN_BUNDLE_OPTIONS,
   BUNDLE_LOGOS,
 } from 'src/dataLoaders/constants/pluginConfigs'
+import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
 
 // Types
 import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
@@ -69,6 +69,7 @@ class StreamingSelector extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {bucket, buckets} = this.props
     const {gridSizerUpdateFlag, searchTerm} = this.state
 
     return (
@@ -76,12 +77,11 @@ class StreamingSelector extends PureComponent<Props, State> {
         <Grid.Row>
           <Grid.Column widthSM={Columns.Five}>
             <FormElement label="Bucket">
-              <Dropdown
-                selectedID={this.selectedBucketID}
-                onChange={this.handleSelectBucket}
-              >
-                {this.dropdownBuckets}
-              </Dropdown>
+              <BucketDropdown
+                selected={bucket}
+                buckets={buckets}
+                onSelectBucket={this.handleSelectBucket}
+              />
             </FormElement>
           </Grid.Column>
           <Grid.Column widthSM={Columns.Five} offsetSM={Columns.Two}>
@@ -120,31 +120,8 @@ class StreamingSelector extends PureComponent<Props, State> {
     )
   }
 
-  private handleSelectBucket = (bucketName: string) => {
-    const bucket = this.props.buckets.find(b => b.name === bucketName)
-
+  private handleSelectBucket = (bucket: Bucket) => {
     this.props.onSelectBucket(bucket)
-  }
-
-  private get selectedBucketID(): string {
-    return this.props.bucket || 'empty'
-  }
-
-  private get dropdownBuckets(): JSX.Element[] {
-    const {buckets} = this.props
-    if (!buckets || !buckets.length) {
-      return [
-        <Dropdown.Item key={'none'} value={'No buckets found'} id={'empty'}>
-          {'No buckets found'}
-        </Dropdown.Item>,
-      ]
-    }
-
-    return buckets.map(b => (
-      <Dropdown.Item key={b.name} value={b.name} id={b.name}>
-        {b.name}
-      </Dropdown.Item>
-    ))
   }
 
   private get filteredBundles(): BundleName[] {
