@@ -304,7 +304,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		bucketSvc        platform.BucketService                   = m.kvService
 		sourceSvc        platform.SourceService                   = m.boltClient
 		sessionSvc       platform.SessionService                  = m.boltClient
-		basicAuthSvc     platform.BasicAuthService                = m.boltClient
+		passwdsSvc       platform.PasswordsService                = m.kvService
 		dashboardSvc     platform.DashboardService                = m.kvService
 		dashboardLogSvc  platform.DashboardOperationLogService    = m.kvService
 		userLogSvc       platform.UserOperationLogService         = m.kvService
@@ -486,7 +486,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		OrganizationOperationLogService: orgLogSvc,
 		SourceService:                   sourceSvc,
 		MacroService:                    macroSvc,
-		BasicAuthService:                basicAuthSvc,
+		PasswordsService:                passwdsSvc,
 		OnboardingService:               onboardingSvc,
 		ProxyQueryService:               storageQueryService,
 		TaskService:                     taskSvc,
@@ -536,34 +536,42 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	return nil
 }
 
+// OrganizationService returns the internal organization service.
 func (m *Launcher) OrganizationService() platform.OrganizationService {
 	return m.apibackend.OrganizationService
 }
 
+// QueryController returns the internal query service.
 func (m *Launcher) QueryController() *pcontrol.Controller {
 	return m.queryController
 }
 
+// BucketService returns the internal bucket service.
 func (m *Launcher) BucketService() platform.BucketService {
 	return m.apibackend.BucketService
 }
 
+// UserService returns the internal suser service.
 func (m *Launcher) UserService() platform.UserService {
 	return m.apibackend.UserService
 }
 
+// AuthorizationService returns the internal authorization service.
 func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
 }
 
+// TaskService returns the internal task service.
 func (m *Launcher) TaskService() platform.TaskService {
 	return m.apibackend.TaskService
 }
 
+// TaskStore returns the internal store service.
 func (m *Launcher) TaskStore() taskbackend.Store {
 	return m.taskStore
 }
 
+// TaskScheduler returns the internal scheduler service.
 func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
 	return m.scheduler
 }

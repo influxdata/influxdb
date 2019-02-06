@@ -4,8 +4,11 @@ import (
 	"context"
 
 	bolt "github.com/coreos/bbolt"
+	platform "github.com/influxdata/influxdb"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var _ platform.PasswordsService = (*Client)(nil)
 
 // SetPassword stores the password hash associated with a user.
 func (c *Client) SetPassword(ctx context.Context, name string, password string) error {

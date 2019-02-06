@@ -2,8 +2,8 @@ package influxdb
 
 import "context"
 
-// BasicAuthService is the service for managing basic auth.
-type BasicAuthService interface {
+// PasswordsService is the service for managing basic auth passwords.
+type PasswordsService interface {
 	// SetPassword overrides the password of a known user.
 	SetPassword(ctx context.Context, name string, password string) error
 	// ComparePassword checks if the password matches the password recorded.
