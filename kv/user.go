@@ -141,31 +141,10 @@ func (s *Service) FindUser(ctx context.Context, filter influxdb.UserFilter) (*in
 		return s.FindUserByName(ctx, *filter.Name)
 	}
 
-	filterFn := filterUsersFn(filter)
-
-	var u *influxdb.User
-	err := s.kv.View(func(tx Tx) error {
-		return forEachUser(ctx, tx, func(usr *influxdb.User) bool {
-			if filterFn(usr) {
-				u = usr
-				return false
-			}
-			return true
-		})
-	})
-
-	if err != nil {
-		return nil, err
+	return nil, &influxdb.Error{
+		Code: influxdb.ENotFound,
+		Msg:  "user not found",
 	}
-
-	if u == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  "user not found",
-		}
-	}
-
-	return u, nil
 }
 
 func filterUsersFn(filter influxdb.UserFilter) func(u *influxdb.User) bool {
