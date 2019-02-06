@@ -65,11 +65,11 @@ func (f *SeriesFile) Open() error {
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 		if err := p.Open(); err != nil {
-			f.Logger.Error("Unable to open time series data",
+			f.Logger.Error("Unable to open series file",
 				zap.String("path", f.path),
 				zap.Int("partition", p.ID()),
 				zap.Error(err))
-			f.doClose(false)
+			f.close(false)
 			return err
 		}
 		f.partitions = append(f.partitions, p)
@@ -78,12 +78,7 @@ func (f *SeriesFile) Open() error {
 	return nil
 }
 
-func (f *SeriesFile) doClose(withLock bool) (err error) {
-	if withLock {
-		// Wait for all references to be released and prevent new ones from being acquired.
-		f.refs.Lock()
-		defer f.refs.Unlock()
-	}
+func (f *SeriesFile) close() (err error) {
 	for _, p := range f.partitions {
 		if e := p.Close(); e != nil && err == nil {
 			err = e
@@ -95,7 +90,9 @@ func (f *SeriesFile) doClose(withLock bool) (err error) {
 
 // Close unmaps the data file.
 func (f *SeriesFile) Close() (err error) {
-	return f.doClose(true)
+	f.refs.Lock()
+	defer f.refs.Unlock()
+	return f.close()
 }
 
 // Path returns the path to the file.
