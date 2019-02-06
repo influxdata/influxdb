@@ -8,9 +8,9 @@ import (
 	platform "github.com/influxdata/influxdb"
 )
 
-// BasicAuth test all the services for basic auth
-func BasicAuth(
-	init func(UserFields, *testing.T) (platform.BasicAuthService, func()),
+// Passwords test implementations of PasswordsService.
+func Passwords(
+	init func(UserFields, *testing.T) (platform.PasswordsService, func()),
 	t *testing.T) {
 	type args struct {
 		name            string
@@ -104,9 +104,9 @@ func BasicAuth(
 
 }
 
-// CompareAndSetPassword test
+// CompareAndSetPassword tests implementations of PasswordsService.
 func CompareAndSetPassword(
-	init func(UserFields, *testing.T) (platform.BasicAuthService, func()),
+	init func(UserFields, *testing.T) (platform.PasswordsService, func()),
 	t *testing.T) {
 	type args struct {
 		name string

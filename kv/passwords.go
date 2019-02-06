@@ -74,7 +74,7 @@ var (
 	userpasswordBucket = []byte("userspasswordv1")
 )
 
-var _ influxdb.BasicAuthService = (*Service)(nil)
+var _ influxdb.PasswordsService = (*Service)(nil)
 
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.

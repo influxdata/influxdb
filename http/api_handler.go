@@ -59,7 +59,7 @@ type APIBackend struct {
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
 	SourceService                   influxdb.SourceService
 	VariableService                 influxdb.VariableService
-	BasicAuthService                influxdb.BasicAuthService
+	PasswordsService                influxdb.PasswordsService
 	OnboardingService               influxdb.OnboardingService
 	ProxyQueryService               query.ProxyQueryService
 	TaskService                     influxdb.TaskService
@@ -135,11 +135,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.QueryHandler = NewFluxHandler(fluxBackend)
 
 	h.ProtoHandler = NewProtoHandler(NewProtoBackend(b))
-
 	h.ChronografHandler = NewChronografHandler(b.ChronografService)
-
 	h.SwaggerHandler = SwaggerHandler()
-
 	h.LabelHandler = NewLabelHandler(b.LabelService)
 
 	return h

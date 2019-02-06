@@ -8,7 +8,7 @@ import (
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
-func initBasicAuthService(f platformtesting.UserFields, t *testing.T) (platform.BasicAuthService, func()) {
+func initPasswordsService(f platformtesting.UserFields, t *testing.T) (platform.PasswordsService, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
 	ctx := context.Background()
@@ -20,12 +20,12 @@ func initBasicAuthService(f platformtesting.UserFields, t *testing.T) (platform.
 	return s, func() {}
 }
 
-func TestBasicAuth(t *testing.T) {
+func TestPasswords(t *testing.T) {
 	t.Parallel()
-	platformtesting.BasicAuth(initBasicAuthService, t)
+	platformtesting.Passwords(initPasswordsService, t)
 }
 
-func TestBasicAuth_CompareAndSet(t *testing.T) {
+func TestPasswords_CompareAndSet(t *testing.T) {
 	t.Parallel()
-	platformtesting.CompareAndSetPassword(initBasicAuthService, t)
+	platformtesting.CompareAndSetPassword(initPasswordsService, t)
 }
