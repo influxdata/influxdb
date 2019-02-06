@@ -144,7 +144,8 @@ type scannerCursorBase struct {
 	columns []influxql.VarRef
 	loc     *time.Location
 
-	scan scannerFunc
+	scan   scannerFunc
+	valuer influxql.ValuerEval
 }
 
 func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.Location) scannerCursorBase {
@@ -162,12 +163,20 @@ func newScannerCursorBase(scan scannerFunc, fields []*influxql.Field, loc *time.
 		loc = time.UTC
 	}
 
+	m := make(map[string]interface{})
 	return scannerCursorBase{
 		fields:  exprs,
-		m:       make(map[string]interface{}),
+		m:       m,
 		columns: columns,
 		loc:     loc,
 		scan:    scan,
+		valuer: influxql.ValuerEval{
+			Valuer: influxql.MultiValuer(
+				MathValuer{},
+				influxql.MapValuer(m),
+			),
+			IntegerFloatDivision: true,
+		},
 	}
 }
 
@@ -189,20 +198,13 @@ func (cur *scannerCursorBase) Scan(row *Row) bool {
 		row.Values = make([]interface{}, len(cur.columns))
 	}
 
-	valuer := influxql.ValuerEval{
-		Valuer: influxql.MultiValuer(
-			MathValuer{},
-			influxql.MapValuer(cur.m),
-		),
-		IntegerFloatDivision: true,
-	}
 	for i, expr := range cur.fields {
 		// A special case if the field is time to reduce memory allocations.
 		if ref, ok := expr.(*influxql.VarRef); ok && ref.Val == "time" {
 			row.Values[i] = time.Unix(0, row.Time).In(cur.loc)
 			continue
 		}
-		v := valuer.Eval(expr)
+		v := cur.valuer.Eval(expr)
 		if fv, ok := v.(float64); ok && math.IsNaN(fv) {
 			// If the float value is NaN, convert it to a null float
 			// so this can be serialized correctly, but not mistaken for
@@ -339,6 +341,7 @@ type filterCursor struct {
 	fields map[string]IteratorMap
 	filter influxql.Expr
 	m      map[string]interface{}
+	valuer influxql.ValuerEval
 }
 
 func newFilterCursor(cur Cursor, filter influxql.Expr) *filterCursor {
@@ -362,11 +365,13 @@ func newFilterCursor(cur Cursor, filter influxql.Expr) *filterCursor {
 			fields[name.Val] = TagMap(name.Val)
 		}
 	}
+	m := make(map[string]interface{})
 	return &filterCursor{
 		Cursor: cur,
 		fields: fields,
 		filter: filter,
-		m:      make(map[string]interface{}),
+		m:      m,
+		valuer: influxql.ValuerEval{Valuer: influxql.MapValuer(m)},
 	}
 }
 
@@ -377,10 +382,7 @@ func (cur *filterCursor) Scan(row *Row) bool {
 			cur.m[name] = f.Value(row)
 		}
 
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MapValuer(cur.m),
-		}
-		if valuer.EvalBool(cur.filter) {
+		if cur.valuer.EvalBool(cur.filter) {
 			// Passes the filter! Return true. We no longer need to
 			// search for a suitable value.
 			return true
