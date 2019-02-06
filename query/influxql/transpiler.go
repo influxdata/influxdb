@@ -8,14 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/influxql"
 )
 
@@ -36,7 +30,7 @@ func NewTranspilerWithConfig(dbrpMappingSvc platform.DBRPMappingService, cfg Con
 	}
 }
 
-func (t *Transpiler) Transpile(ctx context.Context, txt string) (*flux.Spec, error) {
+func (t *Transpiler) Transpile(ctx context.Context, txt string) (*ast.Package, error) {
 	// Parse the text of the query.
 	q, err := influxql.ParseQuery(txt)
 	if err != nil {
@@ -49,48 +43,80 @@ func (t *Transpiler) Transpile(ctx context.Context, txt string) (*flux.Spec, err
 			return nil, err
 		}
 	}
-	return transpiler.spec, nil
+	return &ast.Package{
+		Package: "main",
+		Files: []*ast.File{
+			transpiler.file,
+		},
+	}, nil
 }
 
 type transpilerState struct {
 	stmt           *influxql.SelectStatement
 	config         Config
-	spec           *flux.Spec
-	nextID         map[string]int
+	file           *ast.File
+	assignments    map[string]ast.Expression
 	dbrpMappingSvc platform.DBRPMappingService
 }
 
 func newTranspilerState(dbrpMappingSvc platform.DBRPMappingService, config *Config) *transpilerState {
 	state := &transpilerState{
-		spec:           &flux.Spec{},
-		nextID:         make(map[string]int),
+		file: &ast.File{
+			Package: &ast.PackageClause{
+				Name: &ast.Identifier{
+					Name: "main",
+				},
+			},
+		},
+		assignments:    make(map[string]ast.Expression),
 		dbrpMappingSvc: dbrpMappingSvc,
 	}
 	if config != nil {
 		state.config = *config
 	}
-	if state.config.NowFn == nil {
-		state.config.NowFn = time.Now
+	if state.config.Now.IsZero() {
+		// Stamp the current time using the now time.
+		state.config.Now = time.Now()
 	}
-
-	// Stamp the current time using the now function from the config or the default.
-	state.spec.Now = state.config.NowFn()
 	return state
 }
 
 func (t *transpilerState) Transpile(ctx context.Context, id int, s influxql.Statement) error {
-	op, err := t.transpile(ctx, s)
+	expr, err := t.transpile(ctx, s)
 	if err != nil {
 		return err
 	}
-	t.op("yield", &universe.YieldOpSpec{Name: strconv.Itoa(id)}, op)
+	t.file.Body = append(t.file.Body, &ast.ExpressionStatement{
+		Expression: &ast.PipeExpression{
+			Argument: expr,
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{Name: "yield"},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{Name: "name"},
+								Value: &ast.StringLiteral{
+									Value: strconv.Itoa(id),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
 	return nil
 }
 
-func (t *transpilerState) transpile(ctx context.Context, s influxql.Statement) (flux.OperationID, error) {
+func (t *transpilerState) transpile(ctx context.Context, s influxql.Statement) (ast.Expression, error) {
 	switch stmt := s.(type) {
 	case *influxql.SelectStatement:
-		return t.transpileSelect(ctx, stmt)
+		cur, err := t.transpileSelect(ctx, stmt)
+		if err != nil {
+			return nil, err
+		}
+		return cur.Expr(), nil
 	case *influxql.ShowTagValuesStatement:
 		return t.transpileShowTagValues(ctx, stmt)
 	case *influxql.ShowDatabasesStatement:
@@ -98,36 +124,54 @@ func (t *transpilerState) transpile(ctx context.Context, s influxql.Statement) (
 	case *influxql.ShowRetentionPoliciesStatement:
 		return t.transpileShowRetentionPolicies(ctx, stmt)
 	default:
-		return "", fmt.Errorf("unknown statement type %T", s)
+		return nil, fmt.Errorf("unknown statement type %T", s)
 	}
 }
 
-func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *influxql.ShowTagValuesStatement) (flux.OperationID, error) {
+func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *influxql.ShowTagValuesStatement) (ast.Expression, error) {
 	// While the ShowTagValuesStatement contains a sources section and those sources are measurements, they do
 	// not actually contain the database and we do not factor in retention policies. So we are always going to use
 	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
 	// the sources in the statement.
 	if stmt.Database == "" {
 		if t.config.DefaultDatabase == "" {
-			return "", errDatabaseNameRequired
+			return nil, errDatabaseNameRequired
 		}
 		stmt.Database = t.config.DefaultDatabase
 	}
 
-	op, err := t.from(&influxql.Measurement{Database: stmt.Database})
+	expr, err := t.from(&influxql.Measurement{Database: stmt.Database})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// TODO(jsternberg): Read the range from the condition expression. 1.x doesn't actually do this so it isn't
 	// urgent to implement this functionality so we can use the default range.
-	op = t.op("range", &universe.RangeOpSpec{
-		Start: flux.Time{
-			Relative:   -time.Hour,
-			IsRelative: true,
+	expr = &ast.PipeExpression{
+		Argument: expr,
+		Call: &ast.CallExpression{
+			Callee: &ast.Identifier{
+				Name: "range",
+			},
+			Arguments: []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "start",
+							},
+							Value: &ast.DurationLiteral{
+								Values: []ast.Duration{{
+									Magnitude: -1,
+									Unit:      "h",
+								}},
+							},
+						},
+					},
+				},
+			},
 		},
-		Stop: flux.Now,
-	}, op)
+	}
 
 	// If we have a list of sources, look through it and add each of the measurement names.
 	measurementNames := make([]string, 0, len(stmt.Sources))
@@ -137,179 +181,445 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 	}
 
 	if len(measurementNames) > 0 {
-		var expr semantic.Expression = &semantic.BinaryExpression{
+		var filterExpr ast.Expression = &ast.BinaryExpression{
 			Operator: ast.EqualOperator,
-			Left: &semantic.MemberExpression{
-				Object:   &semantic.IdentifierExpression{Name: "r"},
-				Property: "_measurement",
+			Left: &ast.MemberExpression{
+				Object:   &ast.Identifier{Name: "r"},
+				Property: &ast.Identifier{Name: "_measurement"},
 			},
-			Right: &semantic.StringLiteral{Value: measurementNames[len(measurementNames)-1]},
+			Right: &ast.StringLiteral{
+				Value: measurementNames[len(measurementNames)-1],
+			},
 		}
 		for i := len(measurementNames) - 2; i >= 0; i-- {
-			expr = &semantic.LogicalExpression{
+			filterExpr = &ast.LogicalExpression{
 				Operator: ast.OrOperator,
-				Left: &semantic.BinaryExpression{
+				Left: &ast.BinaryExpression{
 					Operator: ast.EqualOperator,
-					Left: &semantic.MemberExpression{
-						Object:   &semantic.IdentifierExpression{Name: "r"},
-						Property: "_measurement",
+					Left: &ast.MemberExpression{
+						Object:   &ast.Identifier{Name: "r"},
+						Property: &ast.Identifier{Name: "_measurement"},
 					},
-					Right: &semantic.StringLiteral{Value: measurementNames[i]},
+					Right: &ast.StringLiteral{
+						Value: measurementNames[i],
+					},
 				},
-				Right: expr,
+				Right: filterExpr,
 			}
 		}
-		op = t.op("filter", &universe.FilterOpSpec{
-			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{
-							{Key: &semantic.Identifier{Name: "r"}},
+		expr = &ast.PipeExpression{
+			Argument: expr,
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "filter",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{Name: "fn"},
+								Value: &ast.FunctionExpression{
+									Params: []*ast.Property{
+										{
+											Key: &ast.Identifier{Name: "r"},
+										},
+									},
+									Body: filterExpr,
+								},
+							},
 						},
 					},
-					Body: expr,
 				},
 			},
-		}, op)
+		}
 	}
 
 	// TODO(jsternberg): Add the condition filter for the where clause.
 
 	// Create the key values op spec from the
-	var keyValues universe.KeyValuesOpSpec
+	var keyColumns []ast.Expression
 	switch expr := stmt.TagKeyExpr.(type) {
 	case *influxql.ListLiteral:
-		keyValues.KeyColumns = expr.Vals
+		keyColumns = make([]ast.Expression, 0, len(expr.Vals))
+		for _, name := range expr.Vals {
+			keyColumns = append(keyColumns, &ast.StringLiteral{
+				Value: name,
+			})
+		}
 	case *influxql.StringLiteral:
 		switch stmt.Op {
 		case influxql.EQ:
-			keyValues.KeyColumns = []string{expr.Val}
+			keyColumns = []ast.Expression{
+				&ast.StringLiteral{
+					Value: expr.Val,
+				},
+			}
 		case influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-			return "", fmt.Errorf("unimplemented: tag key operand: %s", stmt.Op)
+			return nil, fmt.Errorf("unimplemented: tag key operand: %s", stmt.Op)
 		default:
-			return "", fmt.Errorf("unsupported operand: %s", stmt.Op)
+			return nil, fmt.Errorf("unsupported operand: %s", stmt.Op)
 		}
 	default:
-		return "", fmt.Errorf("unsupported literal type: %T", expr)
+		return nil, fmt.Errorf("unsupported literal type: %T", expr)
 	}
-	op = t.op("keyValues", &keyValues, op)
+	expr = &ast.PipeExpression{
+		Argument: expr,
+		Call: &ast.CallExpression{
+			Callee: &ast.Identifier{
+				Name: "keyValues",
+			},
+			Arguments: []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "keyColumns",
+							},
+							Value: &ast.ArrayExpression{
+								Elements: keyColumns,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
 	// Group by the measurement and key, find distinct values, then group by the measurement
 	// to join all of the different keys together. Finish by renaming the columns. This is static.
-	return t.op("rename", &universe.RenameOpSpec{
-		Columns: map[string]string{
-			"_key":   "key",
-			"_value": "value",
-		},
-	}, t.op("group", &universe.GroupOpSpec{
-		Columns: []string{"_measurement"},
-		Mode:    "by",
-	}, t.op("distinct", &universe.DistinctOpSpec{
-		Column: execute.DefaultValueColLabel,
-	}, t.op("group", &universe.GroupOpSpec{
-		Columns: []string{"_measurement", "_key"},
-		Mode:    "by",
-	}, op)))), nil
-}
-
-func (t *transpilerState) transpileShowDatabases(ctx context.Context, stmt *influxql.ShowDatabasesStatement) (flux.OperationID, error) {
-	// While the ShowTagValuesStatement contains a sources section and those sources are measurements, they do
-	// not actually contain the database and we do not factor in retention policies. So we are always going to use
-	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
-	// the sources in the statement.
-
-	spec := &v1.DatabasesOpSpec{}
-	op := t.op("databases", spec)
-
-	// SHOW DATABASES has one column, name
-	return t.op("extractcol", &universe.KeepOpSpec{
-		Columns: []string{
-			"name",
-		},
-	}, t.op("rename", &universe.RenameOpSpec{
-		Columns: map[string]string{
-			"databaseName": "name",
-		},
-	}, op)), nil
-}
-
-func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, stmt *influxql.ShowRetentionPoliciesStatement) (flux.OperationID, error) {
-	// While the ShowTagValuesStatement contains a sources section and those sources are measurements, they do
-	// not actually contain the database and we do not factor in retention policies. So we are always going to use
-	// the default retention policy when evaluating which bucket we are querying and we do not have to consult
-	// the sources in the statement.
-
-	spec := &v1.DatabasesOpSpec{}
-	op := t.op("databases", spec)
-	var expr semantic.Expression = &semantic.BinaryExpression{
-		Operator: ast.EqualOperator,
-		Left: &semantic.MemberExpression{
-			Object:   &semantic.IdentifierExpression{Name: "r"},
-			Property: "databaseName",
-		},
-		Right: &semantic.StringLiteral{Value: stmt.Database},
-	}
-
-	op = t.op("filter", &universe.FilterOpSpec{
-		Fn: &semantic.FunctionExpression{
-			Block: &semantic.FunctionBlock{
-				Parameters: &semantic.FunctionParameters{
-					List: []*semantic.FunctionParameter{
-						{Key: &semantic.Identifier{Name: "r"}},
-					},
-				},
-				Body: expr,
-			},
-		},
-	}, op)
-
-	return t.op("keep",
-		&universe.KeepOpSpec{
-			Columns: []string{
-				"name",
-				"duration",
-				"shardGroupDuration",
-				"replicaN",
-				"default",
-			},
-		},
-		t.op("set",
-			&universe.SetOpSpec{
-				Key:   "replicaN",
-				Value: "2",
-			},
-			t.op("set",
-				&universe.SetOpSpec{
-					Key:   "shardGroupDuration",
-					Value: "0",
-				},
-				t.op("rename",
-					&universe.RenameOpSpec{
-						Columns: map[string]string{
-							"retentionPolicy": "name",
-							"retentionPeriod": "duration",
+	return &ast.PipeExpression{
+		Argument: &ast.PipeExpression{
+			Argument: &ast.PipeExpression{
+				Argument: &ast.PipeExpression{
+					Argument: expr,
+					Call: &ast.CallExpression{
+						Callee: &ast.Identifier{Name: "group"},
+						Arguments: []ast.Expression{
+							&ast.ObjectExpression{
+								Properties: []*ast.Property{
+									{
+										Key: &ast.Identifier{
+											Name: "columns",
+										},
+										Value: &ast.ArrayExpression{
+											Elements: []ast.Expression{
+												&ast.StringLiteral{Value: "_measurement"},
+												&ast.StringLiteral{Value: "_key"},
+											},
+										},
+									},
+									{
+										Key: &ast.Identifier{
+											Name: "mode",
+										},
+										Value: &ast.StringLiteral{
+											Value: "by",
+										},
+									},
+								},
+							},
 						},
 					},
-					op)))), nil
+				},
+				Call: &ast.CallExpression{
+					Callee: &ast.Identifier{Name: "distinct"},
+				},
+			},
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{Name: "group"},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{
+									Name: "columns",
+								},
+								Value: &ast.ArrayExpression{
+									Elements: []ast.Expression{
+										&ast.StringLiteral{Value: "_measurement"},
+									},
+								},
+							},
+							{
+								Key: &ast.Identifier{
+									Name: "mode",
+								},
+								Value: &ast.StringLiteral{
+									Value: "by",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Call: &ast.CallExpression{
+			Callee: &ast.Identifier{Name: "rename"},
+			Arguments: []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "columns",
+							},
+							Value: &ast.ObjectExpression{
+								Properties: []*ast.Property{
+									{
+										Key: &ast.Identifier{
+											Name: "_key",
+										},
+										Value: &ast.StringLiteral{
+											Value: "key",
+										},
+									},
+									{
+										Key: &ast.Identifier{
+											Name: "_value",
+										},
+										Value: &ast.StringLiteral{
+											Value: "value",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, nil
 }
 
-func (t *transpilerState) transpileSelect(ctx context.Context, stmt *influxql.SelectStatement) (flux.OperationID, error) {
+func (t *transpilerState) transpileShowDatabases(ctx context.Context, stmt *influxql.ShowDatabasesStatement) (ast.Expression, error) {
+	return &ast.PipeExpression{
+		Argument: &ast.PipeExpression{
+			Argument: &ast.CallExpression{
+				Callee: &ast.Identifier{Name: "databases"},
+			},
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "rename",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{
+									Name: "columns",
+								},
+								Value: &ast.ObjectExpression{
+									Properties: []*ast.Property{
+										{
+											Key: &ast.Identifier{Name: "databaseName"},
+											Value: &ast.StringLiteral{
+												Value: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Call: &ast.CallExpression{
+			Callee: &ast.Identifier{
+				Name: "keep",
+			},
+			Arguments: []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "columns",
+							},
+							Value: &ast.ArrayExpression{
+								Elements: []ast.Expression{
+									&ast.StringLiteral{
+										Value: "name",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, stmt *influxql.ShowRetentionPoliciesStatement) (ast.Expression, error) {
+	return &ast.PipeExpression{
+		Argument: &ast.PipeExpression{
+			Argument: &ast.PipeExpression{
+				Argument: &ast.PipeExpression{
+					Argument: &ast.PipeExpression{
+						Argument: &ast.CallExpression{
+							Callee: &ast.Identifier{
+								Name: "databases",
+							},
+						},
+						Call: &ast.CallExpression{
+							Callee: &ast.Identifier{
+								Name: "filter",
+							},
+							Arguments: []ast.Expression{
+								&ast.ObjectExpression{
+									Properties: []*ast.Property{
+										{
+											Key: &ast.Identifier{
+												Name: "fn",
+											},
+											Value: &ast.FunctionExpression{
+												Params: []*ast.Property{
+													{
+														Key: &ast.Identifier{
+															Name: "r",
+														},
+													},
+												},
+												Body: &ast.BinaryExpression{
+													Operator: ast.EqualOperator,
+													Left: &ast.MemberExpression{
+														Object: &ast.Identifier{
+															Name: "r",
+														},
+														Property: &ast.Identifier{
+															Name: "databaseName",
+														},
+													},
+													Right: &ast.StringLiteral{
+														Value: stmt.Database,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Call: &ast.CallExpression{
+						Callee: &ast.Identifier{
+							Name: "rename",
+						},
+						Arguments: []ast.Expression{
+							&ast.ObjectExpression{
+								Properties: []*ast.Property{
+									{
+										Key: &ast.Identifier{Name: "columns"},
+										Value: &ast.ObjectExpression{
+											Properties: []*ast.Property{
+												{
+													Key:   &ast.Identifier{Name: "retentionPolicy"},
+													Value: &ast.StringLiteral{Value: "name"},
+												},
+												{
+													Key:   &ast.Identifier{Name: "retentionPeriod"},
+													Value: &ast.StringLiteral{Value: "duration"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Call: &ast.CallExpression{
+					Callee: &ast.Identifier{
+						Name: "set",
+					},
+					Arguments: []ast.Expression{
+						&ast.ObjectExpression{
+							Properties: []*ast.Property{
+								{
+									Key: &ast.Identifier{Name: "key"},
+									Value: &ast.StringLiteral{
+										Value: "shardGroupDuration",
+									},
+								},
+								{
+									Key: &ast.Identifier{Name: "value"},
+									Value: &ast.StringLiteral{
+										Value: "0",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "set",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{Name: "key"},
+								Value: &ast.StringLiteral{
+									Value: "replicaN",
+								},
+							},
+							{
+								Key: &ast.Identifier{Name: "value"},
+								Value: &ast.StringLiteral{
+									Value: "2",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Call: &ast.CallExpression{
+			Callee: &ast.Identifier{
+				Name: "keep",
+			},
+			Arguments: []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "columns",
+							},
+							Value: &ast.ArrayExpression{
+								Elements: []ast.Expression{
+									&ast.StringLiteral{Value: "name"},
+									&ast.StringLiteral{Value: "duration"},
+									&ast.StringLiteral{Value: "shardGroupDuration"},
+									&ast.StringLiteral{Value: "replicaN"},
+									&ast.StringLiteral{Value: "default"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+func (t *transpilerState) transpileSelect(ctx context.Context, stmt *influxql.SelectStatement) (cursor, error) {
 	// Clone the select statement and omit the time from the list of column names.
 	t.stmt = stmt.Clone()
 	t.stmt.OmitTime = true
 
 	groups, err := identifyGroups(t.stmt)
 	if err != nil {
-		return "", err
+		return nil, err
 	} else if len(groups) == 0 {
-		return "", errors.New("at least 1 non-time field must be queried")
+		return nil, errors.New("at least 1 non-time field must be queried")
 	}
 
 	cursors := make([]cursor, 0, len(groups))
 	for _, gr := range groups {
 		cur, err := gr.createCursor(t)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		cursors = append(cursors, cur)
 	}
@@ -321,9 +631,9 @@ func (t *transpilerState) transpileSelect(ctx context.Context, stmt *influxql.Se
 	// Map each of the fields into another cursor. This evaluates any lingering expressions.
 	cur, err = t.mapFields(cur)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return cur.ID(), nil
+	return cur, nil
 }
 
 func (t *transpilerState) mapType(ref *influxql.VarRef) influxql.DataType {
@@ -331,11 +641,11 @@ func (t *transpilerState) mapType(ref *influxql.VarRef) influxql.DataType {
 	return influxql.Tag
 }
 
-func (t *transpilerState) from(m *influxql.Measurement) (flux.OperationID, error) {
+func (t *transpilerState) from(m *influxql.Measurement) (ast.Expression, error) {
 	db, rp := m.Database, m.RetentionPolicy
 	if db == "" {
 		if t.config.DefaultDatabase == "" {
-			return "", errors.New("database is required")
+			return nil, errors.New("database is required")
 		}
 		db = t.config.DefaultDatabase
 	}
@@ -357,27 +667,41 @@ func (t *transpilerState) from(m *influxql.Measurement) (flux.OperationID, error
 	filter.Default = &defaultRP
 	mapping, err := t.dbrpMappingSvc.Find(context.TODO(), filter)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	spec := &influxdb.FromOpSpec{
-		BucketID: mapping.BucketID.String(),
-	}
-	return t.op("from", spec), nil
+	return &ast.CallExpression{
+		Callee: &ast.Identifier{
+			Name: "from",
+		},
+		Arguments: []ast.Expression{
+			&ast.ObjectExpression{
+				Properties: []*ast.Property{
+					{
+						Key: &ast.Identifier{
+							Name: "bucketID",
+						},
+						Value: &ast.StringLiteral{
+							Value: mapping.BucketID.String(),
+						},
+					},
+				},
+			},
+		},
+	}, nil
 }
 
-func (t *transpilerState) op(name string, spec flux.OperationSpec, parents ...flux.OperationID) flux.OperationID {
-	op := flux.Operation{
-		ID:   flux.OperationID(fmt.Sprintf("%s%d", name, t.nextID[name])),
-		Spec: spec,
+func (t *transpilerState) assignment(expr ast.Expression) *ast.Identifier {
+	for i := 0; ; i++ {
+		key := fmt.Sprintf("t%d", i)
+		if _, ok := t.assignments[key]; !ok {
+			ident := &ast.Identifier{Name: key}
+			t.assignments[key] = expr
+			t.file.Body = append(t.file.Body, &ast.VariableAssignment{
+				ID:   ident,
+				Init: expr,
+			})
+			return ident
+		}
 	}
-	t.spec.Operations = append(t.spec.Operations, &op)
-	for _, pid := range parents {
-		t.spec.Edges = append(t.spec.Edges, flux.Edge{
-			Parent: pid,
-			Child:  op.ID,
-		})
-	}
-	t.nextID[name]++
-	return op.ID
 }

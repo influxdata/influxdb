@@ -2,14 +2,10 @@ package influxql
 
 import (
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
-	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/stdlib/universe"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 )
@@ -140,7 +136,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		tags map[influxql.VarRef]struct{}
 		cond influxql.Expr
 	)
-	valuer := influxql.NowValuer{Now: t.spec.Now}
+	valuer := influxql.NowValuer{Now: t.config.Now}
 	if t.stmt.Condition != nil {
 		var err error
 		if cond, _, err = influxql.ConditionExpr(t.stmt.Condition, &valuer); err != nil {
@@ -201,24 +197,35 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 
 	// Evaluate the conditional and insert a filter if a condition exists.
 	if cond != nil {
-		// Generate a filter expression by evaluating the condition and wrapping it in a filter op.
+		// // Generate a filter expression by evaluating the condition and wrapping it in a filter op.
 		expr, err := t.mapField(cond, cur)
 		if err != nil {
 			return nil, errors.Wrap(err, "unable to evaluate condition")
 		}
-		id := t.op("filter", &universe.FilterOpSpec{
-			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{{
-							Key: &semantic.Identifier{Name: "r"},
-						}},
+		cur = &pipeCursor{
+			expr: &ast.PipeExpression{
+				Argument: cur.Expr(),
+				Call: &ast.CallExpression{
+					Callee: &ast.Identifier{
+						Name: "filter",
 					},
-					Body: expr,
+					Arguments: []ast.Expression{
+						&ast.ObjectExpression{
+							Properties: []*ast.Property{{
+								Key: &ast.Identifier{Name: "fn"},
+								Value: &ast.FunctionExpression{
+									Params: []*ast.Property{{
+										Key: &ast.Identifier{Name: "r"},
+									}},
+									Body: expr,
+								},
+							}},
+						},
+					},
 				},
 			},
-		}, cur.ID())
-		cur = &opCursor{id: id, cursor: cur}
+			cursor: cur,
+		}
 	}
 
 	// Group together the results.
@@ -244,14 +251,21 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		// If there was a window operation, we now need to undo that and sort by the start column
 		// so they stay in the same table and are joined in the correct order.
 		if interval > 0 {
-			cur = &groupCursor{
-				id: t.op("window", &universe.WindowOpSpec{
-					Every:       flux.Duration(math.MaxInt64),
-					Period:      flux.Duration(math.MaxInt64),
-					TimeColumn:  execute.DefaultTimeColLabel,
-					StartColumn: execute.DefaultStartColLabel,
-					StopColumn:  execute.DefaultStopColLabel,
-				}, cur.ID()),
+			cur = &pipeCursor{
+				expr: &ast.PipeExpression{
+					Argument: cur.Expr(),
+					Call: &ast.CallExpression{
+						Callee: &ast.Identifier{Name: "window"},
+						Arguments: []ast.Expression{
+							&ast.ObjectExpression{
+								Properties: []*ast.Property{{
+									Key:   &ast.Identifier{Name: "every"},
+									Value: &ast.Identifier{Name: "inf"},
+								}},
+							},
+						},
+					},
+				},
 				cursor: cur,
 			}
 		}
@@ -274,15 +288,13 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 	return cur, nil
 }
 
-type groupCursor struct {
-	cursor
-	id flux.OperationID
-}
-
 func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	var windowEvery time.Duration
 	var windowStart time.Time
-	tags := []string{"_measurement", "_start"}
+	tags := []ast.Expression{
+		&ast.StringLiteral{Value: "_measurement"},
+		&ast.StringLiteral{Value: "_start"},
+	}
 	if len(t.stmt.Dimensions) > 0 {
 		// Maintain a set of the dimensions we have encountered.
 		// This is so we don't duplicate groupings, but we still maintain the
@@ -299,7 +311,9 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 				} else if _, ok := m[expr.Val]; ok {
 					continue
 				}
-				tags = append(tags, expr.Val)
+				tags = append(tags, &ast.StringLiteral{
+					Value: expr.Val,
+				})
 				m[expr.Val] = struct{}{}
 			case *influxql.Call:
 				// Ensure the call is time() and it has one or two duration arguments.
@@ -326,7 +340,7 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 							} else if len(lit2.Args) != 0 {
 								return nil, errors.New("time dimension offset now() function requires no arguments")
 							}
-							now := t.spec.Now
+							now := t.config.Now
 							windowOffset = now.Sub(now.Truncate(windowEvery))
 
 							// Use the evaluated offset to replace the argument. Ideally, we would
@@ -365,31 +379,78 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	// Perform the grouping by the tags we found. There is always a group by because
 	// there is always something to group in influxql.
 	// TODO(jsternberg): A wildcard will skip this step.
-	id := t.op("group", &universe.GroupOpSpec{
-		Columns: tags,
-		Mode:    "by",
-	}, in.ID())
-
-	if windowEvery > 0 {
-		windowOp := &universe.WindowOpSpec{
-			Every:       flux.Duration(windowEvery),
-			Period:      flux.Duration(windowEvery),
-			TimeColumn:  execute.DefaultTimeColLabel,
-			StartColumn: execute.DefaultStartColLabel,
-			StopColumn:  execute.DefaultStopColLabel,
-		}
-
-		if !windowStart.IsZero() {
-			windowOp.Start = flux.Time{Absolute: windowStart}
-		}
-
-		id = t.op("window", windowOp, id)
+	in = &pipeCursor{
+		expr: &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "group",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{
+									Name: "columns",
+								},
+								Value: &ast.ArrayExpression{
+									Elements: tags,
+								},
+							},
+							{
+								Key: &ast.Identifier{
+									Name: "mode",
+								},
+								Value: &ast.StringLiteral{
+									Value: "by",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		cursor: in,
 	}
 
-	return &groupCursor{id: id, cursor: in}, nil
+	if windowEvery > 0 {
+		args := []*ast.Property{{
+			Key: &ast.Identifier{
+				Name: "every",
+			},
+			Value: &ast.DurationLiteral{
+				Values: durationLiteral(windowEvery),
+			},
+		}}
+		if !windowStart.IsZero() {
+			args = append(args, &ast.Property{
+				Key: &ast.Identifier{
+					Name: "start",
+				},
+				Value: &ast.DateTimeLiteral{
+					Value: windowStart.UTC(),
+				},
+			})
+		}
+		in = &pipeCursor{
+			expr: &ast.PipeExpression{
+				Argument: in.Expr(),
+				Call: &ast.CallExpression{
+					Callee: &ast.Identifier{
+						Name: "window",
+					},
+					Arguments: []ast.Expression{
+						&ast.ObjectExpression{
+							Properties: args,
+						},
+					},
+				},
+			},
+			cursor: in,
+		}
+	}
+	return in, nil
 }
-
-func (c *groupCursor) ID() flux.OperationID { return c.id }
 
 // tagsCursor is a pseudo-cursor that can be used to access tags within the cursor.
 type tagsCursor struct {
@@ -408,4 +469,43 @@ func (c *tagsCursor) Value(expr influxql.Expr) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func durationLiteral(d time.Duration) (dur []ast.Duration) {
+	for d != 0 {
+		switch {
+		case d/time.Hour > 0:
+			dur = append(dur, ast.Duration{
+				Magnitude: int64(d / time.Hour),
+				Unit:      "h",
+			})
+			d = d % time.Hour
+		case d/time.Minute > 0:
+			dur = append(dur, ast.Duration{
+				Magnitude: int64(d / time.Minute),
+				Unit:      "m",
+			})
+			d = d % time.Minute
+		case d/time.Second > 0:
+			dur = append(dur, ast.Duration{
+				Magnitude: int64(d / time.Second),
+				Unit:      "s",
+			})
+			d = d % time.Second
+		default:
+			dur = append(dur, ast.Duration{
+				Magnitude: int64(d),
+				Unit:      "ns",
+			})
+			return dur
+		}
+	}
+
+	if len(dur) == 0 {
+		dur = append(dur, ast.Duration{
+			Magnitude: 0,
+			Unit:      "s",
+		})
+	}
+	return dur
 }

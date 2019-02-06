@@ -1,16 +1,15 @@
 package spectests
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/flux"
+	"github.com/andreyvit/diff"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/parser"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query/influxql"
@@ -67,17 +66,17 @@ type Fixture interface {
 
 type fixture struct {
 	stmt string
-	spec *flux.Spec
+	want string
 
 	file string
 	line int
 }
 
-func NewFixture(stmt string, spec *flux.Spec) Fixture {
+func NewFixture(stmt, want string) Fixture {
 	_, file, line, _ := runtime.Caller(1)
 	return &fixture{
 		stmt: stmt,
-		spec: spec,
+		want: want,
 		file: filepath.Base(file),
 		line: line,
 	}
@@ -89,61 +88,52 @@ func (f *fixture) Run(t *testing.T) {
 	altBucketID = platformtesting.MustIDBase16("cccccccccccccccc")
 
 	t.Run(f.stmt, func(t *testing.T) {
-		if err := f.spec.Validate(); err != nil {
-			t.Fatalf("%s:%d: expected spec is not valid: %s", f.file, f.line, err)
+		wantAST := parser.ParseSource(f.want)
+		if ast.Check(wantAST) > 0 {
+			t.Fatal("found parser errors in the want text")
 		}
+		want := ast.Format(wantAST)
 
 		transpiler := influxql.NewTranspilerWithConfig(
 			dbrpMappingSvc,
 			influxql.Config{
 				DefaultDatabase: "db0",
 				Cluster:         "cluster",
-				NowFn:           Now,
+				Now:             Now(),
 			},
 		)
-		spec, err := transpiler.Transpile(context.Background(), f.stmt)
+		pkg, err := transpiler.Transpile(context.Background(), f.stmt)
 		if err != nil {
 			t.Fatalf("%s:%d: unexpected error: %s", f.file, f.line, err)
-		} else if err := spec.Validate(); err != nil {
-			t.Fatalf("%s:%d: spec is not valid: %s", f.file, f.line, err)
 		}
+		got := ast.Format(pkg)
 
 		// Encode both of these to JSON and compare the results.
-		exp, _ := json.Marshal(f.spec)
-		got, _ := json.Marshal(spec)
-		if !bytes.Equal(exp, got) {
-			// Unmarshal into objects so we can compare the key/value pairs.
-			var expObj, gotObj interface{}
-			json.Unmarshal(exp, &expObj)
-			json.Unmarshal(got, &gotObj)
-
-			// If there is no diff, then they were trivial byte differences and
-			// there is no error.
-			if diff := cmp.Diff(expObj, gotObj); diff != "" {
-				t.Fatalf("unexpected spec in test at %s:%d\n%s", f.file, f.line, diff)
-			}
+		if want != got {
+			out := diff.LineDiff(want, got)
+			t.Fatalf("unexpected ast at %s:%d\n%s", f.file, f.line, out)
 		}
 	})
 }
 
 type collection struct {
 	stmts []string
-	specs []*flux.Spec
+	wants []string
 
 	file string
 	line int
 }
 
-func (c *collection) Add(stmt string, spec *flux.Spec) {
+func (c *collection) Add(stmt, want string) {
 	c.stmts = append(c.stmts, stmt)
-	c.specs = append(c.specs, spec)
+	c.wants = append(c.wants, want)
 }
 
 func (c *collection) Run(t *testing.T) {
 	for i, stmt := range c.stmts {
 		f := fixture{
 			stmt: stmt,
-			spec: c.specs[i],
+			want: c.wants[i],
 			file: c.file,
 			line: c.line,
 		}
