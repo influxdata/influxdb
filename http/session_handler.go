@@ -14,15 +14,16 @@ import (
 type SessionBackend struct {
 	Logger *zap.Logger
 
-	BasicAuthService platform.BasicAuthService
+	PasswordsService platform.PasswordsService
 	SessionService   platform.SessionService
 }
 
+// NewSessionBackend creates a new SessionBackend with associated logger.
 func NewSessionBackend(b *APIBackend) *SessionBackend {
 	return &SessionBackend{
 		Logger: b.Logger.With(zap.String("handler", "session")),
 
-		BasicAuthService: b.BasicAuthService,
+		PasswordsService: b.PasswordsService,
 		SessionService:   b.SessionService,
 	}
 }
@@ -32,7 +33,7 @@ type SessionHandler struct {
 	*httprouter.Router
 	Logger *zap.Logger
 
-	BasicAuthService platform.BasicAuthService
+	PasswordsService platform.PasswordsService
 	SessionService   platform.SessionService
 }
 
@@ -42,7 +43,7 @@ func NewSessionHandler(b *SessionBackend) *SessionHandler {
 		Router: NewRouter(),
 		Logger: b.Logger,
 
-		BasicAuthService: b.BasicAuthService,
+		PasswordsService: b.PasswordsService,
 		SessionService:   b.SessionService,
 	}
 
@@ -61,7 +62,7 @@ func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.BasicAuthService.ComparePassword(ctx, req.Username, req.Password); err != nil {
+	if err := h.PasswordsService.ComparePassword(ctx, req.Username, req.Password); err != nil {
 		// Don't log here, it should already be handled by the service
 		UnauthorizedError(ctx, w)
 		return
