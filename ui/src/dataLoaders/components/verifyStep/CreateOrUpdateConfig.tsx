@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Spinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
@@ -69,7 +69,12 @@ export class CreateOrUpdateConfig extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <Spinner loading={this.state.loading}>{this.props.children()}</Spinner>
+      <SpinnerContainer
+        loading={this.state.loading}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        {this.props.children()}
+      </SpinnerContainer>
     )
   }
 }

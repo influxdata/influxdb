@@ -30,7 +30,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 
 // Components
 import {Page} from 'src/pageLayout'
-import {Spinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Members from 'src/organizations/components/Members'
@@ -103,9 +103,12 @@ class OrganizationView extends PureComponent<Props> {
                   fetcher={this.getOwnersAndMembers}
                 >
                   {(members, loading) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <Members members={members} orgName={org.name} />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -119,14 +122,17 @@ class OrganizationView extends PureComponent<Props> {
                   fetcher={getBuckets}
                 >
                   {(buckets, loading, fetch) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <Buckets
                         buckets={buckets}
                         org={org}
                         onChange={fetch}
                         notify={notify}
                       />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -140,14 +146,17 @@ class OrganizationView extends PureComponent<Props> {
                   fetcher={getDashboards}
                 >
                   {(dashboards, loading, fetch) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <Dashboards
                         dashboards={dashboards}
                         orgName={org.name}
                         onChange={fetch}
                         orgID={org.id}
                       />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -158,13 +167,16 @@ class OrganizationView extends PureComponent<Props> {
               >
                 <GetOrgResources<Task[]> organization={org} fetcher={getTasks}>
                   {(tasks, loading, fetch) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <Tasks
                         tasks={tasks}
                         orgName={org.name}
                         onChange={fetch}
                       />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -178,13 +190,19 @@ class OrganizationView extends PureComponent<Props> {
                   fetcher={getCollectors}
                 >
                   {(collectors, loading, fetch) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <GetOrgResources<Bucket[]>
                         organization={org}
                         fetcher={getBuckets}
                       >
                         {(buckets, loading) => (
-                          <Spinner loading={loading}>
+                          <SpinnerContainer
+                            loading={loading}
+                            spinnerComponent={<TechnoSpinner />}
+                          >
                             <Collectors
                               collectors={collectors}
                               onChange={fetch}
@@ -192,10 +210,10 @@ class OrganizationView extends PureComponent<Props> {
                               buckets={buckets}
                               orgName={org.name}
                             />
-                          </Spinner>
+                          </SpinnerContainer>
                         )}
                       </GetOrgResources>
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -210,23 +228,29 @@ class OrganizationView extends PureComponent<Props> {
                 >
                   {(scrapers, loading, fetch) => {
                     return (
-                      <Spinner loading={loading}>
+                      <SpinnerContainer
+                        loading={loading}
+                        spinnerComponent={<TechnoSpinner />}
+                      >
                         <GetOrgResources<Bucket[]>
                           organization={org}
                           fetcher={getBuckets}
                         >
                           {(buckets, loading) => (
-                            <Spinner loading={loading}>
+                            <SpinnerContainer
+                              loading={loading}
+                              spinnerComponent={<TechnoSpinner />}
+                            >
                               <Scrapers
                                 scrapers={scrapers}
                                 onChange={fetch}
                                 orgName={org.name}
                                 buckets={buckets}
                               />
-                            </Spinner>
+                            </SpinnerContainer>
                           )}
                         </GetOrgResources>
-                      </Spinner>
+                      </SpinnerContainer>
                     )
                   }}
                 </GetOrgResources>

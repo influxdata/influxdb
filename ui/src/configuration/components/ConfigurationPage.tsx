@@ -5,7 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {Page} from 'src/pageLayout'
 import GetLabels from 'src/configuration/components/GetLabels'
-import {Spinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Labels from 'src/configuration/components/Labels'
@@ -50,9 +50,12 @@ class ConfigurationPage extends Component<Props> {
               >
                 <GetLabels>
                   {(labels, loading) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <Labels labels={labels} />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetLabels>
               </TabbedPageSection>

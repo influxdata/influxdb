@@ -7,6 +7,7 @@ import {client} from 'src/utils/api'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -55,18 +56,12 @@ export class Signin extends PureComponent<Props, State> {
   }
 
   public render() {
-    if (this.isLoading) {
-      return <div className="page-spinner" />
-    }
-
-    return this.props.children && React.cloneElement(this.props.children)
-  }
-
-  private get isLoading(): boolean {
     const {loading} = this.state
+
     return (
-      loading === RemoteDataState.Loading ||
-      loading === RemoteDataState.NotStarted
+      <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
+        {this.props.children && React.cloneElement(this.props.children)}
+      </SpinnerContainer>
     )
   }
 

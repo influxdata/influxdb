@@ -14,7 +14,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import OnboardingWizard from 'src/onboarding/containers/OnboardingWizard'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import {
-  Spinner,
+  SpinnerContainer,
+  TechnoSpinner,
   ComponentColor,
   ComponentSize,
   WizardFullScreen,
@@ -82,7 +83,10 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
 
     if (isSetupComplete) {
       return (
-        <Spinner loading={this.state.loading}>
+        <SpinnerContainer
+          loading={this.state.loading}
+          spinnerComponent={<TechnoSpinner />}
+        >
           <WizardFullScreen>
             <div className="wizard-contents">
               <div className="wizard-step--container">
@@ -100,12 +104,15 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
               </div>
             </div>
           </WizardFullScreen>
-        </Spinner>
+        </SpinnerContainer>
       )
     }
 
     return (
-      <Spinner loading={this.state.loading}>
+      <SpinnerContainer
+        loading={this.state.loading}
+        spinnerComponent={<TechnoSpinner />}
+      >
         <div className="chronograf-root">
           <Notifications inPresentationMode={true} />
           <OnboardingWizard
@@ -117,7 +124,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
             onCompleteSetup={this.handleCompleteSetup}
           />
         </div>
-      </Spinner>
+      </SpinnerContainer>
     )
   }
 

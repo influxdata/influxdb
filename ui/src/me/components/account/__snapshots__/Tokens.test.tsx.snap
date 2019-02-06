@@ -56,8 +56,14 @@ exports[`Account rendering renders! 1`] = `
   <ResourceFetcher
     fetcher={[Function]}
   >
-    <Spinner
+    <SpinnerContainer
       loading="Done"
+      spinnerComponent={
+        <TechnoSpinner
+          diameterPixels={100}
+          strokeWidth="sm"
+        />
+      }
     >
       <FilterList
         list={
@@ -499,7 +505,7 @@ exports[`Account rendering renders! 1`] = `
           </OverlayTechnology>
         </TokenList>
       </FilterList>
-    </Spinner>
+    </SpinnerContainer>
   </ResourceFetcher>
 </Tokens>
 `;
