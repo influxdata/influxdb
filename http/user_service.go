@@ -20,7 +20,7 @@ type UserBackend struct {
 	Logger                  *zap.Logger
 	UserService             influxdb.UserService
 	UserOperationLogService influxdb.UserOperationLogService
-	BasicAuthService        influxdb.BasicAuthService
+	PasswordsService        influxdb.PasswordsService
 }
 
 // NewUserBackend creates a UserBackend using information in the APIBackend.
@@ -29,7 +29,7 @@ func NewUserBackend(b *APIBackend) *UserBackend {
 		Logger:                  b.Logger.With(zap.String("handler", "user")),
 		UserService:             b.UserService,
 		UserOperationLogService: b.UserOperationLogService,
-		BasicAuthService:        b.BasicAuthService,
+		PasswordsService:        b.PasswordsService,
 	}
 }
 
@@ -39,7 +39,7 @@ type UserHandler struct {
 	Logger                  *zap.Logger
 	UserService             influxdb.UserService
 	UserOperationLogService influxdb.UserOperationLogService
-	BasicAuthService        influxdb.BasicAuthService
+	PasswordsService        influxdb.PasswordsService
 }
 
 const (
@@ -59,7 +59,7 @@ func NewUserHandler(b *UserBackend) *UserHandler {
 
 		UserService:             b.UserService,
 		UserOperationLogService: b.UserOperationLogService,
-		BasicAuthService:        b.BasicAuthService,
+		PasswordsService:        b.PasswordsService,
 	}
 
 	h.HandlerFunc("POST", usersPath, h.handlePostUser)
@@ -83,7 +83,7 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 		return "", err
 	}
 
-	err = h.BasicAuthService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
+	err = h.PasswordsService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
 	if err != nil {
 		return "", err
 	}
