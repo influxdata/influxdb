@@ -7,12 +7,14 @@ import {get} from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
+import FetchAuthToken from 'src/dataLoaders/components/verifyStep/FetchAuthToken'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
-import {Telegraf, TelegrafPluginOutputInfluxDBV2} from 'src/api'
+import {AppState} from 'src/types/v2'
+import {Telegraf} from 'src/api'
 
 interface OwnProps {
   visible: boolean
@@ -24,12 +26,16 @@ interface DispatchProps {
   notify: typeof notifyAction
 }
 
-type Props = DispatchProps & OwnProps
+interface StateProps {
+  username: string
+}
+
+type Props = StateProps & DispatchProps & OwnProps
 
 @ErrorHandling
 export class TelegrafInstructionsOverlay extends PureComponent<Props> {
   public render() {
-    const {notify, collector, visible, onDismiss} = this.props
+    const {notify, collector, visible, onDismiss, username} = this.props
 
     return (
       <WizardOverlay
@@ -37,35 +43,29 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
         title="Telegraf Setup Instructions"
         onDismiss={onDismiss}
       >
-        <TelegrafInstructions
-          notify={notify}
-          authToken={this.authToken}
-          configID={get(collector, 'id', '')}
-        />
+        <FetchAuthToken username={username}>
+          {authToken => (
+            <TelegrafInstructions
+              notify={notify}
+              authToken={authToken}
+              configID={get(collector, 'id', '')}
+            />
+          )}
+        </FetchAuthToken>
       </WizardOverlay>
     )
   }
-
-  private get authToken(): string {
-    const {collector} = this.props
-
-    if (!collector) {
-      return ''
-    }
-
-    const plugin = collector.plugins.find(
-      p => p.name === TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2
-    )
-
-    return get(plugin, 'config.token', '')
-  }
 }
+
+const mstp = ({me: {name}}: AppState): StateProps => ({
+  username: name,
+})
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
   mdtp
 )(TelegrafInstructionsOverlay)

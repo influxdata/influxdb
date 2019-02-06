@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.2 [unreleased]
 
 ## Features
+1. [11677](https://github.com/influxdata/influxdb/pull/11677): Add instructions button to view `$INFLUX_TOKEN` setup for telegraf configs
 1. [11693](https://github.com/influxdata/influxdb/pull/11693): Save the $INFLUX_TOKEN environmental variable in telegraf configs
 
 ## Bug Fixes

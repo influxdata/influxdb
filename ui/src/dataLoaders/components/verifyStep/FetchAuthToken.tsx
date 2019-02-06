@@ -13,7 +13,7 @@ import {client} from 'src/utils/api'
 import {RemoteDataState} from 'src/types'
 
 export interface Props {
-  bucket: string
+  bucket?: string
   username: string
   children: (authToken: string) => JSX.Element
 }
