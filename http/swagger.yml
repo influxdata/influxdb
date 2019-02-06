@@ -1524,7 +1524,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -1541,7 +1541,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Labels"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -1567,7 +1567,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -1599,7 +1599,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
+                $ref: "#/components/schemas/LabelResponse"
         '404':
           description: label not found
           content:
@@ -2109,12 +2109,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -3486,7 +3481,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ResourceOwners"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
@@ -3575,7 +3570,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ResourceMembers"
+                $ref: "#/components/schemas/ResourceOwners"
         default:
           description: unexpected error
           content:
@@ -3699,7 +3694,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Task"
+              $ref: "#/components/schemas/TaskCreateRequest"
       responses:
         '201':
           description: Task created
@@ -4058,14 +4053,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    type: array
-                    items:
-                      type: string
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -6897,3 +6885,19 @@ components:
         - us
         - u
         - ns
+    TaskCreateRequest:
+      properties:
+        orgID:
+          description: The ID of the organization that owns this Task.
+          type: string
+        status:
+          description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
+        flux:
+          description: The Flux script to run for this task.
+          type: string
+      required: [orgID, flux]
