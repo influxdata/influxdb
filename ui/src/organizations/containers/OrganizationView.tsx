@@ -181,6 +181,7 @@ class OrganizationView extends PureComponent<Props> {
                       <OrgTasksPage
                         tasks={tasks}
                         orgName={org.name}
+                        orgID={org.id}
                         onChange={fetch}
                         router={router}
                       />

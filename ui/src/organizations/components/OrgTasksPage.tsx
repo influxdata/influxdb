@@ -35,6 +35,7 @@ import {AppState} from 'src/types/v2'
 interface PassedInProps {
   tasks: Task[]
   orgName: string
+  orgID: string
   onChange: () => void
   router: InjectedRouter
 }
@@ -123,7 +124,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
                 onDelete={this.handleDelete}
                 onCreate={this.handleCreateTask}
                 onClone={this.handleClone}
-                onSelect={selectTask}
+                onSelect={this.handleSelectTask}
                 onAddTaskLabels={onAddTaskLabels}
                 onRemoveTaskLabels={onRemoveTaskLabels}
               />
@@ -133,6 +134,12 @@ class OrgTasksPage extends PureComponent<Props, State> {
         {this.renderImportOverlay}
       </>
     )
+  }
+
+  private handleSelectTask = (task: Task) => {
+    const {selectTask, orgID} = this.props
+
+    selectTask(task, `organizations/${orgID}/tasks_tab/${task.id}`)
   }
 
   private get filteredTasks() {
@@ -175,9 +182,9 @@ class OrgTasksPage extends PureComponent<Props, State> {
   }
 
   private handleCreateTask = () => {
-    const {router} = this.props
+    const {router, orgID} = this.props
 
-    router.push('/tasks/new')
+    router.push(`/organizations/${orgID}/tasks_tab/new`)
   }
 
   private handleToggleOverlay = () => {
@@ -209,6 +216,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
     this.props.setSearchTerm(e.target.value)
   }
 }
+
 const mstp = ({
   tasks: {searchTerm, showInactive},
   orgs,
@@ -219,6 +227,7 @@ const mstp = ({
     orgs,
   }
 }
+
 const mdtp: ConnectedDispatchProps = {
   updateTaskStatus,
   deleteTask,
@@ -230,6 +239,7 @@ const mdtp: ConnectedDispatchProps = {
   onRemoveTaskLabels: removeTaskLabelsAsync,
   onAddTaskLabels: addTaskLabelsAsync,
 }
+
 export default connect<
   ConnectedStateProps,
   ConnectedDispatchProps,

@@ -1,76 +1,67 @@
-// Libraries
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 
-// Components
+// components
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
-import {Page} from 'src/pageLayout'
 import FluxEditor from 'src/shared/components/FluxEditor'
+import {Page} from 'src/pageLayout'
 
-// Actions
+// actions
+import {State as TasksState} from 'src/tasks/reducers/v2'
 import {
-  updateScript,
-  selectTaskByID,
-  setCurrentScript,
-  cancel,
+  setNewScript,
+  saveNewScript,
   setTaskOption,
   clearTask,
-  setAllTaskOptions,
+  cancel,
 } from 'src/tasks/actions/v2'
-
-// Types
-import {Organization} from '@influxdata/influx'
+// types
 import {Links} from 'src/types/v2/links'
-import {State as TasksState} from 'src/tasks/reducers/v2'
+import {Organization} from 'src/types/v2'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {Task} from 'src/tasks/containers/TasksPage'
+
+// Styles
+import 'src/tasks/components/TaskForm.scss'
 
 interface PassedInProps {
   router: InjectedRouter
-  params: {id: string}
+  params: {orgID: string}
 }
 
 interface ConnectStateProps {
   orgs: Organization[]
   taskOptions: TaskOptions
-  currentTask: Task
-  currentScript: string
+  newScript: string
   tasksLink: string
 }
 
 interface ConnectDispatchProps {
+  setNewScript: typeof setNewScript
+  saveNewScript: typeof saveNewScript
   setTaskOption: typeof setTaskOption
-  setCurrentScript: typeof setCurrentScript
-  updateScript: typeof updateScript
-  cancel: typeof cancel
-  selectTaskByID: typeof selectTaskByID
   clearTask: typeof clearTask
-  setAllTaskOptions: typeof setAllTaskOptions
+  cancel: typeof cancel
 }
 
-class TaskEditPage extends PureComponent<
+class OrgTaskPage extends PureComponent<
   PassedInProps & ConnectStateProps & ConnectDispatchProps
 > {
   constructor(props) {
     super(props)
   }
 
-  public async componentDidMount() {
-    const {
-      params: {id},
-    } = this.props
-    await this.props.selectTaskByID(id)
-
-    const {currentTask} = this.props
-
-    this.props.setAllTaskOptions(currentTask)
+  public componentDidMount() {
+    this.props.setTaskOption({
+      key: 'taskScheduleType',
+      value: TaskSchedule.interval,
+    })
   }
 
   public componentWillUnmount() {
@@ -78,12 +69,12 @@ class TaskEditPage extends PureComponent<
   }
 
   public render(): JSX.Element {
-    const {currentScript, taskOptions, orgs} = this.props
+    const {newScript, taskOptions, orgs} = this.props
 
     return (
-      <Page titleTag={`Edit ${taskOptions.name}`}>
+      <Page titleTag="Create Task">
         <TaskHeader
-          title="Update Task"
+          title="Create Task"
           canSubmit={this.isFormValid}
           onCancel={this.handleCancel}
           onSave={this.handleSave}
@@ -102,7 +93,7 @@ class TaskEditPage extends PureComponent<
             </div>
             <div className="task-form--editor">
               <FluxEditor
-                script={currentScript}
+                script={newScript}
                 onChangeScript={this.handleChangeScript}
                 visibility="visible"
                 status={{text: '', type: ''}}
@@ -118,15 +109,15 @@ class TaskEditPage extends PureComponent<
   private get isFormValid(): boolean {
     const {
       taskOptions: {name, cron, interval},
-      currentScript,
+      newScript,
     } = this.props
 
     const hasSchedule = !!cron || !!interval
-    return hasSchedule && !!name && !!currentScript
+    return hasSchedule && !!name && !!newScript
   }
 
   private handleChangeScript = (script: string) => {
-    this.props.setCurrentScript(script)
+    this.props.setNewScript(script)
   }
 
   private handleChangeScheduleType = (schedule: TaskSchedule) => {
@@ -134,7 +125,13 @@ class TaskEditPage extends PureComponent<
   }
 
   private handleSave = () => {
-    this.props.updateScript()
+    const {params, newScript, taskOptions} = this.props
+
+    this.props.saveNewScript(
+      newScript,
+      taskOptions,
+      `organizations/${params.orgID}/tasks_tab/`
+    )
   }
 
   private handleCancel = () => {
@@ -165,23 +162,20 @@ const mstp = ({
   return {
     orgs,
     taskOptions: tasks.taskOptions,
-    currentScript: tasks.currentScript,
+    newScript: tasks.newScript,
     tasksLink: links.tasks,
-    currentTask: tasks.currentTask,
   }
 }
 
 const mdtp: ConnectDispatchProps = {
+  setNewScript,
+  saveNewScript,
   setTaskOption,
-  setCurrentScript,
-  updateScript,
-  cancel,
-  selectTaskByID,
-  setAllTaskOptions,
   clearTask,
+  cancel,
 }
 
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(
   mstp,
   mdtp
-)(TaskEditPage)
+)(OrgTaskPage)

@@ -3,6 +3,7 @@
 ## Features
 1. [11677](https://github.com/influxdata/influxdb/pull/11677): Add instructions button to view `$INFLUX_TOKEN` setup for telegraf configs
 1. [11693](https://github.com/influxdata/influxdb/pull/11693): Save the $INFLUX_TOKEN environmental variable in telegraf configs
+1. [11700](https://github.com/influxdata/influxdb/pull/11700): Update Tasks tab on Org page to look like Tasks Page
 
 ## Bug Fixes
 1. [11678](https://github.com/influxdata/influxdb/pull/11678): Update the System Telegraf Plugin bundle to include the swap plugin
