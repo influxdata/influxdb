@@ -252,6 +252,18 @@ func (l *Launcher) FluxService() *http.FluxService {
 	return &http.FluxService{Addr: l.URL(), Token: l.Auth.Token}
 }
 
+func (l *Launcher) BucketService() *http.BucketService {
+	return &http.BucketService{Addr: l.URL(), Token: l.Auth.Token}
+}
+
+func (l *Launcher) AuthorizationService() *http.AuthorizationService {
+	return &http.AuthorizationService{Addr: l.URL(), Token: l.Auth.Token}
+}
+
+func (l *Launcher) TaskService() *http.TaskService {
+	return &http.TaskService{Addr: l.URL(), Token: l.Auth.Token}
+}
+
 // MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.
 func (l *Launcher) MustNewHTTPRequest(method, rawurl, body string) *nethttp.Request {
 	req, err := nethttp.NewRequest(method, l.URL()+rawurl, strings.NewReader(body))
