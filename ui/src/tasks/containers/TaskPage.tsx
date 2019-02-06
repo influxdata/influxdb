@@ -1,15 +1,16 @@
+// Libraries
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 
-// components
+// Components
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
 import FluxEditor from 'src/shared/components/FluxEditor'
 import {Page} from 'src/pageLayout'
 
-// actions
+// Actions
 import {State as TasksState} from 'src/tasks/reducers/v2'
 import {
   setNewScript,
@@ -18,7 +19,8 @@ import {
   clearTask,
   cancel,
 } from 'src/tasks/actions/v2'
-// types
+
+// Types
 import {Links} from 'src/types/v2/links'
 import {Organization} from 'src/types/v2'
 import {
@@ -95,7 +97,6 @@ class TaskPage extends PureComponent<
                 script={newScript}
                 onChangeScript={this.handleChangeScript}
                 visibility="visible"
-                status={{text: '', type: ''}}
                 suggestions={[]}
               />
             </div>

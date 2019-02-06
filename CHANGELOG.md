@@ -20,6 +20,7 @@
 1. [11740](https://github.com/influxdata/influxdb/pull/11740): Add view button to view the telegraf config toml
 1. [11522](https://github.com/influxdata/influxdb/pull/11522): Add plugin information step to allow for config naming and configure one plugin at a time
 1. [11758](https://github.com/influxdata/influxdb/pull/11758): Update Dashboards tab on Org page to look like Dashboards Page
+1. [11810](https://github.com/influxdata/influxdb/pull/11810): Add tab for template variables under organizations page
 
 ## Bug Fixes
 1. [11678](https://github.com/influxdata/influxdb/pull/11678): Update the System Telegraf Plugin bundle to include the swap plugin

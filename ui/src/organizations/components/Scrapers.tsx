@@ -21,7 +21,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {ScraperTargetResponse, Bucket} from '@influxdata/influx'
-import {OverlayState} from 'src/types/v2'
+import {OverlayState} from 'src/types'
 import {DataLoaderType, DataLoaderStep} from 'src/types/v2/dataLoaders'
 
 interface Props {
