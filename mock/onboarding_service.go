@@ -10,7 +10,7 @@ var _ platform.OnboardingService = (*OnboardingService)(nil)
 
 // OnboardingService is a mock implementation of platform.OnboardingService.
 type OnboardingService struct {
-	BasicAuthService
+	PasswordsService
 	BucketService
 	OrganizationService
 	UserService

@@ -8,7 +8,7 @@ import (
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
-func initBasicAuthService(f platformtesting.UserFields, t *testing.T) (platform.BasicAuthService, func()) {
+func initPasswordsService(f platformtesting.UserFields, t *testing.T) (platform.PasswordsService, func()) {
 	c, closeFn, err := NewTestClient()
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
@@ -30,12 +30,12 @@ func initBasicAuthService(f platformtesting.UserFields, t *testing.T) (platform.
 	}
 }
 
-func TestBasicAuth(t *testing.T) {
+func TestPasswords(t *testing.T) {
 	t.Parallel()
-	platformtesting.BasicAuth(initBasicAuthService, t)
+	platformtesting.Passwords(initPasswordsService, t)
 }
 
-func TestBasicAuth_CompareAndSet(t *testing.T) {
+func TestPasswords_CompareAndSet(t *testing.T) {
 	t.Parallel()
-	platformtesting.CompareAndSetPassword(initBasicAuthService, t)
+	platformtesting.CompareAndSetPassword(initPasswordsService, t)
 }

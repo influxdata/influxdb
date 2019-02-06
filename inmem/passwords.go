@@ -7,6 +7,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var _ platform.PasswordsService = (*Service)(nil)
+
 // HashCost is currently using bcrypt defaultCost
 const HashCost = bcrypt.DefaultCost
 

@@ -19,7 +19,6 @@ var (
 
 var _ platform.UserService = (*Client)(nil)
 var _ platform.UserOperationLogService = (*Client)(nil)
-var _ platform.BasicAuthService = (*Client)(nil)
 
 func (c *Client) initializeUsers(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(userBucket)); err != nil {
