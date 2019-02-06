@@ -9,7 +9,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Label} from 'src/api'
+import {Label} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

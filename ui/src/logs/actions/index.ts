@@ -18,7 +18,7 @@ import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
 // Types
 import {Dispatch} from 'redux'
 import {ThunkDispatch} from 'redux-thunk'
-import {Bucket, Source} from 'src/api'
+import {Bucket, Source} from '@influxdata/influx'
 import {TimeSeriesValue} from 'src/types/v2/dashboards'
 import {
   Filter,

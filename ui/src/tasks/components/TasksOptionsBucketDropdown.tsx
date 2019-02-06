@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {Dropdown, ComponentStatus} from 'src/clockface'
 
 // Types
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
 interface Props {

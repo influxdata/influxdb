@@ -27,7 +27,7 @@ import {getSources} from 'src/sources/selectors'
 import {NOW} from 'src/logs/constants'
 
 // Types
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 import {Source, Links, AppState} from 'src/types/v2'
 import {
   Filter,

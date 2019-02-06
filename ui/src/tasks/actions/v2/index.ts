@@ -3,7 +3,7 @@ import {push} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {Task as TaskAPI, Organization} from 'src/api'
+import {Task as TaskAPI, Organization} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {

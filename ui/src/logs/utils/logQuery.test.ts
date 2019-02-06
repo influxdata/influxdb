@@ -9,7 +9,7 @@ import {oneline} from 'src/logs/utils/helpers/formatting'
 
 import {QueryConfig} from 'src/types'
 import {Filter, LogQuery} from 'src/types/logs'
-import {Source, Query} from 'src/api'
+import {Source, Query} from '@influxdata/influx'
 
 describe('Logs.LogQuery', () => {
   let config: QueryConfig

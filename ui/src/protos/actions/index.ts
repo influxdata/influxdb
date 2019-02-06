@@ -12,7 +12,7 @@ import {loadDashboard} from 'src/dashboards/actions/v2/'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types
-import {Proto, Dashboard} from 'src/api'
+import {Proto, Dashboard} from '@influxdata/influx'
 import {GetState} from 'src/types/v2'
 import {ConfigurationState} from 'src/types/v2/dataLoaders'
 

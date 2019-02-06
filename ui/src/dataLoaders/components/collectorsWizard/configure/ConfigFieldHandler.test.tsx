@@ -10,7 +10,10 @@ import {telegrafPluginsInfo} from 'src/dataLoaders/constants/pluginConfigs'
 import {telegrafPlugin} from 'mocks/dummyData'
 
 // Types
-import {TelegrafPluginInputCpu, TelegrafPluginInputRedis} from 'src/api'
+import {
+  TelegrafPluginInputCpu,
+  TelegrafPluginInputRedis,
+} from '@influxdata/influx'
 import ConfigFieldSwitcher from '../../configureStep/streaming/ConfigFieldSwitcher'
 
 const setup = (override = {}) => {

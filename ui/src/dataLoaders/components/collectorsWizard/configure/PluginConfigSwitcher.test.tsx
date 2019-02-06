@@ -10,7 +10,7 @@ import PluginConfigForm from 'src/dataLoaders/components/collectorsWizard/config
 
 // Constants
 import {telegrafPlugin, token} from 'mocks/dummyData'
-import {TelegrafPluginInputCpu} from 'src/api'
+import {TelegrafPluginInputCpu} from '@influxdata/influx'
 
 const setup = (override = {}) => {
   const props = {

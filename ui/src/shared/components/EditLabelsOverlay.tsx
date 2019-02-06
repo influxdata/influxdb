@@ -21,7 +21,7 @@ import FetchLabels from 'src/shared/components/FetchLabels'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Label} from 'src/api'
+import {Label} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
 // Utils

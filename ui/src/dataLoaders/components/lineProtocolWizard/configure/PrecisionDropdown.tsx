@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import {Dropdown} from 'src/clockface'
 
 // Types
-import {WritePrecision} from 'src/api'
+import {WritePrecision} from '@influxdata/influx'
 import {Precision} from 'src/types/v2/dataLoaders'
 
 interface Props {

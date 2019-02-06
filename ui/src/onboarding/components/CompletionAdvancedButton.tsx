@@ -8,7 +8,7 @@ import {Button, ComponentColor, ComponentSize} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Organization} from 'src/api'
+import {Organization} from '@influxdata/influx'
 
 interface OwnProps {
   orgs: Organization[]

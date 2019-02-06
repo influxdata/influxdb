@@ -6,7 +6,10 @@ import {
 
 // Types
 import {BundleName} from 'src/types/v2/dataLoaders'
-import {TelegrafPluginInputCpu, TelegrafPluginInputSystem} from 'src/api'
+import {
+  TelegrafPluginInputCpu,
+  TelegrafPluginInputSystem,
+} from '@influxdata/influx'
 
 describe('Onboarding.Utils.PluginConfig', () => {
   describe('if plugin is found in only one bundle', () => {

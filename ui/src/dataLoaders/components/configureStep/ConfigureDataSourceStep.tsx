@@ -9,7 +9,7 @@ import ConfigureDataSourceSwitcher from 'src/dataLoaders/components/configureSte
 // Types
 import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 
 export interface OwnProps extends DataLoaderStepProps {
   type: DataLoaderType

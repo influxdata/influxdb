@@ -30,7 +30,7 @@ import {client} from 'src/utils/api'
 // Types
 import {OverlayState} from 'src/types/v2'
 
-import {Bucket, Organization, BucketRetentionRules} from 'src/api'
+import {Bucket, Organization, BucketRetentionRules} from '@influxdata/influx'
 
 interface Props {
   org: Organization

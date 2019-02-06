@@ -11,7 +11,7 @@ import FilterList from 'src/shared/components/Filter'
 import {client} from 'src/utils/api'
 
 // Types
-import {Task} from 'src/api'
+import {Task} from '@influxdata/influx'
 
 interface Props {
   tasks: Task[]

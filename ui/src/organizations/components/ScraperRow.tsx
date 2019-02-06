@@ -8,7 +8,7 @@ import {
   ConfirmationButton,
   Alignment,
 } from 'src/clockface'
-import {ScraperTargetResponse} from 'src/api'
+import {ScraperTargetResponse} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 
 interface Props {

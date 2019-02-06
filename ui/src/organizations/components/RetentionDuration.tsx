@@ -5,7 +5,7 @@ import {Form, Input, InputType, Grid, Columns} from 'src/clockface'
 
 // Utils
 import {secondsToDuration} from 'src/utils/formatting'
-import {BucketRetentionRules} from 'src/api'
+import {BucketRetentionRules} from '@influxdata/influx'
 
 interface Props {
   type: BucketRetentionRules.TypeEnum

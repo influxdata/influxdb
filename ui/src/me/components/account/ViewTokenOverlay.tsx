@@ -10,7 +10,7 @@ import PermissionsWidget, {
 import CopyText from 'src/shared/components/CopyText'
 
 // Types
-import {Authorization, Permission} from 'src/api'
+import {Authorization, Permission} from '@influxdata/influx'
 
 // Actions
 import {NotificationAction} from 'src/types'

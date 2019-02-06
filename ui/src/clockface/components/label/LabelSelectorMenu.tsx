@@ -10,7 +10,7 @@ import LabelSelectorMenuItem from 'src/clockface/components/label/LabelSelectorM
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Label} from 'src/api'
+import {Label} from '@influxdata/influx'
 
 interface Props {
   highlightItemID: string

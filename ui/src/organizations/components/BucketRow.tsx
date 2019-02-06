@@ -13,7 +13,7 @@ import {
 } from 'src/clockface'
 
 // Types
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import EditableName from 'src/shared/components/EditableName'
 

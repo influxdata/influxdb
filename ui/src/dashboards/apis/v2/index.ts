@@ -10,11 +10,11 @@ import {incrementCloneName} from 'src/utils/naming'
 import {Cell, NewCell, Dashboard, View} from 'src/types/v2'
 import {Label} from '@influxdata/influx'
 
-import {Cell as CellTypeAPI} from 'src/api'
+import {Cell as CellAPI} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 
 export const addDashboardIDToCells = (
-  cells: CellTypeAPI[],
+  cells: CellAPI[],
   dashboardID: string
 ): Cell[] => {
   return cells.map(c => {

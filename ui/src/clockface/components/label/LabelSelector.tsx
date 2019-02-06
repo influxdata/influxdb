@@ -12,7 +12,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
 import {ComponentSize} from 'src/clockface/types'
-import {Label as LabelType} from 'src/api'
+import {Label as LabelAPI} from '@influxdata/influx'
 
 // Styles
 import './LabelSelector.scss'
@@ -25,10 +25,10 @@ enum ArrowDirection {
 }
 
 interface Props {
-  selectedLabels: LabelType[]
-  allLabels: LabelType[]
-  onAddLabel: (label: LabelType) => void
-  onRemoveLabel: (label: LabelType) => void
+  selectedLabels: LabelAPI[]
+  allLabels: LabelAPI[]
+  onAddLabel: (label: LabelAPI) => void
+  onRemoveLabel: (label: LabelAPI) => void
   onRemoveAllLabels: () => void
   resourceType: string
   inputSize?: ComponentSize
@@ -36,7 +36,7 @@ interface Props {
 
 interface State {
   filterValue: string
-  filteredLabels: LabelType[]
+  filteredLabels: LabelAPI[]
   isSuggesting: boolean
   highlightedID: string
 }
@@ -211,7 +211,7 @@ class LabelSelector extends Component<Props, State> {
     this.setState({filterValue, filteredLabels, highlightedID})
   }
 
-  private get availableLabels(): LabelType[] {
+  private get availableLabels(): LabelAPI[] {
     const {selectedLabels} = this.props
     const {filteredLabels} = this.state
 

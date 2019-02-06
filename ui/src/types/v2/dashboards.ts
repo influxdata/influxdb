@@ -4,7 +4,7 @@ import {
   Dashboard as DashboardAPI,
   View as ViewAPI,
   Cell as CellAPI,
-} from 'src/api'
+} from '@influxdata/influx'
 
 export interface Axis {
   label: string

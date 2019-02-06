@@ -6,7 +6,7 @@ import {shallow} from 'enzyme'
 import MultipleInput from './MultipleInput'
 import MultipleRows from './MultipleRows'
 
-import {TelegrafPluginInputCpu} from 'src/api'
+import {TelegrafPluginInputCpu} from '@influxdata/influx'
 
 const setup = (override = {}) => {
   const props = {

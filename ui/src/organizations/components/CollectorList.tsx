@@ -7,7 +7,7 @@ import {IndexList} from 'src/clockface'
 import CollectorRow from 'src/organizations/components/CollectorRow'
 
 // DummyData
-import {Telegraf} from 'src/api'
+import {Telegraf} from '@influxdata/influx'
 import {getDeep} from 'src/utils/wrappers'
 
 interface Props {

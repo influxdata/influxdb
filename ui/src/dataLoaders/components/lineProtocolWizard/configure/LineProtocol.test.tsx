@@ -4,7 +4,7 @@ import {shallow} from 'enzyme'
 
 // Components
 import {LineProtocol} from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocol'
-import {WritePrecision} from 'src/api'
+import {WritePrecision} from '@influxdata/influx'
 
 const setup = (override = {}) => {
   const props = {

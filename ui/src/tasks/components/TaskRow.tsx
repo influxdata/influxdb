@@ -18,7 +18,7 @@ import {
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
-import {Task as TaskAPI, Organization} from 'src/api'
+import {Task as TaskAPI, Organization} from '@influxdata/influx'
 
 interface Task extends TaskAPI {
   organization: Organization

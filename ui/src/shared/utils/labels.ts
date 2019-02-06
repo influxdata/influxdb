@@ -3,9 +3,9 @@ import {DEFAULT_LABEL_COLOR_HEX} from 'src/configuration/constants/LabelColors'
 
 // Types
 import {Label} from 'src/types/v2/labels'
-import {Label as APILabel} from 'src/api'
+import {Label as LabelAPI} from '@influxdata/influx'
 
-export const addLabelDefaults = (l: APILabel): Label => ({
+export const addLabelDefaults = (l: LabelAPI): Label => ({
   ...l,
   properties: {
     ...l.properties,

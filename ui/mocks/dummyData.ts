@@ -1,5 +1,5 @@
 import {Template, SourceLinks, TemplateType, TemplateValueType} from 'src/types'
-import {Source} from 'src/api'
+import {Source} from '@influxdata/influx'
 import {Cell, Dashboard, Label} from 'src/types/v2'
 import {Links} from 'src/types/v2/links'
 import {Task} from 'src/types/v2/tasks'
@@ -20,7 +20,7 @@ import {
   TelegrafPluginInputSwap,
   Task as TaskApi,
   Organization,
-} from 'src/api'
+} from '@influxdata/influx'
 
 export const links: Links = {
   authorizations: '/api/v2/authorizations',

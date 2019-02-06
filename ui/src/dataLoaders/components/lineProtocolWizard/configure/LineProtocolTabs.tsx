@@ -25,7 +25,7 @@ import {AppState} from 'src/types/v2/index'
 
 // Styles
 import 'src/clockface/components/auto_input/AutoInput.scss'
-import {WritePrecision} from 'src/api'
+import {WritePrecision} from '@influxdata/influx'
 
 interface OwnProps {
   tabs: LineProtocolTab[]

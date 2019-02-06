@@ -30,7 +30,7 @@ import {
 import {allOrganizationsID} from 'src/tasks/constants'
 
 // Types
-import {Task as TaskAPI, User, Organization} from 'src/api'
+import {Task as TaskAPI, User, Organization} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
 
 interface Task extends TaskAPI {

@@ -27,7 +27,7 @@ import GetOrgResources from 'src/organizations/components/GetOrgResources'
 // Types
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {Alignment, Stack, ComponentStatus} from 'src/clockface/types'
-import {Organization, Bucket} from 'src/api'
+import {Organization, Bucket} from '@influxdata/influx'
 
 // Styles
 import './TaskForm.scss'

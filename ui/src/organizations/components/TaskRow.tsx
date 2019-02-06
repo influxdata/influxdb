@@ -13,7 +13,7 @@ import {
 } from 'src/clockface'
 
 // Api
-import {Task} from 'src/api'
+import {Task} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 
 interface Props {

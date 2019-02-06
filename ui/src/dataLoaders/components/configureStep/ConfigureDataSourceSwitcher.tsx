@@ -9,7 +9,7 @@ import Scraping from 'src/dataLoaders/components/configureStep/Scraping'
 
 // Types
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 
 export interface Props {
   dataLoaderType: DataLoaderType

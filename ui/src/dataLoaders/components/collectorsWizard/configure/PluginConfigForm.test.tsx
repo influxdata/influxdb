@@ -12,7 +12,7 @@ import {telegrafPluginsInfo} from 'src/dataLoaders/constants/pluginConfigs'
 import {telegrafPlugin} from 'mocks/dummyData'
 
 // Types
-import {TelegrafPluginInputCpu} from 'src/api'
+import {TelegrafPluginInputCpu} from '@influxdata/influx'
 
 const setup = (override = {}) => {
   const props = {

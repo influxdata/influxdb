@@ -1,4 +1,4 @@
-import {Dashboard} from 'src/api'
+import {Dashboard} from '@influxdata/influx'
 import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
 export const EMPTY_LINKS = {

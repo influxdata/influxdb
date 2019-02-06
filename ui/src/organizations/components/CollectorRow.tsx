@@ -11,7 +11,7 @@ import {
   ComponentColor,
   ComponentSpacer,
 } from 'src/clockface'
-import {Telegraf} from 'src/api'
+import {Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 
 interface Props {

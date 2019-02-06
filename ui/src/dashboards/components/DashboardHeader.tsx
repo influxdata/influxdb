@@ -22,7 +22,7 @@ import {addNote} from 'src/dashboards/actions/v2/notes'
 // Types
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
-import {Dashboard} from 'src/api'
+import {Dashboard} from '@influxdata/influx'
 
 interface OwnProps {
   activeDashboard: string

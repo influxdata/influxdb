@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import {IndexList} from 'src/clockface'
 
 // Types
-import {Task} from 'src/api'
+import {Task} from '@influxdata/influx'
 import TaskRow from 'src/organizations/components/TaskRow'
 
 interface Props {

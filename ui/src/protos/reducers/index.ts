@@ -1,6 +1,6 @@
 // Types
 import {Action} from 'src/protos/actions/'
-import {Proto} from 'src/api'
+import {Proto} from '@influxdata/influx'
 
 export interface ProtosState {
   [protoName: string]: Proto

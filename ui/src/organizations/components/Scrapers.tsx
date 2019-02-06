@@ -23,7 +23,7 @@ import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {ScraperTargetResponse, Bucket} from 'src/api'
+import {ScraperTargetResponse, Bucket} from '@influxdata/influx'
 import {OverlayState} from 'src/types/v2'
 import {DataLoaderType, DataLoaderStep} from 'src/types/v2/dataLoaders'
 
