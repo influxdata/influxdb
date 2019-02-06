@@ -6,7 +6,6 @@ import classnames from 'classnames'
 import SideBarTab from 'src/dataLoaders/components/side_bar/SideBarTab'
 import SideBarButton from 'src/dataLoaders/components/side_bar/SideBarButton'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
-import {ComponentSpacer, Stack, Alignment} from 'src/clockface'
 
 // Styles
 import './SideBar.scss'
@@ -39,11 +38,6 @@ class SideBar extends Component<Props> {
           <FancyScrollbar autoHide={false}>
             <div className="side-bar--tabs">{this.childTabs}</div>
           </FancyScrollbar>
-          <div className="side-bar--buttons">
-            <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
-              {this.childButtons}
-            </ComponentSpacer>
-          </div>
         </div>
       </div>
     )
@@ -59,15 +53,6 @@ class SideBar extends Component<Props> {
     const {children} = this.props
     return React.Children.map(children, (child: JSX.Element) => {
       if (child.type === SideBarTab) {
-        return child
-      }
-    })
-  }
-
-  private get childButtons(): JSX.Element[] {
-    const {children} = this.props
-    return React.Children.map(children, (child: JSX.Element) => {
-      if (child.type === SideBarButton) {
         return child
       }
     })

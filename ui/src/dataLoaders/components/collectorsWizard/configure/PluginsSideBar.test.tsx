@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import PluginsSideBar from 'src/dataLoaders/components/PluginsSideBar'
+import PluginsSideBar from 'src/dataLoaders/components/collectorsWizard/configure/PluginsSideBar'
 import {cpuTelegrafPlugin, diskTelegrafPlugin} from 'mocks/dummyData'
 import SideBarTab from 'src/dataLoaders/components/side_bar/SideBarTab'
 

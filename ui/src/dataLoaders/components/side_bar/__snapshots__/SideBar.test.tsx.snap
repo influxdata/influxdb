@@ -40,29 +40,6 @@ exports[`SideBar rendering renders with children, and renders its children 1`] =
         />
       </div>
     </FancyScrollbar>
-    <div
-      className="side-bar--buttons"
-    >
-      <ComponentSpacer
-        align="left"
-        stackChildren="rows"
-      >
-        <SideBarButton
-          color="secondary"
-          icon="download"
-          key=".0:$a"
-          text="a"
-          titleText="a"
-        />
-        <SideBarButton
-          color="default"
-          icon="plus"
-          key=".0:$b"
-          text="b"
-          titleText="b"
-        />
-      </ComponentSpacer>
-    </div>
   </div>
 </div>
 `;
@@ -90,14 +67,6 @@ exports[`SideBar rendering renders with no children 1`] = `
         className="side-bar--tabs"
       />
     </FancyScrollbar>
-    <div
-      className="side-bar--buttons"
-    >
-      <ComponentSpacer
-        align="left"
-        stackChildren="rows"
-      />
-    </div>
   </div>
 </div>
 `;

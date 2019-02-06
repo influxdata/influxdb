@@ -28,7 +28,7 @@ class StepSwitcher extends PureComponent<Props> {
         return <SelectCollectorsStep {...stepProps} buckets={buckets} />
       case CollectorsStep.Configure:
         return (
-          <div className="onboarding-step wizard--skippable">
+          <div className="onboarding-step">
             <PluginConfigSwitcher />
           </div>
         )

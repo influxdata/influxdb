@@ -12,6 +12,7 @@
 1. [11689](https://github.com/influxdata/influxdb/pull/11689): Change the wording for the Collectors configure step button to Create and Verify
 1. [11697](https://github.com/influxdata/influxdb/pull/11697): Standardize page loading spinner styles
 1. [11711](https://github.com/influxdata/influxdb/pull/11711): Show checkbox on Save As button in data explorer
+1. [11705](https://github.com/influxdata/influxdb/pull/11705): Make collectors plugins side bar visible in only the configure step
 
 ## v2.0.0-alpha.1 [2019-01-23]
 

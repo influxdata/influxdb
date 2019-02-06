@@ -11,7 +11,6 @@ interface Props {
   visible: boolean
   telegrafPlugins: TelegrafPlugin[]
   onTabClick: (tabID: string) => void
-  currentStepIndex: number
 }
 
 const configStateToTabStatus = (cs: ConfigurationState): TabStatus => {
@@ -30,16 +29,9 @@ class PluginsSideBar extends Component<Props> {
     const {title, visible} = this.props
     return (
       <SideBar title={title} visible={visible}>
-        {this.content}
+        {this.tabs}
       </SideBar>
     )
-  }
-  private get content(): JSX.Element[] {
-    const {currentStepIndex} = this.props
-    if (currentStepIndex !== 2) {
-      return [...this.tabs]
-    }
-    return this.tabs
   }
 
   private get tabs(): JSX.Element[] {
