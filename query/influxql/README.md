@@ -210,6 +210,21 @@ If the inner query has a `GROUP BY time(X)` statement, then the grouping of the 
 
 A cursor is created using the method described in creating a [select statement](#select-statement).
 
+As an example, a subquery may generate a query like below.
+
+	// SELECT mean(max) FROM (SELECT max(value) FROM telegraf..cpu GROUP BY time(1m)) WHERE time >= now() - 10m
+	t0 = create_cursor(bucket: "telegraf/autogen", start: -10m, m: "cpu", f: "value")
+		|> group(columns: ["_measurement", "_start"], mode: "by")
+		|> window(every: 1m)
+		|> max()
+		|> window(every: inf)
+		|> map(fn: (r) => ({_time: r._time, max: r._value})
+	t0
+		|> group(columns: ["_measurement", "_start"], mode: "by")
+		|> mean(columns: ["max"])
+		|> duplicate(column: "_start", as: "_time")
+		|> map(fn: (r) => ({_time: r._time, mean: r.max})
+
 ## <a name="show-databases"></a> Show Databases 
 In 2.0, not all "buckets" will be conceptually equivalent to a 1.X database.  If a bucket is intended to represent a collection of 1.X data, it will be specifically identified as such.  `flux` provides a special function `databases()` that will retrieve information about all registered 1.X compatible buckets.  
     
