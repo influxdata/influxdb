@@ -19,22 +19,25 @@ The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent 
 		8. [Combine windows](#combine-windows)
 	3. [Join the groups](#join-groups)
 	4. [Map and eval columns](#map-and-eval)
-2. [Show Databases](#show-databases)
+2. [Subqueries](#subqueries)
+	1. [Propagate from the parent query](#subquery-propagate)
+	2. [Create cursor](#subquery-create-cursor)
+3. [Show Databases](#show-databases)
     1. [Create cursor](#show-databases-cursor)
     2. [Rename and Keep the name databaseName column](#show-databases-name)
-3. [Show Retention Policies](#show-retention-policies)
+4. [Show Retention Policies](#show-retention-policies)
     1. [Create cursor](#show-retention-policies-cursor)
     2. [Filter by the database name](#show-retention-policies-database-filter)
     3. [Rename Columns](#show-retention-policies-rename)
     4. [Set Static Columns](#show-retention-policies-static-cols)
     5. [Keep Specific Columns](#show-retention-policies-keep)
-4. [Show Tag Values](#show-tag-values)
+5. [Show Tag Values](#show-tag-values)
     1. [Create cursor](#show-tag-values-cursor)
     2. [Filter by the measurement](#show-tag-values-measurement-filter)
     3. [Evaluate the condition](#show-tag-values-evaluate-condition)
     4. [Retrieve the key values](#show-tag-values-key-values)
     5. [Find the distinct key values](#show-tag-values-distinct-key-values)
-3. [Encoding the results](#encoding)
+6. [Encoding the results](#encoding)
 
 ## <a name="select-statement"></a> Select Statement
 
@@ -64,14 +67,16 @@ We create the cursors within each group. This process is repeated for every grou
 
 #### <a name="create-cursor"></a> Create cursor
 
-The cursor is generated using the following template:
+If the source is a measurement, a cursor is generated using the following template:
 
 ```
 create_cursor = (db, rp="autogen", start, stop=now()) => from(bucket: db+"/"+rp)
     |> range(start: start, stop: stop)
 ```
 
-This is called once per group.
+This is called once per group for measurements.
+
+If the source is a subquery, then cursors are generated once for each subquery and the cursor is shared between groups. See [subqueries](#subqueries) for details on how those cursors are generated. After creating or retrieving the cursor, we skip to [evaluating the conditional](#evaluate-conditional).
 
 #### <a name="identify-variables"></a> Identify the variables
 
@@ -190,6 +195,20 @@ result |> map(fn: (r) => {_time: r._time, max: r.val1, usage_system: r.val2})
 This is the final result. It will also include any tags in the group key and the time will be located in the `_time` variable.
 
 TODO(jsternberg): The `_time` variable is only needed for selectors and raw queries. We can actually drop this variable for aggregate queries and use the `_start` time from the group key. Consider whether or not we should do this and if it is worth it.
+
+## <a name="subqueries"> Subqueries
+
+Subqueries are only supported for select statements. They act as a source for another query and how they are used is described in [creating a cursor](#create-cursor).
+
+### <a name="subquery-propagate"> Propagate from the parent query
+
+Some attributes need to be propagated from the outer query to the inner query. The time condition for the outer query will become the time condition for the inner query. This can be done by generating a time constraint from the outer query and adding it as an extra conditional on the inner query if it exists.
+
+If the inner query has a `GROUP BY time(X)` statement, then the grouping of the outer query gets propagated if there is not one present on the inner query.
+
+### <a name="subquery-create-cursor"> Create cursor
+
+A cursor is created using the method described in creating a [select statement](#select-statement).
 
 ## <a name="show-databases"></a> Show Databases 
 In 2.0, not all "buckets" will be conceptually equivalent to a 1.X database.  If a bucket is intended to represent a collection of 1.X data, it will be specifically identified as such.  `flux` provides a special function `databases()` that will retrieve information about all registered 1.X compatible buckets.  
