@@ -13,6 +13,9 @@ $sidebar-width-md: 240px;
   overflow: hidden;
   transform: translate3d(0,0,0);
   flex: 1 0 0;
+  border-radius: $radius;
+  background-color: $g2-kevlar;
+  margin: $ix-marg-b;
 
   &.show {
     flex: 1 0 $sidebar-width-sm;
@@ -26,7 +29,6 @@ $sidebar-width-md: 240px;
   width: 100%;
   display: inline-flex;
   flex-direction: column;
-  align-items: stretch;
   padding: $ix-marg-e 0 34px 0;
 }
 

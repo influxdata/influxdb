@@ -7,7 +7,6 @@ import _ from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import CollectorsStepSwitcher from 'src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'
-import PluginsSideBar from 'src/dataLoaders/components/PluginsSideBar'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -87,7 +86,7 @@ class CollectorsWizard extends PureComponent<Props> {
   }
 
   public render() {
-    const {visible, buckets, telegrafPlugins, currentStepIndex} = this.props
+    const {visible, buckets} = this.props
 
     return (
       <WizardOverlay
@@ -96,13 +95,6 @@ class CollectorsWizard extends PureComponent<Props> {
         onDismiss={this.handleDismiss}
       >
         <div className="wizard-contents">
-          <PluginsSideBar
-            telegrafPlugins={telegrafPlugins}
-            onTabClick={this.handleClickSideBarTab}
-            title="Plugins to Configure"
-            visible={this.sideBarVisible}
-            currentStepIndex={currentStepIndex}
-          />
           <div className="wizard-step--container">
             <CollectorsStepSwitcher
               stepProps={this.stepProps}
@@ -137,30 +129,6 @@ class CollectorsWizard extends PureComponent<Props> {
     this.props.onCompleteSetup()
     this.props.onClearDataLoaders()
     this.props.onClearSteps()
-  }
-
-  private get sideBarVisible() {
-    const {telegrafPlugins, currentStepIndex} = this.props
-
-    const isNotEmpty = telegrafPlugins.length > 0
-    const isConfigStep = currentStepIndex > 0
-
-    return isNotEmpty && isConfigStep
-  }
-
-  private handleClickSideBarTab = (tabID: string) => {
-    const {
-      onSetActiveTelegrafPlugin,
-      telegrafPlugins,
-      onSetPluginConfiguration,
-    } = this.props
-
-    const activeTelegrafPlugin = telegrafPlugins.find(tp => tp.active)
-    if (!!activeTelegrafPlugin) {
-      onSetPluginConfiguration(activeTelegrafPlugin.name)
-    }
-
-    onSetActiveTelegrafPlugin(tabID)
   }
 
   private get stepProps(): CollectorsStepProps {

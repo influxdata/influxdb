@@ -14,7 +14,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
 import {AppState} from 'src/types/v2'
-import {Telegraf} from 'src/api'
+import {Telegraf} from '@influxdata/influx'
 
 interface OwnProps {
   visible: boolean
