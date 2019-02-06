@@ -1,7 +1,7 @@
 // Libraries
 import _ from 'lodash'
 
-import {dashboardsAPI} from 'src/utils/api'
+import {client} from 'src/utils/api'
 
 // Types
 import {Organization} from 'src/api'
@@ -16,11 +16,9 @@ export const getDashboards = async (
   try {
     let result
     if (org) {
-      const {data} = await dashboardsAPI.dashboardsGet(org.name)
-      result = data.dashboards
+      result = await client.dashboards.getAllByOrg(org.name)
     } else {
-      const {data} = await dashboardsAPI.dashboardsGet(null)
-      result = data.dashboards
+      result = await client.dashboards.getAll()
     }
 
     return result

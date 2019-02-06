@@ -23,7 +23,6 @@ import {addNote} from 'src/dashboards/actions/v2/notes'
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
 import {Dashboard} from 'src/api'
-import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
 interface OwnProps {
   activeDashboard: string
@@ -38,7 +37,6 @@ interface OwnProps {
   showTemplateControlBar: boolean
   zoomedTimeRange: QueriesModels.TimeRange
   onRenameDashboard: (name: string) => Promise<void>
-  dashboardLinks: DashboardSwitcherLinks
   isHidden: boolean
 }
 

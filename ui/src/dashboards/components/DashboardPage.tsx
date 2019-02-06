@@ -25,18 +25,13 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
-import {updateDashboardLinks} from 'src/dashboards/utils/dashboardSwitcherLinks'
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {createView} from 'src/shared/utils/view'
 import {cellAddFailed} from 'src/shared/copy/notifications'
 
-// APIs
-import {loadDashboardLinks} from 'src/dashboards/apis/v2'
-
 // Constants
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
-import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 
 // Types
@@ -48,7 +43,6 @@ import {
   View,
   ViewType,
   TimeRange,
-  DashboardSwitcherLinks,
   AppState,
 } from 'src/types/v2'
 import {NewView, XYView, QueryViewProperties} from 'src/types/v2/dashboards'
@@ -115,7 +109,6 @@ type Props = PassedProps &
 interface State {
   scrollTop: number
   windowHeight: number
-  dashboardLinks: DashboardSwitcherLinks
   isShowingVEO: boolean
 }
 
@@ -127,7 +120,6 @@ class DashboardPage extends Component<Props, State> {
     this.state = {
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      dashboardLinks: EMPTY_LINKS,
       isShowingVEO: false,
     }
   }
@@ -140,8 +132,6 @@ class DashboardPage extends Component<Props, State> {
     window.addEventListener('resize', this.handleWindowResize, true)
 
     await this.getDashboard()
-
-    this.getDashboardLinks()
   }
 
   public componentDidUpdate(prevProps: Props) {
@@ -179,7 +169,7 @@ class DashboardPage extends Component<Props, State> {
       handleChooseAutoRefresh,
       handleClickPresentationButton,
     } = this.props
-    const {dashboardLinks, isShowingVEO} = this.state
+    const {isShowingVEO} = this.state
 
     return (
       <Page titleTag={this.pageTitle}>
@@ -193,7 +183,6 @@ class DashboardPage extends Component<Props, State> {
             onManualRefresh={onManualRefresh}
             zoomedTimeRange={zoomedTimeRange}
             onRenameDashboard={this.handleRenameDashboard}
-            dashboardLinks={dashboardLinks}
             activeDashboard={dashboard ? dashboard.name : ''}
             showTemplateControlBar={showTemplateControlBar}
             handleChooseAutoRefresh={handleChooseAutoRefresh}
@@ -234,16 +223,6 @@ class DashboardPage extends Component<Props, State> {
     const {params, getDashboard} = this.props
 
     await getDashboard(params.dashboardID)
-    this.updateActiveDashboard()
-  }
-
-  private updateActiveDashboard(): void {
-    this.setState((prevState, props) => ({
-      dashboardLinks: updateDashboardLinks(
-        prevState.dashboardLinks,
-        props.dashboard
-      ),
-    }))
   }
 
   private inView = (cell: Cell): boolean => {
@@ -334,7 +313,6 @@ class DashboardPage extends Component<Props, State> {
     const renamedDashboard = {...dashboard, name}
 
     await updateDashboard(renamedDashboard)
-    this.updateActiveDashboard()
   }
 
   private handleDeleteDashboardCell = async (cell: Cell): Promise<void> => {
@@ -342,33 +320,12 @@ class DashboardPage extends Component<Props, State> {
     await deleteCell(dashboard, cell)
   }
 
-  private handleZoomedTimeRange = (__: TimeRange): void => {
-    // const {setZoomedTimeRange, updateQueryParams} = this.props
-    // setZoomedTimeRange(zoomedTimeRange)
-    // updateQueryParams({
-    //   zoomedLower: zoomedTimeRange.lower,
-    //   zoomedUpper: zoomedTimeRange.upper,
-    // })
-  }
+  private handleZoomedTimeRange = (__: TimeRange): void => {}
 
   private setScrollTop = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement
 
     this.setState({scrollTop: target.scrollTop})
-  }
-
-  private getDashboardLinks = async (): Promise<void> => {
-    const {dashboard: activeDashboard} = this.props
-
-    try {
-      const dashboardLinks = await loadDashboardLinks(activeDashboard)
-
-      this.setState({
-        dashboardLinks,
-      })
-    } catch (error) {
-      console.error(error)
-    }
   }
 
   private handleWindowResize = (): void => {

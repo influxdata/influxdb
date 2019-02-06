@@ -1,5 +1,5 @@
 import {Color} from 'src/types/colors'
-import {Label} from 'src/types/v2/labels'
+import {Label} from '@influxdata/influx'
 import {
   Dashboard as DashboardAPI,
   View as ViewAPI,
