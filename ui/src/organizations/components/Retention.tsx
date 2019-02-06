@@ -14,7 +14,7 @@ import {
 
 import 'src/organizations/components/Retention.scss'
 
-import {BucketRetentionRules} from 'src/api'
+import {BucketRetentionRules} from '@influxdata/influx'
 
 interface Props {
   retentionSeconds: number

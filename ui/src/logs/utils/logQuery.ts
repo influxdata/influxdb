@@ -7,7 +7,7 @@ import {buildFluxQuery} from 'src/logs/utils/v2/queryBuilder'
 import {buildInfluxQLQuery} from 'src/logs/utils/v1/queryBuilder'
 
 // Types
-import {Bucket, Query} from 'src/api'
+import {Bucket, Query} from '@influxdata/influx'
 import {QueryConfig} from 'src/types'
 import {LogSearchParams, LogQuery} from 'src/types/logs'
 

@@ -49,7 +49,7 @@ import {
   TelegrafPluginInputRedis,
   TelegrafPluginInputKubernetes,
   TelegrafPluginInputFile,
-} from 'src/api'
+} from '@influxdata/influx'
 import {
   DataLoaderType,
   ConfigurationState,

@@ -26,7 +26,7 @@ import {
   Grid,
   Columns,
 } from 'src/clockface'
-import {Organization, Dashboard, ScraperTargetRequest} from 'src/api'
+import {Organization, Dashboard, ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 

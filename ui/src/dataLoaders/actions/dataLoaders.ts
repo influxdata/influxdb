@@ -3,7 +3,7 @@ import _ from 'lodash'
 
 // Apis
 import {client} from 'src/utils/api'
-import {ScraperTargetRequest} from 'src/api'
+import {ScraperTargetRequest} from '@influxdata/influx'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -30,7 +30,7 @@ import {
   WritePrecision,
   TelegrafRequest,
   TelegrafPluginOutputInfluxDBV2,
-} from 'src/api'
+} from '@influxdata/influx'
 import {Dispatch} from 'redux'
 
 type GetState = () => AppState

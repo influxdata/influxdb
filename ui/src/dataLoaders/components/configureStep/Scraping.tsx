@@ -18,7 +18,7 @@ import {
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 import {AppState} from 'src/types/v2/index'
 
 interface OwnProps {

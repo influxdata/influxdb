@@ -12,7 +12,7 @@ import {
   ComponentStatus,
 } from 'src/clockface'
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 
 interface Props {
   bucket: string

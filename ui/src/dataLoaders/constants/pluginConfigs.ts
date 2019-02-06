@@ -5,6 +5,7 @@ import {
   ConfigFieldType,
   BundleName,
 } from 'src/types/v2/dataLoaders'
+
 import {
   TelegrafPluginInputCpu,
   TelegrafPluginInputDisk,
@@ -26,7 +27,7 @@ import {
   TelegrafPluginInputSwap,
   TelegrafPluginInputSystem,
   TelegrafPluginInputTail,
-} from 'src/api'
+} from '@influxdata/influx'
 
 export const QUICKSTART_SCRAPER_TARGET_URL = 'http://localhost:9999/metrics'
 

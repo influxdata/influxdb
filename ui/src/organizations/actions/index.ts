@@ -5,7 +5,7 @@ import {Dispatch} from 'redux'
 import {client} from 'src/utils/api'
 
 // Types
-import {Organization} from 'src/api'
+import {Organization} from '@influxdata/influx'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',

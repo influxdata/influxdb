@@ -19,10 +19,10 @@ import {
   Dashboard,
 } from 'src/types/v2/dashboards'
 
-import {Source} from 'src/api'
+import {Source} from '@influxdata/influx'
 import {Task} from 'src/types/v2/tasks'
 import {Member} from 'src/types/v2/members'
-import {Organization} from 'src/api'
+import {Organization} from '@influxdata/influx'
 import {Links} from 'src/types/v2/links'
 import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'

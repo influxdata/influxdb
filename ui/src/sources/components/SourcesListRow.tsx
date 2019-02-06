@@ -20,7 +20,7 @@ import 'src/sources/components/SourcesListRow.scss'
 
 // Types
 import {AppState} from 'src/types/v2'
-import {Source} from 'src/api'
+import {Source} from '@influxdata/influx'
 
 interface StateProps {
   activeSourceID: string

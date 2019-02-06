@@ -11,7 +11,7 @@ import {
 import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
 
 // Types
-import {Bucket, BucketRetentionRules, Organization} from 'src/api'
+import {Bucket, BucketRetentionRules, Organization} from '@influxdata/influx'
 
 interface Props {
   org: Organization

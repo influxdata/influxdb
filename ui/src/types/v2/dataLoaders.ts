@@ -33,9 +33,9 @@ import {
   TelegrafPluginInputSyslogConfig,
   TelegrafPluginOutputFileConfig,
   TelegrafPluginOutputInfluxDBV2Config,
-} from 'src/api'
+} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
-import {WritePrecision} from 'src/api'
+import {WritePrecision} from '@influxdata/influx'
 
 export enum DataLoaderStep {
   'Configure',

@@ -6,7 +6,7 @@ import {IndexList} from 'src/clockface'
 import ScraperRow from 'src/organizations/components/ScraperRow'
 
 // Types
-import {ScraperTargetResponse} from 'src/api'
+import {ScraperTargetResponse} from '@influxdata/influx'
 
 interface Props {
   scrapers: ScraperTargetResponse[]

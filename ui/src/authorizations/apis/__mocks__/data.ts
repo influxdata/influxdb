@@ -1,4 +1,4 @@
-import {Permission, PermissionResource, Authorization} from 'src/api'
+import {Permission, PermissionResource, Authorization} from '@influxdata/influx'
 
 const {TypeEnum} = PermissionResource
 const {ActionEnum} = Permission

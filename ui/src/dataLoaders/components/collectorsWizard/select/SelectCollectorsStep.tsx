@@ -20,7 +20,7 @@ import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 // Types
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
 
 export interface OwnProps extends CollectorsStepProps {

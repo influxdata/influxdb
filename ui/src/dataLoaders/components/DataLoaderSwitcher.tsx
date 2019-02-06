@@ -9,7 +9,7 @@ import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/Li
 
 // Types
 import {Substep, DataLoaderType} from 'src/types/v2/dataLoaders'
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 
 interface Props {
   type: DataLoaderType

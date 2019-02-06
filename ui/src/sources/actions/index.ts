@@ -6,7 +6,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {GetState} from 'src/types/v2'
-import {Source} from 'src/api'
+import {Source} from '@influxdata/influx'
 
 export type Action =
   | SetActiveSourceAction

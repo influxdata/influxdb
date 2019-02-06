@@ -23,7 +23,7 @@ import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 // Types
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 
 export interface LineProtocolStepProps {
   currentStepIndex: number

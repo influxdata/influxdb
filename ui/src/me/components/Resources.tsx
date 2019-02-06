@@ -19,7 +19,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {Dashboard, MeState} from 'src/types/v2'
-import {Organization} from 'src/api'
+import {Organization} from '@influxdata/influx'
 
 interface Props {
   me: MeState

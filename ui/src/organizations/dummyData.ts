@@ -1,4 +1,4 @@
-import {ResourceOwner, User} from 'src/api'
+import {ResourceOwner, User} from '@influxdata/influx'
 
 export const resouceOwner: ResourceOwner[] = [
   {

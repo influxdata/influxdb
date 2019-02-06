@@ -51,7 +51,7 @@ import {
   Task,
   Telegraf,
   ScraperTargetResponse,
-} from 'src/api'
+} from '@influxdata/influx'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
 // Decorators

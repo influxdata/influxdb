@@ -29,7 +29,7 @@ import {Links} from 'src/types/v2/links'
 import {DataLoaderType, Substep} from 'src/types/v2/dataLoaders'
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 
 export interface DataLoaderStepProps {
   links: Links

@@ -12,7 +12,7 @@ import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 // Types
 import {DataLoaderType, DataLoaderStep} from 'src/types/v2/dataLoaders'
 import {DataLoaderStepProps} from 'src/dataLoaders/components/DataLoadersWizard'
-import {Bucket} from 'src/api'
+import {Bucket} from '@influxdata/influx'
 
 interface Props {
   onboardingStepProps: DataLoaderStepProps

@@ -1,4 +1,4 @@
-import {Label as APILabel} from 'src/api'
+import {Label as LabelAPI} from '@influxdata/influx'
 
 /**
  * Required key/value properties for labels
@@ -8,4 +8,4 @@ export interface LabelProperties {
   description?: string
 }
 
-export type Label = APILabel & {properties: LabelProperties}
+export type Label = LabelAPI & {properties: LabelProperties}

@@ -10,7 +10,7 @@ import {Input, FormElement} from 'src/clockface'
 
 // Types
 import {ConfigFieldType} from 'src/types/v2/dataLoaders'
-import {TelegrafPluginInputCpu} from 'src/api'
+import {TelegrafPluginInputCpu} from '@influxdata/influx'
 
 const setup = (override = {}, shouldMount = false) => {
   const props = {

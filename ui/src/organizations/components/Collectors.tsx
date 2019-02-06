@@ -39,7 +39,7 @@ import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Telegraf, Bucket} from 'src/api'
+import {Telegraf, Bucket} from '@influxdata/influx'
 import {OverlayState} from 'src/types/v2'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'

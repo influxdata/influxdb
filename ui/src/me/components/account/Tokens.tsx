@@ -17,7 +17,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {NotificationAction} from 'src/types'
 
 // Types
-import {Authorization} from 'src/api'
+import {Authorization} from '@influxdata/influx'
 
 interface State {
   searchTerm: string

@@ -135,9 +135,6 @@ clean:
 	$(RM) -r bin
 	$(RM) -r dist
 
-generate-typescript-client:
-	make -C http
-
 define CHRONOGIRAFFE
              ._ o o
              \_`-)|_
