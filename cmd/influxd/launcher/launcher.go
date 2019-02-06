@@ -300,7 +300,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgSvc           platform.OrganizationService             = m.kvService
 		authSvc          platform.AuthorizationService            = m.kvService
 		userSvc          platform.UserService                     = m.kvService
-<<<<<<< HEAD
 		variableSvc      platform.VariableService                 = m.kvService
 		bucketSvc        platform.BucketService                   = m.kvService
 		sourceSvc        platform.SourceService                   = m.kvService
@@ -318,25 +317,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		labelSvc         platform.LabelService                    = m.kvService
 		secretSvc        platform.SecretService                   = m.kvService
 		lookupSvc        platform.LookupService                   = m.kvService
-=======
-		macroSvc         platform.MacroService                    = m.boltClient
-		bucketSvc        platform.BucketService                   = m.kvService
-		sourceSvc        platform.SourceService                   = m.boltClient
-		sessionSvc       platform.SessionService                  = m.boltClient
-		basicAuthSvc     platform.BasicAuthService                = m.boltClient
-		dashboardSvc     platform.DashboardService                = m.boltClient
-		dashboardLogSvc  platform.DashboardOperationLogService    = m.boltClient
-		userLogSvc       platform.UserOperationLogService         = m.kvService
-		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
-		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
-		onboardingSvc    platform.OnboardingService               = m.boltClient
-		scraperTargetSvc platform.ScraperTargetStoreService       = m.boltClient
-		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
-		userResourceSvc  platform.UserResourceMappingService      = m.kvService
-		labelSvc         platform.LabelService                    = m.boltClient
-		secretSvc        platform.SecretService                   = m.boltClient
-		lookupSvc        platform.LookupService                   = m.boltClient
->>>>>>> feat(cmd/influxd/launcher): user kv services where appropriate
 	)
 
 	switch m.secretStore {
@@ -506,17 +486,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		OrganizationOperationLogService: orgLogSvc,
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
-		PasswordsService:                passwdsSvc,
-		OnboardingService:               onboardingSvc,
-		ProxyQueryService:               storageQueryService,
-		TaskService:                     taskSvc,
-		TelegrafService:                 telegrafSvc,
-		ScraperTargetStoreService:       scraperTargetSvc,
-		ChronografService:               chronografSvc,
-		SecretService:                   secretSvc,
-		LookupService:                   lookupSvc,
-		ProtoService:                    protoSvc,
-		OrgLookupService:                m.kvService,
 	}
 
 	// HTTP server
