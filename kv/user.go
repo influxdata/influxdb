@@ -13,9 +13,14 @@ var (
 	userIndex  = []byte("userindexv1")
 )
 
+var _ influxdb.UserService = (*Service)(nil)
+
 // Initialize creates the buckets for the user service
-func (c *Service) initializeUsers(ctx context.Context, tx Tx) error {
+func (s *Service) initializeUsers(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket([]byte(userBucket)); err != nil {
+		return err
+	}
+	if _, err := tx.Bucket([]byte(userIndex)); err != nil {
 		return err
 	}
 	if _, err := tx.Bucket([]byte(userIndex)); err != nil {
@@ -25,11 +30,11 @@ func (c *Service) initializeUsers(ctx context.Context, tx Tx) error {
 }
 
 // FindUserByID retrieves a user by id.
-func (c *Service) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *Service) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 	var u *influxdb.User
 
-	err := c.kv.View(func(tx Tx) error {
-		usr, err := c.findUserByID(ctx, tx, id)
+	err := s.kv.View(func(tx Tx) error {
+		usr, err := s.findUserByID(ctx, tx, id)
 		if err != nil {
 			return err
 		}
@@ -47,7 +52,7 @@ func (c *Service) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.U
 	return u, nil
 }
 
-func (c *Service) findUserByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.User, error) {
+func (s *Service) findUserByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.User, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -78,11 +83,11 @@ func (c *Service) findUserByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 }
 
 // FindUserByName returns a user by name for a particular user.
-func (c *Service) FindUserByName(ctx context.Context, n string) (*influxdb.User, error) {
+func (s *Service) FindUserByName(ctx context.Context, n string) (*influxdb.User, error) {
 	var u *influxdb.User
 
-	err := c.kv.View(func(tx Tx) error {
-		usr, err := c.findUserByName(ctx, tx, n)
+	err := s.kv.View(func(tx Tx) error {
+		usr, err := s.findUserByName(ctx, tx, n)
 		if err != nil {
 			return err
 		}
@@ -93,7 +98,7 @@ func (c *Service) FindUserByName(ctx context.Context, n string) (*influxdb.User,
 	return u, err
 }
 
-func (c *Service) findUserByName(ctx context.Context, tx Tx, n string) (*influxdb.User, error) {
+func (s *Service) findUserByName(ctx context.Context, tx Tx, n string) (*influxdb.User, error) {
 	b, err := tx.Bucket(userIndex)
 	if err != nil {
 		return nil, err
@@ -114,15 +119,15 @@ func (c *Service) findUserByName(ctx context.Context, tx Tx, n string) (*influxd
 	if err := id.Decode(uid); err != nil {
 		return nil, err
 	}
-	return c.findUserByID(ctx, tx, id)
+	return s.findUserByID(ctx, tx, id)
 }
 
 // FindUser retrives a user using an arbitrary user filter.
 // Filters using ID, or Name should be efficient.
 // Other filters will do a linear scan across users until it finds a match.
-func (c *Service) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
+func (s *Service) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
 	if filter.ID != nil {
-		u, err := c.FindUserByID(ctx, *filter.ID)
+		u, err := s.FindUserByID(ctx, *filter.ID)
 		if err != nil {
 			return nil, &influxdb.Error{
 				Op:  "kv/" + influxdb.OpFindUser,
@@ -133,13 +138,13 @@ func (c *Service) FindUser(ctx context.Context, filter influxdb.UserFilter) (*in
 	}
 
 	if filter.Name != nil {
-		return c.FindUserByName(ctx, *filter.Name)
+		return s.FindUserByName(ctx, *filter.Name)
 	}
 
 	filterFn := filterUsersFn(filter)
 
 	var u *influxdb.User
-	err := c.kv.View(func(tx Tx) error {
+	err := s.kv.View(func(tx Tx) error {
 		return forEachUser(ctx, tx, func(usr *influxdb.User) bool {
 			if filterFn(usr) {
 				u = usr
@@ -182,10 +187,10 @@ func filterUsersFn(filter influxdb.UserFilter) func(u *influxdb.User) bool {
 // FindUsers retrives all users that match an arbitrary user filter.
 // Filters using ID, or Name should be efficient.
 // Other filters will do a linear scan across all users searching for a match.
-func (c *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {
+func (s *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {
 	op := influxdb.OpFindUsers
 	if filter.ID != nil {
-		u, err := c.FindUserByID(ctx, *filter.ID)
+		u, err := s.FindUserByID(ctx, *filter.ID)
 		if err != nil {
 			return nil, 0, &influxdb.Error{
 				Err: err,
@@ -197,7 +202,7 @@ func (c *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt
 	}
 
 	if filter.Name != nil {
-		u, err := c.FindUserByName(ctx, *filter.Name)
+		u, err := s.FindUserByName(ctx, *filter.Name)
 		if err != nil {
 			return nil, 0, &influxdb.Error{
 				Err: err,
@@ -210,7 +215,7 @@ func (c *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt
 
 	us := []*influxdb.User{}
 	filterFn := filterUsersFn(filter)
-	err := c.kv.View(func(tx Tx) error {
+	err := s.kv.View(func(tx Tx) error {
 		return forEachUser(ctx, tx, func(u *influxdb.User) bool {
 			if filterFn(u) {
 				us = append(us, u)
@@ -227,9 +232,9 @@ func (c *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt
 }
 
 // CreateUser creates a influxdb user and sets b.ID.
-func (c *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
-	err := c.kv.Update(func(tx Tx) error {
-		unique := c.uniqueUserName(ctx, tx, u)
+func (s *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
+	err := s.kv.Update(func(tx Tx) error {
+		unique := s.uniqueUserName(ctx, tx, u)
 
 		if !unique {
 			// TODO: make standard error
@@ -239,9 +244,9 @@ func (c *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
 			}
 		}
 
-		u.ID = c.IDGenerator.ID()
+		u.ID = s.IDGenerator.ID()
 
-		return c.putUser(ctx, tx, u)
+		return s.putUser(ctx, tx, u)
 	})
 
 	if err != nil {
@@ -255,13 +260,13 @@ func (c *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
 }
 
 // PutUser will put a user without setting an ID.
-func (c *Service) PutUser(ctx context.Context, u *influxdb.User) error {
-	return c.kv.Update(func(tx Tx) error {
-		return c.putUser(ctx, tx, u)
+func (s *Service) PutUser(ctx context.Context, u *influxdb.User) error {
+	return s.kv.Update(func(tx Tx) error {
+		return s.putUser(ctx, tx, u)
 	})
 }
 
-func (c *Service) putUser(ctx context.Context, tx Tx, u *influxdb.User) error {
+func (s *Service) putUser(ctx context.Context, tx Tx, u *influxdb.User) error {
 	v, err := json.Marshal(u)
 	if err != nil {
 		return err
@@ -317,7 +322,7 @@ func forEachUser(ctx context.Context, tx Tx, fn func(*influxdb.User) bool) error
 	return nil
 }
 
-func (c *Service) uniqueUserName(ctx context.Context, tx Tx, u *influxdb.User) bool {
+func (s *Service) uniqueUserName(ctx context.Context, tx Tx, u *influxdb.User) bool {
 	idx, err := tx.Bucket(userIndex)
 	if err != nil {
 		return false
@@ -330,10 +335,10 @@ func (c *Service) uniqueUserName(ctx context.Context, tx Tx, u *influxdb.User) b
 }
 
 // UpdateUser updates a user according the parameters set on upd.
-func (c *Service) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *Service) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	var u *influxdb.User
-	err := c.kv.Update(func(tx Tx) error {
-		usr, err := c.updateUser(ctx, tx, id, upd)
+	err := s.kv.Update(func(tx Tx) error {
+		usr, err := s.updateUser(ctx, tx, id, upd)
 		if err != nil {
 			return err
 		}
@@ -351,8 +356,8 @@ func (c *Service) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.U
 	return u, nil
 }
 
-func (c *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
-	u, err := c.findUserByID(ctx, tx, id)
+func (s *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+	u, err := s.findUserByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +376,7 @@ func (c *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		u.Name = *upd.Name
 	}
 
-	if err := c.putUser(ctx, tx, u); err != nil {
+	if err := s.putUser(ctx, tx, u); err != nil {
 		return nil, err
 	}
 
@@ -379,9 +384,9 @@ func (c *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 }
 
 // DeleteUser deletes a user and prunes it from the index.
-func (c *Service) DeleteUser(ctx context.Context, id influxdb.ID) error {
-	err := c.kv.Update(func(tx Tx) error {
-		return c.deleteUser(ctx, tx, id)
+func (s *Service) DeleteUser(ctx context.Context, id influxdb.ID) error {
+	err := s.kv.Update(func(tx Tx) error {
+		return s.deleteUser(ctx, tx, id)
 	})
 
 	if err != nil {
@@ -394,8 +399,8 @@ func (c *Service) DeleteUser(ctx context.Context, id influxdb.ID) error {
 	return nil
 }
 
-func (c *Service) deleteUser(ctx context.Context, tx Tx, id influxdb.ID) error {
-	u, err := c.findUserByID(ctx, tx, id)
+func (s *Service) deleteUser(ctx context.Context, tx Tx, id influxdb.ID) error {
+	u, err := s.findUserByID(ctx, tx, id)
 	if err != nil {
 		return err
 	}
