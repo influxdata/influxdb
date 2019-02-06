@@ -3675,7 +3675,14 @@ paths:
           content:
             application/json:
               schema:
-                 $ref: "#/components/schemas/Tasks"
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Task"
+                  links:
+                    $ref: "#/components/schemas/Links"
         default:
           description: unexpected error
           content:
