@@ -15,7 +15,8 @@ import (
 // TODO(jsternberg): This abstraction might be useful for subqueries, but we only need the expr
 // at the moment so just hold that.
 type mapCursor struct {
-	expr ast.Expression
+	fields map[string]struct{}
+	expr   ast.Expression
 }
 
 func (c *mapCursor) Expr() ast.Expression {
@@ -23,11 +24,23 @@ func (c *mapCursor) Expr() ast.Expression {
 }
 
 func (c *mapCursor) Keys() []influxql.Expr {
-	panic("unimplemented")
+	refs := make([]influxql.Expr, 0, len(c.fields))
+	for name := range c.fields {
+		refs = append(refs, &influxql.VarRef{
+			Val: name,
+		})
+	}
+	return refs
 }
 
 func (c *mapCursor) Value(expr influxql.Expr) (string, bool) {
-	panic("unimplemented")
+	ref, ok := expr.(*influxql.VarRef)
+	if !ok {
+		return "", false
+	} else if _, ok := c.fields[ref.Val]; ok {
+		return ref.Val, true
+	}
+	return "", false
 }
 
 // mapFields will take the list of symbols and maps each of the operations
@@ -55,6 +68,8 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 			},
 		},
 	})
+
+	fields := make(map[string]struct{})
 	for i, f := range t.stmt.Fields {
 		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == "time" {
 			// Skip past any time columns.
@@ -64,12 +79,14 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 		if err != nil {
 			return nil, err
 		}
+		fields[columns[i]] = struct{}{}
 		properties = append(properties, &ast.Property{
 			Key:   &ast.Identifier{Name: columns[i]},
 			Value: value,
 		})
 	}
 	return &mapCursor{
+		fields: fields,
 		expr: &ast.PipeExpression{
 			Argument: in.Expr(),
 			Call: &ast.CallExpression{
