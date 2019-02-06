@@ -69,7 +69,7 @@ func (f *SeriesFile) Open() error {
 				zap.String("path", f.path),
 				zap.Int("partition", p.ID()),
 				zap.Error(err))
-			f.close(false)
+			f.close()
 			return err
 		}
 		f.partitions = append(f.partitions, p)
