@@ -77,9 +77,11 @@ type APIBackend struct {
 func NewAPIHandler(b *APIBackend) *APIHandler {
 	h := &APIHandler{}
 
+	internalURM := b.UserResourceMappingService
+	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
+
 	sessionBackend := NewSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
-	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 
 	bucketBackend := NewBucketBackend(b)
 	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService)
@@ -120,6 +122,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	taskBackend := NewTaskBackend(b)
 	h.TaskHandler = NewTaskHandler(taskBackend)
+	h.TaskHandler.UserResourceMappingService = internalURM
 
 	telegrafBackend := NewTelegrafBackend(b)
 	telegrafBackend.TelegrafService = authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)

@@ -36,8 +36,7 @@ type TaskBackend struct {
 // NewTaskBackend returns a new instance of TaskBackend.
 func NewTaskBackend(b *APIBackend) *TaskBackend {
 	return &TaskBackend{
-		Logger: b.Logger.With(zap.String("handler", "task")),
-
+		Logger:                     b.Logger.With(zap.String("handler", "task")),
 		TaskService:                b.TaskService,
 		AuthorizationService:       b.AuthorizationService,
 		OrganizationService:        b.OrganizationService,
