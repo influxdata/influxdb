@@ -228,23 +228,6 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 		OrgID:       o.ID,
 	}
 
-	if authorizationCreateFlags.user != "" {
-		// if the user flag is supplied, then set the user ID explicitly on the request
-		userSvc, err := newUserService(flags)
-		if err != nil {
-			return err
-		}
-		userFilter := platform.UserFilter{
-			Name: &authorizationCreateFlags.user,
-		}
-		user, err := userSvc.FindUser(context.Background(), userFilter)
-		if err != nil {
-			return err
-		}
-
-		authorization.UserID = user.ID
-	}
-
 	s, err := newAuthorizationService(flags)
 	if err != nil {
 		return err

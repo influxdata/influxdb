@@ -188,25 +188,10 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
-	var user *platform.User
-	// allow the user id to be specified optionally, if it is not set
-	// we use the id from the authorizer
-	if req.UserID == nil {
-		u, err := getAuthorizedUser(r, h.UserService)
-		if err != nil {
-			EncodeError(ctx, platform.ErrUnableToCreateToken, w)
-			return
-		}
-
-		user = u
-	} else {
-		u, err := h.UserService.FindUserByID(ctx, *req.UserID)
-		if err != nil {
-			EncodeError(ctx, platform.ErrUnableToCreateToken, w)
-			return
-		}
-
-		user = u
+	user, err := getAuthorizedUser(r, h.UserService)
+	if err != nil {
+		EncodeError(ctx, platform.ErrUnableToCreateToken, w)
+		return
 	}
 
 	auth := req.toPlatform(user.ID)
