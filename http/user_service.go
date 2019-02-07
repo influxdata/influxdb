@@ -489,6 +489,12 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 
 // FindUser returns the first user that matches filter.
 func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
+	if filter.ID == nil && filter.Name == nil {
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "user not found",
+		}
+	}
 	users, n, err := s.FindUsers(ctx, filter)
 	if err != nil {
 		return nil, &platform.Error{
