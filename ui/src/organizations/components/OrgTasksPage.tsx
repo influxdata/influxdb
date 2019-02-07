@@ -31,6 +31,7 @@ import {
 import {Task as TaskAPI, Organization} from '@influxdata/influx'
 import {Task} from 'src/tasks/containers/TasksPage'
 import {AppState} from 'src/types/v2'
+import {client} from 'src/utils/api'
 
 interface PassedInProps {
   tasks: Task[]
@@ -127,6 +128,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
                 onSelect={this.handleSelectTask}
                 onAddTaskLabels={onAddTaskLabels}
                 onRemoveTaskLabels={onRemoveTaskLabels}
+                onUpdate={this.handleUpdateTask}
               />
             )}
           </FilterList>
@@ -134,6 +136,11 @@ class OrgTasksPage extends PureComponent<Props, State> {
         {this.renderImportOverlay}
       </>
     )
+  }
+
+  private handleUpdateTask = async (task: Task) => {
+    await client.tasks.update(task.id, task)
+    this.props.onChange()
   }
 
   private handleSelectTask = (task: Task) => {
