@@ -10,20 +10,7 @@ jobs:
       - run:
           name: Litmus Smokte Tests Success
           when: on_success
-          command: |
-            curl -X POST https://slack.com/api/chat.postMessage \
-            -H "Authorization: Bearer $SLACK_TOKEN" \
-            -H "Content-type: application/json; charset=utf-8" \
-            --data @<(cat <<EOF
-            {
-              "channel":"#testing",
-              "text":"SUCCESSFUL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM, Build URL: $CIRCLE_BUILD_URL",
-              "username":"CircleCI OSS Litmus SMOKE Tests",
-              "icon_emoji":":circleci-pass:"
-            }
-            EOF
-            )
-      - run:
+            - run: bash ../etc/success_notify.sh
           name: Litmus Smoke Tests Fail
           when: on_fail
           command: |
@@ -185,6 +172,7 @@ jobs:
           root: .
           paths:
             - bin/linux/influxd
+            - bin/linux/influx
 
   deploy-nightly:
     docker:
