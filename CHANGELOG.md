@@ -1,6 +1,10 @@
 v1.7.4 [unreleased]
 -------------------
 
+### Features
+
+-	[#11604](https://github.com/influxdata/influxdb/pull/11604): Allow TSI bitset cache to be configured.
+
 ### Bugfixes
 
 -	[#11743](https://github.com/influxdata/influxdb/pull/11743): Backport: Use Systemd for Amazon Linux 2.
