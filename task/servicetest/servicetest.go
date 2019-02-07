@@ -17,7 +17,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/snowflake"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
@@ -43,7 +43,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 	sys, cancel := fn(t)
 	defer cancel()
 	if sys.TaskServiceFunc == nil {
-		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch)
+		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch, sys.I)
 	} else {
 		sys.ts = sys.TaskServiceFunc()
 	}
@@ -80,6 +80,21 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 	})
 }
 
+// TestCreds encapsulates credentials needed for a system to properly work with tasks.
+type TestCreds struct {
+	OrgID, UserID, AuthorizationID platform.ID
+	Token                          string
+}
+
+func (tc TestCreds) Authorizer() platform.Authorizer {
+	return &platform.Authorization{
+		ID:     tc.AuthorizationID,
+		OrgID:  tc.OrgID,
+		UserID: tc.UserID,
+		Token:  tc.Token,
+	}
+}
+
 // System, as in "system under test", encapsulates the required parts of a platform.TaskAdapter
 // (the underlying Store, LogReader, and LogWriter) for low-level operations.
 type System struct {
@@ -87,6 +102,9 @@ type System struct {
 	LR  backend.LogReader
 	LW  backend.LogWriter
 	Sch backend.Scheduler
+
+	// Used in the Creds function to create valid organizations, users, tokens, etc.
+	I *inmem.Service
 
 	// Set this context, to be used in tests, so that any spawned goroutines watching Ctx.Done()
 	// will clean up after themselves.
@@ -98,10 +116,10 @@ type System struct {
 
 	// Override for accessing credentials for an individual test.
 	// Callers can leave this nil and the test will create its own random IDs for each test.
-	// However, if the system needs to verify a token, organization, or user,
-	// the caller should set this value and return valid IDs and a token.
+	// However, if the system needs to verify credentials,
+	// the caller should set this value and return valid IDs and a valid token.
 	// It is safe if this returns the same values every time it is called.
-	CredsFunc func() (orgID, userID platform.ID, token string, err error)
+	CredsFunc func() (TestCreds, error)
 
 	// Underlying task service, initialized inside TestTaskService,
 	// either by instantiating a PlatformAdapter directly or by calling TaskServiceFunc.
@@ -109,19 +127,19 @@ type System struct {
 }
 
 func testTaskCRUD(t *testing.T, sys *System) {
-	orgID, userID, tok := creds(t, sys)
-	authorizer := &platform.Authorization{
-		ID:     orgID + userID,
-		Token:  tok,
-		OrgID:  orgID,
-		UserID: userID,
-	}
+	cr := creds(t, sys)
+	authzID := cr.AuthorizationID
+
 	// Create a task.
-	ct := platform.TaskCreate{
-		OrganizationID: orgID,
+	tc := platform.TaskCreate{
+		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
 	}
-	task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, authorizer), ct)
+
+	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+
+	task, err := sys.ts.CreateTask(authorizedCtx, tc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,14 +170,14 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	found["FindTaskByID"] = f
 
-	fs, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &orgID})
+	fs, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &cr.OrgID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	f = findTask(fs, task.ID)
 	found["FindTasks with Organization filter"] = f
 
-	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &userID})
+	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &cr.UserID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,8 +186,11 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	found["FindTasks with User filter"] = f
 
 	for fn, f := range found {
-		if f.OrganizationID != orgID {
-			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, orgID.String(), f.OrganizationID.String())
+		if f.OrganizationID != cr.OrgID {
+			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, cr.OrgID.String(), f.OrganizationID.String())
+		}
+		if f.AuthorizationID != authzID {
+			t.Fatalf("%s: wrong authorization ID returned; want %s, got %s", fn, authzID.String(), f.AuthorizationID.String())
 		}
 		if f.Name != "task #0" {
 			t.Fatalf(`%s: wrong name returned; want "task #0", got %q`, fn, f.Name)
@@ -191,7 +212,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Update task: script only.
 	newFlux := fmt.Sprintf(scriptFmt, 99)
 	origID := f.ID
-	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Flux: &newFlux})
+	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Flux: &newFlux})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +229,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: status only.
 	newStatus := string(backend.TaskInactive)
-	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Status: &newStatus})
+	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Status: &newStatus})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +243,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Update task: reactivate status and update script.
 	newStatus = string(backend.TaskActive)
 	newFlux = fmt.Sprintf(scriptFmt, 98)
-	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Flux: &newFlux, Status: &newStatus})
+	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Flux: &newFlux, Status: &newStatus})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +257,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Update task: just update an option.
 	newStatus = string(backend.TaskActive)
 	newFlux = fmt.Sprintf(scriptDifferentName, 98)
-	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
+	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,6 +267,20 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	if f.Status != newStatus {
 		t.Fatalf("expected task status to be active, got %q", f.Status)
+	}
+
+	// Update task: just update the token.
+	// First we need to make a new authorization in order to get a new token.
+	newAuthz := &platform.Authorization{OrgID: cr.OrgID, UserID: cr.UserID}
+	if err := sys.I.CreateAuthorization(sys.Ctx, newAuthz); err != nil {
+		t.Fatal(err)
+	}
+	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Token: newAuthz.Token})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.AuthorizationID != newAuthz.ID {
+		t.Fatalf("expected authorization ID %v, got %v", newAuthz.ID, f.AuthorizationID)
 	}
 
 	// Delete task.
@@ -260,20 +295,16 @@ func testTaskCRUD(t *testing.T, sys *System) {
 }
 
 func testMetaUpdate(t *testing.T, sys *System) {
-	orgID, userID, tok := creds(t, sys)
-	authorizer := &platform.Authorization{
-		ID:     orgID + userID,
-		Token:  tok,
-		OrgID:  orgID,
-		UserID: userID,
-	}
+	cr := creds(t, sys)
 
 	now := time.Now()
 	ct := platform.TaskCreate{
-		OrganizationID: orgID,
+		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
 	}
-	task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, authorizer), ct)
+	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+	task, err := sys.ts.CreateTask(authorizedCtx, ct)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +358,7 @@ func testMetaUpdate(t *testing.T, sys *System) {
 
 	now = time.Now()
 	flux := fmt.Sprintf(scriptFmt, 1)
-	task, err = sys.ts.UpdateTask(sys.Ctx, task.ID, platform.TaskUpdate{Flux: &flux})
+	task, err = sys.ts.UpdateTask(authorizedCtx, task.ID, platform.TaskUpdate{Flux: &flux})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -361,13 +392,7 @@ func testMetaUpdate(t *testing.T, sys *System) {
 }
 
 func testTaskRuns(t *testing.T, sys *System) {
-	orgID, userID, tok := creds(t, sys)
-	authorizer := &platform.Authorization{
-		ID:     orgID + userID,
-		Token:  tok,
-		OrgID:  orgID,
-		UserID: userID,
-	}
+	cr := creds(t, sys)
 
 	t.Run("FindRuns and FindRunByID", func(t *testing.T) {
 		t.Parallel()
@@ -375,10 +400,11 @@ func testTaskRuns(t *testing.T, sys *System) {
 		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
 		// which makes timing of runs somewhat difficult.
 		ct := platform.TaskCreate{
-			OrganizationID: orgID,
+			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, 0),
+			Token:          cr.Token,
 		}
-		task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, authorizer), ct)
+		task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -437,7 +463,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Limit 1 should only return the earlier run.
-		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &orgID, Task: &task.ID, Limit: 1})
+		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &cr.OrgID, Task: &task.ID, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -458,7 +484,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Unspecified limit returns both runs.
-		runs, _, err = sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &orgID, Task: &task.ID})
+		runs, _, err = sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &cr.OrgID, Task: &task.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -527,10 +553,11 @@ func testTaskRuns(t *testing.T, sys *System) {
 		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
 		// which makes timing of runs somewhat difficult.
 		ct := platform.TaskCreate{
-			OrganizationID: orgID,
+			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, 0),
+			Token:          cr.Token,
 		}
-		task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, authorizer), ct)
+		task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -622,10 +649,11 @@ func testTaskRuns(t *testing.T, sys *System) {
 		t.Parallel()
 
 		ct := platform.TaskCreate{
-			OrganizationID: orgID,
+			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, 0),
+			Token:          cr.Token,
 		}
-		task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, authorizer), ct)
+		task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -667,10 +695,11 @@ func testTaskRuns(t *testing.T, sys *System) {
 		t.Parallel()
 
 		ct := platform.TaskCreate{
-			OrganizationID: orgID,
+			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, 0),
+			Token:          cr.Token,
 		}
-		task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, authorizer), ct)
+		task, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -718,7 +747,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// Ensure it is returned when filtering logs by run ID.
 		logs, err := sys.LR.ListLogs(sys.Ctx, platform.LogFilter{
-			Org:  &orgID,
+			Org:  &cr.OrgID,
 			Task: &task.ID,
 			Run:  &rc1.Created.RunID,
 		})
@@ -740,7 +769,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// Ensure both returned when filtering logs by task ID.
 		logs, err = sys.LR.ListLogs(sys.Ctx, platform.LogFilter{
-			Org:  &orgID,
+			Org:  &cr.OrgID,
 			Task: &task.ID,
 		})
 		if err != nil {
@@ -756,13 +785,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 }
 
 func testTaskConcurrency(t *testing.T, sys *System) {
-	orgID, userID, tok := creds(t, sys)
-	authorizer := &platform.Authorization{
-		ID:     orgID + userID,
-		Token:  tok,
-		OrgID:  orgID,
-		UserID: userID,
-	}
+	cr := creds(t, sys)
 
 	const numTasks = 450 // Arbitrarily chosen to get a reasonable count of concurrent creates and deletes.
 	createTaskCh := make(chan platform.TaskCreate, numTasks)
@@ -778,7 +801,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 		createWg.Add(1)
 		go func() {
 			defer createWg.Done()
-			aCtx := icontext.SetAuthorizer(sys.Ctx, authorizer)
+			aCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
 			for ct := range createTaskCh {
 				task, err := sys.ts.CreateTask(aCtx, ct)
 				if err != nil {
@@ -818,7 +841,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			}
 
 			// Get all the tasks.
-			tasks, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &orgID})
+			tasks, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &cr.OrgID})
 			if err != nil {
 				t.Errorf("error finding tasks: %v", err)
 				return
@@ -876,7 +899,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			}
 
 			// Get all the tasks.
-			tasks, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &orgID})
+			tasks, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &cr.OrgID})
 			if err != nil {
 				t.Errorf("error finding tasks: %v", err)
 				return
@@ -915,8 +938,9 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 	// Start adding tasks.
 	for i := 0; i < numTasks; i++ {
 		createTaskCh <- platform.TaskCreate{
-			OrganizationID: orgID,
+			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, i),
+			Token:          cr.Token,
 		}
 	}
 
@@ -926,18 +950,50 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 	extraWg.Wait()
 }
 
-func creds(t *testing.T, s *System) (orgID, userID platform.ID, token string) {
+func creds(t *testing.T, s *System) TestCreds {
 	t.Helper()
 
 	if s.CredsFunc == nil {
-		return idGen.ID(), idGen.ID(), idGen.ID().String()
+		u := &platform.User{Name: t.Name() + "-user"}
+		if err := s.I.CreateUser(s.Ctx, u); err != nil {
+			t.Fatal(err)
+		}
+		o := &platform.Organization{Name: t.Name() + "-org"}
+		if err := s.I.CreateOrganization(s.Ctx, o); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.I.CreateUserResourceMapping(s.Ctx, &platform.UserResourceMapping{
+			ResourceType: platform.OrgsResourceType,
+			ResourceID:   o.ID,
+			UserID:       u.ID,
+			UserType:     platform.Owner,
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		authz := platform.Authorization{
+			OrgID:       o.ID,
+			UserID:      u.ID,
+			Permissions: platform.OperPermissions(),
+		}
+		if err := s.I.CreateAuthorization(context.Background(), &authz); err != nil {
+			t.Fatal(err)
+		}
+
+		return TestCreds{
+			OrgID:           o.ID,
+			UserID:          u.ID,
+			AuthorizationID: authz.ID,
+			Token:           authz.Token,
+		}
 	}
 
-	o, u, tok, err := s.CredsFunc()
+	c, err := s.CredsFunc()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return o, u, tok
+	return c
 }
 
 const (
@@ -965,5 +1021,3 @@ option task = {
 from(bucket: "b")
 	|> http.to(url: "http://example.com")`
 )
-
-var idGen = snowflake.NewIDGenerator()

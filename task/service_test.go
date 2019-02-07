@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	bolt "github.com/coreos/bbolt"
+	"github.com/influxdata/influxdb/inmem"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
 	boltstore "github.com/influxdata/influxdb/task/backend/bolt"
@@ -23,7 +24,7 @@ func inMemFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 		st.Close()
 	}()
 
-	return &servicetest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx}, cancel
+	return &servicetest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx, I: inmem.NewService()}, cancel
 }
 
 func boltFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
@@ -53,7 +54,7 @@ func boltFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 		}
 	}()
 
-	return &servicetest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx}, cancel
+	return &servicetest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx, I: inmem.NewService()}, cancel
 }
 
 func TestTaskService(t *testing.T) {

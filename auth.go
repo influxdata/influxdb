@@ -5,6 +5,9 @@ import (
 	"fmt"
 )
 
+// AuthorizationKind is returned by (*Authorization).Kind().
+const AuthorizationKind = "authorization"
+
 var (
 	// ErrUnableToCreateToken sanitized error message for all errors when a user cannot create a token
 	ErrUnableToCreateToken = &Error{
@@ -64,7 +67,7 @@ func (a *Authorization) GetUserID() ID {
 }
 
 // Kind returns session and is used for auditing.
-func (a *Authorization) Kind() string { return "authorization" }
+func (a *Authorization) Kind() string { return AuthorizationKind }
 
 // Identifier returns the authorizations ID and is used for auditing.
 func (a *Authorization) Identifier() ID { return a.ID }

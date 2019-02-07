@@ -20,12 +20,13 @@ import (
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockTaskBackend returns a TaskBackend with mock services.
-func NewMockTaskBackend() *TaskBackend {
+func NewMockTaskBackend(t *testing.T) *TaskBackend {
 	return &TaskBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "task")),
+		Logger: zaptest.NewLogger(t).With(zap.String("handler", "task")),
 
 		AuthorizationService: mock.NewAuthorizationService(),
 		TaskService:          &mock.TaskService{},
@@ -74,16 +75,18 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
 						tasks := []*platform.Task{
 							{
-								ID:             1,
-								Name:           "task1",
-								OrganizationID: 1,
-								Owner:          platform.User{ID: 1, Name: "user1"},
+								ID:              1,
+								Name:            "task1",
+								OrganizationID:  1,
+								Owner:           platform.User{ID: 1, Name: "user1"},
+								AuthorizationID: 0x100,
 							},
 							{
-								ID:             2,
-								Name:           "task2",
-								OrganizationID: 2,
-								Owner:          platform.User{ID: 2, Name: "user2"},
+								ID:              2,
+								Name:            "task2",
+								OrganizationID:  2,
+								Owner:           platform.User{ID: 2, Name: "user2"},
+								AuthorizationID: 0x200,
 							},
 						}
 						return tasks, len(tasks), nil
@@ -136,6 +139,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
       "orgID": "0000000000000001",
       "org": "test",
       "status": "",
+			"authorizationID": "0000000000000100",
       "flux": ""
     },
     {
@@ -161,6 +165,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 	  "orgID": "0000000000000002",
 	  "org": "test",
       "status": "",
+			"authorizationID": "0000000000000200",
       "flux": ""
     }
   ]
@@ -174,7 +179,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 			w := httptest.NewRecorder()
 
-			taskBackend := NewMockTaskBackend()
+			taskBackend := NewMockTaskBackend(t)
 			taskBackend.TaskService = tt.fields.taskService
 			taskBackend.LabelService = tt.fields.labelService
 			h := NewTaskHandler(taskBackend)
@@ -199,7 +204,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 
 func TestTaskHandler_handlePostTasks(t *testing.T) {
 	type args struct {
-		task platform.Task
+		taskCreate platform.TaskCreate
 	}
 	type fields struct {
 		taskService platform.TaskService
@@ -219,24 +224,23 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 		{
 			name: "create task",
 			args: args{
-				task: platform.Task{
-					Name:           "task1",
+				taskCreate: platform.TaskCreate{
 					OrganizationID: 1,
-					Owner: platform.User{
-						ID:   1,
-						Name: "user1",
-					},
+					Token:          "mytoken",
+					Flux:           "abc",
 				},
 			},
 			fields: fields{
 				taskService: &mock.TaskService{
 					CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
 						return &platform.Task{
-							ID:             1,
-							Name:           "task1",
-							OrganizationID: 1,
-							Organization:   "test",
-							Owner:          platform.User{ID: 1, Name: "user1"},
+							ID:              1,
+							Name:            "task1",
+							OrganizationID:  1,
+							Organization:    "test",
+							Owner:           platform.User{ID: 1, Name: "user1"},
+							AuthorizationID: 0x100,
+							Flux:            "abc",
 						}, nil
 					},
 				},
@@ -260,7 +264,8 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
   "orgID": "0000000000000001",
   "org": "test",
   "status": "",
-  "flux": ""
+	"authorizationID": "0000000000000100",
+  "flux": "abc"
 }
 `,
 			},
@@ -269,7 +274,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b, err := json.Marshal(tt.args.task)
+			b, err := json.Marshal(tt.args.taskCreate)
 			if err != nil {
 				t.Fatalf("failed to unmarshal task: %v", err)
 			}
@@ -280,7 +285,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			taskBackend := NewMockTaskBackend()
+			taskBackend := NewMockTaskBackend(t)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(taskBackend)
 			h.handlePostTask(w, r)
@@ -385,7 +390,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			taskBackend := NewMockTaskBackend()
+			taskBackend := NewMockTaskBackend(t)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(taskBackend)
 			h.handleGetRun(w, r)
@@ -494,7 +499,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			taskBackend := NewMockTaskBackend()
+			taskBackend := NewMockTaskBackend(t)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(taskBackend)
 			h.handleGetRuns(w, r)
@@ -520,7 +525,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	// Ensure that the HTTP handlers return 404s for missing resources, and OKs for matching.
 
 	im := inmem.NewService()
-	taskBackend := NewMockTaskBackend()
+	taskBackend := NewMockTaskBackend(t)
 	h := NewTaskHandler(taskBackend)
 	h.UserResourceMappingService = im
 	h.LabelService = im
@@ -782,8 +787,9 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 
 func TestTaskUserResourceMap(t *testing.T) {
 	task := platform.Task{
-		Name:           "task1",
-		OrganizationID: 1,
+		Name:            "task1",
+		OrganizationID:  1,
+		AuthorizationID: 0x100,
 	}
 
 	b, err := json.Marshal(task)
@@ -813,7 +819,7 @@ func TestTaskUserResourceMap(t *testing.T) {
 		},
 	}
 
-	taskBackend := NewMockTaskBackend()
+	taskBackend := NewMockTaskBackend(t)
 	taskBackend.UserResourceMappingService = urms
 	h := NewTaskHandler(taskBackend)
 	taskID := platform.ID(1)
@@ -907,7 +913,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			taskBE := NewMockTaskBackend()
+			taskBE := NewMockTaskBackend(t)
 			taskBE.LabelService = tt.fields.LabelService
 			h := NewTaskHandler(taskBE)
 

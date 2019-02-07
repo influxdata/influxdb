@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	platform "github.com/influxdata/influxdb"
@@ -17,14 +18,17 @@ type RunController interface {
 }
 
 // PlatformAdapter wraps a task.Store into the platform.TaskService interface.
-func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController) platform.TaskService {
-	return pAdapter{s: s, r: r, rc: rc}
+func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController, as platform.AuthorizationService) platform.TaskService {
+	return pAdapter{s: s, r: r, rc: rc, as: as}
 }
 
 type pAdapter struct {
 	s  backend.Store
 	rc RunController
 	r  backend.LogReader
+
+	// Needed to look up authorization ID from token during create.
+	as platform.AuthorizationService
 }
 
 var _ platform.TaskService = pAdapter{}
@@ -90,10 +94,14 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 
 	req := backend.CreateTaskRequest{
 		Org:           t.OrganizationID,
-		User:          auth.GetUserID(),
-		Script:        t.Flux,
 		ScheduleAfter: scheduleAfter,
 		Status:        backend.TaskStatus(t.Status),
+		Script:        t.Flux,
+		User:          auth.GetUserID(),
+	}
+	req.AuthorizationID, err = p.authorizationIDFromToken(ctx, t.Token)
+	if err != nil {
+		return nil, err
 	}
 
 	id, err := p.s.CreateTask(ctx, req)
@@ -101,13 +109,14 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		return nil, err
 	}
 	task := &platform.Task{
-		ID:             id,
-		Flux:           t.Flux,
-		Cron:           opts.Cron,
-		Name:           opts.Name,
-		OrganizationID: t.OrganizationID,
-		Owner:          platform.User{ID: req.User},
-		Status:         t.Status,
+		ID:              id,
+		Flux:            t.Flux,
+		Cron:            opts.Cron,
+		Name:            opts.Name,
+		OrganizationID:  t.OrganizationID,
+		Owner:           platform.User{ID: req.User},
+		Status:          t.Status,
+		AuthorizationID: req.AuthorizationID,
 	}
 
 	if opts.Every != 0 {
@@ -121,7 +130,8 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 }
 
 func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
-	if err := upd.Validate(); err != nil {
+	err := upd.Validate()
+	if err != nil {
 		return nil, err
 	}
 	req := backend.UpdateTaskRequest{ID: id}
@@ -132,6 +142,12 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 		req.Status = backend.TaskStatus(*upd.Status)
 	}
 	req.Options = upd.Options
+
+	req.AuthorizationID, err = p.authorizationIDFromToken(ctx, upd.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	res, err := p.s.UpdateTask(ctx, req)
 	if err != nil {
 		return nil, err
@@ -223,6 +239,49 @@ func (p pAdapter) CancelRun(ctx context.Context, taskID, runID platform.ID) erro
 	return p.rc.CancelRun(ctx, taskID, runID)
 }
 
+var errTokenUnreadable = errors.New("token invalid or unreadable by the current user")
+
+// authorizationIDFromToken looks up the authorization ID from the given token,
+// and returns that ID iff the authorizer on the context is allowed to view that authorization.
+func (p pAdapter) authorizationIDFromToken(ctx context.Context, token string) (platform.ID, error) {
+	authorizer, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	if token == "" {
+		// No explicit token. Use the authorization ID from the context's authorizer.
+		k := authorizer.Kind()
+		if k != platform.AuthorizationKind {
+			return 0, fmt.Errorf("unable to create task using authorization of kind %s", k)
+		}
+
+		return authorizer.Identifier(), nil
+	}
+
+	// Token was explicitly provided. Look it up.
+	a, err := p.as.FindAuthorizationByToken(ctx, token)
+	if err != nil {
+		// TODO(mr): log the actual error.
+		return 0, errTokenUnreadable
+	}
+
+	// It's a valid token. Is it our token?
+	if a.GetUserID() != authorizer.GetUserID() {
+		// The auth token isn't ours. Ensure we're allowed to read it.
+		p, err := platform.NewPermissionAtID(a.ID, platform.ReadAction, platform.AuthorizationsResourceType, a.OrgID)
+		if err != nil {
+			// TODO(mr): log the actual error.
+			return 0, errTokenUnreadable
+		}
+		if !authorizer.Allowed(*p) {
+			return 0, errTokenUnreadable
+		}
+	}
+
+	return a.ID, nil
+}
+
 func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Task, error) {
 	opts, err := options.FromScript(t.Script)
 	if err != nil {
@@ -255,6 +314,7 @@ func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Ta
 		if m.UpdatedAt != 0 {
 			pt.UpdatedAt = time.Unix(m.UpdatedAt, 0).Format(time.RFC3339)
 		}
+		pt.AuthorizationID = platform.ID(m.AuthorizationID)
 	}
 	return pt, nil
 }
