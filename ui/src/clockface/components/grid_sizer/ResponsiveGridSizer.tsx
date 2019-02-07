@@ -8,15 +8,20 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Styles
 import 'src/clockface/components/grid_sizer/ResponsiveGridSizer.scss'
 
-interface Props {
+interface PassedProps {
   children: JSX.Element[]
   columns: number
+}
+
+interface DefaultProps {
   gutter?: number
 }
 
+type Props = PassedProps & DefaultProps
+
 @ErrorHandling
 class ResponsiveGridSizer extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     gutter: 4,
   }
 
