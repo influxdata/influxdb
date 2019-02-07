@@ -23,9 +23,7 @@ func (s *Service) initializeUsers(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket([]byte(userIndex)); err != nil {
 		return err
 	}
-	if _, err := tx.Bucket([]byte(userIndex)); err != nil {
-		return err
-	}
+
 	return nil
 }
 
