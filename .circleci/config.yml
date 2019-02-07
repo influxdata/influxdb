@@ -10,8 +10,7 @@ jobs:
       - run:
           name: Litmus Smokte Tests Success
           when: on_success
-          command: bash ../etc/success_notify.sh
-      - store_artifacts:
+          command: bash ~/project/success_notify.sh
           path: ~/project
 
   litmus_nightly:
@@ -158,6 +157,7 @@ jobs:
           paths:
             - bin/linux/influxd
             - bin/linux/influx
+            - etc/
 
   deploy-nightly:
     docker:
