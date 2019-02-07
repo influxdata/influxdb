@@ -109,12 +109,14 @@ func (qlr *QueryLogReader) ListRuns(ctx context.Context, runFilter platform.RunF
 	}
 
 	listScript := fmt.Sprintf(`
+import "influxdata/influxdb/v1"
+
 from(bucketID: "000000000000000a")
   |> range(start: -24h)
 	|> filter(fn: (r) => r._measurement == "records" and r.taskID == %q)
 	|> drop(columns: ["_start", "_stop"])
 	|> group(columns: ["_measurement", "taskID", "scheduledFor", "status", "runID"])
-	|> influxFieldsAsCols()
+	|> v1.fieldsAsCols()
 	|> filter(fn: (r) => r.scheduledFor < %q and r.scheduledFor > %q and r.runID > %q)
 	|> pivot(rowKey:["runID", "scheduledFor"], columnKey: ["status"], valueColumn: "_time")
 	%s
@@ -139,11 +141,13 @@ from(bucketID: "000000000000000a")
 
 func (qlr *QueryLogReader) FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error) {
 	showScript := fmt.Sprintf(`
+import "influxdata/influxdb/v1"
+
 logs = from(bucketID: "000000000000000a")
 	|> range(start: -24h)
 	|> filter(fn: (r) => r._measurement == "logs")
 	|> drop(columns: ["_start", "_stop"])
-	|> influxFieldsAsCols()
+	|> v1.fieldsAsCols()
 	|> filter(fn: (r) => r.runID == %q)
 	|> yield(name: "logs")
 
@@ -152,7 +156,7 @@ from(bucketID: "000000000000000a")
 	|> filter(fn: (r) => r._measurement == "records")
 	|> drop(columns: ["_start", "_stop"])
 	|> group(columns: ["_measurement", "taskID", "scheduledFor", "status", "runID"])
-	|> influxFieldsAsCols()
+	|> v1.fieldsAsCols()
 	|> filter(fn: (r) => r.runID == %q)
 	|> pivot(rowKey:["runID", "scheduledFor"], columnKey: ["status"], valueColumn: "_time")
 	|> yield(name: "result")

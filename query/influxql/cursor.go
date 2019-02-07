@@ -3,19 +3,16 @@ package influxql
 import (
 	"errors"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxql"
 )
 
 // cursor is holds known information about the current stream. It maps the influxql ast information
 // to the attributes on a table.
 type cursor interface {
-	// ID contains the last id that produces this cursor.
-	ID() flux.OperationID
+	// Expr is the AST expression that produces this table.
+	Expr() ast.Expression
 
 	// Keys returns all of the expressions that this cursor contains.
 	Keys() []influxql.Expr
@@ -29,8 +26,8 @@ type cursor interface {
 // varRefCursor contains a cursor for a single variable. This is usually the raw value
 // coming from the database and points to the default value column property.
 type varRefCursor struct {
-	id  flux.OperationID
-	ref *influxql.VarRef
+	expr ast.Expression
+	ref  *influxql.VarRef
 }
 
 // createVarRefCursor creates a new cursor from a variable reference using the sources
@@ -53,7 +50,7 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 		return nil, err
 	}
 
-	valuer := influxql.NowValuer{Now: t.spec.Now}
+	valuer := influxql.NowValuer{Now: t.config.Now}
 	_, tr, err := influxql.ConditionExpr(t.stmt.Condition, &valuer)
 	if err != nil {
 		return nil, err
@@ -63,56 +60,98 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 	// the end time will be set to now.
 	if tr.Max.IsZero() {
 		if window, err := t.stmt.GroupByInterval(); err == nil && window > 0 {
-			tr.Max = t.spec.Now
+			tr.Max = t.config.Now
 		}
 	}
 
-	range_ := t.op("range", &universe.RangeOpSpec{
-		Start:       flux.Time{Absolute: tr.MinTime()},
-		Stop:        flux.Time{Absolute: tr.MaxTime()},
-		TimeColumn:  execute.DefaultTimeColLabel,
-		StartColumn: execute.DefaultStartColLabel,
-		StopColumn:  execute.DefaultStopColLabel,
-	}, from)
-
-	id := t.op("filter", &universe.FilterOpSpec{
-		Fn: &semantic.FunctionExpression{
-			Block: &semantic.FunctionBlock{
-				Parameters: &semantic.FunctionParameters{
-					List: []*semantic.FunctionParameter{
-						{Key: &semantic.Identifier{Name: "r"}},
-					},
-				},
-				Body: &semantic.LogicalExpression{
-					Operator: ast.AndOperator,
-					Left: &semantic.BinaryExpression{
-						Operator: ast.EqualOperator,
-						Left: &semantic.MemberExpression{
-							Object:   &semantic.IdentifierExpression{Name: "r"},
-							Property: "_measurement",
+	range_ := &ast.PipeExpression{
+		Argument: from,
+		Call: &ast.CallExpression{
+			Callee: &ast.Identifier{
+				Name: "range",
+			},
+			Arguments: []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "start",
+							},
+							Value: &ast.DateTimeLiteral{
+								Value: tr.MinTime().UTC(),
+							},
 						},
-						Right: &semantic.StringLiteral{Value: mm.Name},
-					},
-					Right: &semantic.BinaryExpression{
-						Operator: ast.EqualOperator,
-						Left: &semantic.MemberExpression{
-							Object:   &semantic.IdentifierExpression{Name: "r"},
-							Property: "_field",
+						{
+							Key: &ast.Identifier{
+								Name: "stop",
+							},
+							Value: &ast.DateTimeLiteral{
+								Value: tr.MaxTime().UTC(),
+							},
 						},
-						Right: &semantic.StringLiteral{Value: ref.Val},
 					},
 				},
 			},
 		},
-	}, range_)
+	}
+
+	expr := &ast.PipeExpression{
+		Argument: range_,
+		Call: &ast.CallExpression{
+			Callee: &ast.Identifier{
+				Name: "filter",
+			},
+			Arguments: []ast.Expression{
+				&ast.ObjectExpression{
+					Properties: []*ast.Property{
+						{
+							Key: &ast.Identifier{
+								Name: "fn",
+							},
+							Value: &ast.FunctionExpression{
+								Params: []*ast.Property{{
+									Key: &ast.Identifier{
+										Name: "r",
+									},
+								}},
+								Body: &ast.LogicalExpression{
+									Operator: ast.AndOperator,
+									Left: &ast.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &ast.MemberExpression{
+											Object:   &ast.Identifier{Name: "r"},
+											Property: &ast.Identifier{Name: "_measurement"},
+										},
+										Right: &ast.StringLiteral{
+											Value: mm.Name,
+										},
+									},
+									Right: &ast.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &ast.MemberExpression{
+											Object:   &ast.Identifier{Name: "r"},
+											Property: &ast.Identifier{Name: "_field"},
+										},
+										Right: &ast.StringLiteral{
+											Value: ref.Val,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 	return &varRefCursor{
-		id:  id,
-		ref: ref,
+		expr: expr,
+		ref:  ref,
 	}, nil
 }
 
-func (c *varRefCursor) ID() flux.OperationID {
-	return c.id
+func (c *varRefCursor) Expr() ast.Expression {
+	return c.expr
 }
 
 func (c *varRefCursor) Keys() []influxql.Expr {
@@ -132,11 +171,11 @@ func (c *varRefCursor) Value(expr influxql.Expr) (string, bool) {
 	return "", false
 }
 
-// opCursor wraps a cursor with a new id while delegating all calls to the
+// pipeCursor wraps a cursor with a new expression while delegating all calls to the
 // wrapped cursor.
-type opCursor struct {
-	id flux.OperationID
+type pipeCursor struct {
+	expr ast.Expression
 	cursor
 }
 
-func (c *opCursor) ID() flux.OperationID { return c.id }
+func (c *pipeCursor) Expr() ast.Expression { return c.expr }

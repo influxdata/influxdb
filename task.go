@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/task/options"
 )
 
@@ -189,19 +188,21 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 	}
 	// so we don't allocate if we are just changing the status
 	if t.Options.Name != "" || t.Options.Every != 0 || t.Options.Cron != "" || t.Options.Offset != 0 {
-		op := make(map[string]values.Value, 4)
+		op := make(map[string]ast.Expression, 4)
 
 		if t.Options.Name != "" {
-			op["name"] = values.NewString(t.Options.Name)
+			op["name"] = &ast.StringLiteral{Value: t.Options.Name}
 		}
 		if t.Options.Every != 0 {
-			op["every"] = values.NewDuration(values.Duration(t.Options.Every))
+			d := ast.Duration{Magnitude: int64(t.Options.Every), Unit: "ns"}
+			op["every"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
 		}
 		if t.Options.Cron != "" {
-			op["cron"] = values.NewString(t.Options.Cron)
+			op["cron"] = &ast.StringLiteral{Value: t.Options.Cron}
 		}
 		if t.Options.Offset != 0 {
-			op["offset"] = values.NewDuration(values.Duration(t.Options.Offset))
+			d := ast.Duration{Magnitude: int64(t.Options.Offset), Unit: "ns"}
+			op["offset"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
 		}
 		ok, err := edit.Option(parsed, "task", edit.OptionObjectFn(op))
 		if err != nil {

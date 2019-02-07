@@ -4,9 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxql"
 )
 
@@ -108,88 +107,19 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		parent: in,
 	}
 	switch call.Name {
-	case "count":
+	case "count", "min", "max", "sum", "first", "last", "mean":
 		value, ok := in.Value(call.Args[0])
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("count", &universe.CountOpSpec{
-			AggregateConfig: execute.AggregateConfig{
-				Columns: []string{value},
+		cur.expr = &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: call.Name,
+				},
 			},
-		}, in.ID())
-		cur.value = value
-		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
-	case "min":
-		value, ok := in.Value(call.Args[0])
-		if !ok {
-			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("min", &universe.MinOpSpec{
-			SelectorConfig: execute.SelectorConfig{
-				Column: value,
-			},
-		}, in.ID())
-		cur.value = value
-		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
-	case "max":
-		value, ok := in.Value(call.Args[0])
-		if !ok {
-			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
-		}
-		cur.id = t.op("max", &universe.MaxOpSpec{
-			SelectorConfig: execute.SelectorConfig{
-				Column: value,
-			},
-		}, in.ID())
-		cur.value = value
-		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
-	case "sum":
-		value, ok := in.Value(call.Args[0])
-		if !ok {
-			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
-		}
-		cur.id = t.op("sum", &universe.SumOpSpec{
-			AggregateConfig: execute.AggregateConfig{
-				Columns: []string{value},
-			},
-		}, in.ID())
-		cur.value = value
-		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
-	case "first":
-		value, ok := in.Value(call.Args[0])
-		if !ok {
-			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
-		}
-		cur.id = t.op("first", &universe.FirstOpSpec{
-			SelectorConfig: execute.SelectorConfig{
-				Column: value,
-			},
-		}, in.ID())
-		cur.value = value
-		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
-	case "last":
-		value, ok := in.Value(call.Args[0])
-		if !ok {
-			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
-		}
-		cur.id = t.op("last", &universe.LastOpSpec{
-			SelectorConfig: execute.SelectorConfig{
-				Column: value,
-			},
-		}, in.ID())
-		cur.value = value
-		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
-	case "mean":
-		value, ok := in.Value(call.Args[0])
-		if !ok {
-			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
-		}
-		cur.id = t.op("mean", &universe.MeanOpSpec{
-			AggregateConfig: execute.AggregateConfig{
-				Columns: []string{value},
-			},
-		}, in.ID())
 		cur.value = value
 		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
 	case "median":
@@ -197,14 +127,36 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("median", &universe.PercentileOpSpec{
-			Percentile:  0.5,
-			Compression: 0,
-			Method:      "exact_mean",
-			AggregateConfig: execute.AggregateConfig{
-				Columns: []string{value},
+		cur.expr = &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "percentile",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{
+									Name: "percentile",
+								},
+								Value: &ast.FloatLiteral{
+									Value: 0.5,
+								},
+							},
+							{
+								Key: &ast.Identifier{
+									Name: "method",
+								},
+								Value: &ast.StringLiteral{
+									Value: "exact_mean",
+								},
+							},
+						},
+					},
+				},
 			},
-		}, in.ID())
+		}
 		cur.value = value
 		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
 	case "percentile":
@@ -231,14 +183,49 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 			return nil, errors.New("argument N must be between 0 and 100")
 		}
 
-		cur.id = t.op("percentile", &universe.PercentileOpSpec{
-			Percentile:  percentile,
-			Compression: 0,
-			Method:      "exact_selector",
-			AggregateConfig: execute.AggregateConfig{
-				Columns: []string{fieldName},
+		args := []*ast.Property{
+			{
+				Key: &ast.Identifier{
+					Name: "percentile",
+				},
+				Value: &ast.FloatLiteral{
+					Value: percentile,
+				},
 			},
-		}, in.ID())
+			{
+				Key: &ast.Identifier{
+					Name: "method",
+				},
+				Value: &ast.StringLiteral{
+					Value: "exact_selector",
+				},
+			},
+		}
+		if fieldName != execute.DefaultValueColLabel {
+			args = append(args, &ast.Property{
+				Key: &ast.Identifier{
+					Name: "columns",
+				},
+				Value: &ast.ArrayExpression{
+					Elements: []ast.Expression{
+						&ast.StringLiteral{Value: fieldName},
+					},
+				},
+			})
+		}
+		cur.expr = &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "percentile",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: args,
+					},
+				},
+			},
+		}
 		cur.value = fieldName
 		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
 	default:
@@ -248,28 +235,73 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor, no
 	// If we have been told to normalize the time, we do it here.
 	if normalize {
 		if influxql.IsSelector(call) {
-			cur.id = t.op("drop", &universe.DropOpSpec{
-				Columns: []string{execute.DefaultTimeColLabel},
-			}, cur.id)
+			cur.expr = &ast.PipeExpression{
+				Argument: cur.expr,
+				Call: &ast.CallExpression{
+					Callee: &ast.Identifier{
+						Name: "drop",
+					},
+					Arguments: []ast.Expression{
+						&ast.ObjectExpression{
+							Properties: []*ast.Property{{
+								Key: &ast.Identifier{
+									Name: "columns",
+								},
+								Value: &ast.ArrayExpression{
+									Elements: []ast.Expression{
+										&ast.StringLiteral{Value: execute.DefaultTimeColLabel},
+									},
+								},
+							}},
+						},
+					},
+				},
+			}
 		}
-		cur.id = t.op("duplicate", &universe.DuplicateOpSpec{
-			Column: execute.DefaultStartColLabel,
-			As:     execute.DefaultTimeColLabel,
-		}, cur.id)
+		cur.expr = &ast.PipeExpression{
+			Argument: cur.expr,
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "duplicate",
+				},
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{
+									Name: "column",
+								},
+								Value: &ast.StringLiteral{
+									Value: execute.DefaultStartColLabel,
+								},
+							},
+							{
+								Key: &ast.Identifier{
+									Name: "as",
+								},
+								Value: &ast.StringLiteral{
+									Value: execute.DefaultTimeColLabel,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
 	}
 	return cur, nil
 }
 
 type functionCursor struct {
-	id      flux.OperationID
+	expr    ast.Expression
 	call    *influxql.Call
 	value   string
 	exclude map[influxql.Expr]struct{}
 	parent  cursor
 }
 
-func (c *functionCursor) ID() flux.OperationID {
-	return c.id
+func (c *functionCursor) Expr() ast.Expression {
+	return c.expr
 }
 
 func (c *functionCursor) Keys() []influxql.Expr {

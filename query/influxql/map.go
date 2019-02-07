@@ -2,26 +2,24 @@ package influxql
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxql"
 )
 
 // mapCursor holds the mapping of expressions to specific fields that happens at the end of
 // the transpilation.
-// TODO(jsternberg): This abstraction might be useful for subqueries, but we only need the id
+// TODO(jsternberg): This abstraction might be useful for subqueries, but we only need the expr
 // at the moment so just hold that.
 type mapCursor struct {
-	id flux.OperationID
+	expr ast.Expression
 }
 
-func (c *mapCursor) ID() flux.OperationID {
-	return c.id
+func (c *mapCursor) Expr() ast.Expression {
+	return c.expr
 }
 
 func (c *mapCursor) Keys() []influxql.Expr {
@@ -43,14 +41,18 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 		panic("number of columns does not match the number of fields")
 	}
 
-	properties := make([]*semantic.Property, 0, len(t.stmt.Fields)+1)
-	properties = append(properties, &semantic.Property{
-		Key: &semantic.Identifier{Name: execute.DefaultTimeColLabel},
-		Value: &semantic.MemberExpression{
-			Object: &semantic.IdentifierExpression{
+	properties := make([]*ast.Property, 0, len(t.stmt.Fields)+1)
+	properties = append(properties, &ast.Property{
+		Key: &ast.Identifier{
+			Name: execute.DefaultTimeColLabel,
+		},
+		Value: &ast.MemberExpression{
+			Object: &ast.Identifier{
 				Name: "r",
 			},
-			Property: execute.DefaultTimeColLabel,
+			Property: &ast.Identifier{
+				Name: execute.DefaultTimeColLabel,
+			},
 		},
 	})
 	for i, f := range t.stmt.Fields {
@@ -62,36 +64,51 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 		if err != nil {
 			return nil, err
 		}
-		properties = append(properties, &semantic.Property{
-			Key:   &semantic.Identifier{Name: columns[i]},
+		properties = append(properties, &ast.Property{
+			Key:   &ast.Identifier{Name: columns[i]},
 			Value: value,
 		})
 	}
-	id := t.op("map", &universe.MapOpSpec{
-		Fn: &semantic.FunctionExpression{
-			Block: &semantic.FunctionBlock{
-				Parameters: &semantic.FunctionParameters{
-					List: []*semantic.FunctionParameter{{
-						Key: &semantic.Identifier{Name: "r"},
-					}},
+	return &mapCursor{
+		expr: &ast.PipeExpression{
+			Argument: in.Expr(),
+			Call: &ast.CallExpression{
+				Callee: &ast.Identifier{
+					Name: "map",
 				},
-				Body: &semantic.ObjectExpression{
-					Properties: properties,
+				Arguments: []ast.Expression{
+					&ast.ObjectExpression{
+						Properties: []*ast.Property{{
+							Key: &ast.Identifier{
+								Name: "fn",
+							},
+							Value: &ast.FunctionExpression{
+								Params: []*ast.Property{{
+									Key: &ast.Identifier{Name: "r"},
+								}},
+								Body: &ast.ObjectExpression{
+									Properties: properties,
+								},
+							},
+						}},
+					},
 				},
 			},
 		},
-		MergeKey: true,
-	}, in.ID())
-	return &mapCursor{id: id}, nil
+	}, nil
 }
 
-func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (semantic.Expression, error) {
+func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (ast.Expression, error) {
 	if sym, ok := in.Value(expr); ok {
-		return &semantic.MemberExpression{
-			Object: &semantic.IdentifierExpression{
-				Name: "r",
-			},
-			Property: sym,
+		var property ast.PropertyKey
+		if strings.HasPrefix(sym, "_") {
+			property = &ast.Identifier{Name: sym}
+		} else {
+			property = &ast.StringLiteral{Value: sym}
+		}
+		return &ast.MemberExpression{
+			Object:   &ast.Identifier{Name: "r"},
+			Property: property,
 		}, nil
 	}
 
@@ -109,21 +126,23 @@ func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (semantic.Expr
 		return t.mapField(expr.Expr, in)
 	case *influxql.StringLiteral:
 		if ts, err := expr.ToTimeLiteral(time.UTC); err == nil {
-			return &semantic.DateTimeLiteral{Value: ts.Val}, nil
+			return &ast.DateTimeLiteral{Value: ts.Val}, nil
 		}
-		return &semantic.StringLiteral{Value: expr.Val}, nil
+		return &ast.StringLiteral{Value: expr.Val}, nil
 	case *influxql.NumberLiteral:
-		return &semantic.FloatLiteral{Value: expr.Val}, nil
+		return &ast.FloatLiteral{Value: expr.Val}, nil
 	case *influxql.IntegerLiteral:
-		return &semantic.IntegerLiteral{Value: expr.Val}, nil
+		return &ast.IntegerLiteral{Value: expr.Val}, nil
 	case *influxql.BooleanLiteral:
-		return &semantic.BooleanLiteral{Value: expr.Val}, nil
+		return &ast.BooleanLiteral{Value: expr.Val}, nil
 	case *influxql.DurationLiteral:
-		return &semantic.DurationLiteral{Value: expr.Val}, nil
+		return &ast.DurationLiteral{
+			Values: durationLiteral(expr.Val),
+		}, nil
 	case *influxql.TimeLiteral:
-		return &semantic.DateTimeLiteral{Value: expr.Val}, nil
+		return &ast.DateTimeLiteral{Value: expr.Val}, nil
 	case *influxql.RegexLiteral:
-		return &semantic.RegexpLiteral{Value: expr.Val}, nil
+		return &ast.RegexpLiteral{Value: expr.Val}, nil
 	default:
 		// TODO(jsternberg): Handle the other expressions by turning them into
 		// an equivalent expression.
@@ -131,8 +150,8 @@ func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (semantic.Expr
 	}
 }
 
-func (t *transpilerState) evalBinaryExpr(expr *influxql.BinaryExpr, in cursor) (semantic.Expression, error) {
-	fn := func() func(left, right semantic.Expression) semantic.Expression {
+func (t *transpilerState) evalBinaryExpr(expr *influxql.BinaryExpr, in cursor) (ast.Expression, error) {
+	fn := func() func(left, right ast.Expression) ast.Expression {
 		b := evalBuilder{}
 		switch expr.Op {
 		case influxql.EQ:
@@ -181,9 +200,9 @@ func (t *transpilerState) evalBinaryExpr(expr *influxql.BinaryExpr, in cursor) (
 // evalBuilder is used for namespacing the logical and eval wrapping functions.
 type evalBuilder struct{}
 
-func (evalBuilder) logical(op ast.LogicalOperatorKind) func(left, right semantic.Expression) semantic.Expression {
-	return func(left, right semantic.Expression) semantic.Expression {
-		return &semantic.LogicalExpression{
+func (evalBuilder) logical(op ast.LogicalOperatorKind) func(left, right ast.Expression) ast.Expression {
+	return func(left, right ast.Expression) ast.Expression {
+		return &ast.LogicalExpression{
 			Operator: op,
 			Left:     left,
 			Right:    right,
@@ -191,9 +210,9 @@ func (evalBuilder) logical(op ast.LogicalOperatorKind) func(left, right semantic
 	}
 }
 
-func (evalBuilder) eval(op ast.OperatorKind) func(left, right semantic.Expression) semantic.Expression {
-	return func(left, right semantic.Expression) semantic.Expression {
-		return &semantic.BinaryExpression{
+func (evalBuilder) eval(op ast.OperatorKind) func(left, right ast.Expression) ast.Expression {
+	return func(left, right ast.Expression) ast.Expression {
+		return &ast.BinaryExpression{
 			Operator: op,
 			Left:     left,
 			Right:    right,
