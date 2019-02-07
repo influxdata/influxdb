@@ -84,8 +84,6 @@ var skipTests = map[string]string{
 	"selector_2":               "Transpiler: first function uses different series than influxQL (https://github.com/influxdata/platform/issues/1605)",
 	"selector_6":               "Transpiler: first function uses different series than influxQL (https://github.com/influxdata/platform/issues/1605)",
 	"selector_7":               "Transpiler: first function uses different series than influxQL (https://github.com/influxdata/platform/issues/1605)",
-	"selector_8":               "Transpiler: selectors with group by produce different time values than influxQL (https://github.com/influxdata/platform/issues/1606)",
-	"selector_9":               "Transpiler: selectors with group by produce different time values than influxQL (https://github.com/influxdata/platform/issues/1606)",
 	"series_agg_0":             "Transpiler: Implement difference (https://github.com/influxdata/platform/issues/1609)",
 	"series_agg_1":             "Transpiler: Implement stddev (https://github.com/influxdata/platform/issues/1610)",
 	"series_agg_2":             "Transpiler: Implement spread (https://github.com/influxdata/platform/issues/1611)",
