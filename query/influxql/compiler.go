@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/interpreter"
-	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -57,25 +55,7 @@ func (c *Compiler) Compile(ctx context.Context) (*flux.Spec, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	semPkg, err := semantic.New(astPkg)
-	if err != nil {
-		return nil, err
-	}
-
-	itrp := interpreter.NewInterpreter()
-	universe := flux.Prelude()
-
-	sideEffects, err := itrp.Eval(semPkg, universe, flux.StdLib())
-	if err != nil {
-		return nil, err
-	}
-
-	spec, err := flux.ToSpec(sideEffects, now)
-	if err != nil {
-		return nil, err
-	}
-	return spec, nil
+	return flux.CompileAST(ctx, astPkg, now)
 }
 func (c *Compiler) CompilerType() flux.CompilerType {
 	return CompilerType
