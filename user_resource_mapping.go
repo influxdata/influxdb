@@ -45,7 +45,7 @@ type UserResourceMappingService interface {
 	CreateUserResourceMapping(ctx context.Context, m *UserResourceMapping) error
 
 	// DeleteUserResourceMapping deletes a user resource mapping.
-	DeleteUserResourceMapping(ctx context.Context, resourceID ID, userID ID) error
+	DeleteUserResourceMapping(ctx context.Context, resourceID, userID ID) error
 }
 
 // UserResourceMapping represents a mapping of a resource to its user.

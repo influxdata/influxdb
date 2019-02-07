@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// KeyValuleLog is a generic type logs key-value pairs. This interface is intended to be used to construct other
+// KeyValueLog is a generic type logs key-value pairs. This interface is intended to be used to construct other
 // higher-level log-like resources such as an oplog or audit log.
 //
 // The idea is to create a log who values can be accessed at the key k:
