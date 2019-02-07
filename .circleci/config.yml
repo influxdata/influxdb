@@ -6,7 +6,7 @@ jobs:
       - attach_workspace:
           at: ~/project
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=~/project/bin/darwin/influxd -e BOLTPATH=~/project/influxd_test/influxd.bolt -e ENGINEPATH=~/project/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=~/project/bin/linux/influxd -e BOLTPATH=~/project/influxd_test/influxd.bolt -e ENGINEPATH=~/project/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Nightly Tests Success
           when: on_success
