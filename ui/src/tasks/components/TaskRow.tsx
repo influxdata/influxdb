@@ -26,6 +26,7 @@ interface Task extends TaskAPI {
 
 // Constants
 import {IconFont} from 'src/clockface/types/index'
+import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   task: Task
@@ -34,6 +35,7 @@ interface Props {
   onSelect: (task: Task) => void
   onClone: (task: Task) => void
   onEditLabels: (task: Task) => void
+  onUpdate?: (task: Task) => void
 }
 
 export class TaskRow extends PureComponent<Props & WithRouterProps> {
@@ -47,13 +49,7 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
             stackChildren={Stack.Columns}
             align={Alignment.Right}
           >
-            <a
-              href="#"
-              onClick={this.handleClick}
-              className="index-list--resource-name"
-            >
-              {task.name}
-            </a>
+            {this.resourceNames}
             {this.labels}
           </ComponentSpacer>
         </IndexList.Cell>
@@ -96,6 +92,33 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
         </IndexList.Cell>
       </IndexList.Row>
     )
+  }
+
+  private get resourceNames(): JSX.Element {
+    const {onUpdate, task} = this.props
+    if (onUpdate) {
+      return (
+        <EditableName
+          onUpdate={this.handleUpdateTask}
+          name={task.name}
+          onEditName={this.handleClick}
+        />
+      )
+    }
+    return (
+      <a
+        href="#"
+        onClick={this.handleClick}
+        className="index-list--resource-name"
+      >
+        {task.name}
+      </a>
+    )
+  }
+
+  private handleUpdateTask = (name: string) => {
+    const {onUpdate, task} = this.props
+    onUpdate({...task, name})
   }
 
   private handleClick = e => {

@@ -31,6 +31,7 @@ interface Props {
   totalCount: number
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onAddTaskLabels: typeof addTaskLabelsAsync
+  onUpdate?: (task: Task) => void
 }
 
 type SortKey = keyof Task | 'organization.name'
@@ -121,7 +122,7 @@ export default class TasksList extends PureComponent<Props, State> {
   }
 
   private rows = (tasks: Task[]): JSX.Element => {
-    const {onActivate, onDelete, onSelect, onClone} = this.props
+    const {onActivate, onDelete, onSelect, onClone, onUpdate} = this.props
     const taskrows = (
       <>
         {tasks.map(t => (
@@ -133,6 +134,7 @@ export default class TasksList extends PureComponent<Props, State> {
             onClone={onClone}
             onSelect={onSelect}
             onEditLabels={this.handleStartEditingLabels}
+            onUpdate={onUpdate}
           />
         ))}
       </>

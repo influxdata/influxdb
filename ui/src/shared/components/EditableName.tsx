@@ -15,7 +15,7 @@ import 'src/shared/components/EditableName.scss'
 interface Props {
   onUpdate: (name: string) => void
   name: string
-  onEditName: () => void
+  onEditName: (e?: any) => void
   hrefValue?: string
   placeholder?: string
 }
