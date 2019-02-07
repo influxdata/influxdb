@@ -3734,7 +3734,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Task"
+                $ref: "#/components/schemas/TaskUpdateRequest"
         default:
           description: unexpected error
           content:
@@ -5021,6 +5021,9 @@ components:
             - inactive
         labels:
           $ref: "#/components/schemas/Labels"
+        authorizationID:
+          description: The ID of the authorization used when this task communicates with the query engine.
+          type: string
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -6912,6 +6915,7 @@ components:
         - u
         - ns
     TaskCreateRequest:
+      type: object
       properties:
         orgID:
           description: The ID of the organization that owns this Task.
@@ -6929,4 +6933,35 @@ components:
         flux:
           description: The Flux script to run for this task.
           type: string
+        token:
+          description: The token to use for authenticating this task when it executes queries. If omitted, uses the token associated with the request that creates the task.
+          type: string
       required: [flux]
+    TaskUpdateRequest:
+      type: object
+      properties:
+        status:
+          description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
+        flux:
+          description: The Flux script to run for this task.
+          type: string
+        name:
+          description: Override the 'name' option in the flux script.
+          type: string
+        every:
+          description: Override the 'every' option in the flux script.
+          type: string
+        cron:
+          description: Override the 'cron' option in the flux script.
+          type: string
+        offset:
+          description: Override the 'offset' option in the flux script.
+          type: string
+        token:
+          description: Override the existing token associated with the task.
+          type: string

@@ -402,7 +402,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
 		lr := taskbackend.NewQueryLogReader(queryService)
-		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler)
+		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler, authSvc)
 		taskSvc = task.NewValidator(taskSvc, bucketSvc)
 		m.taskStore = boltStore
 	}

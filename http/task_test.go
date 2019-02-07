@@ -22,15 +22,18 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	backingTS := task.PlatformAdapter(store, rrw, sch)
-
 	i := inmem.NewService()
+
+	backingTS := task.PlatformAdapter(store, rrw, sch, i)
 
 	h := http.NewAuthenticationHandler()
 	h.AuthorizationService = i
-	th := http.NewTaskHandler(http.NewMockTaskBackend())
+	th := http.NewTaskHandler(http.NewMockTaskBackend(t))
 	th.TaskService = backingTS
 	th.AuthorizationService = i
+	th.OrganizationService = i
+	th.UserService = i
+	th.UserResourceMappingService = i
 	h.Handler = th
 
 	org := &platform.Organization{Name: t.Name() + "_org"}
@@ -59,14 +62,20 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 		}
 	}
 
-	cFunc := func() (o, u platform.ID, tok string, err error) {
-		return org.ID, user.ID, auth.Token, nil
+	cFunc := func() (servicetest.TestCreds, error) {
+		return servicetest.TestCreds{
+			OrgID:           org.ID,
+			UserID:          user.ID,
+			AuthorizationID: auth.ID,
+			Token:           auth.Token,
+		}, nil
 	}
 
 	return &servicetest.System{
 		S:               store,
 		LR:              rrw,
 		LW:              rrw,
+		I:               i,
 		Ctx:             ctx,
 		TaskServiceFunc: tsFunc,
 		CredsFunc:       cFunc,

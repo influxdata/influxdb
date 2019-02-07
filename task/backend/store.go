@@ -150,12 +150,17 @@ type CreateTaskRequest struct {
 	// Owners.
 	Org, User platform.ID
 
+	// Authorization ID to use when executing the task later.
+	// This is stored directly in the storage layer,
+	// so it is the caller's responsibility to ensure the user is permitted to access the authorization.
+	AuthorizationID platform.ID
+
 	// Script content of the task.
 	Script string
 
 	// Unix timestamp (seconds elapsed since January 1, 1970 UTC).
 	// The first run of the task will be run according to the earliest time after ScheduleAfter,
-	// matching the task's schedul via its cron or every option.
+	// matching the task's schedule via its cron or every option.
 	ScheduleAfter int64
 
 	// The initial task status.
@@ -175,6 +180,10 @@ type UpdateTaskRequest struct {
 	// The new desired task status.
 	// If empty, do not modify the existing status.
 	Status TaskStatus
+
+	// The new authorization ID.
+	// If zero, do not modify the existing authorization ID.
+	AuthorizationID platform.ID
 
 	// These options are for editing options via request.  Zeroed options will be ignored.
 	options.Options
@@ -426,6 +435,9 @@ func (StoreValidation) CreateArgs(req CreateTaskRequest) (options.Options, error
 	if !req.User.Valid() {
 		missing = append(missing, "user ID")
 	}
+	if !req.AuthorizationID.Valid() {
+		missing = append(missing, "authorization ID")
+	}
 
 	if len(missing) > 0 {
 		return o, fmt.Errorf("missing required fields to create task: %s", strings.Join(missing, ", "))
@@ -444,8 +456,8 @@ func (StoreValidation) CreateArgs(req CreateTaskRequest) (options.Options, error
 func (StoreValidation) UpdateArgs(req UpdateTaskRequest) (options.Options, error) {
 	var missing []string
 	o := req.Options
-	if req.Script == "" && req.Status == "" && req.Options.IsZero() {
-		missing = append(missing, "script or status or options")
+	if req.Script == "" && req.Status == "" && req.Options.IsZero() && !req.AuthorizationID.Valid() {
+		missing = append(missing, "script or status or options or authorizationID")
 	}
 	if req.Script != "" {
 		err := req.UpdateFlux(req.Script)

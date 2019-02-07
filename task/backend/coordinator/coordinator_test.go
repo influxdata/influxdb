@@ -37,7 +37,8 @@ func TestCoordinator(t *testing.T) {
 
 	orgID := platformtesting.MustIDBase16("69746f7175650d0a")
 	usrID := platformtesting.MustIDBase16("6c61757320657420")
-	id, err := coord.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: usrID, Script: script})
+	authzID := platform.ID(123456)
+	id, err := coord.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: usrID, AuthorizationID: authzID, Script: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
-	id, err = coord.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: usrID, Script: script})
+	id, err = coord.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: usrID, AuthorizationID: authzID, Script: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +142,7 @@ func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 	coord := coordinator.New(zaptest.NewLogger(t), sched, st)
 
 	// Create an isolated task directly through the store so the coordinator doesn't know about it.
-	id, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
+	id, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func TestCoordinator_ClaimExistingTasks(t *testing.T) {
 
 	createdIDs := make([]platform.ID, numTasks)
 	for i := 0; i < numTasks; i++ {
-		id, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, Script: script})
+		id, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}

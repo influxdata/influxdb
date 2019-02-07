@@ -255,8 +255,12 @@ func (s *Store) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (
 		}
 		stm.UpdatedAt = time.Now().Unix()
 		res.OldStatus = backend.TaskStatus(stm.Status)
+
 		if req.Status != "" {
 			stm.Status = string(req.Status)
+		}
+		if req.AuthorizationID.Valid() {
+			stm.AuthorizationID = uint64(req.AuthorizationID)
 		}
 		stmBytes, err = stm.Marshal()
 		if err != nil {
