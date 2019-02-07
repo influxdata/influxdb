@@ -8,10 +8,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {client} from 'src/utils/api'
 
 // Types
-import {
-  SetupParams,
-  setSetupParams as setSetupParamsAJAX,
-} from 'src/onboarding/apis'
+import {ISetupParams} from '@influxdata/influx'
 
 export type Action =
   | SetSetupParams
@@ -21,10 +18,10 @@ export type Action =
 
 interface SetSetupParams {
   type: 'SET_SETUP_PARAMS'
-  payload: {setupParams: SetupParams}
+  payload: {setupParams: ISetupParams}
 }
 
-export const setSetupParams = (setupParams: SetupParams): SetSetupParams => ({
+export const setSetupParams = (setupParams: ISetupParams): SetSetupParams => ({
   type: 'SET_SETUP_PARAMS',
   payload: {setupParams},
 })
@@ -65,18 +62,18 @@ export const setBucketID = (bucketID: string): SetBucketID => ({
   payload: {bucketID},
 })
 
-export const setupAdmin = (setupParams: SetupParams) => async dispatch => {
+export const setupAdmin = (params: ISetupParams) => async dispatch => {
   try {
-    dispatch(setSetupParams(setupParams))
-    const onboardingResponse = await setSetupParamsAJAX(setupParams)
+    dispatch(setSetupParams(params))
+    const response = await client.setup.create(params)
 
-    const {id: orgID} = onboardingResponse.org
-    const {id: bucketID} = onboardingResponse.bucket
+    const {id: orgID} = response.org
+    const {id: bucketID} = response.bucket
 
     dispatch(setOrganizationID(orgID))
     dispatch(setBucketID(bucketID))
 
-    const {username, password} = setupParams
+    const {username, password} = params
 
     await client.auth.signin(username, password)
     dispatch(notify(SetupSuccess))

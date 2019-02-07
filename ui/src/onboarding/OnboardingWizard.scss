@@ -96,17 +96,13 @@
   border-radius: $ix-radius;
 }
 
+
 .buttonless {
   .wizard-step--scroll-area {
     height: calc(100% - 16px);
   }
 }
 
-.wizard--skippable {
-  .wizard-step--scroll-area {
-    height: calc(100% - 147px);
-  }
-}
 
 .wizard-step--scroll-content {
   width: 100%;
@@ -310,22 +306,20 @@
   }
 }
 
+.wizard--columns {
+  display: inline-flex;
+  flex-direction: row;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
 @media screen and (min-width: $grid--breakpoint-md) {
   .wizard-step--container {
     padding: $ix-marg-d;
     padding-bottom: 0;
-  }
-
-  .wizard--skippable {
-    .wizard-step--scroll-area {
-      height: calc(100% - 102px);
-    }
-
-    .wizard--button-container::before {
-      content: "";
-      flex: 1;
-      visibility: hidden;
-    }
   }
 
   .wizard--button-container {

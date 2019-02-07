@@ -15,14 +15,14 @@ import {
   updateScript,
   selectTaskByID,
   setCurrentScript,
-  cancelUpdateTask,
+  cancel,
   setTaskOption,
   clearTask,
   setAllTaskOptions,
 } from 'src/tasks/actions/v2'
 
 // Types
-import {Task as TaskAPI, User, Organization} from 'src/api'
+import {Organization} from '@influxdata/influx'
 import {Links} from 'src/types/v2/links'
 import {State as TasksState} from 'src/tasks/reducers/v2'
 import {
@@ -30,12 +30,7 @@ import {
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-
-interface Task extends TaskAPI {
-  organization: Organization
-  owner?: User
-  offset?: string
-}
+import {Task} from 'src/tasks/containers/TasksPage'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -54,13 +49,13 @@ interface ConnectDispatchProps {
   setTaskOption: typeof setTaskOption
   setCurrentScript: typeof setCurrentScript
   updateScript: typeof updateScript
-  cancelUpdateTask: typeof cancelUpdateTask
+  cancel: typeof cancel
   selectTaskByID: typeof selectTaskByID
   clearTask: typeof clearTask
   setAllTaskOptions: typeof setAllTaskOptions
 }
 
-class TaskPage extends PureComponent<
+class TaskEditPage extends PureComponent<
   PassedInProps & ConnectStateProps & ConnectDispatchProps
 > {
   constructor(props) {
@@ -143,7 +138,7 @@ class TaskPage extends PureComponent<
   }
 
   private handleCancel = () => {
-    this.props.cancelUpdateTask()
+    this.props.cancel()
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -180,7 +175,7 @@ const mdtp: ConnectDispatchProps = {
   setTaskOption,
   setCurrentScript,
   updateScript,
-  cancelUpdateTask,
+  cancel,
   selectTaskByID,
   setAllTaskOptions,
   clearTask,
@@ -189,4 +184,4 @@ const mdtp: ConnectDispatchProps = {
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(
   mstp,
   mdtp
-)(TaskPage)
+)(TaskEditPage)

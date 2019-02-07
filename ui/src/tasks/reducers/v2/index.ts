@@ -1,6 +1,6 @@
 import {Action} from 'src/tasks/actions/v2'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Task as TaskAPI, User, Organization} from 'src/api'
+import {Task as TaskAPI, User, Organization} from '@influxdata/influx'
 
 interface Task extends TaskAPI {
   organization: Organization

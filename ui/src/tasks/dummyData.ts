@@ -1,4 +1,4 @@
-import {Task} from 'src/api'
+import {Task} from '@influxdata/influx'
 
 export const dummyTasks: Task[] = [
   {

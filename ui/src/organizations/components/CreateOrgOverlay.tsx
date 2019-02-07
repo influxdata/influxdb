@@ -15,7 +15,7 @@ import {
 } from 'src/clockface'
 
 // Types
-import {Organization} from 'src/api'
+import {Organization} from '@influxdata/influx'
 import {createOrg} from 'src/organizations/actions'
 
 interface Props {

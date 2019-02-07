@@ -5,7 +5,7 @@ import {shallow} from 'enzyme'
 // Components
 import Row from './Row'
 
-import {TelegrafPluginInputCpu} from 'src/api'
+import {TelegrafPluginInputCpu} from '@influxdata/influx'
 
 const setup = (override = {}) => {
   const props = {

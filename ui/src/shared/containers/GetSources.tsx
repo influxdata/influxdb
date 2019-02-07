@@ -2,9 +2,16 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
+// Components
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+
+// Types
 import {RemoteDataState} from 'src/types'
 
+// Actions
 import {readSources} from 'src/sources/actions'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -13,7 +20,7 @@ interface Props {
 }
 
 interface State {
-  ready: RemoteDataState
+  loading: RemoteDataState
 }
 
 @ErrorHandling
@@ -22,22 +29,24 @@ export class GetSources extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      ready: RemoteDataState.NotStarted,
+      loading: RemoteDataState.NotStarted,
     }
   }
 
   public async componentDidMount() {
     await this.props.onReadSources()
 
-    this.setState({ready: RemoteDataState.Done})
+    this.setState({loading: RemoteDataState.Done})
   }
 
   public render() {
-    if (this.state.ready !== RemoteDataState.Done) {
-      return <div className="page-spinner" />
-    }
+    const {loading} = this.state
 
-    return this.props.children && React.cloneElement(this.props.children)
+    return (
+      <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
+        {this.props.children && React.cloneElement(this.props.children)}
+      </SpinnerContainer>
+    )
   }
 }
 

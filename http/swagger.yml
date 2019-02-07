@@ -308,12 +308,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -345,12 +340,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -727,7 +717,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/scrapers/{scraperTargetID}/labels/{label}':
+  '/scrapers/{scraperTargetID}/labels/{labelID}':
     delete:
       tags:
         - ScraperTargets
@@ -774,7 +764,7 @@ paths:
           required: true
           description: ID of the scraper target
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
@@ -1132,6 +1122,13 @@ paths:
       tags:
         - Write
       summary: write time-series data into influxdb
+      requestBody:
+        description: line protocol body
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: header
@@ -1188,14 +1185,7 @@ paths:
           name: precision
           description: specifies the precision for the unix timestamps within the body line-protocol
           schema:
-            type: string
-            default: ns
-            description: specifies the unit of time
-            enum:
-              - ns
-              - us
-              - ms
-              - s
+            $ref: "#/components/schemas/WritePrecision"
       responses:
         '204':
           description: write data is correctly formatted and accepted for writing to the bucket.
@@ -1350,6 +1340,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /sources/{sourceID}:
+    delete:
+      tags:
+        - Sources
+      summary: Delete a source
+      parameters:
+        - in: path
+          name: sourceID
+          schema:
+            type: string
+          required: true
+          description: ID of the source
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     patch:
       tags:
         - Sources
@@ -1490,448 +1506,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /views:
-    post:
-      tags:
-        - Views
-      summary: A view contains information about the visual representation of data
-      parameters:
-          - $ref: '#/components/parameters/TraceSpan'
-      requestBody:
-          description: view to create
-          required: true
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/View"
-      responses:
-        '201':
-          description: Added view
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/View"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    get:
-      tags:
-        - Views
-      summary: Get all views
-      parameters:
-          - $ref: '#/components/parameters/TraceSpan'
-          - in: query
-            name: org
-            description: specifies the organization of the resource
-            required: true
-            schema:
-              type: string
-          - in: query
-            name: type
-            description: filters results to a specified type. Can be used multiple times in a request, to filter to multiple types.
-            schema:
-              type: string
-              enum:
-                - "xy"
-                - "single-stat"
-                - "gauge"
-                - "table"
-                - "markdown"
-                - "log-viewer"
-                - "line-plus-single-stat"
-      responses:
-        '200':
-          description: all views
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Views"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}':
-   get:
-    tags:
-      - Views
-    summary: Get a single View
-    parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of view to update
-    responses:
-        '200':
-          description: get a single view
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/View"
-        '404':
-          description: view not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-   patch:
-      tags:
-        - Views
-      summary: Update a single view
-      requestBody:
-          description: patching of a view
-          required: true
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/View"
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of view to update
-      responses:
-        '200':
-          description: Updated view
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/View"
-        '404':
-          description: view not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-   delete:
-      tags:
-        - Views
-      summary: Delete a view
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of view to update
-      responses:
-        '204':
-          description: delete has been accepted
-        '404':
-          description: view not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}/labels':
-    get:
-      tags:
-        - Views
-      summary: list all labels for a view
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      responses:
-        '200':
-          description: a list of all labels for a view
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    post:
-      tags:
-        - Views
-      summary: add a label to a view
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      requestBody:
-        description: label to add
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LabelMapping"
-      responses:
-        '200':
-          description: a list of all labels for a view
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}/labels/{labelID}':
-    delete:
-      tags:
-        - Views
-      summary: delete a label from a view
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-        - in: path
-          name: labelID
-          schema:
-            type: string
-          required: true
-          description: the label id
-      responses:
-        '204':
-          description: delete has been accepted
-        '404':
-          description: view not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}/members':
-    get:
-      tags:
-        - Users
-        - Views
-      summary: List all view members
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      responses:
-        '200':
-          description: a list of users who have member privileges for a view
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ResourceMembers"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    post:
-      tags:
-        - Users
-        - Views
-      summary: Add view member
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      requestBody:
-        description: user to add as member
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AddResourceMemberRequestBody"
-      responses:
-        '201':
-          description: added to view members
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ResourceMember"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}/members/{userID}':
-    delete:
-      tags:
-        - Users
-        - Views
-      summary: removes a member from an view
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: userID
-          schema:
-            type: string
-          required: true
-          description: ID of member to remove
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      responses:
-        '204':
-          description: member removed
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  '/views/{viewID}/owners':
-      get:
-        tags:
-          - Users
-          - Views
-        summary: List all view owners
-        parameters:
-          - $ref: '#/components/parameters/TraceSpan'
-          - in: path
-            name: viewID
-            schema:
-              type: string
-            required: true
-            description: ID of the view
-        responses:
-          '200':
-            description: a list of users who have owner privileges for a view
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/ResourceOwners"
-          default:
-            description: unexpected error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
-      post:
-        tags:
-          - Users
-          - Views
-        summary: Add view owner
-        parameters:
-          - $ref: '#/components/parameters/TraceSpan'
-          - in: path
-            name: viewID
-            schema:
-              type: string
-            required: true
-            description: ID of the view
-        requestBody:
-          description: user to add as owner
-          required: true
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AddResourceMemberRequestBody"
-        responses:
-          '201':
-            description: added to view owners
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/ResourceOwner"
-          default:
-            description: unexpected error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/Error"
-  '/views/{viewID}/owners/{userID}':
-    delete:
-      tags:
-        - Users
-        - Views
-      summary: removes an owner from a view
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: userID
-          schema:
-            type: string
-          required: true
-          description: ID of owner to remove
-        - in: path
-          name: viewID
-          schema:
-            type: string
-          required: true
-          description: ID of the view
-      responses:
-        '204':
-          description: owner removed
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /labels:
     post:
       tags:
@@ -1950,7 +1524,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -1967,7 +1541,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Labels"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -1993,7 +1567,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -2025,7 +1599,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Label"
+                $ref: "#/components/schemas/LabelResponse"
         '404':
           description: label not found
           content:
@@ -2503,12 +2077,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -2540,12 +2109,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -2787,11 +2351,9 @@ paths:
         '200':
           description: Abstract syntax tree of flux query.
           content:
-            application/json: #TODO(goller): document the AST JSON schema
+            application/json:
               schema:
-                properties:
-                  todo:
-                    type: string # swagger editor was yelling at me here
+                $ref: "#/components/schemas/ASTResponse"
         default:
           description: Any response other than 200 is an internal server error
           content:
@@ -3768,16 +3330,11 @@ paths:
               $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
-          description: a list of all labels for an organization
+          description: returns the created label
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -3924,7 +3481,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ResourceOwners"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
@@ -4013,7 +3570,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ResourceMembers"
+                $ref: "#/components/schemas/ResourceOwners"
         default:
           description: unexpected error
           content:
@@ -4118,7 +3675,14 @@ paths:
           content:
             application/json:
               schema:
-                 $ref: "#/components/schemas/Tasks"
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Task"
+                  links:
+                    $ref: "#/components/schemas/Links"
         default:
           description: unexpected error
           content:
@@ -4137,7 +3701,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Task"
+              $ref: "#/components/schemas/TaskCreateRequest"
       responses:
         '201':
           description: Task created
@@ -4496,14 +4060,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    type: array
-                    items:
-                      type: string
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -5079,24 +4636,23 @@ components:
             annotations:
               description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
               type: array
-              default: []
               items:
                 type: string
                 enum:
-                  - group
-                  - datatype
-                  - default
+                  - "group"
+                  - "datatype"
+                  - "default"
                 uniqueItems: true
             commentPrefix:
               description: character prefixed to comment strings
               type: string
-              default: \#
+              default: "#"
               maxLength: 1
               minLength: 0
             dateTimeFormat:
               description: format of timestamps
               type: string
-              default: RFC3339
+              default: "RFC3339"
               enum:
                 - RFC3339
                 - RFC3339Nano
@@ -5271,7 +4827,6 @@ components:
     Link:
       type: string
       readOnly: true
-      format: uri
       description: URI of resource.
     Links:
       type: object
@@ -5387,13 +4942,12 @@ components:
         status:
           readOnly: true
           type: string
-          enum: [
-            "scheduled",
-            "started",
-            "failed",
-            "success",
-            "canceled"
-          ]
+          enum:
+            - scheduled
+            - started
+            - failed
+            - success
+            - canceled
         scheduledFor:
           description: Time used for run's "now" option, RFC3339.
           type: string
@@ -5456,6 +5010,8 @@ components:
         name:
           description: A description of the task.
           type: string
+        owner:
+          $ref: "#/components/schemas/User"
         status:
           description: The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
           default: active
@@ -5782,75 +5338,6 @@ components:
           type: integer
           format: int32
       required: [code, message, maxLength]
-    InfluxQLResults:
-      properties:
-        error:
-          description: error during processing of the message
-          type: string
-        results:
-          type: array
-          description: result for each query
-          items:
-            type: object
-            properties:
-              error:
-                type: string
-                description: error during processing of the message
-              partial:
-                type: boolean
-                description: If a max row limit has been placed in the configuration file and the number of returned values is larger, this will be set to true and values truncated.
-              statement_id:
-                type: integer
-                description: statement's position in the query.
-              series:
-                description: The collection of data in InfluxDB’s data structure that share a measurement, tag set, and retention policy.
-                type: array
-                items:
-                  type: object
-                  description: values for a unique series
-                  properties:
-                    name:
-                      description: The part of InfluxDB’s structure that describes the data stored in the associated fields. Measurements are strings.
-                      type: string
-                    tags:
-                      description: The key-value pairs in InfluxDB’s data structure that records metadata.
-                      type: object
-                    columns:
-                      description: list of columns describing the content of a single value array
-                      type: array
-                      items:
-                        type: string
-                    values:
-                      description: array of arrays of the values return from the query
-                      type: array
-                      items:
-                        type: array
-                        description: single row of results in the order of the columns field.
-                        items:
-                          oneOf:
-                            - type: string
-                            - type: number
-                            - type: integer
-                    partial:
-                      type: boolean
-              messages:
-                type: array
-                description: represents a user-facing message to be included with the result.
-                items:
-                  type: object
-                  properties:
-                    level:
-                      type: string
-                    text:
-                      type: string
-    InfluxqlQueryError:
-      properties:
-        error:
-          description: message describing why the query was rejected
-          readOnly: true
-          type: string
-      required:
-        - error
     Field:
       type: object
       properties:
@@ -6393,6 +5880,8 @@ components:
     Cell:
       type: object
       properties:
+        id:
+          type: string
         links:
           type: object
           properties:
@@ -6523,6 +6012,12 @@ components:
           type: object
           properties:
             self:
+              type: string
+            query:
+              type: string
+            health:
+              type: string
+            buckets:
               type: string
         id:
           type: string
@@ -7374,3 +6869,48 @@ components:
       properties:
         labelID:
           type: string
+    LabelsResponse:
+      type: object
+      properties:
+        labels:
+          $ref: "#/components/schemas/Labels"
+        links:
+          $ref: "#/components/schemas/Links"
+    LabelResponse:
+      type: object
+      properties:
+        label:
+          $ref: "#/components/schemas/Label"
+        links:
+          $ref: "#/components/schemas/Links"
+    ASTResponse:
+      description: contains the AST for the supplied Flux query
+      type: object
+      properties:
+        ast:
+          description: the AST of the supplied Flux query
+          type: object
+    WritePrecision:
+      type: string
+      enum:
+        - ms
+        - s
+        - us
+        - u
+        - ns
+    TaskCreateRequest:
+      properties:
+        orgID:
+          description: The ID of the organization that owns this Task.
+          type: string
+        status:
+          description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
+          default: active
+          type: string
+          enum:
+            - active
+            - inactive
+        flux:
+          description: The Flux script to run for this task.
+          type: string
+      required: [orgID, flux]

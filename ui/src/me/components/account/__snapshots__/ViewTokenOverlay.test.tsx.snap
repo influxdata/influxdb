@@ -88,14 +88,11 @@ exports[`Account rendering renders! 1`] = `
                   className="fancy-scroll--container"
                   hideTracksWhenNotNeeded={false}
                   onScroll={[Function]}
-                  renderThumbHorizontal={[Function]}
-                  renderThumbVertical={[Function]}
-                  renderTrackHorizontal={[Function]}
-                  renderTrackVertical={[Function]}
-                  renderView={[Function]}
                   style={Object {}}
                   tagName="div"
                   thumbMinSize={30}
+                  thumbStartColor="#22ADF6"
+                  thumbStopColor="#9394FF"
                   universal={false}
                 >
                   <div
@@ -121,8 +118,8 @@ exports[`Account rendering renders! 1`] = `
                           "left": undefined,
                           "marginBottom": 0,
                           "marginRight": 0,
-                          "maxHeight": 400,
-                          "minHeight": 0,
+                          "maxHeight": 415,
+                          "minHeight": 15,
                           "overflow": "scroll",
                           "position": "relative",
                           "right": undefined,
@@ -139,9 +136,13 @@ exports[`Account rendering renders! 1`] = `
                       key="trackHorizontal"
                       style={
                         Object {
-                          "display": "none",
-                          "height": 6,
+                          "bottom": "0",
+                          "cursor": "pointer",
+                          "height": "12px",
+                          "left": "0",
+                          "padding": "3px",
                           "position": "absolute",
+                          "width": "100%",
                         }
                       }
                     >
@@ -149,8 +150,10 @@ exports[`Account rendering renders! 1`] = `
                         className="fancy-scroll--thumb-h"
                         style={
                           Object {
+                            "background": "linear-gradient(to right, #22ADF6 0%, #9394FF 100%)",
+                            "borderRadius": "3px",
                             "display": "block",
-                            "height": "100%",
+                            "height": "6px",
                             "position": "relative",
                           }
                         }
@@ -161,9 +164,13 @@ exports[`Account rendering renders! 1`] = `
                       key="trackVertical"
                       style={
                         Object {
-                          "display": "none",
+                          "cursor": "pointer",
+                          "height": "100%",
+                          "padding": "3px",
                           "position": "absolute",
-                          "width": 6,
+                          "right": "0",
+                          "top": "0",
+                          "width": "12px",
                         }
                       }
                     >
@@ -171,9 +178,11 @@ exports[`Account rendering renders! 1`] = `
                         className="fancy-scroll--thumb-v"
                         style={
                           Object {
+                            "background": "linear-gradient(to bottom, #22ADF6 0%, #9394FF 100%)",
+                            "borderRadius": "3px",
                             "display": "block",
                             "position": "relative",
-                            "width": "100%",
+                            "width": "6px",
                           }
                         }
                       />
@@ -248,14 +257,11 @@ exports[`Account rendering renders! 1`] = `
                     className="fancy-scroll--container"
                     hideTracksWhenNotNeeded={false}
                     onScroll={[Function]}
-                    renderThumbHorizontal={[Function]}
-                    renderThumbVertical={[Function]}
-                    renderTrackHorizontal={[Function]}
-                    renderTrackVertical={[Function]}
-                    renderView={[Function]}
                     style={Object {}}
                     tagName="div"
                     thumbMinSize={30}
+                    thumbStartColor="#22ADF6"
+                    thumbStopColor="#9394FF"
                     universal={false}
                   >
                     <div
@@ -440,9 +446,13 @@ exports[`Account rendering renders! 1`] = `
                         key="trackHorizontal"
                         style={
                           Object {
-                            "display": "none",
-                            "height": 6,
+                            "bottom": "0",
+                            "cursor": "pointer",
+                            "height": "12px",
+                            "left": "0",
+                            "padding": "3px",
                             "position": "absolute",
+                            "width": "100%",
                           }
                         }
                       >
@@ -450,8 +460,10 @@ exports[`Account rendering renders! 1`] = `
                           className="fancy-scroll--thumb-h"
                           style={
                             Object {
+                              "background": "linear-gradient(to right, #22ADF6 0%, #9394FF 100%)",
+                              "borderRadius": "3px",
                               "display": "block",
-                              "height": "100%",
+                              "height": "6px",
                               "position": "relative",
                             }
                           }
@@ -462,9 +474,13 @@ exports[`Account rendering renders! 1`] = `
                         key="trackVertical"
                         style={
                           Object {
-                            "display": "none",
+                            "cursor": "pointer",
+                            "height": "100%",
+                            "padding": "3px",
                             "position": "absolute",
-                            "width": 6,
+                            "right": "0",
+                            "top": "0",
+                            "width": "12px",
                           }
                         }
                       >
@@ -472,9 +488,11 @@ exports[`Account rendering renders! 1`] = `
                           className="fancy-scroll--thumb-v"
                           style={
                             Object {
+                              "background": "linear-gradient(to bottom, #22ADF6 0%, #9394FF 100%)",
+                              "borderRadius": "3px",
                               "display": "block",
                               "position": "relative",
-                              "width": "100%",
+                              "width": "6px",
                             }
                           }
                         />

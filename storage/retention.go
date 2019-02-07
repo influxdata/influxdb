@@ -4,28 +4,21 @@ import (
 	"context"
 	"errors"
 	"math"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
 const (
 	bucketAPITimeout = 10 * time.Second
-	engineAPITimeout = time.Minute
 )
 
 // A Deleter implementation is capable of deleting data from a storage engine.
 type Deleter interface {
-	CreateSeriesCursor(context.Context, SeriesCursorRequest, influxql.Expr) (SeriesCursor, error)
-	DeleteSeriesRangeWithPredicate(tsdb.SeriesIterator, func([]byte, models.Tags) (int64, int64, bool)) error
+	DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) error
 }
 
 // A BucketFinder is responsible for providing access to buckets via a filter.
@@ -78,169 +71,59 @@ func (s *retentionEnforcer) run() {
 	log, logEnd := logger.NewOperation(s.logger, "Data retention check", "data_retention_check")
 	defer logEnd()
 
-	rpByBucketID, err := s.getRetentionPeriodPerBucket()
+	buckets, err := s.getBucketInformation()
 	if err != nil {
-		log.Error("Unable to determine bucket:RP mapping", zap.Error(err))
+		log.Error("Unable to determine bucket information", zap.Error(err))
 		return
 	}
 
 	now := time.Now().UTC()
-	labels := s.metrics.Labels()
-	labels["status"] = "ok"
-
-	if err := s.expireData(rpByBucketID, now); err != nil {
-		log.Error("Deletion not successful", zap.Error(err))
-		labels["status"] = "error"
-	}
-	s.metrics.CheckDuration.With(labels).Observe(time.Since(now).Seconds())
-	s.metrics.Checks.With(labels).Inc()
+	s.expireData(buckets, now)
+	s.metrics.CheckDuration.With(s.metrics.Labels()).Observe(time.Since(now).Seconds())
 }
 
 // expireData runs a delete operation on the storage engine.
 //
-// Any series data that (1) belongs to a bucket in the provided map and
+// Any series data that (1) belongs to a bucket in the provided list and
 // (2) falls outside the bucket's indicated retention period will be deleted.
-func (s *retentionEnforcer) expireData(rpByBucketID map[platform.ID]time.Duration, now time.Time) error {
-	_, logEnd := logger.NewOperation(s.logger, "Data deletion", "data_deletion")
+func (s *retentionEnforcer) expireData(buckets []*platform.Bucket, now time.Time) {
+	logger, logEnd := logger.NewOperation(s.logger, "Data deletion", "data_deletion")
 	defer logEnd()
 
-	ctx, cancel := context.WithTimeout(context.Background(), engineAPITimeout)
-	defer cancel()
-	cur, err := s.Engine.CreateSeriesCursor(ctx, SeriesCursorRequest{}, nil)
-	if err != nil {
-		return err
-	}
-	defer cur.Close()
-
-	var mu sync.Mutex
-	badMSketch := make(map[string]struct{})          // Badly formatted measurements.
-	missingBSketch := make(map[platform.ID]struct{}) // Missing buckets.
-
-	var seriesDeleted uint64 // Number of series where a delete is attempted.
-	var seriesSkipped uint64 // Number of series that were skipped from delete.
-
-	fn := func(name []byte, tags models.Tags) (int64, int64, bool) {
-		if len(name) != platform.IDLength {
-			mu.Lock()
-			badMSketch[string(name)] = struct{}{}
-			mu.Unlock()
-			atomic.AddUint64(&seriesSkipped, 1)
-			return 0, 0, false
-
+	labels := s.metrics.Labels()
+	for _, b := range buckets {
+		if b.RetentionPeriod == 0 {
+			continue
 		}
-
-		var n [16]byte
-		copy(n[:], name)
-		_, bucketID := tsdb.DecodeName(n)
-
-		retentionPeriod, ok := rpByBucketID[bucketID]
-		if !ok {
-			mu.Lock()
-			missingBSketch[bucketID] = struct{}{}
-			mu.Unlock()
-			atomic.AddUint64(&seriesSkipped, 1)
-			return 0, 0, false
-		}
-		if retentionPeriod == 0 {
-			return 0, 0, false
-		}
-
-		atomic.AddUint64(&seriesDeleted, 1)
-		to := now.Add(-retentionPeriod).UnixNano()
-		return math.MinInt64, to, true
-	}
-
-	defer func() {
-		if s.metrics == nil {
-			return
-		}
-		labels := s.metrics.Labels()
-		labels["status"] = "bad_measurement"
-		s.metrics.Unprocessable.With(labels).Add(float64(len(badMSketch)))
-
-		labels["status"] = "missing_bucket"
-		s.metrics.Unprocessable.With(labels).Add(float64(len(missingBSketch)))
 
 		labels["status"] = "ok"
-		s.metrics.Series.With(labels).Add(float64(atomic.LoadUint64(&seriesDeleted)))
+		labels["org_id"] = b.OrganizationID.String()
+		labels["bucket_id"] = b.ID.String()
 
-		labels["status"] = "skipped"
-		s.metrics.Series.With(labels).Add(float64(atomic.LoadUint64(&seriesSkipped)))
-	}()
+		max := now.Add(-b.RetentionPeriod).UnixNano()
+		err := s.Engine.DeleteBucketRange(b.OrganizationID, b.ID, math.MinInt64, max)
+		if err != nil {
+			labels["status"] = "error"
+			logger.Info("unable to delete bucket range",
+				zap.String("bucket id", b.ID.String()),
+				zap.String("org id", b.OrganizationID.String()),
+				zap.Error(err))
+		}
 
-	return s.Engine.DeleteSeriesRangeWithPredicate(newSeriesIteratorAdapter(cur), fn)
+		s.metrics.Checks.With(labels).Inc()
+	}
 }
 
-// getRetentionPeriodPerBucket returns a map of (bucket ID -> retention period)
-// for all buckets.
-func (s *retentionEnforcer) getRetentionPeriodPerBucket() (map[platform.ID]time.Duration, error) {
+// getBucketInformation returns a slice of buckets to run retention on.
+func (s *retentionEnforcer) getBucketInformation() ([]*platform.Bucket, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), bucketAPITimeout)
 	defer cancel()
+
 	buckets, _, err := s.BucketService.FindBuckets(ctx, platform.BucketFilter{})
-	if err != nil {
-		return nil, err
-	}
-	rpByBucketID := make(map[platform.ID]time.Duration, len(buckets))
-	for _, bucket := range buckets {
-		rpByBucketID[bucket.ID] = bucket.RetentionPeriod
-	}
-	return rpByBucketID, nil
+	return buckets, err
 }
 
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (s *retentionEnforcer) PrometheusCollectors() []prometheus.Collector {
 	return s.metrics.PrometheusCollectors()
 }
-
-type seriesIteratorAdapter struct {
-	itr  SeriesCursor
-	ea   seriesElemAdapter
-	elem tsdb.SeriesElem
-}
-
-func newSeriesIteratorAdapter(itr SeriesCursor) *seriesIteratorAdapter {
-	si := &seriesIteratorAdapter{itr: itr}
-	si.elem = &si.ea
-	return si
-}
-
-// Next returns the next tsdb.SeriesElem.
-//
-// The returned tsdb.SeriesElem is valid for use until Next is called again.
-func (s *seriesIteratorAdapter) Next() (tsdb.SeriesElem, error) {
-	if s.itr == nil {
-		return nil, nil
-	}
-
-	row, err := s.itr.Next()
-	if err != nil {
-		return nil, err
-	}
-
-	if row == nil {
-		return nil, nil
-	}
-
-	s.ea.name = row.Name
-	s.ea.tags = row.Tags
-	return s.elem, nil
-}
-
-func (s *seriesIteratorAdapter) Close() error {
-	if s.itr != nil {
-		err := s.itr.Close()
-		s.itr = nil
-		return err
-	}
-	return nil
-}
-
-type seriesElemAdapter struct {
-	name []byte
-	tags models.Tags
-}
-
-func (e *seriesElemAdapter) Name() []byte        { return e.name }
-func (e *seriesElemAdapter) Tags() models.Tags   { return e.tags }
-func (e *seriesElemAdapter) Deleted() bool       { return false }
-func (e *seriesElemAdapter) Expr() influxql.Expr { return nil }

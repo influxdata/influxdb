@@ -18,7 +18,7 @@ import Retention from 'src/organizations/components/Retention'
 import {MIN_RETENTION_SECONDS} from 'src/organizations/constants'
 
 // Types
-import {BucketRetentionRules} from 'src/api'
+import {BucketRetentionRules} from '@influxdata/influx'
 
 interface Props {
   name: string

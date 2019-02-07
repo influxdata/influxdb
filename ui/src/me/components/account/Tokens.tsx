@@ -3,21 +3,21 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {IconFont, Input, Spinner} from 'src/clockface'
+import {IconFont, Input, SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import TokenList from 'src/me/components/account/TokensList'
 import FilterList from 'src/shared/components/Filter'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 // APIs
-import {getAuthorizations} from 'src/authorizations/apis'
+import {client} from 'src/utils/api'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 import {NotificationAction} from 'src/types'
 
 // Types
-import {Authorization} from 'src/api'
+import {Authorization} from '@influxdata/influx'
 
 interface State {
   searchTerm: string
@@ -31,6 +31,8 @@ enum AuthSearchKeys {
 interface Props {
   onNotify: NotificationAction
 }
+
+const getAuthorizations = () => client.authorizations.getAll()
 
 export class Tokens extends PureComponent<Props, State> {
   constructor(props) {
@@ -57,7 +59,10 @@ export class Tokens extends PureComponent<Props, State> {
         </TabbedPageHeader>
         <ResourceFetcher<Authorization[]> fetcher={getAuthorizations}>
           {(fetchedAuths, loading) => (
-            <Spinner loading={loading}>
+            <SpinnerContainer
+              loading={loading}
+              spinnerComponent={<TechnoSpinner />}
+            >
               <FilterList<Authorization>
                 list={fetchedAuths}
                 searchTerm={searchTerm}
@@ -71,7 +76,7 @@ export class Tokens extends PureComponent<Props, State> {
                   />
                 )}
               </FilterList>
-            </Spinner>
+            </SpinnerContainer>
           )}
         </ResourceFetcher>
       </>

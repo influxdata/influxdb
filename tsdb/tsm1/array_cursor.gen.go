@@ -83,12 +83,12 @@ func (c *floatArrayAscendingCursor) Next() *tsdb.FloatArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).RawValue()
 			c.cache.pos++
 			c.tsm.pos++
 		} else if ckey < tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).RawValue()
 			c.cache.pos++
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -126,7 +126,7 @@ func (c *floatArrayAscendingCursor) Next() *tsdb.FloatArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos < len(cvals) {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).RawValue()
 				pos++
 				c.cache.pos++
 			}
@@ -247,12 +247,12 @@ func (c *floatArrayDescendingCursor) Next() *tsdb.FloatArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).RawValue()
 			c.cache.pos--
 			c.tsm.pos--
 		} else if ckey > tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).RawValue()
 			c.cache.pos--
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -285,7 +285,7 @@ func (c *floatArrayDescendingCursor) Next() *tsdb.FloatArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos >= 0 {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(FloatValue).RawValue()
 				pos++
 				c.cache.pos--
 			}
@@ -391,12 +391,12 @@ func (c *integerArrayAscendingCursor) Next() *tsdb.IntegerArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).RawValue()
 			c.cache.pos++
 			c.tsm.pos++
 		} else if ckey < tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).RawValue()
 			c.cache.pos++
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -434,7 +434,7 @@ func (c *integerArrayAscendingCursor) Next() *tsdb.IntegerArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos < len(cvals) {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).RawValue()
 				pos++
 				c.cache.pos++
 			}
@@ -555,12 +555,12 @@ func (c *integerArrayDescendingCursor) Next() *tsdb.IntegerArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).RawValue()
 			c.cache.pos--
 			c.tsm.pos--
 		} else if ckey > tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).RawValue()
 			c.cache.pos--
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -593,7 +593,7 @@ func (c *integerArrayDescendingCursor) Next() *tsdb.IntegerArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos >= 0 {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).RawValue()
 				pos++
 				c.cache.pos--
 			}
@@ -699,12 +699,12 @@ func (c *unsignedArrayAscendingCursor) Next() *tsdb.UnsignedArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).RawValue()
 			c.cache.pos++
 			c.tsm.pos++
 		} else if ckey < tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).RawValue()
 			c.cache.pos++
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -742,7 +742,7 @@ func (c *unsignedArrayAscendingCursor) Next() *tsdb.UnsignedArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos < len(cvals) {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).RawValue()
 				pos++
 				c.cache.pos++
 			}
@@ -863,12 +863,12 @@ func (c *unsignedArrayDescendingCursor) Next() *tsdb.UnsignedArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).RawValue()
 			c.cache.pos--
 			c.tsm.pos--
 		} else if ckey > tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).RawValue()
 			c.cache.pos--
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -901,7 +901,7 @@ func (c *unsignedArrayDescendingCursor) Next() *tsdb.UnsignedArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos >= 0 {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(UnsignedValue).RawValue()
 				pos++
 				c.cache.pos--
 			}
@@ -1007,12 +1007,12 @@ func (c *stringArrayAscendingCursor) Next() *tsdb.StringArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(StringValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(StringValue).RawValue()
 			c.cache.pos++
 			c.tsm.pos++
 		} else if ckey < tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(StringValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(StringValue).RawValue()
 			c.cache.pos++
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -1050,7 +1050,7 @@ func (c *stringArrayAscendingCursor) Next() *tsdb.StringArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos < len(cvals) {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(StringValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(StringValue).RawValue()
 				pos++
 				c.cache.pos++
 			}
@@ -1173,12 +1173,12 @@ func (c *stringArrayDescendingCursor) Next() *tsdb.StringArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(StringValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(StringValue).RawValue()
 			c.cache.pos--
 			c.tsm.pos--
 		} else if ckey > tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(StringValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(StringValue).RawValue()
 			c.cache.pos--
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -1211,7 +1211,7 @@ func (c *stringArrayDescendingCursor) Next() *tsdb.StringArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos >= 0 {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(StringValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(StringValue).RawValue()
 				pos++
 				c.cache.pos--
 			}
@@ -1319,12 +1319,12 @@ func (c *booleanArrayAscendingCursor) Next() *tsdb.BooleanArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).RawValue()
 			c.cache.pos++
 			c.tsm.pos++
 		} else if ckey < tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).RawValue()
 			c.cache.pos++
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -1362,7 +1362,7 @@ func (c *booleanArrayAscendingCursor) Next() *tsdb.BooleanArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos < len(cvals) {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).RawValue()
 				pos++
 				c.cache.pos++
 			}
@@ -1483,12 +1483,12 @@ func (c *booleanArrayDescendingCursor) Next() *tsdb.BooleanArray {
 		tkey := tvals.Timestamps[c.tsm.pos]
 		if ckey == tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).RawValue()
 			c.cache.pos--
 			c.tsm.pos--
 		} else if ckey > tkey {
 			c.res.Timestamps[pos] = ckey
-			c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).value
+			c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).RawValue()
 			c.cache.pos--
 		} else {
 			c.res.Timestamps[pos] = tkey
@@ -1521,7 +1521,7 @@ func (c *booleanArrayDescendingCursor) Next() *tsdb.BooleanArray {
 			// TSM was exhausted
 			for pos < len(c.res.Timestamps) && c.cache.pos >= 0 {
 				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-				c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).value
+				c.res.Values[pos] = cvals[c.cache.pos].(BooleanValue).RawValue()
 				pos++
 				c.cache.pos--
 			}

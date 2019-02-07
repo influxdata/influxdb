@@ -38,8 +38,9 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
-import {CreateCell} from 'src/api'
-import {Dashboard, NewView, Cell, Label} from 'src/types/v2'
+import {CreateCell} from '@influxdata/influx'
+import {Dashboard, NewView, Cell} from 'src/types/v2'
+import {Label} from '@influxdata/influx'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',

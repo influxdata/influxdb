@@ -27,6 +27,25 @@ const (
 	fluxPath = "/api/v2/query"
 )
 
+// FluxBackend is all services and associated parameters required to construct
+// the FluxHandler.
+type FluxBackend struct {
+	Logger *zap.Logger
+
+	OrganizationService platform.OrganizationService
+	ProxyQueryService   query.ProxyQueryService
+}
+
+// NewFluxBackend returns a new instance of FluxBackend.
+func NewFluxBackend(b *APIBackend) *FluxBackend {
+	return &FluxBackend{
+		Logger: b.Logger.With(zap.String("handler", "query")),
+
+		ProxyQueryService:   b.ProxyQueryService,
+		OrganizationService: b.OrganizationService,
+	}
+}
+
 // FluxHandler implements handling flux queries.
 type FluxHandler struct {
 	*httprouter.Router
@@ -39,11 +58,14 @@ type FluxHandler struct {
 }
 
 // NewFluxHandler returns a new handler at /api/v2/query for flux queries.
-func NewFluxHandler() *FluxHandler {
+func NewFluxHandler(b *FluxBackend) *FluxHandler {
 	h := &FluxHandler{
 		Router: NewRouter(),
 		Now:    time.Now,
-		Logger: zap.NewNop(),
+		Logger: b.Logger,
+
+		ProxyQueryService:   b.ProxyQueryService,
+		OrganizationService: b.OrganizationService,
 	}
 
 	h.HandlerFunc("POST", fluxPath, h.handleQuery)

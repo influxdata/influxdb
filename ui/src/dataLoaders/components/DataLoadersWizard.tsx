@@ -21,29 +21,15 @@ import {
 
 import {
   setDataLoadersType,
-  updateTelegrafPluginConfig,
-  addConfigValue,
-  removeConfigValue,
-  setActiveTelegrafPlugin,
-  setPluginConfiguration,
-  addPluginBundleWithPlugins,
-  removePluginBundleWithPlugins,
-  setConfigArrayValue,
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {Links} from 'src/types/v2/links'
-import {
-  DataLoadersState,
-  DataLoaderType,
-  Substep,
-  DataLoaderStep,
-} from 'src/types/v2/dataLoaders'
+import {DataLoaderType, Substep} from 'src/types/v2/dataLoaders'
 import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types/v2'
-import {Bucket} from 'src/api'
-import PluginsSideBar from 'src/dataLoaders/components/PluginsSideBar'
+import {Bucket} from '@influxdata/influx'
 
 export interface DataLoaderStepProps {
   links: Links
@@ -61,7 +47,6 @@ export interface DataLoaderStepProps {
 interface OwnProps {
   onCompleteSetup: () => void
   visible: boolean
-  bucket?: Bucket
   buckets: Bucket[]
   startingType?: DataLoaderType
   startingStep?: number
@@ -72,14 +57,6 @@ interface DispatchProps {
   notify: (message: Notification | NotificationFunc) => void
   onSetBucketInfo: typeof setBucketInfo
   onSetDataLoadersType: typeof setDataLoadersType
-  onAddPluginBundle: typeof addPluginBundleWithPlugins
-  onRemovePluginBundle: typeof removePluginBundleWithPlugins
-  onUpdateTelegrafPluginConfig: typeof updateTelegrafPluginConfig
-  onAddConfigValue: typeof addConfigValue
-  onRemoveConfigValue: typeof removeConfigValue
-  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  onSetPluginConfiguration: typeof setPluginConfiguration
-  onSetConfigArrayValue: typeof setConfigArrayValue
   onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
   onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
   onSetCurrentStepIndex: typeof setCurrentStepIndex
@@ -90,11 +67,12 @@ interface DispatchProps {
 
 interface StateProps {
   links: Links
-  dataLoaders: DataLoadersState
   currentStepIndex: number
   substep: Substep
   username: string
-  selectedBucket: string
+  bucket: string
+  org: string
+  type: DataLoaderType
 }
 
 type Props = OwnProps & StateProps & DispatchProps
@@ -118,58 +96,29 @@ class DataLoadersWizard extends PureComponent<Props> {
   public render() {
     const {
       currentStepIndex,
-      dataLoaders,
-      dataLoaders: {telegrafPlugins},
-      onSetDataLoadersType,
-      onSetActiveTelegrafPlugin,
-      onSetPluginConfiguration,
-      onUpdateTelegrafPluginConfig,
-      onAddConfigValue,
-      onRemoveConfigValue,
-      onAddPluginBundle,
-      onRemovePluginBundle,
-      onSetConfigArrayValue,
       visible,
       bucket,
-      username,
+      org,
       onSetBucketInfo,
       buckets,
-      selectedBucket,
+      type,
     } = this.props
 
     return (
       <WizardOverlay
         visible={visible}
         title={'Data Loading'}
-        onDismis={this.handleDismiss}
+        onDismiss={this.handleDismiss}
       >
         <div className="wizard-contents">
-          <PluginsSideBar
-            telegrafPlugins={telegrafPlugins}
-            onTabClick={this.handleClickSideBarTab}
-            title="Plugins to Configure"
-            visible={this.sideBarVisible}
-            currentStepIndex={currentStepIndex}
-          />
           <div className="wizard-step--container">
             <StepSwitcher
               currentStepIndex={currentStepIndex}
               onboardingStepProps={this.stepProps}
-              bucketName={_.get(bucket, 'name', '')}
-              selectedBucket={selectedBucket}
-              dataLoaders={dataLoaders}
-              onSetDataLoadersType={onSetDataLoadersType}
-              onUpdateTelegrafPluginConfig={onUpdateTelegrafPluginConfig}
-              onSetActiveTelegrafPlugin={onSetActiveTelegrafPlugin}
-              onSetPluginConfiguration={onSetPluginConfiguration}
-              onAddConfigValue={onAddConfigValue}
-              onRemoveConfigValue={onRemoveConfigValue}
-              onAddPluginBundle={onAddPluginBundle}
-              onRemovePluginBundle={onRemovePluginBundle}
-              onSetConfigArrayValue={onSetConfigArrayValue}
+              bucketName={bucket}
               onSetBucketInfo={onSetBucketInfo}
-              org={_.get(bucket, 'organization', '')}
-              username={username}
+              type={type}
+              org={org}
               buckets={buckets}
             />
           </div>
@@ -180,9 +129,9 @@ class DataLoadersWizard extends PureComponent<Props> {
 
   private handleSetBucketInfo = () => {
     const {bucket, buckets} = this.props
-    if (bucket || (buckets && buckets.length)) {
-      const b = bucket || buckets[0]
-      const {organization, organizationID, name, id} = b
+
+    if (!bucket && (buckets && buckets.length)) {
+      const {organization, organizationID, name, id} = buckets[0]
 
       this.props.onSetBucketInfo(organization, organizationID, name, id)
     }
@@ -216,47 +165,6 @@ class DataLoadersWizard extends PureComponent<Props> {
     this.props.onClearSteps()
   }
 
-  private get sideBarVisible() {
-    const {dataLoaders, currentStepIndex} = this.props
-    const {telegrafPlugins, type} = dataLoaders
-
-    const isStreaming = type === DataLoaderType.Streaming
-    const isNotEmpty = telegrafPlugins.length > 0
-    const isConfigStep = currentStepIndex > 0
-
-    return isStreaming && isNotEmpty && isConfigStep
-  }
-
-  private handleClickSideBarTab = (tabID: string) => {
-    const {
-      onSetSubstepIndex,
-      onSetActiveTelegrafPlugin,
-      dataLoaders: {telegrafPlugins},
-      substep,
-      onSetPluginConfiguration,
-    } = this.props
-
-    if (!_.isNaN(Number(substep))) {
-      onSetPluginConfiguration(_.get(telegrafPlugins, `${substep}.name`, ''))
-    }
-
-    if (tabID === 'config') {
-      onSetSubstepIndex(DataLoaderStep.Configure, tabID)
-      onSetActiveTelegrafPlugin('')
-      return
-    }
-
-    const index = Math.max(
-      _.findIndex(telegrafPlugins, plugin => {
-        return plugin.name === tabID
-      }),
-      0
-    )
-
-    onSetSubstepIndex(DataLoaderStep.Configure, index)
-    onSetActiveTelegrafPlugin(tabID)
-  }
-
   private get stepProps(): DataLoaderStepProps {
     const {
       links,
@@ -288,31 +196,24 @@ class DataLoadersWizard extends PureComponent<Props> {
 const mstp = ({
   links,
   dataLoading: {
-    dataLoaders,
-    steps: {currentStep, substep, bucket},
+    dataLoaders: {type},
+    steps: {currentStep, substep, bucket, org},
   },
   me: {name},
 }: AppState): StateProps => ({
   links,
-  dataLoaders,
+  type,
   currentStepIndex: currentStep,
   substep,
   username: name,
-  selectedBucket: bucket,
+  bucket,
+  org,
 })
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
   onSetBucketInfo: setBucketInfo,
   onSetDataLoadersType: setDataLoadersType,
-  onUpdateTelegrafPluginConfig: updateTelegrafPluginConfig,
-  onAddConfigValue: addConfigValue,
-  onRemoveConfigValue: removeConfigValue,
-  onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
-  onAddPluginBundle: addPluginBundleWithPlugins,
-  onRemovePluginBundle: removePluginBundleWithPlugins,
-  onSetPluginConfiguration: setPluginConfiguration,
-  onSetConfigArrayValue: setConfigArrayValue,
   onIncrementCurrentStepIndex: incrementCurrentStepIndex,
   onDecrementCurrentStepIndex: decrementCurrentStepIndex,
   onSetCurrentStepIndex: setCurrentStepIndex,

@@ -6,7 +6,7 @@ import {shallow} from 'enzyme'
 import ArrayFormElement from 'src/dataLoaders/components/configureStep/streaming/ArrayFormElement'
 import {MultipleInput} from 'src/clockface'
 
-import {TelegrafPluginInputCpu} from 'src/api'
+import {TelegrafPluginInputCpu} from '@influxdata/influx'
 
 const setup = (override = {}) => {
   const props = {

@@ -1353,6 +1353,15 @@ func NewPoint(name string, tags Tags, fields Fields, t time.Time) (Point, error)
 	}, nil
 }
 
+// NewPointFromSeries returns a Point given the serialized key, some fields, and a time.
+func NewPointFromSeries(key []byte, fields Fields, t time.Time) Point {
+	return &point{
+		key:    key,
+		time:   t,
+		fields: fields.MarshalBinary(),
+	}
+}
+
 // pointKey checks some basic requirements for valid points, and returns the
 // key, along with an possible error.
 func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte, error) {

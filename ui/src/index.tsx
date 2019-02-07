@@ -25,6 +25,8 @@ import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
 import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
 import OrganizationView from 'src/organizations/containers/OrganizationView'
+import OrgTaskPage from 'src/organizations/components/OrgTaskPage'
+import OrgTaskEditPage from 'src/organizations/components/OrgTaskEditPage'
 import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
@@ -101,10 +103,20 @@ class Root extends PureComponent {
                             <IndexRoute component={MePage} />
                             <Route path="organizations">
                               <IndexRoute component={OrganizationsIndex} />
-                              <Route
-                                path=":orgID/:tab"
-                                component={OrganizationView}
-                              />
+                              <Route path=":orgID">
+                                <Route
+                                  path="tasks_tab/new"
+                                  component={OrgTaskPage}
+                                />
+                                <Route
+                                  path="tasks_tab/:id"
+                                  component={OrgTaskEditPage}
+                                />
+                                <Route
+                                  path=":tab"
+                                  component={OrganizationView}
+                                />
+                              </Route>
                             </Route>
                             <Route path="tasks">
                               <IndexRoute component={TasksPage} />

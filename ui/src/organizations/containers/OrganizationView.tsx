@@ -5,16 +5,19 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // APIs
-import {getDashboards, getCollectors, getScrapers} from 'src/organizations/apis'
-
+import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
+
+const getCollectors = async (org: Organization) => {
+  return client.telegrafConfigs.getAllByOrg(org)
+}
+
+const getScrapers = async () => {
+  return await client.scrapers.getAll()
+}
 
 const getBuckets = async (org: Organization) => {
   return client.buckets.getAllByOrg(org)
-}
-
-const getTasks = async (org: Organization) => {
-  return client.tasks.getAllByOrg(org)
 }
 
 // Actions
@@ -23,13 +26,13 @@ import * as notifyActions from 'src/shared/actions/notifications'
 
 // Components
 import {Page} from 'src/pageLayout'
-import {Spinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Members from 'src/organizations/components/Members'
 import Buckets from 'src/organizations/components/Buckets'
 import Dashboards from 'src/organizations/components/Dashboards'
-import Tasks from 'src/organizations/components/Tasks'
+import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
@@ -41,17 +44,28 @@ import {
   ResourceOwner,
   Bucket,
   Organization,
-  Task,
   Telegraf,
-  ScraperTargetResponses,
-} from 'src/api'
+  ScraperTargetResponse,
+} from '@influxdata/influx'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Task} from 'src/tasks/containers/TasksPage'
 
 interface StateProps {
   org: Organization
+}
+
+const getTasks = async (org: Organization): Promise<Task[]> => {
+  const tasks = await client.tasks.getAllByOrg(org)
+  const mappedTasks = tasks.map(task => {
+    return {
+      ...task,
+      organization: org,
+    }
+  })
+  return mappedTasks
 }
 
 interface DispatchProps {
@@ -64,7 +78,7 @@ type Props = StateProps & WithRouterProps & DispatchProps
 @ErrorHandling
 class OrganizationView extends PureComponent<Props> {
   public render() {
-    const {org, params, notify} = this.props
+    const {org, params, notify, router} = this.props
 
     return (
       <Page titleTag={org.name}>
@@ -96,9 +110,12 @@ class OrganizationView extends PureComponent<Props> {
                   fetcher={this.getOwnersAndMembers}
                 >
                   {(members, loading) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <Members members={members} orgName={org.name} />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -112,14 +129,17 @@ class OrganizationView extends PureComponent<Props> {
                   fetcher={getBuckets}
                 >
                   {(buckets, loading, fetch) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <Buckets
                         buckets={buckets}
                         org={org}
                         onChange={fetch}
                         notify={notify}
                       />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -133,14 +153,17 @@ class OrganizationView extends PureComponent<Props> {
                   fetcher={getDashboards}
                 >
                   {(dashboards, loading, fetch) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <Dashboards
                         dashboards={dashboards}
                         orgName={org.name}
                         onChange={fetch}
                         orgID={org.id}
                       />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -151,13 +174,18 @@ class OrganizationView extends PureComponent<Props> {
               >
                 <GetOrgResources<Task[]> organization={org} fetcher={getTasks}>
                   {(tasks, loading, fetch) => (
-                    <Spinner loading={loading}>
-                      <Tasks
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
+                      <OrgTasksPage
                         tasks={tasks}
                         orgName={org.name}
+                        orgID={org.id}
                         onChange={fetch}
+                        router={router}
                       />
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -171,13 +199,19 @@ class OrganizationView extends PureComponent<Props> {
                   fetcher={getCollectors}
                 >
                   {(collectors, loading, fetch) => (
-                    <Spinner loading={loading}>
+                    <SpinnerContainer
+                      loading={loading}
+                      spinnerComponent={<TechnoSpinner />}
+                    >
                       <GetOrgResources<Bucket[]>
                         organization={org}
                         fetcher={getBuckets}
                       >
                         {(buckets, loading) => (
-                          <Spinner loading={loading}>
+                          <SpinnerContainer
+                            loading={loading}
+                            spinnerComponent={<TechnoSpinner />}
+                          >
                             <Collectors
                               collectors={collectors}
                               onChange={fetch}
@@ -185,10 +219,10 @@ class OrganizationView extends PureComponent<Props> {
                               buckets={buckets}
                               orgName={org.name}
                             />
-                          </Spinner>
+                          </SpinnerContainer>
                         )}
                       </GetOrgResources>
-                    </Spinner>
+                    </SpinnerContainer>
                   )}
                 </GetOrgResources>
               </TabbedPageSection>
@@ -197,29 +231,35 @@ class OrganizationView extends PureComponent<Props> {
                 url="scrapers_tab"
                 title="Scrapers"
               >
-                <GetOrgResources<ScraperTargetResponses>
+                <GetOrgResources<ScraperTargetResponse[]>
                   organization={org}
                   fetcher={getScrapers}
                 >
                   {(scrapers, loading, fetch) => {
                     return (
-                      <Spinner loading={loading}>
+                      <SpinnerContainer
+                        loading={loading}
+                        spinnerComponent={<TechnoSpinner />}
+                      >
                         <GetOrgResources<Bucket[]>
                           organization={org}
                           fetcher={getBuckets}
                         >
                           {(buckets, loading) => (
-                            <Spinner loading={loading}>
+                            <SpinnerContainer
+                              loading={loading}
+                              spinnerComponent={<TechnoSpinner />}
+                            >
                               <Scrapers
                                 scrapers={scrapers}
                                 onChange={fetch}
                                 orgName={org.name}
                                 buckets={buckets}
                               />
-                            </Spinner>
+                            </SpinnerContainer>
                           )}
                         </GetOrgResources>
-                      </Spinner>
+                      </SpinnerContainer>
                     )
                   }}
                 </GetOrgResources>

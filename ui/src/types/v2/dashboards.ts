@@ -1,10 +1,10 @@
 import {Color} from 'src/types/colors'
-import {Label} from 'src/types/v2/labels'
+import {Label} from '@influxdata/influx'
 import {
   Dashboard as DashboardAPI,
   View as ViewAPI,
   Cell as CellAPI,
-} from 'src/api'
+} from '@influxdata/influx'
 
 export interface Axis {
   label: string

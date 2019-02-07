@@ -5,10 +5,21 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/influxdata/influxdb/mock"
+	"go.uber.org/zap"
+
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
+
+// NewMockSetupBackend returns a SetupBackend with mock services.
+func NewMockSetupBackend() *SetupBackend {
+	return &SetupBackend{
+		Logger:            zap.NewNop().With(zap.String("handler", "scraper")),
+		OnboardingService: mock.NewOnboardingService(),
+	}
+}
 
 func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platform.OnboardingService, func()) {
 	t.Helper()
@@ -21,8 +32,9 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 		t.Fatalf("failed to set new onboarding finished: %v", err)
 	}
 
-	handler := NewSetupHandler()
-	handler.OnboardingService = svc
+	setupBackend := NewMockSetupBackend()
+	setupBackend.OnboardingService = svc
+	handler := NewSetupHandler(setupBackend)
 	server := httptest.NewServer(handler)
 	client := struct {
 		*SetupService

@@ -1,6 +1,7 @@
 // Libraries
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
+import {connect} from 'react-redux'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
@@ -9,6 +10,8 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CollectorList from 'src/organizations/components/CollectorList'
 import TelegrafExplainer from 'src/organizations/components/TelegrafExplainer'
+import TelegrafInstructionsOverlay from 'src/organizations/components/TelegrafInstructionsOverlay'
+import TelegrafConfigOverlay from 'src/organizations/components/TelegrafConfigOverlay'
 import {
   Button,
   ComponentColor,
@@ -20,18 +23,16 @@ import {
   Input,
   InputType,
 } from 'src/clockface'
-import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
+import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
 
 // APIS
-import {
-  getTelegrafConfigTOML,
-  deleteTelegrafConfig,
-} from 'src/organizations/apis/index'
+import {client} from 'src/utils/api'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import {notify} from 'src/shared/actions/notifications'
+import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Constants
 import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
@@ -40,11 +41,17 @@ import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Telegraf, Bucket} from 'src/api'
-import {DataLoaderType, DataLoaderStep} from 'src/types/v2/dataLoaders'
+import {Telegraf, Bucket} from '@influxdata/influx'
 import {OverlayState} from 'src/types/v2'
+import {
+  setDataLoadersType,
+  setTelegrafConfigID,
+  setTelegrafConfigName,
+  clearDataLoaders,
+} from 'src/dataLoaders/actions/dataLoaders'
+import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
-interface Props {
+interface OwnProps {
   collectors: Telegraf[]
   onChange: () => void
   notify: NotificationsActions.PublishNotificationActionCreator
@@ -52,19 +59,35 @@ interface Props {
   buckets: Bucket[]
 }
 
+interface DispatchProps {
+  onSetBucketInfo: typeof setBucketInfo
+  onSetDataLoadersType: typeof setDataLoadersType
+  onSetTelegrafConfigID: typeof setTelegrafConfigID
+  onSetTelegrafConfigName: typeof setTelegrafConfigName
+  onClearDataLoaders: typeof clearDataLoaders
+}
+
+type Props = OwnProps & DispatchProps
+
 interface State {
-  overlayState: OverlayState
+  dataLoaderOverlay: OverlayState
   searchTerm: string
+  instructionsOverlay: OverlayState
+  collectorID?: string
+  telegrafConfig: OverlayState
 }
 
 @ErrorHandling
-export default class Collectors extends PureComponent<Props, State> {
+export class Collectors extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
     this.state = {
-      overlayState: OverlayState.Closed,
+      dataLoaderOverlay: OverlayState.Closed,
       searchTerm: '',
+      instructionsOverlay: OverlayState.Closed,
+      collectorID: null,
+      telegrafConfig: OverlayState.Closed,
     }
   }
 
@@ -100,6 +123,9 @@ export default class Collectors extends PureComponent<Props, State> {
                     emptyState={this.emptyState}
                     onDownloadConfig={this.handleDownloadConfig}
                     onDelete={this.handleDeleteTelegraf}
+                    onUpdate={this.handleUpdateTelegraf}
+                    onOpenInstructions={this.handleOpenInstructions}
+                    onOpenTelegrafConfig={this.handleOpenTelegrafConfig}
                   />
                 )}
               </FilterList>
@@ -114,20 +140,71 @@ export default class Collectors extends PureComponent<Props, State> {
             </Grid.Column>
           </Grid.Row>
         </Grid>
-        <DataLoadersWizard
-          visible={this.isOverlayVisible}
+        <CollectorsWizard
+          visible={this.isDataLoaderVisible}
           onCompleteSetup={this.handleDismissDataLoaders}
-          startingType={DataLoaderType.Streaming}
-          startingStep={DataLoaderStep.Select}
-          startingSubstep={'streaming'}
+          startingStep={0}
           buckets={buckets}
+        />
+        <TelegrafInstructionsOverlay
+          visible={this.isInstructionsVisible}
+          collector={this.selectedCollector}
+          onDismiss={this.handleCloseInstructions}
+        />
+        <TelegrafConfigOverlay
+          visible={this.isTelegrafConfigVisible}
+          onDismiss={this.handleCloseTelegrafConfig}
         />
       </>
     )
   }
 
-  private get isOverlayVisible(): boolean {
-    return this.state.overlayState === OverlayState.Open
+  private get selectedCollector() {
+    return this.props.collectors.find(c => c.id === this.state.collectorID)
+  }
+
+  private get isDataLoaderVisible(): boolean {
+    return this.state.dataLoaderOverlay === OverlayState.Open
+  }
+
+  private get isInstructionsVisible(): boolean {
+    return this.state.instructionsOverlay === OverlayState.Open
+  }
+
+  private handleOpenInstructions = (collectorID: string): void => {
+    this.setState({
+      instructionsOverlay: OverlayState.Open,
+      collectorID,
+    })
+  }
+
+  private handleCloseInstructions = (): void => {
+    this.setState({
+      instructionsOverlay: OverlayState.Closed,
+      collectorID: null,
+    })
+  }
+
+  private get isTelegrafConfigVisible(): boolean {
+    return this.state.telegrafConfig === OverlayState.Open
+  }
+
+  private handleOpenTelegrafConfig = (
+    telegrafID: string,
+    telegrafName: string
+  ): void => {
+    this.props.onSetTelegrafConfigID(telegrafID)
+    this.props.onSetTelegrafConfigName(telegrafName)
+    this.setState({
+      telegrafConfig: OverlayState.Open,
+    })
+  }
+
+  private handleCloseTelegrafConfig = (): void => {
+    this.props.onClearDataLoaders()
+    this.setState({
+      telegrafConfig: OverlayState.Closed,
+    })
   }
 
   private get createButton(): JSX.Element {
@@ -136,17 +213,26 @@ export default class Collectors extends PureComponent<Props, State> {
         text="Create Configuration"
         icon={IconFont.Plus}
         color={ComponentColor.Primary}
-        onClick={this.handleAddScraper}
+        onClick={this.handleAddCollector}
       />
     )
   }
 
-  private handleAddScraper = () => {
-    this.setState({overlayState: OverlayState.Open})
+  private handleAddCollector = () => {
+    const {buckets, onSetBucketInfo, onSetDataLoadersType} = this.props
+
+    if (buckets && buckets.length) {
+      const {organization, organizationID, name, id} = buckets[0]
+      onSetBucketInfo(organization, organizationID, name, id)
+    }
+
+    onSetDataLoadersType(DataLoaderType.Scraping)
+
+    this.setState({dataLoaderOverlay: OverlayState.Open})
   }
 
   private handleDismissDataLoaders = () => {
-    this.setState({overlayState: OverlayState.Closed})
+    this.setState({dataLoaderOverlay: OverlayState.Closed})
     this.props.onChange()
   }
 
@@ -178,14 +264,20 @@ export default class Collectors extends PureComponent<Props, State> {
     telegrafName: string
   ) => {
     try {
-      const config = await getTelegrafConfigTOML(telegrafID)
+      const config = await client.telegrafConfigs.getTOML(telegrafID)
       downloadTextFile(config, `${telegrafName || 'config'}.toml`)
     } catch (error) {
       notify(getTelegrafConfigFailed())
     }
   }
+
   private handleDeleteTelegraf = async (telegrafID: string) => {
-    await deleteTelegrafConfig(telegrafID)
+    await client.telegrafConfigs.delete(telegrafID)
+    this.props.onChange()
+  }
+
+  private handleUpdateTelegraf = async (telegraf: Telegraf) => {
+    await client.telegrafConfigs.update(telegraf.id, telegraf)
     this.props.onChange()
   }
 
@@ -197,3 +289,16 @@ export default class Collectors extends PureComponent<Props, State> {
     this.setState({searchTerm: e.target.value})
   }
 }
+
+const mdtp: DispatchProps = {
+  onSetBucketInfo: setBucketInfo,
+  onSetDataLoadersType: setDataLoadersType,
+  onSetTelegrafConfigID: setTelegrafConfigID,
+  onSetTelegrafConfigName: setTelegrafConfigName,
+  onClearDataLoaders: clearDataLoaders,
+}
+
+export default connect<null, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(Collectors)

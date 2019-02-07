@@ -33,6 +33,7 @@ interface OwnProps {
   dashboards: Dashboard[]
   emptyState: JSX.Element
   onDeleteDashboard: (dashboard: Dashboard) => void
+  onUpdateDashboard: (dashboard: Dashboard) => void
 }
 
 type Props = DispatchProps & OwnProps
@@ -57,14 +58,17 @@ class DashboardList extends PureComponent<Props> {
   private handleCloneDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
-    const {router, notify, orgID} = this.props
+    const {router, notify, orgID, dashboards} = this.props
     const name = `${dashboard.name} (clone)`
     try {
-      const data = await cloneDashboard({
-        ...dashboard,
-        name,
-        orgID,
-      })
+      const data = await cloneDashboard(
+        {
+          ...dashboard,
+          name,
+          orgID,
+        },
+        dashboards
+      )
 
       router.push(`/dashboards/${data.id}`)
     } catch (error) {
@@ -73,13 +77,14 @@ class DashboardList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    const {onDeleteDashboard} = this.props
+    const {onDeleteDashboard, onUpdateDashboard} = this.props
 
     return this.props.dashboards.map(d => (
       <DashboardRow
         dashboard={d}
         key={d.id}
         onDeleteDashboard={onDeleteDashboard}
+        onUpdateDashboard={onUpdateDashboard}
         onCloneDashboard={this.handleCloneDashboard}
       />
     ))

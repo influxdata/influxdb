@@ -1,14 +1,15 @@
 package tsm1
 
 import (
+	"bytes"
 	"fmt"
 	"math"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -545,50 +546,50 @@ func (c *Cache) Values(key []byte) Values {
 	return values
 }
 
-// Delete removes all values for the given keys from the cache.
-func (c *Cache) Delete(keys [][]byte) {
-	c.DeleteRange(keys, math.MinInt64, math.MaxInt64)
-}
-
-// DeleteRange removes the values for all keys containing points
-// with timestamps between between min and max from the cache.
-//
-// TODO(edd): Lock usage could possibly be optimised if necessary.
-func (c *Cache) DeleteRange(keys [][]byte, min, max int64) {
+// DeleteBucketRange removes values for all keys containing points
+// with timestamps between min and max contained in the bucket identified
+// by name from the cache.
+func (c *Cache) DeleteBucketRange(name []byte, min, max int64) {
 	c.init()
 
+	// TODO(edd/jeff): find a way to optimize lock usage
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	var toDelete [][]byte
 	var total uint64
-	for _, k := range keys {
-		// Make sure key exist in the cache, skip if it does not
-		e := c.store.entry(k)
-		if e == nil {
-			continue
-		}
 
+	// applySerial only errors if the closure returns an error.
+	_ = c.store.applySerial(func(k []byte, e *entry) error {
+		if !bytes.HasPrefix(k, name) {
+			return nil
+		}
 		total += uint64(e.size())
-		// Everything is being deleted.
+
+		// if everything is being deleted, just stage it to be deleted and move on.
 		if min == math.MinInt64 && max == math.MaxInt64 {
-			total += uint64(len(k)) // all entries and the key.
-			c.store.remove(k)
-			continue
+			toDelete = append(toDelete, k)
+			return nil
 		}
 
-		// Filter what to delete by time range.
+		// filter the values and subtract out the remaining bytes from the reduction.
 		e.filter(min, max)
+		total -= uint64(e.size())
+
+		// if it has no entries left, flag it to be deleted.
 		if e.count() == 0 {
-			// Nothing left in cache for that key
-			total += uint64(len(k)) // all entries and the key.
-			c.store.remove(k)
-			continue
+			toDelete = append(toDelete, k)
 		}
 
-		// Just update what is being deleted by the size of the filtered entries.
-		total -= uint64(e.size())
+		return nil
+	})
+
+	for _, k := range toDelete {
+		total += uint64(len(k))
+		c.store.remove(k)
 	}
-	c.tracker.DecCacheSize(total) // Decrease the live cache size.
+
+	c.tracker.DecCacheSize(total)
 	c.tracker.SetMemBytes(uint64(c.Size()))
 }
 
@@ -624,92 +625,45 @@ func (c *Cache) ApplyEntryFn(f func(key []byte, entry *entry) error) error {
 }
 
 // CacheLoader processes a set of WAL segment files, and loads a cache with the data
-// contained within those files.  Processing of the supplied files take place in the
-// order they exist in the files slice.
+// contained within those files.
 type CacheLoader struct {
-	files []string
-
-	Logger *zap.Logger
+	reader *wal.WALReader
 }
 
 // NewCacheLoader returns a new instance of a CacheLoader.
 func NewCacheLoader(files []string) *CacheLoader {
 	return &CacheLoader{
-		files:  files,
-		Logger: zap.NewNop(),
+		reader: wal.NewWALReader(files),
 	}
 }
 
 // Load returns a cache loaded with the data contained within the segment files.
-// If, during reading of a segment file, corruption is encountered, that segment
-// file is truncated up to and including the last valid byte, and processing
-// continues with the next segment file.
 func (cl *CacheLoader) Load(cache *Cache) error {
+	return cl.reader.Read(func(entry wal.WALEntry) error {
+		switch en := entry.(type) {
+		case *wal.WriteWALEntry:
+			return cache.WriteMulti(en.Values)
 
-	var r *WALSegmentReader
-	for _, fn := range cl.files {
-		if err := func() error {
-			f, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0666)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
+		case *wal.DeleteBucketRangeWALEntry:
+			// TODO(edd): we need to clean up how we're encoding the prefix so that we
+			// don't have to remember to get it right everywhere we need to touch TSM data.
+			encoded := tsdb.EncodeName(en.OrgID, en.BucketID)
+			name := models.EscapeMeasurement(encoded[:])
 
-			// Log some information about the segments.
-			stat, err := os.Stat(f.Name())
-			if err != nil {
-				return err
-			}
-			cl.Logger.Info("Reading file", zap.String("path", f.Name()), zap.Int64("size", stat.Size()))
-
-			// Nothing to read, skip it
-			if stat.Size() == 0 {
-				return nil
-			}
-
-			if r == nil {
-				r = NewWALSegmentReader(f)
-				defer r.Close()
-			} else {
-				r.Reset(f)
-			}
-
-			for r.Next() {
-				entry, err := r.Read()
-				if err != nil {
-					n := r.Count()
-					cl.Logger.Info("File corrupt", zap.Error(err), zap.String("path", f.Name()), zap.Int64("pos", n))
-					if err := f.Truncate(n); err != nil {
-						return err
-					}
-					break
-				}
-
-				switch t := entry.(type) {
-				case *WriteWALEntry:
-					if err := cache.WriteMulti(t.Values); err != nil {
-						return err
-					}
-				case *DeleteRangeWALEntry:
-					cache.DeleteRange(t.Keys, t.Min, t.Max)
-				case *DeleteWALEntry:
-					cache.Delete(t.Keys)
-				}
-			}
-
-			return r.Close()
-		}(); err != nil {
-			return err
+			cache.DeleteBucketRange(name, en.Min, en.Max)
+			return nil
 		}
-	}
-	return nil
+
+		return nil
+	})
 }
 
 // WithLogger sets the logger on the CacheLoader.
-func (cl *CacheLoader) WithLogger(log *zap.Logger) {
-	cl.Logger = log.With(zap.String("service", "cacheloader"))
+func (cl *CacheLoader) WithLogger(logger *zap.Logger) {
+	cl.reader.WithLogger(logger.With(zap.String("service", "cacheloader")))
 }
 
+// LastWriteTime returns the time that the cache was last written to.
 func (c *Cache) LastWriteTime() time.Time {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

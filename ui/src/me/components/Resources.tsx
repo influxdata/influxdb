@@ -8,7 +8,7 @@ import LogoutButton from 'src/me/components/LogoutButton'
 import OrgsList from 'src/me/components/OrgsList'
 import DashboardsList from 'src/me/components/DashboardsList'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
-import {Panel, Spinner} from 'src/clockface'
+import {Panel, SpinnerContainer, TechnoSpinner} from 'src/clockface'
 
 // Constants
 import {VERSION, GIT_SHA} from 'src/shared/constants'
@@ -19,7 +19,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {Dashboard, MeState} from 'src/types/v2'
-import {Organization} from 'src/api'
+import {Organization} from '@influxdata/influx'
 
 interface Props {
   me: MeState
@@ -51,9 +51,12 @@ class ResourceLists extends PureComponent<Props> {
           <Panel.Body>
             <ResourceFetcher<Organization[]> fetcher={getOrganizations}>
               {(orgs, loading) => (
-                <Spinner loading={loading}>
+                <SpinnerContainer
+                  loading={loading}
+                  spinnerComponent={<TechnoSpinner diameterPixels={50} />}
+                >
                   <OrgsList orgs={orgs} />
-                </Spinner>
+                </SpinnerContainer>
               )}
             </ResourceFetcher>
           </Panel.Body>
@@ -63,9 +66,12 @@ class ResourceLists extends PureComponent<Props> {
           <Panel.Body>
             <ResourceFetcher<Dashboard[]> fetcher={getDashboards}>
               {(dashboards, loading) => (
-                <Spinner loading={loading}>
+                <SpinnerContainer
+                  loading={loading}
+                  spinnerComponent={<TechnoSpinner diameterPixels={50} />}
+                >
                   <DashboardsList dashboards={dashboards} />
-                </Spinner>
+                </SpinnerContainer>
               )}
             </ResourceFetcher>
           </Panel.Body>

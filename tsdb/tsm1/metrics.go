@@ -25,7 +25,6 @@ func PrometheusCollectors() []prometheus.Collector {
 		collectors = append(collectors, bms.compactionMetrics.PrometheusCollectors()...)
 		collectors = append(collectors, bms.fileMetrics.PrometheusCollectors()...)
 		collectors = append(collectors, bms.cacheMetrics.PrometheusCollectors()...)
-		collectors = append(collectors, bms.walMetrics.PrometheusCollectors()...)
 	}
 	return collectors
 }
@@ -36,7 +35,6 @@ const namespace = "storage"
 const compactionSubsystem = "compactions" // sub-system associated with metrics for compactions.
 const fileStoreSubsystem = "tsm_files"    // sub-system associated with metrics for TSM files.
 const cacheSubsystem = "cache"            // sub-system associated with metrics for the cache.
-const walSubsystem = "wal"                // sub-system associated with metrics for the WAL.
 
 // blockMetrics are a set of metrics concerned with tracking data about block storage.
 type blockMetrics struct {
@@ -44,7 +42,6 @@ type blockMetrics struct {
 	*compactionMetrics
 	*fileMetrics
 	*cacheMetrics
-	*walMetrics
 }
 
 // newBlockMetrics initialises the prometheus metrics for the block subsystem.
@@ -54,7 +51,6 @@ func newBlockMetrics(labels prometheus.Labels) *blockMetrics {
 		compactionMetrics: newCompactionMetrics(labels),
 		fileMetrics:       newFileMetrics(labels),
 		cacheMetrics:      newCacheMetrics(labels),
-		walMetrics:        newWALMetrics(labels),
 	}
 }
 
@@ -64,7 +60,6 @@ func (m *blockMetrics) PrometheusCollectors() []prometheus.Collector {
 	metrics = append(metrics, m.compactionMetrics.PrometheusCollectors()...)
 	metrics = append(metrics, m.fileMetrics.PrometheusCollectors()...)
 	metrics = append(metrics, m.cacheMetrics.PrometheusCollectors()...)
-	metrics = append(metrics, m.walMetrics.PrometheusCollectors()...)
 	return metrics
 }
 
@@ -246,63 +241,6 @@ func (m *cacheMetrics) PrometheusCollectors() []prometheus.Collector {
 		m.Age,
 		m.SnapshottedBytes,
 		m.WrittenBytes,
-		m.Writes,
-	}
-}
-
-// walMetrics are a set of metrics concerned with tracking data about compactions.
-type walMetrics struct {
-	OldSegmentBytes     *prometheus.GaugeVec
-	CurrentSegmentBytes *prometheus.GaugeVec
-	Segments            *prometheus.GaugeVec
-	Writes              *prometheus.CounterVec
-}
-
-// newWALMetrics initialises the prometheus metrics for tracking the WAL.
-func newWALMetrics(labels prometheus.Labels) *walMetrics {
-	var names []string
-	for k := range labels {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-
-	writeNames := append(append([]string(nil), names...), "status")
-	sort.Strings(writeNames)
-
-	return &walMetrics{
-		OldSegmentBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: walSubsystem,
-			Name:      "old_segment_bytes",
-			Help:      "Number of bytes old WAL segments using on disk.",
-		}, names),
-		CurrentSegmentBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: walSubsystem,
-			Name:      "current_segment_bytes",
-			Help:      "Number of bytes TSM files using on disk.",
-		}, names),
-		Segments: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Subsystem: walSubsystem,
-			Name:      "segments_total",
-			Help:      "Number of WAL segment files on disk.",
-		}, names),
-		Writes: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: walSubsystem,
-			Name:      "writes_total",
-			Help:      "Number of writes to the WAL.",
-		}, writeNames),
-	}
-}
-
-// PrometheusCollectors satisfies the prom.PrometheusCollector interface.
-func (m *walMetrics) PrometheusCollectors() []prometheus.Collector {
-	return []prometheus.Collector{
-		m.OldSegmentBytes,
-		m.CurrentSegmentBytes,
-		m.Segments,
 		m.Writes,
 	}
 }

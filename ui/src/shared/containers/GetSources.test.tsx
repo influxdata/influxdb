@@ -2,10 +2,9 @@ import React from 'react'
 import {shallow} from 'enzyme'
 import {GetSources} from 'src/shared/containers/GetSources'
 import MockChild from 'mocks/MockChild'
+import {SpinnerContainer} from 'src/clockface'
 
 import {source} from 'mocks/dummyData'
-
-jest.mock('src/sources/apis', () => require('mocks/sources/apis'))
 
 const onReadSources = jest.fn(() => Promise.resolve())
 
@@ -48,7 +47,7 @@ describe('CheckSources', () => {
 
     it('renders a spinner when the component is fetching', () => {
       const {wrapper} = setup()
-      const spinner = wrapper.find('.page-spinner')
+      const spinner = wrapper.find(SpinnerContainer)
 
       expect(spinner.exists()).toBe(true)
     })

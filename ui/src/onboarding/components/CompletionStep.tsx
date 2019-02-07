@@ -16,7 +16,6 @@ import {
 
 // APIs
 import {getDashboards} from 'src/organizations/apis'
-import {createScraperTarget} from 'src/onboarding/apis'
 import {client} from 'src/utils/api'
 
 // Types
@@ -27,7 +26,7 @@ import {
   Grid,
   Columns,
 } from 'src/clockface'
-import {Organization, Dashboard} from 'src/api'
+import {Organization, Dashboard, ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
@@ -122,7 +121,7 @@ class CompletionStep extends PureComponent<Props> {
                         />
                         <dt>I've got this...</dt>
                         <dd>
-                          Jump into Influx 2.0 and set up data collection when
+                          Jump into InfluxDB 2.0 and set up data collection when
                           you’re ready.
                         </dd>
                       </div>
@@ -140,11 +139,13 @@ class CompletionStep extends PureComponent<Props> {
 
   private handleQuickStart = async () => {
     try {
-      await createScraperTarget(
-        QUICKSTART_SCRAPER_TARGET_URL,
-        this.props.orgID,
-        this.props.bucketID
-      )
+      await client.scrapers.create({
+        name: 'new target',
+        type: ScraperTargetRequest.TypeEnum.Prometheus,
+        url: QUICKSTART_SCRAPER_TARGET_URL,
+        bucketID: this.props.bucketID,
+        orgID: this.props.orgID,
+      })
       this.props.notify(QuickstartScraperCreationSuccess)
     } catch (err) {
       this.props.notify(QuickstartScraperCreationError)

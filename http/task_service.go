@@ -20,6 +20,32 @@ import (
 	"go.uber.org/zap"
 )
 
+// TaskBackend is all services and associated parameters required to construct
+// the TaskHandler.
+type TaskBackend struct {
+	Logger *zap.Logger
+
+	TaskService                platform.TaskService
+	AuthorizationService       platform.AuthorizationService
+	OrganizationService        platform.OrganizationService
+	UserResourceMappingService platform.UserResourceMappingService
+	LabelService               platform.LabelService
+	UserService                platform.UserService
+}
+
+// NewTaskBackend returns a new instance of TaskBackend.
+func NewTaskBackend(b *APIBackend) *TaskBackend {
+	return &TaskBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "task")),
+		TaskService:                b.TaskService,
+		AuthorizationService:       b.AuthorizationService,
+		OrganizationService:        b.OrganizationService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
+	}
+}
+
 // TaskHandler represents an HTTP API handler for tasks.
 type TaskHandler struct {
 	*httprouter.Router
@@ -50,14 +76,17 @@ const (
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
-func NewTaskHandler(mappingService platform.UserResourceMappingService, labelService platform.LabelService, logger *zap.Logger, userService platform.UserService) *TaskHandler {
+func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h := &TaskHandler{
-		logger: logger,
 		Router: NewRouter(),
+		logger: b.Logger,
 
-		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
-		UserService:                userService,
+		TaskService:                b.TaskService,
+		AuthorizationService:       b.AuthorizationService,
+		OrganizationService:        b.OrganizationService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		UserService:                b.UserService,
 	}
 
 	h.HandlerFunc("GET", tasksPath, h.handleGetTasks)
@@ -70,13 +99,27 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("GET", tasksIDLogsPath, h.handleGetLogs)
 	h.HandlerFunc("GET", tasksIDRunsIDLogsPath, h.handleGetLogs)
 
-	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TasksResourceType, platform.Member))
-	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TasksResourceType, platform.Member))
-	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+	memberBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               platform.TasksResourceType,
+		UserType:                   platform.Member,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(memberBackend))
+	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
-	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.TasksResourceType, platform.Owner))
-	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.TasksResourceType, platform.Owner))
-	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+	ownerBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               platform.TasksResourceType,
+		UserType:                   platform.Owner,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(ownerBackend))
+	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", tasksIDRunsPath, h.handleGetRuns)
 	h.HandlerFunc("POST", tasksIDRunsPath, h.handleForceRun)
@@ -84,9 +127,14 @@ func NewTaskHandler(mappingService platform.UserResourceMappingService, labelSer
 	h.HandlerFunc("POST", tasksIDRunsIDRetryPath, h.handleRetryRun)
 	h.HandlerFunc("DELETE", tasksIDRunsIDPath, h.handleCancelRun)
 
-	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", tasksIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", tasksIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.HandlerFunc("PATCH", tasksIDLabelsIDPath, newPatchLabelHandler(labelBackend))
 
 	return h
 }
@@ -350,6 +398,29 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// add User resource map
+	urm := &platform.UserResourceMapping{
+		UserID:       auth.GetUserID(),
+		UserType:     platform.Owner,
+		ResourceType: platform.TasksResourceType,
+		ResourceID:   req.Task.ID,
+	}
+	if err := h.UserResourceMappingService.CreateUserResourceMapping(ctx, urm); err != nil {
+		// clean up the task if we fail to map the user and resource
+		// TODO(lh): Multi step creates could benefit from a service wide transactional request
+		if derr := h.TaskService.DeleteTask(ctx, req.Task.ID); derr != nil {
+			err = fmt.Errorf("%s: failed to clean up task: %s", err.Error(), derr.Error())
+		}
+
+		err = &platform.Error{
+			Err: err,
+			Msg: "failed to add user permissions",
+		}
+
+		EncodeError(ctx, err, w)
+		return
+	}
+
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task, []*platform.Label{})); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -462,9 +533,12 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	task, err := h.TaskService.UpdateTask(ctx, req.TaskID, req.Update)
 	if err != nil {
-		err = &platform.Error{
+		err := &platform.Error{
 			Err: err,
 			Msg: "failed to update task",
+		}
+		if err.Err == backend.ErrTaskNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -541,12 +615,30 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.TaskService.DeleteTask(ctx, req.TaskID); err != nil {
-		err = &platform.Error{
+		err := &platform.Error{
 			Err: err,
 			Msg: "failed to delete task",
 		}
+		if err.Err == backend.ErrTaskNotFound {
+			err.Code = platform.ENotFound
+		}
 		EncodeError(ctx, err, w)
 		return
+	}
+	// clean up resource maps for deleted task
+	urms, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
+		ResourceID:   req.TaskID,
+		ResourceType: platform.TasksResourceType,
+	})
+
+	if err != nil {
+		h.logger.Warn("failed to pull user resource mapping", zap.Error(err))
+	} else {
+		for _, m := range urms {
+			if err := h.UserResourceMappingService.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
+				h.logger.Warn(fmt.Sprintf("failed to remove user resource mapping for task %s", m.ResourceID.String()), zap.Error(err))
+			}
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -592,9 +684,12 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 
 	logs, _, err := h.TaskService.FindLogs(ctx, req.filter)
 	if err != nil {
-		err = &platform.Error{
+		err := &platform.Error{
 			Err: err,
 			Msg: "failed to find task logs",
+		}
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -671,10 +766,12 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 
 	runs, _, err := h.TaskService.FindRuns(ctx, req.filter)
 	if err != nil {
-		err = &platform.Error{
-			Err:  err,
-			Code: platform.EInvalid,
-			Msg:  "failed to find runs",
+		err := &platform.Error{
+			Err: err,
+			Msg: "failed to find runs",
+		}
+		if err.Err == backend.ErrTaskNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -792,12 +889,12 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.ForceRun(ctx, req.TaskID, req.Timestamp)
 	if err != nil {
-		if err == backend.ErrRunNotFound {
-			err = &platform.Error{
-				Code: platform.ENotFound,
-				Msg:  "failed to force run",
-				Err:  err,
-			}
+		err := &platform.Error{
+			Err: err,
+			Msg: "failed to force run",
+		}
+		if err.Err == backend.ErrTaskNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -868,12 +965,12 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.FindRunByID(ctx, req.TaskID, req.RunID)
 	if err != nil {
-		if err == backend.ErrRunNotFound {
-			err = &platform.Error{
-				Err:  err,
-				Msg:  "failed to find run",
-				Code: platform.ENotFound,
-			}
+		err := &platform.Error{
+			Err: err,
+			Msg: "failed to find run",
+		}
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -974,9 +1071,12 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 
 	err = h.TaskService.CancelRun(ctx, req.TaskID, req.RunID)
 	if err != nil {
-		err = &platform.Error{
+		err := &platform.Error{
 			Err: err,
 			Msg: "failed to cancel run",
+		}
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -999,12 +1099,12 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 
 	run, err := h.TaskService.RetryRun(ctx, req.TaskID, req.RunID)
 	if err != nil {
-		if err == backend.ErrRunNotFound {
-			err = &platform.Error{
-				Code: platform.ENotFound,
-				Msg:  "failed to retry run",
-				Err:  err,
-			}
+		err := &platform.Error{
+			Err: err,
+			Msg: "failed to retry run",
+		}
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
 		return

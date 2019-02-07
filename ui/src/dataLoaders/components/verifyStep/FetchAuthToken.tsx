@@ -3,17 +3,17 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Spinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Apis
-import {getAuthorizationToken} from 'src/onboarding/apis/index'
+import {client} from 'src/utils/api'
 
 // types
 import {RemoteDataState} from 'src/types'
 
 export interface Props {
-  bucket: string
+  bucket?: string
   username: string
   children: (authToken: string) => JSX.Element
 }
@@ -35,16 +35,21 @@ class FetchAuthToken extends PureComponent<Props, State> {
     const {username} = this.props
 
     this.setState({loading: RemoteDataState.Loading})
-    const authToken = await getAuthorizationToken(username)
+    const authToken = await client.authorizations.getAuthorizationToken(
+      username
+    )
 
     this.setState({authToken, loading: RemoteDataState.Done})
   }
 
   public render() {
     return (
-      <Spinner loading={this.state.loading}>
+      <SpinnerContainer
+        loading={this.state.loading}
+        spinnerComponent={<TechnoSpinner />}
+      >
         {this.props.children(this.state.authToken)}
-      </Spinner>
+      </SpinnerContainer>
     )
   }
 }

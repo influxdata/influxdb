@@ -1,0 +1,29 @@
+@import 'src/style/modules';
+
+.techno-spinner {
+  border-style: solid;
+  border-color: rgba($g5-pepper, 0.4);
+  border-left-color: $c-pool;
+  border-radius: 50%;
+  animation: technoSpinnerAnimation 0.8s infinite linear;
+}
+
+@keyframes technoSpinnerAnimation {
+  0% {
+    transform: rotate(0deg);
+    border-left-color: $c-pool;
+  }
+  25% {
+    border-left-color: $c-comet;
+  }
+  50% {
+    border-left-color: $c-pool;
+  }
+  75% {
+    border-left-color: $c-rainforest;
+  }
+  100% {
+    transform: rotate(360deg);
+    border-left-color: $c-pool;
+  }
+}

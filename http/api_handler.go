@@ -70,89 +70,69 @@ type APIBackend struct {
 	ChronografService               *server.Service
 	ProtoService                    influxdb.ProtoService
 	OrgLookupService                authorizer.OrganizationService
+	ViewService                     influxdb.ViewService
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
 func NewAPIHandler(b *APIBackend) *APIHandler {
 	h := &APIHandler{}
 
-	sessionBackend := NewSessionBackend(b)
-	h.SessionHandler = NewSessionHandler(sessionBackend)
+	internalURM := b.UserResourceMappingService
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
 
-	h.BucketHandler = NewBucketHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.BucketHandler.BucketService = authorizer.NewBucketService(b.BucketService)
-	h.BucketHandler.OrganizationService = b.OrganizationService
-	h.BucketHandler.BucketOperationLogService = b.BucketOperationLogService
+	sessionBackend := NewSessionBackend(b)
+	h.SessionHandler = NewSessionHandler(sessionBackend)
 
-	h.LabelHandler = NewLabelHandler()
-	h.LabelHandler.LabelService = b.LabelService
+	bucketBackend := NewBucketBackend(b)
+	bucketBackend.BucketService = authorizer.NewBucketService(b.BucketService)
+	h.BucketHandler = NewBucketHandler(bucketBackend)
 
-	h.OrgHandler = NewOrgHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.OrgHandler.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
-	h.OrgHandler.OrganizationOperationLogService = b.OrganizationOperationLogService
-	h.OrgHandler.SecretService = b.SecretService
+	orgBackend := NewOrgBackend(b)
+	orgBackend.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
+	h.OrgHandler = NewOrgHandler(orgBackend)
 
-	h.UserHandler = NewUserHandler()
-	h.UserHandler.UserService = authorizer.NewUserService(b.UserService)
-	h.UserHandler.BasicAuthService = b.BasicAuthService
-	h.UserHandler.UserOperationLogService = b.UserOperationLogService
+	userBackend := NewUserBackend(b)
+	userBackend.UserService = authorizer.NewUserService(b.UserService)
+	h.UserHandler = NewUserHandler(userBackend)
 
-	h.DashboardHandler = NewDashboardHandler(b.UserResourceMappingService, b.LabelService, b.UserService)
-	h.DashboardHandler.DashboardService = authorizer.NewDashboardService(b.DashboardService)
-	h.DashboardHandler.DashboardOperationLogService = b.DashboardOperationLogService
+	dashboardBackend := NewDashboardBackend(b)
+	dashboardBackend.DashboardService = authorizer.NewDashboardService(b.DashboardService)
+	h.DashboardHandler = NewDashboardHandler(dashboardBackend)
 
-	h.MacroHandler = NewMacroHandler()
-	h.MacroHandler.MacroService = authorizer.NewMacroService(b.MacroService)
+	macroBackend := NewMacroBackend(b)
+	macroBackend.MacroService = authorizer.NewMacroService(b.MacroService)
+	h.MacroHandler = NewMacroHandler(macroBackend)
 
-	h.AuthorizationHandler = NewAuthorizationHandler(b.UserService)
-	h.AuthorizationHandler.OrganizationService = b.OrganizationService
-	h.AuthorizationHandler.AuthorizationService = authorizer.NewAuthorizationService(b.AuthorizationService)
-	h.AuthorizationHandler.LookupService = b.LookupService
-	h.AuthorizationHandler.Logger = b.Logger.With(zap.String("handler", "auth"))
+	authorizationBackend := NewAuthorizationBackend(b)
+	authorizationBackend.AuthorizationService = authorizer.NewAuthorizationService(b.AuthorizationService)
+	h.AuthorizationHandler = NewAuthorizationHandler(authorizationBackend)
 
-	h.ScraperHandler = NewScraperHandler(
-		b.Logger.With(zap.String("handler", "scraper")),
-		b.UserService,
-		b.UserResourceMappingService,
-		b.LabelService,
-		authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService, b.UserResourceMappingService),
-		b.BucketService,
-		b.OrganizationService,
-	)
+	scraperBackend := NewScraperBackend(b)
+	scraperBackend.ScraperStorageService = authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService, b.UserResourceMappingService)
+	h.ScraperHandler = NewScraperHandler(scraperBackend)
 
-	h.SourceHandler = NewSourceHandler()
-	h.SourceHandler.SourceService = authorizer.NewSourceService(b.SourceService)
-	h.SourceHandler.NewBucketService = b.NewBucketService
-	h.SourceHandler.NewQueryService = b.NewQueryService
+	sourceBackend := NewSourceBackend(b)
+	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)
+	sourceBackend.NewBucketService = b.NewBucketService
+	sourceBackend.NewQueryService = b.NewQueryService
+	h.SourceHandler = NewSourceHandler(sourceBackend)
 
-	h.SetupHandler = NewSetupHandler()
-	h.SetupHandler.OnboardingService = b.OnboardingService
+	setupBackend := NewSetupBackend(b)
+	h.SetupHandler = NewSetupHandler(setupBackend)
 
-	h.TaskHandler = NewTaskHandler(b.UserResourceMappingService, b.LabelService, b.Logger, b.UserService)
-	h.TaskHandler.TaskService = b.TaskService
-	h.TaskHandler.AuthorizationService = b.AuthorizationService
-	h.TaskHandler.OrganizationService = b.OrganizationService
-	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
+	taskBackend := NewTaskBackend(b)
+	h.TaskHandler = NewTaskHandler(taskBackend)
+	h.TaskHandler.UserResourceMappingService = internalURM
 
-	h.TelegrafHandler = NewTelegrafHandler(
-		b.Logger.With(zap.String("handler", "telegraf")),
-		b.UserResourceMappingService,
-		b.LabelService,
-		authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService),
-		b.UserService,
-		b.OrganizationService,
-	)
+	telegrafBackend := NewTelegrafBackend(b)
+	telegrafBackend.TelegrafService = authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)
+	h.TelegrafHandler = NewTelegrafHandler(telegrafBackend)
 
-	h.WriteHandler = NewWriteHandler(b.PointsWriter)
-	h.WriteHandler.OrganizationService = b.OrganizationService
-	h.WriteHandler.BucketService = b.BucketService
-	h.WriteHandler.Logger = b.Logger.With(zap.String("handler", "write"))
+	writeBackend := NewWriteBackend(b)
+	h.WriteHandler = NewWriteHandler(writeBackend)
 
-	h.QueryHandler = NewFluxHandler()
-	h.QueryHandler.OrganizationService = b.OrganizationService
-	h.QueryHandler.Logger = b.Logger.With(zap.String("handler", "query"))
-	h.QueryHandler.ProxyQueryService = b.ProxyQueryService
+	fluxBackend := NewFluxBackend(b)
+	h.QueryHandler = NewFluxHandler(fluxBackend)
 
 	h.ProtoHandler = NewProtoHandler(NewProtoBackend(b))
 

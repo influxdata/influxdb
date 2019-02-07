@@ -179,7 +179,10 @@ from(bucketID: "000000000000000a")
 	if err != nil {
 		return nil, err
 	}
-	if len(runs) != 1 {
+	if len(runs) == 0 {
+		return nil, ErrRunNotFound
+	}
+	if len(runs) > 1 {
 		return nil, fmt.Errorf("expected one run, got %d", len(runs))
 	}
 

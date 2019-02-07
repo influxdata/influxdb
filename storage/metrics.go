@@ -16,8 +16,6 @@ type retentionMetrics struct {
 	labels        prometheus.Labels
 	Checks        *prometheus.CounterVec
 	CheckDuration *prometheus.HistogramVec
-	Unprocessable *prometheus.CounterVec
-	Series        *prometheus.CounterVec
 }
 
 func newRetentionMetrics(labels prometheus.Labels) *retentionMetrics {
@@ -25,8 +23,10 @@ func newRetentionMetrics(labels prometheus.Labels) *retentionMetrics {
 	for k := range labels {
 		names = append(names, k)
 	}
-	names = append(names, "status") // All metrics include status
 	sort.Strings(names)
+
+	checksNames := append(append([]string(nil), names...), "status", "org_id", "bucket_id")
+	sort.Strings(checksNames)
 
 	return &retentionMetrics{
 		labels: labels,
@@ -34,8 +34,8 @@ func newRetentionMetrics(labels prometheus.Labels) *retentionMetrics {
 			Namespace: namespace,
 			Subsystem: retentionSubsystem,
 			Name:      "checks_total",
-			Help:      "Number of retention check operations performed.",
-		}, names),
+			Help:      "Number of retention check operations performed by org/bucket id.",
+		}, checksNames),
 
 		CheckDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace,
@@ -44,20 +44,6 @@ func newRetentionMetrics(labels prometheus.Labels) *retentionMetrics {
 			Help:      "Time taken to perform a successful retention check.",
 			// 25 buckets spaced exponentially between 10s and ~2h
 			Buckets: prometheus.ExponentialBuckets(10, 1.32, 25),
-		}, names),
-
-		Unprocessable: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: retentionSubsystem,
-			Name:      "unprocessable_buckets_total",
-			Help:      "Number of buckets that could not be operated on.",
-		}, names),
-
-		Series: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: retentionSubsystem,
-			Name:      "series_total",
-			Help:      "Number of series that a delete was applied to.",
 		}, names),
 	}
 }
@@ -76,7 +62,5 @@ func (rm *retentionMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		rm.Checks,
 		rm.CheckDuration,
-		rm.Unprocessable,
-		rm.Series,
 	}
 }

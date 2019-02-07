@@ -8,10 +8,6 @@ import SideBar from 'src/dataLoaders/components/side_bar/SideBar'
 // Types
 import {SideBarTabStatus as TabStatus} from 'src/dataLoaders/components/side_bar/SideBar'
 
-// Constants
-import {ComponentColor} from 'src/clockface'
-import {IconFont} from 'src/clockface'
-
 const onClick = jest.fn(() => {})
 
 const childrenArray = [
@@ -30,20 +26,6 @@ const childrenArray = [
     active={false}
     status={TabStatus.Default}
     onClick={onClick}
-  />,
-  <SideBar.Button
-    key="a"
-    text="a"
-    titleText="a"
-    color={ComponentColor.Secondary}
-    icon={IconFont.Download}
-  />,
-  <SideBar.Button
-    text="b"
-    key="b"
-    titleText="b"
-    color={ComponentColor.Default}
-    icon={IconFont.Plus}
   />,
 ]
 
@@ -71,7 +53,6 @@ describe('SideBar', () => {
         expect(wrapper.exists()).toBe(true)
         expect(wrapper.contains(childrenArray[0])).toBe(true)
         expect(wrapper.find(SideBar.Tab)).toHaveLength(2)
-        expect(wrapper.find(SideBar.Button)).toHaveLength(2)
         expect(wrapper).toMatchSnapshot()
       })
   })

@@ -16,6 +16,29 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// AuthorizationBackend is all services and associated parameters required to construct
+// the AuthorizationHandler.
+type AuthorizationBackend struct {
+	Logger *zap.Logger
+
+	AuthorizationService platform.AuthorizationService
+	OrganizationService  platform.OrganizationService
+	UserService          platform.UserService
+	LookupService        platform.LookupService
+}
+
+// NewAuthorizationBackend returns a new instance of AuthorizationBackend.
+func NewAuthorizationBackend(b *APIBackend) *AuthorizationBackend {
+	return &AuthorizationBackend{
+		Logger: b.Logger.With(zap.String("handler", "authorization")),
+
+		AuthorizationService: b.AuthorizationService,
+		OrganizationService:  b.OrganizationService,
+		UserService:          b.UserService,
+		LookupService:        b.LookupService,
+	}
+}
+
 // AuthorizationHandler represents an HTTP API handler for authorizations.
 type AuthorizationHandler struct {
 	*httprouter.Router
@@ -28,11 +51,15 @@ type AuthorizationHandler struct {
 }
 
 // NewAuthorizationHandler returns a new instance of AuthorizationHandler.
-func NewAuthorizationHandler(userService platform.UserService) *AuthorizationHandler {
+func NewAuthorizationHandler(b *AuthorizationBackend) *AuthorizationHandler {
 	h := &AuthorizationHandler{
-		Router:      NewRouter(),
-		Logger:      zap.NewNop(),
-		UserService: userService,
+		Router: NewRouter(),
+		Logger: b.Logger,
+
+		AuthorizationService: b.AuthorizationService,
+		OrganizationService:  b.OrganizationService,
+		UserService:          b.UserService,
+		LookupService:        b.LookupService,
 	}
 
 	h.HandlerFunc("POST", "/api/v2/authorizations", h.handlePostAuthorization)
@@ -161,25 +188,10 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
-	var user *platform.User
-	// allow the user id to be specified optionally, if it is not set
-	// we use the id from the authorizer
-	if req.UserID == nil {
-		u, err := getAuthorizedUser(r, h.UserService)
-		if err != nil {
-			EncodeError(ctx, platform.ErrUnableToCreateToken, w)
-			return
-		}
-
-		user = u
-	} else {
-		u, err := h.UserService.FindUserByID(ctx, *req.UserID)
-		if err != nil {
-			EncodeError(ctx, platform.ErrUnableToCreateToken, w)
-			return
-		}
-
-		user = u
+	user, err := getAuthorizedUser(r, h.UserService)
+	if err != nil {
+		EncodeError(ctx, platform.ErrUnableToCreateToken, w)
+		return
 	}
 
 	auth := req.toPlatform(user.ID)

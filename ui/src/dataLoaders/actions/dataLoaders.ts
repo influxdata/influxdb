@@ -2,14 +2,8 @@
 import _ from 'lodash'
 
 // Apis
-import {
-  writeLineProtocol,
-  createTelegrafConfig,
-  updateTelegrafConfig,
-  createScraperTarget,
-  updateScraperTarget,
-  getTelegrafConfig,
-} from 'src/onboarding/apis/index'
+import {client} from 'src/utils/api'
+import {ScraperTargetRequest} from '@influxdata/influx'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -36,7 +30,7 @@ import {
   WritePrecision,
   TelegrafRequest,
   TelegrafPluginOutputInfluxDBV2,
-} from 'src/api'
+} from '@influxdata/influx'
 import {Dispatch} from 'redux'
 
 type GetState = () => AppState
@@ -289,7 +283,7 @@ export const removePluginBundleWithPlugins = (
   dispatch(removeBundlePlugins(bundle))
 }
 
-export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
+export const createOrUpdateTelegrafConfigAsync = () => async (
   dispatch,
   getState: GetState
 ) => {
@@ -305,29 +299,29 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     type: TelegrafPluginOutputInfluxDBV2.TypeEnum.Output,
     config: {
       urls: ['http://127.0.0.1:9999'],
-      token: authToken,
+      token: '$INFLUX_TOKEN',
       organization: org,
       bucket,
     },
   }
 
-  let plugins: Plugin[] = [influxDB2Out]
-  telegrafPlugins.forEach(tp => {
-    if (tp.configured === ConfigurationState.Configured) {
-      plugins = [...plugins, tp.plugin || createNewPlugin(tp.name)]
-    }
-  })
+  const plugins = telegrafPlugins.reduce(
+    (acc, tp) => {
+      if (tp.configured === ConfigurationState.Configured) {
+        return [...acc, tp.plugin || createNewPlugin(tp.name)]
+      }
+
+      return acc
+    },
+    [influxDB2Out]
+  )
 
   if (telegrafConfigID) {
-    const telegrafConfig = await getTelegrafConfig(telegrafConfigID)
-    const id = _.get(telegrafConfig, 'id', '')
-
-    await updateTelegrafConfig(id, {
-      ...telegrafConfig,
+    await client.telegrafConfigs.update(telegrafConfigID, {
       name: telegrafConfigName,
       plugins,
     })
-    dispatch(setTelegrafConfigID(id))
+    dispatch(setTelegrafConfigID(telegrafConfigID))
     return
   }
 
@@ -338,7 +332,7 @@ export const createOrUpdateTelegrafConfigAsync = (authToken: string) => async (
     plugins,
   }
 
-  const created = await createTelegrafConfig(telegrafRequest)
+  const created = await client.telegrafConfigs.create(telegrafRequest)
   dispatch(setTelegrafConfigID(created.id))
 }
 
@@ -418,7 +412,7 @@ export const writeLineProtocolAction = (
 ) => async dispatch => {
   try {
     dispatch(setLPStatus(RemoteDataState.Loading))
-    await writeLineProtocol(org, bucket, body, precision)
+    await client.write.create(org, bucket, body, {precision})
     dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
     dispatch(setLPStatus(RemoteDataState.Error))
@@ -440,9 +434,15 @@ export const saveScraperTarget = () => async (
 
   try {
     if (id) {
-      await updateScraperTarget(id, url, bucketID)
+      await client.scrapers.update(id, {url, bucketID})
     } else {
-      const newTarget = await createScraperTarget(url, orgID, bucketID)
+      const newTarget = await client.scrapers.create({
+        name: 'new target',
+        type: ScraperTargetRequest.TypeEnum.Prometheus,
+        url,
+        bucketID,
+        orgID,
+      })
       dispatch(setScraperTargetID(newTarget.id))
     }
   } catch (error) {

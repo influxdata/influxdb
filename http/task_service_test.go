@@ -4,37 +4,50 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"strings"
 	"testing"
 
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task/backend"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
 
-func mockOrgService() platform.OrganizationService {
-	return &mock.OrganizationService{
-		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
-			return &platform.Organization{ID: id, Name: "test"}, nil
-		},
-		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-			org := &platform.Organization{}
-			if filter.Name != nil {
-				org.Name = *filter.Name
-			}
-			if filter.ID != nil {
-				org.ID = *filter.ID
-			}
+// NewMockTaskBackend returns a TaskBackend with mock services.
+func NewMockTaskBackend() *TaskBackend {
+	return &TaskBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "task")),
 
-			return org, nil
+		AuthorizationService: mock.NewAuthorizationService(),
+		TaskService:          &mock.TaskService{},
+		OrganizationService: &mock.OrganizationService{
+			FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+				return &platform.Organization{ID: id, Name: "test"}, nil
+			},
+			FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+				org := &platform.Organization{}
+				if filter.Name != nil {
+					org.Name = *filter.Name
+				}
+				if filter.ID != nil {
+					org.ID = *filter.ID
+				}
+
+				return org, nil
+			},
 		},
+		UserResourceMappingService: mock.NewUserResourceMappingService(),
+		LabelService:               mock.NewLabelService(),
+		UserService:                mock.NewUserService(),
 	}
 }
 
@@ -161,10 +174,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
-			h.OrganizationService = mockOrgService()
-			h.TaskService = tt.fields.taskService
-			h.LabelService = tt.fields.labelService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			taskBackend.LabelService = tt.fields.labelService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetTasks(w, r)
 
 			res := w.Result()
@@ -262,9 +275,9 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
-			h.OrganizationService = mockOrgService()
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handlePostTask(w, r)
 
 			res := w.Result()
@@ -367,9 +380,9 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
-			h.OrganizationService = mockOrgService()
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetRun(w, r)
 
 			res := w.Result()
@@ -476,9 +489,9 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 					},
 				}))
 			w := httptest.NewRecorder()
-			h := NewTaskHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), logger.New(os.Stdout), mock.NewUserService())
-			h.OrganizationService = mockOrgService()
-			h.TaskService = tt.fields.taskService
+			taskBackend := NewMockTaskBackend()
+			taskBackend.TaskService = tt.fields.taskService
+			h := NewTaskHandler(taskBackend)
 			h.handleGetRuns(w, r)
 
 			res := w.Result()
@@ -495,5 +508,330 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 				t.Errorf("%q. handleGetRuns() = ***%s***", tt.name, diff)
 			}
 		})
+	}
+}
+
+func TestTaskHandler_NotFoundStatus(t *testing.T) {
+	// Ensure that the HTTP handlers return 404s for missing resources, and OKs for matching.
+
+	im := inmem.NewService()
+	taskBackend := NewMockTaskBackend()
+	h := NewTaskHandler(taskBackend)
+	h.UserResourceMappingService = im
+	h.LabelService = im
+	h.UserService = im
+	h.OrganizationService = im
+
+	o := platform.Organization{Name: "o"}
+	ctx := context.Background()
+	if err := h.OrganizationService.CreateOrganization(ctx, &o); err != nil {
+		t.Fatal(err)
+	}
+
+	const taskID, runID = platform.ID(0xCCCCCC), platform.ID(0xAAAAAA)
+
+	var (
+		okTask    = []interface{}{taskID}
+		okTaskRun = []interface{}{taskID, runID}
+
+		notFoundTask = [][]interface{}{
+			{taskID + 1},
+		}
+		notFoundTaskRun = [][]interface{}{
+			{taskID, runID + 1},
+			{taskID + 1, runID},
+			{taskID + 1, runID + 1},
+		}
+	)
+
+	tcs := []struct {
+		name             string
+		svc              *mock.TaskService
+		method           string
+		body             string
+		pathFmt          string
+		okPathArgs       []interface{}
+		notFoundPathArgs [][]interface{}
+	}{
+		{
+			name: "get task",
+			svc: &mock.TaskService{
+				FindTaskByIDFn: func(_ context.Context, id platform.ID) (*platform.Task, error) {
+					if id == taskID {
+						return &platform.Task{ID: taskID, Organization: "o"}, nil
+					}
+
+					return nil, backend.ErrTaskNotFound
+				},
+			},
+			method:           http.MethodGet,
+			pathFmt:          "/tasks/%s",
+			okPathArgs:       okTask,
+			notFoundPathArgs: notFoundTask,
+		},
+		{
+			name: "update task",
+			svc: &mock.TaskService{
+				UpdateTaskFn: func(_ context.Context, id platform.ID, _ platform.TaskUpdate) (*platform.Task, error) {
+					if id == taskID {
+						return &platform.Task{ID: taskID, Organization: "o"}, nil
+					}
+
+					return nil, backend.ErrTaskNotFound
+				},
+			},
+			method:           http.MethodPatch,
+			body:             "{}",
+			pathFmt:          "/tasks/%s",
+			okPathArgs:       okTask,
+			notFoundPathArgs: notFoundTask,
+		},
+		{
+			name: "delete task",
+			svc: &mock.TaskService{
+				DeleteTaskFn: func(_ context.Context, id platform.ID) error {
+					if id == taskID {
+						return nil
+					}
+
+					return backend.ErrTaskNotFound
+				},
+			},
+			method:           http.MethodDelete,
+			pathFmt:          "/tasks/%s",
+			okPathArgs:       okTask,
+			notFoundPathArgs: notFoundTask,
+		},
+		{
+			name: "get task logs",
+			svc: &mock.TaskService{
+				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
+					if *f.Task == taskID {
+						return nil, 0, nil
+					}
+
+					return nil, 0, backend.ErrTaskNotFound
+				},
+			},
+			method:           http.MethodGet,
+			pathFmt:          "/tasks/%s/logs",
+			okPathArgs:       okTask,
+			notFoundPathArgs: notFoundTask,
+		},
+		{
+			name: "get run logs",
+			svc: &mock.TaskService{
+				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
+					if *f.Task != taskID {
+						return nil, 0, backend.ErrTaskNotFound
+					}
+					if *f.Run != runID {
+						return nil, 0, backend.ErrRunNotFound
+					}
+
+					return nil, 0, nil
+				},
+			},
+			method:           http.MethodGet,
+			pathFmt:          "/tasks/%s/runs/%s/logs",
+			okPathArgs:       okTaskRun,
+			notFoundPathArgs: notFoundTaskRun,
+		},
+		{
+			name: "get runs",
+			svc: &mock.TaskService{
+				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
+					if *f.Task != taskID {
+						return nil, 0, backend.ErrTaskNotFound
+					}
+
+					return nil, 0, nil
+				},
+			},
+			method:           http.MethodGet,
+			pathFmt:          "/tasks/%s/runs",
+			okPathArgs:       okTask,
+			notFoundPathArgs: notFoundTask,
+		},
+		{
+			name: "force run",
+			svc: &mock.TaskService{
+				ForceRunFn: func(_ context.Context, tid platform.ID, _ int64) (*platform.Run, error) {
+					if tid != taskID {
+						return nil, backend.ErrTaskNotFound
+					}
+
+					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+				},
+			},
+			method:           http.MethodPost,
+			body:             "{}",
+			pathFmt:          "/tasks/%s/runs",
+			okPathArgs:       okTask,
+			notFoundPathArgs: notFoundTask,
+		},
+		{
+			name: "get run",
+			svc: &mock.TaskService{
+				FindRunByIDFn: func(_ context.Context, tid, rid platform.ID) (*platform.Run, error) {
+					if tid != taskID {
+						return nil, backend.ErrTaskNotFound
+					}
+					if rid != runID {
+						return nil, backend.ErrRunNotFound
+					}
+
+					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+				},
+			},
+			method:           http.MethodGet,
+			pathFmt:          "/tasks/%s/runs/%s",
+			okPathArgs:       okTaskRun,
+			notFoundPathArgs: notFoundTaskRun,
+		},
+		{
+			name: "retry run",
+			svc: &mock.TaskService{
+				RetryRunFn: func(_ context.Context, tid, rid platform.ID) (*platform.Run, error) {
+					if tid != taskID {
+						return nil, backend.ErrTaskNotFound
+					}
+					if rid != runID {
+						return nil, backend.ErrRunNotFound
+					}
+
+					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
+				},
+			},
+			method:           http.MethodPost,
+			pathFmt:          "/tasks/%s/runs/%s/retry",
+			okPathArgs:       okTaskRun,
+			notFoundPathArgs: notFoundTaskRun,
+		},
+		{
+			name: "cancel run",
+			svc: &mock.TaskService{
+				CancelRunFn: func(_ context.Context, tid, rid platform.ID) error {
+					if tid != taskID {
+						return backend.ErrTaskNotFound
+					}
+					if rid != runID {
+						return backend.ErrRunNotFound
+					}
+
+					return nil
+				},
+			},
+			method:           http.MethodDelete,
+			pathFmt:          "/tasks/%s/runs/%s",
+			okPathArgs:       okTaskRun,
+			notFoundPathArgs: notFoundTaskRun,
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			h.TaskService = tc.svc
+
+			okPath := fmt.Sprintf(tc.pathFmt, tc.okPathArgs...)
+			t.Run("matching ID: "+tc.method+" "+okPath, func(t *testing.T) {
+				w := httptest.NewRecorder()
+				r := httptest.NewRequest(tc.method, "http://task.example/api/v2"+okPath, strings.NewReader(tc.body))
+
+				h.ServeHTTP(w, r)
+
+				res := w.Result()
+				defer res.Body.Close()
+
+				if res.StatusCode < 200 || res.StatusCode > 299 {
+					t.Errorf("expected OK, got %d", res.StatusCode)
+					b, _ := ioutil.ReadAll(res.Body)
+					t.Fatalf("body: %s", string(b))
+				}
+			})
+
+			t.Run("mismatched ID", func(t *testing.T) {
+				for _, nfa := range tc.notFoundPathArgs {
+					path := fmt.Sprintf(tc.pathFmt, nfa...)
+					t.Run(tc.method+" "+path, func(t *testing.T) {
+						w := httptest.NewRecorder()
+						r := httptest.NewRequest(tc.method, "http://task.example/api/v2"+path, strings.NewReader(tc.body))
+
+						h.ServeHTTP(w, r)
+
+						res := w.Result()
+						defer res.Body.Close()
+
+						if res.StatusCode != http.StatusNotFound {
+							t.Errorf("expected Not Found, got %d", res.StatusCode)
+							b, _ := ioutil.ReadAll(res.Body)
+							t.Fatalf("body: %s", string(b))
+						}
+					})
+				}
+			})
+		})
+	}
+}
+
+func TestTaskUserResourceMap(t *testing.T) {
+	task := platform.Task{
+		Name:           "task1",
+		OrganizationID: 1,
+	}
+
+	b, err := json.Marshal(task)
+	if err != nil {
+		t.Fatalf("failed to unmarshal task: %v", err)
+	}
+
+	r := httptest.NewRequest("POST", "http://any.url/v1", bytes.NewReader(b))
+	ctx := pcontext.SetAuthorizer(context.Background(), &platform.Authorization{UserID: 2})
+	r = r.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+
+	var created *platform.UserResourceMapping
+	var deletedUser platform.ID
+	var deletedResource platform.ID
+
+	urms := &mock.UserResourceMappingService{
+		CreateMappingFn: func(_ context.Context, urm *platform.UserResourceMapping) error { created = urm; return nil },
+		DeleteMappingFn: func(_ context.Context, rid platform.ID, uid platform.ID) error {
+			deletedUser = uid
+			deletedResource = rid
+			return nil
+		},
+		FindMappingsFn: func(context.Context, platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error) {
+			return []*platform.UserResourceMapping{created}, 1, nil
+		},
+	}
+
+	taskBackend := NewMockTaskBackend()
+	taskBackend.UserResourceMappingService = urms
+	h := NewTaskHandler(taskBackend)
+	taskID := platform.ID(1)
+
+	h.TaskService = &mock.TaskService{
+		CreateTaskFn: func(ctx context.Context, t *platform.Task) error {
+			t.ID = taskID
+			return nil
+		},
+		DeleteTaskFn: func(ctx context.Context, id platform.ID) error {
+			return nil
+		},
+	}
+	h.handlePostTask(w, r)
+	r = httptest.NewRequest("DELETE", "http://any.url/api/v2/tasks/"+taskID.String(), nil)
+
+	h.ServeHTTP(w, r)
+
+	if created.UserID != deletedUser {
+		t.Fatalf("deleted user (%s) doesn't match created user (%s)", deletedUser, created.UserID)
+	}
+
+	if created.ResourceID != deletedResource {
+		t.Fatalf("deleted resource (%s) doesn't match created resource (%s)", deletedResource, created.ResourceID)
 	}
 }

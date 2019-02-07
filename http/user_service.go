@@ -5,18 +5,40 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"net/http"
 	"path"
-	"strconv"
 
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/julienschmidt/httprouter"
 )
 
+// UserBackend is all services and associated parameters required to construct
+// the UserHandler.
+type UserBackend struct {
+	Logger *zap.Logger
+
+	UserService             platform.UserService
+	UserOperationLogService platform.UserOperationLogService
+	BasicAuthService        platform.BasicAuthService
+}
+
+func NewUserBackend(b *APIBackend) *UserBackend {
+	return &UserBackend{
+		Logger: b.Logger.With(zap.String("handler", "user")),
+
+		UserService:             b.UserService,
+		UserOperationLogService: b.UserOperationLogService,
+		BasicAuthService:        b.BasicAuthService,
+	}
+}
+
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
+	Logger *zap.Logger
+
 	UserService             platform.UserService
 	UserOperationLogService platform.UserOperationLogService
 	BasicAuthService        platform.BasicAuthService
@@ -32,9 +54,14 @@ const (
 )
 
 // NewUserHandler returns a new instance of UserHandler.
-func NewUserHandler() *UserHandler {
+func NewUserHandler(b *UserBackend) *UserHandler {
 	h := &UserHandler{
 		Router: NewRouter(),
+		Logger: b.Logger,
+
+		UserService:             b.UserService,
+		UserOperationLogService: b.UserOperationLogService,
+		BasicAuthService:        b.BasicAuthService,
 	}
 
 	h.HandlerFunc("POST", usersPath, h.handlePostUser)
@@ -703,29 +730,14 @@ func decodeGetUserLogRequest(ctx context.Context, r *http.Request) (*getUserLogR
 		return nil, err
 	}
 
-	opts := platform.DefaultOperationLogFindOptions
-	qp := r.URL.Query()
-	if v := qp.Get("desc"); v == "false" {
-		opts.Descending = false
-	}
-	if v := qp.Get("limit"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Limit = i
-	}
-	if v := qp.Get("offset"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Offset = i
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
 	}
 
 	return &getUserLogRequest{
 		UserID: i,
-		opts:   opts,
+		opts:   *opts,
 	}, nil
 }
 

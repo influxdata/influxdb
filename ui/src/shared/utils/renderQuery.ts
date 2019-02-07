@@ -1,5 +1,5 @@
 // APIs
-import {getAST} from 'src/shared/apis/v2/ast'
+import {client} from 'src/utils/api'
 
 // Utils
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
@@ -28,7 +28,7 @@ export async function renderQuery(
   let variableDeclarations = formatVariables(variables, query)
 
   if (query.includes(WINDOW_PERIOD)) {
-    const ast = await getAST(`${variableDeclarations}\n\n${query}`)
+    const ast = await client.queries.ast(`${variableDeclarations}\n\n${query}`)
 
     let windowPeriod: number
 
@@ -47,7 +47,7 @@ export async function renderQuery(
 async function extractImports(
   query: string
 ): Promise<{imports: string; body: string}> {
-  const ast = await getAST(query)
+  const ast = await client.queries.ast(query)
   const {imports, body} = ast.files[0]
   const importStatements = (imports || [])
     .map(i => i.location.source)

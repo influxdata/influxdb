@@ -15,8 +15,8 @@ type {{.Name}}Values []{{.Name}}Value
 func New{{.Name}}ArrayFromValues(v {{.Name}}Values) *tsdb.{{.Name}}Array {
 	a := tsdb.New{{.Name}}ArrayLen(len(v))
 	for i, val := range v {
-		a.Timestamps[i] = val.unixnano
-		a.Values[i] = val.value
+		a.Timestamps[i] = val.UnixNano()
+		a.Values[i] = val.RawValue()
 	}
 	return a
 }
@@ -247,8 +247,8 @@ func encode{{ .Name }}ValuesBlock(buf []byte, values []{{.Name}}Value) ([]byte, 
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsenc.Write(v.unixnano)
-			venc.Write({{if .CastType}}{{.CastType}}(v.value){{else}}v.value{{end}})
+			tsenc.Write(v.UnixNano())
+			venc.Write({{if .CastType}}{{.CastType}}(v.RawValue()){{else}}v.RawValue(){{end}})
 		}
 		venc.Flush()
 

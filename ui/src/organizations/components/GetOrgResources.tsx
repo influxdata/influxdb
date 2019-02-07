@@ -6,7 +6,7 @@ import {RemoteDataState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Organization} from 'src/api'
+import {Organization} from '@influxdata/influx'
 
 interface Props<T> {
   organization: Organization

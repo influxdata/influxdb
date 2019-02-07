@@ -26,7 +26,7 @@ import {sourceCreationFailed} from 'src/shared/copy/notifications'
 import 'src/sources/components/CreateSourceOverlay.scss'
 
 // Types
-import {Source} from 'src/api'
+import {Source} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
 interface DispatchProps {

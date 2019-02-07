@@ -30,7 +30,7 @@ import {client} from 'src/utils/api'
 // Types
 import {OverlayState} from 'src/types/v2'
 
-import {Bucket, Organization, BucketRetentionRules} from 'src/api'
+import {Bucket, Organization, BucketRetentionRules} from '@influxdata/influx'
 
 interface Props {
   org: Organization
@@ -112,6 +112,7 @@ export default class Buckets extends PureComponent<Props, State> {
     await client.buckets.update(updatedBucket.id, updatedBucket)
     this.props.onChange()
   }
+
   private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
     const {onChange, notify} = this.props
     await client.buckets.delete(deletedBucket.id)
@@ -119,11 +120,8 @@ export default class Buckets extends PureComponent<Props, State> {
     notify(bucketDeleted(deletedBucket.name))
   }
 
-  private handleCreateBucket = async (
-    org: Organization,
-    bucket: Bucket
-  ): Promise<void> => {
-    await client.buckets.create(org, bucket)
+  private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
+    await client.buckets.create(bucket)
     this.props.onChange()
     this.handleCloseModal()
   }

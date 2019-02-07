@@ -12,7 +12,7 @@ import {
 } from 'src/clockface'
 
 // Types
-import {Authorization} from 'src/api'
+import {Authorization} from '@influxdata/influx'
 
 interface Props {
   auth: Authorization

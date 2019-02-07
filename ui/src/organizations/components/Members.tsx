@@ -8,7 +8,7 @@ import MemberList from 'src/organizations/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 
 // Types
-import {ResourceOwner} from 'src/api'
+import {ResourceOwner} from '@influxdata/influx'
 
 // Constants
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,19 @@ import (
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
+
+// NewMockDashboardBackend returns a DashboardBackend with mock services.
+func NewMockDashboardBackend() *DashboardBackend {
+	return &DashboardBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "dashboard")),
+
+		DashboardService:             mock.NewDashboardService(),
+		DashboardOperationLogService: mock.NewDashboardOperationLogService(),
+		UserResourceMappingService:   mock.NewUserResourceMappingService(),
+		LabelService:                 mock.NewLabelService(),
+		UserService:                  mock.NewUserService(),
+	}
+}
 
 func TestService_handleGetDashboards(t *testing.T) {
 	type fields struct {
@@ -247,7 +261,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 			},
 			args: args{
 				map[string][]string{
-					"orgID": []string{"0000000000000001"},
+					"orgID": {"0000000000000001"},
 				},
 			},
 			wants: wants{
@@ -309,11 +323,10 @@ func TestService_handleGetDashboards(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := tt.fields.LabelService
-			userService := mock.NewUserService()
-			h := NewDashboardHandler(mappingService, labelService, userService)
-			h.DashboardService = tt.fields.DashboardService
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.LabelService = tt.fields.LabelService
+			dashboardBackend.DashboardService = tt.fields.DashboardService
+			h := NewDashboardHandler(dashboardBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -461,11 +474,9 @@ func TestService_handleGetDashboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewDashboardHandler(mappingService, labelService, userService)
-			h.DashboardService = tt.fields.DashboardService
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.DashboardService = tt.fields.DashboardService
+			h := NewDashboardHandler(dashboardBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -594,11 +605,9 @@ func TestService_handlePostDashboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewDashboardHandler(mappingService, labelService, userService)
-			h.DashboardService = tt.fields.DashboardService
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.DashboardService = tt.fields.DashboardService
+			h := NewDashboardHandler(dashboardBackend)
 
 			b, err := json.Marshal(tt.args.dashboard)
 			if err != nil {
@@ -689,11 +698,9 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewDashboardHandler(mappingService, labelService, userService)
-			h.DashboardService = tt.fields.DashboardService
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.DashboardService = tt.fields.DashboardService
+			h := NewDashboardHandler(dashboardBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -868,11 +875,9 @@ func TestService_handlePatchDashboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewDashboardHandler(mappingService, labelService, userService)
-			h.DashboardService = tt.fields.DashboardService
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.DashboardService = tt.fields.DashboardService
+			h := NewDashboardHandler(dashboardBackend)
 
 			upd := platform.DashboardUpdate{}
 			if tt.args.name != "" {
@@ -977,11 +982,9 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewDashboardHandler(mappingService, labelService, userService)
-			h.DashboardService = tt.fields.DashboardService
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.DashboardService = tt.fields.DashboardService
+			h := NewDashboardHandler(dashboardBackend)
 
 			b, err := json.Marshal(tt.args.cell)
 			if err != nil {
@@ -1062,11 +1065,9 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewDashboardHandler(mappingService, labelService, userService)
-			h.DashboardService = tt.fields.DashboardService
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.DashboardService = tt.fields.DashboardService
+			h := NewDashboardHandler(dashboardBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -1174,11 +1175,9 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappingService := mock.NewUserResourceMappingService()
-			labelService := mock.NewLabelService()
-			userService := mock.NewUserService()
-			h := NewDashboardHandler(mappingService, labelService, userService)
-			h.DashboardService = tt.fields.DashboardService
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.DashboardService = tt.fields.DashboardService
+			h := NewDashboardHandler(dashboardBackend)
 
 			upd := platform.CellUpdate{}
 			if tt.args.x != 0 {
@@ -1271,11 +1270,9 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 		}
 	}
 
-	mappingService := mock.NewUserResourceMappingService()
-	labelService := mock.NewLabelService()
-	userService := mock.NewUserService()
-	h := NewDashboardHandler(mappingService, labelService, userService)
-	h.DashboardService = svc
+	dashboardBackend := NewMockDashboardBackend()
+	dashboardBackend.DashboardService = svc
+	h := NewDashboardHandler(dashboardBackend)
 	server := httptest.NewServer(h)
 	client := DashboardService{
 		Addr:     server.URL,

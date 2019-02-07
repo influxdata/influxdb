@@ -5,14 +5,38 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"path"
-	"strconv"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
+	"net/http"
+	"path"
 )
+
+// OrgBackend is all services and associated parameters required to construct
+// the OrgHandler.
+type OrgBackend struct {
+	Logger *zap.Logger
+
+	OrganizationService             platform.OrganizationService
+	OrganizationOperationLogService platform.OrganizationOperationLogService
+	UserResourceMappingService      platform.UserResourceMappingService
+	SecretService                   platform.SecretService
+	LabelService                    platform.LabelService
+	UserService                     platform.UserService
+}
+
+func NewOrgBackend(b *APIBackend) *OrgBackend {
+	return &OrgBackend{
+		Logger: b.Logger.With(zap.String("handler", "org")),
+
+		OrganizationService:             b.OrganizationService,
+		OrganizationOperationLogService: b.OrganizationOperationLogService,
+		UserResourceMappingService:      b.UserResourceMappingService,
+		SecretService:                   b.SecretService,
+		LabelService:                    b.LabelService,
+		UserService:                     b.UserService,
+	}
+}
 
 // OrgHandler represents an HTTP API handler for orgs.
 type OrgHandler struct {
@@ -44,15 +68,17 @@ const (
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
-func NewOrgHandler(mappingService platform.UserResourceMappingService,
-	labelService platform.LabelService, userService platform.UserService) *OrgHandler {
+func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h := &OrgHandler{
 		Router: NewRouter(),
 		Logger: zap.NewNop(),
 
-		UserResourceMappingService: mappingService,
-		LabelService:               labelService,
-		UserService:                userService,
+		OrganizationService:             b.OrganizationService,
+		OrganizationOperationLogService: b.OrganizationOperationLogService,
+		UserResourceMappingService:      b.UserResourceMappingService,
+		SecretService:                   b.SecretService,
+		LabelService:                    b.LabelService,
+		UserService:                     b.UserService,
 	}
 
 	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
@@ -62,22 +88,41 @@ func NewOrgHandler(mappingService platform.UserResourceMappingService,
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
 
-	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.OrgsResourceType, platform.Member))
-	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.OrgsResourceType, platform.Member))
-	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+	memberBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               platform.OrgsResourceType,
+		UserType:                   platform.Member,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(memberBackend))
+	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
-	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, platform.OrgsResourceType, platform.Owner))
-	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, platform.OrgsResourceType, platform.Owner))
-	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+	ownerBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               platform.OrgsResourceType,
+		UserType:                   platform.Owner,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(ownerBackend))
+	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", organizationsIDSecretsPath, h.handleGetSecrets)
 	h.HandlerFunc("PATCH", organizationsIDSecretsPath, h.handlePatchSecrets)
 	// TODO(desa): need a way to specify which secrets to delete. this should work for now
 	h.HandlerFunc("POST", organizationsIDSecretsDeletePath, h.handleDeleteSecrets)
 
-	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", organizationsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", organizationsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.HandlerFunc("PATCH", organizationsIDLabelsIDPath, newPatchLabelHandler(labelBackend))
 
 	return h
 }
@@ -758,29 +803,14 @@ func decodeGetOrganizationLogRequest(ctx context.Context, r *http.Request) (*get
 		return nil, err
 	}
 
-	opts := platform.DefaultOperationLogFindOptions
-	qp := r.URL.Query()
-	if v := qp.Get("desc"); v == "false" {
-		opts.Descending = false
-	}
-	if v := qp.Get("limit"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Limit = i
-	}
-	if v := qp.Get("offset"); v != "" {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Offset = i
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
 	}
 
 	return &getOrganizationLogRequest{
 		OrganizationID: i,
-		opts:           opts,
+		opts:           *opts,
 	}, nil
 }
 

@@ -7,7 +7,7 @@ import {IndexList} from 'src/clockface'
 import CollectorRow from 'src/organizations/components/CollectorRow'
 
 // DummyData
-import {Telegraf} from 'src/api'
+import {Telegraf} from '@influxdata/influx'
 import {getDeep} from 'src/utils/wrappers'
 
 interface Props {
@@ -15,6 +15,9 @@ interface Props {
   emptyState: JSX.Element
   onDownloadConfig: (telegrafID: string, telegrafName: string) => void
   onDelete: (telegrafID: string) => void
+  onUpdate: (telegraf: Telegraf) => void
+  onOpenInstructions: (telegrafID: string) => void
+  onOpenTelegrafConfig: (telegrafID: string, telegrafName: string) => void
 }
 
 export default class CollectorList extends PureComponent<Props> {
@@ -37,7 +40,14 @@ export default class CollectorList extends PureComponent<Props> {
   }
 
   public get collectorsList(): JSX.Element[] {
-    const {collectors, onDownloadConfig, onDelete} = this.props
+    const {
+      collectors,
+      onDownloadConfig,
+      onDelete,
+      onUpdate,
+      onOpenInstructions,
+      onOpenTelegrafConfig,
+    } = this.props
 
     if (collectors !== undefined) {
       return collectors.map(collector => (
@@ -47,6 +57,9 @@ export default class CollectorList extends PureComponent<Props> {
           bucket={getDeep<string>(collector, 'plugins.0.config.bucket', '')}
           onDownloadConfig={onDownloadConfig}
           onDelete={onDelete}
+          onUpdate={onUpdate}
+          onOpenInstructions={onOpenInstructions}
+          onOpenTelegrafConfig={onOpenTelegrafConfig}
         />
       ))
     }

@@ -39,12 +39,14 @@ $overlay-gutter: $ix-marg-d;
 
 .overlay-tech {
   @extend %overlay-styles;
-  visibility: hidden;
   transition: all 0.25s ease;
   z-index: $z--overlays;
+  pointer-events: none;
+  opacity: 0;
 
   &.show {
-    visibility: visible;
+    opacity: 1;
+    pointer-events: all;
   }
 }
 

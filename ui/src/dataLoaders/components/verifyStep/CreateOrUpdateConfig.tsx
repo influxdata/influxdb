@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Spinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
@@ -23,7 +23,6 @@ import {RemoteDataState, NotificationAction} from 'src/types'
 
 export interface OwnProps {
   org: string
-  authToken: string
   children: () => JSX.Element
 }
 
@@ -50,7 +49,6 @@ export class CreateOrUpdateConfig extends PureComponent<Props, State> {
   public async componentDidMount() {
     const {
       onSaveTelegrafConfig,
-      authToken,
       notify,
       createDashboardsForPlugins,
     } = this.props
@@ -58,7 +56,7 @@ export class CreateOrUpdateConfig extends PureComponent<Props, State> {
     this.setState({loading: RemoteDataState.Loading})
 
     try {
-      await onSaveTelegrafConfig(authToken)
+      await onSaveTelegrafConfig()
       notify(TelegrafConfigCreationSuccess)
       await createDashboardsForPlugins()
 
@@ -71,7 +69,12 @@ export class CreateOrUpdateConfig extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <Spinner loading={this.state.loading}>{this.props.children()}</Spinner>
+      <SpinnerContainer
+        loading={this.state.loading}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        {this.props.children()}
+      </SpinnerContainer>
     )
   }
 }

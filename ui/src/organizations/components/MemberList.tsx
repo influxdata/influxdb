@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import {IndexList} from 'src/clockface'
 
 // Types
-import {ResourceOwner} from 'src/api'
+import {ResourceOwner} from '@influxdata/influx'
 
 interface Props {
   members: ResourceOwner[]

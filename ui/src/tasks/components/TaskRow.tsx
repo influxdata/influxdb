@@ -5,6 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {
   ComponentSpacer,
+  ComponentColor,
   Alignment,
   Button,
   ComponentSize,
@@ -17,7 +18,7 @@ import {
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
-import {Task as TaskAPI, Organization} from 'src/api'
+import {Task as TaskAPI, Organization} from '@influxdata/influx'
 
 interface Task extends TaskAPI {
   organization: Organization
@@ -31,6 +32,7 @@ interface Props {
   onActivate: (task: Task) => void
   onDelete: (task: Task) => void
   onSelect: (task: Task) => void
+  onClone: (task: Task) => void
   onEditLabels: (task: Task) => void
 }
 
@@ -76,6 +78,13 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
               icon={IconFont.Export}
               onClick={this.handleExport}
             />
+            <Button
+              size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Secondary}
+              text="Clone"
+              icon={IconFont.Duplicate}
+              onClick={this.handleClone}
+            />
             <ConfirmationButton
               size={ComponentSize.ExtraSmall}
               text="Delete"
@@ -98,6 +107,11 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
   private handleExport = () => {
     const {task} = this.props
     downloadTextFile(task.flux, `${task.name}.flux`)
+  }
+
+  private handleClone = () => {
+    const {task, onClone} = this.props
+    onClone(task)
   }
 
   private handleOrgClick = () => {

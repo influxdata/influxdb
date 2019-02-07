@@ -14,7 +14,7 @@ import {
 
 import 'src/organizations/components/Retention.scss'
 
-import {BucketRetentionRules} from 'src/api'
+import {BucketRetentionRules} from '@influxdata/influx'
 
 interface Props {
   retentionSeconds: number
@@ -31,18 +31,18 @@ export default class Retention extends PureComponent<Props> {
       <>
         <Radio shape={ButtonShape.StretchToFit} customClass="retention--radio">
           <Radio.Button
-            active={type === BucketRetentionRules.TypeEnum.Expire}
-            onClick={this.handleRadioClick}
-            value={BucketRetentionRules.TypeEnum.Expire}
-          >
-            Periodically
-          </Radio.Button>
-          <Radio.Button
             active={type === null}
             onClick={this.handleRadioClick}
             value={null}
           >
             Never
+          </Radio.Button>
+          <Radio.Button
+            active={type === BucketRetentionRules.TypeEnum.Expire}
+            onClick={this.handleRadioClick}
+            value={BucketRetentionRules.TypeEnum.Expire}
+          >
+            Periodically
           </Radio.Button>
         </Radio>
         <RetentionDuration

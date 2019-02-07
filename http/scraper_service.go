@@ -13,6 +13,30 @@ import (
 	"go.uber.org/zap"
 )
 
+// ScraperBackend is all services and associated parameters required to construct
+// the ScraperHandler.
+type ScraperBackend struct {
+	Logger *zap.Logger
+
+	ScraperStorageService      influxdb.ScraperTargetStoreService
+	BucketService              influxdb.BucketService
+	OrganizationService        influxdb.OrganizationService
+	UserService                influxdb.UserService
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
+}
+
+// NewScraperBackend returns a new instance of ScraperBackend.
+func NewScraperBackend(b *APIBackend) *ScraperBackend {
+	return &ScraperBackend{
+		Logger: b.Logger.With(zap.String("handler", "scraper")),
+
+		ScraperStorageService: b.ScraperTargetStoreService,
+		BucketService:         b.BucketService,
+		OrganizationService:   b.OrganizationService,
+	}
+}
+
 // ScraperHandler represents an HTTP API handler for scraper targets.
 type ScraperHandler struct {
 	*httprouter.Router
@@ -36,24 +60,16 @@ const (
 )
 
 // NewScraperHandler returns a new instance of ScraperHandler.
-func NewScraperHandler(
-	logger *zap.Logger,
-	userService influxdb.UserService,
-	userResourceMappingService influxdb.UserResourceMappingService,
-	labelService influxdb.LabelService,
-	scraperStorageService influxdb.ScraperTargetStoreService,
-	bucketService influxdb.BucketService,
-	organizationService influxdb.OrganizationService,
-) *ScraperHandler {
+func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	h := &ScraperHandler{
 		Router:                     NewRouter(),
-		Logger:                     logger,
-		UserService:                userService,
-		UserResourceMappingService: userResourceMappingService,
-		LabelService:               labelService,
-		ScraperStorageService:      scraperStorageService,
-		BucketService:              bucketService,
-		OrganizationService:        organizationService,
+		Logger:                     b.Logger,
+		UserService:                b.UserService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
+		ScraperStorageService:      b.ScraperStorageService,
+		BucketService:              b.BucketService,
+		OrganizationService:        b.OrganizationService,
 	}
 	h.HandlerFunc("POST", targetsPath, h.handlePostScraperTarget)
 	h.HandlerFunc("GET", targetsPath, h.handleGetScraperTargets)
@@ -61,17 +77,35 @@ func NewScraperHandler(
 	h.HandlerFunc("PATCH", targetsPath+"/:id", h.handlePatchScraperTarget)
 	h.HandlerFunc("DELETE", targetsPath+"/:id", h.handleDeleteScraperTarget)
 
-	h.HandlerFunc("POST", targetsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Member))
-	h.HandlerFunc("GET", targetsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Member))
-	h.HandlerFunc("DELETE", targetsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, influxdb.Member))
+	memberBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               influxdb.ScraperResourceType,
+		UserType:                   influxdb.Member,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", targetsIDMembersPath, newPostMemberHandler(memberBackend))
+	h.HandlerFunc("GET", targetsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("DELETE", targetsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
-	h.HandlerFunc("POST", targetsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Owner))
-	h.HandlerFunc("GET", targetsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, h.UserService, influxdb.ScraperResourceType, influxdb.Owner))
-	h.HandlerFunc("DELETE", targetsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, influxdb.Owner))
+	ownerBackend := MemberBackend{
+		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		ResourceType:               influxdb.ScraperResourceType,
+		UserType:                   influxdb.Owner,
+		UserResourceMappingService: b.UserResourceMappingService,
+		UserService:                b.UserService,
+	}
+	h.HandlerFunc("POST", targetsIDOwnersPath, newPostMemberHandler(ownerBackend))
+	h.HandlerFunc("GET", targetsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("DELETE", targetsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
-	h.HandlerFunc("GET", targetsIDLabelsPath, newGetLabelsHandler(h.LabelService))
-	h.HandlerFunc("POST", targetsIDLabelsPath, newPostLabelHandler(h.LabelService))
-	h.HandlerFunc("DELETE", targetsIDLabelsIDPath, newDeleteLabelHandler(h.LabelService))
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+	}
+	h.HandlerFunc("GET", targetsIDLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", targetsIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", targetsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
 	return h
 }

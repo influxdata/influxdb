@@ -11,7 +11,7 @@ import {
 import TokenRow from 'src/me/components/account/TokenRow'
 
 // Types
-import {Authorization} from 'src/api'
+import {Authorization} from '@influxdata/influx'
 import ViewTokenOverlay from './ViewTokenOverlay'
 
 // Actions

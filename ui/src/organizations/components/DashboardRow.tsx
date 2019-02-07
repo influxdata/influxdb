@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Link} from 'react-router'
 import moment from 'moment'
 
 // Components
@@ -21,10 +20,12 @@ import {Dashboard} from 'src/types/v2'
 
 // Constants
 import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
+import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   dashboard: Dashboard
   onDeleteDashboard: (dashboard: Dashboard) => void
+  onUpdateDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
 }
 
@@ -35,7 +36,11 @@ export default class DashboardRow extends PureComponent<Props> {
     return (
       <IndexList.Row key={dashboard.id}>
         <IndexList.Cell>
-          <Link to={`/dashboards/${dashboard.id}`}>{dashboard.name}</Link>
+          <EditableName
+            onUpdate={this.handleUpdateDashboard}
+            name={dashboard.name}
+            hrefValue={`/dashboards/${dashboard.id}`}
+          />
         </IndexList.Cell>
         {this.lastModifiedCell}
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
@@ -59,6 +64,10 @@ export default class DashboardRow extends PureComponent<Props> {
         </IndexList.Cell>
       </IndexList.Row>
     )
+  }
+
+  private handleUpdateDashboard = (name: string) => {
+    this.props.onUpdateDashboard({...this.props.dashboard, name})
   }
 
   private handleCloneDashboard = (): void => {

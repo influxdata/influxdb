@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute/executetest"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/task/backend"
 )
@@ -23,40 +23,40 @@ func TestLauncher_Task(t *testing.T) {
 	now := time.Now().Unix() // Need to track now at the start of the test, for a query later.
 	org := be.Org
 
-	bIn := &platform.Bucket{OrganizationID: org.ID, Organization: org.Name, Name: "my_bucket_in"}
+	bIn := &influxdb.Bucket{OrganizationID: org.ID, Organization: org.Name, Name: "my_bucket_in"}
 	if err := be.BucketService().CreateBucket(context.Background(), bIn); err != nil {
 		t.Fatal(err)
 	}
-	bOut := &platform.Bucket{OrganizationID: org.ID, Organization: org.Name, Name: "my_bucket_out"}
+	bOut := &influxdb.Bucket{OrganizationID: org.ID, Organization: org.Name, Name: "my_bucket_out"}
 	if err := be.BucketService().CreateBucket(context.Background(), bOut); err != nil {
 		t.Fatal(err)
 	}
 	u := be.User
 
-	writeBIn, err := platform.NewPermissionAtID(bIn.ID, platform.WriteAction, platform.BucketsResourceType, org.ID)
+	writeBIn, err := influxdb.NewPermissionAtID(bIn.ID, influxdb.WriteAction, influxdb.BucketsResourceType, org.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	writeBOut, err := platform.NewPermissionAtID(bOut.ID, platform.WriteAction, platform.BucketsResourceType, org.ID)
+	writeBOut, err := influxdb.NewPermissionAtID(bOut.ID, influxdb.WriteAction, influxdb.BucketsResourceType, org.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	writeT, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, org.ID)
+	writeT, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.TasksResourceType, org.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	readT, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, org.ID)
+	readT, err := influxdb.NewPermission(influxdb.ReadAction, influxdb.TasksResourceType, org.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ctx = pctx.SetAuthorizer(context.Background(), be.Auth)
 
-	be.Auth = &platform.Authorization{UserID: u.ID, OrgID: org.ID, Permissions: []platform.Permission{*writeBIn, *writeBOut, *writeT, *readT}}
-	if err := be.AuthorizationService().CreateAuthorization(context.Background(), be.Auth); err != nil {
+	a := &influxdb.Authorization{UserID: u.ID, OrgID: org.ID, Permissions: []influxdb.Permission{*writeBIn, *writeBOut, *writeT, *readT}}
+	if err := be.AuthorizationService().CreateAuthorization(context.Background(), a); err != nil {
 		t.Fatal(err)
 	}
 	if !be.Org.ID.Valid() {
@@ -85,7 +85,7 @@ stuff f=-123.456,b=true,s="hello"
 		t.Fatalf("exp status %d; got %d", nethttp.StatusNoContent, resp.StatusCode)
 	}
 
-	created := &platform.Task{
+	created := &influxdb.Task{
 		OrganizationID: org.ID,
 		Owner:          *be.User,
 		Flux: fmt.Sprintf(`option task = {
@@ -113,7 +113,7 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	// Poll for the task to have started and finished.
 	deadline := time.Now().Add(10 * time.Second) // Arbitrary deadline; 10s seems safe for -race on a resource-constrained system.
 	ndrString := time.Unix(ndr, 0).UTC().Format(time.RFC3339)
-	var targetRun platform.Run
+	var targetRun influxdb.Run
 	i := 0
 	for {
 		t.Logf("Looking for created run...")
@@ -122,7 +122,7 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 		}
 		time.Sleep(5 * time.Millisecond)
 
-		runs, _, err := be.TaskService().FindRuns(ctx, platform.RunFilter{Org: &org.ID, Task: &created.ID, Limit: 1})
+		runs, _, err := be.TaskService().FindRuns(ctx, influxdb.RunFilter{Org: &org.ID, Task: &created.ID, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -219,7 +219,7 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	})
 
 	// now lets see a logs
-	logs, _, err := be.TaskService().FindLogs(ctx, platform.LogFilter{Org: &org.ID, Task: &created.ID, Run: &targetRun.ID})
+	logs, _, err := be.TaskService().FindLogs(ctx, influxdb.LogFilter{Org: &org.ID, Task: &created.ID, Run: &targetRun.ID})
 	if err != nil {
 		t.Fatal(err)
 	}

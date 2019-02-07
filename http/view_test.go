@@ -11,17 +11,30 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
-	platformtesting "github.com/influxdata/influxdb/testing"
+	influxdbtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 	"github.com/yudai/gojsondiff"
 	"github.com/yudai/gojsondiff/formatter"
+	"go.uber.org/zap"
 )
+
+// NewMockViewBackend returns a ViewBackend with mock services.
+func NewMockViewBackend() *ViewBackend {
+	return &ViewBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "view")),
+
+		ViewService:                &mock.ViewService{},
+		UserService:                mock.NewUserService(),
+		UserResourceMappingService: &mock.UserResourceMappingService{},
+		LabelService:               mock.NewLabelService(),
+	}
+}
 
 func TestService_handleGetViews(t *testing.T) {
 	type fields struct {
-		ViewService platform.ViewService
+		ViewService influxdb.ViewService
 	}
 	type args struct {
 		queryParams map[string][]string
@@ -42,20 +55,20 @@ func TestService_handleGetViews(t *testing.T) {
 			name: "get all views",
 			fields: fields{
 				&mock.ViewService{
-					FindViewsF: func(ctx context.Context, filter platform.ViewFilter) ([]*platform.View, int, error) {
-						return []*platform.View{
+					FindViewsF: func(ctx context.Context, filter influxdb.ViewFilter) ([]*influxdb.View, int, error) {
+						return []*influxdb.View{
 							{
-								ViewContents: platform.ViewContents{
-									ID:   platformtesting.MustIDBase16("7365637465747572"),
+								ViewContents: influxdb.ViewContents{
+									ID:   influxdbtesting.MustIDBase16("7365637465747572"),
 									Name: "hello",
 								},
-								Properties: platform.XYViewProperties{
+								Properties: influxdb.XYViewProperties{
 									Type: "xy",
 								},
 							},
 							{
-								ViewContents: platform.ViewContents{
-									ID:   platformtesting.MustIDBase16("6167697474697320"),
+								ViewContents: influxdb.ViewContents{
+									ID:   influxdbtesting.MustIDBase16("6167697474697320"),
 									Name: "example",
 								},
 							},
@@ -111,8 +124,8 @@ func TestService_handleGetViews(t *testing.T) {
 			name: "get all views when there are none",
 			fields: fields{
 				&mock.ViewService{
-					FindViewsF: func(ctx context.Context, filter platform.ViewFilter) ([]*platform.View, int, error) {
-						return []*platform.View{}, 0, nil
+					FindViewsF: func(ctx context.Context, filter influxdb.ViewFilter) ([]*influxdb.View, int, error) {
+						return []*influxdb.View{}, 0, nil
 					},
 				},
 			},
@@ -133,8 +146,9 @@ func TestService_handleGetViews(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-			h.ViewService = tt.fields.ViewService
+			viewBackend := NewMockViewBackend()
+			viewBackend.ViewService = tt.fields.ViewService
+			h := NewViewHandler(viewBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -170,7 +184,7 @@ func TestService_handleGetViews(t *testing.T) {
 
 func TestService_handleGetView(t *testing.T) {
 	type fields struct {
-		ViewService platform.ViewService
+		ViewService influxdb.ViewService
 	}
 	type args struct {
 		id string
@@ -191,10 +205,10 @@ func TestService_handleGetView(t *testing.T) {
 			name: "get a view by id",
 			fields: fields{
 				&mock.ViewService{
-					FindViewByIDF: func(ctx context.Context, id platform.ID) (*platform.View, error) {
-						return &platform.View{
-							ViewContents: platform.ViewContents{
-								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
+					FindViewByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.View, error) {
+						return &influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								ID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 								Name: "example",
 							},
 						}, nil
@@ -226,10 +240,10 @@ func TestService_handleGetView(t *testing.T) {
 			name: "not found",
 			fields: fields{
 				&mock.ViewService{
-					FindViewByIDF: func(ctx context.Context, id platform.ID) (*platform.View, error) {
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
-							Msg:  platform.ErrViewNotFound,
+					FindViewByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.View, error) {
+						return nil, &influxdb.Error{
+							Code: influxdb.ENotFound,
+							Msg:  influxdb.ErrViewNotFound,
 						}
 					},
 				},
@@ -245,8 +259,9 @@ func TestService_handleGetView(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-			h.ViewService = tt.fields.ViewService
+			viewBackend := NewMockViewBackend()
+			viewBackend.ViewService = tt.fields.ViewService
+			h := NewViewHandler(viewBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -283,10 +298,10 @@ func TestService_handleGetView(t *testing.T) {
 
 func TestService_handlePostViews(t *testing.T) {
 	type fields struct {
-		ViewService platform.ViewService
+		ViewService influxdb.ViewService
 	}
 	type args struct {
-		view *platform.View
+		view *influxdb.View
 	}
 	type wants struct {
 		statusCode  int
@@ -304,19 +319,19 @@ func TestService_handlePostViews(t *testing.T) {
 			name: "create a new view",
 			fields: fields{
 				&mock.ViewService{
-					CreateViewF: func(ctx context.Context, c *platform.View) error {
-						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+					CreateViewF: func(ctx context.Context, c *influxdb.View) error {
+						c.ID = influxdbtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
 			},
 			args: args{
-				view: &platform.View{
-					ViewContents: platform.ViewContents{
-						ID:   platformtesting.MustIDBase16("020f755c3c082000"),
+				view: &influxdb.View{
+					ViewContents: influxdb.ViewContents{
+						ID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 						Name: "hello",
 					},
-					Properties: platform.XYViewProperties{
+					Properties: influxdb.XYViewProperties{
 						Type: "xy",
 					},
 				},
@@ -351,8 +366,9 @@ func TestService_handlePostViews(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-			h.ViewService = tt.fields.ViewService
+			viewBackend := NewMockViewBackend()
+			viewBackend.ViewService = tt.fields.ViewService
+			h := NewViewHandler(viewBackend)
 
 			b, err := json.Marshal(tt.args.view)
 			if err != nil {
@@ -383,7 +399,7 @@ func TestService_handlePostViews(t *testing.T) {
 
 func TestService_handleDeleteView(t *testing.T) {
 	type fields struct {
-		ViewService platform.ViewService
+		ViewService influxdb.ViewService
 	}
 	type args struct {
 		id string
@@ -404,8 +420,8 @@ func TestService_handleDeleteView(t *testing.T) {
 			name: "remove a view by id",
 			fields: fields{
 				&mock.ViewService{
-					DeleteViewF: func(ctx context.Context, id platform.ID) error {
-						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+					DeleteViewF: func(ctx context.Context, id influxdb.ID) error {
+						if id == influxdbtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -424,10 +440,10 @@ func TestService_handleDeleteView(t *testing.T) {
 			name: "view not found",
 			fields: fields{
 				&mock.ViewService{
-					DeleteViewF: func(ctx context.Context, id platform.ID) error {
-						return &platform.Error{
-							Code: platform.ENotFound,
-							Msg:  platform.ErrViewNotFound,
+					DeleteViewF: func(ctx context.Context, id influxdb.ID) error {
+						return &influxdb.Error{
+							Code: influxdb.ENotFound,
+							Msg:  influxdb.ErrViewNotFound,
 						}
 					},
 				},
@@ -443,8 +459,9 @@ func TestService_handleDeleteView(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-			h.ViewService = tt.fields.ViewService
+			viewBackend := NewMockViewBackend()
+			viewBackend.ViewService = tt.fields.ViewService
+			h := NewViewHandler(viewBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -481,12 +498,12 @@ func TestService_handleDeleteView(t *testing.T) {
 
 func TestService_handlePatchView(t *testing.T) {
 	type fields struct {
-		ViewService platform.ViewService
+		ViewService influxdb.ViewService
 	}
 	type args struct {
 		id         string
 		name       string
-		properties platform.ViewProperties
+		properties influxdb.ViewProperties
 	}
 	type wants struct {
 		statusCode  int
@@ -504,14 +521,14 @@ func TestService_handlePatchView(t *testing.T) {
 			name: "update a view",
 			fields: fields{
 				&mock.ViewService{
-					UpdateViewF: func(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
-						if id == platformtesting.MustIDBase16("020f755c3c082000") {
-							return &platform.View{
-								ViewContents: platform.ViewContents{
-									ID:   platformtesting.MustIDBase16("020f755c3c082000"),
+					UpdateViewF: func(ctx context.Context, id influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
+						if id == influxdbtesting.MustIDBase16("020f755c3c082000") {
+							return &influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									ID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 									Name: "example",
 								},
-								Properties: platform.XYViewProperties{
+								Properties: influxdb.XYViewProperties{
 									Type: "xy",
 								},
 							}, nil
@@ -555,14 +572,14 @@ func TestService_handlePatchView(t *testing.T) {
 			name: "update a view with empty request body",
 			fields: fields{
 				&mock.ViewService{
-					UpdateViewF: func(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
-						if id == platformtesting.MustIDBase16("020f755c3c082000") {
-							return &platform.View{
-								ViewContents: platform.ViewContents{
-									ID:   platformtesting.MustIDBase16("020f755c3c082000"),
+					UpdateViewF: func(ctx context.Context, id influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
+						if id == influxdbtesting.MustIDBase16("020f755c3c082000") {
+							return &influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									ID:   influxdbtesting.MustIDBase16("020f755c3c082000"),
 									Name: "example",
 								},
-								Properties: platform.XYViewProperties{
+								Properties: influxdb.XYViewProperties{
 									Type: "xy",
 								},
 							}, nil
@@ -583,10 +600,10 @@ func TestService_handlePatchView(t *testing.T) {
 			name: "view not found",
 			fields: fields{
 				&mock.ViewService{
-					UpdateViewF: func(ctx context.Context, id platform.ID, upd platform.ViewUpdate) (*platform.View, error) {
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
-							Msg:  platform.ErrViewNotFound,
+					UpdateViewF: func(ctx context.Context, id influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
+						return nil, &influxdb.Error{
+							Code: influxdb.ENotFound,
+							Msg:  influxdb.ErrViewNotFound,
 						}
 					},
 				},
@@ -603,10 +620,11 @@ func TestService_handlePatchView(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewViewHandler(mock.NewUserResourceMappingService(), mock.NewLabelService(), mock.NewUserService())
-			h.ViewService = tt.fields.ViewService
+			viewBackend := NewMockViewBackend()
+			viewBackend.ViewService = tt.fields.ViewService
+			h := NewViewHandler(viewBackend)
 
-			upd := platform.ViewUpdate{}
+			upd := influxdb.ViewUpdate{}
 			if tt.args.name != "" {
 				upd.Name = &tt.args.name
 			}
@@ -688,9 +706,8 @@ func jsonEqual(s1, s2 string) (eq bool, diff string, err error) {
 	return cmp.Equal(o1, o2), diff, err
 }
 
-/* TODO: Add a go view service client
-
-func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewService, func()) {
+/* todo
+func initViewService(f influxdbtesting.ViewFields, t *testing.T) (influxdb.ViewService, func()) {
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
@@ -713,22 +730,7 @@ func initViewService(f platformtesting.ViewFields, t *testing.T) (platform.ViewS
 	return &client, done
 }
 
-func TestViewService_CreateView(t *testing.T) {
-	platformtesting.CreateView(initViewService, t)
-}
-
-func TestViewService_FindViewByID(t *testing.T) {
-	platformtesting.FindViewByID(initViewService, t)
-}
-func TestViewService_FindViews(t *testing.T) {
-	platformtesting.FindViews(initViewService, t)
-}
-
-func TestViewService_DeleteView(t *testing.T) {
-	platformtesting.DeleteView(initViewService, t)
-}
-
-func TestViewService_UpdateView(t *testing.T) {
-	platformtesting.UpdateView(initViewService, t)
+func TestViewService(t *testing.T) {
+	influxdbtesting.ViewService(initViewService, t)
 }
 */

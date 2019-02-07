@@ -4,15 +4,13 @@ import uuid from 'uuid'
 import {getDeep} from 'src/utils/wrappers'
 import {serverToUIConfig} from 'src/logs/utils/config'
 import {
-  getTableData,
   buildTableQueryConfig,
   validateTailQuery,
   validateOlderQuery,
 } from 'src/logs/utils/logQuery'
 
 // APIs
-import {readSource} from 'src/sources/apis'
-import {executeQueryAsync} from 'src/logs/api/v2'
+import {client} from 'src/utils/api'
 
 // Data
 import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
@@ -20,7 +18,7 @@ import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
 // Types
 import {Dispatch} from 'redux'
 import {ThunkDispatch} from 'redux-thunk'
-import {Bucket, Source} from 'src/api'
+import {Bucket, Source} from '@influxdata/influx'
 import {TimeSeriesValue} from 'src/types/v2/dashboards'
 import {
   Filter,
@@ -301,7 +299,7 @@ export const populateBucketsAsync = () => async (): Promise<void> => {}
 export const getSourceAndPopulateBucketsAsync = (id: string) => async (
   dispatch
 ): Promise<void> => {
-  const source = await readSource(id)
+  const source = await client.sources.get(id)
 
   dispatch(setSource(source))
 
@@ -628,10 +626,6 @@ export const fetchLogTailAsync = (logTailID: number) => async (
 
   const upperUTC = Date.parse(logQuery.upper)
   dispatch(setCurrentTailUpperBound(upperUTC))
-
-  const logSeries = await getTableData(executeQueryAsync, logQuery)
-
-  dispatch(updateLogsTailData(logSeries, logTailID, upperUTC))
 }
 
 export const updateLogsTailData = (
@@ -799,11 +793,6 @@ export const fetchOlderChunkAsync = (olderBatchID: string) => async (
   }
   const nextOlderUpperBound = new Date(logQuery.lower).valueOf()
   await dispatch(setNextOlderUpperBound(nextOlderUpperBound))
-
-  const logSeries = await getTableData(executeQueryAsync, logQuery)
-  if (logSeries.values.length > 0) {
-    await dispatch(updateOlderLogs(logSeries, olderBatchID))
-  }
 }
 
 export const updateOlderLogs = (

@@ -1,13 +1,19 @@
 FROM debian:stable-slim
-COPY influxd /usr/bin/influxd
-COPY influx /usr/bin/influx
+COPY influx influxd /usr/bin/
 
 EXPOSE 9999
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND noninteractive
 
 COPY docker/influxd/entrypoint.sh /entrypoint.sh
+
+RUN apt-get update \
+	&& apt-get install -y \
+	ca-certificates \
+	tzdata \
+	&& apt-get clean autoclean \
+	&& apt-get autoremove --yes \
+	&& rm -rf /var/lib/{apt,dpkg,cache,log}
+
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["influxd"]

@@ -11,7 +11,7 @@ import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
-import {Task as TaskAPI, User, Organization} from 'src/api'
+import {Task as TaskAPI, User, Organization} from '@influxdata/influx'
 
 interface Task extends TaskAPI {
   organization: Organization
@@ -27,6 +27,7 @@ interface Props {
   onDelete: (task: Task) => void
   onCreate: () => void
   onSelect: (task: Task) => void
+  onClone: (task: Task) => void
   totalCount: number
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onAddTaskLabels: typeof addTaskLabelsAsync
@@ -120,7 +121,7 @@ export default class TasksList extends PureComponent<Props, State> {
   }
 
   private rows = (tasks: Task[]): JSX.Element => {
-    const {onActivate, onDelete, onSelect} = this.props
+    const {onActivate, onDelete, onSelect, onClone} = this.props
     const taskrows = (
       <>
         {tasks.map(t => (
@@ -129,6 +130,7 @@ export default class TasksList extends PureComponent<Props, State> {
             task={t}
             onActivate={onActivate}
             onDelete={onDelete}
+            onClone={onClone}
             onSelect={onSelect}
             onEditLabels={this.handleStartEditingLabels}
           />

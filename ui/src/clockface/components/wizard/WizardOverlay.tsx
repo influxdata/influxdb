@@ -9,17 +9,12 @@ import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {ToggleWizard} from 'src/types/wizard'
-
 interface Props {
   children: any
   visible: boolean
   title: string
-  toggleVisibility: ToggleWizard
-  resetWizardState: () => void
   maxWidth?: number
-  jumpStep: number
-  onDismis: () => void
+  onDismiss: () => void
 }
 
 @ErrorHandling
@@ -29,12 +24,12 @@ class WizardOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    const {visible, title, maxWidth, children, onDismis} = this.props
+    const {visible, title, maxWidth, children, onDismiss} = this.props
 
     return (
       <OverlayTechnology visible={visible}>
         <OverlayContainer maxWidth={maxWidth}>
-          <OverlayHeading title={title} onDismiss={onDismis} />
+          <OverlayHeading title={title} onDismiss={onDismiss} />
           <OverlayBody>
             <div className="wizard-overlay">{children}</div>
           </OverlayBody>

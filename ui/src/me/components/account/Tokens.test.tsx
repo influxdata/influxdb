@@ -6,11 +6,17 @@ import {mount} from 'enzyme'
 import {Tokens} from 'src/me/components/account/Tokens'
 import TokenRow from 'src/me/components/account/TokenRow'
 import ViewTokenModal from 'src/me/components/account/ViewTokenOverlay'
-
-// Fixtures
 import {authorization} from 'src/authorizations/apis/__mocks__/data'
 
-jest.mock('src/authorizations/apis')
+jest.mock('src/utils/api', () => ({
+  client: {
+    authorizations: {
+      getAll: jest.fn(() =>
+        Promise.resolve([{...authorization, id: 1}, {...authorization, id: 2}])
+      ),
+    },
+  },
+}))
 
 const setup = (override?) => {
   const props = {
@@ -50,7 +56,7 @@ describe('Account', () => {
     describe('clicking the token description', () => {
       it('opens the ViewTokenModal', () => {
         const description = wrapper.find({
-          'data-test': `token-description-${authorization.id}`,
+          'data-test': `token-description-${1}`,
         })
         description.simulate('click')
         wrapper.update()

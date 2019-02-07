@@ -4,13 +4,13 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // apis
-import {getSetupStatus} from 'src/onboarding/apis'
+import {client} from 'src/utils/api'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import SigninForm from 'src/onboarding/components/SigninForm'
-import {Spinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import {RemoteDataState} from 'src/types'
 import Notifications from 'src/shared/components/notifications/Notifications'
 
@@ -28,9 +28,9 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
     }
   }
   public async componentDidMount() {
-    const isSetupAllowed = await getSetupStatus()
+    const {allowed} = await client.setup.status()
 
-    if (isSetupAllowed) {
+    if (allowed) {
       this.props.router.push('/onboarding/0')
     }
 
@@ -39,7 +39,10 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
 
   public render() {
     return (
-      <Spinner loading={this.state.status}>
+      <SpinnerContainer
+        loading={this.state.status}
+        spinnerComponent={<TechnoSpinner />}
+      >
         <Notifications inPresentationMode={true} />
         <SplashPage panelWidthPixels={300}>
           <SplashPage.Panel>
@@ -48,7 +51,7 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
             <SigninForm />
           </SplashPage.Panel>
         </SplashPage>
-      </Spinner>
+      </SpinnerContainer>
     )
   }
 }

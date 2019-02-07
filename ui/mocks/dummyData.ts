@@ -1,11 +1,5 @@
-import {
-  Source,
-  SourceAuthenticationMethod,
-  Template,
-  SourceLinks,
-  TemplateType,
-  TemplateValueType,
-} from 'src/types'
+import {Template, SourceLinks, TemplateType, TemplateValueType} from 'src/types'
+import {Source} from '@influxdata/influx'
 import {Cell, Dashboard, Label} from 'src/types/v2'
 import {Links} from 'src/types/v2/links'
 import {Task} from 'src/types/v2/tasks'
@@ -23,9 +17,10 @@ import {
   TelegrafPluginInputNet,
   TelegrafPluginInputProcstat,
   TelegrafPluginInputDocker,
+  TelegrafPluginInputSwap,
   Task as TaskApi,
   Organization,
-} from 'src/api'
+} from '@influxdata/influx'
 
 export const links: Links = {
   authorizations: '/api/v2/authorizations',
@@ -123,14 +118,12 @@ export const sourceLinks: SourceLinks = {
 export const source: Source = {
   id: '16',
   name: 'ssl',
-  type: 'influx',
+  type: Source.TypeEnum.Self,
   username: 'admin',
   url: 'https://localhost:9086',
   insecureSkipVerify: true,
-  default: false,
   telegraf: 'telegraf',
   links: sourceLinks,
-  authentication: SourceAuthenticationMethod.Basic,
 }
 
 export const timeRange = {
@@ -408,6 +401,12 @@ export const redisTelegrafPlugin = {
   name: TelegrafPluginInputRedis.NameEnum.Redis,
 }
 
+export const swapTelegrafPlugin = {
+  ...telegrafPlugin,
+  name: TelegrafPluginInputSwap.NameEnum.Swap,
+  configured: ConfigurationState.Configured,
+}
+
 export const redisPlugin = {
   name: TelegrafPluginInputRedis.NameEnum.Redis,
   type: TelegrafPluginInputRedis.TypeEnum.Input,
@@ -583,7 +582,11 @@ export const setSetupParamsResponse = {
       userID: '033bc62520fe3000',
       user: 'iris',
       permissions: [
-        {action: 'read', resource: 'authorizations', orgID: '033bc62534be3000'},
+        {
+          action: 'read',
+          resource: 'authorizations',
+          orgID: '033bc62534be3000',
+        },
         {
           action: 'write',
           resource: 'authorizations',

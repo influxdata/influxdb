@@ -72,7 +72,16 @@ export const initialStateHelper = (): TimeMachineState => ({
   queryBuilder: {
     buckets: [],
     bucketsStatus: RemoteDataState.NotStarted,
-    tags: [],
+    tags: [
+      {
+        valuesSearchTerm: '',
+        keysSearchTerm: '',
+        keys: [],
+        keysStatus: RemoteDataState.NotStarted,
+        values: [],
+        valuesStatus: RemoteDataState.NotStarted,
+      },
+    ],
   },
 })
 
@@ -128,13 +137,15 @@ export const timeMachinesReducer = (
 
   const newActiveTimeMachine = timeMachineReducer(activeTimeMachine, action)
 
-  return {
+  const s = {
     ...state,
     timeMachines: {
       ...timeMachines,
       [activeTimeMachineID]: newActiveTimeMachine,
     },
   }
+
+  return s
 }
 
 export const timeMachineReducer = (
@@ -667,7 +678,10 @@ const setViewProperties = (
   const view: any = state.view
   const properties = view.properties
 
-  return {...state, view: {...view, properties: {...properties, ...update}}}
+  return {
+    ...state,
+    view: {...view, properties: {...properties, ...update}},
+  }
 }
 
 const setYAxis = (state: TimeMachineState, update: {[key: string]: any}) => {
@@ -680,7 +694,10 @@ const setYAxis = (state: TimeMachineState, update: {[key: string]: any}) => {
     ...state,
     view: {
       ...view,
-      properties: {...properties, axes: {...axes, y: {...yAxis, ...update}}},
+      properties: {
+        ...properties,
+        axes: {...axes, y: {...yAxis, ...update}},
+      },
     },
   }
 }

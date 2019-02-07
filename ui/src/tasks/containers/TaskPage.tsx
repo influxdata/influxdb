@@ -14,9 +14,9 @@ import {State as TasksState} from 'src/tasks/reducers/v2'
 import {
   setNewScript,
   saveNewScript,
-  goToTasks,
   setTaskOption,
   clearTask,
+  cancel,
 } from 'src/tasks/actions/v2'
 // types
 import {Links} from 'src/types/v2/links'
@@ -44,9 +44,9 @@ interface ConnectStateProps {
 interface ConnectDispatchProps {
   setNewScript: typeof setNewScript
   saveNewScript: typeof saveNewScript
-  goToTasks: typeof goToTasks
   setTaskOption: typeof setTaskOption
   clearTask: typeof clearTask
+  cancel: typeof cancel
 }
 
 class TaskPage extends PureComponent<
@@ -130,7 +130,7 @@ class TaskPage extends PureComponent<
   }
 
   private handleCancel = () => {
-    this.props.goToTasks()
+    this.props.cancel()
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -165,9 +165,9 @@ const mstp = ({
 const mdtp: ConnectDispatchProps = {
   setNewScript,
   saveNewScript,
-  goToTasks,
   setTaskOption,
   clearTask,
+  cancel,
 }
 
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(

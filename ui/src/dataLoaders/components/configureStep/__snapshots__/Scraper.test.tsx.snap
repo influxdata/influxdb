@@ -10,28 +10,11 @@ exports[`ScraperTarget rendering renders! 1`] = `
       <FormElement
         label="Bucket"
       >
-        <Dropdown
-          buttonColor="default"
-          buttonSize="sm"
-          maxMenuHeight={250}
-          menuColor="sapphire"
-          mode="radio"
-          onChange={[MockFunction]}
-          selectedID="empty"
-          status="default"
-          titleText=""
-          wrapText={false}
-        >
-          <DropdownItem
-            checkbox={false}
-            id="empty"
-            key="none"
-            selected={false}
-            value="No buckets found"
-          >
-            No buckets found
-          </DropdownItem>
-        </Dropdown>
+        <BucketsDropdown
+          buckets={Array []}
+          onSelectBucket={[MockFunction]}
+          selected=""
+        />
       </FormElement>
     </GridColumn>
     <GridColumn
