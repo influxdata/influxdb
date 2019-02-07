@@ -63,7 +63,10 @@ elif [[ -f /etc/debian_version ]]; then
     fi
 elif [[ -f /etc/os-release ]]; then
     source /etc/os-release
-    if [[ $ID = "amzn" ]]; then
+    if [[ "$NAME" = "Amazon Linux" ]]; then
+        # Amazon Linux 2+ logic
+        install_systemd
+    elif [[ "$NAME" = "Amazon Linux AMI" ]]; then
         # Amazon Linux logic
         install_init
         install_chkconfig
