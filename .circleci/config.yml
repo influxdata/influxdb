@@ -5,13 +5,12 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: ls -lR
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
       - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e PROTOSPATH=/Litmus/result/influxd_test -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Smokte Tests Success
           when: on_success
-          command: bash ~/project/success_notify.sh
+          command: bash ~/project/etc/success_notify.sh
           path: ~/project
 
   litmus_nightly:
