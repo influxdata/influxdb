@@ -13,9 +13,8 @@ $sidebar-width-md: 240px;
   overflow: hidden;
   transform: translate3d(0,0,0);
   flex: 1 0 0;
-  border-radius: $radius;
+  border-radius: $radius 0 0 $radius;
   background-color: $g2-kevlar;
-  margin: $ix-marg-b;
 
   &.show {
     flex: 1 0 $sidebar-width-sm;
@@ -29,7 +28,7 @@ $sidebar-width-md: 240px;
   width: 100%;
   display: inline-flex;
   flex-direction: column;
-  padding: $ix-marg-e 0 34px 0;
+  padding: $ix-marg-d 0;
 }
 
 .side-bar.show .side-bar--container {
@@ -37,6 +36,7 @@ $sidebar-width-md: 240px;
 }
 
 .side-bar--title {
+  text-align: left;
   margin: 0 $ix-marg-c $ix-marg-c $ix-marg-c;
   color: $g13-mist;
   font-size: $ix-text-base-1;

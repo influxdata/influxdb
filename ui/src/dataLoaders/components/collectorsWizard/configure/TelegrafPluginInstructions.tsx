@@ -47,46 +47,44 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
       onIncrementStep,
     } = this.props
     return (
-      <Form onSubmit={onIncrementStep}>
-        <div className="wizard-step--scroll-area">
-          <div className="wizard--columns">
-            <PluginsSideBar
-              telegrafPlugins={telegrafPlugins}
-              onTabClick={this.handleClickSideBarTab}
-              title="Plugins to Configure"
-              visible={this.sideBarVisible}
-            />
-            <FancyScrollbar autoHide={false}>
-              <div className="wizard-step--scroll-content">
-                <h3 className="wizard-step--title">
-                  Telegraf Configuration Information
-                </h3>
-                <h5 className="wizard-step--sub-title">
-                  Telegraf is a plugin based data collection agent. Click on the
-                  plugin names to the left in order to configure the selected
-                  plugins. For more information about Telegraf Plugins, see
-                  documentation.
-                </h5>
-                <Form.Element label="Telegraf Configuration Name">
-                  <Input
-                    type={InputType.Text}
-                    value={telegrafConfigName}
-                    onChange={this.handleNameInput}
-                    titleText="Telegraf Configuration Name"
-                    size={ComponentSize.Medium}
-                    autoFocus={true}
-                  />
-                </Form.Element>
-              </div>
-            </FancyScrollbar>
+      <>
+        <h3 className="wizard-step--title">Configure Plugins</h3>
+        <h5 className="wizard-step--sub-title">
+          Configure each plugin from the menu on the left. Some plugins do not
+          require any configuration.
+        </h5>
+        <Form onSubmit={onIncrementStep}>
+          <div className="wizard-step--scroll-area plugins">
+            <div className="wizard--columns">
+              <PluginsSideBar
+                telegrafPlugins={telegrafPlugins}
+                onTabClick={this.handleClickSideBarTab}
+                title="Plugins"
+                visible={this.sideBarVisible}
+              />
+              <FancyScrollbar autoHide={false} className="wizard--column-panel">
+                <div className="wizard-step--scroll-content">
+                  <Form.Element label="Telegraf Configuration Name">
+                    <Input
+                      type={InputType.Text}
+                      value={telegrafConfigName}
+                      onChange={this.handleNameInput}
+                      titleText="Telegraf Configuration Name"
+                      size={ComponentSize.Medium}
+                      autoFocus={true}
+                    />
+                  </Form.Element>
+                </div>
+              </FancyScrollbar>
+            </div>
           </div>
-        </div>
 
-        <OnboardingButtons
-          onClickBack={onDecrementStep}
-          nextButtonText={'Create and Verify'}
-        />
-      </Form>
+          <OnboardingButtons
+            onClickBack={onDecrementStep}
+            nextButtonText={'Create and Verify'}
+          />
+        </Form>
+      </>
     )
   }
 

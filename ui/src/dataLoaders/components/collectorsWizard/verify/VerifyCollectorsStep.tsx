@@ -38,7 +38,7 @@ interface DispatchProps {
 export type Props = DispatchProps & StateProps & OwnProps
 
 @ErrorHandling
-export class VerifyDataStep extends PureComponent<Props> {
+export class VerifyCollectorStep extends PureComponent<Props> {
   public render() {
     const {
       username,
@@ -52,6 +52,10 @@ export class VerifyDataStep extends PureComponent<Props> {
 
     return (
       <div className="onboarding-step">
+        <h3 className="wizard-step--title">Test your Configuration</h3>
+        <h5 className="wizard-step--sub-title">
+          Start Telegraf and ensure data is being written to InfluxDB
+        </h5>
         <Form onSubmit={onExit}>
           <div className="wizard-step--scroll-area">
             <FancyScrollbar autoHide={false}>
@@ -101,4 +105,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(VerifyDataStep)
+)(VerifyCollectorStep)

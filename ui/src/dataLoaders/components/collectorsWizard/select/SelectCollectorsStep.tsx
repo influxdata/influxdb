@@ -46,14 +46,15 @@ export class SelectCollectorsStep extends PureComponent<Props> {
   public render() {
     return (
       <div className="onboarding-step">
+        <h3 className="wizard-step--title">What do you want to monitor?</h3>
+        <h5 className="wizard-step--sub-title">
+          Telegraf is a plugin-based data collection agent which writes metrics
+          to a bucket in InfluxDB
+        </h5>
         <Form onSubmit={this.props.onIncrementCurrentStepIndex}>
           <div className="wizard-step--scroll-area">
             <FancyScrollbar autoHide={false}>
               <div className="wizard-step--scroll-content">
-                <h3 className="wizard-step--title">{this.title}</h3>
-                <h5 className="wizard-step--sub-title">
-                  Telegraf collects and writes metrics to a bucket in InfluxDB.
-                </h5>
                 <StreamingSelector
                   pluginBundles={this.props.pluginBundles}
                   telegrafPlugins={this.props.telegrafPlugins}
@@ -86,11 +87,6 @@ export class SelectCollectorsStep extends PureComponent<Props> {
     }
 
     return ComponentStatus.Default
-  }
-
-  private get title(): string {
-    const {bucket} = this.props
-    return `Select Telegraf Plugins to add to ${bucket || 'your bucket'}`
   }
 
   private handleSelectBucket = (bucket: Bucket) => {

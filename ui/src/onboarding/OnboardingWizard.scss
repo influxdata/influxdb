@@ -108,7 +108,7 @@
   width: 100%;
   max-width: 90%;
   min-height: 100%;
-  margin: o auto $ix-marg-d auto;
+  margin: 0 auto $ix-marg-d auto;
   display: inline-flex;
   flex-direction: column;
   justify-content: center;
@@ -122,7 +122,7 @@
 
 .wizard-step--filter {
   align-self: flex-end;
-  margin: 20px;
+  margin-top: 18px;
 }
 
 /* Buttons */
@@ -307,7 +307,8 @@
 }
 
 .wizard--columns {
-  display: inline-flex;
+  display: flex;
+  align-items: stretch;
   flex-direction: row;
   position: absolute;
   top: 0;
