@@ -10,7 +10,7 @@ jobs:
       - run:
           name: Litmus Smokte Tests Success
           when: on_success
-          - run: bash ../etc/success_notify.sh
+          command: bash ../etc/success_notify.sh
           name: Litmus Smoke Tests Fail
           when: on_fail
           command: |
