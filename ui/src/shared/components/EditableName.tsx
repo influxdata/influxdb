@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, KeyboardEvent, ChangeEvent} from 'react'
+import React, {Component, KeyboardEvent, ChangeEvent, MouseEvent} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -15,7 +15,7 @@ import 'src/shared/components/EditableName.scss'
 interface Props {
   onUpdate: (name: string) => void
   name: string
-  onEditName: (e?: any) => void
+  onEditName: (e?: MouseEvent<HTMLAnchorElement>) => void
   hrefValue?: string
   placeholder?: string
 }
