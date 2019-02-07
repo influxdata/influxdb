@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
 	"path"
 
-	platform "github.com/influxdata/influxdb"
+	"go.uber.org/zap"
+
+	platform "github.com/influxdata/platform"
 	"github.com/julienschmidt/httprouter"
 )
 

@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	platform "github.com/influxdata/influxdb"
-	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap"
 	"net/http"
 	"path"
+
+	"github.com/influxdata/influxdb"
+	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // OrgBackend is all services and associated parameters required to construct
@@ -17,12 +18,12 @@ import (
 type OrgBackend struct {
 	Logger *zap.Logger
 
-	OrganizationService             platform.OrganizationService
-	OrganizationOperationLogService platform.OrganizationOperationLogService
-	UserResourceMappingService      platform.UserResourceMappingService
-	SecretService                   platform.SecretService
-	LabelService                    platform.LabelService
-	UserService                     platform.UserService
+	OrganizationService             influxdb.OrganizationService
+	OrganizationOperationLogService influxdb.OrganizationOperationLogService
+	UserResourceMappingService      influxdb.UserResourceMappingService
+	SecretService                   influxdb.SecretService
+	LabelService                    influxdb.LabelService
+	UserService                     influxdb.UserService
 }
 
 func NewOrgBackend(b *APIBackend) *OrgBackend {
@@ -44,12 +45,12 @@ type OrgHandler struct {
 
 	Logger *zap.Logger
 
-	OrganizationService             platform.OrganizationService
-	OrganizationOperationLogService platform.OrganizationOperationLogService
-	UserResourceMappingService      platform.UserResourceMappingService
-	SecretService                   platform.SecretService
-	LabelService                    platform.LabelService
-	UserService                     platform.UserService
+	OrganizationService             influxdb.OrganizationService
+	OrganizationOperationLogService influxdb.OrganizationOperationLogService
+	UserResourceMappingService      influxdb.UserResourceMappingService
+	SecretService                   influxdb.SecretService
+	LabelService                    influxdb.LabelService
+	UserService                     influxdb.UserService
 }
 
 const (
@@ -90,8 +91,8 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 
 	memberBackend := MemberBackend{
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
-		ResourceType:               platform.OrgsResourceType,
-		UserType:                   platform.Member,
+		ResourceType:               influxdb.OrgsResourceType,
+		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
@@ -101,8 +102,8 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 
 	ownerBackend := MemberBackend{
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
-		ResourceType:               platform.OrgsResourceType,
-		UserType:                   platform.Owner,
+		ResourceType:               influxdb.OrgsResourceType,
+		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
@@ -132,15 +133,15 @@ type orgsResponse struct {
 	Organizations []*orgResponse    `json:"orgs"`
 }
 
-func (o orgsResponse) ToPlatform() []*platform.Organization {
-	orgs := make([]*platform.Organization, len(o.Organizations))
+func (o orgsResponse) Toinfluxdb() []*influxdb.Organization {
+	orgs := make([]*influxdb.Organization, len(o.Organizations))
 	for i := range o.Organizations {
 		orgs[i] = &o.Organizations[i].Organization
 	}
 	return orgs
 }
 
-func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
+func newOrgsResponse(orgs []*influxdb.Organization) *orgsResponse {
 	res := orgsResponse{
 		Links: map[string]string{
 			"self": "/api/v2/orgs",
@@ -155,10 +156,10 @@ func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
 
 type orgResponse struct {
 	Links map[string]string `json:"links"`
-	platform.Organization
+	influxdb.Organization
 }
 
-func newOrgResponse(o *platform.Organization) *orgResponse {
+func newOrgResponse(o *influxdb.Organization) *orgResponse {
 	return &orgResponse{
 		Links: map[string]string{
 			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
@@ -179,7 +180,7 @@ type secretsResponse struct {
 	Secrets []string          `json:"secrets"`
 }
 
-func newSecretsResponse(orgID platform.ID, ks []string) *secretsResponse {
+func newSecretsResponse(orgID influxdb.ID, ks []string) *secretsResponse {
 	return &secretsResponse{
 		Links: map[string]string{
 			"org":     fmt.Sprintf("/api/v2/orgs/%s", orgID),
@@ -211,11 +212,11 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 type postOrgRequest struct {
-	Org *platform.Organization
+	Org *influxdb.Organization
 }
 
 func decodePostOrgRequest(ctx context.Context, r *http.Request) (*postOrgRequest, error) {
-	o := &platform.Organization{}
+	o := &influxdb.Organization{}
 	if err := json.NewDecoder(r.Body).Decode(o); err != nil {
 		return nil, err
 	}
@@ -248,20 +249,20 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 type getOrgRequest struct {
-	OrgID platform.ID
+	OrgID influxdb.ID
 }
 
 func decodeGetOrgRequest(ctx context.Context, r *http.Request) (*getOrgRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -296,7 +297,7 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 }
 
 type getOrgsRequest struct {
-	filter platform.OrganizationFilter
+	filter influxdb.OrganizationFilter
 }
 
 func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest, error) {
@@ -304,7 +305,7 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 	req := &getOrgsRequest{}
 
 	if orgID := qp.Get("id"); orgID != "" {
-		id, err := platform.IDFromString(orgID)
+		id, err := influxdb.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
@@ -337,20 +338,20 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 type deleteOrganizationRequest struct {
-	OrganizationID platform.ID
+	OrganizationID influxdb.ID
 }
 
 func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*deleteOrganizationRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -384,26 +385,26 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchOrgRequest struct {
-	Update platform.OrganizationUpdate
-	OrgID  platform.ID
+	Update influxdb.OrganizationUpdate
+	OrgID  influxdb.ID
 }
 
 func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
-	var upd platform.OrganizationUpdate
+	var upd influxdb.OrganizationUpdate
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, err
 	}
@@ -437,7 +438,7 @@ func (h *OrgHandler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
 }
 
 type getSecretsRequest struct {
-	orgID platform.ID
+	orgID influxdb.ID
 }
 
 func decodeGetSecretsRequest(ctx context.Context, r *http.Request) (*getSecretsRequest, error) {
@@ -445,13 +446,13 @@ func decodeGetSecretsRequest(ctx context.Context, r *http.Request) (*getSecretsR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -479,7 +480,7 @@ func (h *OrgHandler) handlePatchSecrets(w http.ResponseWriter, r *http.Request) 
 }
 
 type patchSecretsRequest struct {
-	orgID   platform.ID
+	orgID   influxdb.ID
 	secrets map[string]string
 }
 
@@ -488,13 +489,13 @@ func decodePatchSecretsRequest(ctx context.Context, r *http.Request) (*patchSecr
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -527,7 +528,7 @@ func (h *OrgHandler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request)
 }
 
 type deleteSecretsRequest struct {
-	orgID   platform.ID
+	orgID   influxdb.ID
 	secrets []string
 }
 
@@ -536,13 +537,13 @@ func decodeDeleteSecretsRequest(ctx context.Context, r *http.Request) (*deleteSe
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -570,32 +571,32 @@ type OrganizationService struct {
 }
 
 // FindOrganizationByID gets a single organization with a given id using HTTP.
-func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id platform.ID) (*platform.Organization, error) {
-	filter := platform.OrganizationFilter{ID: &id}
+func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+	filter := influxdb.OrganizationFilter{ID: &id}
 	o, err := s.FindOrganization(ctx, filter)
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
-			Op:  s.OpPrefix + platform.OpFindOrganizationByID,
+			Op:  s.OpPrefix + influxdb.OpFindOrganizationByID,
 		}
 	}
 	return o, nil
 }
 
 // FindOrganization gets a single organization matching the filter using HTTP.
-func (s *OrganizationService) FindOrganization(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+func (s *OrganizationService) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 	os, n, err := s.FindOrganizations(ctx, filter)
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
-			Op:  s.OpPrefix + platform.OpFindOrganization,
+			Op:  s.OpPrefix + influxdb.OpFindOrganization,
 		}
 	}
 
 	if n == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Op:   s.OpPrefix + platform.OpFindOrganization,
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   s.OpPrefix + influxdb.OpFindOrganization,
 			Msg:  "organization not found",
 		}
 	}
@@ -604,7 +605,7 @@ func (s *OrganizationService) FindOrganization(ctx context.Context, filter platf
 }
 
 // FindOrganizations returns all organizations that match the filter via HTTP.
-func (s *OrganizationService) FindOrganizations(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
+func (s *OrganizationService) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
 	url, err := newURL(s.Addr, organizationPath)
 	if err != nil {
 		return nil, 0, err
@@ -642,16 +643,16 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 		return nil, 0, err
 	}
 
-	orgs := os.ToPlatform()
+	orgs := os.Toinfluxdb()
 	return orgs, len(orgs), nil
 
 }
 
 // CreateOrganization creates an organization.
-func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platform.Organization) error {
+func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
 	if o.Name == "" {
-		return &platform.Error{
-			Code: platform.EInvalid,
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "organization name is required",
 		}
 	}
@@ -695,7 +696,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 }
 
 // UpdateOrganization updates the organization over HTTP.
-func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error) {
+func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	u, err := newURL(s.Addr, organizationIDPath(id))
 	if err != nil {
 		return nil, err
@@ -726,7 +727,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 		return nil, err
 	}
 
-	var o platform.Organization
+	var o influxdb.Organization
 	if err := json.NewDecoder(resp.Body).Decode(&o); err != nil {
 		return nil, err
 	}
@@ -735,7 +736,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 }
 
 // DeleteOrganization removes organization id over HTTP.
-func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platform.ID) error {
+func (s *OrganizationService) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
 	u, err := newURL(s.Addr, organizationIDPath(id))
 	if err != nil {
 		return err
@@ -757,7 +758,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
-func organizationIDPath(id platform.ID) string {
+func organizationIDPath(id influxdb.ID) string {
 	return path.Join(organizationPath, id.String())
 }
 
@@ -784,21 +785,21 @@ func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
 }
 
 type getOrganizationLogRequest struct {
-	OrganizationID platform.ID
-	opts           platform.FindOptions
+	OrganizationID influxdb.ID
+	opts           influxdb.FindOptions
 }
 
 func decodeGetOrganizationLogRequest(ctx context.Context, r *http.Request) (*getOrganizationLogRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -814,7 +815,7 @@ func decodeGetOrganizationLogRequest(ctx context.Context, r *http.Request) (*get
 	}, nil
 }
 
-func newOrganizationLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
+func newOrganizationLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
 	log := make([]*operationLogEntryResponse, 0, len(es))
 	for _, e := range es {
 		log = append(log, newOperationLogEntryResponse(e))
