@@ -7,13 +7,14 @@ import _ from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import {
-  GridSizer,
+  ResponsiveGridSizer,
   Input,
   IconFont,
   ComponentSize,
   FormElement,
   Grid,
   Columns,
+  EmptyState,
 } from 'src/clockface'
 
 // Constants
@@ -40,8 +41,6 @@ interface State {
   gridSizerUpdateFlag: string
   searchTerm: string
 }
-
-const ANIMATION_LENGTH = 400
 
 @ErrorHandling
 class StreamingSelector extends PureComponent<Props, State> {
@@ -70,7 +69,7 @@ class StreamingSelector extends PureComponent<Props, State> {
 
   public render() {
     const {bucket, buckets} = this.props
-    const {gridSizerUpdateFlag, searchTerm} = this.state
+    const {searchTerm} = this.state
 
     return (
       <div className="wizard-step--grid-container">
@@ -87,7 +86,7 @@ class StreamingSelector extends PureComponent<Props, State> {
           <Grid.Column widthSM={Columns.Five} offsetSM={Columns.Two}>
             <FormElement label="">
               <Input
-                customClass={'wizard-step--filter'}
+                customClass="wizard-step--filter"
                 size={ComponentSize.Small}
                 icon={IconFont.Search}
                 value={searchTerm}
@@ -98,10 +97,7 @@ class StreamingSelector extends PureComponent<Props, State> {
             </FormElement>
           </Grid.Column>
         </Grid.Row>
-        <GridSizer
-          wait={ANIMATION_LENGTH}
-          recalculateFlag={gridSizerUpdateFlag}
-        >
+        <ResponsiveGridSizer columns={5}>
           {this.filteredBundles.map(b => {
             return (
               <CardSelectCard
@@ -115,13 +111,28 @@ class StreamingSelector extends PureComponent<Props, State> {
               />
             )
           })}
-        </GridSizer>
+        </ResponsiveGridSizer>
+        {this.emptyState}
       </div>
     )
   }
 
   private handleSelectBucket = (bucket: Bucket) => {
     this.props.onSelectBucket(bucket)
+  }
+
+  private get emptyState(): JSX.Element {
+    const {searchTerm} = this.state
+
+    const noMatches = this.filteredBundles.length === 0
+
+    if (searchTerm && noMatches) {
+      return (
+        <EmptyState size={ComponentSize.Medium}>
+          <EmptyState.Text text="No plugins match your search" />
+        </EmptyState>
+      )
+    }
   }
 
   private get filteredBundles(): BundleName[] {

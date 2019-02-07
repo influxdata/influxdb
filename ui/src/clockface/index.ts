@@ -31,6 +31,7 @@ import DraggableResizer from 'src/clockface/components/draggable_resizer/Draggab
 import Label, {LabelType} from 'src/clockface/components/label/Label'
 import LabelSelector from 'src/clockface/components/label/LabelSelector'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
+import ResponsiveGridSizer from 'src/clockface/components/grid_sizer/ResponsiveGridSizer'
 import Select from 'src/clockface/components/Select'
 import Grid from 'src/clockface/components/grid_layout/Grid'
 import QuestionMarkTooltip from 'src/clockface/components/tooltips/QuestionMarkTooltip'
@@ -99,6 +100,7 @@ export {
   ProgressBar,
   QuestionMarkTooltip,
   Radio,
+  ResponsiveGridSizer,
   Select,
   SlideToggle,
   SparkleSpinner,

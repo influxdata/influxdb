@@ -26,11 +26,6 @@ class TelegrafInstructions extends PureComponent<Props> {
       ''}`
     return (
       <>
-        <h3 className="wizard-step--title">Listen for Telegraf Data</h3>
-        <h5 className="wizard-step--sub-title">
-          Get started pushing data into InfluxDB using our open source Telegraf
-          agent.
-        </h5>
         <div className="wizard-step--body">
           <h6>1. Install the Latest Telegraf</h6>
           <p>
