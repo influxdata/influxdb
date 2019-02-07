@@ -73,7 +73,7 @@ export const readSources = () => async (dispatch: Dispatch<Action>) => {
 export const createSource = (attrs: Partial<Source>) => async (
   dispatch: Dispatch<Action>
 ) => {
-  const source = await client.sources.create('', attrs)
+  const source = await client.sources.create(attrs)
 
   dispatch(setSource(source))
 }
