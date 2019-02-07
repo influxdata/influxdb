@@ -120,11 +120,8 @@ export default class Buckets extends PureComponent<Props, State> {
     notify(bucketDeleted(deletedBucket.name))
   }
 
-  private handleCreateBucket = async (
-    org: Organization,
-    bucket: Bucket
-  ): Promise<void> => {
-    await client.buckets.create(org, bucket)
+  private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
+    await client.buckets.create(bucket)
     this.props.onChange()
     this.handleCloseModal()
   }

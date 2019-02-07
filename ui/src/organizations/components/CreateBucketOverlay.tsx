@@ -16,7 +16,7 @@ import {Bucket, BucketRetentionRules, Organization} from '@influxdata/influx'
 interface Props {
   org: Organization
   onCloseModal: () => void
-  onCreateBucket: (org: Organization, bucket: Partial<Bucket>) => Promise<void>
+  onCreateBucket: (bucket: Partial<Bucket>) => Promise<void>
 }
 
 interface State {
@@ -114,7 +114,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
       organization,
     }
 
-    onCreateBucket(org, bucket)
+    onCreateBucket(bucket)
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
