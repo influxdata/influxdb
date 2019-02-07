@@ -1,7 +1,4 @@
-version: 2.1
-
-orbs:
-  slack: circleci/slack@1.1.0
+version: 2
 
 jobs:
   litmus_daily:
@@ -145,9 +142,6 @@ jobs:
             - bin/linux/influx
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
-      - slack/status:
-          mentions: "#testing"
-          message: "test message"
 
   deploy-nightly:
     docker:
