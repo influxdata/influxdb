@@ -6013,6 +6013,12 @@ components:
           properties:
             self:
               type: string
+            query:
+              type: string
+            health:
+              type: string
+            buckets:
+              type: string
         id:
           type: string
         orgID:
