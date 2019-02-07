@@ -112,6 +112,7 @@ v1.6.0 [2018-07-05]
 -	[#10549](https://github.com/influxdata/influxdb/pull/10549): Pass the query authorizer to subqueries.
 -	[#10664](https://github.com/influxdata/influxdb/pull/10664): Marked functions that always return floats as always returning floats.
 -	[#10276](https://github.com/influxdata/influxdb/pull/10276): Fix bug with incorrect ABS results for negative integer values.
+-	[#11742](https://github.com/influxdata/influxdb/pull/11742): Use Systemd for Amazon Linux 2.
 
 v1.5.4 [2018-06-21]
 -------------------
