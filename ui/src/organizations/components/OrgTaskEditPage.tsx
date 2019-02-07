@@ -34,7 +34,7 @@ import {Task} from 'src/tasks/containers/TasksPage'
 
 interface PassedInProps {
   router: InjectedRouter
-  params: {id: string}
+  params: {id: string; orgID: string}
 }
 
 interface ConnectStateProps {
@@ -55,7 +55,7 @@ interface ConnectDispatchProps {
   setAllTaskOptions: typeof setAllTaskOptions
 }
 
-class TaskEditPage extends PureComponent<
+class OrgTaskEditPage extends PureComponent<
   PassedInProps & ConnectStateProps & ConnectDispatchProps
 > {
   constructor(props) {
@@ -64,9 +64,9 @@ class TaskEditPage extends PureComponent<
 
   public async componentDidMount() {
     const {
-      params: {id},
+      params: {id, orgID},
     } = this.props
-    await this.props.selectTaskByID(id)
+    await this.props.selectTaskByID(id, `organizations/${orgID}/tasks_tab/`)
 
     const {currentTask} = this.props
 
@@ -134,7 +134,9 @@ class TaskEditPage extends PureComponent<
   }
 
   private handleSave = () => {
-    this.props.updateScript()
+    const {params} = this.props
+
+    this.props.updateScript(`organizations/${params.orgID}/tasks_tab/`)
   }
 
   private handleCancel = () => {
@@ -184,4 +186,4 @@ const mdtp: ConnectDispatchProps = {
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(
   mstp,
   mdtp
-)(TaskEditPage)
+)(OrgTaskEditPage)

@@ -1,5 +1,5 @@
 // Libraries
-import {push} from 'react-router-redux'
+import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
@@ -288,7 +288,7 @@ export const populateTasks = () => async (
   }
 }
 
-export const selectTaskByID = (id: string) => async (
+export const selectTaskByID = (id: string, route?: string) => async (
   dispatch,
   getState: GetStateFunc
 ): Promise<void> => {
@@ -301,26 +301,37 @@ export const selectTaskByID = (id: string) => async (
     return dispatch(setCurrentTask({...task, organization: org}))
   } catch (e) {
     console.error(e)
-    dispatch(goToTasks())
+    dispatch(goToTasks(route))
     const message = getErrorMessage(e)
     dispatch(notify(taskNotFound(message)))
   }
 }
 
-export const selectTask = (task: Task) => async dispatch => {
+export const selectTask = (task: Task, route?: string) => async dispatch => {
+  if (route) {
+    dispatch(push(route))
+    return
+  }
   dispatch(push(`/tasks/${task.id}`))
 }
 
-export const goToTasks = () => async dispatch => {
+export const goToTasks = (route?: string) => async dispatch => {
+  if (route) {
+    dispatch(push(route))
+    return
+  }
   dispatch(push('/tasks'))
 }
 
-export const cancelUpdateTask = () => async dispatch => {
+export const cancel = () => async dispatch => {
   dispatch(setCurrentTask(null))
-  dispatch(goToTasks())
+  dispatch(goBack())
 }
 
-export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
+export const updateScript = (route?: string) => async (
+  dispatch,
+  getState: GetStateFunc
+) => {
   try {
     const {
       tasks: {currentScript: script, currentTask: task, taskOptions},
@@ -341,7 +352,7 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
     await client.tasks.update(task.id, updatedTask)
 
     dispatch(setCurrentTask(null))
-    dispatch(goToTasks())
+    dispatch(goToTasks(route))
     dispatch(notify(taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
@@ -352,7 +363,8 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
 
 export const saveNewScript = (
   script: string,
-  taskOptions: TaskOptions
+  taskOptions: TaskOptions,
+  route?: string
 ) => async (dispatch, getState: GetStateFunc): Promise<void> => {
   try {
     const {orgs} = await getState()
@@ -375,8 +387,8 @@ export const saveNewScript = (
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
-    dispatch(goToTasks())
     dispatch(populateTasks())
+    dispatch(goToTasks(route))
     dispatch(notify(taskCreatedSuccess()))
   } catch (e) {
     console.error(e)
