@@ -181,10 +181,10 @@ jobs:
           keys:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: make build
-      persist_to_workspace:
-        root: .
-        paths:
-          - bin/linux/influxd
+      - persist_to_workspace:
+          root: .
+          paths:
+            - bin/linux/influxd
 
   deploy-nightly:
     docker:
