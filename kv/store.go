@@ -13,6 +13,11 @@ var (
 	ErrTxNotWritable = errors.New("transaction is not writable")
 )
 
+// IsNotFound returns a boolean indicating whether the error is known to report that a key or was not found.
+func IsNotFound(err error) bool {
+	return err == ErrKeyNotFound
+}
+
 // Store is an interface for a generic key value store. It is modeled after
 // the boltdb database struct.
 type Store interface {
