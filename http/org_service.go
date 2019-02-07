@@ -119,6 +119,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	labelBackend := &LabelBackend{
 		Logger:       b.Logger.With(zap.String("handler", "label")),
 		LabelService: b.LabelService,
+		ResourceType: influxdb.OrgsResourceType,
 	}
 	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(labelBackend))

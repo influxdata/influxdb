@@ -113,6 +113,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	labelBackend := &LabelBackend{
 		Logger:       b.Logger.With(zap.String("handler", "label")),
 		LabelService: b.LabelService,
+		ResourceType: influxdb.BucketsResourceType,
 	}
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(labelBackend))
