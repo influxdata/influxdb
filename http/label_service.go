@@ -28,10 +28,11 @@ const (
 )
 
 // NewLabelHandler returns a new instance of LabelHandler
-func NewLabelHandler() *LabelHandler {
+func NewLabelHandler(s platform.LabelService) *LabelHandler {
 	h := &LabelHandler{
-		Router: NewRouter(),
-		Logger: zap.NewNop(),
+		Router:       NewRouter(),
+		Logger:       zap.NewNop(),
+		LabelService: s,
 	}
 
 	h.HandlerFunc("POST", labelsPath, h.handlePostLabel)

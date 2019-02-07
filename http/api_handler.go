@@ -140,6 +140,8 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.SwaggerHandler = SwaggerHandler()
 
+	h.LabelHandler = NewLabelHandler(b.LabelService)
+
 	return h
 }
 
