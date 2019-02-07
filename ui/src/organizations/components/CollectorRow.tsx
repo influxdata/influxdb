@@ -21,6 +21,7 @@ interface Props {
   onDelete: (telegrafID: string) => void
   onUpdate: (telegraf: Telegraf) => void
   onOpenInstructions: (telegrafID: string) => void
+  onOpenTelegrafConfig: (telegrafID: string, telegrafName: string) => void
 }
 
 export default class CollectorRow extends PureComponent<Props> {
@@ -47,7 +48,13 @@ export default class CollectorRow extends PureComponent<Props> {
               <Button
                 size={ComponentSize.ExtraSmall}
                 color={ComponentColor.Secondary}
-                text={'Instructions'}
+                text={'View'}
+                onClick={this.handleOpenConfig}
+              />
+              <Button
+                size={ComponentSize.ExtraSmall}
+                color={ComponentColor.Secondary}
+                text={'Setup Details'}
                 onClick={this.handleOpenInstructions}
               />
               <ConfirmationButton
@@ -68,15 +75,24 @@ export default class CollectorRow extends PureComponent<Props> {
     onUpdate({...collector, name})
   }
 
+  private handleOpenConfig = (): void => {
+    this.props.onOpenTelegrafConfig(
+      this.props.collector.id,
+      this.props.collector.name
+    )
+  }
+
   private handleDownloadConfig = (): void => {
     this.props.onDownloadConfig(
       this.props.collector.id,
       this.props.collector.name
     )
   }
+
   private handleDeleteConfig = (): void => {
     this.props.onDelete(this.props.collector.id)
   }
+
   private handleOpenInstructions = (): void => {
     this.props.onOpenInstructions(this.props.collector.id)
   }

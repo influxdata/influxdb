@@ -11,6 +11,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import CollectorList from 'src/organizations/components/CollectorList'
 import TelegrafExplainer from 'src/organizations/components/TelegrafExplainer'
 import TelegrafInstructionsOverlay from 'src/organizations/components/TelegrafInstructionsOverlay'
+import TelegrafConfigOverlay from 'src/organizations/components/TelegrafConfigOverlay'
 import {
   Button,
   ComponentColor,
@@ -42,7 +43,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {Telegraf, Bucket} from '@influxdata/influx'
 import {OverlayState} from 'src/types/v2'
-import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
+import {
+  setDataLoadersType,
+  setTelegrafConfigID,
+  setTelegrafConfigName,
+  clearDataLoaders,
+} from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 
 interface OwnProps {
@@ -56,6 +62,9 @@ interface OwnProps {
 interface DispatchProps {
   onSetBucketInfo: typeof setBucketInfo
   onSetDataLoadersType: typeof setDataLoadersType
+  onSetTelegrafConfigID: typeof setTelegrafConfigID
+  onSetTelegrafConfigName: typeof setTelegrafConfigName
+  onClearDataLoaders: typeof clearDataLoaders
 }
 
 type Props = OwnProps & DispatchProps
@@ -65,6 +74,7 @@ interface State {
   searchTerm: string
   instructionsOverlay: OverlayState
   collectorID?: string
+  telegrafConfig: OverlayState
 }
 
 @ErrorHandling
@@ -77,6 +87,7 @@ export class Collectors extends PureComponent<Props, State> {
       searchTerm: '',
       instructionsOverlay: OverlayState.Closed,
       collectorID: null,
+      telegrafConfig: OverlayState.Closed,
     }
   }
 
@@ -114,6 +125,7 @@ export class Collectors extends PureComponent<Props, State> {
                     onDelete={this.handleDeleteTelegraf}
                     onUpdate={this.handleUpdateTelegraf}
                     onOpenInstructions={this.handleOpenInstructions}
+                    onOpenTelegrafConfig={this.handleOpenTelegrafConfig}
                   />
                 )}
               </FilterList>
@@ -138,6 +150,10 @@ export class Collectors extends PureComponent<Props, State> {
           visible={this.isInstructionsVisible}
           collector={this.selectedCollector}
           onDismiss={this.handleCloseInstructions}
+        />
+        <TelegrafConfigOverlay
+          visible={this.isTelegrafConfigVisible}
+          onDismiss={this.handleCloseTelegrafConfig}
         />
       </>
     )
@@ -166,6 +182,28 @@ export class Collectors extends PureComponent<Props, State> {
     this.setState({
       instructionsOverlay: OverlayState.Closed,
       collectorID: null,
+    })
+  }
+
+  private get isTelegrafConfigVisible(): boolean {
+    return this.state.telegrafConfig === OverlayState.Open
+  }
+
+  private handleOpenTelegrafConfig = (
+    telegrafID: string,
+    telegrafName: string
+  ): void => {
+    this.props.onSetTelegrafConfigID(telegrafID)
+    this.props.onSetTelegrafConfigName(telegrafName)
+    this.setState({
+      telegrafConfig: OverlayState.Open,
+    })
+  }
+
+  private handleCloseTelegrafConfig = (): void => {
+    this.props.onClearDataLoaders()
+    this.setState({
+      telegrafConfig: OverlayState.Closed,
     })
   }
 
@@ -255,6 +293,9 @@ export class Collectors extends PureComponent<Props, State> {
 const mdtp: DispatchProps = {
   onSetBucketInfo: setBucketInfo,
   onSetDataLoadersType: setDataLoadersType,
+  onSetTelegrafConfigID: setTelegrafConfigID,
+  onSetTelegrafConfigName: setTelegrafConfigName,
+  onClearDataLoaders: clearDataLoaders,
 }
 
 export default connect<null, DispatchProps, OwnProps>(
