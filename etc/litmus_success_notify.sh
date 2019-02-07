@@ -2,7 +2,7 @@
 
 # SLACK_TOKEN is an env var defined in CircleCI
 # CIRCLE_BRANCH, CIRCLE_JOB, CIRLCE_BUILD_NUM and CIRCLE_BUILD_URL are CircleCI's vars.
-# "text":"SUCCESSFUL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM, Build URL: $CIRCLE_BUILD_URL",
+# $1 - name of the litmus test run, either Nightly or Smoke
 
 curl -X POST https://slack.com/api/chat.postMessage \
 -H "Authorization: Bearer $SLACK_TOKEN" \
@@ -11,7 +11,7 @@ curl -X POST https://slack.com/api/chat.postMessage \
 {
   "channel":"#testing",
   "text":"SUCCESSFUL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM, Build URL: $CIRCLE_BUILD_URL",
-  "username":"CircleCI OSS Litmus SMOKE Tests",
+  "username":"CircleCI OSS Litmus $1 Tests",
   "icon_emoji":":circleci-pass:"
 }
 EOF
