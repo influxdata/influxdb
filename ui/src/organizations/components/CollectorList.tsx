@@ -13,7 +13,6 @@ import {getDeep} from 'src/utils/wrappers'
 interface Props {
   collectors: Telegraf[]
   emptyState: JSX.Element
-  onDownloadConfig: (telegrafID: string, telegrafName: string) => void
   onDelete: (telegrafID: string) => void
   onUpdate: (telegraf: Telegraf) => void
   onOpenInstructions: (telegrafID: string) => void
@@ -42,7 +41,6 @@ export default class CollectorList extends PureComponent<Props> {
   public get collectorsList(): JSX.Element[] {
     const {
       collectors,
-      onDownloadConfig,
       onDelete,
       onUpdate,
       onOpenInstructions,
@@ -55,7 +53,6 @@ export default class CollectorList extends PureComponent<Props> {
           key={collector.id}
           collector={collector}
           bucket={getDeep<string>(collector, 'plugins.0.config.bucket', '')}
-          onDownloadConfig={onDownloadConfig}
           onDelete={onDelete}
           onUpdate={onUpdate}
           onOpenInstructions={onOpenInstructions}
