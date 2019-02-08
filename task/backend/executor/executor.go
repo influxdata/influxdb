@@ -9,6 +9,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
@@ -17,7 +19,8 @@ import (
 
 // queryServiceExecutor is an implementation of backend.Executor that depends on a QueryService.
 type queryServiceExecutor struct {
-	svc    query.QueryService
+	qs     query.QueryService
+	as     influxdb.AuthorizationService
 	st     backend.Store
 	logger *zap.Logger
 	wg     sync.WaitGroup
@@ -28,17 +31,22 @@ var _ backend.Executor = (*queryServiceExecutor)(nil)
 // NewQueryServiceExecutor returns a new executor based on the given QueryService.
 // In general, you should prefer NewAsyncQueryServiceExecutor, as that code is smaller and simpler,
 // because asynchronous queries are more in line with the Executor interface.
-func NewQueryServiceExecutor(logger *zap.Logger, svc query.QueryService, st backend.Store) backend.Executor {
-	return &queryServiceExecutor{logger: logger, svc: svc, st: st}
+func NewQueryServiceExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, st backend.Store) backend.Executor {
+	return &queryServiceExecutor{logger: logger, qs: qs, as: as, st: st}
 }
 
 func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
-	t, err := e.st.FindTaskByID(ctx, run.TaskID)
+	t, m, err := e.st.FindTaskByIDWithMeta(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
 	}
 
-	return newSyncRunPromise(ctx, run, e, t), nil
+	auth, err := e.as.FindAuthorizationByID(ctx, influxdb.ID(m.AuthorizationID))
+	if err != nil {
+		return nil, err
+	}
+
+	return newSyncRunPromise(icontext.SetAuthorizer(ctx, auth), run, e, t), nil
 }
 
 func (e *queryServiceExecutor) Wait() {
@@ -48,7 +56,7 @@ func (e *queryServiceExecutor) Wait() {
 // syncRunPromise implements backend.RunPromise for a synchronous QueryService.
 type syncRunPromise struct {
 	qr     backend.QueuedRun
-	svc    query.QueryService
+	qs     query.QueryService
 	t      *backend.StoreTask
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -69,7 +77,7 @@ func newSyncRunPromise(ctx context.Context, qr backend.QueuedRun, e *queryServic
 	log, logEnd := logger.NewOperation(opLogger, "Executing task", "execute")
 	rp := &syncRunPromise{
 		qr:     qr,
-		svc:    e.svc,
+		qs:     e.qs,
 		t:      t,
 		logger: log,
 		logEnd: logEnd,
@@ -108,7 +116,7 @@ func (p *syncRunPromise) finish(res *runResult, err error) {
 		defer p.logEnd()
 
 		// Always cancel p's context.
-		// If finish is called before p.svc.Query completes, the query will be interrupted.
+		// If finish is called before p.qs.Query completes, the query will be interrupted.
 		// If afterwards, then p.cancel is just a resource cleanup.
 		defer p.cancel()
 
@@ -140,7 +148,7 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 			Spec: spec,
 		},
 	}
-	it, err := p.svc.Query(p.ctx, req)
+	it, err := p.qs.Query(p.ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
 		p.finish(nil, err)
@@ -177,7 +185,8 @@ func (p *syncRunPromise) cancelOnContextDone(wg *sync.WaitGroup) {
 
 // asyncQueryServiceExecutor is an implementation of backend.Executor that depends on an AsyncQueryService.
 type asyncQueryServiceExecutor struct {
-	svc    query.AsyncQueryService
+	qs     query.AsyncQueryService
+	as     influxdb.AuthorizationService
 	st     backend.Store
 	logger *zap.Logger
 	wg     sync.WaitGroup
@@ -186,12 +195,17 @@ type asyncQueryServiceExecutor struct {
 var _ backend.Executor = (*asyncQueryServiceExecutor)(nil)
 
 // NewQueryServiceExecutor returns a new executor based on the given AsyncQueryService.
-func NewAsyncQueryServiceExecutor(logger *zap.Logger, svc query.AsyncQueryService, st backend.Store) backend.Executor {
-	return &asyncQueryServiceExecutor{logger: logger, svc: svc, st: st}
+func NewAsyncQueryServiceExecutor(logger *zap.Logger, qs query.AsyncQueryService, as influxdb.AuthorizationService, st backend.Store) backend.Executor {
+	return &asyncQueryServiceExecutor{logger: logger, qs: qs, as: as, st: st}
 }
 
 func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
-	t, err := e.st.FindTaskByID(ctx, run.TaskID)
+	t, m, err := e.st.FindTaskByIDWithMeta(ctx, run.TaskID)
+	if err != nil {
+		return nil, err
+	}
+
+	auth, err := e.as.FindAuthorizationByID(ctx, influxdb.ID(m.AuthorizationID))
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +221,8 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 			Spec: spec,
 		},
 	}
-	q, err := e.svc.Query(ctx, req)
+	// Only set the authorizer on the context where we need it here.
+	q, err := e.qs.Query(icontext.SetAuthorizer(ctx, auth), req)
 	if err != nil {
 		return nil, err
 	}
