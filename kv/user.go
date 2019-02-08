@@ -412,6 +412,12 @@ func (s *Service) deleteUser(ctx context.Context, tx Tx, id influxdb.ID) error {
 		return ErrInternalUserServiceError(err)
 	}
 
+	if err := s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+		UserID: id,
+	}); err != nil {
+		return err
+	}
+
 	return nil
 }
 
