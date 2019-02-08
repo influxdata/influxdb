@@ -14,7 +14,7 @@ var (
 
 var _ influxdb.AuthorizationService = (*Service)(nil)
 
-func (s *Service) initializeAuthorizations(ctx context.Context, tx Tx) error {
+func (s *Service) initializeAuths(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket(authBucket); err != nil {
 		return err
 	}

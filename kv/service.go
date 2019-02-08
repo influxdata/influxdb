@@ -53,11 +53,19 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
+		if err := s.initializeBuckets(ctx, tx); err != nil {
+			return err
+		}
+
 		if err := s.initializeKVLog(ctx, tx); err != nil {
 			return err
 		}
 
 		if err := s.initializeURMs(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeAuths(ctx, tx); err != nil {
 			return err
 		}
 
