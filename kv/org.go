@@ -546,59 +546,61 @@ func (s *Service) appendOrganizationEventToLog(ctx context.Context, tx Tx, id in
 	return s.addLogEntry(ctx, tx, k, v, s.time())
 }
 
-//func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error) {
-//	switch rt {
-//	case influxdb.AuthorizationsResourceType:
-//		r, err := s.FindAuthorizationByID(ctx, id)
-//		if err != nil {
-//			return influxdb.InvalidID(), err
-//		}
-//		return r.OrgID, nil
-//	case influxdb.BucketsResourceType:
-//		r, err := s.FindBucketByID(ctx, id)
-//		if err != nil {
-//			return influxdb.InvalidID(), err
-//		}
-//		return r.OrganizationID, nil
-//	case influxdb.DashboardsResourceType:
-//		r, err := s.FindDashboardByID(ctx, id)
-//		if err != nil {
-//			return influxdb.InvalidID(), err
-//		}
-//		return r.OrganizationID, nil
-//	case influxdb.OrgsResourceType:
-//		r, err := s.FindOrganizationByID(ctx, id)
-//		if err != nil {
-//			return influxdb.InvalidID(), err
-//		}
-//		return r.ID, nil
-//	case influxdb.SourcesResourceType:
-//		r, err := s.FindSourceByID(ctx, id)
-//		if err != nil {
-//			return influxdb.InvalidID(), err
-//		}
-//		return r.OrganizationID, nil
-//	case influxdb.TelegrafsResourceType:
-//		r, err := s.FindTelegrafConfigByID(ctx, id)
-//		if err != nil {
-//			return influxdb.InvalidID(), err
-//		}
-//		return r.OrganizationID, nil
-//	case influxdb.MacrosResourceType:
-//		r, err := s.FindMacroByID(ctx, id)
-//		if err != nil {
-//			return influxdb.InvalidID(), err
-//		}
-//		return r.OrganizationID, nil
-//	case influxdb.ScraperResourceType:
-//		r, err := s.GetTargetByID(ctx, id)
-//		if err != nil {
-//			return influxdb.InvalidID(), err
-//		}
-//		return r.OrgID, nil
-//	}
-//
-//	return influxdb.InvalidID(), &influxdb.Error{
-//		Msg: fmt.Sprintf("unsupported resource type %s", rt),
-//	}
-//}
+// FindResourceOrganizationID is used to find the organization that a resource belongs to five the id of a resource and a resource type.
+func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error) {
+	switch rt {
+	case influxdb.AuthorizationsResourceType:
+		r, err := s.FindAuthorizationByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.OrgID, nil
+	case influxdb.BucketsResourceType:
+		r, err := s.FindBucketByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.OrganizationID, nil
+	case influxdb.OrgsResourceType:
+		r, err := s.FindOrganizationByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.ID, nil
+		// TODO(desa): uncomment these as more resource types are added.
+		//case influxdb.DashboardsResourceType:
+		//	r, err := s.FindDashboardByID(ctx, id)
+		//	if err != nil {
+		//		return influxdb.InvalidID(), err
+		//	}
+		//	return r.OrganizationID, nil
+		//case influxdb.SourcesResourceType:
+		//	r, err := s.FindSourceByID(ctx, id)
+		//	if err != nil {
+		//		return influxdb.InvalidID(), err
+		//	}
+		//	return r.OrganizationID, nil
+		//case influxdb.TelegrafsResourceType:
+		//	r, err := s.FindTelegrafConfigByID(ctx, id)
+		//	if err != nil {
+		//		return influxdb.InvalidID(), err
+		//	}
+		//	return r.OrganizationID, nil
+		//case influxdb.MacrosResourceType:
+		//	r, err := s.FindMacroByID(ctx, id)
+		//	if err != nil {
+		//		return influxdb.InvalidID(), err
+		//	}
+		//	return r.OrganizationID, nil
+		//case influxdb.ScraperResourceType:
+		//	r, err := s.GetTargetByID(ctx, id)
+		//	if err != nil {
+		//		return influxdb.InvalidID(), err
+		//	}
+		//	return r.OrgID, nil
+	}
+
+	return influxdb.InvalidID(), &influxdb.Error{
+		Msg: fmt.Sprintf("unsupported resource type %s", rt),
+	}
+}
