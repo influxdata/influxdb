@@ -20,6 +20,9 @@ import {
 import {downloadTextFile} from 'src/shared/utils/download'
 import {Task as TaskAPI, Organization} from '@influxdata/influx'
 
+// Constants
+import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
+
 interface Task extends TaskAPI {
   organization: Organization
 }
@@ -102,6 +105,7 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
           onUpdate={this.handleUpdateTask}
           name={task.name}
           onEditName={this.handleClick}
+          noNameString={DEFAULT_TASK_NAME}
         />
       )
     }

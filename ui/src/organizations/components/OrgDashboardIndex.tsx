@@ -6,8 +6,7 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
 
 // Components
-import DashboardsContents from 'src/dashboards/components/dashboard_index/Contents'
-import {Page} from 'src/pageLayout'
+import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {
   OverlayTechnology,
   Button,
@@ -17,6 +16,7 @@ import {
 } from 'src/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -116,46 +116,38 @@ class OrgDashboardIndex extends PureComponent<Props, State> {
 
     return (
       <>
-        <Page titleTag="Dashboards">
-          <Page.Header fullWidth={false}>
-            <Page.Header.Left>
-              <Input
-                icon={IconFont.Search}
-                placeholder="Filter tasks..."
-                widthPixels={290}
-                value={searchTerm}
-                onChange={this.handleFilterChange}
-                onBlur={this.handleFilterBlur}
-              />
-            </Page.Header.Left>
-            <Page.Header.Right>
-              <Button
-                color={ComponentColor.Primary}
-                onClick={this.handleCreateDashboard}
-                icon={IconFont.Plus}
-                text="Create Dashboard"
-                titleText="Create a new dashboard"
-              />
-            </Page.Header.Right>
-          </Page.Header>
-          <Page.Contents fullWidth={false} scrollable={true}>
-            <DashboardsContents
-              dashboards={dashboards}
-              orgs={orgs}
-              onSetDefaultDashboard={this.handleSetDefaultDashboard}
-              defaultDashboardLink={links.defaultDashboard}
-              onDeleteDashboard={this.handleDeleteDashboard}
-              onCreateDashboard={this.handleCreateDashboard}
-              onCloneDashboard={this.handleCloneDashboard}
-              onExportDashboard={this.handleExportDashboard}
-              onUpdateDashboard={handleUpdateDashboard}
-              onEditLabels={this.handleStartEditingLabels}
-              notify={notify}
-              searchTerm={searchTerm}
-              showInlineEdit={true}
-            />
-          </Page.Contents>
-        </Page>
+        <TabbedPageHeader>
+          <Input
+            icon={IconFont.Search}
+            placeholder="Filter tasks..."
+            widthPixels={290}
+            value={searchTerm}
+            onChange={this.handleFilterChange}
+            onBlur={this.handleFilterBlur}
+          />
+          <Button
+            color={ComponentColor.Primary}
+            onClick={this.handleCreateDashboard}
+            icon={IconFont.Plus}
+            text="Create Dashboard"
+            titleText="Create a new dashboard"
+          />
+        </TabbedPageHeader>
+        <DashboardsIndexContents
+          dashboards={dashboards}
+          orgs={orgs}
+          onSetDefaultDashboard={this.handleSetDefaultDashboard}
+          defaultDashboardLink={links.defaultDashboard}
+          onDeleteDashboard={this.handleDeleteDashboard}
+          onCreateDashboard={this.handleCreateDashboard}
+          onCloneDashboard={this.handleCloneDashboard}
+          onExportDashboard={this.handleExportDashboard}
+          onUpdateDashboard={handleUpdateDashboard}
+          onEditLabels={this.handleStartEditingLabels}
+          notify={notify}
+          searchTerm={searchTerm}
+          showOwnerColumn={false}
+        />
         {this.renderImportOverlay}
         {this.renderLabelEditorOverlay}
       </>

@@ -12,6 +12,9 @@ import {
   ComponentColor,
 } from 'src/clockface'
 
+// Constants
+import {DEFAULT_BUCKET_NAME} from 'src/dashboards/constants'
+
 // Types
 import {Bucket} from '@influxdata/influx'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
@@ -40,6 +43,7 @@ export default class BucketRow extends PureComponent<Props> {
               onUpdate={this.handleUpdateBucketName}
               name={bucket.name}
               onEditName={this.handleEditBucket}
+              noNameString={DEFAULT_BUCKET_NAME}
             />
           </IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>

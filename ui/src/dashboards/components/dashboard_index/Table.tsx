@@ -20,6 +20,10 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 import {Sort} from 'src/clockface'
 import {Dashboard, Organization} from 'src/types/v2'
 
+// Constants
+const OWNER_COL_WIDTH = 17
+const NAME_COL_WIDTH = 63
+
 interface Props {
   searchTerm: string
   dashboards: Dashboard[]
@@ -32,7 +36,7 @@ interface Props {
   onSetDefaultDashboard: (dashboardLink: string) => void
   onEditLabels: (dashboard: Dashboard) => void
   orgs: Organization[]
-  showInlineEdit?: boolean
+  showOwnerColumn: boolean
 }
 
 interface DatedDashboard extends Dashboard {
@@ -57,29 +61,22 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
 
   public render() {
     const {sortKey, sortDirection} = this.state
-    const headerKeys: SortKey[] = ['name', 'owner', 'modified', 'default']
 
     return (
       <IndexList>
         <IndexList.Header>
           <IndexList.HeaderCell
-            columnName={headerKeys[0]}
-            sortKey={headerKeys[0]}
-            sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-            width="62%"
+            columnName={this.headerKeys[0]}
+            sortKey={this.headerKeys[0]}
+            sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+            width={this.nameColWidth}
             onClick={this.handleClickColumn}
           />
+          {this.ownerColumnHeader}
           <IndexList.HeaderCell
-            columnName={headerKeys[1]}
-            sortKey={headerKeys[1]}
-            sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-            width="17%"
-            onClick={this.handleClickColumn}
-          />
-          <IndexList.HeaderCell
-            columnName={headerKeys[2]}
-            sortKey={headerKeys[2]}
-            sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
+            columnName={this.headerKeys[2]}
+            sortKey={this.headerKeys[2]}
+            sort={sortKey === this.headerKeys[2] ? sortDirection : Sort.None}
             width="11%"
             onClick={this.handleClickColumn}
           />
@@ -96,6 +93,37 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
     )
   }
 
+  private get headerKeys(): SortKey[] {
+    return ['name', 'owner', 'modified', 'default']
+  }
+
+  private get ownerColumnHeader(): JSX.Element {
+    const {showOwnerColumn} = this.props
+    const {sortKey, sortDirection} = this.state
+
+    if (showOwnerColumn) {
+      return (
+        <IndexList.HeaderCell
+          columnName={this.headerKeys[1]}
+          sortKey={this.headerKeys[1]}
+          sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+          width={`${OWNER_COL_WIDTH}%`}
+          onClick={this.handleClickColumn}
+        />
+      )
+    }
+  }
+
+  private get nameColWidth(): string {
+    const {showOwnerColumn} = this.props
+
+    if (showOwnerColumn) {
+      return `${NAME_COL_WIDTH}%`
+    }
+
+    return `${NAME_COL_WIDTH + OWNER_COL_WIDTH}%`
+  }
+
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
     this.setState({sortKey, sortDirection: nextSort})
   }
@@ -109,7 +137,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onUpdateDashboard,
       onEditLabels,
       orgs,
-      showInlineEdit,
+      showOwnerColumn,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -130,7 +158,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onUpdateDashboard={onUpdateDashboard}
               onEditLabels={onEditLabels}
               orgs={orgs}
-              showInlineEdit={showInlineEdit}
+              showOwnerColumn={showOwnerColumn}
             />
           )}
         </SortingHat>

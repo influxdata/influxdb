@@ -6,7 +6,7 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
 
 // Components
-import DashboardsContents from 'src/dashboards/components/dashboard_index/Contents'
+import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {
@@ -132,20 +132,23 @@ class DashboardIndex extends PureComponent<Props, State> {
             </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <DashboardsContents
-              dashboards={dashboards}
-              orgs={orgs}
-              onSetDefaultDashboard={this.handleSetDefaultDashboard}
-              defaultDashboardLink={links.defaultDashboard}
-              onDeleteDashboard={this.handleDeleteDashboard}
-              onCreateDashboard={this.handleCreateDashboard}
-              onCloneDashboard={this.handleCloneDashboard}
-              onExportDashboard={this.handleExportDashboard}
-              onUpdateDashboard={handleUpdateDashboard}
-              onEditLabels={this.handleStartEditingLabels}
-              notify={notify}
-              searchTerm={searchTerm}
-            />
+            <div className="col-md-12">
+              <DashboardsIndexContents
+                dashboards={dashboards}
+                orgs={orgs}
+                onSetDefaultDashboard={this.handleSetDefaultDashboard}
+                defaultDashboardLink={links.defaultDashboard}
+                onDeleteDashboard={this.handleDeleteDashboard}
+                onCreateDashboard={this.handleCreateDashboard}
+                onCloneDashboard={this.handleCloneDashboard}
+                onExportDashboard={this.handleExportDashboard}
+                onUpdateDashboard={handleUpdateDashboard}
+                onEditLabels={this.handleStartEditingLabels}
+                notify={notify}
+                searchTerm={searchTerm}
+                showOwnerColumn={true}
+              />
+            </div>
           </Page.Contents>
         </Page>
         {this.renderImportOverlay}
