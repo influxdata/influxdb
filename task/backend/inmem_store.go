@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/snowflake"
@@ -107,13 +108,16 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 	if !ok {
 		panic("inmem store: had task without runner for task ID " + idStr)
 	}
+
+	stm.UpdatedAt = time.Now().Unix()
 	res.OldStatus = TaskStatus(stm.Status)
 
 	if req.Status != "" {
 		// Changing the status.
 		stm.Status = string(req.Status)
-		s.meta[req.ID] = stm
+
 	}
+	s.meta[req.ID] = stm
 	res.NewMeta = stm
 	return res, nil
 }

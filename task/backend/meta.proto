@@ -27,6 +27,9 @@ message StoreTaskMeta {
   // Task's configured delay, in seconds.
   int32 offset = 6;
 
+  int64 created_at = 7;
+  int64 updated_at = 8;
+
   // Fields below here are less likely to be present, so we're counting from 16 in order to
   // use the 1-byte-encodable values where we can be more sure they're present.
 

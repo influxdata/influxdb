@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
@@ -252,16 +253,17 @@ func (s *Store) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (
 		if err := stm.Unmarshal(stmBytes); err != nil {
 			return err
 		}
+		stm.UpdatedAt = time.Now().Unix()
 		res.OldStatus = backend.TaskStatus(stm.Status)
 		if req.Status != "" {
 			stm.Status = string(req.Status)
-			stmBytes, err = stm.Marshal()
-			if err != nil {
-				return err
-			}
-			if err := b.Bucket(taskMetaPath).Put(encodedID, stmBytes); err != nil {
-				return err
-			}
+		}
+		stmBytes, err = stm.Marshal()
+		if err != nil {
+			return err
+		}
+		if err := b.Bucket(taskMetaPath).Put(encodedID, stmBytes); err != nil {
+			return err
 		}
 		res.NewMeta = stm
 
