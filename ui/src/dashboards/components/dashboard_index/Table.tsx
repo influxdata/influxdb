@@ -32,6 +32,7 @@ interface Props {
   onSetDefaultDashboard: (dashboardLink: string) => void
   onEditLabels: (dashboard: Dashboard) => void
   orgs: Organization[]
+  showInlineEdit?: boolean
 }
 
 interface DatedDashboard extends Dashboard {
@@ -108,6 +109,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onUpdateDashboard,
       onEditLabels,
       orgs,
+      showInlineEdit,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -128,6 +130,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onUpdateDashboard={onUpdateDashboard}
               onEditLabels={onEditLabels}
               orgs={orgs}
+              showInlineEdit={showInlineEdit}
             />
           )}
         </SortingHat>
