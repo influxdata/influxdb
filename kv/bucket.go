@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 )
 
 var (
@@ -14,8 +16,7 @@ var (
 )
 
 var _ influxdb.BucketService = (*Service)(nil)
-
-//var _ influxdb.BucketOperationLogService = (*Client)(nil)
+var _ influxdb.BucketOperationLogService = (*Service)(nil)
 
 func (s *Service) initializeBuckets(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket(bucketBucket); err != nil {
@@ -357,11 +358,11 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 
 		b.ID = s.IDGenerator.ID()
 
-		//if err = s.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
-		//	return &influxdb.Error{
-		//		Err: err,
-		//	}
-		//}
+		if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
+			return &influxdb.Error{
+				Err: err,
+			}
+		}
 
 		if err := s.putBucket(ctx, tx, b); err != nil {
 			return err
@@ -564,9 +565,9 @@ func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd i
 		b.Name = *upd.Name
 	}
 
-	//if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketUpdatedEvent); err != nil {
-	//	return nil, err
-	//}
+	if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketUpdatedEvent); err != nil {
+		return nil, err
+	}
 
 	if err := s.putBucket(ctx, tx, b); err != nil {
 		return nil, err
@@ -643,75 +644,75 @@ func (s *Service) deleteBucket(ctx context.Context, tx Tx, id influxdb.ID) error
 	return nil
 }
 
-//const bucketOperationLogKeyPrefix = "bucket"
-//
-//func encodeBucketOperationLogKey(id influxdb.ID) ([]byte, error) {
-//	buf, err := id.Encode()
-//	if err != nil {
-//		return nil, err
-//	}
-//	return append([]byte(bucketOperationLogKeyPrefix), buf...), nil
-//}
-//
-//// GetBucketOperationLog retrieves a buckets operation log.
-//func (s *Service) GetBucketOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
-//	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
-//	log := []*influxdb.OperationLogEntry{}
-//
-//	err := s.kv.View(func(tx Tx) error {
-//		key, err := encodeBucketOperationLogKey(id)
-//		if err != nil {
-//			return err
-//		}
-//
-//		return s.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
-//			e := &influxdb.OperationLogEntry{}
-//			if err := json.Unmarshal(v, e); err != nil {
-//				return err
-//			}
-//			e.Time = t
-//
-//			log = append(log, e)
-//
-//			return nil
-//		})
-//	})
-//
-//	if err != nil {
-//		return nil, 0, err
-//	}
-//
-//	return log, len(log), nil
-//}
-//
-//// TODO(desa): what do we want these to be?
-//const (
-//	bucketCreatedEvent = "Bucket Created"
-//	bucketUpdatedEvent = "Bucket Updated"
-//)
-//
-//func (s *Service) appendBucketEventToLog(ctx context.Context, tx Tx, id influxdb.ID, s string) error {
-//	e := &influxdb.OperationLogEntry{
-//		Description: s,
-//	}
-//	// TODO(desa): this is fragile and non explicit since it requires an authorizer to be on context. It should be
-//	//             replaced with a higher level transaction so that adding to the log can take place in the http handler
-//	//             where the userID will exist explicitly.
-//	a, err := influxdbcontext.GetAuthorizer(ctx)
-//	if err == nil {
-//		// Add the user to the log if you can, but don't error if its not there.
-//		e.UserID = a.GetUserID()
-//	}
-//
-//	v, err := json.Marshal(e)
-//	if err != nil {
-//		return err
-//	}
-//
-//	k, err := encodeBucketOperationLogKey(id)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return s.addLogEntry(ctx, tx, k, v, s.time())
-//}
+const bucketOperationLogKeyPrefix = "bucket"
+
+func encodeBucketOperationLogKey(id influxdb.ID) ([]byte, error) {
+	buf, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(bucketOperationLogKeyPrefix), buf...), nil
+}
+
+// GetBucketOperationLog retrieves a buckets operation log.
+func (s *Service) GetBucketOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
+	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
+	log := []*influxdb.OperationLogEntry{}
+
+	err := s.kv.View(func(tx Tx) error {
+		key, err := encodeBucketOperationLogKey(id)
+		if err != nil {
+			return err
+		}
+
+		return s.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+			e := &influxdb.OperationLogEntry{}
+			if err := json.Unmarshal(v, e); err != nil {
+				return err
+			}
+			e.Time = t
+
+			log = append(log, e)
+
+			return nil
+		})
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return log, len(log), nil
+}
+
+// TODO(desa): what do we want these to be?
+const (
+	bucketCreatedEvent = "Bucket Created"
+	bucketUpdatedEvent = "Bucket Updated"
+)
+
+func (s *Service) appendBucketEventToLog(ctx context.Context, tx Tx, id influxdb.ID, st string) error {
+	e := &influxdb.OperationLogEntry{
+		Description: st,
+	}
+	// TODO(desa): this is fragile and non explicit since it requires an authorizer to be on context. It should be
+	//             replaced with a higher level transaction so that adding to the log can take place in the http handler
+	//             where the userID will exist explicitly.
+	a, err := icontext.GetAuthorizer(ctx)
+	if err == nil {
+		// Add the user to the log if you can, but don't error if its not there.
+		e.UserID = a.GetUserID()
+	}
+
+	v, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+
+	k, err := encodeBucketOperationLogKey(id)
+	if err != nil {
+		return err
+	}
+
+	return s.addLogEntry(ctx, tx, k, v, s.time())
+}
