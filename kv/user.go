@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	userBucket = []byte("usersv1")
-	userIndex  = []byte("userindexv1")
+	userBucket = []byte("users/v1")
+	userIndex  = []byte("userindex/v1")
 )
 
 var _ influxdb.UserService = (*Service)(nil)

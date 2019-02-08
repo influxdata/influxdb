@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	userResourceMappingBucket = []byte("userresourcemappingsv1")
+	userResourceMappingBucket = []byte("userresourcemappings/v1")
 )
 
 func (c *Client) initializeUserResourceMappings(ctx context.Context, tx *bolt.Tx) error {

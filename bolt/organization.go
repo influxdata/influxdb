@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	organizationBucket = []byte("organizationsv1")
-	organizationIndex  = []byte("organizationindexv1")
+	organizationBucket = []byte("organizations/v1")
+	organizationIndex  = []byte("organizationindex/v1")
 )
 
 var _ influxdb.OrganizationService = (*Client)(nil)
