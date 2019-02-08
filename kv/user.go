@@ -352,7 +352,7 @@ func (s *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		u.Name = *upd.Name
 	}
 
-	if err := s.appendUserEventToLog(ctx, tx, u.ID, userCreatedEvent); err != nil {
+	if err := s.appendUserEventToLog(ctx, tx, u.ID, userUpdatedEvent); err != nil {
 		return nil, err
 	}
 

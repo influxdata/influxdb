@@ -142,11 +142,15 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 	}
 
 	buf, err := idx.Get(key)
-	if buf == nil {
+	if IsNotFound(err) {
 		return nil, &influxdb.Error{
 			Code: influxdb.ENotFound,
 			Msg:  "bucket not found",
 		}
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	var id influxdb.ID
