@@ -390,6 +390,11 @@ func (s *Service) deleteUser(ctx context.Context, tx Tx, id influxdb.ID) error {
 	if err != nil {
 		return err
 	}
+
+	if err := s.deleteUsersAuthorizations(ctx, tx, id); err != nil {
+		return err
+	}
+
 	encodedID, err := id.Encode()
 	if err != nil {
 		return InvalidUserIDError(err)
@@ -418,6 +423,22 @@ func (s *Service) deleteUser(ctx context.Context, tx Tx, id influxdb.ID) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *Service) deleteUsersAuthorizations(ctx context.Context, tx Tx, id influxdb.ID) error {
+	authFilter := influxdb.AuthorizationFilter{
+		UserID: &id,
+	}
+	as, err := s.findAuthorizations(ctx, tx, authFilter)
+	if err != nil {
+		return err
+	}
+	for _, a := range as {
+		if err := s.deleteAuthorization(ctx, tx, a.ID); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
