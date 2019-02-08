@@ -307,13 +307,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		basicAuthSvc     platform.BasicAuthService                = m.boltClient
 		dashboardSvc     platform.DashboardService                = m.boltClient
 		dashboardLogSvc  platform.DashboardOperationLogService    = m.boltClient
-		userLogSvc       platform.UserOperationLogService         = m.boltClient
-		bucketLogSvc     platform.BucketOperationLogService       = m.boltClient
-		orgLogSvc        platform.OrganizationOperationLogService = m.boltClient
+		userLogSvc       platform.UserOperationLogService         = m.kvService
+		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
+		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
 		onboardingSvc    platform.OnboardingService               = m.boltClient
 		scraperTargetSvc platform.ScraperTargetStoreService       = m.boltClient
 		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
-		userResourceSvc  platform.UserResourceMappingService      = m.boltClient
+		userResourceSvc  platform.UserResourceMappingService      = m.kvService
 		labelSvc         platform.LabelService                    = m.boltClient
 		secretSvc        platform.SecretService                   = m.boltClient
 		lookupSvc        platform.LookupService                   = m.boltClient
@@ -496,7 +496,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
 		ProtoService:                    protoSvc,
-		OrgLookupService:                m.boltClient,
+		OrgLookupService:                m.kvService,
 	}
 
 	// HTTP server
