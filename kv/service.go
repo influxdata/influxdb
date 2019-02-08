@@ -2,6 +2,7 @@ package kv
 
 import (
 	"context"
+	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/rand"
@@ -23,6 +24,7 @@ type Service struct {
 
 	IDGenerator    influxdb.IDGenerator
 	TokenGenerator influxdb.TokenGenerator
+	time           func() time.Time
 }
 
 // NewService returns an instance of a Service.
@@ -32,6 +34,7 @@ func NewService(kv Store) *Service {
 		IDGenerator:    snowflake.NewIDGenerator(),
 		TokenGenerator: rand.NewTokenGenerator(64),
 		kv:             kv,
+		time:           time.Now,
 	}
 }
 
@@ -54,6 +57,16 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
+		if err := s.initializeURMs(ctx, tx); err != nil {
+			return err
+		}
+
 		return nil
 	})
+}
+
+// WithTime sets the function for computing the current time. Used for updating meta data
+// about objects stored. Should only be used in tests for mocking.
+func (s *Service) WithTime(fn func() time.Time) {
+	s.time = fn
 }
