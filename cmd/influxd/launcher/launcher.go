@@ -393,7 +393,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 
-		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, boltStore)
+		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, boltStore)
 
 		lw := taskbackend.NewPointLogWriter(pointsWriter)
 		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
