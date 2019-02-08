@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
@@ -1286,4 +1287,102 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 func TestDashboardService(t *testing.T) {
 	t.Parallel()
 	platformtesting.DashboardService(initDashboardService, t)
+}
+
+func TestService_handlePostDashboardLabel(t *testing.T) {
+	type fields struct {
+		LabelService platform.LabelService
+	}
+	type args struct {
+		labelMapping *platform.LabelMapping
+		dashboardID  platform.ID
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "add label to dashboard",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
+						return &platform.Label{
+							ID:   1,
+							Name: "label",
+							Properties: map[string]string{
+								"color": "fff000",
+							},
+						}, nil
+					},
+					CreateLabelMappingFn: func(ctx context.Context, m *platform.LabelMapping) error { return nil },
+				},
+			},
+			args: args{
+				labelMapping: &platform.LabelMapping{
+					ResourceID: 100,
+					LabelID:    1,
+				},
+				dashboardID: 100,
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "label": {
+    "id": "0000000000000001",
+    "name": "label",
+    "properties": {
+      "color": "fff000"
+    }
+  },
+  "links": {
+    "self": "/api/v2/labels/0000000000000001"
+  }
+}
+`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.LabelService = tt.fields.LabelService
+			h := NewDashboardHandler(dashboardBackend)
+
+			b, err := json.Marshal(tt.args.labelMapping)
+			if err != nil {
+				t.Fatalf("failed to unmarshal label mapping: %v", err)
+			}
+
+			url := fmt.Sprintf("http://localhost:9999/api/v2/dashboards/%s/labels", tt.args.dashboardID)
+			r := httptest.NewRequest("POST", url, bytes.NewReader(b))
+			w := httptest.NewRecorder()
+
+			h.ServeHTTP(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("got %v, want %v", res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("got %v, want %v", content, tt.wants.contentType)
+			}
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("Diff\n%s", diff)
+			}
+		})
+	}
 }

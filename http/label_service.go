@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
 	"path"
+
+	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
@@ -299,6 +300,7 @@ func newLabelsResponse(ls []*platform.Label) *labelsResponse {
 type LabelBackend struct {
 	Logger       *zap.Logger
 	LabelService platform.LabelService
+	ResourceType platform.ResourceType
 }
 
 // newGetLabelsHandler returns a handler func for a GET to /labels endpoints
@@ -306,7 +308,7 @@ func newGetLabelsHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		req, err := decodeGetLabelsRequest(ctx, r)
+		req, err := decodeGetLabelsRequest(ctx, r, b.ResourceType)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -329,7 +331,7 @@ type getLabelsRequest struct {
 	filter platform.LabelMappingFilter
 }
 
-func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsRequest, error) {
+func decodeGetLabelsRequest(ctx context.Context, r *http.Request, rt platform.ResourceType) (*getLabelsRequest, error) {
 	req := &getLabelsRequest{}
 
 	params := httprouter.ParamsFromContext(ctx)
@@ -346,6 +348,7 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 		return nil, err
 	}
 	req.filter.ResourceID = i
+	req.filter.ResourceType = rt
 
 	return req, nil
 }
@@ -355,7 +358,7 @@ func newPostLabelHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		req, err := decodePostLabelMappingRequest(ctx, r)
+		req, err := decodePostLabelMappingRequest(ctx, r, b.ResourceType)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -388,7 +391,7 @@ type postLabelMappingRequest struct {
 	Mapping platform.LabelMapping
 }
 
-func decodePostLabelMappingRequest(ctx context.Context, r *http.Request) (*postLabelMappingRequest, error) {
+func decodePostLabelMappingRequest(ctx context.Context, r *http.Request, rt platform.ResourceType) (*postLabelMappingRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -409,6 +412,7 @@ func decodePostLabelMappingRequest(ctx context.Context, r *http.Request) (*postL
 	}
 
 	mapping.ResourceID = rid
+	mapping.ResourceType = rt
 
 	if err := mapping.Validate(); err != nil {
 		return nil, err
@@ -457,8 +461,9 @@ func newDeleteLabelHandler(b *LabelBackend) http.HandlerFunc {
 		}
 
 		mapping := &platform.LabelMapping{
-			LabelID:    req.LabelID,
-			ResourceID: req.ResourceID,
+			LabelID:      req.LabelID,
+			ResourceID:   req.ResourceID,
+			ResourceType: b.ResourceType,
 		}
 
 		if err := b.LabelService.DeleteLabelMapping(ctx, mapping); err != nil {

@@ -105,6 +105,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 	labelBackend := &LabelBackend{
 		Logger:       b.Logger.With(zap.String("handler", "label")),
 		LabelService: b.LabelService,
+		ResourceType: platform.TelegrafsResourceType,
 	}
 	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", telegrafsIDLabelsPath, newPostLabelHandler(labelBackend))
