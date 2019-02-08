@@ -368,9 +368,9 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 			return err
 		}
 
-		//if pe := s.createBucketUserResourceMappings(ctx, tx, b); pe != nil {
-		//	err = pe
-		//}
+		if err := s.createBucketUserResourceMappings(ctx, tx, b); err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -387,32 +387,32 @@ func (s *Service) PutBucket(ctx context.Context, b *influxdb.Bucket) error {
 	})
 }
 
-//func (s *Service) createBucketUserResourceMappings(ctx context.Context, tx Tx, b *influxdb.Bucket) *influxdb.Error {
-//	ms, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-//		ResourceType: influxdb.OrgsResourceType,
-//		ResourceID:   b.OrganizationID,
-//	})
-//	if err != nil {
-//		return &influxdb.Error{
-//			Err: err,
-//		}
-//	}
-//
-//	for _, m := range ms {
-//		if err := s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
-//			ResourceType: influxdb.BucketsResourceType,
-//			ResourceID:   b.ID,
-//			UserID:       m.UserID,
-//			UserType:     m.UserType,
-//		}); err != nil {
-//			return &influxdb.Error{
-//				Err: err,
-//			}
-//		}
-//	}
-//
-//	return nil
-//}
+func (s *Service) createBucketUserResourceMappings(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
+	ms, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+		ResourceType: influxdb.OrgsResourceType,
+		ResourceID:   b.OrganizationID,
+	})
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	for _, m := range ms {
+		if err := s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
+			ResourceType: influxdb.BucketsResourceType,
+			ResourceID:   b.ID,
+			UserID:       m.UserID,
+			UserType:     m.UserType,
+		}); err != nil {
+			return &influxdb.Error{
+				Err: err,
+			}
+		}
+	}
+
+	return nil
+}
 
 func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
 	b.Organization = ""
@@ -632,14 +632,12 @@ func (s *Service) deleteBucket(ctx context.Context, tx Tx, id influxdb.ID) error
 		}
 	}
 
-	//if err := s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-	//	ResourceID:   id,
-	//	ResourceType: influxdb.BucketsResourceType,
-	//}); err != nil {
-	//	return &influxdb.Error{
-	//		Err: err,
-	//	}
-	//}
+	if err := s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: influxdb.BucketsResourceType,
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }
