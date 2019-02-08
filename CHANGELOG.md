@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 ### UI Improvements
+1. [11764](https://github.com/influxdata/influxdb/pull/11764): Move the download telegraf config button to view config overlay
 
 ## v2.0.0-alpha.2 [2019-02-07]
 

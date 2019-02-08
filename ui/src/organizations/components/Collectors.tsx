@@ -3,9 +3,6 @@ import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
-// Utils
-import {downloadTextFile} from 'src/shared/utils/download'
-
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CollectorList from 'src/organizations/components/CollectorList'
@@ -31,11 +28,7 @@ import {client} from 'src/utils/api'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
-import {notify} from 'src/shared/actions/notifications'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
-
-// Constants
-import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -121,7 +114,6 @@ export class Collectors extends PureComponent<Props, State> {
                   <CollectorList
                     collectors={cs}
                     emptyState={this.emptyState}
-                    onDownloadConfig={this.handleDownloadConfig}
                     onDelete={this.handleDeleteTelegraf}
                     onUpdate={this.handleUpdateTelegraf}
                     onOpenInstructions={this.handleOpenInstructions}
@@ -257,18 +249,6 @@ export class Collectors extends PureComponent<Props, State> {
         <EmptyState.Text text="No Telegraf  Configuration buckets match your query" />
       </EmptyState>
     )
-  }
-
-  private handleDownloadConfig = async (
-    telegrafID: string,
-    telegrafName: string
-  ) => {
-    try {
-      const config = await client.telegrafConfigs.getTOML(telegrafID)
-      downloadTextFile(config, `${telegrafName || 'config'}.toml`)
-    } catch (error) {
-      notify(getTelegrafConfigFailed())
-    }
   }
 
   private handleDeleteTelegraf = async (telegrafID: string) => {
