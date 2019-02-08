@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	influxdb "github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 )
 
 var (
@@ -14,8 +16,7 @@ var (
 )
 
 var _ influxdb.OrganizationService = (*Service)(nil)
-
-//var _ influxdb.OrganizationOperationLogService = (*Service)(nil)
+var _ influxdb.OrganizationOperationLogService = (*Service)(nil)
 
 func (s *Service) initializeOrgs(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket(organizationBucket); err != nil {
@@ -244,11 +245,11 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 		}
 
 		o.ID = s.IDGenerator.ID()
-		//if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
-		//	return &influxdb.Error{
-		//		Err: err,
-		//	}
-		//}
+		if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
+			return &influxdb.Error{
+				Err: err,
+			}
+		}
 
 		if err := s.putOrganization(ctx, tx, o); err != nil {
 			return &influxdb.Error{
@@ -386,11 +387,11 @@ func (s *Service) updateOrganization(ctx context.Context, tx Tx, id influxdb.ID,
 		o.Name = *upd.Name
 	}
 
-	//if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
-	//	return nil, &influxdb.Error{
-	//		Err: err,
-	//	}
-	//}
+	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
+		return nil, &influxdb.Error{
+			Err: err,
+		}
+	}
 
 	if pe := s.putOrganization(ctx, tx, o); pe != nil {
 		return nil, pe
@@ -472,77 +473,79 @@ func (s *Service) deleteOrganization(ctx context.Context, tx Tx, id influxdb.ID)
 //	return nil
 //}
 
-//// GeOrganizationOperationLog retrieves a organization operation log.
-//func (s *Service) GetOrganizationOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
-//	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
-//	log := []*influxdb.OperationLogEntry{}
-//
-//	err := s.kv.View(func(tx Tx) error {
-//		key, err := encodeBucketOperationLogKey(id)
-//		if err != nil {
-//			return err
-//		}
-//
-//		return s.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
-//			e := &influxdb.OperationLogEntry{}
-//			if err := json.Unmarshal(v, e); err != nil {
-//				return err
-//			}
-//			e.Time = t
-//
-//			log = append(log, e)
-//
-//			return nil
-//		})
-//	})
-//
-//	if err != nil {
-//		return nil, 0, err
-//	}
-//
-//	return log, len(log), nil
-//}
-//
-//// TODO(desa): what do we want these to be?
-//const (
-//	organizationCreatedEvent = "Organization Created"
-//	organizationUpdatedEvent = "Organization Updated"
-//)
-//
-//func encodeOrganizationOperationLogKey(id influxdb.ID) ([]byte, error) {
-//	buf, err := id.Encode()
-//	if err != nil {
-//		return nil, err
-//	}
-//	return append([]byte(bucketOperationLogKeyPrefix), buf...), nil
-//}
-//
-//func (s *Service) appendOrganizationEventToLog(ctx context.Context, tx Tx, id influxdb.ID, s string) error {
-//	e := &influxdb.OperationLogEntry{
-//		Description: s,
-//	}
-//	// TODO(desa): this is fragile and non explicit since it requires an authorizer to be on context. It should be
-//	//             replaced with a higher level transaction so that adding to the log can take place in the http handler
-//	//             where the organizationID will exist explicitly.
-//	a, err := influxdbcontext.GetAuthorizer(ctx)
-//	if err == nil {
-//		// Add the organization to the log if you can, but don't error if its not there.
-//		e.UserID = a.GetUserID()
-//	}
-//
-//	v, err := json.Marshal(e)
-//	if err != nil {
-//		return err
-//	}
-//
-//	k, err := encodeOrganizationOperationLogKey(id)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return s.addLogEntry(ctx, tx, k, v, s.time())
-//}
-//
+// GeOrganizationOperationLog retrieves a organization operation log.
+func (s *Service) GetOrganizationOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
+	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
+	log := []*influxdb.OperationLogEntry{}
+
+	err := s.kv.View(func(tx Tx) error {
+		key, err := encodeOrganizationOperationLogKey(id)
+		if err != nil {
+			return err
+		}
+
+		return s.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+			e := &influxdb.OperationLogEntry{}
+			if err := json.Unmarshal(v, e); err != nil {
+				return err
+			}
+			e.Time = t
+
+			log = append(log, e)
+
+			return nil
+		})
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return log, len(log), nil
+}
+
+// TODO(desa): what do we want these to be?
+const (
+	organizationCreatedEvent = "Organization Created"
+	organizationUpdatedEvent = "Organization Updated"
+)
+
+const orgOperationLogKeyPrefix = "org"
+
+func encodeOrganizationOperationLogKey(id influxdb.ID) ([]byte, error) {
+	buf, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(orgOperationLogKeyPrefix), buf...), nil
+}
+
+func (s *Service) appendOrganizationEventToLog(ctx context.Context, tx Tx, id influxdb.ID, st string) error {
+	e := &influxdb.OperationLogEntry{
+		Description: st,
+	}
+	// TODO(desa): this is fragile and non explicit since it requires an authorizer to be on context. It should be
+	//             replaced with a higher level transaction so that adding to the log can take place in the http handler
+	//             where the organizationID will exist explicitly.
+	a, err := icontext.GetAuthorizer(ctx)
+	if err == nil {
+		// Add the organization to the log if you can, but don't error if its not there.
+		e.UserID = a.GetUserID()
+	}
+
+	v, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+
+	k, err := encodeOrganizationOperationLogKey(id)
+	if err != nil {
+		return err
+	}
+
+	return s.addLogEntry(ctx, tx, k, v, s.time())
+}
+
 //func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error) {
 //	switch rt {
 //	case influxdb.AuthorizationsResourceType:
