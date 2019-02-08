@@ -31,9 +31,12 @@ func NewScraperBackend(b *APIBackend) *ScraperBackend {
 	return &ScraperBackend{
 		Logger: b.Logger.With(zap.String("handler", "scraper")),
 
-		ScraperStorageService: b.ScraperTargetStoreService,
-		BucketService:         b.BucketService,
-		OrganizationService:   b.OrganizationService,
+		ScraperStorageService:      b.ScraperTargetStoreService,
+		BucketService:              b.BucketService,
+		OrganizationService:        b.OrganizationService,
+		UserService:                b.UserService,
+		UserResourceMappingService: b.UserResourceMappingService,
+		LabelService:               b.LabelService,
 	}
 }
 
