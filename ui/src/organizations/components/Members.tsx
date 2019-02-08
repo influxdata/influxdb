@@ -6,12 +6,10 @@ import _ from 'lodash'
 import {ComponentSize, EmptyState, IconFont, Input} from 'src/clockface'
 import MemberList from 'src/organizations/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
+import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 // Types
 import {ResourceOwner} from '@influxdata/influx'
-
-// Constants
-import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 interface Props {
   members: ResourceOwner[]

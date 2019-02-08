@@ -132,20 +132,22 @@ class DashboardIndex extends PureComponent<Props, State> {
             </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <DashboardsContents
-              dashboards={dashboards}
-              orgs={orgs}
-              onSetDefaultDashboard={this.handleSetDefaultDashboard}
-              defaultDashboardLink={links.defaultDashboard}
-              onDeleteDashboard={this.handleDeleteDashboard}
-              onCreateDashboard={this.handleCreateDashboard}
-              onCloneDashboard={this.handleCloneDashboard}
-              onExportDashboard={this.handleExportDashboard}
-              onUpdateDashboard={handleUpdateDashboard}
-              onEditLabels={this.handleStartEditingLabels}
-              notify={notify}
-              searchTerm={searchTerm}
-            />
+            <div className="col-md-12">
+              <DashboardsContents
+                dashboards={dashboards}
+                orgs={orgs}
+                onSetDefaultDashboard={this.handleSetDefaultDashboard}
+                defaultDashboardLink={links.defaultDashboard}
+                onDeleteDashboard={this.handleDeleteDashboard}
+                onCreateDashboard={this.handleCreateDashboard}
+                onCloneDashboard={this.handleCloneDashboard}
+                onExportDashboard={this.handleExportDashboard}
+                onUpdateDashboard={handleUpdateDashboard}
+                onEditLabels={this.handleStartEditingLabels}
+                notify={notify}
+                searchTerm={searchTerm}
+              />
+            </div>
           </Page.Contents>
         </Page>
         {this.renderImportOverlay}
