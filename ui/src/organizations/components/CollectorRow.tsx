@@ -14,6 +14,9 @@ import {
 import {Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 
+// Constants
+import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
+
 interface Props {
   collector: Telegraf
   bucket: string
@@ -34,6 +37,7 @@ export default class CollectorRow extends PureComponent<Props> {
             <EditableName
               onUpdate={this.handleUpdateConfig}
               name={collector.name}
+              noNameString={DEFAULT_COLLECTOR_NAME}
             />
           </IndexList.Cell>
           <IndexList.Cell>{bucket}</IndexList.Cell>

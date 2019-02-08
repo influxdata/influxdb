@@ -146,6 +146,7 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onEditLabels={this.handleStartEditingLabels}
                 notify={notify}
                 searchTerm={searchTerm}
+                showOwnerColumn={true}
               />
             </div>
           </Page.Contents>

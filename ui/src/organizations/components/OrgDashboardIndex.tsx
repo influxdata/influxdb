@@ -6,7 +6,7 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
 
 // Components
-import DashboardsContents from 'src/dashboards/components/dashboard_index/DashboardIndexContents'
+import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {
   OverlayTechnology,
   Button,
@@ -133,7 +133,7 @@ class OrgDashboardIndex extends PureComponent<Props, State> {
             titleText="Create a new dashboard"
           />
         </TabbedPageHeader>
-        <DashboardsContents
+        <DashboardsIndexContents
           dashboards={dashboards}
           orgs={orgs}
           onSetDefaultDashboard={this.handleSetDefaultDashboard}
@@ -146,7 +146,7 @@ class OrgDashboardIndex extends PureComponent<Props, State> {
           onEditLabels={this.handleStartEditingLabels}
           notify={notify}
           searchTerm={searchTerm}
-          showInlineEdit={true}
+          showOwnerColumn={false}
         />
         {this.renderImportOverlay}
         {this.renderLabelEditorOverlay}
