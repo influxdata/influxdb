@@ -6,7 +6,7 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
 
 // Components
-import DashboardsContents from 'src/dashboards/components/dashboard_index/Contents'
+import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {
@@ -133,7 +133,7 @@ class DashboardIndex extends PureComponent<Props, State> {
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-md-12">
-              <DashboardsContents
+              <DashboardsIndexContents
                 dashboards={dashboards}
                 orgs={orgs}
                 onSetDefaultDashboard={this.handleSetDefaultDashboard}

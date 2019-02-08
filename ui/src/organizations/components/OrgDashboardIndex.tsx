@@ -6,8 +6,8 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
 
 // Components
-import DashboardsContents from 'src/dashboards/components/dashboard_index/Contents'
 import {Page} from 'src/pageLayout'
+import DashboardsContents from 'src/dashboards/components/dashboard_index/DashboardIndexContents'
 import {
   OverlayTechnology,
   Button,
