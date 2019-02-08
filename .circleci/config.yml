@@ -1,42 +1,38 @@
 version: 2
+
 jobs:
+  litmus_daily:
+    machine: true
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e PROTOSPATH=/Litmus/result/influxd_test -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run:
+          name: Litmus Smoke Tests Success
+          when: on_success
+          command: bash ~/project/etc/litmus_success_notify.sh Smoke
+          path: ~/project
+      - run:
+          name: Litmus Smoke Tests Fail
+          when: on_fail
+          command: bash ~/project/etc/litmus_fail_notify.sh Smoke
+      - store_artifacts:
+          path: ~/project
+
   litmus_nightly:
     machine: true
     steps:
       - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
-      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
+      - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e DOCKERIMAGE=true --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Nightly Tests Success
           when: on_success
-          command: |
-            curl -X POST https://slack.com/api/chat.postMessage \
-            -H "Authorization: Bearer $SLACK_TOKEN" \
-            -H "Content-type: application/json; charset=utf-8" \
-            --data @<(cat <<EOF
-            {
-              "channel":"#testing",
-              "text":"SUCCESSFUL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM, Build URL: $CIRCLE_BUILD_URL",
-              "username":"CircleCI Nightly Litmus OSS Litmus Tests",
-              "icon_emoji":":circleci-pass:"
-            }
-            EOF
-            )
+          command: bash ~/project/etc/litmus_success_notify.sh Nightly
       - run:
           name: Litmus Nightly Tests Fail
           when: on_fail
-          command: |
-            curl -X POST https://slack.com/api/chat.postMessage \
-            -H "Authorization: Bearer $SLACK_TOKEN" \
-            -H "Content-type: application/json; charset=utf-8" \
-            --data @<(cat <<EOF
-            {
-              "channel":"#testing",
-              "text":"FAIL: Branch: $CIRCLE_BRANCH, Job: $CIRCLE_JOB, Build: $CIRCLE_BUILD_NUM, Build URL: $CIRCLE_BUILD_URL",
-              "username":"CircleCI Nightly Litmus OSS Litmus Tests",
-              "icon_emoji":":circleci-fail:"
-            }
-            EOF
-            )
+          command: bash ~/project/etc/litmus_fail_notify.sh Nightly
       - store_artifacts:
           path: ~/project
  
@@ -139,6 +135,13 @@ jobs:
           keys:
             - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: make build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - bin/linux/influxd
+            - bin/linux/influx
+            - etc/litmus_success_notify.sh
+            - etc/litmus_fail_notify.sh
 
   deploy-nightly:
     docker:
@@ -170,6 +173,7 @@ jobs:
       - run:
           name: "Build nightly"
           command: make nightly
+
   release:
     docker:
       - image: circleci/golang:1.11-node-browsers
@@ -209,6 +213,9 @@ workflows:
       - gotest
       - jstest
       - build
+      - litmus_daily:
+          requires:
+            - build
 
   nightly:
     triggers:
