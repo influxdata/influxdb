@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	authorizationBucket = []byte("authorizationsv1")
-	authorizationIndex  = []byte("authorizationindexv1")
+	authorizationBucket = []byte("authorizations/v1")
+	authorizationIndex  = []byte("authorizationindex/v1")
 )
 
 var _ platform.AuthorizationService = (*Client)(nil)
