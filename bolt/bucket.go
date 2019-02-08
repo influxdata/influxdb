@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	bucketBucket = []byte("bucketsv1")
-	bucketIndex  = []byte("bucketindexv1")
+	bucketBucket = []byte("buckets/v1")
+	bucketIndex  = []byte("bucketindex/v1")
 )
 
 var _ platform.BucketService = (*Client)(nil)
