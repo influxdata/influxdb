@@ -25,7 +25,7 @@ interface Props {
   onEditLabels: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
   searchTerm: string
-  showInlineEdit?: boolean
+  showOwnerColumn: boolean
 }
 
 @ErrorHandling
@@ -42,26 +42,24 @@ export default class DashboardsIndexContents extends Component<Props> {
       onEditLabels,
       searchTerm,
       orgs,
-      showInlineEdit,
+      showOwnerColumn,
     } = this.props
 
     return (
-      <div className="col-md-12">
-        <Table
-          searchTerm={searchTerm}
-          dashboards={this.filteredDashboards}
-          onDeleteDashboard={onDeleteDashboard}
-          onCreateDashboard={onCreateDashboard}
-          onCloneDashboard={onCloneDashboard}
-          onExportDashboard={onExportDashboard}
-          defaultDashboardLink={defaultDashboardLink}
-          onSetDefaultDashboard={onSetDefaultDashboard}
-          onUpdateDashboard={onUpdateDashboard}
-          onEditLabels={onEditLabels}
-          orgs={orgs}
-          showInlineEdit={showInlineEdit}
-        />
-      </div>
+      <Table
+        searchTerm={searchTerm}
+        dashboards={this.filteredDashboards}
+        onDeleteDashboard={onDeleteDashboard}
+        onCreateDashboard={onCreateDashboard}
+        onCloneDashboard={onCloneDashboard}
+        onExportDashboard={onExportDashboard}
+        defaultDashboardLink={defaultDashboardLink}
+        onSetDefaultDashboard={onSetDefaultDashboard}
+        onUpdateDashboard={onUpdateDashboard}
+        onEditLabels={onEditLabels}
+        orgs={orgs}
+        showOwnerColumn={showOwnerColumn}
+      />
     )
   }
 

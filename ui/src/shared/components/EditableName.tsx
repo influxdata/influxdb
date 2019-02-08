@@ -12,13 +12,19 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Styles
 import 'src/shared/components/EditableName.scss'
 
-interface Props {
+interface PassedProps {
   onUpdate: (name: string) => void
   name: string
-  onEditName: (e?: MouseEvent<HTMLAnchorElement>) => void
-  hrefValue?: string
+  onEditName?: (e?: MouseEvent<HTMLAnchorElement>) => void
   placeholder?: string
+  noNameString: string
 }
+
+interface DefaultProps {
+  hrefValue?: string
+}
+
+type Props = PassedProps & DefaultProps
 
 interface State {
   isEditing: boolean
@@ -27,9 +33,10 @@ interface State {
 
 @ErrorHandling
 class EditableName extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     hrefValue: '#',
   }
+
   constructor(props: Props) {
     super(props)
 
@@ -40,54 +47,46 @@ class EditableName extends Component<Props, State> {
   }
 
   public render() {
-    const {name, onEditName, hrefValue} = this.props
-    const {isEditing} = this.state
-
-    if (isEditing) {
-      return (
-        <div className="editable-name">
-          <ClickOutside onClickOutside={this.handleStopEditing}>
-            {this.input}
-          </ClickOutside>
-        </div>
-      )
-    }
+    const {name, onEditName, hrefValue, noNameString} = this.props
 
     return (
-      <>
+      <div className={this.className}>
         <a href={hrefValue} onClick={onEditName}>
-          <span>{name || 'No name'}</span>
+          <span>{name || noNameString}</span>
         </a>
-        <div className="editable-name">
-          <div
-            className={this.previewClassName}
-            onClick={this.handleStartEditing}
-          >
-            <span className="icon pencil" />
-          </div>
+        <div
+          className="editable-name--toggle"
+          onClick={this.handleStartEditing}
+        >
+          <span className="icon pencil" />
         </div>
-      </>
+        {this.input}
+      </div>
     )
   }
 
   private get input(): JSX.Element {
     const {placeholder} = this.props
-    const {workingName} = this.state
+    const {workingName, isEditing} = this.state
 
-    return (
-      <Input
-        size={ComponentSize.ExtraSmall}
-        maxLength={90}
-        autoFocus={true}
-        spellCheck={false}
-        placeholder={placeholder}
-        onFocus={this.handleInputFocus}
-        onChange={this.handleInputChange}
-        onKeyDown={this.handleKeyDown}
-        customClass="editable-name--input"
-        value={workingName}
-      />
-    )
+    if (isEditing) {
+      return (
+        <ClickOutside onClickOutside={this.handleStopEditing}>
+          <Input
+            size={ComponentSize.ExtraSmall}
+            maxLength={90}
+            autoFocus={true}
+            spellCheck={false}
+            placeholder={placeholder}
+            onFocus={this.handleInputFocus}
+            onChange={this.handleInputChange}
+            onKeyDown={this.handleKeyDown}
+            customClass="editable-name--input"
+            value={workingName}
+          />
+        </ClickOutside>
+      )
+    }
   }
 
   private handleStartEditing = (): void => {
@@ -127,11 +126,11 @@ class EditableName extends Component<Props, State> {
     e.currentTarget.select()
   }
 
-  private get previewClassName(): string {
-    const {name} = this.props
+  private get className(): string {
+    const {name, noNameString} = this.props
 
-    return classnames('editable-name--preview', {
-      untitled: name === '',
+    return classnames('editable-name', {
+      'untitled-name': name === noNameString,
     })
   }
 }
