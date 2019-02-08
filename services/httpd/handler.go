@@ -1082,7 +1082,6 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer rs.Close()
 
 	resp := &remote.ReadResponse{
 		Results: []*remote.QueryResult{{}},
@@ -1092,6 +1091,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		respond(resp)
 		return
 	}
+	defer rs.Close()
 
 	for rs.Next() {
 		cur := rs.Cursor()
