@@ -1,17 +1,25 @@
-## v2.0.0-alpha.2 [unreleased]
+## v2.0.0-alpha.3 [unreleased]
 
-## Features
+### Features
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.2 [2019-02-07]
+
+### Features
 1. [11677](https://github.com/influxdata/influxdb/pull/11677): Add instructions button to view `$INFLUX_TOKEN` setup for telegraf configs
 1. [11693](https://github.com/influxdata/influxdb/pull/11693): Save the $INFLUX_TOKEN environmental variable in telegraf configs
 1. [11700](https://github.com/influxdata/influxdb/pull/11700): Update Tasks tab on Org page to look like Tasks Page
 1. [11740](https://github.com/influxdata/influxdb/pull/11740): Add view button to view the telegraf config toml
 1. [11522](https://github.com/influxdata/influxdb/pull/11522): Add plugin information step to allow for config naming and configure one plugin at a time
 
-## Bug Fixes
+### Bug Fixes
 1. [11678](https://github.com/influxdata/influxdb/pull/11678): Update the System Telegraf Plugin bundle to include the swap plugin
 1. [11722](https://github.com/influxdata/influxdb/pull/11722): Revert behavior allowing users to create authorizations on behalf of another user
 
-## UI Improvements
+### UI Improvements
 1. [11683](https://github.com/influxdata/influxdb/pull/11683): Change the wording for the plugin config form button to Done
 1. [11689](https://github.com/influxdata/influxdb/pull/11689): Change the wording for the Collectors configure step button to Create and Verify
 1. [11697](https://github.com/influxdata/influxdb/pull/11697): Standardize page loading spinner styles
