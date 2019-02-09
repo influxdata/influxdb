@@ -37,7 +37,7 @@ interface State {
 @ErrorHandling
 class Threshold extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
-    label: 'Threshold',
+    label: 'Value is <=',
     disableColor: false,
     isDeletable: true,
     isBase: false,
@@ -58,19 +58,7 @@ class Threshold extends PureComponent<Props, State> {
 
     return (
       <div className="threshold-item">
-        <div className={this.labelClass}>
-          {this.props.label}
-          {isDeletable &&
-            !isBase && (
-              <Button
-                size={ComponentSize.ExtraSmall}
-                shape={ButtonShape.Square}
-                onClick={this.handleDelete}
-                icon={IconFont.Remove}
-                type={ButtonType.Button}
-              />
-            )}
-        </div>
+        <div className="threshold-item--label">{this.props.label}</div>
         {!isBase && (
           <Input
             value={workingValue.toString()}
@@ -88,7 +76,18 @@ class Threshold extends PureComponent<Props, State> {
           onChoose={this.handleChooseColor}
           disabled={disableColor}
           stretchToFit={isBase}
+          widthPixels={this.dropdownWidthPixels}
         />
+        {isDeletable &&
+          !isBase && (
+            <Button
+              size={ComponentSize.Small}
+              shape={ButtonShape.Square}
+              onClick={this.handleDelete}
+              icon={IconFont.Remove}
+              type={ButtonType.Button}
+            />
+          )}
       </div>
     )
   }
@@ -98,6 +97,12 @@ class Threshold extends PureComponent<Props, State> {
     const {hex, name} = color
 
     onChooseColor({...threshold, hex, name})
+  }
+
+  private get dropdownWidthPixels(): number {
+    const {isDeletable} = this.props
+
+    return isDeletable ? 124 : 124 + 34
   }
 
   private get selectedColor(): SeverityColor {
@@ -118,14 +123,6 @@ class Threshold extends PureComponent<Props, State> {
     }
 
     return ComponentStatus.Valid
-  }
-
-  private get labelClass(): string {
-    if (this.props.isDeletable) {
-      return 'threshold-item--label threshold-item--label__editable'
-    } else {
-      return 'threshold-item--label'
-    }
   }
 
   private handleChangeWorkingValue = (e: ChangeEvent<HTMLInputElement>) => {
