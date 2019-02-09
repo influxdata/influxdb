@@ -13,10 +13,10 @@ import {
   ComponentColor,
   IconFont,
   Input,
+  Tabs,
 } from 'src/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
-import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -116,7 +116,7 @@ class OrgDashboardIndex extends PureComponent<Props, State> {
 
     return (
       <>
-        <TabbedPageHeader>
+        <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter tasks..."
@@ -132,7 +132,7 @@ class OrgDashboardIndex extends PureComponent<Props, State> {
             text="Create Dashboard"
             titleText="Create a new dashboard"
           />
-        </TabbedPageHeader>
+        </Tabs.TabContentsHeader>
         <DashboardsIndexContents
           dashboards={dashboards}
           orgs={orgs}

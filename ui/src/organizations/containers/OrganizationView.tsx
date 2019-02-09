@@ -27,7 +27,6 @@ import * as notifyActions from 'src/shared/actions/notifications'
 // Components
 import {Page} from 'src/pageLayout'
 import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
-import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Members from 'src/organizations/components/Members'
 import Buckets from 'src/organizations/components/Buckets'
@@ -36,6 +35,8 @@ import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
+import OrgDashboardIndex from 'src/organizations/components/OrgDashboardIndex'
+import OrganizationTabs from 'src/organizations/components/OrganizationTabs'
 
 // Types
 import {AppState, Dashboard} from 'src/types/v2'
@@ -51,7 +52,6 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Task} from 'src/tasks/containers/TasksPage'
-import OrgDashboardIndex from '../components/OrgDashboardIndex'
 
 interface StateProps {
   org: Organization
@@ -95,10 +95,10 @@ class OrganizationView extends PureComponent<Props> {
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
-            <TabbedPage
+            <OrganizationTabs
               name={org.name}
-              parentUrl={`/organizations/${org.id}`}
               activeTabUrl={params.tab}
+              orgID={org.id}
             >
               <TabbedPageSection
                 id="org-view-tab--members"
@@ -191,8 +191,8 @@ class OrganizationView extends PureComponent<Props> {
                 </GetOrgResources>
               </TabbedPageSection>
               <TabbedPageSection
-                id="org-view-tab--collectors"
-                url="collectors_tab"
+                id="org-view-tab--telegrafs"
+                url="telegrafs_tab"
                 title="Telegraf"
               >
                 <GetOrgResources<Telegraf[]>
@@ -265,7 +265,7 @@ class OrganizationView extends PureComponent<Props> {
                   }}
                 </GetOrgResources>
               </TabbedPageSection>
-            </TabbedPage>
+            </OrganizationTabs>
           </div>
         </Page.Contents>
       </Page>

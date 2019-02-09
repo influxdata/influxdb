@@ -6,7 +6,6 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {client} from 'src/utils/api'
 
 // Components
-import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import ScraperList from 'src/organizations/components/ScraperList'
 import {
   Button,
@@ -16,6 +15,7 @@ import {
   EmptyState,
   Input,
   InputType,
+  Tabs,
 } from 'src/clockface'
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
 
@@ -55,7 +55,7 @@ export default class Scrapers extends PureComponent<Props, State> {
 
     return (
       <>
-        <TabbedPageHeader>
+        <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter scrapers by bucket..."
@@ -66,7 +66,7 @@ export default class Scrapers extends PureComponent<Props, State> {
             onBlur={this.handleFilterBlur}
           />
           {this.createScraperButton}
-        </TabbedPageHeader>
+        </Tabs.TabContentsHeader>
         <ScraperList
           scrapers={this.configurations}
           emptyState={this.emptyState}
