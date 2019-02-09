@@ -7,14 +7,19 @@ import {Dropdown, ComponentStatus, DropdownMenuColors} from 'src/clockface'
 // Types
 import {ColorLabel} from 'src/types/colors'
 
-interface Props {
+interface PassedProps {
   selected: ColorLabel
-  disabled?: boolean
-  stretchToFit?: boolean
   colors: ColorLabel[]
   onChoose: (colors: ColorLabel) => void
-  widthPixels: number
 }
+
+interface DefaultProps {
+  disabled?: boolean
+  stretchToFit?: boolean
+  widthPixels?: number
+}
+
+type Props = PassedProps & DefaultProps
 
 const titleCase = (name: string) => `${name[0].toUpperCase()}${name.slice(1)}`
 
@@ -52,6 +57,12 @@ const ColorDropdown: SFC<Props> = props => {
       ))}
     </Dropdown>
   )
+}
+
+ColorDropdown.defaultProps = {
+  stretchToFit: false,
+  disabled: false,
+  widthPixels: 100,
 }
 
 export default ColorDropdown
