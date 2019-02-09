@@ -418,11 +418,6 @@ func (e *Engine) disableSnapshotCompactions() {
 	e.mu.Lock()
 	e.snapDone = nil
 	e.mu.Unlock()
-
-	// If the cache is empty, free up its resources as well.
-	if e.Cache.Size() == 0 {
-		e.Cache.Free()
-	}
 }
 
 // ScheduleFullCompaction will force the engine to fully compact all data stored.
@@ -556,12 +551,6 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 func (e *Engine) IsIdle() bool {
 	cacheEmpty := e.Cache.Size() == 0
 	return cacheEmpty && e.compactionTracker.AllActive() == 0 && e.CompactionPlan.FullyCompacted()
-}
-
-// Free releases any resources held by the engine to free up memory or CPU.
-func (e *Engine) Free() error {
-	e.Cache.Free()
-	return e.FileStore.Free()
 }
 
 // WritePoints saves the set of points in the engine.
