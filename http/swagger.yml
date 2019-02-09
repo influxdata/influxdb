@@ -6916,6 +6916,9 @@ components:
         orgID:
           description: The ID of the organization that owns this Task.
           type: string
+        org:
+          description: The name of the organization that owns this Task.
+          type: string
         status:
           description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
           default: active
@@ -6926,4 +6929,4 @@ components:
         flux:
           description: The Flux script to run for this task.
           type: string
-      required: [orgID, flux]
+      required: [flux]

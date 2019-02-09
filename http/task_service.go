@@ -398,7 +398,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.populateOrg(ctx, req.Task); err != nil {
+	if err := h.populateTaskCreateOrg(ctx, &req.TaskCreate); err != nil {
 		err = &platform.Error{
 			Err: err,
 			Msg: "could not identify organization",
@@ -407,7 +407,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !req.Task.OrganizationID.Valid() {
+	if !req.TaskCreate.OrganizationID.Valid() {
 		err := &platform.Error{
 			Code: platform.EInvalid,
 			Msg:  "invalid organization id",
@@ -416,11 +416,8 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !req.Task.Owner.ID.Valid() {
-		req.Task.Owner.ID = auth.GetUserID()
-	}
-
-	if err := h.TaskService.CreateTask(ctx, req.Task); err != nil {
+	task, err := h.TaskService.CreateTask(ctx, req.TaskCreate)
+	if err != nil {
 		if e, ok := err.(AuthzError); ok {
 			h.logger.Error("failed authentication", zap.Errors("error messages", []error{err, e.AuthzError()}))
 		}
@@ -437,12 +434,12 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		UserID:       auth.GetUserID(),
 		UserType:     platform.Owner,
 		ResourceType: platform.TasksResourceType,
-		ResourceID:   req.Task.ID,
+		ResourceID:   task.ID,
 	}
 	if err := h.UserResourceMappingService.CreateUserResourceMapping(ctx, urm); err != nil {
 		// clean up the task if we fail to map the user and resource
 		// TODO(lh): Multi step creates could benefit from a service wide transactional request
-		if derr := h.TaskService.DeleteTask(ctx, req.Task.ID); derr != nil {
+		if derr := h.TaskService.DeleteTask(ctx, task.ID); derr != nil {
 			err = fmt.Errorf("%s: failed to clean up task: %s", err.Error(), derr.Error())
 		}
 
@@ -455,24 +452,24 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*req.Task, []*platform.Label{})); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*task, []*platform.Label{})); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}
 }
 
 type postTaskRequest struct {
-	Task *platform.Task
+	TaskCreate platform.TaskCreate
 }
 
 func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskRequest, error) {
-	task := &platform.Task{}
-	if err := json.NewDecoder(r.Body).Decode(task); err != nil {
+	var tc platform.TaskCreate
+	if err := json.NewDecoder(r.Body).Decode(&tc); err != nil {
 		return nil, err
 	}
 
 	return &postTaskRequest{
-		Task: task,
+		TaskCreate: tc,
 	}, nil
 }
 
@@ -1283,20 +1280,20 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 }
 
 // CreateTask creates a new task.
-func (t TaskService) CreateTask(ctx context.Context, tsk *platform.Task) error {
+func (t TaskService) CreateTask(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
 	u, err := newURL(t.Addr, tasksPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	taskBytes, err := json.Marshal(tsk)
+	taskBytes, err := json.Marshal(tc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(taskBytes))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -1306,21 +1303,19 @@ func (t TaskService) CreateTask(ctx context.Context, tsk *platform.Task) error {
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
-		return err
+		return nil, err
 	}
 
 	var tr taskResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
-		return err
+		return nil, err
 	}
-	*tsk = tr.Task
-
-	return nil
+	return &tr.Task, nil
 }
 
 // UpdateTask updates a single task with changeset.
@@ -1686,6 +1681,31 @@ func (h *TaskHandler) populateOrg(ctx context.Context, t *platform.Task) error {
 			return err
 		}
 		t.OrganizationID = o.ID
+	}
+	return nil
+}
+
+func (h *TaskHandler) populateTaskCreateOrg(ctx context.Context, tc *platform.TaskCreate) error {
+	if tc.OrganizationID.Valid() && tc.Organization != "" {
+		return nil
+	}
+
+	if !tc.OrganizationID.Valid() && tc.Organization == "" {
+		return errors.New("missing orgID and organization name")
+	}
+
+	if tc.OrganizationID.Valid() {
+		o, err := h.OrganizationService.FindOrganizationByID(ctx, tc.OrganizationID)
+		if err != nil {
+			return err
+		}
+		tc.Organization = o.Name
+	} else {
+		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &tc.Organization})
+		if err != nil {
+			return err
+		}
+		tc.OrganizationID = o.ID
 	}
 	return nil
 }

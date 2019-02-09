@@ -31,7 +31,7 @@ func TestOnboardingValidation(t *testing.T) {
 
 	ctx := pctx.SetAuthorizer(context.Background(), r.Auth)
 
-	err = validator.CreateTask(ctx, &influxdb.Task{
+	_, err = validator.CreateTask(ctx, influxdb.TaskCreate{
 		OrganizationID: r.Org.ID,
 		Flux: `option task = {
  name: "my_task",
@@ -77,9 +77,9 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		FindTasksFn: func(context.Context, influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 			return []*influxdb.Task{&task}, 1, nil
 		},
-		CreateTaskFn: func(_ context.Context, t *influxdb.Task) error {
-			t.ID = 1
-			return nil
+		CreateTaskFn: func(_ context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+			taskCopy := task
+			return &taskCopy, nil
 		},
 		UpdateTaskFn: func(context.Context, influxdb.ID, influxdb.TaskUpdate) (*influxdb.Task, error) {
 			return &task, nil
@@ -135,16 +135,13 @@ func TestValidations(t *testing.T) {
 		{
 			name: "create failure",
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				err := svc.CreateTask(ctx, &influxdb.Task{
+				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
 					OrganizationID: r.Org.ID,
-					Name:           "cows",
-					Owner:          influxdb.User{ID: influxdb.ID(2), Name: "farmer"},
 					Flux: `option task = {
  name: "my_task",
  every: 1s,
 }
 from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
-					Every: "1s",
 				})
 				if err == nil {
 					return errors.New("failed to error without permission")
@@ -157,16 +154,13 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			name: "create success",
 			auth: r.Auth,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				err := svc.CreateTask(ctx, &influxdb.Task{
+				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
 					OrganizationID: r.Org.ID,
-					Name:           "cows",
-					Owner:          *r.User,
 					Flux: `option task = {
  name: "my_task",
  every: 1s,
 }
 from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
-					Every: "1s",
 				})
 				return err
 			},
@@ -175,16 +169,13 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			name: "create badbucket",
 			auth: r.Auth,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				err := svc.CreateTask(ctx, &influxdb.Task{
+				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
 					OrganizationID: r.Org.ID,
-					Name:           "cows",
-					Owner:          *r.User,
 					Flux: `option task = {
  name: "my_task",
  every: 1s,
 }
 from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
-					Every: "1s",
 				})
 				if err == nil {
 					return errors.New("created task without bucket permission")

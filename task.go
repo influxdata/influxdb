@@ -60,7 +60,8 @@ type TaskService interface {
 	FindTasks(ctx context.Context, filter TaskFilter) ([]*Task, int, error)
 
 	// CreateTask creates a new task.
-	CreateTask(ctx context.Context, t *Task) error
+	// The owner of the task is inferred from the authorizer associated with ctx.
+	CreateTask(ctx context.Context, t TaskCreate) (*Task, error)
 
 	// UpdateTask updates a single task with changeset.
 	UpdateTask(ctx context.Context, id ID, upd TaskUpdate) (*Task, error)
@@ -86,6 +87,14 @@ type TaskService interface {
 	// ForceRun forces a run to occur with unix timestamp scheduledFor, to be executed as soon as possible.
 	// The value of scheduledFor may or may not align with the task's schedule.
 	ForceRun(ctx context.Context, taskID ID, scheduledFor int64) (*Run, error)
+}
+
+// TaskCreate is the set of values to create a task.
+type TaskCreate struct {
+	Flux           string `json:"flux"`
+	Status         string `json:"status,omitempty"`
+	OrganizationID ID     `json:"orgID,omitempty"`
+	Organization   string `json:"org,omitempty"`
 }
 
 // TaskUpdate represents updates to a task. Options updates override any options set in the Flux field.

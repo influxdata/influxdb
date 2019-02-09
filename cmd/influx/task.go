@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
+	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 )
@@ -91,54 +92,26 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error parsing flux script: %s", err)
 	}
 
-	t := &platform.Task{
-		Flux: flux,
+	tc := platform.TaskCreate{
+		Flux:         flux,
+		Organization: taskCreateFlags.org,
 	}
-
-	if taskCreateFlags.org != "" && taskCreateFlags.orgID == "" {
-		ow := &http.OrganizationService{
-			Addr:  flags.host,
-			Token: flags.token,
-		}
-
-		filter := platform.OrganizationFilter{
-			Name: &taskCreateFlags.org,
-		}
-
-		orgs, _, err := ow.FindOrganizations(context.Background(), filter)
-		if err != nil {
-			return err
-		}
-
-		if len(orgs) != 1 {
-			fmt.Println("Unable to find a single org matching that ID.")
-			w := internal.NewTabWriter(os.Stdout)
-			w.WriteHeaders(
-				"ID",
-				"Name",
-			)
-			for _, o := range orgs {
-				w.Write(map[string]interface{}{
-					"ID":   o.ID.String(),
-					"Name": o.Name,
-				})
-			}
-			w.Flush()
-		}
-
-		t.OrganizationID = orgs[0].ID
-		t.Organization = orgs[0].Name
-	}
-
 	if taskCreateFlags.orgID != "" {
-		id, err := platform.IDFromString(taskCreateFlags.orgID)
+		oid, err := platform.IDFromString(taskCreateFlags.orgID)
 		if err != nil {
-			return fmt.Errorf("error parsing organization id: %v", err)
+			return fmt.Errorf("error parsing organization ID: %s", err)
 		}
-		t.OrganizationID = *id
+		tc.OrganizationID = *oid
 	}
 
-	if err := s.CreateTask(context.Background(), t); err != nil {
+	as := &http.AuthorizationService{Addr: flags.host, Token: flags.token}
+	auth, err := as.FindAuthorizationByToken(context.Background(), flags.token)
+	if err != nil {
+		return fmt.Errorf("error finding token: %s", err)
+	}
+
+	t, err := s.CreateTask(icontext.SetAuthorizer(context.Background(), auth), tc)
+	if err != nil {
 		return err
 	}
 
