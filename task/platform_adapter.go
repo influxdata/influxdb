@@ -6,6 +6,7 @@ import (
 	"time"
 
 	platform "github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
 )
@@ -69,10 +70,15 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 	return pts, len(pts), nil
 }
 
-func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
+func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platform.Task, error) {
+	auth, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	opts, err := options.FromScript(t.Flux)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// TODO(mr): decide whether we allow user to configure scheduleAfter. https://github.com/influxdata/influxdb/issues/10884
@@ -84,7 +90,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 
 	req := backend.CreateTaskRequest{
 		Org:           t.OrganizationID,
-		User:          t.Owner.ID,
+		User:          auth.GetUserID(),
 		Script:        t.Flux,
 		ScheduleAfter: scheduleAfter,
 		Status:        backend.TaskStatus(t.Status),
@@ -92,20 +98,26 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 
 	id, err := p.s.CreateTask(ctx, req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	t.ID = id
-	t.Cron = opts.Cron
-	t.Name = opts.Name
+	task := &platform.Task{
+		ID:             id,
+		Flux:           t.Flux,
+		Cron:           opts.Cron,
+		Name:           opts.Name,
+		OrganizationID: t.OrganizationID,
+		Owner:          platform.User{ID: req.User},
+		Status:         t.Status,
+	}
 
 	if opts.Every != 0 {
-		t.Every = opts.Every.String()
+		task.Every = opts.Every.String()
 	}
 	if opts.Offset != 0 {
-		t.Offset = opts.Offset.String()
+		task.Offset = opts.Offset.String()
 	}
 
-	return nil
+	return task, nil
 }
 
 func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {

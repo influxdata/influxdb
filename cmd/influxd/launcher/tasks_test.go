@@ -85,16 +85,16 @@ stuff f=-123.456,b=true,s="hello"
 		t.Fatalf("exp status %d; got %d", nethttp.StatusNoContent, resp.StatusCode)
 	}
 
-	created := &influxdb.Task{
+	create := influxdb.TaskCreate{
 		OrganizationID: org.ID,
-		Owner:          *be.User,
 		Flux: fmt.Sprintf(`option task = {
  name: "my_task",
  every: 1s,
 }
 from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, bOut.Name, be.Org.Name),
 	}
-	if err := be.TaskService().CreateTask(ctx, created); err != nil {
+	created, err := be.TaskService().CreateTask(pctx.SetAuthorizer(ctx, be.Auth), create)
+	if err != nil {
 		t.Fatal(err)
 	}
 

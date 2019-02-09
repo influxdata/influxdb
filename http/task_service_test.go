@@ -11,8 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"go.uber.org/zap"
-
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
@@ -21,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/task/backend"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // NewMockTaskBackend returns a TaskBackend with mock services.
@@ -231,9 +230,14 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			},
 			fields: fields{
 				taskService: &mock.TaskService{
-					CreateTaskFn: func(ctx context.Context, t *platform.Task) error {
-						t.ID = 1
-						return nil
+					CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+						return &platform.Task{
+							ID:             1,
+							Name:           "task1",
+							OrganizationID: 1,
+							Organization:   "test",
+							Owner:          platform.User{ID: 1, Name: "user1"},
+						}, nil
 					},
 				},
 			},
@@ -815,9 +819,9 @@ func TestTaskUserResourceMap(t *testing.T) {
 	taskID := platform.ID(1)
 
 	h.TaskService = &mock.TaskService{
-		CreateTaskFn: func(ctx context.Context, t *platform.Task) error {
-			t.ID = taskID
-			return nil
+		CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+			taskCopy := task
+			return &taskCopy, nil
 		},
 		DeleteTaskFn: func(ctx context.Context, id platform.ID) error {
 			return nil

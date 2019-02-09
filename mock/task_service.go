@@ -6,12 +6,12 @@ import (
 	platform "github.com/influxdata/influxdb"
 )
 
-var _ platform.TaskService = &TaskService{}
+var _ platform.TaskService = (*TaskService)(nil)
 
 type TaskService struct {
 	FindTaskByIDFn func(context.Context, platform.ID) (*platform.Task, error)
 	FindTasksFn    func(context.Context, platform.TaskFilter) ([]*platform.Task, int, error)
-	CreateTaskFn   func(context.Context, *platform.Task) error
+	CreateTaskFn   func(context.Context, platform.TaskCreate) (*platform.Task, error)
 	UpdateTaskFn   func(context.Context, platform.ID, platform.TaskUpdate) (*platform.Task, error)
 	DeleteTaskFn   func(context.Context, platform.ID) error
 	FindLogsFn     func(context.Context, platform.LogFilter) ([]*platform.Log, int, error)
@@ -30,7 +30,7 @@ func (s *TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter)
 	return s.FindTasksFn(ctx, filter)
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, t *platform.Task) error {
+func (s *TaskService) CreateTask(ctx context.Context, t platform.TaskCreate) (*platform.Task, error) {
 	return s.CreateTaskFn(ctx, t)
 }
 

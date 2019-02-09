@@ -70,18 +70,18 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.T
 	return ts.TaskService.FindTasks(ctx, filter)
 }
 
-func (ts *taskServiceValidator) CreateTask(ctx context.Context, t *platform.Task) error {
+func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskCreate) (*platform.Task, error) {
 	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, t.OrganizationID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := validatePermission(ctx, *p); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := validateBucket(ctx, t.Flux, ts.preAuth); err != nil {
-		return err
+		return nil, err
 	}
 
 	return ts.TaskService.CreateTask(ctx, t)
