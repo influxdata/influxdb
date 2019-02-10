@@ -175,6 +175,11 @@ jobs:
       - run:
           name: "Build nightly"
           command: make nightly
+      - persist_to_workspace:
+          root: .
+          paths:
+            - etc/litmus_success_notify.sh
+            - etc/litmus_fail_notify.sh 
 
   release:
     docker:
