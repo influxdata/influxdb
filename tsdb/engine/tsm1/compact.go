@@ -39,10 +39,6 @@ const (
 	TSMFileExtension = "tsm"
 )
 
-// ColdCompactionSplitSize is the maximum number of files to compact together
-// when performing a compaction on a cold shard.
-const ColdCompactionSplitSize = 8
-
 var (
 	errMaxFileExceeded     = fmt.Errorf("max file exceeded")
 	errSnapshotsDisabled   = fmt.Errorf("snapshots disabled")
@@ -457,16 +453,11 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 			return nil
 		}
 
-		var groups []CompactionGroup
-		if forceFull {
-			groups = []CompactionGroup{tsmFiles}
-		} else {
-			groups = splitCompactionGroups(tsmFiles, ColdCompactionSplitSize)
-		}
-		if !c.acquire(groups) {
+		group := []CompactionGroup{tsmFiles}
+		if !c.acquire(group) {
 			return nil
 		}
-		return groups
+		return group
 	}
 
 	// don't plan if nothing has changed in the filestore
@@ -2106,17 +2097,4 @@ func (l *latencies) avg() time.Duration {
 		return time.Duration(int64(sum) / n)
 	}
 	return time.Duration(0)
-}
-
-// splitCompactionGroups returns groups with a maximum size of sz.
-func splitCompactionGroups(tsmFiles []string, sz int) []CompactionGroup {
-	var groups []CompactionGroup
-	for i := 0; i < len(tsmFiles); i += sz {
-		var group CompactionGroup
-		for j := 0; j < sz && i+j < len(tsmFiles); j++ {
-			group = append(group, tsmFiles[i+j])
-		}
-		groups = append(groups, group)
-	}
-	return groups
 }
