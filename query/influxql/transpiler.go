@@ -604,8 +604,16 @@ func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, st
 }
 
 func (t *transpilerState) transpileSelect(ctx context.Context, stmt *influxql.SelectStatement) (cursor, error) {
-	// Clone the select statement and omit the time from the list of column names.
-	t.stmt = stmt.Clone()
+	// TODO(jsternberg): Use the compile process for everything.
+	// For now, we mostly use it for validation. As an example, identifyGroups
+	// is the same as the compilation code, but more hacky and does less.
+	c, err := compile(stmt, t.config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Omit the time from the list of column names.
+	t.stmt = c.stmt
 	t.stmt.OmitTime = true
 
 	groups, err := identifyGroups(t.stmt)
