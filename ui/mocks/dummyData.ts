@@ -533,6 +533,37 @@ export const bucket = {
   labels: [],
 }
 
+export const buckets = [
+  {
+    links: {
+      labels: '/api/v2/buckets/034a10d6f7a6b000/labels',
+      log: '/api/v2/buckets/034a10d6f7a6b000/log',
+      org: '/api/v2/orgs/034a0adc49a6b000',
+      self: '/api/v2/buckets/034a10d6f7a6b000',
+    },
+    id: '034a10d6f7a6b000',
+    organizationID: '034a0adc49a6b000',
+    organization: 'default',
+    name: 'newbuck',
+    retentionRules: [],
+    labels: [],
+  },
+  {
+    links: {
+      labels: '/api/v2/buckets/034a10d6f7a6b000/labels',
+      log: '/api/v2/buckets/034a10d6f7a6b000/log',
+      org: '/api/v2/orgs/034a0adc49a6b000',
+      self: '/api/v2/buckets/034a10d6f7a6b000',
+    },
+    id: '034a10d6f7a6b001',
+    organizationID: '034a0adc49a6b000',
+    organization: 'default',
+    name: 'newbuck1',
+    retentionRules: [],
+    labels: [],
+  },
+]
+
 export const setSetupParamsResponse = {
   data: {
     user: {
@@ -642,3 +673,39 @@ export const setSetupParamsResponse = {
   },
   request: {},
 }
+
+export const telegraf = [
+  {
+    id: '03636a150fb51000',
+    name: 'Name this Configuration',
+    organizationID: '03636a0aabb51000',
+  },
+  {
+    id: '03636a150fb51001',
+    name: 'Name this Configuration',
+    organizationID: '03636a0aabb51000',
+  },
+]
+
+export const scraperTargets = [
+  {
+    bucket: 'a',
+    bucketID: '03636a0aabb51001',
+    id: '03636a0bfe351000',
+    name: 'new target',
+    orgID: '03636a0aabb51000',
+    organization: 'a',
+    type: 'prometheus',
+    url: 'http://localhost:9999/metrics',
+  },
+  {
+    bucket: 'a',
+    bucketID: '03636a0aabb51001',
+    id: '03636a0bfe351001',
+    name: 'new target',
+    orgID: '03636a0aabb51000',
+    organization: 'a',
+    type: 'prometheus',
+    url: 'http://localhost:9999/metrics',
+  },
+]

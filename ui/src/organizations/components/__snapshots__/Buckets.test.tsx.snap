@@ -1,0 +1,687 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`BucketList rendering renders 1`] = `
+Object {
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <table
+        class="index-list"
+      >
+        <thead
+          class="index-list--header"
+        >
+          <tr>
+            <th
+              class="index-list--header-cell index-list--align-left"
+              style="width: 40%;"
+            >
+              Name
+            </th>
+            <th
+              class="index-list--header-cell index-list--align-left"
+              style="width: 40%;"
+            >
+              Retention
+            </th>
+            <th
+              class="index-list--header-cell index-list--align-left"
+              style="width: 20%;"
+            >
+              
+            </th>
+          </tr>
+        </thead>
+        <tbody
+          class="index-list--body"
+        >
+          <tr
+            class="index-list--row"
+          >
+            <td
+              class="index-list--row-cell index-list--align-left"
+            >
+              <div
+                class="index-list--cell"
+              >
+                <div
+                  class="editable-name"
+                >
+                  <a
+                    href="#"
+                  >
+                    <span>
+                      newbuck
+                    </span>
+                  </a>
+                  <div
+                    class="editable-name--toggle"
+                  >
+                    <span
+                      class="icon pencil"
+                    />
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              class="index-list--row-cell index-list--align-left"
+            >
+              <div
+                class="index-list--cell"
+              />
+            </td>
+            <td
+              class="index-list--row-cell index-list--show-hover index-list--align-right"
+            >
+              <div
+                class="index-list--cell"
+              >
+                <div
+                  class="confirmation-button"
+                >
+                  <button
+                    class="button button-xs button-danger"
+                    tabindex="0"
+                    title="Delete"
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                  <div
+                    class="confirmation-button--tooltip"
+                  >
+                    <div
+                      class="confirmation-button--tooltip-body"
+                      data-test="confirmation-button--click-target"
+                    >
+                      Confirm
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              class="index-list--row-cell index-list--align-right"
+            >
+              <div
+                class="index-list--cell"
+              >
+                <div
+                  class="context-menu"
+                >
+                  <div
+                    class="context-menu--container"
+                  >
+                    <button
+                      class="button button-xs button-primary context-menu--toggle context-menu--primary"
+                      tabindex="0"
+                      title="Add Data"
+                      type="button"
+                    >
+                      Add Data
+                    </button>
+                    <div
+                      class="context-menu--list-container"
+                    >
+                      <div
+                        class="context-menu--list context-menu--primary"
+                      >
+                        <button
+                          class="context-menu--item"
+                        >
+                          Configure Telegraf Agent
+                          <div
+                            class="contex-menu--item-description"
+                          >
+                            Configure a Telegraf agent to push data into your bucket.
+                          </div>
+                        </button>
+                        <button
+                          class="context-menu--item"
+                        >
+                          Line Protocol
+                          <div
+                            class="contex-menu--item-description"
+                          >
+                            Quickly load an existing line protocol file.
+                          </div>
+                        </button>
+                        <button
+                          class="context-menu--item"
+                        >
+                          Scrape Metrics
+                          <div
+                            class="contex-menu--item-description"
+                          >
+                            Add a scrape target to pull data into your bucket.
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+          <tr
+            class="index-list--row"
+          >
+            <td
+              class="index-list--row-cell index-list--align-left"
+            >
+              <div
+                class="index-list--cell"
+              >
+                <div
+                  class="editable-name"
+                >
+                  <a
+                    href="#"
+                  >
+                    <span>
+                      newbuck1
+                    </span>
+                  </a>
+                  <div
+                    class="editable-name--toggle"
+                  >
+                    <span
+                      class="icon pencil"
+                    />
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              class="index-list--row-cell index-list--align-left"
+            >
+              <div
+                class="index-list--cell"
+              />
+            </td>
+            <td
+              class="index-list--row-cell index-list--show-hover index-list--align-right"
+            >
+              <div
+                class="index-list--cell"
+              >
+                <div
+                  class="confirmation-button"
+                >
+                  <button
+                    class="button button-xs button-danger"
+                    tabindex="0"
+                    title="Delete"
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                  <div
+                    class="confirmation-button--tooltip"
+                  >
+                    <div
+                      class="confirmation-button--tooltip-body"
+                      data-test="confirmation-button--click-target"
+                    >
+                      Confirm
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td
+              class="index-list--row-cell index-list--align-right"
+            >
+              <div
+                class="index-list--cell"
+              >
+                <div
+                  class="context-menu"
+                >
+                  <div
+                    class="context-menu--container"
+                  >
+                    <button
+                      class="button button-xs button-primary context-menu--toggle context-menu--primary"
+                      tabindex="0"
+                      title="Add Data"
+                      type="button"
+                    >
+                      Add Data
+                    </button>
+                    <div
+                      class="context-menu--list-container"
+                    >
+                      <div
+                        class="context-menu--list context-menu--primary"
+                      >
+                        <button
+                          class="context-menu--item"
+                        >
+                          Configure Telegraf Agent
+                          <div
+                            class="contex-menu--item-description"
+                          >
+                            Configure a Telegraf agent to push data into your bucket.
+                          </div>
+                        </button>
+                        <button
+                          class="context-menu--item"
+                        >
+                          Line Protocol
+                          <div
+                            class="contex-menu--item-description"
+                          >
+                            Quickly load an existing line protocol file.
+                          </div>
+                        </button>
+                        <button
+                          class="context-menu--item"
+                        >
+                          Scrape Metrics
+                          <div
+                            class="contex-menu--item-description"
+                          >
+                            Add a scrape target to pull data into your bucket.
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        class="overlay-tech"
+      >
+        <div
+          class="overlay--dialog"
+          data-test="overlay-children"
+        />
+        <div
+          class="overlay--mask"
+        />
+      </div>
+      <div
+        class="overlay-tech"
+      >
+        <div
+          class="overlay--dialog"
+          data-test="overlay-children"
+        />
+        <div
+          class="overlay--mask"
+        />
+      </div>
+    </div>
+  </body>,
+  "container": <div>
+    <table
+      class="index-list"
+    >
+      <thead
+        class="index-list--header"
+      >
+        <tr>
+          <th
+            class="index-list--header-cell index-list--align-left"
+            style="width: 40%;"
+          >
+            Name
+          </th>
+          <th
+            class="index-list--header-cell index-list--align-left"
+            style="width: 40%;"
+          >
+            Retention
+          </th>
+          <th
+            class="index-list--header-cell index-list--align-left"
+            style="width: 20%;"
+          >
+            
+          </th>
+        </tr>
+      </thead>
+      <tbody
+        class="index-list--body"
+      >
+        <tr
+          class="index-list--row"
+        >
+          <td
+            class="index-list--row-cell index-list--align-left"
+          >
+            <div
+              class="index-list--cell"
+            >
+              <div
+                class="editable-name"
+              >
+                <a
+                  href="#"
+                >
+                  <span>
+                    newbuck
+                  </span>
+                </a>
+                <div
+                  class="editable-name--toggle"
+                >
+                  <span
+                    class="icon pencil"
+                  />
+                </div>
+              </div>
+            </div>
+          </td>
+          <td
+            class="index-list--row-cell index-list--align-left"
+          >
+            <div
+              class="index-list--cell"
+            />
+          </td>
+          <td
+            class="index-list--row-cell index-list--show-hover index-list--align-right"
+          >
+            <div
+              class="index-list--cell"
+            >
+              <div
+                class="confirmation-button"
+              >
+                <button
+                  class="button button-xs button-danger"
+                  tabindex="0"
+                  title="Delete"
+                  type="button"
+                >
+                  Delete
+                </button>
+                <div
+                  class="confirmation-button--tooltip"
+                >
+                  <div
+                    class="confirmation-button--tooltip-body"
+                    data-test="confirmation-button--click-target"
+                  >
+                    Confirm
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+          <td
+            class="index-list--row-cell index-list--align-right"
+          >
+            <div
+              class="index-list--cell"
+            >
+              <div
+                class="context-menu"
+              >
+                <div
+                  class="context-menu--container"
+                >
+                  <button
+                    class="button button-xs button-primary context-menu--toggle context-menu--primary"
+                    tabindex="0"
+                    title="Add Data"
+                    type="button"
+                  >
+                    Add Data
+                  </button>
+                  <div
+                    class="context-menu--list-container"
+                  >
+                    <div
+                      class="context-menu--list context-menu--primary"
+                    >
+                      <button
+                        class="context-menu--item"
+                      >
+                        Configure Telegraf Agent
+                        <div
+                          class="contex-menu--item-description"
+                        >
+                          Configure a Telegraf agent to push data into your bucket.
+                        </div>
+                      </button>
+                      <button
+                        class="context-menu--item"
+                      >
+                        Line Protocol
+                        <div
+                          class="contex-menu--item-description"
+                        >
+                          Quickly load an existing line protocol file.
+                        </div>
+                      </button>
+                      <button
+                        class="context-menu--item"
+                      >
+                        Scrape Metrics
+                        <div
+                          class="contex-menu--item-description"
+                        >
+                          Add a scrape target to pull data into your bucket.
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+        <tr
+          class="index-list--row"
+        >
+          <td
+            class="index-list--row-cell index-list--align-left"
+          >
+            <div
+              class="index-list--cell"
+            >
+              <div
+                class="editable-name"
+              >
+                <a
+                  href="#"
+                >
+                  <span>
+                    newbuck1
+                  </span>
+                </a>
+                <div
+                  class="editable-name--toggle"
+                >
+                  <span
+                    class="icon pencil"
+                  />
+                </div>
+              </div>
+            </div>
+          </td>
+          <td
+            class="index-list--row-cell index-list--align-left"
+          >
+            <div
+              class="index-list--cell"
+            />
+          </td>
+          <td
+            class="index-list--row-cell index-list--show-hover index-list--align-right"
+          >
+            <div
+              class="index-list--cell"
+            >
+              <div
+                class="confirmation-button"
+              >
+                <button
+                  class="button button-xs button-danger"
+                  tabindex="0"
+                  title="Delete"
+                  type="button"
+                >
+                  Delete
+                </button>
+                <div
+                  class="confirmation-button--tooltip"
+                >
+                  <div
+                    class="confirmation-button--tooltip-body"
+                    data-test="confirmation-button--click-target"
+                  >
+                    Confirm
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+          <td
+            class="index-list--row-cell index-list--align-right"
+          >
+            <div
+              class="index-list--cell"
+            >
+              <div
+                class="context-menu"
+              >
+                <div
+                  class="context-menu--container"
+                >
+                  <button
+                    class="button button-xs button-primary context-menu--toggle context-menu--primary"
+                    tabindex="0"
+                    title="Add Data"
+                    type="button"
+                  >
+                    Add Data
+                  </button>
+                  <div
+                    class="context-menu--list-container"
+                  >
+                    <div
+                      class="context-menu--list context-menu--primary"
+                    >
+                      <button
+                        class="context-menu--item"
+                      >
+                        Configure Telegraf Agent
+                        <div
+                          class="contex-menu--item-description"
+                        >
+                          Configure a Telegraf agent to push data into your bucket.
+                        </div>
+                      </button>
+                      <button
+                        class="context-menu--item"
+                      >
+                        Line Protocol
+                        <div
+                          class="contex-menu--item-description"
+                        >
+                          Quickly load an existing line protocol file.
+                        </div>
+                      </button>
+                      <button
+                        class="context-menu--item"
+                      >
+                        Scrape Metrics
+                        <div
+                          class="contex-menu--item-description"
+                        >
+                          Add a scrape target to pull data into your bucket.
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div
+      class="overlay-tech"
+    >
+      <div
+        class="overlay--dialog"
+        data-test="overlay-children"
+      />
+      <div
+        class="overlay--mask"
+      />
+    </div>
+    <div
+      class="overlay-tech"
+    >
+      <div
+        class="overlay--dialog"
+        data-test="overlay-children"
+      />
+      <div
+        class="overlay--mask"
+      />
+    </div>
+  </div>,
+  "debug": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllBySelectText": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getAllByValue": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getBySelectText": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "getByValue": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllBySelectText": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryAllByValue": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryBySelectText": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "queryByValue": [Function],
+  "rerender": [Function],
+  "store": Object {
+    "dispatch": [Function],
+    "getState": [Function],
+    "replaceReducer": [Function],
+    "subscribe": [Function],
+    Symbol(observable): [Function],
+  },
+  "unmount": [Function],
+}
+`;
