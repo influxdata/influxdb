@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
-import classnames from 'classnames'
 
 // Components
 import {
@@ -27,6 +26,7 @@ import {
   UPDATED_AT_TIME_FORMAT,
   DEFAULT_DASHBOARD_NAME,
 } from 'src/dashboards/constants'
+import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   dashboard: Dashboard
@@ -36,6 +36,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onEditLabels: (dashboard: Dashboard) => void
+  showOwnerColumn: boolean
 }
 
 export default class DashboardsIndexTableRow extends PureComponent<Props> {
@@ -55,9 +56,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
               stackChildren={Stack.Columns}
               align={Alignment.Left}
             >
-              <Link className={this.nameClassName} to={`/dashboards/${id}`}>
-                {this.name}
-              </Link>
+              {this.resourceNames}
               {this.labels}
             </ComponentSpacer>
             <EditableDescription
@@ -67,7 +66,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
             />
           </ComponentSpacer>
         </IndexList.Cell>
-        <IndexList.Cell>{this.ownerName}</IndexList.Cell>
+        {this.ownerCell}
         {this.lastModifiedCell}
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Left} stackChildren={Stack.Columns}>
@@ -91,6 +90,31 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     )
   }
 
+  private get ownerCell(): JSX.Element {
+    const {showOwnerColumn} = this.props
+
+    if (showOwnerColumn) {
+      return <IndexList.Cell>{this.ownerName}</IndexList.Cell>
+    }
+  }
+
+  private get resourceNames(): JSX.Element {
+    const {dashboard} = this.props
+
+    return (
+      <EditableName
+        onUpdate={this.handleUpdateDashboard}
+        name={dashboard.name}
+        hrefValue={`/dashboards/${dashboard.id}`}
+        noNameString={DEFAULT_DASHBOARD_NAME}
+      />
+    )
+  }
+
+  private handleUpdateDashboard = (name: string) => {
+    this.props.onUpdateDashboard({...this.props.dashboard, name})
+  }
+
   private get labels(): JSX.Element {
     const {dashboard} = this.props
 
@@ -98,7 +122,6 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
       return (
         <Label.Container
           limitChildCount={4}
-          className="index-list--labels"
           onEdit={this.handleEditLabels}
           resourceName="this Dashboard"
         />
@@ -145,12 +168,6 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     onEditLabels(dashboard)
   }
 
-  private get name(): string {
-    const {dashboard} = this.props
-
-    return dashboard.name || DEFAULT_DASHBOARD_NAME
-  }
-
   private get ownerName(): JSX.Element {
     const {dashboard, orgs} = this.props
     const ownerOrg = orgs.find(o => o.id === dashboard.orgID)
@@ -160,17 +177,6 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
         {ownerOrg.name}
       </Link>
     )
-  }
-
-  private get nameClassName(): string {
-    const {dashboard} = this.props
-
-    const dashboardIsUntitled =
-      dashboard.name === '' || dashboard.name === DEFAULT_DASHBOARD_NAME
-
-    return classnames('index-list--resource-name', {
-      'untitled-name': dashboardIsUntitled,
-    })
   }
 
   private handleUpdateDescription = (description: string): void => {

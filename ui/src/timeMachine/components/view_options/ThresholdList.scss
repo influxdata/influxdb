@@ -5,6 +5,8 @@
   and Table type cells
 */
 
+@import 'src/style/modules';
+
 .threshold-list {
   display: flex;
   flex-direction: column;
@@ -28,7 +30,7 @@
 }
 
 .threshold-item--label {
-  flex: 0 0 106px;
+  flex: 0 0 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -40,11 +42,7 @@
   border-radius: $radius;
   @include no-user-select();
   background-color: $g4-onyx;
-  color: $g9-mountain;
-
-  &.threshold-item--label__editable  {
-    color: $g13-mist;
-  }
+  color: $g13-mist;
 }
 
 .threshold-item--input {

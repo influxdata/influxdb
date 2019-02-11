@@ -31,7 +31,6 @@ import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Members from 'src/organizations/components/Members'
 import Buckets from 'src/organizations/components/Buckets'
-import Dashboards from 'src/organizations/components/Dashboards'
 import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
@@ -52,6 +51,7 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Task} from 'src/tasks/containers/TasksPage'
+import OrgDashboardIndex from '../components/OrgDashboardIndex'
 
 interface StateProps {
   org: Organization
@@ -157,7 +157,8 @@ class OrganizationView extends PureComponent<Props> {
                       loading={loading}
                       spinnerComponent={<TechnoSpinner />}
                     >
-                      <Dashboards
+                      <OrgDashboardIndex
+                        router={router}
                         dashboards={dashboards}
                         orgName={org.name}
                         onChange={fetch}

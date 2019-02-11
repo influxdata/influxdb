@@ -130,6 +130,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	labelBackend := &LabelBackend{
 		Logger:       b.Logger.With(zap.String("handler", "label")),
 		LabelService: b.LabelService,
+		ResourceType: platform.TasksResourceType,
 	}
 	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(labelBackend))

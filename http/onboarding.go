@@ -192,7 +192,7 @@ func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequ
 		return nil, err
 	}
 
-	bkt, err := oResp.Bucket.toPlatform()
+	bkt, err := oResp.Bucket.toInfluxDB()
 	if err != nil {
 		return nil, err
 	}

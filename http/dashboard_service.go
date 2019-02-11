@@ -119,6 +119,7 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	labelBackend := &LabelBackend{
 		Logger:       b.Logger.With(zap.String("handler", "label")),
 		LabelService: b.LabelService,
+		ResourceType: platform.DashboardsResourceType,
 	}
 	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(labelBackend))

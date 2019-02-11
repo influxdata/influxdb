@@ -14,10 +14,12 @@ import {
 import {Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 
+// Constants
+import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
+
 interface Props {
   collector: Telegraf
   bucket: string
-  onDownloadConfig: (telegrafID: string, telegrafName: string) => void
   onDelete: (telegrafID: string) => void
   onUpdate: (telegraf: Telegraf) => void
   onOpenInstructions: (telegrafID: string) => void
@@ -34,17 +36,12 @@ export default class CollectorRow extends PureComponent<Props> {
             <EditableName
               onUpdate={this.handleUpdateConfig}
               name={collector.name}
+              noNameString={DEFAULT_COLLECTOR_NAME}
             />
           </IndexList.Cell>
           <IndexList.Cell>{bucket}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ComponentSpacer align={Alignment.Right}>
-              <Button
-                size={ComponentSize.ExtraSmall}
-                color={ComponentColor.Secondary}
-                text={'Download Config'}
-                onClick={this.handleDownloadConfig}
-              />
               <Button
                 size={ComponentSize.ExtraSmall}
                 color={ComponentColor.Secondary}
@@ -77,13 +74,6 @@ export default class CollectorRow extends PureComponent<Props> {
 
   private handleOpenConfig = (): void => {
     this.props.onOpenTelegrafConfig(
-      this.props.collector.id,
-      this.props.collector.name
-    )
-  }
-
-  private handleDownloadConfig = (): void => {
-    this.props.onDownloadConfig(
       this.props.collector.id,
       this.props.collector.name
     )

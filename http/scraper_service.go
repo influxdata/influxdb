@@ -102,6 +102,7 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	labelBackend := &LabelBackend{
 		Logger:       b.Logger.With(zap.String("handler", "label")),
 		LabelService: b.LabelService,
+		ResourceType: influxdb.ScraperResourceType,
 	}
 	h.HandlerFunc("GET", targetsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", targetsIDLabelsPath, newPostLabelHandler(labelBackend))

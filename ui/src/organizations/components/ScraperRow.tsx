@@ -11,6 +11,9 @@ import {
 import {ScraperTargetResponse} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 
+// Constants
+import {DEFAULT_SCRAPER_NAME} from 'src/dashboards/constants'
+
 interface Props {
   scraper: ScraperTargetResponse
   onDeleteScraper: (scraper) => void
@@ -27,6 +30,7 @@ export default class ScraperRow extends PureComponent<Props> {
             <EditableName
               onUpdate={this.handleUpdateScraper}
               name={scraper.url}
+              noNameString={DEFAULT_SCRAPER_NAME}
             />
           </IndexList.Cell>
           <IndexList.Cell>{scraper.bucket}</IndexList.Cell>

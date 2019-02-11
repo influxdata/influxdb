@@ -9,7 +9,7 @@ import (
 	"path"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -19,12 +19,12 @@ import (
 type BucketBackend struct {
 	Logger *zap.Logger
 
-	BucketService              platform.BucketService
-	BucketOperationLogService  platform.BucketOperationLogService
-	UserResourceMappingService platform.UserResourceMappingService
-	LabelService               platform.LabelService
-	UserService                platform.UserService
-	OrganizationService        platform.OrganizationService
+	BucketService              influxdb.BucketService
+	BucketOperationLogService  influxdb.BucketOperationLogService
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
+	UserService                influxdb.UserService
+	OrganizationService        influxdb.OrganizationService
 }
 
 // NewBucketBackend returns a new instance of BucketBackend.
@@ -47,12 +47,12 @@ type BucketHandler struct {
 
 	Logger *zap.Logger
 
-	BucketService              platform.BucketService
-	BucketOperationLogService  platform.BucketOperationLogService
-	UserResourceMappingService platform.UserResourceMappingService
-	LabelService               platform.LabelService
-	UserService                platform.UserService
-	OrganizationService        platform.OrganizationService
+	BucketService              influxdb.BucketService
+	BucketOperationLogService  influxdb.BucketOperationLogService
+	UserResourceMappingService influxdb.UserResourceMappingService
+	LabelService               influxdb.LabelService
+	UserService                influxdb.UserService
+	OrganizationService        influxdb.OrganizationService
 }
 
 const (
@@ -90,8 +90,8 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 
 	memberBackend := MemberBackend{
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
-		ResourceType:               platform.BucketsResourceType,
-		UserType:                   platform.Member,
+		ResourceType:               influxdb.BucketsResourceType,
+		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
@@ -101,8 +101,8 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 
 	ownerBackend := MemberBackend{
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
-		ResourceType:               platform.BucketsResourceType,
-		UserType:                   platform.Owner,
+		ResourceType:               influxdb.BucketsResourceType,
+		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
@@ -113,6 +113,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	labelBackend := &LabelBackend{
 		Logger:       b.Logger.With(zap.String("handler", "label")),
 		LabelService: b.LabelService,
+		ResourceType: influxdb.BucketsResourceType,
 	}
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -124,8 +125,8 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 
 // bucket is used for serialization/deserialization with duration string syntax.
 type bucket struct {
-	ID                  platform.ID     `json:"id,omitempty"`
-	OrganizationID      platform.ID     `json:"organizationID,omitempty"`
+	ID                  influxdb.ID     `json:"id,omitempty"`
+	OrganizationID      influxdb.ID     `json:"organizationID,omitempty"`
 	Organization        string          `json:"organization,omitempty"`
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
@@ -138,7 +139,7 @@ type retentionRule struct {
 	EverySeconds int64  `json:"everySeconds"`
 }
 
-func (b *bucket) toPlatform() (*platform.Bucket, error) {
+func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -149,14 +150,14 @@ func (b *bucket) toPlatform() (*platform.Bucket, error) {
 	if len(b.RetentionRules) > 0 {
 		d = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
 		if d < time.Second {
-			return nil, &platform.Error{
-				Code: platform.EUnprocessableEntity,
+			return nil, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
 				Msg:  "expiration seconds must be greater than or equal to one second",
 			}
 		}
 	}
 
-	return &platform.Bucket{
+	return &influxdb.Bucket{
 		ID:                  b.ID,
 		OrganizationID:      b.OrganizationID,
 		Organization:        b.Organization,
@@ -166,7 +167,7 @@ func (b *bucket) toPlatform() (*platform.Bucket, error) {
 	}, nil
 }
 
-func newBucket(pb *platform.Bucket) *bucket {
+func newBucket(pb *influxdb.Bucket) *bucket {
 	if pb == nil {
 		return nil
 	}
@@ -196,7 +197,7 @@ type bucketUpdate struct {
 	RetentionRules []retentionRule `json:"retentionRules,omitempty"`
 }
 
-func (b *bucketUpdate) toPlatform() (*platform.BucketUpdate, error) {
+func (b *bucketUpdate) toInfluxDB() (*influxdb.BucketUpdate, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -206,20 +207,20 @@ func (b *bucketUpdate) toPlatform() (*platform.BucketUpdate, error) {
 	if len(b.RetentionRules) > 0 {
 		d = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
 		if d < time.Second {
-			return nil, &platform.Error{
-				Code: platform.EUnprocessableEntity,
+			return nil, &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
 				Msg:  "expiration seconds must be greater than or equal to one second",
 			}
 		}
 	}
 
-	return &platform.BucketUpdate{
+	return &influxdb.BucketUpdate{
 		Name:            b.Name,
 		RetentionPeriod: &d,
 	}, nil
 }
 
-func newBucketUpdate(pb *platform.BucketUpdate) *bucketUpdate {
+func newBucketUpdate(pb *influxdb.BucketUpdate) *bucketUpdate {
 	if pb == nil {
 		return nil
 	}
@@ -242,10 +243,10 @@ func newBucketUpdate(pb *platform.BucketUpdate) *bucketUpdate {
 type bucketResponse struct {
 	Links map[string]string `json:"links"`
 	bucket
-	Labels []platform.Label `json:"labels"`
+	Labels []influxdb.Label `json:"labels"`
 }
 
-func newBucketResponse(b *platform.Bucket, labels []*platform.Label) *bucketResponse {
+func newBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
 	res := &bucketResponse{
 		Links: map[string]string{
 			"self":   fmt.Sprintf("/api/v2/buckets/%s", b.ID),
@@ -254,7 +255,7 @@ func newBucketResponse(b *platform.Bucket, labels []*platform.Label) *bucketResp
 			"org":    fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
 		},
 		bucket: *newBucket(b),
-		Labels: []platform.Label{},
+		Labels: []influxdb.Label{},
 	}
 
 	for _, l := range labels {
@@ -265,14 +266,14 @@ func newBucketResponse(b *platform.Bucket, labels []*platform.Label) *bucketResp
 }
 
 type bucketsResponse struct {
-	Links   *platform.PagingLinks `json:"links"`
+	Links   *influxdb.PagingLinks `json:"links"`
 	Buckets []*bucketResponse     `json:"buckets"`
 }
 
-func newBucketsResponse(ctx context.Context, opts platform.FindOptions, f platform.BucketFilter, bs []*platform.Bucket, labelService platform.LabelService) *bucketsResponse {
+func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influxdb.BucketFilter, bs []*influxdb.Bucket, labelService influxdb.LabelService) *bucketsResponse {
 	rs := make([]*bucketResponse, 0, len(bs))
 	for _, b := range bs {
-		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
+		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
 		rs = append(rs, newBucketResponse(b, labels))
 	}
 	return &bucketsResponse{
@@ -293,7 +294,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 
 	if !req.Bucket.OrganizationID.Valid() {
 		// Resolve organization name to ID before create
-		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &req.Bucket.Organization})
+		o, err := h.OrganizationService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &req.Bucket.Organization})
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -306,14 +307,14 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(req.Bucket, []*platform.Label{})); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(req.Bucket, []*influxdb.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
 
 type postBucketRequest struct {
-	Bucket *platform.Bucket
+	Bucket *influxdb.Bucket
 }
 
 func (b postBucketRequest) Validate() error {
@@ -329,7 +330,7 @@ func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketR
 		return nil, err
 	}
 
-	pb, err := b.toPlatform()
+	pb, err := b.toInfluxDB()
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +358,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -370,20 +371,20 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 }
 
 type getBucketRequest struct {
-	BucketID platform.ID
+	BucketID influxdb.ID
 }
 
 func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -413,20 +414,20 @@ func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Reques
 }
 
 type deleteBucketRequest struct {
-	BucketID platform.ID
+	BucketID influxdb.ID
 }
 
 func decodeDeleteBucketRequest(ctx context.Context, r *http.Request) (*deleteBucketRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -460,8 +461,8 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 }
 
 type getBucketsRequest struct {
-	filter platform.BucketFilter
-	opts   platform.FindOptions
+	filter influxdb.BucketFilter
+	opts   influxdb.FindOptions
 }
 
 func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsRequest, error) {
@@ -476,7 +477,7 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	req.opts = *opts
 
 	if orgID := qp.Get("orgID"); orgID != "" {
-		id, err := platform.IDFromString(orgID)
+		id, err := influxdb.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
@@ -492,7 +493,7 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	}
 
 	if bucketID := qp.Get("id"); bucketID != "" {
-		id, err := platform.IDFromString(bucketID)
+		id, err := influxdb.IDFromString(bucketID)
 		if err != nil {
 			return nil, err
 		}
@@ -518,7 +519,7 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: b.ID})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -531,37 +532,37 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 }
 
 type patchBucketRequest struct {
-	Update   platform.BucketUpdate
-	BucketID platform.ID
+	Update   influxdb.BucketUpdate
+	BucketID influxdb.ID
 }
 
 func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucketRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
 
 	bu := &bucketUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(bu); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
 
-	upd, err := bu.toPlatform()
+	upd, err := bu.toInfluxDB()
 	if err != nil {
 		return nil, err
 	}
@@ -587,7 +588,7 @@ type BucketService struct {
 }
 
 // FindBucketByID returns a single bucket by ID.
-func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 	u, err := newURL(s.Addr, bucketIDPath(id))
 	if err != nil {
 		return nil, err
@@ -614,20 +615,20 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return nil, err
 	}
-	return br.toPlatform()
+	return br.toInfluxDB()
 }
 
 // FindBucket returns the first bucket that matches filter.
-func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
 	bs, n, err := s.FindBuckets(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 
 	if n == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Op:   s.OpPrefix + platform.OpFindBucket,
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   s.OpPrefix + influxdb.OpFindBucket,
 			Msg:  "bucket not found",
 		}
 	}
@@ -637,7 +638,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
-func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 	u, err := newURL(s.Addr, bucketPath)
 	if err != nil {
 		return nil, 0, err
@@ -689,9 +690,9 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 		return nil, 0, err
 	}
 
-	buckets := make([]*platform.Bucket, 0, len(bs.Buckets))
+	buckets := make([]*influxdb.Bucket, 0, len(bs.Buckets))
 	for _, b := range bs.Buckets {
-		pb, err := b.bucket.toPlatform()
+		pb, err := b.bucket.toInfluxDB()
 		if err != nil {
 			return nil, 0, err
 		}
@@ -703,7 +704,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 }
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
-func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) error {
+func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 	u, err := newURL(s.Addr, bucketPath)
 	if err != nil {
 		return err
@@ -740,7 +741,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 		return err
 	}
 
-	pb, err := br.toPlatform()
+	pb, err := br.toInfluxDB()
 	if err != nil {
 		return err
 	}
@@ -750,7 +751,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 
 // UpdateBucket updates a single bucket with changeset.
 // Returns the new bucket state after update.
-func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	u, err := newURL(s.Addr, bucketIDPath(id))
 	if err != nil {
 		return nil, err
@@ -786,11 +787,11 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return nil, err
 	}
-	return br.toPlatform()
+	return br.toInfluxDB()
 }
 
 // DeleteBucket removes a bucket by ID.
-func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
+func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error {
 	u, err := newURL(s.Addr, bucketIDPath(id))
 	if err != nil {
 		return err
@@ -812,7 +813,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	return CheckError(resp)
 }
 
-func bucketIDPath(id platform.ID) string {
+func bucketIDPath(id influxdb.ID) string {
 	return path.Join(bucketPath, id.String())
 }
 
@@ -839,21 +840,21 @@ func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Reques
 }
 
 type getBucketLogRequest struct {
-	BucketID platform.ID
-	opts     platform.FindOptions
+	BucketID influxdb.ID
+	opts     influxdb.FindOptions
 }
 
 func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucketLogRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -869,7 +870,7 @@ func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucket
 	}, nil
 }
 
-func newBucketLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
+func newBucketLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
 	log := make([]*operationLogEntryResponse, 0, len(es))
 	for _, e := range es {
 		log = append(log, newOperationLogEntryResponse(e))
