@@ -1492,10 +1492,13 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		max = math.MaxInt64
 	}
 
-	overlapsTimeRangeMinMax := false
+	var overlapsTimeRangeMinMax bool
+	var overlapsTimeRangeMinMaxLock sync.Mutex
 	e.FileStore.Apply(func(r TSMFile) error {
 		if r.OverlapsTimeRange(min, max) {
+			overlapsTimeRangeMinMaxLock.Lock()
 			overlapsTimeRangeMinMax = true
+			overlapsTimeRangeMinMaxLock.Unlock()
 		}
 		return nil
 	})
