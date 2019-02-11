@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	keyValueLogBucket = []byte("keyvaluelog/v1")
-	keyValueLogIndex  = []byte("keyvaluelogindex/v1")
+	keyValueLogBucket = []byte("keyvaluelogv1")
+	keyValueLogIndex  = []byte("keyvaluelogindexv1")
 )
 
 var _ platform.KeyValueLog = (*Client)(nil)
