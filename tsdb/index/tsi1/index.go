@@ -550,7 +550,7 @@ func (i *Index) fetchByteValues(fn func(idx int) ([][]byte, error)) ([][]byte, e
 	}
 
 	// It's now safe to read from names.
-	return slices.MergeSortedBytes(names[:]...), nil
+	return slices.MergeSortedBytes(names...), nil
 }
 
 // MeasurementIterator returns an iterator over all measurements.
