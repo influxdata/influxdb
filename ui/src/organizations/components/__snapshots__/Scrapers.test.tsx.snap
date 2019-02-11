@@ -1,0 +1,59 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ScraperList rendering renders 1`] = `
+<Fragment>
+  <IndexList>
+    <IndexListHeader>
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="URL"
+        width="50%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Bucket"
+        width="50%"
+      />
+    </IndexListHeader>
+    <IndexListBody
+      columnCount={3}
+      emptyState={<React.Fragment />}
+    >
+      <ScraperRow
+        key="03636a0bfe351000"
+        onDeleteScraper={[MockFunction]}
+        onUpdateScraper={[MockFunction]}
+        scraper={
+          Object {
+            "bucket": "a",
+            "bucketID": "03636a0aabb51001",
+            "id": "03636a0bfe351000",
+            "name": "new target",
+            "orgID": "03636a0aabb51000",
+            "organization": "a",
+            "type": "prometheus",
+            "url": "http://localhost:9999/metrics",
+          }
+        }
+      />
+      <ScraperRow
+        key="03636a0bfe351001"
+        onDeleteScraper={[MockFunction]}
+        onUpdateScraper={[MockFunction]}
+        scraper={
+          Object {
+            "bucket": "a",
+            "bucketID": "03636a0aabb51001",
+            "id": "03636a0bfe351001",
+            "name": "new target",
+            "orgID": "03636a0aabb51000",
+            "organization": "a",
+            "type": "prometheus",
+            "url": "http://localhost:9999/metrics",
+          }
+        }
+      />
+    </IndexListBody>
+  </IndexList>
+</Fragment>
+`;
