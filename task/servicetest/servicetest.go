@@ -311,11 +311,6 @@ func testMetaUpdate(t *testing.T, sys *System) {
 	}
 	after = time.Now()
 
-	st, err = sys.ts.FindTaskByID(sys.Ctx, task.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	ua, err := time.Parse(time.RFC3339, task.UpdatedAt)
 	if err != nil {
 		t.Fatal(err)
