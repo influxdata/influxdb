@@ -24,7 +24,7 @@ import {
 } from 'src/shared/constants/thresholds'
 
 // Styles
-import 'src/timeMachine/components/view_options/ThresholdList'
+import 'src/timeMachine/components/view_options/ThresholdList.scss'
 
 // Types
 import {Color, ThresholdConfig} from 'src/types/colors'
