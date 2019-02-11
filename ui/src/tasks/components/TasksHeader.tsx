@@ -3,13 +3,14 @@ import React, {PureComponent} from 'react'
 import {Page} from 'src/pageLayout'
 
 // Components
+
 import {
   Button,
   ComponentColor,
   IconFont,
   ComponentSize,
-  SlideToggle,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {SlideToggle} from 'src/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TaskOrgDropdown from 'src/tasks/components/TasksOrgDropdown'
 

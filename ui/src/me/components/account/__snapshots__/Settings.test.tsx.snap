@@ -56,7 +56,7 @@ exports[`Account rendering renders! 1`] = `
                             <div
                               className="component-spacer component-spacer--right component-spacer--horizontal"
                             >
-                              <Button
+                              <t
                                 active={false}
                                 color="default"
                                 shape="none"
@@ -74,7 +74,7 @@ exports[`Account rendering renders! 1`] = `
                                 >
                                   Edit About Me
                                 </button>
-                              </Button>
+                              </t>
                             </div>
                           </ComponentSpacer>
                         </div>

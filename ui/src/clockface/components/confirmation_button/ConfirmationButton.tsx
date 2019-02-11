@@ -3,7 +3,7 @@ import React, {Component, RefObject} from 'react'
 import classnames from 'classnames'
 
 // Components
-import Button from 'src/clockface/components/Button/index'
+import {Button} from '@influxdata/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types

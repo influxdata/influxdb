@@ -3,7 +3,8 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 // Components
-import {Dropdown, Button, ButtonShape, IconFont} from 'src/clockface'
+import {Dropdown} from 'src/clockface'
+import {Button, ButtonShape, IconFont} from '@influxdata/clockface'
 
 // Constants
 import autoRefreshOptions, {

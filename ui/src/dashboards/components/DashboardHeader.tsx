@@ -8,7 +8,12 @@ import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/Aut
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
-import {Button, ButtonShape, ComponentColor, IconFont} from 'src/clockface'
+import {
+  Button,
+  ButtonShape,
+  ComponentColor,
+  IconFont,
+} from '@influxdata/clockface'
 
 // Constants
 import {

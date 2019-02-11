@@ -6,9 +6,9 @@ import {
   Button,
   ComponentColor,
   ComponentSize,
-  EmptyState,
   IconFont,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {EmptyState} from 'src/clockface'
 
 interface Props {
   searchTerm: string

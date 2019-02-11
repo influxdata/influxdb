@@ -87,7 +87,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
                 <div
                   className="wizard-completion--option"
                 >
-                  <Button
+                  <t
                     active={false}
                     color="success"
                     onClick={[MockFunction]}

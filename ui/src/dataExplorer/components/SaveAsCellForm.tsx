@@ -6,16 +6,13 @@ import _ from 'lodash'
 
 // components
 import {
-  Grid,
-  Form,
-  Input,
   Button,
   ComponentColor,
   ButtonType,
   Columns,
   ComponentStatus,
-  InputType,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {Grid, Form, Input, InputType} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardsDropdown from 'src/dataExplorer/components/DashboardsDropdown'
 

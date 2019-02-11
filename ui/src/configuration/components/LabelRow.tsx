@@ -3,13 +3,12 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {
-  IndexList,
-  Label,
   ComponentSize,
   Button,
   ComponentColor,
   Alignment,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {IndexList, Label} from 'src/clockface'
 
 // Types
 import {LabelType} from 'src/clockface'

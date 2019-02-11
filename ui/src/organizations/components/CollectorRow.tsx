@@ -2,15 +2,13 @@
 import React, {PureComponent} from 'react'
 
 // Components
+import {ComponentSpacer, IndexList, ConfirmationButton} from 'src/clockface'
 import {
   ComponentSize,
-  IndexList,
-  ConfirmationButton,
   Alignment,
   Button,
   ComponentColor,
-  ComponentSpacer,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 import {Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 

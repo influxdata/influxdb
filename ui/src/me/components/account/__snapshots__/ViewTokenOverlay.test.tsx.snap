@@ -194,7 +194,7 @@ exports[`Account rendering renders! 1`] = `
                 onCopy={[Function]}
                 text="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
               >
-                <Button
+                <t
                   active={false}
                   color="default"
                   customClass="copy-button"
@@ -216,7 +216,7 @@ exports[`Account rendering renders! 1`] = `
                   >
                     Copy
                   </button>
-                </Button>
+                </t>
               </CopyToClipboard>
             </div>
           </CopyText>

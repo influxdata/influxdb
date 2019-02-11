@@ -5,7 +5,7 @@ import {shallow} from 'enzyme'
 // Components
 import DataListening from 'src/dataLoaders/components/verifyStep/DataListening'
 import ConnectionInformation from 'src/dataLoaders/components/verifyStep/ConnectionInformation'
-import {Button} from 'src/clockface'
+import {Button} from '@influxdata/clockface'
 
 const setup = (override = {}) => {
   const props = {

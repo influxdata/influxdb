@@ -64,7 +64,7 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
     <ComponentSpacer
       align="right"
     >
-      <Button
+      <t
         active={false}
         color="default"
         icon="export"
@@ -75,7 +75,7 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
         text="Export"
         type="button"
       />
-      <Button
+      <t
         active={false}
         color="secondary"
         icon="duplicate"

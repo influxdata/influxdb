@@ -4,13 +4,13 @@ import {mount} from 'enzyme'
 
 // Components
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import {ButtonType} from 'src/clockface'
+import {ButtonType} from '@influxdata/clockface'
 
 const setup = (override = {}) => {
   const props = {
     onClickBack: jest.fn(),
-    nextButtonText: '',
-    backButtonText: '',
+    nextButtonText: 'next',
+    backButtonText: 'back',
     ...override,
   }
 

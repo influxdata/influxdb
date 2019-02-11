@@ -1,6 +1,11 @@
 import React, {PureComponent} from 'react'
 
-import {Button, ButtonShape, ComponentColor, IconFont} from 'src/clockface'
+import {
+  Button,
+  ButtonShape,
+  ComponentColor,
+  IconFont,
+} from '@influxdata/clockface'
 
 interface Props {
   liveUpdating: boolean

@@ -1,7 +1,7 @@
 import React, {SFC} from 'react'
 import uuid from 'uuid'
 
-import {Button, IconFont, ButtonShape} from 'src/clockface'
+import {Button, IconFont, ButtonShape} from '@influxdata/clockface'
 import SeverityColorDropdown from 'src/logs/components/SeverityColorDropdown'
 import SeverityColumnFormat from 'src/logs/components/options_overlay/SeverityColumnFormat'
 

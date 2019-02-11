@@ -13,13 +13,11 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OnboardingWizard from 'src/onboarding/containers/OnboardingWizard'
 import Notifications from 'src/shared/components/notifications/Notifications'
+import {ComponentColor, ComponentSize, Button} from '@influxdata/clockface'
 import {
   SpinnerContainer,
   TechnoSpinner,
-  ComponentColor,
-  ComponentSize,
   WizardFullScreen,
-  Button,
   EmptyState,
 } from 'src/clockface'
 

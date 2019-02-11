@@ -5,7 +5,7 @@ import _ from 'lodash'
 
 // Components
 import LabelTooltip from 'src/clockface/components/label/LabelTooltip'
-import Button from 'src/clockface/components/Button/index'
+import {Button} from '@influxdata/clockface'
 import {ButtonShape, IconFont, ComponentColor} from 'src/clockface/types'
 
 // Styles

@@ -7,17 +7,13 @@ import {client} from 'src/utils/api'
 
 // Components
 import {
-  ComponentSpacer,
-  Form,
-  Grid,
   Columns,
-  Input,
-  Radio,
-  ButtonShape,
   Button,
+  ButtonShape,
   ComponentColor,
   ButtonType,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {ComponentSpacer, Form, Grid, Input, Radio} from 'src/clockface'
 import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown'
 import TaskOptionsOrgIDDropdown from 'src/tasks/components/TasksOptionsOrgIDDropdown'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'

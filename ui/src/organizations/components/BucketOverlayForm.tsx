@@ -4,14 +4,12 @@ import moment from 'moment'
 
 // Components
 import {
-  Form,
-  Input,
   Button,
   ComponentColor,
   ComponentStatus,
   ButtonType,
-  Grid,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {Form, Input, Grid} from 'src/clockface'
 import Retention from 'src/organizations/components/Retention'
 
 // Constants

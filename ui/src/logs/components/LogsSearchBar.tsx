@@ -1,6 +1,7 @@
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
-import {Input, IconFont, Button, ComponentColor} from 'src/clockface'
+import {IconFont, Button, ComponentColor} from '@influxdata/clockface'
+import {Input} from 'src/clockface'
 import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 
 interface Props {

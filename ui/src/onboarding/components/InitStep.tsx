@@ -5,7 +5,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {StepStatus} from 'src/clockface/constants/wizard'
-import {Button, ComponentColor, ComponentSize} from 'src/clockface'
+import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 
 @ErrorHandling

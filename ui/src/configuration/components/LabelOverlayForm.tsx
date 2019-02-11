@@ -3,19 +3,21 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {
-  Grid,
-  Form,
-  Input,
   Button,
   ComponentColor,
   ComponentSize,
-  ComponentSpacer,
   ButtonType,
-  Label,
   Columns,
   Alignment,
   Stack,
   ComponentStatus,
+} from '@influxdata/clockface'
+import {
+  Grid,
+  Form,
+  Input,
+  ComponentSpacer,
+  Label,
   InputType,
 } from 'src/clockface'
 import LabelColorDropdown from 'src/configuration/components/LabelColorDropdown'

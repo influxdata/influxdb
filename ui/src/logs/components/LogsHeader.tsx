@@ -2,13 +2,8 @@ import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import {Source, Bucket} from '@influxdata/influx'
 
-import {
-  Dropdown,
-  IconFont,
-  DropdownMode,
-  Button,
-  ButtonShape,
-} from 'src/clockface'
+import {IconFont, Button, ButtonShape} from '@influxdata/clockface'
+import {Dropdown, DropdownMode} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 // import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import LiveUpdatingStatus from 'src/logs/components/LiveUpdatingStatus'

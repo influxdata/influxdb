@@ -341,7 +341,7 @@ exports[`Account rendering renders! 1`] = `
                                 <div
                                   className="component-spacer component-spacer--right component-spacer--horizontal"
                                 >
-                                  <Button
+                                  <t
                                     active={false}
                                     color="danger"
                                     shape="none"
@@ -359,7 +359,7 @@ exports[`Account rendering renders! 1`] = `
                                     >
                                       Delete
                                     </button>
-                                  </Button>
+                                  </t>
                                 </div>
                               </ComponentSpacer>
                             </div>
@@ -457,7 +457,7 @@ exports[`Account rendering renders! 1`] = `
                                 <div
                                   className="component-spacer component-spacer--right component-spacer--horizontal"
                                 >
-                                  <Button
+                                  <t
                                     active={false}
                                     color="danger"
                                     shape="none"
@@ -475,7 +475,7 @@ exports[`Account rendering renders! 1`] = `
                                     >
                                       Delete
                                     </button>
-                                  </Button>
+                                  </t>
                                 </div>
                               </ComponentSpacer>
                             </div>

@@ -11,13 +11,9 @@ import {
   Button,
   ComponentColor,
   ComponentSize,
-  Input,
-  InputType,
-  Form,
-  Grid,
-  Columns,
   ButtonType,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {Input, InputType, Form, Grid, Columns} from 'src/clockface'
 
 // APIs
 import {client} from 'src/utils/api'

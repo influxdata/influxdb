@@ -4,16 +4,18 @@ import _ from 'lodash'
 
 // Components
 import {
+  ComponentSize,
+  ComponentColor,
+  ComponentStatus,
+  Button,
+} from '@influxdata/clockface'
+import {
   OverlayContainer,
   OverlayHeading,
   OverlayBody,
   LabelSelector,
-  ComponentSize,
-  ComponentColor,
-  Button,
   Grid,
   Form,
-  ComponentStatus,
 } from 'src/clockface'
 import FetchLabels from 'src/shared/components/FetchLabels'
 

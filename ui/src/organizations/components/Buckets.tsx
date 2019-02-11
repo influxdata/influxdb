@@ -9,14 +9,12 @@ import BucketList from 'src/organizations/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
 import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'
 import {
-  Input,
+  ComponentSize,
   Button,
   ComponentColor,
   IconFont,
-  OverlayTechnology,
-  ComponentSize,
-  EmptyState,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {Input, OverlayTechnology, EmptyState} from 'src/clockface'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'

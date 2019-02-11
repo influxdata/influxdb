@@ -3,13 +3,11 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
+import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
 import {
   OverlayBody,
   OverlayHeading,
   OverlayContainer,
-  Button,
-  ComponentColor,
-  ComponentStatus,
   Form,
   Input,
   Radio,

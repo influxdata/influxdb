@@ -4,15 +4,17 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {
-  ComponentSpacer,
+  Button,
   ComponentColor,
   Alignment,
-  Button,
   ComponentSize,
+  Stack,
+} from '@influxdata/clockface'
+import {
+  ComponentSpacer,
   SlideToggle,
   IndexList,
   ConfirmationButton,
-  Stack,
   Label,
 } from 'src/clockface'
 
