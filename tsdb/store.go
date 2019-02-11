@@ -1373,11 +1373,14 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 		s.mu.RUnlock()
 		return ErrShardNotFound
 	}
+
+	epoch := s.epochs[shardID]
+
 	s.mu.RUnlock()
 
 	// enter the epoch tracker
-	guards, gen := s.epochs[shardID].StartWrite()
-	defer s.epochs[shardID].EndWrite(gen)
+	guards, gen := epoch.StartWrite()
+	defer epoch.EndWrite(gen)
 
 	// wait for any guards before writing the points.
 	for _, guard := range guards {
