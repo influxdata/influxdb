@@ -305,8 +305,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		sourceSvc        platform.SourceService                   = m.boltClient
 		sessionSvc       platform.SessionService                  = m.boltClient
 		basicAuthSvc     platform.BasicAuthService                = m.boltClient
-		dashboardSvc     platform.DashboardService                = m.boltClient
-		dashboardLogSvc  platform.DashboardOperationLogService    = m.boltClient
+		dashboardSvc     platform.DashboardService                = m.kvService
+		dashboardLogSvc  platform.DashboardOperationLogService    = m.kvService
 		userLogSvc       platform.UserOperationLogService         = m.kvService
 		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
 		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
