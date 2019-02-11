@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	userBucket         = []byte("users/v1")
-	userIndex          = []byte("userindex/v1")
-	userpasswordBucket = []byte("userspassword/v1")
+	userBucket         = []byte("usersv1")
+	userIndex          = []byte("userindexv1")
+	userpasswordBucket = []byte("userspasswordv1")
 )
 
 var _ platform.UserService = (*Client)(nil)

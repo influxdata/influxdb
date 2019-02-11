@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	organizationBucket = []byte("organizations/v1")
-	organizationIndex  = []byte("organizationindex/v1")
+	organizationBucket = []byte("organizationsv1")
+	organizationIndex  = []byte("organizationindexv1")
 )
 
 var _ influxdb.OrganizationService = (*Service)(nil)
@@ -92,7 +92,6 @@ func (s *Service) FindOrganizationByName(ctx context.Context, n string) (*influx
 	err := s.kv.View(func(tx Tx) error {
 		org, err := s.findOrganizationByName(ctx, tx, n)
 		if err != nil {
-			fmt.Println(n, err)
 			return err
 		}
 		o = org

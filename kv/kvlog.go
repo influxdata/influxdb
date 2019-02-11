@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	kvlogBucket = []byte("keyvaluelog/v1")
-	kvlogIndex  = []byte("keyvaluelogindex/v1")
+	kvlogBucket = []byte("keyvaluelogv1")
+	kvlogIndex  = []byte("keyvaluelogindexv1")
 )
 
 var _ platform.KeyValueLog = (*Service)(nil)
