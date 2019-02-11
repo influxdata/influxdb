@@ -31,8 +31,8 @@ type Task struct {
 	Cron            string `json:"cron,omitempty"`
 	Offset          string `json:"offset,omitempty"`
 	LatestCompleted string `json:"latest_completed,omitempty"`
-	CreatedAt       string `json:"created_at,omitempty"`
-	UpdatedAt       string `json:"updated_at,omitempty"`
+	CreatedAt       string `json:"createdAt,omitempty"`
+	UpdatedAt       string `json:"updatedAt,omitempty"`
 }
 
 // Run is a record created when a run of a task is scheduled.

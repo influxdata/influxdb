@@ -271,7 +271,7 @@ func testMetaUpdate(t *testing.T, sys *System) {
 	}
 
 	if now.Add(-time.Second).After(ca) || ca.Add(time.Second).Before(after) {
-		t.Fatalf("created at not accurate, expected between %s and %s: %s", now.Add(-time.Second), after, ca)
+		t.Fatalf("createdAt not accurate, expected between %s and %s: %s", now.Add(-time.Second), after, ca)
 	}
 
 	ti, err := time.Parse(time.RFC3339, st.LatestCompleted)
@@ -322,7 +322,7 @@ func testMetaUpdate(t *testing.T, sys *System) {
 	}
 
 	if now.Add(-time.Second).After(ua) || ua.Add(time.Second).Before(after) {
-		t.Fatalf("updated at not accurate, expected between %s and %s: %s", now.Add(-time.Second), after, ua)
+		t.Fatalf("updatedAt not accurate, expected between %s and %s: %s", now.Add(-time.Second), after, ua)
 	}
 
 	st, err = sys.ts.FindTaskByID(sys.Ctx, task.ID)
@@ -336,7 +336,7 @@ func testMetaUpdate(t *testing.T, sys *System) {
 	}
 
 	if now.Add(-time.Second).After(ua) || ua.Add(time.Second).Before(after) {
-		t.Fatalf("updated at not accurate after pulling new task, expected between %s and %s: %s", now.Add(-time.Second), after, ua)
+		t.Fatalf("updatedAt not accurate after pulling new task, expected between %s and %s: %s", now.Add(-time.Second), after, ua)
 	}
 }
 
