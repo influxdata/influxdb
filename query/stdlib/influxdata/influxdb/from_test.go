@@ -174,14 +174,15 @@ func makeFilterFn(exprs ...semantic.Expression) *semantic.FunctionExpression {
 
 func TestFromRangeRule(t *testing.T) {
 	var (
-		fromWithBounds = &influxdb.FromProcedureSpec{
+		from           = &influxdb.FromProcedureSpec{}
+		fromWithBounds = &influxdb.PhysicalFromProcedureSpec{
 			BoundsSet: true,
 			Bounds: flux.Bounds{
 				Start: fluxTime(5),
 				Stop:  fluxTime(10),
 			},
 		}
-		fromWithIntersectedBounds = &influxdb.FromProcedureSpec{
+		fromWithIntersectedBounds = &influxdb.PhysicalFromProcedureSpec{
 			BoundsSet: true,
 			Bounds: flux.Bounds{
 				Start: fluxTime(9),
@@ -200,7 +201,6 @@ func TestFromRangeRule(t *testing.T) {
 				Stop:  fluxTime(14),
 			},
 		}
-		from  = &influxdb.FromProcedureSpec{}
 		mean  = &universe.MeanProcedureSpec{}
 		count = &universe.CountProcedureSpec{}
 	)
@@ -209,10 +209,10 @@ func TestFromRangeRule(t *testing.T) {
 		{
 			Name: "from range",
 			// from -> range  =>  from
-			Rules: []plan.Rule{&influxdb.MergeFromRangeRule{}},
+			Rules: []plan.Rule{&influxdb.FromConversionRule{}, &influxdb.MergeFromRangeRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", from),
 					plan.CreatePhysicalNode("range", rangeWithBounds),
 				},
 				Edges: [][2]int{{0, 1}},
@@ -226,10 +226,10 @@ func TestFromRangeRule(t *testing.T) {
 		{
 			Name: "from range with successor node",
 			// from -> range -> count  =>  from -> count
-			Rules: []plan.Rule{&influxdb.MergeFromRangeRule{}},
+			Rules: []plan.Rule{&influxdb.FromConversionRule{}, &influxdb.MergeFromRangeRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", from),
 					plan.CreatePhysicalNode("range", rangeWithBounds),
 					plan.CreatePhysicalNode("count", count),
 				},
@@ -249,10 +249,10 @@ func TestFromRangeRule(t *testing.T) {
 		{
 			Name: "from with multiple ranges",
 			// from -> range -> range  =>  from
-			Rules: []plan.Rule{&influxdb.MergeFromRangeRule{}},
+			Rules: []plan.Rule{&influxdb.FromConversionRule{}, &influxdb.MergeFromRangeRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", from),
 					plan.CreatePhysicalNode("range0", rangeWithBounds),
 					plan.CreatePhysicalNode("range1", rangeWithDifferentBounds),
 				},
@@ -274,10 +274,10 @@ func TestFromRangeRule(t *testing.T) {
 			//      range       =>      \    /
 			//        |                  from
 			//       from
-			Rules: []plan.Rule{&influxdb.MergeFromRangeRule{}},
+			Rules: []plan.Rule{&influxdb.FromConversionRule{}, &influxdb.MergeFromRangeRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", from),
 					plan.CreatePhysicalNode("range", rangeWithBounds),
 					plan.CreatePhysicalNode("count", count),
 					plan.CreatePhysicalNode("yield0", yield("count")),
@@ -316,7 +316,7 @@ func TestFromRangeRule(t *testing.T) {
 			Rules: []plan.Rule{&influxdb.MergeFromRangeRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", &influxdb.PhysicalFromProcedureSpec{}),
 					plan.CreatePhysicalNode("range", rangeWithBounds),
 					plan.CreatePhysicalNode("yield0", yield("range")),
 					plan.CreatePhysicalNode("count", count),
@@ -337,20 +337,28 @@ func TestFromRangeRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.RuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc)
 		})
 	}
 }
 
 func TestFromFilterRule(t *testing.T) {
 	var (
-		rangeWithBounds = &universe.RangeProcedureSpec{
-			Bounds: flux.Bounds{
-				Start: fluxTime(5),
-				Stop:  fluxTime(10),
-			},
+		bounds = flux.Bounds{
+			Start: fluxTime(5),
+			Stop:  fluxTime(10),
 		}
+
 		from = &influxdb.FromProcedureSpec{}
+
+		physFrom = &influxdb.PhysicalFromProcedureSpec{
+			BoundsSet: true,
+			Bounds:    bounds,
+		}
+
+		rangeWithBounds = &universe.RangeProcedureSpec{
+			Bounds: bounds,
+		}
 
 		pushableExpr1 = &semantic.BinaryExpression{Operator: ast.EqualOperator,
 			Left:  &semantic.MemberExpression{Object: &semantic.IdentifierExpression{Name: "r"}, Property: "_measurement"},
@@ -378,10 +386,10 @@ func TestFromFilterRule(t *testing.T) {
 		{
 			Name: "from filter",
 			// from -> filter  =>  from
-			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}},
+			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}, influxdb.MergeFromRangeRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{Fn: makeFilterFn(pushableExpr1)}),
 				},
 				Edges: [][2]int{
@@ -390,7 +398,9 @@ func TestFromFilterRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("merged_from_filter", &influxdb.FromProcedureSpec{
+					plan.CreatePhysicalNode("merged_from_filter", &influxdb.PhysicalFromProcedureSpec{
+						BoundsSet: true,
+						Bounds:    bounds,
 						FilterSet: true,
 						Filter:    makeFilterFn(pushableExpr1),
 					}),
@@ -403,7 +413,7 @@ func TestFromFilterRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("filter1", &universe.FilterProcedureSpec{Fn: makeFilterFn(pushableExpr1)}),
 					plan.CreatePhysicalNode("filter2", &universe.FilterProcedureSpec{Fn: makeFilterFn(pushableExpr2)}),
 				},
@@ -415,7 +425,9 @@ func TestFromFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
 					plan.CreatePhysicalNode("merged_from_filter1_filter2",
-						&influxdb.FromProcedureSpec{
+						&influxdb.PhysicalFromProcedureSpec{
+							BoundsSet: true,
+							Bounds:    bounds,
 							FilterSet: true,
 							Filter:    makeFilterFn(pushableExpr1, pushableExpr2),
 						}),
@@ -428,7 +440,7 @@ func TestFromFilterRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{Fn: makeFilterFn(pushableExpr1, unpushableExpr)}),
 				},
 				Edges: [][2]int{
@@ -438,7 +450,9 @@ func TestFromFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
 					plan.CreatePhysicalNode("from",
-						&influxdb.FromProcedureSpec{
+						&influxdb.PhysicalFromProcedureSpec{
+							BoundsSet: true,
+							Bounds:    bounds,
 							FilterSet: true,
 							Filter:    makeFilterFn(pushableExpr1),
 						}),
@@ -452,10 +466,10 @@ func TestFromFilterRule(t *testing.T) {
 		{
 			Name: "from range filter",
 			// from -> range -> filter  =>  from
-			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}, influxdb.MergeFromRangeRule{}},
+			Rules: []plan.Rule{influxdb.FromConversionRule{}, influxdb.MergeFromFilterRule{}, influxdb.MergeFromRangeRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", from),
 					plan.CreatePhysicalNode("range", rangeWithBounds),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{Fn: makeFilterFn(pushableExpr1)}),
 				},
@@ -466,14 +480,14 @@ func TestFromFilterRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("merged_from_range_filter", &influxdb.FromProcedureSpec{
-						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1),
+					plan.CreatePhysicalNode("merged_from_range_filter", &influxdb.PhysicalFromProcedureSpec{
 						BoundsSet: true,
 						Bounds: flux.Bounds{
 							Start: fluxTime(5),
 							Stop:  fluxTime(10),
 						},
+						FilterSet: true,
+						Filter:    makeFilterFn(pushableExpr1),
 					}),
 				},
 			},
@@ -484,7 +498,7 @@ func TestFromFilterRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", physFrom),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{Fn: makeFilterFn(unpushableExpr)}),
 				},
 				Edges: [][2]int{
@@ -499,7 +513,7 @@ func TestFromFilterRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", physFrom),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{Fn: statementFn}),
 				},
 				Edges: [][2]int{
@@ -514,20 +528,22 @@ func TestFromFilterRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.RuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc)
 		})
 	}
 }
 
 func TestFromDistinctRule(t *testing.T) {
-	var from = &influxdb.FromProcedureSpec{}
+
+	physFrom := &influxdb.PhysicalFromProcedureSpec{}
+
 	tests := []plantest.RuleTestCase{
 		{
 			Name:  "from distinct",
 			Rules: []plan.Rule{influxdb.FromDistinctRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("distinct", &universe.DistinctProcedureSpec{Column: "_measurement"}),
 				},
 				Edges: [][2]int{
@@ -536,7 +552,7 @@ func TestFromDistinctRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", &influxdb.FromProcedureSpec{
+					plan.CreatePhysicalNode("from", &influxdb.PhysicalFromProcedureSpec{
 						LimitSet:    true,
 						PointsLimit: -1,
 					}),
@@ -553,7 +569,7 @@ func TestFromDistinctRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.FromDistinctRule{}, influxdb.MergeFromGroupRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
 						GroupKeys: []string{"_measurement"},
@@ -567,7 +583,7 @@ func TestFromDistinctRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("merged_from_group", &influxdb.FromProcedureSpec{
+					plan.CreatePhysicalNode("merged_from_group", &influxdb.PhysicalFromProcedureSpec{
 						GroupingSet: true,
 						GroupMode:   flux.GroupModeBy,
 						GroupKeys:   []string{"_measurement"},
@@ -585,7 +601,7 @@ func TestFromDistinctRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.RuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc)
 		})
 	}
 }
@@ -598,7 +614,8 @@ func TestFromGroupRule(t *testing.T) {
 				Stop:  fluxTime(10),
 			},
 		}
-		from = &influxdb.FromProcedureSpec{}
+		from     = &influxdb.FromProcedureSpec{}
+		physFrom = &influxdb.PhysicalFromProcedureSpec{}
 
 		pushableExpr1 = &semantic.BinaryExpression{Operator: ast.EqualOperator,
 			Left:  &semantic.MemberExpression{Object: &semantic.IdentifierExpression{Name: "r"}, Property: "_measurement"},
@@ -611,7 +628,7 @@ func TestFromGroupRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromGroupRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
 						GroupKeys: []string{"_measurement"},
@@ -625,7 +642,7 @@ func TestFromGroupRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("merged_from_group", &influxdb.FromProcedureSpec{
+					plan.CreatePhysicalNode("merged_from_group", &influxdb.PhysicalFromProcedureSpec{
 						GroupingSet: true,
 						GroupMode:   flux.GroupModeBy,
 						GroupKeys:   []string{"_measurement"},
@@ -643,7 +660,7 @@ func TestFromGroupRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromGroupRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
 						GroupKeys: []string{"_measurement"},
@@ -660,7 +677,7 @@ func TestFromGroupRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("merged_from_group", &influxdb.FromProcedureSpec{
+					plan.CreatePhysicalNode("merged_from_group", &influxdb.PhysicalFromProcedureSpec{
 						GroupingSet: true,
 						GroupMode:   flux.GroupModeBy,
 						GroupKeys:   []string{"_measurement"},
@@ -676,11 +693,12 @@ func TestFromGroupRule(t *testing.T) {
 			},
 		},
 		{
-			Name:  "from range group distinct group",
-			Rules: []plan.Rule{influxdb.MergeFromGroupRule{}, influxdb.FromDistinctRule{}, influxdb.MergeFromRangeRule{}},
+			Name: "from range group distinct group",
+			Rules: []plan.Rule{influxdb.FromConversionRule{}, influxdb.MergeFromGroupRule{},
+				influxdb.FromDistinctRule{}, influxdb.MergeFromRangeRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", from),
 					plan.CreatePhysicalNode("range", rangeWithBounds),
 					plan.CreatePhysicalNode("group1", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeBy,
@@ -698,7 +716,7 @@ func TestFromGroupRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("merged_from_range_group1", &influxdb.FromProcedureSpec{
+					plan.CreatePhysicalNode("merged_from_range_group1", &influxdb.PhysicalFromProcedureSpec{
 						BoundsSet:   true,
 						Bounds:      flux.Bounds{Start: fluxTime(5), Stop: fluxTime(10)},
 						GroupingSet: true,
@@ -722,7 +740,7 @@ func TestFromGroupRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromGroupRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreateLogicalNode("from", physFrom),
 					plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeExcept,
 						GroupKeys: []string{"_time", "_value"},
@@ -740,7 +758,7 @@ func TestFromGroupRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromGroupRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeExcept,
 						GroupKeys: []string{"_time"},
@@ -758,7 +776,7 @@ func TestFromGroupRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromGroupRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeExcept,
 						GroupKeys: []string{"_value"},
@@ -776,7 +794,7 @@ func TestFromGroupRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.RuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc)
 		})
 	}
 }
@@ -788,7 +806,7 @@ func TestFromKeysRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.FromKeysRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", &influxdb.FromProcedureSpec{}),
+					plan.CreatePhysicalNode("from", &influxdb.PhysicalFromProcedureSpec{}),
 					plan.CreatePhysicalNode("keys", &universe.KeysProcedureSpec{}),
 				},
 				Edges: [][2]int{
@@ -797,7 +815,7 @@ func TestFromKeysRule(t *testing.T) {
 			},
 			After: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreatePhysicalNode("from", &influxdb.FromProcedureSpec{
+					plan.CreatePhysicalNode("from", &influxdb.PhysicalFromProcedureSpec{
 						LimitSet:    true,
 						PointsLimit: -1,
 					}),
@@ -814,7 +832,7 @@ func TestFromKeysRule(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			plantest.RuleTestHelper(t, &tc)
+			plantest.PhysicalRuleTestHelper(t, &tc)
 		})
 	}
 }
@@ -828,7 +846,7 @@ func TestFromRangeValidation(t *testing.T) {
 		//    \    /
 		//     from
 		Nodes: []plan.PlanNode{
-			plan.CreatePhysicalNode("from", &influxdb.FromProcedureSpec{}),
+			plan.CreatePhysicalNode("from", &influxdb.PhysicalFromProcedureSpec{}),
 			plantest.CreatePhysicalMockNode("1"),
 			plantest.CreatePhysicalMockNode("2"),
 			plantest.CreatePhysicalMockNode("3"),
