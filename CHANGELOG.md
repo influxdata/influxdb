@@ -30,7 +30,7 @@ v1.7.0 [unreleased]
 
 ### Bugfixes
 
--   [#10206](https://github.com/influxdata/influxdb/pull/10206): Fix legacy restore bug #10072
+-	[#10206](https://github.com/influxdata/influxdb/pull/10206): Fix legacy restore bug #10072
 
 v1.6.0 [2018-07-05]
 -------------------
