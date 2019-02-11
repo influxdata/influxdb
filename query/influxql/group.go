@@ -242,7 +242,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 
 	// If a function call is present, evaluate the function call.
 	if gr.call != nil {
-		c, err := createFunctionCursor(t, gr.call, cur, !gr.selector)
+		c, err := createFunctionCursor(t, gr.call, cur, !gr.selector || interval > 0)
 		if err != nil {
 			return nil, err
 		}

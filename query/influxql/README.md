@@ -149,7 +149,7 @@ If the aggregate is combined with conditions, the column name of `_value` is rep
 
 #### <a name="normalize-time"></a> Normalize the time column
 
-If a function was evaluated and the query type is an aggregate type, then all of the functions need to have their time normalized. If the function is an aggregate, the following is added:
+If a function was evaluated and the query type is an aggregate type or if we are grouping by time, then all of the functions need to have their time normalized. If the function is an aggregate, the following is added:
 
 ```
 ... |> mean() |> duplicate(column: "_start", as: "_time")
