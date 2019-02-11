@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	urmBucket = []byte("userresourcemappings/v1")
+	urmBucket = []byte("userresourcemappingsv1")
 )
 
 func (s *Service) initializeURMs(ctx context.Context, tx Tx) error {

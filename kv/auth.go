@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	authBucket = []byte("authorizations/v1")
-	authIndex  = []byte("authorizationindex/v1")
+	authBucket = []byte("authorizationsv1")
+	authIndex  = []byte("authorizationindexv1")
 )
 
 var _ influxdb.AuthorizationService = (*Service)(nil)
