@@ -8,6 +8,7 @@ v1.7.4 [unreleased]
 ### Bugfixes
 
 -	[#11743](https://github.com/influxdata/influxdb/pull/11743): Backport: Use Systemd for Amazon Linux 2.
+-	[#11792](https://github.com/influxdata/influxdb/pull/11792): Revert "Limit force-full and cold compaction size.".
 
 v1.7.3 [2019-01-11]
 -------------------
