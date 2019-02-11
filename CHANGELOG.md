@@ -28,6 +28,10 @@ v1.7.0 [unreleased]
 -	[#10333](https://github.com/influxdata/influxdb/pull/10333): Fix subquery functionality when a function references a tag from the subquery.
 -	[#10333](https://github.com/influxdata/influxdb/pull/10333): Strip tags from a subquery when the outer query does not group by that tag.
 
+### Bugfixes
+
+-   [#10206](https://github.com/influxdata/influxdb/pull/10206): Fix legacy restore bug #10072
+
 v1.6.0 [2018-07-05]
 -------------------
 
