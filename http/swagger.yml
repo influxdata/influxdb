@@ -5810,7 +5810,9 @@ components:
             language: flux
       properties:
         macros:
-          $ref: "#/components/schemas/Macro"
+          type: array
+          items:
+            $ref: "#/components/schemas/Macro"
     View:
       properties:
         links:
