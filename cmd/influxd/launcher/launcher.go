@@ -300,7 +300,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		orgSvc           platform.OrganizationService             = m.kvService
 		authSvc          platform.AuthorizationService            = m.kvService
 		userSvc          platform.UserService                     = m.kvService
-		macroSvc         platform.MacroService                    = m.boltClient
+		macroSvc         platform.MacroService                    = m.kvService
 		bucketSvc        platform.BucketService                   = m.kvService
 		sourceSvc        platform.SourceService                   = m.boltClient
 		sessionSvc       platform.SessionService                  = m.boltClient
