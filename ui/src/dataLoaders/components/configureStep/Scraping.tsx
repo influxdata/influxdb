@@ -13,6 +13,7 @@ import ScraperTarget from 'src/dataLoaders/components/configureStep/ScraperTarge
 import {
   setScraperTargetBucket,
   setScraperTargetURL,
+  setScraperTargetName,
   saveScraperTarget,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -29,6 +30,7 @@ interface OwnProps {
 interface DispatchProps {
   onSetScraperTargetBucket: typeof setScraperTargetBucket
   onSetScraperTargetURL: typeof setScraperTargetURL
+  onSetScraperTargetName: typeof setScraperTargetName
   onSaveScraperTarget: typeof saveScraperTarget
   onSetBucketInfo: typeof setBucketInfo
 }
@@ -37,6 +39,7 @@ interface StateProps {
   scraperBucket: string
   url: string
   currentBucket: string
+  name: string
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -56,7 +59,14 @@ export class Scraping extends PureComponent<Props> {
   }
 
   public render() {
-    const {scraperBucket, onSetScraperTargetURL, url, buckets} = this.props
+    const {
+      scraperBucket,
+      onSetScraperTargetURL,
+      onSetScraperTargetName,
+      url,
+      buckets,
+      name,
+    } = this.props
 
     return (
       <Form onSubmit={this.handleSubmit}>
@@ -73,7 +83,9 @@ export class Scraping extends PureComponent<Props> {
                 buckets={buckets}
                 onSelectBucket={this.handleSelectBucket}
                 onChangeURL={onSetScraperTargetURL}
+                onChangeName={onSetScraperTargetName}
                 url={url}
+                name={name}
               />
             </div>
           </FancyScrollbar>
@@ -97,7 +109,8 @@ export class Scraping extends PureComponent<Props> {
 
   private get nextButtonStatus(): ComponentStatus {
     if (
-      this.props.url === '' ||
+      !this.props.url ||
+      !this.props.name ||
       !this.props.buckets ||
       !this.props.buckets.length
     ) {
@@ -123,6 +136,7 @@ const mstp = ({
     currentBucket: bucket,
     scraperBucket: scraperTarget.bucket,
     url: scraperTarget.url,
+    name: scraperTarget.name,
   }
 }
 
@@ -131,6 +145,7 @@ const mdtp: DispatchProps = {
   onSetScraperTargetURL: setScraperTargetURL,
   onSaveScraperTarget: saveScraperTarget,
   onSetBucketInfo: setBucketInfo,
+  onSetScraperTargetName: setScraperTargetName,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

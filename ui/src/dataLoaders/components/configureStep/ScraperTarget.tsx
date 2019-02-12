@@ -19,7 +19,9 @@ interface Props {
   buckets: Bucket[]
   onSelectBucket: (bucket: Bucket) => void
   onChangeURL: (value: string) => void
+  onChangeName: (value: string) => void
   url: string
+  name: string
 }
 
 export class ScraperTarget extends PureComponent<Props> {
@@ -28,11 +30,25 @@ export class ScraperTarget extends PureComponent<Props> {
   }
 
   public render() {
-    const {onSelectBucket, url, bucket, buckets} = this.props
+    const {onSelectBucket, url, name, bucket, buckets} = this.props
     return (
       <Grid>
         <Grid.Row>
           <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.Two}>
+            <Form.Element
+              label="Name"
+              errorMessage={this.nameEmpty && 'Target name is empty'}
+            >
+              <Input
+                type={InputType.Text}
+                value={name}
+                onChange={this.handleChangeName}
+                titleText="Name"
+                size={ComponentSize.Medium}
+                autoFocus={true}
+                status={this.nameStatus}
+              />
+            </Form.Element>
             <Form.Element label="Bucket">
               <BucketDropdown
                 selected={bucket}
@@ -44,7 +60,7 @@ export class ScraperTarget extends PureComponent<Props> {
           <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.Two}>
             <Form.Element
               label="Target URL"
-              errorMessage={this.urlEmpty && 'target URL is empty'}
+              errorMessage={this.urlEmpty && 'Target URL is empty'}
             >
               <Input
                 type={InputType.Text}
@@ -52,7 +68,6 @@ export class ScraperTarget extends PureComponent<Props> {
                 onChange={this.handleChangeURL}
                 titleText="Target URL"
                 size={ComponentSize.Medium}
-                autoFocus={true}
                 status={this.urlStatus}
               />
             </Form.Element>
@@ -73,9 +88,24 @@ export class ScraperTarget extends PureComponent<Props> {
     return !this.props.url
   }
 
+  private get nameStatus(): ComponentStatus {
+    if (this.nameEmpty) {
+      return ComponentStatus.Error
+    }
+    return ComponentStatus.Default
+  }
+  private get nameEmpty(): boolean {
+    return !this.props.name
+  }
+
   private handleChangeURL = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     this.props.onChangeURL(value)
+  }
+
+  private handleChangeName = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    this.props.onChangeName(value)
   }
 }
 
