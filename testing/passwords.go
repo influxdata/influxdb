@@ -92,7 +92,7 @@ func SetPassword(
 				password: "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("Passwords are required to be longer than 8 characters"),
+				err: fmt.Errorf("passwords are required to be longer than 8 characters"),
 			},
 		},
 		{
@@ -110,7 +110,7 @@ func SetPassword(
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("Your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 	}
@@ -188,7 +188,7 @@ func ComparePassword(
 				password: "wrongpassword",
 			},
 			wants: wants{
-				err: fmt.Errorf("Your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -207,7 +207,7 @@ func ComparePassword(
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("Your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -225,7 +225,7 @@ func ComparePassword(
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("Your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 	}
@@ -307,7 +307,7 @@ func CompareAndSetPassword(
 				new:  "not used",
 			},
 			wants: wants{
-				err: fmt.Errorf("Your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -327,7 +327,7 @@ func CompareAndSetPassword(
 				new:  "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("Passwords are required to be longer than 8 characters"),
+				err: fmt.Errorf("passwords are required to be longer than 8 characters"),
 			},
 		},
 	}

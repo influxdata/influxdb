@@ -131,7 +131,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("Your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -160,7 +160,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("Your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -371,7 +371,7 @@ func TestService_ComparePassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("Your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -480,7 +480,7 @@ func TestService_ComparePassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				fmt.Errorf("Your username or password is incorrect"),
+				fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 	}
