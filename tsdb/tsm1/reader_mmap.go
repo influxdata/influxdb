@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/influxdata/influxdb/pkg/file"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"go.uber.org/zap"
 )
 
@@ -128,7 +128,7 @@ func (m *mmapAccessor) rename(path string) error {
 		return err
 	}
 
-	if err := file.RenameFile(m.f.Name(), path); err != nil {
+	if err := fs.RenameFile(m.f.Name(), path); err != nil {
 		return err
 	}
 

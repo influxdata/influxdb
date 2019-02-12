@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/file"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
@@ -917,7 +917,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		}
 	}
 
-	if err := file.SyncDir(f.dir); err != nil {
+	if err := fs.SyncDir(f.dir); err != nil {
 		return err
 	}
 

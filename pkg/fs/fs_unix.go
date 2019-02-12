@@ -1,6 +1,6 @@
 // +build !windows
 
-package file
+package fs
 
 import (
 	"os"
