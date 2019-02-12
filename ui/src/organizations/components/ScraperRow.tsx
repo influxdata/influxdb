@@ -28,11 +28,12 @@ export default class ScraperRow extends PureComponent<Props> {
         <IndexList.Row>
           <IndexList.Cell>
             <EditableName
-              onUpdate={this.handleUpdateScraper}
-              name={scraper.url}
+              onUpdate={this.handleUpdateScraperName}
+              name={scraper.name}
               noNameString={DEFAULT_SCRAPER_NAME}
             />
           </IndexList.Cell>
+          <IndexList.Cell>{scraper.url}</IndexList.Cell>
           <IndexList.Cell>{scraper.bucket}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
@@ -48,8 +49,8 @@ export default class ScraperRow extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateScraper = (name: string) => {
+  private handleUpdateScraperName = (name: string) => {
     const {onUpdateScraper, scraper} = this.props
-    onUpdateScraper({...scraper, url: name})
+    onUpdateScraper({...scraper, name})
   }
 }

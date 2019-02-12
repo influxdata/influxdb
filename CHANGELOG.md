@@ -2,6 +2,7 @@
 
 ### Features
 1. [11809](https://github.com/influxdata/influxdb/pull/11809): Add the ability to name a scraper target
+1. [11821](https://github.com/influxdata/influxdb/pull/11821): Display scraper name as the first and only updatable column in scrapers list
 
 ### Bug Fixes
 
