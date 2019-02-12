@@ -315,7 +315,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
 		userResourceSvc  platform.UserResourceMappingService      = m.kvService
 		labelSvc         platform.LabelService                    = m.kvService
-		secretSvc        platform.SecretService                   = m.boltClient
+		secretSvc        platform.SecretService                   = m.kvService
 		lookupSvc        platform.LookupService                   = m.boltClient
 	)
 
