@@ -54,7 +54,7 @@ func TestMetrics_Onboarding(t *testing.T) {
 	if _, _ = client.Generate(ctx,
 		&platform.OnboardingRequest{
 			User:     "u1",
-			Password: "p1",
+			Password: "password1",
 			Org:      "o1",
 			Bucket:   "b1",
 		}); err != nil {
