@@ -55,6 +55,7 @@ export enum LineProtocolStep {
 interface ScraperTarget {
   bucket: string
   url: string
+  name: string
   id?: string
 }
 

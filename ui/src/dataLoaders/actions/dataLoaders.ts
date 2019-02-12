@@ -57,6 +57,7 @@ export type Action =
   | SetConfigArrayValue
   | SetScraperTargetBucket
   | SetScraperTargetURL
+  | SetScraperTargetName
   | SetScraperTargetID
   | ClearDataLoaders
   | SetTelegrafConfigName
@@ -246,6 +247,16 @@ export const setScraperTargetURL = (url: string): SetScraperTargetURL => ({
   payload: {url},
 })
 
+interface SetScraperTargetName {
+  type: 'SET_SCRAPER_TARGET_NAME'
+  payload: {name: string}
+}
+
+export const setScraperTargetName = (name: string): SetScraperTargetName => ({
+  type: 'SET_SCRAPER_TARGET_NAME',
+  payload: {name},
+})
+
 interface SetScraperTargetID {
   type: 'SET_SCRAPER_TARGET_ID'
   payload: {id: string}
@@ -426,7 +437,7 @@ export const saveScraperTarget = () => async (
   const {
     dataLoading: {
       dataLoaders: {
-        scraperTarget: {url, id},
+        scraperTarget: {url, id, name},
       },
       steps: {bucketID, orgID},
     },
@@ -437,7 +448,7 @@ export const saveScraperTarget = () => async (
       await client.scrapers.update(id, {url, bucketID})
     } else {
       const newTarget = await client.scrapers.create({
-        name: 'new target',
+        name,
         type: ScraperTargetRequest.TypeEnum.Prometheus,
         url,
         bucketID,

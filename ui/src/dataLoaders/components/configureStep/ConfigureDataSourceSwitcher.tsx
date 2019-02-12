@@ -31,8 +31,6 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
             <Scraping onClickNext={onClickNext} buckets={buckets} />
           </div>
         )
-      case DataLoaderType.CSV:
-        return <div>{DataLoaderType.CSV}</div>
       default:
         return <EmptyDataSourceState />
     }

@@ -23,6 +23,7 @@ import {
   setScraperTargetURL,
   setScraperTargetID,
   setTelegrafConfigName,
+  setScraperTargetName,
 } from 'src/dataLoaders/actions/dataLoaders'
 
 // Mock Data
@@ -428,7 +429,11 @@ describe('dataLoader reducer', () => {
 
     const expected = {
       ...INITIAL_STATE,
-      scraperTarget: {bucket: 'a', url: QUICKSTART_SCRAPER_TARGET_URL},
+      scraperTarget: {
+        bucket: 'a',
+        url: QUICKSTART_SCRAPER_TARGET_URL,
+        name: 'Name this Scraper Target',
+      },
     }
 
     expect(actual).toEqual(expected)
@@ -438,32 +443,50 @@ describe('dataLoader reducer', () => {
     const actual = dataLoadersReducer(
       {
         ...INITIAL_STATE,
-        scraperTarget: {bucket: '', url: ''},
+        scraperTarget: {bucket: '', url: '', name: ''},
       },
       setScraperTargetURL('http://googledoodle.com')
     )
 
     const expected = {
       ...INITIAL_STATE,
-      scraperTarget: {bucket: '', url: 'http://googledoodle.com'},
+      scraperTarget: {bucket: '', url: 'http://googledoodle.com', name: ''},
     }
 
     expect(actual).toEqual(expected)
   })
 
-  it('can set scraperTarget url', () => {
+  it('can set scraperTarget id', () => {
     const id = '12345678'
     const actual = dataLoadersReducer(
       {
         ...INITIAL_STATE,
-        scraperTarget: {bucket: '', url: ''},
+        scraperTarget: {bucket: '', url: '', name: ''},
       },
       setScraperTargetID(id)
     )
 
     const expected = {
       ...INITIAL_STATE,
-      scraperTarget: {bucket: '', url: '', id},
+      scraperTarget: {bucket: '', url: '', name: '', id},
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can set scraperTarget name', () => {
+    const name = 'MyTarget'
+    const actual = dataLoadersReducer(
+      {
+        ...INITIAL_STATE,
+        scraperTarget: {bucket: '', url: '', name: ''},
+      },
+      setScraperTargetName(name)
+    )
+
+    const expected = {
+      ...INITIAL_STATE,
+      scraperTarget: {bucket: '', url: '', name},
     }
 
     expect(actual).toEqual(expected)
