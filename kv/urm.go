@@ -77,6 +77,8 @@ func (s *Service) findUserResourceMapping(ctx context.Context, tx Tx, filter inf
 	return ms[0], nil
 }
 
+// CreateUserResourceMapping associates a user to a resource either as a member
+// or owner.
 func (s *Service) CreateUserResourceMapping(ctx context.Context, m *influxdb.UserResourceMapping) error {
 	return s.kv.Update(func(tx Tx) error {
 		if err := s.createUserResourceMapping(ctx, tx, m); err != nil {
