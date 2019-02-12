@@ -45,6 +45,7 @@ import {disablePresentationMode} from 'src/shared/actions/app'
 
 // Styles
 import 'src/style/chronograf.scss'
+import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
 
 const rootNode = getRootNode()
 const basepath = getBasepath()
@@ -120,6 +121,7 @@ class Root extends PureComponent {
                             </Route>
                             <Route path="tasks">
                               <IndexRoute component={TasksPage} />
+                              <Route path=":id/runs" component={TaskRunsPage} />
                               <Route path="new" component={TaskPage} />
                               <Route path=":id" component={TaskEditPage} />
                             </Route>

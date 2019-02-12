@@ -73,6 +73,12 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
           <ComponentSpacer align={Alignment.Right}>
             <Button
               size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Default}
+              text="View Runs"
+              onClick={this.handleViewRuns}
+            />
+            <Button
+              size={ComponentSize.ExtraSmall}
               text="Export"
               icon={IconFont.Export}
               onClick={this.handleExport}
@@ -118,6 +124,11 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
         {task.name}
       </a>
     )
+  }
+
+  private handleViewRuns = () => {
+    const {router, task} = this.props
+    router.push(`tasks/${task.id}/runs`)
   }
 
   private handleUpdateTask = (name: string) => {
