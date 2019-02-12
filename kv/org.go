@@ -472,7 +472,7 @@ func (s *Service) deleteOrganization(ctx context.Context, tx Tx, id influxdb.ID)
 //	return nil
 //}
 
-// GeOrganizationOperationLog retrieves a organization operation log.
+// GetOrganizationOperationLog retrieves a organization operation log.
 func (s *Service) GetOrganizationOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
 	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
 	log := []*influxdb.OperationLogEntry{}
