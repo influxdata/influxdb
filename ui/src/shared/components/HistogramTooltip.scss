@@ -20,6 +20,17 @@
   margin-right: 15px;
 }
 
+.histogram-tooltip--fill {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.histogram-tooltip--fill, .histogram-tooltip--count {
+  height: 17px;
+}
+
 .histogram-tooltip--counts {
   text-align: right;
   flex: 1 1 0;

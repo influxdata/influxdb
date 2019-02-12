@@ -252,9 +252,12 @@ class MultiSelectDropdown extends Component<Props, State> {
   }
 
   private validateChildCount = (): void => {
-    const {children} = this.props
+    const {children, status} = this.props
 
-    if (React.Children.count(children) === 0) {
+    const shouldHaveChildren =
+      status === ComponentStatus.Default || status === ComponentStatus.Valid
+
+    if (shouldHaveChildren && React.Children.count(children) === 0) {
       throw new Error(
         'Dropdowns require at least 1 child element. We recommend using Dropdown.Item and/or Dropdown.Divider.'
       )

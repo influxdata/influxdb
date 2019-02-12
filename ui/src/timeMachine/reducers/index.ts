@@ -51,6 +51,8 @@ export interface TimeMachineState {
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
   submitToken: number
+  availableXColumns: string[]
+  availableGroupColumns: string[]
   queryBuilder: QueryBuilderState
 }
 
@@ -69,6 +71,8 @@ export const initialStateHelper = (): TimeMachineState => ({
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
   submitToken: 0,
+  availableXColumns: [],
+  availableGroupColumns: [],
   queryBuilder: {
     buckets: [],
     bucketsStatus: RemoteDataState.NotStarted,
@@ -266,16 +270,49 @@ export const timeMachineReducer = (
       return setYAxis(state, {scale})
     }
 
-    case 'SET_X': {
-      const {x} = action.payload
+    case 'TABLE_LOADED': {
+      return produce(state, draftState => {
+        const {
+          availableXColumns,
+          availableGroupColumns,
+          defaultGroupColumns,
+        } = action.payload
 
-      return setViewProperties(state, {x})
+        draftState.availableXColumns = availableXColumns
+        draftState.availableGroupColumns = availableGroupColumns
+
+        if (draftState.view.properties.type !== ViewType.Histogram) {
+          return
+        }
+
+        const {xColumn, fillColumns} = draftState.view.properties
+        const xColumnStale = !xColumn || !availableXColumns.includes(xColumn)
+        const fillColumnsStale =
+          !fillColumns ||
+          fillColumns.some(name => !availableGroupColumns.includes(name))
+
+        if (xColumnStale && availableXColumns.includes('_value')) {
+          draftState.view.properties.xColumn = '_value'
+        } else if (xColumnStale) {
+          draftState.view.properties.xColumn = availableXColumns[0]
+        }
+
+        if (fillColumnsStale) {
+          draftState.view.properties.fillColumns = defaultGroupColumns
+        }
+      })
     }
 
-    case 'SET_FILL': {
-      const {fill} = action.payload
+    case 'SET_X_COLUMN': {
+      const {xColumn} = action.payload
 
-      return setViewProperties(state, {fill})
+      return setViewProperties(state, {xColumn})
+    }
+
+    case 'SET_FILL_COLUMNS': {
+      const {fillColumns} = action.payload
+
+      return setViewProperties(state, {fillColumns})
     }
 
     case 'SET_HISTOGRAM_POSITION': {

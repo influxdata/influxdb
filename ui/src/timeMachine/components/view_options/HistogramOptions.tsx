@@ -3,17 +3,27 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Dropdown, Form, Grid, AutoInput} from 'src/clockface'
+import {
+  Dropdown,
+  MultiSelectDropdown,
+  ComponentStatus,
+  Form,
+  Grid,
+  AutoInput,
+} from 'src/clockface'
 import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
 
 // Actions
 import {
-  setX,
-  setFill,
+  setXColumn,
+  setFillColumns,
   setBinCount,
   setHistogramPosition,
   setColors,
 } from 'src/timeMachine/actions'
+
+// Utils
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Styles
 import 'src/timeMachine/components/view_options/HistogramOptions.scss'
@@ -21,77 +31,89 @@ import 'src/timeMachine/components/view_options/HistogramOptions.scss'
 // Types
 import {HistogramPosition} from 'src/minard'
 import {Color} from 'src/types/colors'
+import {AppState} from 'src/types/v2'
+
+interface StateProps {
+  availableXColumns: string[]
+  availableGroupColumns: string[]
+}
 
 interface DispatchProps {
-  onSetX: typeof setX
-  onSetFill: typeof setFill
+  onSetXColumn: typeof setXColumn
+  onSetFillColumns: typeof setFillColumns
   onSetBinCount: typeof setBinCount
   onSetPosition: typeof setHistogramPosition
   onSetColors: typeof setColors
 }
 
 interface OwnProps {
-  x: string
-  fill: string
+  xColumn: string
+  fillColumns: string[]
   position: HistogramPosition
   binCount: number
   colors: Color[]
 }
 
-type Props = OwnProps & DispatchProps
-
-const NO_FILL = 'None'
+type Props = OwnProps & DispatchProps & StateProps
 
 // TODO: These options are currently hardcoded
 const HistogramOptions: SFC<Props> = props => {
   const {
-    x,
-    fill,
+    xColumn,
+    fillColumns,
+    availableXColumns,
+    availableGroupColumns,
     position,
     binCount,
     colors,
-    onSetX,
-    onSetFill,
+    onSetXColumn,
+    onSetFillColumns,
     onSetPosition,
     onSetBinCount,
     onSetColors,
   } = props
+
+  const xDropdownStatus = availableXColumns.length
+    ? ComponentStatus.Default
+    : ComponentStatus.Disabled
+
+  const groupDropdownStatus = availableGroupColumns.length
+    ? ComponentStatus.Default
+    : ComponentStatus.Disabled
 
   return (
     <Grid.Column>
       <h4 className="view-options--header">Customize Histogram</h4>
       <h5 className="view-options--header">Data</h5>
       <Form.Element label="Column">
-        <Dropdown selectedID={x} onChange={onSetX}>
-          <Dropdown.Item id="_value" value="_value">
-            <div className="column-option">_value</div>
-          </Dropdown.Item>
-          <Dropdown.Item id="_time" value="_time">
-            <div className="column-option">_time</div>
-          </Dropdown.Item>
+        <Dropdown
+          selectedID={xColumn}
+          onChange={onSetXColumn}
+          status={xDropdownStatus}
+        >
+          {availableXColumns.map(columnName => (
+            <Dropdown.Item id={columnName} key={columnName} value={columnName}>
+              {columnName}
+            </Dropdown.Item>
+          ))}
         </Dropdown>
       </Form.Element>
-      <Form.Element label="Fill">
-        <Dropdown selectedID={fill ? fill : NO_FILL} onChange={onSetFill}>
-          <Dropdown.Item id={NO_FILL} value={null}>
-            None
-          </Dropdown.Item>
-          <Dropdown.Item id="table" value="table">
-            Flux Group Key
-          </Dropdown.Item>
-          <Dropdown.Item id="cpu" value="cpu">
-            <div className="column-option">cpu</div>
-          </Dropdown.Item>
-          <Dropdown.Item id="host" value="host">
-            <div className="column-option">host</div>
-          </Dropdown.Item>
-          <Dropdown.Item id="_measurement" value="_measurement">
-            <div className="column-option">_measurement</div>
-          </Dropdown.Item>
-          <Dropdown.Item id="_field" value="_field">
-            <div className="column-option">_field</div>
-          </Dropdown.Item>
-        </Dropdown>
+      <Form.Element label="Group By">
+        <MultiSelectDropdown
+          selectedIDs={fillColumns}
+          onChange={onSetFillColumns}
+          status={groupDropdownStatus}
+        >
+          {availableGroupColumns.map(columnName => (
+            <Dropdown.Item
+              id={columnName}
+              key={columnName}
+              value={{id: columnName}}
+            >
+              {columnName}
+            </Dropdown.Item>
+          ))}
+        </MultiSelectDropdown>
       </Form.Element>
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
@@ -126,15 +148,21 @@ const HistogramOptions: SFC<Props> = props => {
   )
 }
 
+const mstp = (state: AppState) => {
+  const {availableXColumns, availableGroupColumns} = getActiveTimeMachine(state)
+
+  return {availableXColumns, availableGroupColumns}
+}
+
 const mdtp = {
-  onSetX: setX,
-  onSetFill: setFill,
+  onSetXColumn: setXColumn,
+  onSetFillColumns: setFillColumns,
   onSetBinCount: setBinCount,
   onSetPosition: setHistogramPosition,
   onSetColors: setColors,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
   mdtp
 )(HistogramOptions)

@@ -1,4 +1,11 @@
-import React, {useReducer, useEffect, useRef, SFC, CSSProperties} from 'react'
+import React, {
+  useReducer,
+  useEffect,
+  useRef,
+  useMemo,
+  SFC,
+  CSSProperties,
+} from 'react'
 
 import {Table, PlotEnv, CATEGORY_10} from 'src/minard'
 import {Axes} from 'src/minard/components/Axes'
@@ -23,7 +30,7 @@ export interface Props {
   // ------------------
   //
   x?: string
-  fill?: string
+  fill?: string[]
   // y?: string
   // start?: string
   // stop?: string
@@ -73,10 +80,24 @@ export const Plot: SFC<Props> = ({
     defaults: {table, colors, aesthetics: {x, fill}, scales: {}},
   })
 
-  // TODO: When should these actions be batched?
+  // TODO: Batch these on first render
+  // TODO: Handle aesthetic prop changes
   useEffect(() => dispatch(setTable(table)), [table])
   useEffect(() => dispatch(setDimensions(width, height)), [width, height])
   useEffect(() => dispatch(setColors(colors)), [colors])
+
+  const mouseRegion = useRef<HTMLDivElement>(null)
+  const [hoverX, hoverY] = useMousePos(mouseRegion)
+
+  const childProps = useMemo(
+    () => ({
+      ...env,
+      hoverX,
+      hoverY,
+      dispatch,
+    }),
+    [env, hoverX, hoverY, dispatch]
+  )
 
   const plotStyle: CSSProperties = {
     position: 'relative',
@@ -92,9 +113,6 @@ export const Plot: SFC<Props> = ({
     left: `${env.margins.left}px`,
   }
 
-  const mouseRegion = useRef<HTMLDivElement>(null)
-  const [hoverX, hoverY] = useMousePos(mouseRegion)
-
   return (
     <div className="minard-plot" style={plotStyle}>
       <Axes
@@ -104,7 +122,7 @@ export const Plot: SFC<Props> = ({
         tickFill={tickFill}
       >
         <div className="minard-layers" style={layersStyle}>
-          {children({...env, hoverX, hoverY, dispatch})}
+          {children(childProps)}
         </div>
         <div
           className="minard-interaction-region"

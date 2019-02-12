@@ -15,7 +15,8 @@ import {
 } from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
-import {HistogramPosition} from 'src/minard'
+import {HistogramPosition, ColumnType} from 'src/minard'
+import {ToMinardTableResult} from 'src/shared/utils/toMinardTable'
 
 export type Action =
   | QueryBuilderAction
@@ -55,10 +56,11 @@ export type Action =
   | SetFieldOptionsAction
   | SetTableOptionsAction
   | SetTimeFormatAction
-  | SetXAction
-  | SetFillAction
+  | SetXColumnAction
+  | SetFillColumnsAction
   | SetBinCountAction
   | SetHistogramPositionAction
+  | TableLoadedAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -456,24 +458,26 @@ export const setTimeFormat = (timeFormat: string): SetTimeFormatAction => ({
   payload: {timeFormat},
 })
 
-interface SetXAction {
-  type: 'SET_X'
-  payload: {x: string}
+interface SetXColumnAction {
+  type: 'SET_X_COLUMN'
+  payload: {xColumn: string}
 }
 
-export const setX = (x: string): SetXAction => ({
-  type: 'SET_X',
-  payload: {x},
+export const setXColumn = (xColumn: string): SetXColumnAction => ({
+  type: 'SET_X_COLUMN',
+  payload: {xColumn},
 })
 
-interface SetFillAction {
-  type: 'SET_FILL'
-  payload: {fill: string}
+interface SetFillColumnsAction {
+  type: 'SET_FILL_COLUMNS'
+  payload: {fillColumns: string[]}
 }
 
-export const setFill = (fill: string): SetFillAction => ({
-  type: 'SET_FILL',
-  payload: {fill},
+export const setFillColumns = (
+  fillColumns: string[]
+): SetFillColumnsAction => ({
+  type: 'SET_FILL_COLUMNS',
+  payload: {fillColumns},
 })
 
 interface SetBinCountAction {
@@ -497,3 +501,37 @@ export const setHistogramPosition = (
   type: 'SET_HISTOGRAM_POSITION',
   payload: {position},
 })
+
+interface TableLoadedAction {
+  type: 'TABLE_LOADED'
+  payload: {
+    availableXColumns: string[]
+    availableGroupColumns: string[]
+    defaultGroupColumns: string[]
+  }
+}
+
+export const tableLoaded = (result: ToMinardTableResult): TableLoadedAction => {
+  const availableXColumns = Object.entries(result.table.columnTypes)
+    .filter(([__, type]) => type === ColumnType.Numeric)
+    .map(([name]) => name)
+
+  const invalidGroupColumns = new Set(['_value', '_start', '_stop', '_time'])
+
+  const availableGroupColumns = Object.keys(result.table.columns).filter(
+    name => !invalidGroupColumns.has(name)
+  )
+
+  const defaultGroupColumns = result.defaultGroupColumns.filter(
+    name => !invalidGroupColumns.has(name)
+  )
+
+  return {
+    type: 'TABLE_LOADED',
+    payload: {
+      availableXColumns,
+      availableGroupColumns,
+      defaultGroupColumns,
+    },
+  }
+}

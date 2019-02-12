@@ -1,7 +1,8 @@
 import React, {useRef, SFC} from 'react'
 
-import {Scale, HistogramTooltipProps} from 'src/minard'
+import {HistogramTooltipProps, Layer} from 'src/minard'
 import {useLayoutStyle} from 'src/minard/utils/useLayoutStyle'
+import {getHistogramTooltipProps} from 'src/minard/utils/getHistogramTooltipProps'
 
 const MARGIN_X = 15
 const MARGIN_Y = 10
@@ -9,34 +10,20 @@ const MARGIN_Y = 10
 interface Props {
   hoverX: number
   hoverY: number
-  x: string
-  fill: string
   tooltip?: (props: HistogramTooltipProps) => JSX.Element
   width: number
   height: number
-  xMinCol: number[]
-  xMaxCol: number[]
-  yMinCol: number[]
-  yMaxCol: number[]
-  fillCol: string[] | boolean[]
-  fillScale: Scale<string | number | boolean, string>
+  layer: Layer
   hoveredRowIndices: number[] | null
 }
 
 const HistogramTooltip: SFC<Props> = ({
   hoverX,
   hoverY,
-  x,
-  fill,
   tooltip,
   width,
   height,
-  xMinCol,
-  xMaxCol,
-  yMinCol,
-  yMaxCol,
-  fillCol,
-  fillScale,
+  layer,
   hoveredRowIndices,
 }: Props) => {
   const tooltipEl = useRef<HTMLDivElement>(null)
@@ -68,17 +55,7 @@ const HistogramTooltip: SFC<Props> = ({
     return null
   }
 
-  const tooltipProps: HistogramTooltipProps = {
-    x,
-    fill,
-    xMin: xMinCol[hoveredRowIndices[0]],
-    xMax: xMaxCol[hoveredRowIndices[0]],
-    counts: hoveredRowIndices.map(i => ({
-      fill: fillCol ? fillCol[i] : null,
-      count: yMaxCol[i] - yMinCol[i],
-      color: fillScale(fillCol[i]),
-    })),
-  }
+  const tooltipProps = getHistogramTooltipProps(layer, hoveredRowIndices)
 
   return (
     <div className="minard-histogram-tooltip" ref={tooltipEl}>
