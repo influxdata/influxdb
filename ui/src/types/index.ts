@@ -38,12 +38,14 @@ import {
 } from 'src/types/tempVars'
 import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
 import {WriteDataMode} from './dataExplorer'
+import {OverlayState} from 'src/types/overlay'
 
 export {
   TemplateType,
   TemplateValue,
   TemplateValueType,
   Template,
+  OverlayState,
   Cell,
   DashboardQuery,
   Legend,

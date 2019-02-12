@@ -105,7 +105,6 @@ class TaskEditPage extends PureComponent<
                 script={currentScript}
                 onChangeScript={this.handleChangeScript}
                 visibility="visible"
-                status={{text: '', type: ''}}
                 suggestions={[]}
               />
             </div>

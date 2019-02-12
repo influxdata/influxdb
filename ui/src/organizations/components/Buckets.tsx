@@ -25,7 +25,7 @@ import {ruleToString} from 'src/utils/formatting'
 import {client} from 'src/utils/api'
 
 // Types
-import {OverlayState} from 'src/types/v2'
+import {OverlayState} from 'src/types'
 
 import {Bucket, Organization, BucketRetentionRules} from '@influxdata/influx'
 

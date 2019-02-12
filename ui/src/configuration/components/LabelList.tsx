@@ -11,7 +11,7 @@ import {validateLabelName} from 'src/configuration/utils/labels'
 
 // Types
 import {LabelType} from 'src/clockface'
-import {OverlayState} from 'src/types/v2'
+import {OverlayState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

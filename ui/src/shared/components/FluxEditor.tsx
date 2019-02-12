@@ -29,7 +29,7 @@ interface Status {
 
 interface Props {
   script: string
-  status: Status
+  status?: Status
   onChangeScript: OnChangeScript
   onSubmitScript?: () => void
   suggestions: Suggestion[]
@@ -52,6 +52,7 @@ interface EditorInstance extends IInstance {
 class FluxEditor extends PureComponent<Props, State> {
   public static defaultProps = {
     visibility: 'visible',
+    status: {text: '', type: ''},
   }
 
   private editor: EditorInstance

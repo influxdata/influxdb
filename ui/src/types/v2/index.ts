@@ -32,7 +32,6 @@ import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {State as TaskState} from 'src/tasks/reducers/v2'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
-import {OverlayState} from 'src/types/v2/overlay'
 import {SourcesState} from 'src/sources/reducers'
 import {NoteEditorState} from 'src/dashboards/reducers/v2/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
@@ -69,7 +68,6 @@ export {
   SourceType,
   Member,
   Bucket,
-  OverlayState,
   RetentionRule,
   RetentionRuleTypes,
   Dashboard,

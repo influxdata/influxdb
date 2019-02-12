@@ -14,7 +14,7 @@ import DataLoaderSwitcher from 'src/dataLoaders/components/DataLoaderSwitcher'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
-import {OverlayState} from 'src/types/v2'
+import {OverlayState} from 'src/types'
 import {Substep, DataLoaderStep, DataLoaderType} from 'src/types/v2/dataLoaders'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {AppState} from 'src/types/v2'

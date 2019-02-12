@@ -58,6 +58,12 @@ class OrganizationNavigation extends PureComponent<Props> {
           url={`${route}/scrapers_tab`}
           active={'scrapers_tab' === tab}
         />
+        <Tabs.Tab
+          title={'Variables'}
+          id={'variables'}
+          url={`${route}/variables_tab`}
+          active={'variables_tab' === tab}
+        />
       </Tabs.Nav>
     )
   }
