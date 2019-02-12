@@ -4,7 +4,6 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CollectorList from 'src/organizations/components/CollectorList'
 import TelegrafExplainer from 'src/organizations/components/TelegrafExplainer'
 import TelegrafInstructionsOverlay from 'src/organizations/components/TelegrafInstructionsOverlay'
@@ -19,6 +18,7 @@ import {
   Columns,
   Input,
   InputType,
+  Tabs,
 } from 'src/clockface'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
@@ -90,7 +90,7 @@ export class Collectors extends PureComponent<Props, State> {
 
     return (
       <>
-        <TabbedPageHeader>
+        <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter telegraf configs by bucket..."
@@ -101,7 +101,7 @@ export class Collectors extends PureComponent<Props, State> {
             onBlur={this.handleFilterBlur}
           />
           {this.createButton}
-        </TabbedPageHeader>
+        </Tabs.TabContentsHeader>
         <Grid>
           <Grid.Row>
             <Grid.Column widthSM={Columns.Twelve}>
