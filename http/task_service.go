@@ -262,14 +262,47 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, _, err := h.TaskService.FindTasks(ctx, req.filter)
-	if err != nil {
-		err = &platform.Error{
-			Err: err,
-			Msg: "failed to find tasks",
+	var tasks []*platform.Task
+
+	if req.filter.User != nil {
+		ownedTasks, _, err := h.UserResourceMappingService.FindUserResourceMappings(
+			ctx,
+			platform.UserResourceMappingFilter{
+				UserID:       *req.filter.User,
+				UserType:     platform.Owner,
+				ResourceType: platform.TasksResourceType,
+			},
+		)
+		if err != nil {
+			err = &platform.Error{
+				Err: err,
+				Msg: "failed to pull user's resources",
+			}
+			EncodeError(ctx, err, w)
+			return
 		}
-		EncodeError(ctx, err, w)
-		return
+		for _, ownedTask := range ownedTasks {
+			task, err := h.TaskService.FindTaskByID(ctx, ownedTask.ResourceID)
+			if err != nil {
+				err = &platform.Error{
+					Err: err,
+					Msg: "failed to find tasks",
+				}
+				EncodeError(ctx, err, w)
+				return
+			}
+			tasks = append(tasks, task)
+		}
+	} else {
+		tasks, _, err = h.TaskService.FindTasks(ctx, req.filter)
+		if err != nil {
+			err = &platform.Error{
+				Err: err,
+				Msg: "failed to find tasks",
+			}
+			EncodeError(ctx, err, w)
+			return
+		}
 	}
 
 	for _, task := range tasks {
