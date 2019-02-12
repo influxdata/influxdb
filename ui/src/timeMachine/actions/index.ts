@@ -15,6 +15,7 @@ import {
 } from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
+import {HistogramPosition} from 'src/minard'
 
 export type Action =
   | QueryBuilderAction
@@ -54,6 +55,10 @@ export type Action =
   | SetFieldOptionsAction
   | SetTableOptionsAction
   | SetTimeFormatAction
+  | SetXAction
+  | SetFillAction
+  | SetBinCountAction
+  | SetHistogramPositionAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -449,4 +454,46 @@ interface SetTimeFormatAction {
 export const setTimeFormat = (timeFormat: string): SetTimeFormatAction => ({
   type: 'SET_TIME_FORMAT',
   payload: {timeFormat},
+})
+
+interface SetXAction {
+  type: 'SET_X'
+  payload: {x: string}
+}
+
+export const setX = (x: string): SetXAction => ({
+  type: 'SET_X',
+  payload: {x},
+})
+
+interface SetFillAction {
+  type: 'SET_FILL'
+  payload: {fill: string}
+}
+
+export const setFill = (fill: string): SetFillAction => ({
+  type: 'SET_FILL',
+  payload: {fill},
+})
+
+interface SetBinCountAction {
+  type: 'SET_BIN_COUNT'
+  payload: {binCount: number}
+}
+
+export const setBinCount = (binCount: number): SetBinCountAction => ({
+  type: 'SET_BIN_COUNT',
+  payload: {binCount},
+})
+
+interface SetHistogramPositionAction {
+  type: 'SET_HISTOGRAM_POSITION'
+  payload: {position: HistogramPosition}
+}
+
+export const setHistogramPosition = (
+  position: HistogramPosition
+): SetHistogramPositionAction => ({
+  type: 'SET_HISTOGRAM_POSITION',
+  payload: {position},
 })

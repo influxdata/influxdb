@@ -35,7 +35,11 @@ export const INITIAL_STATE: DataLoadersState = {
   precision: WritePrecision.Ns,
   telegrafConfigID: null,
   pluginBundles: [],
-  scraperTarget: {bucket: '', url: QUICKSTART_SCRAPER_TARGET_URL},
+  scraperTarget: {
+    bucket: '',
+    url: QUICKSTART_SCRAPER_TARGET_URL,
+    name: 'Name this Scraper Target',
+  },
   telegrafConfigName: 'Name this Configuration',
 }
 
@@ -269,6 +273,12 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
       return {
         ...state,
         telegrafConfigName: action.payload.name,
+      }
+    case 'SET_SCRAPER_TARGET_NAME':
+      const {name} = action.payload
+      return {
+        ...state,
+        scraperTarget: {...state.scraperTarget, name},
       }
     case 'SET_SCRAPER_TARGET_BUCKET':
       const {bucket} = action.payload

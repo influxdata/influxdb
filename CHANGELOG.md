@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.3 [unreleased]
 
 ### Features
+1. [11809](https://github.com/influxdata/influxdb/pull/11809): Add the ability to name a scraper target
 
 ### Bug Fixes
 

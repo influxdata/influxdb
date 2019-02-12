@@ -1,0 +1,257 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ScraperTarget rendering renders correctly with bucket 1`] = `
+<Grid>
+  <GridRow>
+    <GridColumn
+      offsetXS={2}
+      widthXS={8}
+    >
+      <FormElement
+        errorMessage="Target name is empty"
+        label="Name"
+      >
+        <Input
+          autoFocus={true}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="error"
+          titleText="Name"
+          type="text"
+          value=""
+        />
+      </FormElement>
+      <FormElement
+        label="Bucket"
+      >
+        <BucketsDropdown
+          buckets={Array []}
+          onSelectBucket={[MockFunction]}
+          selected="defbuck"
+        />
+      </FormElement>
+    </GridColumn>
+    <GridColumn
+      offsetXS={2}
+      widthXS={8}
+    >
+      <FormElement
+        errorMessage="Target URL is empty"
+        label="Target URL"
+      >
+        <Input
+          autoFocus={false}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="error"
+          titleText="Target URL"
+          type="text"
+          value=""
+        />
+      </FormElement>
+    </GridColumn>
+  </GridRow>
+</Grid>
+`;
+
+exports[`ScraperTarget rendering renders correctly with name 1`] = `
+<Grid>
+  <GridRow>
+    <GridColumn
+      offsetXS={2}
+      widthXS={8}
+    >
+      <FormElement
+        errorMessage={false}
+        label="Name"
+      >
+        <Input
+          autoFocus={true}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="default"
+          titleText="Name"
+          type="text"
+          value="MyScraper"
+        />
+      </FormElement>
+      <FormElement
+        label="Bucket"
+      >
+        <BucketsDropdown
+          buckets={Array []}
+          onSelectBucket={[MockFunction]}
+          selected=""
+        />
+      </FormElement>
+    </GridColumn>
+    <GridColumn
+      offsetXS={2}
+      widthXS={8}
+    >
+      <FormElement
+        errorMessage="Target URL is empty"
+        label="Target URL"
+      >
+        <Input
+          autoFocus={false}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="error"
+          titleText="Target URL"
+          type="text"
+          value=""
+        />
+      </FormElement>
+    </GridColumn>
+  </GridRow>
+</Grid>
+`;
+
+exports[`ScraperTarget rendering renders correctly with no bucket, url, name 1`] = `
+<Grid>
+  <GridRow>
+    <GridColumn
+      offsetXS={2}
+      widthXS={8}
+    >
+      <FormElement
+        errorMessage="Target name is empty"
+        label="Name"
+      >
+        <Input
+          autoFocus={true}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="error"
+          titleText="Name"
+          type="text"
+          value=""
+        />
+      </FormElement>
+      <FormElement
+        label="Bucket"
+      >
+        <BucketsDropdown
+          buckets={Array []}
+          onSelectBucket={[MockFunction]}
+          selected=""
+        />
+      </FormElement>
+    </GridColumn>
+    <GridColumn
+      offsetXS={2}
+      widthXS={8}
+    >
+      <FormElement
+        errorMessage="Target URL is empty"
+        label="Target URL"
+      >
+        <Input
+          autoFocus={false}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="error"
+          titleText="Target URL"
+          type="text"
+          value=""
+        />
+      </FormElement>
+    </GridColumn>
+  </GridRow>
+</Grid>
+`;
+
+exports[`ScraperTarget rendering renders correctly with url 1`] = `
+<Grid>
+  <GridRow>
+    <GridColumn
+      offsetXS={2}
+      widthXS={8}
+    >
+      <FormElement
+        errorMessage="Target name is empty"
+        label="Name"
+      >
+        <Input
+          autoFocus={true}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="error"
+          titleText="Name"
+          type="text"
+          value=""
+        />
+      </FormElement>
+      <FormElement
+        label="Bucket"
+      >
+        <BucketsDropdown
+          buckets={Array []}
+          onSelectBucket={[MockFunction]}
+          selected=""
+        />
+      </FormElement>
+    </GridColumn>
+    <GridColumn
+      offsetXS={2}
+      widthXS={8}
+    >
+      <FormElement
+        errorMessage={false}
+        label="Target URL"
+      >
+        <Input
+          autoFocus={false}
+          autocomplete="off"
+          disabledTitleText="This input is disabled"
+          name=""
+          onChange={[Function]}
+          placeholder=""
+          size="md"
+          spellCheck={false}
+          status="default"
+          titleText="Target URL"
+          type="text"
+          value="http://url.com"
+        />
+      </FormElement>
+    </GridColumn>
+  </GridRow>
+</Grid>
+`;
