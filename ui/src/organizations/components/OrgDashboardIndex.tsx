@@ -7,14 +7,8 @@ import _ from 'lodash'
 
 // Components
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
-import {
-  OverlayTechnology,
-  Button,
-  ComponentColor,
-  IconFont,
-  Input,
-  Tabs,
-} from 'src/clockface'
+import {OverlayTechnology, Input, Tabs} from 'src/clockface'
+import {Button, ComponentColor, IconFont} from '@influxdata/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 

@@ -4,12 +4,12 @@ import {connect} from 'react-redux'
 
 // Components
 import {
-  IndexList,
   Alignment,
   Button,
   ComponentColor,
   ComponentSize,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {IndexList} from 'src/clockface'
 import DeleteSourceButton from 'src/sources/components/DeleteSourceButton'
 
 // Actions

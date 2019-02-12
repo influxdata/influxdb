@@ -2,7 +2,7 @@
 
 exports[`SaveAsButton rendering renders 1`] = `
 <Fragment>
-  <Button
+  <t
     active={false}
     color="primary"
     icon="export"

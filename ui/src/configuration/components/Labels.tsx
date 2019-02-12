@@ -7,13 +7,11 @@ import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {
   ComponentSize,
-  EmptyState,
   IconFont,
-  Input,
   Button,
   ComponentColor,
-  InputType,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {EmptyState, Input, InputType} from 'src/clockface'
 import LabelList from 'src/configuration/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 

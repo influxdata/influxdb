@@ -3,7 +3,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Dropdown, Input, Button, ButtonShape, IconFont} from 'src/clockface'
+import {Button, ButtonShape, IconFont} from '@influxdata/clockface'
+import {Dropdown, Input} from 'src/clockface'
 import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 import WaitingText from 'src/shared/components/WaitingText'
 import SelectorList from 'src/timeMachine/components/SelectorList'

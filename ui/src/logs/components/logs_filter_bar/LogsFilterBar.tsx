@@ -1,7 +1,8 @@
 import React, {PureComponent} from 'react'
 import {Filter} from 'src/types/logs'
 import FilterBlock from 'src/logs/components/logs_filter_bar/LogsFilter'
-import {Button, ComponentSize, Radio} from 'src/clockface'
+import {Button, ComponentSize} from '@influxdata/clockface'
+import {Radio} from 'src/clockface'
 
 interface Props {
   filters: Filter[]

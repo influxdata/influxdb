@@ -13,13 +13,9 @@ import {
   ComponentColor,
   IconFont,
   ComponentSize,
-  EmptyState,
-  Grid,
   Columns,
-  Input,
-  InputType,
-  Tabs,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {EmptyState, Grid, Input, InputType, Tabs} from 'src/clockface'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
 

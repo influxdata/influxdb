@@ -1,6 +1,11 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
-import {Button, ComponentColor, ComponentSize, ButtonType} from 'src/clockface'
+import {
+  Button,
+  ComponentColor,
+  ComponentSize,
+  ButtonType,
+} from '@influxdata/clockface'
 
 import './DragAndDrop.scss'
 

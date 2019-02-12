@@ -12,7 +12,7 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 import ConnectionInformation, {
   LoadingState,
 } from 'src/dataLoaders/components/verifyStep/ConnectionInformation'

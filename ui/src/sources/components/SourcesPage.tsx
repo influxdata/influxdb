@@ -3,12 +3,8 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {Page} from 'src/pageLayout'
-import {
-  Button,
-  IconFont,
-  ComponentColor,
-  OverlayTechnology,
-} from 'src/clockface'
+import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
+import {OverlayTechnology} from 'src/clockface'
 import SourcesList from 'src/sources/components/SourcesList'
 import CreateSourceOverlay from 'src/sources/components/CreateSourceOverlay'
 

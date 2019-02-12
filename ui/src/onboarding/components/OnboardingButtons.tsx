@@ -6,7 +6,7 @@ import {
   ComponentSize,
   ButtonType,
   ComponentStatus,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 
 interface Props {
   onClickBack?: () => void

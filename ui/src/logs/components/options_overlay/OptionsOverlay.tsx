@@ -2,7 +2,7 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Button, ComponentStatus} from 'src/clockface'
+import {Button, ComponentStatus} from '@influxdata/clockface'
 import Container from 'src/clockface/components/overlays/OverlayContainer'
 import Heading from 'src/clockface/components/overlays/OverlayHeading'
 import Body from 'src/clockface/components/overlays/OverlayBody'

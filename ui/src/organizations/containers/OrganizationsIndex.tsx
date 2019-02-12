@@ -9,12 +9,8 @@ import {Page} from 'src/pageLayout'
 import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import OrganizationsIndexContents from 'src/organizations/components/OrganizationsIndexContents'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import {
-  Button,
-  IconFont,
-  ComponentColor,
-  OverlayTechnology,
-} from 'src/clockface'
+import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
+import {OverlayTechnology} from 'src/clockface'
 
 // Actions
 import {createOrg, deleteOrg} from 'src/organizations/actions'

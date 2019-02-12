@@ -6,9 +6,9 @@ import {
   Button,
   IconFont,
   ComponentColor,
-  EmptyState,
   ComponentSize,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {EmptyState} from 'src/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

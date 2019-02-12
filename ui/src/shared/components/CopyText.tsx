@@ -7,7 +7,7 @@ import CopyToClipboard from 'react-copy-to-clipboard'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Components
-import {Button, ComponentSize, ComponentColor} from 'src/clockface'
+import {Button, ComponentSize, ComponentColor} from '@influxdata/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions

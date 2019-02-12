@@ -7,7 +7,7 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 
 // Types
 import {RemoteDataState} from 'src/types'

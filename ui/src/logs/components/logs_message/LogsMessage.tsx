@@ -6,7 +6,12 @@ import {
   copyToClipboardSuccess,
   copyToClipboardFailed,
 } from 'src/shared/copy/notifications'
-import {Button, IconFont, ComponentColor, ComponentSize} from 'src/clockface'
+import {
+  Button,
+  IconFont,
+  ComponentColor,
+  ComponentSize,
+} from '@influxdata/clockface'
 
 import {NotificationAction} from 'src/types'
 

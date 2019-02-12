@@ -8,7 +8,7 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 
 // Actions
 import {submitScript} from 'src/timeMachine/actions'

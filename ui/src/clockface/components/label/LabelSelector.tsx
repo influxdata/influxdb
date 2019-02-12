@@ -3,8 +3,8 @@ import React, {Component, ChangeEvent, KeyboardEvent} from 'react'
 import _ from 'lodash'
 
 // Components
+import {Button} from '@influxdata/clockface'
 import Input from 'src/clockface/components/inputs/Input'
-import Button from 'src/clockface/components/Button'
 import Label from 'src/clockface/components/label/Label'
 import LabelContainer from 'src/clockface/components/label/LabelContainer'
 import LabelSelectorMenu from 'src/clockface/components/label/LabelSelectorMenu'

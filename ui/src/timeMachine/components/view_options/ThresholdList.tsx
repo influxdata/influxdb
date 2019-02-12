@@ -6,14 +6,13 @@ import uuid from 'uuid'
 // Components
 import ThresholdItem from 'src/timeMachine/components/view_options/ThresholdItem'
 import {
-  Form,
   Button,
   ComponentSize,
   IconFont,
-  ComponentStatus,
   ButtonType,
-  Grid,
-} from 'src/clockface'
+  ComponentStatus,
+} from '@influxdata/clockface'
+import {Form, Grid} from 'src/clockface'
 
 // Constants
 import {

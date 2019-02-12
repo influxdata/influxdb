@@ -5,15 +5,12 @@ import {connect} from 'react-redux'
 // Types
 import {MeState} from 'src/types/v2'
 import {
-  Form,
   Button,
-  Input,
   ComponentSize,
   ComponentStatus,
-  Panel,
-  Grid,
   Columns,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {Form, Input, Panel, Grid} from 'src/clockface'
 
 interface StateProps {
   me: MeState

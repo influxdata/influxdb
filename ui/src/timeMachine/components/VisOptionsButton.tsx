@@ -3,7 +3,12 @@ import React, {Component} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, ButtonShape, IconFont, ComponentColor} from 'src/clockface'
+import {
+  Button,
+  ButtonShape,
+  IconFont,
+  ComponentColor,
+} from '@influxdata/clockface'
 
 // Actions
 import {setActiveTab} from 'src/timeMachine/actions'

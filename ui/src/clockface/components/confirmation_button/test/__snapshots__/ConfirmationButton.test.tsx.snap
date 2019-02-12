@@ -15,7 +15,7 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
     <div
       className="confirmation-button"
     >
-      <Button
+      <t
         active={true}
         color="danger"
         onClick={[Function]}
@@ -35,7 +35,7 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
         >
           I am a dangerous button!
         </button>
-      </Button>
+      </t>
       <div
         className="confirmation-button--tooltip visible"
       >

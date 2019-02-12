@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import moment from 'moment'
 
 // Components
-import {Button, ComponentStatus, IconFont} from 'src/clockface'
+import {Button, ComponentStatus, IconFont} from '@influxdata/clockface'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'

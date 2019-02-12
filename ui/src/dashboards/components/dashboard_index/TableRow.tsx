@@ -7,12 +7,14 @@ import {
   Button,
   IconFont,
   ComponentSize,
-  ComponentSpacer,
+  ComponentColor,
+  Stack,
+} from '@influxdata/clockface'
+import {
   IndexList,
   ConfirmationButton,
-  Stack,
   Label,
-  ComponentColor,
+  ComponentSpacer,
 } from 'src/clockface'
 import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
 

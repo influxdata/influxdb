@@ -2,7 +2,7 @@ import React from 'react'
 import {mount} from 'enzyme'
 
 import ConfirmationButton from 'src/clockface/components/confirmation_button/ConfirmationButton'
-import Button from 'src/clockface/components/Button'
+import {Button} from '@influxdata/clockface'
 
 describe('ConfirmationButton', () => {
   let wrapper

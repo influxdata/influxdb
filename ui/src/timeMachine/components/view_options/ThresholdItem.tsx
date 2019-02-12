@@ -3,13 +3,12 @@ import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import {
   Button,
   ButtonShape,
-  IconFont,
-  Input,
-  InputType,
-  ComponentStatus,
   ButtonType,
+  IconFont,
+  ComponentStatus,
   ComponentSize,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {Input, InputType} from 'src/clockface'
 
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 import {THRESHOLD_COLORS} from 'src/shared/constants/thresholds'

@@ -3,15 +3,17 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {
+  Button,
+  ComponentColor,
+  ComponentStatus,
+  ButtonType,
+} from '@influxdata/clockface'
+import {
   Form,
   OverlayBody,
   OverlayHeading,
   OverlayContainer,
   Input,
-  Button,
-  ComponentColor,
-  ComponentStatus,
-  ButtonType,
 } from 'src/clockface'
 
 // Types

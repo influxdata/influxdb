@@ -4,15 +4,13 @@ import React, {PureComponent} from 'react'
 // Components
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
 import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
+import {IconFont, Button, ComponentColor} from '@influxdata/clockface'
 import {
-  IconFont,
-  Button,
   Radio,
   OverlayTechnology,
   OverlayBody,
   OverlayHeading,
   OverlayContainer,
-  ComponentColor,
 } from 'src/clockface'
 
 // Styles

@@ -2,10 +2,12 @@
 import React, {Component} from 'react'
 
 // Components
-import {Button, ComponentColor, ComponentSize} from 'src/clockface'
-
-// Types
-import {IconFont} from 'src/clockface'
+import {
+  Button,
+  ComponentColor,
+  ComponentSize,
+  IconFont,
+} from '@influxdata/clockface'
 
 interface Props {
   text: string

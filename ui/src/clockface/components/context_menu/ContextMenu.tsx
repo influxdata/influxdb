@@ -5,7 +5,7 @@ import classnames from 'classnames'
 // Components
 import ContextMenuItem from 'src/clockface/components/context_menu/ContextMenuItem'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-import Button from 'src/clockface/components/Button'
+import {Button} from '@influxdata/clockface'
 
 // Types
 import {

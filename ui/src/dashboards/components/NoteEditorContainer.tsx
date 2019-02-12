@@ -5,15 +5,13 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import NoteEditor from 'src/dashboards/components/NoteEditor'
+import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
 import {
   OverlayBody,
   OverlayHeading,
   OverlayTechnology,
   OverlayContainer,
   OverlayFooter,
-  Button,
-  ComponentColor,
-  ComponentStatus,
 } from 'src/clockface'
 
 // Actions

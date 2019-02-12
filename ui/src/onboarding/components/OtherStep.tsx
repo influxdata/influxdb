@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Button, ComponentColor, ComponentSize} from 'src/clockface'
+import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
 
 // Types
 import {StepStatus} from 'src/clockface/constants/wizard'

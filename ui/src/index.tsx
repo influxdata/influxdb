@@ -23,6 +23,7 @@ import SigninPage from 'src/onboarding/containers/SigninPage'
 import Logout from 'src/Logout'
 import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
+import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
 import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
 import OrganizationView from 'src/organizations/containers/OrganizationView'
 import OrgTaskPage from 'src/organizations/components/OrgTaskPage'
@@ -45,7 +46,7 @@ import {disablePresentationMode} from 'src/shared/actions/app'
 
 // Styles
 import 'src/style/chronograf.scss'
-import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
+import '@influxdata/clockface/dist/index.css'
 
 const rootNode = getRootNode()
 const basepath = getBasepath()

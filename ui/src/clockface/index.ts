@@ -1,6 +1,5 @@
 // Import Components
 import AutoInput from './components/auto_input/AutoInput'
-import Button from './components/Button'
 import ConfirmationButton from './components/confirmation_button/ConfirmationButton'
 import Dropdown, {DropdownMode} from './components/dropdowns/Dropdown'
 import MultiSelectDropdown from './components/dropdowns/MultiSelectDropdown'
@@ -61,7 +60,6 @@ export {
   Alignment,
   AutoComplete,
   AutoInput,
-  Button,
   ButtonType,
   ButtonShape,
   Columns,

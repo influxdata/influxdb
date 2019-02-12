@@ -9,12 +9,8 @@ import _ from 'lodash'
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import {
-  OverlayTechnology,
-  Button,
-  ComponentColor,
-  IconFont,
-} from 'src/clockface'
+import {Button, ComponentColor, IconFont} from '@influxdata/clockface'
+import {OverlayTechnology} from 'src/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 

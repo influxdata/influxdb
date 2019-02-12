@@ -9,10 +9,9 @@ import {
   ComponentColor,
   IconFont,
   ComponentSize,
-  EmptyState,
-  IndexList,
   Alignment,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {EmptyState, IndexList} from 'src/clockface'
 import TableRows from 'src/dashboards/components/dashboard_index/TableRows'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 

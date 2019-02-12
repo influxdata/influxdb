@@ -3,9 +3,8 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
+import {Button, ComponentColor} from '@influxdata/clockface'
 import {
-  Button,
-  ComponentColor,
   OverlayTechnology,
   OverlayBody,
   OverlayHeading,

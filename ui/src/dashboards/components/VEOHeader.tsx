@@ -9,7 +9,7 @@ import {
   ComponentColor,
   ComponentSize,
   IconFont,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 import {Page} from 'src/pageLayout'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'

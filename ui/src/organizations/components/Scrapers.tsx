@@ -12,11 +12,8 @@ import {
   ComponentColor,
   IconFont,
   ComponentSize,
-  EmptyState,
-  Input,
-  InputType,
-  Tabs,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {EmptyState, Input, InputType, Tabs} from 'src/clockface'
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
 
 // Decorators
