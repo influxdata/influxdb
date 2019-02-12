@@ -297,13 +297,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		orgSvc           platform.OrganizationService             = m.boltClient
-		authSvc          platform.AuthorizationService            = m.boltClient
-		userSvc          platform.UserService                     = m.boltClient
-		variableSvc      platform.VariableService                 = m.boltClient
-		bucketSvc        platform.BucketService                   = m.boltClient
-		sourceSvc        platform.SourceService                   = m.boltClient
-		sessionSvc       platform.SessionService                  = m.boltClient
+		orgSvc           platform.OrganizationService             = m.kvService
+		authSvc          platform.AuthorizationService            = m.kvService
+		userSvc          platform.UserService                     = m.kvService
+		variableSvc      platform.VariableService                 = m.kvService
+		bucketSvc        platform.BucketService                   = m.kvService
+		sourceSvc        platform.SourceService                   = m.kvService
+		sessionSvc       platform.SessionService                  = m.kvService
 		passwdsSvc       platform.PasswordsService                = m.kvService
 		dashboardSvc     platform.DashboardService                = m.kvService
 		dashboardLogSvc  platform.DashboardOperationLogService    = m.kvService
