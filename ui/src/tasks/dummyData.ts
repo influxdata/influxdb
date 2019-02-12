@@ -1,24 +1,19 @@
-import {Task} from '@influxdata/influx'
+import {Run} from '@influxdata/influx'
 
-export const dummyTasks: Task[] = [
+export const taskRuns: Run[] = [
   {
-    id: '02ef9deff2141000',
-    orgID: '02ee9e2a29d73000',
-    name: 'pasdlak',
-    status: Task.StatusEnum.Active,
-    owner: null,
-    flux:
-      'option task = {\n  name: "pasdlak",\n  cron: "2 0 * * *"\n}\nfrom(bucket: "inbucket") \n|> range(start: -1h)',
-    cron: '2 0 * * *',
-  },
-  {
-    id: '02f12c50dba72000',
-    orgID: '02ee9e2a29d73000',
-    name: 'somename',
-    status: Task.StatusEnum.Active,
-    owner: null,
-    flux:
-      'option task = {\n  name: "somename",\n  every: 1m,\n}\nfrom(bucket: "inbucket") \n|> range(start: -task.every)',
-    every: '1m0s',
+    id: '40002242',
+    taskID: 'string',
+    status: Run.StatusEnum.Scheduled,
+    scheduledFor: new Date('2019-02-11T22:37:25.985Z'),
+    startedAt: new Date('2019-02-11T22:37:25.985Z'),
+    finishedAt: new Date('2019-02-11T22:37:25.985Z'),
+    requestedAt: new Date('2019-02-11T22:37:25.985Z'),
+    links: {
+      self: '/api/v2/tasks/1/runs/1',
+      task: '/arequei/v2/tasks/1',
+      retry: '/api/v2/tasks/1/runs/1/retry',
+      logs: '/api/v2/tasks/1/runs/1/logs',
+    },
   },
 ]

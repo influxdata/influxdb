@@ -3,7 +3,7 @@ import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {Task as TaskAPI, Organization} from '@influxdata/influx'
+import {Task as TaskAPI, Organization, Run} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -476,4 +476,9 @@ export const getErrorMessage = (e: any) => {
     message = _.get(e, 'response.headers.x-influx-error', '')
   }
   return message
+}
+
+export const getRuns = async (taskID: string): Promise<Run[]> => {
+  const runs = await client.tasks.getRunsByTaskID(taskID)
+  return runs
 }

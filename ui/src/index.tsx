@@ -23,6 +23,7 @@ import SigninPage from 'src/onboarding/containers/SigninPage'
 import Logout from 'src/Logout'
 import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
+import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
 import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
 import OrganizationView from 'src/organizations/containers/OrganizationView'
 import OrgTaskPage from 'src/organizations/components/OrgTaskPage'
@@ -121,6 +122,7 @@ class Root extends PureComponent {
                             </Route>
                             <Route path="tasks">
                               <IndexRoute component={TasksPage} />
+                              <Route path=":id/runs" component={TaskRunsPage} />
                               <Route path="new" component={TaskPage} />
                               <Route path=":id" component={TaskEditPage} />
                             </Route>
