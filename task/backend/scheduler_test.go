@@ -72,6 +72,8 @@ func TestScheduler_Cancelation(t *testing.T) {
 }
 
 func TestScheduler_StartScriptOnClaim(t *testing.T) {
+	t.Parallel()
+
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5, backend.WithLogger(zaptest.NewLogger(t)))
@@ -146,6 +148,8 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 }
 
 func TestScheduler_CreateNextRunOnTick(t *testing.T) {
+	t.Parallel()
+
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
@@ -216,6 +220,8 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 }
 
 func TestScheduler_Release(t *testing.T) {
+	t.Parallel()
+
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
@@ -252,6 +258,8 @@ func TestScheduler_Release(t *testing.T) {
 }
 
 func TestScheduler_UpdateTask(t *testing.T) {
+	t.Parallel()
+
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	s := backend.NewScheduler(d, e, backend.NopLogWriter{}, 3059, backend.WithLogger(zaptest.NewLogger(t)))
@@ -303,6 +311,8 @@ func TestScheduler_UpdateTask(t *testing.T) {
 }
 
 func TestScheduler_Queue(t *testing.T) {
+	t.Parallel()
+
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 3059, backend.WithLogger(zaptest.NewLogger(t)))
@@ -422,6 +432,8 @@ func pollForRunStatus(t *testing.T, r backend.LogReader, taskID platform.ID, exp
 }
 
 func TestScheduler_RunLog(t *testing.T) {
+	t.Parallel()
+
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	rl := backend.NewInMemRunReaderWriter()
@@ -523,7 +535,67 @@ func TestScheduler_RunLog(t *testing.T) {
 	pollForRunStatus(t, rl, task.ID, 4, 3, backend.RunCanceled.String())
 }
 
+func TestScheduler_RunFailureCleanup(t *testing.T) {
+	t.Parallel()
+
+	d := mock.NewDesiredState()
+	e := mock.NewExecutor()
+	rl := backend.NewInMemRunReaderWriter()
+	s := backend.NewScheduler(d, e, rl, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	s.Start(context.Background())
+	defer s.Stop()
+
+	// Task with concurrency 1 should continue after one run fails.
+	task := &backend.StoreTask{
+		ID: platform.ID(1),
+	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency:  1,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: 5,
+	}
+
+	d.SetTaskMeta(task.ID, *meta)
+	if err := s.ClaimTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	s.Tick(6)
+	promises, err := e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Finish with failure to create the run.
+	promises[0].Finish(nil, errors.New("forced failure"))
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should continue even if max concurrency == 1.
+	// This run will start and then fail.
+	s.Tick(7)
+	promises, err = e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promises[0].Finish(mock.NewRunResult(errors.New("started but failed to finish properly"), false), nil)
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// One more tick just to ensure that we can keep going after this type of failure too.
+	s.Tick(8)
+	_, err = e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestScheduler_Metrics(t *testing.T) {
+	t.Parallel()
+
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	s := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
