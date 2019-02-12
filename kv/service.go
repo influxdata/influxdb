@@ -44,6 +44,10 @@ func NewService(kv Store) *Service {
 // Initialize creates Buckets needed.
 func (s *Service) Initialize(ctx context.Context) error {
 	return s.kv.Update(func(tx Tx) error {
+		if err := s.initializeMacros(ctx, tx); err != nil {
+			return err
+		}
+
 		if err := s.initializeUsers(ctx, tx); err != nil {
 			return err
 		}
