@@ -11,12 +11,16 @@ const getCollectors = async (org: Organization) => {
   return client.telegrafConfigs.getAllByOrg(org)
 }
 
-const getScrapers = async () => {
+const getScrapers = async (): Promise<ScraperTargetResponse[]> => {
   return await client.scrapers.getAll()
 }
 
-const getBuckets = async (org: Organization) => {
-  return client.buckets.getAllByOrg(org)
+const getBuckets = async (org: Organization): Promise<Bucket[]> => {
+  return client.buckets.getAllByOrg(org.name)
+}
+
+const getVariables = async (org: Organization): Promise<Macro[]> => {
+  return await client.variables.getAllByOrg(org.name)
 }
 
 // Actions
@@ -44,6 +48,7 @@ import {
   ScraperTargetResponse,
 } from '@influxdata/influx'
 import * as NotificationsActions from 'src/types/actions/notifications'
+import {Macro} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -54,7 +59,7 @@ interface StateProps {
 }
 
 const getTasks = async (org: Organization): Promise<Task[]> => {
-  const tasks = await client.tasks.getAllByOrg(org)
+  const tasks = await client.tasks.getAllByOrg(org.name)
   const mappedTasks = tasks.map(task => {
     return {
       ...task,
@@ -188,7 +193,26 @@ class OrganizationView extends PureComponent<Props> {
                 url="variables_tab"
                 title="Variables"
               >
-                <Variables />
+                <GetOrgResources<Macro[]>
+                  organization={org}
+                  fetcher={getVariables}
+                >
+                  {(variables, loading, fetch) => {
+                    return (
+                      <SpinnerContainer
+                        loading={loading}
+                        spinnerComponent={<TechnoSpinner />}
+                      >
+                        <Variables
+                          onChange={fetch}
+                          variables={variables}
+                          orgName={org.name}
+                          orgID={org.id}
+                        />
+                      </SpinnerContainer>
+                    )
+                  }}
+                </GetOrgResources>
               </TabbedPageSection>
             </OrganizationTabs>
           </div>

@@ -19,9 +19,13 @@ import {
 import {Button} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
+// Types
+import {Macro} from '@influxdata/influx'
+
 interface Props {
-  onCreateVariable: () => void
+  onCreateVariable: (variable: Macro) => Promise<void>
   onCloseModal: () => void
+  orgID: string
 }
 
 interface State {
@@ -88,7 +92,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
               <Button
                 text="Create"
                 type={ButtonType.Submit}
-                onClick={this.handleCreateVariable}
+                onClick={this.handleSubmit}
                 color={ComponentColor.Primary}
               />
             </OverlayFooter>
@@ -98,8 +102,17 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
     )
   }
 
-  private handleCreateVariable = () => {
-    this.props.onCloseModal()
+  private handleSubmit = (): void => {
+    const {onCreateVariable, orgID} = this.props
+
+    onCreateVariable({
+      name: this.state.name,
+      orgID,
+      arguments: {
+        type: 'query',
+        values: {query: this.state.script, language: 'flux'},
+      },
+    })
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {

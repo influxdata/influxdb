@@ -124,10 +124,6 @@ func (m *Macro) Valid() error {
 		return fmt.Errorf("invalid arguments type")
 	}
 
-	if len(m.Selected) == 0 {
-		return fmt.Errorf("no selected values")
-	}
-
 	return nil
 }
 

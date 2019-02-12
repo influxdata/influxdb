@@ -46,7 +46,7 @@ interface State {
   schedule: TaskSchedule
 }
 
-const getBuckets = (org: Organization) => client.buckets.getAllByOrg(org)
+const getBuckets = (org: Organization) => client.buckets.getAllByOrg(org.name)
 
 export default class TaskForm extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
