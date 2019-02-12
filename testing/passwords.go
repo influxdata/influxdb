@@ -5,31 +5,66 @@ import (
 	"fmt"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 )
 
-// Passwords test implementations of PasswordsService.
-func Passwords(
-	init func(UserFields, *testing.T) (platform.PasswordsService, func()),
+// PasswordFields will include the IDGenerator, and users and their passwords.
+type PasswordFields struct {
+	IDGenerator influxdb.IDGenerator
+	Users       []*influxdb.User
+	Passwords   []string // passwords are indexed against the Users field
+}
+
+// PasswordsService tests all the service functions.
+func PasswordsService(
+	init func(PasswordFields, *testing.T) (influxdb.PasswordsService, func()), t *testing.T,
+) {
+	tests := []struct {
+		name string
+		fn   func(init func(PasswordFields, *testing.T) (influxdb.PasswordsService, func()),
+			t *testing.T)
+	}{
+		{
+			name: "SetPassword",
+			fn:   SetPassword,
+		},
+		{
+			name: "ComparePassword",
+			fn:   ComparePassword,
+		},
+		{
+			name: "CompareAndSetPassword",
+			fn:   CompareAndSetPassword,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn(init, t)
+		})
+	}
+}
+
+// SetPassword tests overriding the password of a known user
+func SetPassword(
+	init func(PasswordFields, *testing.T) (influxdb.PasswordsService, func()),
 	t *testing.T) {
 	type args struct {
-		name            string
-		user            string
-		setPassword     string
-		comparePassword string
+		user     string
+		password string
 	}
 	type wants struct {
-		setErr     error
-		compareErr error
+		err error
 	}
 	tests := []struct {
-		fields UserFields
+		name   string
+		fields PasswordFields
 		args   args
 		wants  wants
 	}{
 		{
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "setting password longer than 8 characters works",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
 					{
 						Name: "user1",
 						ID:   MustIDBase16(oneID),
@@ -37,16 +72,15 @@ func Passwords(
 				},
 			},
 			args: args{
-				name:            "happy path",
-				user:            "user1",
-				setPassword:     "hello",
-				comparePassword: "hello",
+				user:     "user1",
+				password: "howdydoody",
 			},
 			wants: wants{},
 		},
 		{
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "passwords that are too short have errors",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
 					{
 						Name: "user1",
 						ID:   MustIDBase16(oneID),
@@ -54,62 +88,177 @@ func Passwords(
 				},
 			},
 			args: args{
-				name:            "happy path dont match",
-				user:            "user1",
-				setPassword:     "hello",
-				comparePassword: "world",
+				user:     "user1",
+				password: "short",
 			},
 			wants: wants{
-				compareErr: fmt.Errorf("crypto/bcrypt: hashedPassword is not the hash of the given password"),
+				err: fmt.Errorf("Passwords are required to be longer than 8 characters"),
+			},
+		},
+		{
+			name: "setting a password for a non-existent user is a generic-like error",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+			},
+			args: args{
+				user:     "invalid",
+				password: "howdydoody",
+			},
+			wants: wants{
+				err: fmt.Errorf("Your username or password is incorrect"),
 			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.args.name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
 
-			err := s.SetPassword(ctx, tt.args.user, tt.args.setPassword)
+			err := s.SetPassword(ctx, tt.args.user, tt.args.password)
 
-			if (err != nil && tt.wants.setErr == nil) || (err == nil && tt.wants.setErr != nil) {
-				t.Fatalf("expected SetPassword error %v got %v", tt.wants.setErr, err)
+			if (err != nil && tt.wants.err == nil) || (err == nil && tt.wants.err != nil) {
+				t.Fatalf("expected SetPassword error %v got %v", tt.wants.err, err)
 				return
 			}
 
 			if err != nil {
-				if want, got := tt.wants.setErr.Error(), err.Error(); want != got {
+				if want, got := tt.wants.err.Error(), err.Error(); want != got {
 					t.Fatalf("expected SetPassword error %v got %v", want, got)
 				}
 				return
 			}
+		})
+	}
+}
 
-			err = s.ComparePassword(ctx, tt.args.user, tt.args.comparePassword)
+// ComparePassword tests setting and comparing passwords.
+func ComparePassword(
+	init func(PasswordFields, *testing.T) (influxdb.PasswordsService, func()),
+	t *testing.T) {
+	type args struct {
+		user     string
+		password string
+	}
+	type wants struct {
+		err error
+	}
+	tests := []struct {
+		name   string
+		fields PasswordFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "comparing same password is not an error",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+				Passwords: []string{"howdydoody"},
+			},
+			args: args{
+				user:     "user1",
+				password: "howdydoody",
+			},
+			wants: wants{},
+		},
+		{
+			name: "comparing different password is an error",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+				Passwords: []string{"howdydoody"},
+			},
+			args: args{
+				user:     "user1",
+				password: "wrongpassword",
+			},
+			wants: wants{
+				err: fmt.Errorf("Your username or password is incorrect"),
+			},
+		},
+		{
+			name: "comparing a password to a non-existent user is a generic-like error",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+				Passwords: []string{"howdydoody"},
+			},
+			args: args{
+				user:     "invalid",
+				password: "howdydoody",
+			},
+			wants: wants{
+				err: fmt.Errorf("Your username or password is incorrect"),
+			},
+		},
+		{
+			name: "user exists but no password has been set",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+			},
+			args: args{
+				user:     "user1",
+				password: "howdydoody",
+			},
+			wants: wants{
+				err: fmt.Errorf("Your username or password is incorrect"),
+			},
+		},
+	}
 
-			if (err != nil && tt.wants.compareErr == nil) || (err == nil && tt.wants.compareErr != nil) {
-				t.Fatalf("expected ComparePassword error %v got %v", tt.wants.compareErr, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			err := s.ComparePassword(ctx, tt.args.user, tt.args.password)
+
+			if (err != nil && tt.wants.err == nil) || (err == nil && tt.wants.err != nil) {
+				t.Fatalf("expected ComparePassword error %v got %v", tt.wants.err, err)
 				return
 			}
 
 			if err != nil {
-				if want, got := tt.wants.compareErr.Error(), err.Error(); want != got {
-					t.Fatalf("expected ComparePassword error %v got %v", tt.wants.compareErr, err)
+				if want, got := tt.wants.err.Error(), err.Error(); want != got {
+					t.Fatalf("expected ComparePassword error %v got %v", tt.wants.err, err)
 				}
 				return
 			}
 
 		})
 	}
-
 }
 
 // CompareAndSetPassword tests implementations of PasswordsService.
 func CompareAndSetPassword(
-	init func(UserFields, *testing.T) (platform.PasswordsService, func()),
+	init func(PasswordFields, *testing.T) (influxdb.PasswordsService, func()),
 	t *testing.T) {
 	type args struct {
-		name string
 		user string
 		old  string
 		new  string
@@ -118,38 +267,76 @@ func CompareAndSetPassword(
 		err error
 	}
 	tests := []struct {
-		fields UserFields
+		name   string
+		fields PasswordFields
 		args   args
 		wants  wants
 	}{
 		{
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "setting a password to the existing password is valid",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
 					{
 						Name: "user1",
 						ID:   MustIDBase16(oneID),
 					},
 				},
+				Passwords: []string{"howdydoody"},
 			},
 			args: args{
-				name: "happy path",
 				user: "user1",
-				old:  "hello",
-				new:  "hello",
+				old:  "howdydoody",
+				new:  "howdydoody",
 			},
 			wants: wants{},
+		},
+		{
+			name: "providing an incorrect old password is an error",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+				Passwords: []string{"howdydoody"},
+			},
+			args: args{
+				user: "user1",
+				old:  "invalid",
+				new:  "not used",
+			},
+			wants: wants{
+				err: fmt.Errorf("Your username or password is incorrect"),
+			},
+		},
+		{
+			name: "a new password that is less than 8 characters is an error",
+			fields: PasswordFields{
+				Users: []*influxdb.User{
+					{
+						Name: "user1",
+						ID:   MustIDBase16(oneID),
+					},
+				},
+				Passwords: []string{"howdydoody"},
+			},
+			args: args{
+				user: "user1",
+				old:  "howdydoody",
+				new:  "short",
+			},
+			wants: wants{
+				err: fmt.Errorf("Passwords are required to be longer than 8 characters"),
+			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.args.name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			if err := s.SetPassword(ctx, tt.args.user, tt.args.old); err != nil {
-				t.Fatalf("unexpected error %v", err)
-				return
-			}
 
 			err := s.CompareAndSetPassword(ctx, tt.args.user, tt.args.old, tt.args.new)
 
