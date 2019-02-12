@@ -252,26 +252,28 @@ func testTaskCRUD(t *testing.T, sys *System) {
 func testMetaUpdate(t *testing.T, sys *System) {
 	orgID, userID, _ := creds(t, sys)
 
+	now := time.Now()
 	task := &platform.Task{OrganizationID: orgID, Owner: platform.User{ID: userID}, Flux: fmt.Sprintf(scriptFmt, 0)}
 	if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 		t.Fatal(err)
 	}
 
-	now := time.Now()
 	st, err := sys.ts.FindTaskByID(sys.Ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	after := time.Now()
+	earliestCA := now.Add(-time.Second)
+	latestCA := after.Add(time.Second)
 
 	ca, err := time.Parse(time.RFC3339, st.CreatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if now.Add(-time.Second).After(ca) || after.Add(time.Second).Before(ca) {
-		t.Fatalf("createdAt not accurate, expected between %s and %s: %s", now.Add(-time.Second), after, ca)
+	if earliestCA.After(ca) || latestCA.Before(ca) {
+		t.Fatalf("createdAt not accurate, expected %s to be between %s and %s", ca, earliestCA, latestCA)
 	}
 
 	ti, err := time.Parse(time.RFC3339, st.LatestCompleted)
@@ -311,13 +313,16 @@ func testMetaUpdate(t *testing.T, sys *System) {
 	}
 	after = time.Now()
 
+	earliestUA := now.Add(-time.Second)
+	latestUA := after.Add(time.Second)
+
 	ua, err := time.Parse(time.RFC3339, task.UpdatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if now.Add(-time.Second).After(ua) || after.Add(time.Second).Before(ua) {
-		t.Fatalf("updatedAt not accurate, expected between %s and %s: %s", now.Add(-time.Second), after, ua)
+	if earliestUA.After(ua) || latestUA.Before(ua) {
+		t.Fatalf("updatedAt not accurate, expected %s to be between %s and %s", ua, earliestUA, latestUA)
 	}
 
 	st, err = sys.ts.FindTaskByID(sys.Ctx, task.ID)
@@ -330,8 +335,8 @@ func testMetaUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if now.Add(-time.Second).After(ua) || ua.Add(time.Second).Before(after) {
-		t.Fatalf("updatedAt not accurate after pulling new task, expected between %s and %s: %s", now.Add(-time.Second), after, ua)
+	if earliestUA.After(ua) || latestUA.Before(ua) {
+		t.Fatalf("updatedAt not accurate after pulling new task, expected %s to be between %s and %s", ua, earliestUA, latestUA)
 	}
 }
 
