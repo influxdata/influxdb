@@ -10,6 +10,7 @@ v1.7.4 [unreleased]
 -	[#11743](https://github.com/influxdata/influxdb/pull/11743): Backport: Use Systemd for Amazon Linux 2.
 -	[#11792](https://github.com/influxdata/influxdb/pull/11792): Revert "Limit force-full and cold compaction size.".
 -	[#11831](https://github.com/influxdata/influxdb/pull/11831): Convert TagValueSeriesIDCache to use string fields.
+-	[#11833](https://github.com/influxdata/influxdb/pull/11833): Ensure that cached series id sets are Go heap backed.
 
 v1.7.3 [2019-01-11]
 -------------------
