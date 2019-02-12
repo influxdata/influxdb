@@ -15,13 +15,13 @@ var (
 	// EIncorrectPassword is returned when any password operation fails in which
 	// we do not want to leak information.
 	EIncorrectPassword = &platform.Error{
-		Msg: "Your username or password is incorrect",
+		Msg: "your username or password is incorrect",
 	}
 
 	// EShortPassword is used when a password is less than the minimum
 	// acceptable password length.
 	EShortPassword = &platform.Error{
-		Msg: "Passwords are required to be longer than 8 characters",
+		Msg: "passwords are required to be longer than 8 characters",
 	}
 )
 
@@ -62,7 +62,7 @@ func (s *Service) ComparePassword(ctx context.Context, name string, password str
 	}
 
 	if err := bcrypt.CompareHashAndPassword(hash.([]byte), []byte(password)); err != nil {
-		return fmt.Errorf("Your username or password is incorrect")
+		return fmt.Errorf("your username or password is incorrect")
 	}
 	return nil
 }
