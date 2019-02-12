@@ -128,7 +128,7 @@ func (m *mmapAccessor) rename(path string) error {
 		return err
 	}
 
-	if err := fs.RenameFile(m.f.Name(), path); err != nil {
+	if err := fs.RenameFileWithReplacement(m.f.Name(), path); err != nil {
 		return err
 	}
 

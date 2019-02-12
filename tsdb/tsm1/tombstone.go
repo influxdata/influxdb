@@ -416,7 +416,7 @@ func (t *Tombstoner) commit() error {
 		return err
 	}
 
-	if err := fs.RenameFile(tmpFilename, t.tombstonePath()); err != nil {
+	if err := fs.RenameFileWithReplacement(tmpFilename, t.tombstonePath()); err != nil {
 		return err
 	}
 

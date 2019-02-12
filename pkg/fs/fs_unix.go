@@ -7,6 +7,7 @@ import (
 	"syscall"
 )
 
+// SyncDir flushes any file renames to the filesystem.
 func SyncDir(dirName string) error {
 	// fsync the dir to flush the rename
 	dir, err := os.OpenFile(dirName, os.O_RDONLY, os.ModeDir)
@@ -29,7 +30,12 @@ func SyncDir(dirName string) error {
 	return dir.Close()
 }
 
-// RenameFile will rename the source to target using os function.
-func RenameFile(oldpath, newpath string) error {
+// RenameFileWithReplacement will replace any existing file at newpath with the contents
+// of oldpath.
+//
+// If no file already exists at newpath, newpath will be created using the contents
+// of oldpath. If this function returns successfully, the contents of newpath will
+// be identical to oldpath, and oldpath will be removed.
+func RenameFileWithReplacement(oldpath, newpath string) error {
 	return os.Rename(oldpath, newpath)
 }
