@@ -274,12 +274,20 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 			},
 		)
 		if err != nil {
+			err = &platform.Error{
+				Err: err,
+				Msg: "failed to pull user's resources",
+			}
 			EncodeError(ctx, err, w)
 			return
 		}
 		for _, ownedTask := range ownedTasks {
 			task, err := h.TaskService.FindTaskByID(ctx, ownedTask.ResourceID)
 			if err != nil {
+				err = &platform.Error{
+					Err: err,
+					Msg: "failed to find tasks",
+				}
 				EncodeError(ctx, err, w)
 				return
 			}
