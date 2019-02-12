@@ -183,6 +183,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = lv
+		case "histogram":
+			var hv HistogramViewProperties
+			if err := json.Unmarshal(v.B, &hv); err != nil {
+				return nil, err
+			}
+			vis = hv
 		}
 	case "empty":
 		var ev EmptyViewProperties
@@ -245,6 +251,15 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape: "chronograf-v2",
 
 			LinePlusSingleStatProperties: vis,
+		}
+	case HistogramViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			HistogramViewProperties
+		}{
+			Shape: "chronograf-v2",
+
+			HistogramViewProperties: vis,
 		}
 	case MarkdownViewProperties:
 		s = struct {
@@ -373,6 +388,19 @@ type SingleStatViewProperties struct {
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
+// HistogramViewProperties represents options for histogram view in Chronograf
+type HistogramViewProperties struct {
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	ViewColors        []ViewColor      `json:"colors"`
+	XColumn           string           `json:"xColumn"`
+	FillColumns       []string         `json:"fillColumns"`
+	Position          string           `json:"position"`
+	BinCount          int              `json:"binCount"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+}
+
 // GaugeViewProperties represents options for gauge view in Chronograf
 type GaugeViewProperties struct {
 	Type              string           `json:"type"`
@@ -426,6 +454,7 @@ type LogColumnSetting struct {
 func (XYViewProperties) viewProperties()             {}
 func (LinePlusSingleStatProperties) viewProperties() {}
 func (SingleStatViewProperties) viewProperties()     {}
+func (HistogramViewProperties) viewProperties()      {}
 func (GaugeViewProperties) viewProperties()          {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
@@ -434,6 +463,7 @@ func (LogViewProperties) viewProperties()            {}
 func (v XYViewProperties) GetType() string             { return v.Type }
 func (v LinePlusSingleStatProperties) GetType() string { return v.Type }
 func (v SingleStatViewProperties) GetType() string     { return v.Type }
+func (v HistogramViewProperties) GetType() string      { return v.Type }
 func (v GaugeViewProperties) GetType() string          { return v.Type }
 func (v TableViewProperties) GetType() string          { return v.Type }
 func (v MarkdownViewProperties) GetType() string       { return v.Type }

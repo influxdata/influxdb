@@ -1,7 +1,8 @@
 import React, {useRef, useLayoutEffect, SFC} from 'react'
 
-import {Scale, HistogramPosition} from 'src/minard'
+import {Scale, HistogramPosition, Layer} from 'src/minard'
 import {clearCanvas} from 'src/minard/utils/clearCanvas'
+import {getBarFill} from 'src/minard/utils/getBarFill'
 
 const BAR_TRANSPARENCY = 0.5
 const BAR_TRANSPARENCY_HOVER = 0.7
@@ -10,40 +11,30 @@ const BAR_PADDING = 1.5
 interface Props {
   width: number
   height: number
-  xMinCol: number[]
-  xMaxCol: number[]
-  yMinCol: number[]
-  yMaxCol: number[]
-  fillCol: string[] | boolean[] | number[]
+  layer: Layer
   xScale: Scale<number, number>
   yScale: Scale<number, number>
-  fillScale: Scale<string | number | boolean, string>
   position: HistogramPosition
   hoveredRowIndices: number[] | null
 }
 
 const drawBars = (
   canvas: HTMLCanvasElement,
-  {
-    width,
-    height,
-    xMinCol,
-    xMaxCol,
-    yMinCol,
-    yMaxCol,
-    fillCol,
-    xScale,
-    yScale,
-    fillScale,
-    hoveredRowIndices,
-  }: Props
+  {width, height, layer, xScale, yScale, hoveredRowIndices}: Props
 ): void => {
   clearCanvas(canvas, width, height)
+
+  const {table, aesthetics} = layer
+  const xMinCol = table.columns[aesthetics.xMin]
+  const xMaxCol = table.columns[aesthetics.xMax]
+  const yMinCol = table.columns[aesthetics.yMin]
+  const yMaxCol = table.columns[aesthetics.yMax]
 
   const context = canvas.getContext('2d')
 
   for (let i = 0; i < yMaxCol.length; i++) {
     if (yMinCol[i] === yMaxCol[i]) {
+      // Skip 0-height bars
       continue
     }
 
@@ -51,7 +42,7 @@ const drawBars = (
     const y = yScale(yMaxCol[i])
     const width = xScale(xMaxCol[i]) - x - BAR_PADDING
     const height = yScale(yMinCol[i]) - y - BAR_PADDING
-    const fill = fillScale(fillCol[i])
+    const fill = getBarFill(layer, i)
     const alpha =
       hoveredRowIndices && hoveredRowIndices.includes(i)
         ? BAR_TRANSPARENCY_HOVER

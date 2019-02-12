@@ -21,6 +21,15 @@ describe('toMinardTable', () => {
     const actual = toMinardTable(tables)
     const expected = {
       schemaConflicts: [],
+      defaultGroupColumns: [
+        '_start',
+        '_stop',
+        '_field',
+        '_measurement',
+        'cpu',
+        'host',
+        'result',
+      ],
       table: {
         columnTypes: {
           _field: 'categorical',
@@ -31,7 +40,7 @@ describe('toMinardTable', () => {
           _value: 'numeric',
           cpu: 'categorical',
           host: 'categorical',
-          table: 'numeric',
+          result: 'categorical',
         },
         columns: {
           _field: ['usage_guest', 'usage_guest', 'usage_guest', 'usage_guest'],
@@ -42,7 +51,7 @@ describe('toMinardTable', () => {
           _value: [10, 20, 30, 40],
           cpu: ['cpu-total', 'cpu-total', 'cpu0', 'cpu0'],
           host: ['oox4k.local', 'oox4k.local', 'oox4k.local', 'oox4k.local'],
-          table: [0, 0, 1, 1],
+          result: ['_result', '_result', '_result', '_result'],
         },
       },
     }
@@ -69,6 +78,15 @@ describe('toMinardTable', () => {
     const actual = toMinardTable(tables)
     const expected = {
       schemaConflicts: ['_value'],
+      defaultGroupColumns: [
+        '_start',
+        '_stop',
+        '_field',
+        '_measurement',
+        'cpu',
+        'host',
+        'result',
+      ],
       table: {
         columnTypes: {
           _field: 'categorical',
@@ -79,7 +97,7 @@ describe('toMinardTable', () => {
           _value: 'numeric',
           cpu: 'categorical',
           host: 'categorical',
-          table: 'numeric',
+          result: 'categorical',
         },
         columns: {
           _field: ['usage_guest', 'usage_guest', 'usage_guest', 'usage_guest'],
@@ -90,7 +108,7 @@ describe('toMinardTable', () => {
           _value: [10, 20, undefined, undefined],
           cpu: ['cpu-total', 'cpu-total', 'cpu0', 'cpu0'],
           host: ['oox4k.local', 'oox4k.local', 'oox4k.local', 'oox4k.local'],
-          table: [0, 0, 1, 1],
+          result: ['_result', '_result', '_result', '_result'],
         },
       },
     }

@@ -1,3 +1,12 @@
+// Constants
+import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
+import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
+import {
+  DEFAULT_GAUGE_COLORS,
+  DEFAULT_THRESHOLDS_LIST_COLORS,
+} from 'src/shared/constants/thresholds'
+
+// Types
 import {ViewType, ViewShape} from 'src/types/v2'
 import {HistogramPosition} from 'src/minard'
 import {
@@ -15,12 +24,6 @@ import {
   InfluxLanguage,
   QueryEditMode,
 } from 'src/types/v2/dashboards'
-import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
-import {
-  DEFAULT_GAUGE_COLORS,
-  DEFAULT_THRESHOLDS_LIST_COLORS,
-} from 'src/shared/constants/thresholds'
-import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 
 function defaultView() {
   return {
@@ -124,8 +127,9 @@ const NEW_VIEW_CREATORS = {
     properties: {
       queries: [],
       type: ViewType.Histogram,
-      x: '_value',
-      fill: 'table',
+      shape: ViewShape.ChronografV2,
+      xColumn: '_value',
+      fillColumns: null,
       position: HistogramPosition.Stacked,
       binCount: 30,
       colors: DEFAULT_LINE_COLORS,

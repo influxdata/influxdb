@@ -89,7 +89,12 @@ export default class QueryViewSwitcher extends PureComponent<Props> {
         return (
           <AutoSizer>
             {({width, height}) => (
-              <Histogram width={width} height={height} tables={tables} />
+              <Histogram
+                width={width}
+                height={height}
+                tables={tables}
+                properties={properties}
+              />
             )}
           </AutoSizer>
         )

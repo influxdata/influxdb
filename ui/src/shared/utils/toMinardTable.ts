@@ -1,11 +1,12 @@
 import {FluxTable} from 'src/types'
 import {Table, ColumnType} from 'src/minard'
 
-export const SCHEMA_ERROR_MESSAGE = 'Encountered'
+export const GROUP_KEY_COL_NAME = 'group_key'
 
-interface ToMinardTableResult {
+export interface ToMinardTableResult {
   table: Table
   schemaConflicts: string[]
+  defaultGroupColumns: string[]
 }
 
 /*
@@ -44,16 +45,19 @@ interface ToMinardTableResult {
   - If a value doesn't exist for a column, it is `undefined` in the result
   - If a value does exist for a column but was specified as `null` in the Flux
     response, it will be `null` in the result
-  - Values are coerced into approriate JavaScript types based on the Flux
+  - Values are coerced into appropriate JavaScript types based on the Flux
     `#datatype` annotation for the table
   - If a resulting column has data of conflicting types, only the values for
     the first data type encountered are kept
+  - The "table" column of each table is handled specially, as it represents the
+    group key for the table
 
 */
 export const toMinardTable = (tables: FluxTable[]): ToMinardTableResult => {
   const columns = {}
   const columnTypes = {}
   const schemaConflicts = []
+  const defaultGroupColumns = new Set()
 
   let k = 0
 
@@ -68,14 +72,13 @@ export const toMinardTable = (tables: FluxTable[]): ToMinardTableResult => {
     for (let j = 0; j < header.length; j++) {
       const column = header[j]
 
-      let columnConflictsSchema = false
-
-      if (column === '' || column === 'result') {
+      if (column === '' || column === 'table') {
         // Ignore these columns
         continue
       }
 
       const columnType = toMinardColumnType(table.dataTypes[column])
+      let columnConflictsSchema = false
 
       if (columnTypes[column] && columnTypes[column] !== columnType) {
         schemaConflicts.push(column)
@@ -86,23 +89,29 @@ export const toMinardTable = (tables: FluxTable[]): ToMinardTableResult => {
       }
 
       for (let i = 1; i < table.data.length; i++) {
-        // TODO: Refactor to treat each column as a `(name, dataType)` tuple
-        // rather than just a `name`. This will let us avoid dropping data due
-        // to schema conflicts
-        const value = columnConflictsSchema
-          ? undefined
-          : parseValue(table.data[i][j].trim(), columnType)
+        let value
+
+        if (column === 'result') {
+          value = table.result
+        } else if (!columnConflictsSchema) {
+          value = parseValue(table.data[i][j].trim(), columnType)
+        }
 
         columns[column][k + i - 1] = value
       }
     }
 
     k += table.data.length - 1
+
+    for (const column of Object.keys(table.groupKey)) {
+      defaultGroupColumns.add(column)
+    }
   }
 
   const result: ToMinardTableResult = {
     table: {columns, columnTypes},
     schemaConflicts,
+    defaultGroupColumns: [...defaultGroupColumns, 'result'],
   }
 
   return result

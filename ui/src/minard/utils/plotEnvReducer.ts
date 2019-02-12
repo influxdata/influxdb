@@ -13,7 +13,7 @@ import {
   TICK_PADDING_TOP,
 } from 'src/minard'
 import {PlotAction} from 'src/minard/utils/plotEnvActions'
-import {assert} from 'src/minard/utils/assert'
+import {getGroupKey} from 'src/minard/utils/getGroupKey'
 
 export const INITIAL_PLOT_ENV: PlotEnv = {
   width: 0,
@@ -139,7 +139,7 @@ const getTicks = ([d0, d1]: number[], length: number): string[] => {
   const approxTickWidth =
     Math.max(String(d0).length, String(d1).length) * TICK_CHAR_WIDTH
 
-  const TICK_DENSITY = 0.5
+  const TICK_DENSITY = 0.3
   const numTicks = Math.round((length / approxTickWidth) * TICK_DENSITY)
   const result = ticks(d0, d1, numTicks).map(t => String(t))
 
@@ -191,57 +191,31 @@ const getColorScale = (domain: any[], colors: string[]) => {
   return scale
 }
 
-const computeFillScales = (draftState: PlotEnv) => {
-  const defaultLayer = draftState.defaults
-  const layers = Object.values(draftState.layers)
+const getFillDomain = ({table, aesthetics}: Layer): string[] => {
+  const fillColKeys = aesthetics.fill
 
-  const getFillCol = (layer: Layer): any[] => {
-    const fillColName = layer.aesthetics.fill
-
-    let fillCol: any[]
-
-    if (layer.table && layer.table.columns[fillColName]) {
-      fillCol = layer.table.columns[fillColName]
-    } else if (defaultLayer.table) {
-      fillCol = defaultLayer.table.columns[fillColName]
-    }
-
-    assert(`couldnt find column ${fillColName} for fill`, !!fillCol)
-
-    return fillCol
+  if (!fillColKeys.length) {
+    return []
   }
 
-  // Compute fill scales for layers that require their own scale
+  const fillDomain = new Set()
+  const n = Object.values(table.columns)[0].length
+
+  for (let i = 0; i < n; i++) {
+    fillDomain.add(getGroupKey(fillColKeys.map(k => table.columns[k][i])))
+  }
+
+  return [...fillDomain].sort()
+}
+
+const computeFillScales = (draftState: PlotEnv) => {
+  const layers = Object.values(draftState.layers)
+
   layers
     .filter(
       layer => layer.aesthetics.fill && layer.colors && layer.colors.length
     )
     .forEach(layer => {
-      const fillDomain = [...new Set(getFillCol(layer))]
-
-      layer.scales.fill = getColorScale(fillDomain, layer.colors)
+      layer.scales.fill = getColorScale(getFillDomain(layer), layer.colors)
     })
-
-  // Compute the default scale
-  const layersUsingDefaultScale = layers.filter(
-    layer => layer.aesthetics.fill && (!layer.colors || !layer.colors.length)
-  )
-
-  const defaultScaleIsNeeded =
-    layersUsingDefaultScale.length || defaultLayer.aesthetics.fill
-
-  if (!defaultScaleIsNeeded) {
-    return
-  }
-
-  const fillDomain = new Set()
-  const fillDomainLayers = defaultLayer.aesthetics.fill
-    ? [defaultLayer, ...layersUsingDefaultScale]
-    : layersUsingDefaultScale
-
-  fillDomainLayers
-    .map(getFillCol)
-    .forEach(col => col.forEach(d => fillDomain.add(d)))
-
-  defaultLayer.scales.fill = getColorScale([...fillDomain], defaultLayer.colors)
 }

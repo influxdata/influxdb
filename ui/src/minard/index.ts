@@ -36,7 +36,12 @@ export interface Scale<D = number, R = number> {
 }
 
 export interface AestheticDataMappings {
-  [aestheticName: string]: string
+  x?: string
+  fill?: string[]
+  xMin?: string
+  xMax?: string
+  yMin?: string
+  yMax?: string
 }
 
 export interface AestheticScaleMappings {

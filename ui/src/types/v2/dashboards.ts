@@ -222,9 +222,10 @@ export interface TableView {
 
 export interface HistogramView {
   type: ViewType.Histogram
+  shape: ViewShape.ChronografV2
   queries: DashboardQuery[]
-  x: string
-  fill: string
+  xColumn: string
+  fillColumns: string[]
   position: HistogramPosition
   binCount: number
   colors: Color[]
