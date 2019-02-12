@@ -3,7 +3,6 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/organizations/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
@@ -14,7 +13,7 @@ import {
   ComponentColor,
   IconFont,
 } from '@influxdata/clockface'
-import {Input, OverlayTechnology, EmptyState} from 'src/clockface'
+import {Input, OverlayTechnology, EmptyState, Tabs} from 'src/clockface'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -65,7 +64,7 @@ export default class Buckets extends PureComponent<Props, State> {
 
     return (
       <>
-        <TabbedPageHeader>
+        <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter Buckets..."
@@ -80,7 +79,7 @@ export default class Buckets extends PureComponent<Props, State> {
             color={ComponentColor.Primary}
             onClick={this.handleOpenModal}
           />
-        </TabbedPageHeader>
+        </Tabs.TabContentsHeader>
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
           searchKeys={['name', 'ruleString']}

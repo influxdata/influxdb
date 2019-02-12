@@ -3,10 +3,9 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {ComponentSize, EmptyState, IconFont, Input} from 'src/clockface'
+import {ComponentSize, EmptyState, IconFont, Input, Tabs} from 'src/clockface'
 import MemberList from 'src/organizations/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
-import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
 // Types
 import {ResourceOwner} from '@influxdata/influx'
@@ -32,7 +31,7 @@ export default class Members extends PureComponent<Props, State> {
 
     return (
       <>
-        <TabbedPageHeader>
+        <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter tasks..."
@@ -41,7 +40,7 @@ export default class Members extends PureComponent<Props, State> {
             onChange={this.handleFilterChange}
             onBlur={this.handleFilterChange}
           />
-        </TabbedPageHeader>
+        </Tabs.TabContentsHeader>
         <FilterList<ResourceOwner>
           list={this.props.members}
           searchKeys={['name']}
