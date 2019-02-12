@@ -144,7 +144,7 @@ type ExecutionOptions struct {
 
 type (
 	iteratorsContextKey struct{}
-	monitorContextKey struct{}
+	monitorContextKey   struct{}
 )
 
 // NewContextWithIterators returns a new context.Context with the *Iterators slice added.

@@ -3,7 +3,7 @@ package tracing
 import "context"
 
 type (
-	spanContextKey struct{}
+	spanContextKey  struct{}
 	traceContextKey struct{}
 )
 
