@@ -46,7 +46,7 @@ func NewMockTaskBackend() *TaskBackend {
 				return org, nil
 			},
 		},
-		UserResourceMappingService: mock.NewUserResourceMappingService(),
+		UserResourceMappingService: inmem.NewService(),
 		LabelService:               mock.NewLabelService(),
 		UserService:                mock.NewUserService(),
 	}
