@@ -71,6 +71,7 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
           />
         </IndexList.Cell>
         <IndexList.Cell>{this.schedule}</IndexList.Cell>
+        <IndexList.Cell>{task.latestCompleted}</IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
             <Button

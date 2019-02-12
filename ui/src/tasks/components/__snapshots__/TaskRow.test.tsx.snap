@@ -58,6 +58,10 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
     2 0 * * *
   </IndexListRowCell>
   <IndexListRowCell
+    alignment="left"
+    revealOnHover={false}
+  />
+  <IndexListRowCell
     alignment="right"
     revealOnHover={true}
   >
