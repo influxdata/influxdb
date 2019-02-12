@@ -591,7 +591,7 @@ func ErrCorruptUser(err error) *influxdb.Error {
 	}
 }
 
-// UnprocessableUserError is used when a user is not able to be processed.
+// ErrUnprocessableUser is used when a user is not able to be processed.
 func ErrUnprocessableUser(err error) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EUnprocessableEntity,
