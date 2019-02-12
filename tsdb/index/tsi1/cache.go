@@ -104,6 +104,11 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 	}
 	defer c.Unlock()
 
+	// Ensure our SeriesIDSet is go heap backed.
+	if ss != nil {
+		ss = ss.Clone()
+	}
+
 	// Create list item, and add to the front of the eviction list.
 	listElement := c.evictor.PushFront(&seriesIDCacheElement{
 		name:        string(name),
