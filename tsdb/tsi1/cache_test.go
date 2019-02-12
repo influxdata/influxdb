@@ -147,7 +147,7 @@ func TestTagValueSeriesIDCache_addToSet(t *testing.T) {
 
 	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v0"), tsdb.NewSeriesID(20))  // No non-nil set exists so one will be created
 	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v1"), tsdb.NewSeriesID(101)) // No non-nil set exists so one will be created
-	cache.Has(t, "m0", "k0", "v1", s2)
+	cache.Has(t, "m0", "k0", "v1", newSeriesIDSet(100, 101))
 
 	ss := cache.GetByString("m0", "k0", "v0")
 	if !newSeriesIDSet(20).Equals(ss) {
@@ -232,13 +232,15 @@ type TestCache struct {
 }
 
 func (c TestCache) Has(t *testing.T, name, key, value string, ss *tsdb.SeriesIDSet) {
-	if got, exp := c.Get([]byte(name), []byte(key), []byte(value)), ss; got != exp {
+	if got, exp := c.Get([]byte(name), []byte(key), []byte(value)), ss; !got.Equals(exp) {
+		t.Helper()
 		t.Fatalf("got set %v, expected %v", got, exp)
 	}
 }
 
 func (c TestCache) HasNot(t *testing.T, name, key, value string) {
 	if got := c.Get([]byte(name), []byte(key), []byte(value)); got != nil {
+		t.Helper()
 		t.Fatalf("got non-nil set %v for {%q, %q, %q}", got, name, key, value)
 	}
 }
