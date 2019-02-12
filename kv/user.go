@@ -38,6 +38,7 @@ func (s *Service) userBucket(tx Tx) (Bucket, error) {
 
 	return b, nil
 }
+
 func (s *Service) userIndex(tx Tx) (Bucket, error) {
 	b, err := tx.Bucket([]byte(userIndex))
 	if err != nil {

@@ -18,8 +18,8 @@ func TestOnboardingValidation(t *testing.T) {
 	validator := task.NewValidator(mockTaskService(), svc)
 
 	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
-		User:            "dude",
-		Password:        "secret",
+		User:            "Setec Astronomy",
+		Password:        "too many secrets",
 		Org:             "thing",
 		Bucket:          "holder",
 		RetentionPeriod: 1,
@@ -113,8 +113,8 @@ func TestValidations(t *testing.T) {
 	validTaskService := task.NewValidator(mockTaskService(), inmem)
 
 	r, err := inmem.Generate(context.Background(), &influxdb.OnboardingRequest{
-		User:            "dude",
-		Password:        "secret",
+		User:            "Setec Astronomy",
+		Password:        "too many secrets",
 		Org:             "thing",
 		Bucket:          "holder",
 		RetentionPeriod: 1,

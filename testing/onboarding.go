@@ -141,12 +141,12 @@ func Generate(
 					User:            "admin",
 					Org:             "org1",
 					Bucket:          "bucket1",
-					Password:        "pass1",
+					Password:        "password1",
 					RetentionPeriod: 24 * 7, // 1 week
 				},
 			},
 			wants: wants{
-				password: "pass1",
+				password: "password1",
 				results: &platform.OnboardingResults{
 					User: &platform.User{
 						ID:   MustIDBase16(oneID),
