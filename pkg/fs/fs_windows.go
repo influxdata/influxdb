@@ -21,3 +21,16 @@ func RenameFileWithReplacement(oldpath, newpath string) error {
 
 	return os.Rename(oldpath, newpath)
 }
+
+// RenameFile renames oldpath to newpath, returning an error if newpath already
+// exists. If this function returns successfully, the contents of newpath will
+// be identical to oldpath, and oldpath will be removed.
+func RenameFile(oldpath, newpath string) error {
+	if _, err := os.Stat(newpath); err == nil {
+		// os.Rename on Windows will return an error if the file exists, but it's
+		// preferable to keep the errors the same across platforms.
+		return newFileExistsError(newpath)
+	}
+
+	return os.Rename(oldpath, newpath)
+}
