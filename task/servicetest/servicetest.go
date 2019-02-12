@@ -270,7 +270,7 @@ func testMetaUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if now.Add(-time.Second).After(ca) || ca.Add(time.Second).Before(after) {
+	if now.Add(-time.Second).After(ca) || after.Add(time.Second).Before(ca) {
 		t.Fatalf("createdAt not accurate, expected between %s and %s: %s", now.Add(-time.Second), after, ca)
 	}
 
@@ -316,7 +316,7 @@ func testMetaUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if now.Add(-time.Second).After(ua) || ua.Add(time.Second).Before(after) {
+	if now.Add(-time.Second).After(ua) || after.Add(time.Second).Before(ua) {
 		t.Fatalf("updatedAt not accurate, expected between %s and %s: %s", now.Add(-time.Second), after, ua)
 	}
 
