@@ -5,6 +5,7 @@
 1. [11821](https://github.com/influxdata/influxdb/pull/11821): Display scraper name as the first and only updatable column in scrapers list
 1. [11804](https://github.com/influxdata/influxdb/pull/11804): Add the ability to view runs for a task
 1. [11824](https://github.com/influxdata/influxdb/pull/11824): Display last completed run for tasks list
+1. [11836](https://github.com/influxdata/influxdb/pull/11836): Add the ability to view the logs for a specific task run
 
 ### Bug Fixes
 1. [11819](https://github.com/influxdata/influxdb/pull/11819): Update the inline edit for resource names to guard for empty strings

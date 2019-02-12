@@ -17,6 +17,7 @@ interface Task extends TaskAPI {
   organization: Organization
   owner?: User
 }
+
 import {Sort} from 'src/clockface'
 import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions/v2'
 
