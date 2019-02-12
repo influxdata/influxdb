@@ -8,41 +8,38 @@ import (
 	"net/http"
 	"path"
 
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // UserBackend is all services and associated parameters required to construct
 // the UserHandler.
 type UserBackend struct {
-	Logger *zap.Logger
-
+	Logger                  *zap.Logger
 	UserService             influxdb.UserService
 	UserOperationLogService influxdb.UserOperationLogService
-	BasicAuthService        influxdb.BasicAuthService
+	PasswordsService        influxdb.PasswordsService
 }
 
+// NewUserBackend creates a UserBackend using information in the APIBackend.
 func NewUserBackend(b *APIBackend) *UserBackend {
 	return &UserBackend{
-		Logger: b.Logger.With(zap.String("handler", "user")),
-
+		Logger:                  b.Logger.With(zap.String("handler", "user")),
 		UserService:             b.UserService,
 		UserOperationLogService: b.UserOperationLogService,
-		BasicAuthService:        b.BasicAuthService,
+		PasswordsService:        b.PasswordsService,
 	}
 }
 
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
-	Logger *zap.Logger
-
+	Logger                  *zap.Logger
 	UserService             influxdb.UserService
 	UserOperationLogService influxdb.UserOperationLogService
-	BasicAuthService        influxdb.BasicAuthService
+	PasswordsService        influxdb.PasswordsService
 }
 
 const (
@@ -62,7 +59,7 @@ func NewUserHandler(b *UserBackend) *UserHandler {
 
 		UserService:             b.UserService,
 		UserOperationLogService: b.UserOperationLogService,
-		BasicAuthService:        b.BasicAuthService,
+		PasswordsService:        b.PasswordsService,
 	}
 
 	h.HandlerFunc("POST", usersPath, h.handlePostUser)
@@ -86,7 +83,7 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 		return "", err
 	}
 
-	err = h.BasicAuthService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
+	err = h.PasswordsService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
 	if err != nil {
 		return "", err
 	}

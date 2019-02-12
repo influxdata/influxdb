@@ -24,7 +24,9 @@ type Service struct {
 
 	IDGenerator    influxdb.IDGenerator
 	TokenGenerator influxdb.TokenGenerator
-	time           func() time.Time
+	Hash           Crypt
+
+	time func() time.Time
 }
 
 // NewService returns an instance of a Service.
@@ -33,6 +35,7 @@ func NewService(kv Store) *Service {
 		Logger:         zap.NewNop(),
 		IDGenerator:    snowflake.NewIDGenerator(),
 		TokenGenerator: rand.NewTokenGenerator(64),
+		Hash:           &Bcrypt{},
 		kv:             kv,
 		time:           time.Now,
 	}
@@ -77,6 +80,10 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
+		if err := s.initializePasswords(ctx, tx); err != nil {
+			return err
+		}
+
 		return nil
 	})
 }
@@ -85,4 +92,10 @@ func (s *Service) Initialize(ctx context.Context) error {
 // about objects stored. Should only be used in tests for mocking.
 func (s *Service) WithTime(fn func() time.Time) {
 	s.time = fn
+}
+
+// WithStore sets kv store for the service.
+// Should only be used in tests for mocking.
+func (s *Service) WithStore(store Store) {
+	s.kv = store
 }

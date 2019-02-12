@@ -44,13 +44,6 @@ type UserService interface {
 	DeleteUser(ctx context.Context, id ID) error
 }
 
-// BasicAuthService is the service for managing basic auth.
-type BasicAuthService interface {
-	SetPassword(ctx context.Context, name string, password string) error
-	ComparePassword(ctx context.Context, name string, password string) error
-	CompareAndSetPassword(ctx context.Context, name string, old string, new string) error
-}
-
 // UserUpdate represents updates to a user.
 // Only fields which are set are updated.
 type UserUpdate struct {

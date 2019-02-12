@@ -272,7 +272,7 @@ func (s *Service) forEachLogEntry(ctx context.Context, tx Tx, k []byte, opts pla
 
 }
 
-// LogKeyValue logs an keyValue for a particular resource type ID pairing.
+// AddLogEntry logs an keyValue for a particular resource type ID pairing.
 func (s *Service) AddLogEntry(ctx context.Context, k, v []byte, t time.Time) error {
 	return s.kv.Update(func(tx Tx) error {
 		return s.addLogEntry(ctx, tx, k, v, t)

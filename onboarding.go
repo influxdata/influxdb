@@ -23,7 +23,7 @@ type OnboardingRequest struct {
 
 // OnboardingService represents a service for the first run.
 type OnboardingService interface {
-	BasicAuthService
+	PasswordsService
 	BucketService
 	OrganizationService
 	UserService
