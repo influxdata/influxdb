@@ -302,7 +302,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		userSvc          platform.UserService                     = m.kvService
 		macroSvc         platform.MacroService                    = m.kvService
 		bucketSvc        platform.BucketService                   = m.kvService
-		sourceSvc        platform.SourceService                   = m.boltClient
+		sourceSvc        platform.SourceService                   = m.kvService
 		sessionSvc       platform.SessionService                  = m.boltClient
 		passwdsSvc       platform.PasswordsService                = m.kvService
 		dashboardSvc     platform.DashboardService                = m.kvService
