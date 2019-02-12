@@ -21,20 +21,9 @@ var (
 	// EShortPassword is used when a password is less than the minimum
 	// acceptable password length.
 	EShortPassword = &influxdb.Error{
-		Msg: "Your password must be longer than 8 characters",
+		Msg: "Passwords are required to be longer than 8 characters",
 	}
 )
-
-// InternalPasswordServiceError is used if we are not able to find or create
-// this bucket, it is some sort of internal server error.
-func InternalPasswordServiceError(err error) *influxdb.Error {
-	return &influxdb.Error{
-		Code: influxdb.EInternal,
-		Msg:  "Unable to find or create password store. Please try again.",
-		Op:   "kv/setPassword",
-		Err:  err,
-	}
-}
 
 // UnavailablePasswordServiceError is used if we aren't able to add the
 // password to the store, it means the store is not available at the moment
@@ -42,9 +31,8 @@ func InternalPasswordServiceError(err error) *influxdb.Error {
 func UnavailablePasswordServiceError(err error) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EUnavailable,
-		Msg:  "Unable to store password.  Please try again.",
+		Msg:  fmt.Sprintf("Unable to connect to password service. Please try again; Err: %v", err),
 		Op:   "kv/setPassword",
-		Err:  err,
 	}
 }
 
@@ -53,9 +41,8 @@ func UnavailablePasswordServiceError(err error) *influxdb.Error {
 func CorruptUserIDError(name string, err error) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EInternal,
-		Msg:  fmt.Sprintf("User ID for %s has been corrupted.", name),
+		Msg:  fmt.Sprintf("User ID for %s has been corrupted; Err: %v", name, err),
 		Op:   "kv/setPassword",
-		Err:  err,
 	}
 }
 
@@ -64,9 +51,8 @@ func CorruptUserIDError(name string, err error) *influxdb.Error {
 func InternalPasswordHashError(err error) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EInternal,
-		Msg:  "Unable to generate password.",
+		Msg:  fmt.Sprintf("Unable to generate password; Err: %v", err),
 		Op:   "kv/setPassword",
-		Err:  err,
 	}
 }
 
@@ -75,6 +61,11 @@ var (
 )
 
 var _ influxdb.PasswordsService = (*Service)(nil)
+
+func (s *Service) initializePasswords(ctx context.Context, tx Tx) error {
+	_, err := tx.Bucket(userpasswordBucket)
+	return err
+}
 
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
@@ -151,12 +142,12 @@ func (s *Service) comparePassword(ctx context.Context, tx Tx, name string, passw
 
 	b, err := tx.Bucket(userpasswordBucket)
 	if err != nil {
-		return InternalPasswordServiceError(err)
+		return UnavailablePasswordServiceError(err)
 	}
 
 	hash, err := b.Get(encodedID)
 	if err != nil {
-		// User exists but has not password.
+		// User exists but has no password has been set.
 		return EIncorrectPassword
 	}
 
