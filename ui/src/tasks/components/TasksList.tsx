@@ -63,6 +63,7 @@ export default class TasksList extends PureComponent<Props, State> {
       'status',
       'every',
       'organization.name',
+      'latestCompleted',
     ]
 
     return (
@@ -71,7 +72,7 @@ export default class TasksList extends PureComponent<Props, State> {
           <IndexList.Header>
             <IndexList.HeaderCell
               columnName="Name"
-              width="55%"
+              width="45%"
               sortKey={headerKeys[0]}
               sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
@@ -97,6 +98,13 @@ export default class TasksList extends PureComponent<Props, State> {
               sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
+            <IndexList.HeaderCell
+              columnName="Last Completed"
+              width="10%"
+              sortKey={headerKeys[4]}
+              sort={sortKey === headerKeys[4] ? sortDirection : Sort.None}
+              onClick={this.handleClickColumn}
+            />
             <IndexList.HeaderCell columnName="" width="10%" />
           </IndexList.Header>
           <IndexList.Body
@@ -107,7 +115,7 @@ export default class TasksList extends PureComponent<Props, State> {
                 totalCount={totalCount}
               />
             }
-            columnCount={5}
+            columnCount={6}
           >
             {this.sortedRows}
           </IndexList.Body>

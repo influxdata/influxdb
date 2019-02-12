@@ -10,7 +10,7 @@ exports[`TasksList rendering renders 1`] = `
         onClick={[Function]}
         sort="none"
         sortKey="name"
-        width="55%"
+        width="45%"
       />
       <IndexListHeaderCell
         alignment="left"
@@ -38,12 +38,20 @@ exports[`TasksList rendering renders 1`] = `
       />
       <IndexListHeaderCell
         alignment="left"
+        columnName="Last Completed"
+        onClick={[Function]}
+        sort="none"
+        sortKey="latestCompleted"
+        width="10%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
         columnName=""
         width="10%"
       />
     </IndexListHeader>
     <IndexListBody
-      columnCount={5}
+      columnCount={6}
       emptyState={
         <EmptyTasksLists
           onCreate={[Function]}
