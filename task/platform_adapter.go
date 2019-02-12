@@ -127,30 +127,8 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 	if res.NewTask.Script == "" {
 		return nil, errors.New("script not defined in the store")
 	}
-	opts, err := options.FromScript(res.NewTask.Script)
-	if err != nil {
-		return nil, err
-	}
 
-	task := &platform.Task{
-		ID:     id,
-		Name:   opts.Name,
-		Status: res.NewMeta.Status,
-		Owner:  platform.User{},
-		Flux:   res.NewTask.Script,
-		Every:  opts.Every.String(),
-		Cron:   opts.Cron,
-		Offset: opts.Offset.String(),
-	}
-
-	t, err := p.s.FindTaskByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	task.Owner.ID = t.User
-	task.OrganizationID = t.Org
-
-	return task, nil
+	return p.FindTaskByID(ctx, id)
 }
 
 func (p pAdapter) DeleteTask(ctx context.Context, id platform.ID) error {
@@ -259,6 +237,12 @@ func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Ta
 	if m != nil {
 		pt.Status = string(m.Status)
 		pt.LatestCompleted = time.Unix(m.LatestCompleted, 0).Format(time.RFC3339)
+		if m.CreatedAt != 0 {
+			pt.CreatedAt = time.Unix(m.CreatedAt, 0).Format(time.RFC3339)
+		}
+		if m.UpdatedAt != 0 {
+			pt.UpdatedAt = time.Unix(m.UpdatedAt, 0).Format(time.RFC3339)
+		}
 	}
 	return pt, nil
 }

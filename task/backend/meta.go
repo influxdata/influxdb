@@ -18,6 +18,7 @@ func NewStoreTaskMeta(req CreateTaskRequest, o options.Options) StoreTaskMeta {
 		MaxConcurrency:  int32(o.Concurrency),
 		Status:          string(req.Status),
 		LatestCompleted: req.ScheduleAfter,
+		CreatedAt:       time.Now().Unix(),
 		EffectiveCron:   o.EffectiveCronString(),
 		Offset:          int32(o.Offset / time.Second),
 	}
