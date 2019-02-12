@@ -6107,6 +6107,9 @@ components:
             bucket:
               type: string
               description: name of the bucket
+            name: 
+                type: string
+                description: name of scraper target
             links:
               readOnly: true
               $ref: "#/components/schemas/Links"
