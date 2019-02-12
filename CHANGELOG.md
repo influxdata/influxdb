@@ -3,9 +3,10 @@
 ### Features
 1. [11809](https://github.com/influxdata/influxdb/pull/11809): Add the ability to name a scraper target
 1. [11821](https://github.com/influxdata/influxdb/pull/11821): Display scraper name as the first and only updatable column in scrapers list
+1. [11804](https://github.com/influxdata/influxdb/pull/11804): Add the ability to view runs for a task
 
 ### Bug Fixes
-
+1. [11819](https://github.com/influxdata/influxdb/pull/11819): Update the inline edit for resource names to guard for empty strings
 ### UI Improvements
 1. [11764](https://github.com/influxdata/influxdb/pull/11764): Move the download telegraf config button to view config overlay
 

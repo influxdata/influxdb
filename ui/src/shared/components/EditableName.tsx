@@ -113,6 +113,10 @@ class EditableName extends Component<Props, State> {
     const {workingName} = this.state
 
     if (e.key === 'Enter') {
+      if (!workingName) {
+        this.setState({isEditing: false, workingName: name})
+        return
+      }
       await onUpdate(workingName)
       this.setState({isEditing: false})
     }
