@@ -314,7 +314,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		scraperTargetSvc platform.ScraperTargetStoreService       = m.boltClient
 		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
 		userResourceSvc  platform.UserResourceMappingService      = m.kvService
-		labelSvc         platform.LabelService                    = m.boltClient
+		labelSvc         platform.LabelService                    = m.kvService
 		secretSvc        platform.SecretService                   = m.boltClient
 		lookupSvc        platform.LookupService                   = m.boltClient
 	)
