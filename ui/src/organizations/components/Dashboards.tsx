@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {InjectedRouter} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
@@ -69,13 +69,12 @@ interface StateProps {
 
 interface OwnProps {
   dashboards: Dashboard[]
-  router: InjectedRouter
   onChange: () => void
   orgName: string
   orgID: string
 }
 
-type Props = DispatchProps & StateProps & OwnProps
+type Props = DispatchProps & StateProps & OwnProps & WithRouterProps
 
 interface State {
   searchTerm: string
@@ -85,7 +84,7 @@ interface State {
 }
 
 @ErrorHandling
-class OrgDashboardIndex extends PureComponent<Props, State> {
+class Dashboards extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -325,4 +324,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(OrgDashboardIndex)
+)(withRouter<OwnProps>(Dashboards))
