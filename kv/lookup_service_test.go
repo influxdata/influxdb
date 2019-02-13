@@ -181,7 +181,6 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 			},
 			wantErr: true,
 		},
-		/* TODO(goller): add when telegraf is back
 		{
 			name: "telegraf with existing id returns name",
 			args: args{
@@ -208,7 +207,6 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 			},
 			wantErr: true,
 		},
-		*/
 		{
 			name: "user with existing id returns name",
 			args: args{

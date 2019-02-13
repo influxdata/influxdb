@@ -45,15 +45,12 @@ func (s *Service) Name(ctx context.Context, resource influxdb.ResourceType, id i
 			return "", err
 		}
 		return r.Name, nil
-		// TODO (goller): once telegraf is merged into kv/service
-		/*
-			case influxdb.TelegrafsResourceType: // 6
-				r, err := s.FindTelegrafConfigByID(ctx, id)
-				if err != nil {
-					return "", err
-				}
-				return r.Name, nil
-		*/
+	case influxdb.TelegrafsResourceType: // 6
+		r, err := s.FindTelegrafConfigByID(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		return r.Name, nil
 	case influxdb.UsersResourceType: // 7
 		r, err := s.FindUserByID(ctx, id)
 		if err != nil {
