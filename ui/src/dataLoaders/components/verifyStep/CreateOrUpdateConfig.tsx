@@ -20,19 +20,24 @@ import {
 
 // Types
 import {RemoteDataState, NotificationAction} from 'src/types'
+import {AppState} from 'src/types/v2'
 
-export interface OwnProps {
+interface OwnProps {
   org: string
   children: () => JSX.Element
 }
 
-export interface DispatchProps {
+interface StateProps {
+  telegrafConfigID: string
+}
+
+interface DispatchProps {
   notify: NotificationAction
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
   createDashboardsForPlugins: typeof createDashboardsForPluginsAction
 }
 
-type Props = OwnProps & DispatchProps
+type Props = OwnProps & StateProps & DispatchProps
 
 interface State {
   loading: RemoteDataState
@@ -51,6 +56,7 @@ export class CreateOrUpdateConfig extends PureComponent<Props, State> {
       onSaveTelegrafConfig,
       notify,
       createDashboardsForPlugins,
+      telegrafConfigID,
     } = this.props
 
     this.setState({loading: RemoteDataState.Loading})
@@ -58,7 +64,10 @@ export class CreateOrUpdateConfig extends PureComponent<Props, State> {
     try {
       await onSaveTelegrafConfig()
       notify(TelegrafConfigCreationSuccess)
-      await createDashboardsForPlugins()
+
+      if (!telegrafConfigID) {
+        await createDashboardsForPlugins()
+      }
 
       this.setState({loading: RemoteDataState.Done})
     } catch (error) {
@@ -79,13 +88,21 @@ export class CreateOrUpdateConfig extends PureComponent<Props, State> {
   }
 }
 
+const mstp = ({
+  dataLoading: {
+    dataLoaders: {telegrafConfigID},
+  },
+}: AppState): StateProps => {
+  return {telegrafConfigID}
+}
+
 const mdtp: DispatchProps = {
   notify: notifyAction,
   onSaveTelegrafConfig: createOrUpdateTelegrafConfigAsync,
   createDashboardsForPlugins: createDashboardsForPluginsAction,
 }
 
-export default connect<null, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
   mdtp
 )(CreateOrUpdateConfig)
