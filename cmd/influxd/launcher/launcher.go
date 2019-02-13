@@ -310,7 +310,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		userLogSvc       platform.UserOperationLogService         = m.kvService
 		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
 		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
-		onboardingSvc    platform.OnboardingService               = m.boltClient
+		onboardingSvc    platform.OnboardingService               = m.kvService
 		scraperTargetSvc platform.ScraperTargetStoreService       = m.boltClient
 		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
 		userResourceSvc  platform.UserResourceMappingService      = m.kvService
