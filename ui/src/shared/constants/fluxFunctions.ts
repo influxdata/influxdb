@@ -117,6 +117,26 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/columns',
   },
   {
+    name: 'contains',
+    args: [
+      {
+        name: 'value',
+        desc: 'The value for which to search.',
+        type: 'Any',
+      },
+      {
+        name: 'set',
+        desc: 'The set of values in which to search.',
+        type: 'Array of Any',
+      },
+    ],
+    desc: 'Tests whether a value is a member of a set.',
+    example: 'contains(value: 1, set: [1,2,3])',
+    category: 'Test',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/tests/contains',
+  },
+  {
     name: 'count',
     args: [
       {
