@@ -185,7 +185,7 @@ jobs:
             - bin/linux/influx
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
-            - /go/src/github.com/influxdata/influxdb
+
   deploy-nightly:
     docker:
       - image: circleci/golang:1.11-node-browsers
