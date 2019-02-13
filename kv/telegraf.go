@@ -81,7 +81,7 @@ func (s *Service) initializeTelegraf(ctx context.Context, tx Tx) error {
 }
 
 func (s *Service) telegrafBucket(tx Tx) (Bucket, error) {
-	b, err := tx.Bucket([]byte(telegrafBucket))
+	b, err := tx.Bucket(telegrafBucket)
 	if err != nil {
 		return nil, UnavailableTelegrafServiceError(err)
 	}
@@ -109,9 +109,9 @@ func (s *Service) findTelegrafConfigByID(ctx context.Context, tx Tx, id influxdb
 		return nil, ErrInvalidTelegrafID
 	}
 
-	bucket, err := tx.Bucket(telegrafBucket)
+	bucket, err := s.telegrafBucket(tx)
 	if err != nil {
-		return nil, UnavailableTelegrafServiceError(err)
+		return nil, err
 	}
 
 	v, err := bucket.Get(encID)
@@ -156,13 +156,11 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, tx Tx, filter influxd
 			return nil, 0, InternalTelegrafServiceError(err)
 		}
 
-		if tc != nil {
-			// Restrict results by organization ID, if it has been provided
-			if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
-				continue
-			}
-			tcs = append(tcs, tc)
+		// Restrict results by organization ID, if it has been provided
+		if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
+			continue
 		}
+		tcs = append(tcs, tc)
 	}
 	return tcs, len(tcs), nil
 }
@@ -189,9 +187,9 @@ func (s *Service) putTelegrafConfig(ctx context.Context, tx Tx, tc *influxdb.Tel
 		return err
 	}
 
-	bucket, err := tx.Bucket(telegrafBucket)
+	bucket, err := s.telegrafBucket(tx)
 	if err != nil {
-		return UnavailableTelegrafServiceError(err)
+		return err
 	}
 
 	if err := bucket.Put(encodedID, v); err != nil {
@@ -259,9 +257,9 @@ func (s *Service) deleteTelegrafConfig(ctx context.Context, tx Tx, id influxdb.I
 		return ErrInvalidTelegrafID
 	}
 
-	bucket, err := tx.Bucket(telegrafBucket)
+	bucket, err := s.telegrafBucket(tx)
 	if err != nil {
-		return UnavailableTelegrafServiceError(err)
+		return err
 	}
 
 	_, err = bucket.Get(encodedID)

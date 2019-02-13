@@ -80,11 +80,9 @@ func filterMappingsFn(filter influxdb.UserResourceMappingFilter) func(m *influxd
 
 // FindUserResourceMappings returns a list of UserResourceMappings that match filter and the total count of matching mappings.
 func (s *Service) FindUserResourceMappings(ctx context.Context, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
-	var (
-		err error
-		ms  []*influxdb.UserResourceMapping
-	)
-	err = s.kv.View(func(tx Tx) error {
+	var ms []*influxdb.UserResourceMapping
+	err := s.kv.View(func(tx Tx) error {
+		var err error
 		ms, err = s.findUserResourceMappings(ctx, tx, filter)
 		return err
 	})
