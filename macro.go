@@ -45,7 +45,7 @@ type MacroService interface {
 // values when used in an InfluxQL or Flux query
 type Macro struct {
 	ID             ID              `json:"id,omitempty"`
-	OrganizationID ID              `json:"org_id,omitempty"`
+	OrganizationID ID              `json:"orgID,omitempty"`
 	Name           string          `json:"name"`
 	Selected       []string        `json:"selected"`
 	Arguments      *MacroArguments `json:"arguments"`
