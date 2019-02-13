@@ -10,11 +10,61 @@ import (
 
 var (
 	urmBucket = []byte("userresourcemappingsv1")
+
+	// ErrInvalidURMID is used when the service was provided
+	// an invalid ID format.
+	ErrInvalidURMID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "provided user resource mapping ID has invalid format",
+	}
+
+	// ErrURMNotFound is used when the user resource mapping is not found.
+	ErrURMNotFound = &influxdb.Error{
+		Msg:  "user to resource mapping not found",
+		Code: influxdb.ENotFound,
+	}
 )
+
+// UnavailableURMServiceError is used if we aren't able to interact with the
+// store, it means the store is not available at the moment (e.g. network).
+func UnavailableURMServiceError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("Unable to connect to resource mapping service. Please try again; Err: %v", err),
+		Op:   "kv/userResourceMapping",
+	}
+}
+
+// CorruptURMError is used when the config cannot be unmarshalled from the
+// bytes stored in the kv.
+func CorruptURMError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("Unknown internal user resource mapping data error; Err: %v", err),
+		Op:   "kv/userResourceMapping",
+	}
+}
+
+// ErrUnprocessableMapping is used when a user resource mapping  is not able to be converted to JSON.
+func ErrUnprocessableMapping(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EUnprocessableEntity,
+		Msg:  fmt.Sprintf("unable to convert mapping of user to resource into JSON; Err %v", err),
+	}
+}
+
+// NonUniqueMappingError is an internal error when a user already has
+// been mapped to a resource
+func NonUniqueMappingError(userID influxdb.ID) error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("Unexpected error when assigning user to a resource: mapping for user %s already exists", userID.String()),
+	}
+}
 
 func (s *Service) initializeURMs(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket(urmBucket); err != nil {
-		return err
+		return UnavailableURMServiceError(err)
 	}
 	return nil
 }
@@ -30,14 +80,13 @@ func filterMappingsFn(filter influxdb.UserResourceMappingFilter) func(m *influxd
 
 // FindUserResourceMappings returns a list of UserResourceMappings that match filter and the total count of matching mappings.
 func (s *Service) FindUserResourceMappings(ctx context.Context, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
-	ms := []*influxdb.UserResourceMapping{}
-	err := s.kv.View(func(tx Tx) error {
-		mappings, err := s.findUserResourceMappings(ctx, tx, filter)
-		if err != nil {
-			return err
-		}
-		ms = mappings
-		return nil
+	var (
+		err error
+		ms  []*influxdb.UserResourceMapping
+	)
+	err = s.kv.View(func(tx Tx) error {
+		ms, err = s.findUserResourceMappings(ctx, tx, filter)
+		return err
 	})
 
 	if err != nil {
@@ -57,11 +106,7 @@ func (s *Service) findUserResourceMappings(ctx context.Context, tx Tx, filter in
 		return true
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
-	return ms, nil
+	return ms, err
 }
 
 func (s *Service) findUserResourceMapping(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) (*influxdb.UserResourceMapping, error) {
@@ -71,7 +116,7 @@ func (s *Service) findUserResourceMapping(ctx context.Context, tx Tx, filter inf
 	}
 
 	if len(ms) == 0 {
-		return nil, fmt.Errorf("userResource mapping not found")
+		return nil, ErrURMNotFound
 	}
 
 	return ms[0], nil
@@ -94,15 +139,13 @@ func (s *Service) CreateUserResourceMapping(ctx context.Context, m *influxdb.Use
 }
 
 func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
-	unique := s.uniqueUserResourceMapping(ctx, tx, m)
-
-	if !unique {
-		return fmt.Errorf("mapping for user %s already exists", m.UserID.String())
+	if err := s.uniqueUserResourceMapping(ctx, tx, m); err != nil {
+		return err
 	}
 
 	v, err := json.Marshal(m)
 	if err != nil {
-		return err
+		return ErrUnprocessableMapping(err)
 	}
 
 	key, err := userResourceKey(m)
@@ -112,11 +155,11 @@ func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influ
 
 	b, err := tx.Bucket(urmBucket)
 	if err != nil {
-		return err
+		return UnavailableURMServiceError(err)
 	}
 
 	if err := b.Put(key, v); err != nil {
-		return err
+		return UnavailableURMServiceError(err)
 	}
 
 	return nil
@@ -148,12 +191,12 @@ func (s *Service) createOrgDependentMappings(ctx context.Context, tx Tx, m *infl
 func userResourceKey(m *influxdb.UserResourceMapping) ([]byte, error) {
 	encodedResourceID, err := m.ResourceID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidURMID
 	}
 
 	encodedUserID, err := m.UserID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidURMID
 	}
 
 	key := make([]byte, len(encodedResourceID)+len(encodedUserID))
@@ -166,19 +209,20 @@ func userResourceKey(m *influxdb.UserResourceMapping) ([]byte, error) {
 func (s *Service) forEachUserResourceMapping(ctx context.Context, tx Tx, fn func(*influxdb.UserResourceMapping) bool) error {
 	b, err := tx.Bucket(urmBucket)
 	if err != nil {
-		return err
+		return UnavailableURMServiceError(err)
 	}
 
 	cur, err := b.Cursor()
 	if err != nil {
-		return err
+		return UnavailableURMServiceError(err)
 	}
 
 	for k, v := cur.First(); k != nil; k, v = cur.Next() {
 		m := &influxdb.UserResourceMapping{}
 		if err := json.Unmarshal(v, m); err != nil {
-			return err
+			return CorruptURMError(err)
 		}
+
 		if !fn(m) {
 			break
 		}
@@ -187,24 +231,29 @@ func (s *Service) forEachUserResourceMapping(ctx context.Context, tx Tx, fn func
 	return nil
 }
 
-func (s *Service) uniqueUserResourceMapping(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) bool {
+func (s *Service) uniqueUserResourceMapping(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
 	key, err := userResourceKey(m)
 	if err != nil {
-		return false
+		return err
 	}
 
 	b, err := tx.Bucket(urmBucket)
 	if err != nil {
-		return false
+		return UnavailableURMServiceError(err)
 	}
 
 	_, err = b.Get(key)
-	return IsNotFound(err)
+	if !IsNotFound(err) {
+		return NonUniqueMappingError(m.UserID)
+	}
+
+	return nil
 }
 
 // DeleteUserResourceMapping deletes a user resource mapping.
 func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID influxdb.ID, userID influxdb.ID) error {
 	return s.kv.Update(func(tx Tx) error {
+		// TODO(goller): I don't think this find is needed as delete also finds.
 		m, err := s.findUserResourceMapping(ctx, tx, influxdb.UserResourceMappingFilter{
 			ResourceID: resourceID,
 			UserID:     userID,
@@ -213,10 +262,11 @@ func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID infl
 			return err
 		}
 
-		if err := s.deleteUserResourceMapping(ctx, tx, influxdb.UserResourceMappingFilter{
+		filter := influxdb.UserResourceMappingFilter{
 			ResourceID: resourceID,
 			UserID:     userID,
-		}); err != nil {
+		}
+		if err := s.deleteUserResourceMapping(ctx, tx, filter); err != nil {
 			return err
 		}
 
@@ -229,12 +279,14 @@ func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID infl
 }
 
 func (s *Service) deleteUserResourceMapping(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) error {
+	// TODO(goller): do we really need to find here? Seems like a Get is
+	// good enough.
 	ms, err := s.findUserResourceMappings(ctx, tx, filter)
 	if err != nil {
 		return err
 	}
 	if len(ms) == 0 {
-		return fmt.Errorf("userResource mapping not found")
+		return ErrURMNotFound
 	}
 
 	key, err := userResourceKey(ms[0])
@@ -244,10 +296,21 @@ func (s *Service) deleteUserResourceMapping(ctx context.Context, tx Tx, filter i
 
 	b, err := tx.Bucket(urmBucket)
 	if err != nil {
-		return err
+		return UnavailableURMServiceError(err)
 	}
 
-	return b.Delete(key)
+	_, err = b.Get(key)
+	if IsNotFound(err) {
+		return ErrURMNotFound
+	}
+	if err != nil {
+		return UnavailableURMServiceError(err)
+	}
+
+	if err := b.Delete(key); err != nil {
+		return UnavailableURMServiceError(err)
+	}
+	return nil
 }
 
 func (s *Service) deleteUserResourceMappings(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) error {
@@ -263,11 +326,19 @@ func (s *Service) deleteUserResourceMappings(ctx context.Context, tx Tx, filter 
 
 		b, err := tx.Bucket(urmBucket)
 		if err != nil {
-			return err
+			return UnavailableURMServiceError(err)
 		}
 
-		if err = b.Delete(key); err != nil {
-			return err
+		_, err = b.Get(key)
+		if IsNotFound(err) {
+			return ErrURMNotFound
+		}
+		if err != nil {
+			return UnavailableURMServiceError(err)
+		}
+
+		if err := b.Delete(key); err != nil {
+			return UnavailableURMServiceError(err)
 		}
 	}
 	return nil

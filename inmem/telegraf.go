@@ -10,11 +10,9 @@ var _ platform.TelegrafConfigStore = new(Service)
 
 // FindTelegrafConfigByID returns a single telegraf config by ID.
 func (s *Service) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (tc *platform.TelegrafConfig, err error) {
-	op := OpPrefix + platform.OpFindTelegrafConfigByID
 	var pErr *platform.Error
 	tc, pErr = s.findTelegrafConfigByID(ctx, id)
 	if pErr != nil {
-		pErr.Op = op
 		err = pErr
 	}
 	return tc, err
@@ -23,8 +21,8 @@ func (s *Service) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (t
 func (s *Service) findTelegrafConfigByID(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, *platform.Error) {
 	if !id.Valid() {
 		return nil, &platform.Error{
-			Code: platform.EEmptyValue,
-			Err:  platform.ErrInvalidID,
+			Code: platform.EInvalid,
+			Msg:  "provided telegraf configuration ID has invalid format",
 		}
 	}
 	result, found := s.telegrafConfigKV.Load(id)
@@ -37,22 +35,6 @@ func (s *Service) findTelegrafConfigByID(ctx context.Context, id platform.ID) (*
 	tc := new(platform.TelegrafConfig)
 	*tc = result.(platform.TelegrafConfig)
 	return tc, nil
-}
-
-// FindTelegrafConfig returns the first telegraf config that matches filter.
-func (s *Service) FindTelegrafConfig(ctx context.Context, filter platform.TelegrafConfigFilter) (*platform.TelegrafConfig, error) {
-	op := OpPrefix + platform.OpFindTelegrafConfig
-	tcs, n, err := s.FindTelegrafConfigs(ctx, filter, platform.FindOptions{Limit: 1})
-	if err != nil {
-		return nil, err
-	}
-	if n > 0 {
-		return tcs[0], nil
-	}
-	return nil, &platform.Error{
-		Code: platform.ENotFound,
-		Op:   op,
-	}
 }
 
 func (s *Service) findTelegrafConfigs(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, *platform.Error) {
@@ -169,9 +151,8 @@ func (s *Service) DeleteTelegrafConfig(ctx context.Context, id platform.ID) erro
 	var err error
 	if !id.Valid() {
 		return &platform.Error{
-			Op:   op,
-			Code: platform.EEmptyValue,
-			Err:  platform.ErrInvalidID,
+			Msg:  "provided telegraf configuration ID has invalid format",
+			Code: platform.EInvalid,
 		}
 	}
 	if _, pErr := s.findTelegrafConfigByID(ctx, id); pErr != nil {
