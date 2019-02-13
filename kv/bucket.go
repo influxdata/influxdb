@@ -333,50 +333,54 @@ func (s *Service) findBuckets(ctx context.Context, tx Tx, filter influxdb.Bucket
 // CreateBucket creates a influxdb bucket and sets b.ID.
 func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 	return s.kv.Update(func(tx Tx) error {
-		if b.OrganizationID.Valid() {
-			_, pe := s.findOrganizationByID(ctx, tx, b.OrganizationID)
-			if pe != nil {
-				return &influxdb.Error{
-					Err: pe,
-				}
-			}
-		} else {
-			o, pe := s.findOrganizationByName(ctx, tx, b.Organization)
-			if pe != nil {
-				return &influxdb.Error{
-					Err: pe,
-				}
-			}
-			b.OrganizationID = o.ID
-		}
-
-		unique := s.uniqueBucketName(ctx, tx, b)
-
-		if !unique {
-			// TODO: make standard error
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  fmt.Sprintf("bucket with name %s already exists", b.Name),
-			}
-		}
-
-		b.ID = s.IDGenerator.ID()
-
-		if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		if err := s.putBucket(ctx, tx, b); err != nil {
-			return err
-		}
-
-		if err := s.createBucketUserResourceMappings(ctx, tx, b); err != nil {
-			return err
-		}
-		return nil
+		return s.createBucket(ctx, tx, b)
 	})
+}
+
+func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
+	if b.OrganizationID.Valid() {
+		_, pe := s.findOrganizationByID(ctx, tx, b.OrganizationID)
+		if pe != nil {
+			return &influxdb.Error{
+				Err: pe,
+			}
+		}
+	} else {
+		o, pe := s.findOrganizationByName(ctx, tx, b.Organization)
+		if pe != nil {
+			return &influxdb.Error{
+				Err: pe,
+			}
+		}
+		b.OrganizationID = o.ID
+	}
+
+	unique := s.uniqueBucketName(ctx, tx, b)
+
+	if !unique {
+		// TODO: make standard error
+		return &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  fmt.Sprintf("bucket with name %s already exists", b.Name),
+		}
+	}
+
+	b.ID = s.IDGenerator.ID()
+
+	if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	if err := s.putBucket(ctx, tx, b); err != nil {
+		return err
+	}
+
+	if err := s.createBucketUserResourceMappings(ctx, tx, b); err != nil {
+		return err
+	}
+	return nil
 }
 
 // PutBucket will put a bucket without setting an ID.
