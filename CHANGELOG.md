@@ -1,4 +1,7 @@
-v1.7.4 [unreleased]
+v1.7.5 [unreleased]
+-------------------
+
+v1.7.4 [2019-02-13]
 -------------------
 
 ### Features
@@ -7,6 +10,7 @@ v1.7.4 [unreleased]
 
 ### Bugfixes
 
+-	[#11616](https://github.com/influxdata/influxdb/pull/11616): Remove copy-on-write when caching bitmaps.
 -	[#11743](https://github.com/influxdata/influxdb/pull/11743): Backport: Use Systemd for Amazon Linux 2.
 -	[#11792](https://github.com/influxdata/influxdb/pull/11792): Revert "Limit force-full and cold compaction size.".
 -	[#11831](https://github.com/influxdata/influxdb/pull/11831): Convert TagValueSeriesIDCache to use string fields.
@@ -75,7 +79,7 @@ v1.7.0 [2018-11-06]
 -	[#10333](https://github.com/influxdata/influxdb/pull/10333): Fix subquery functionality when a function references a tag from the subquery.
 -	[#10333](https://github.com/influxdata/influxdb/pull/10333): Strip tags from a subquery when the outer query does not group by that tag.
 
-v1.6.5 [unreleased]
+v1.6.5 [2019-01-09]
 -------------------
 
 ### Bugfixes
@@ -340,7 +344,7 @@ v1.5.0 [2018-03-06]
 -	[#9510](https://github.com/influxdata/influxdb/pull/9510): Fix TSI log file recovery.
 -	[#9513](https://github.com/influxdata/influxdb/pull/9513): Fix missing Store.Close() unlock.
 
-v1.4.3 [unreleased]
+v1.4.3 [2018-01-30]
 -------------------
 
 ### Configuration Changes
