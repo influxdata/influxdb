@@ -234,6 +234,25 @@ v1.6.0 [2018-07-05]
 -	[#10246](https://github.com/influxdata/influxdb/pull/10246): Fix the inherited interval for derivative and others.
 -	[#10310](https://github.com/influxdata/influxdb/pull/10310): Fix TSI1 Sketch Locking.
 
+v1.5.5 [2018-12-19]
+-------------------
+
+### Features
+
+-	[#10220](https://github.com/influxdata/influxdb/pull/10220): Reduce allocations in TSI TagSets implementation.
+
+### Bugfixes
+
+-	[#10184](https://github.com/influxdata/influxdb/pull/10184): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr
+-	[#10221](https://github.com/influxdata/influxdb/pull/10221): Ensure orhpaned series cleaned up with shard drop.
+-	[#10274](https://github.com/influxdata/influxdb/pull/10274): Fix the derivative and others time ranges for aggregate data.
+-	[#10357](https://github.com/influxdata/influxdb/pull/10357): Backport #9937: Export Shard.Engine()
+-	[#10363](https://github.com/influxdata/influxdb/pull/10363): Fixing the stream iterator to not ignore the error.
+-	[#10372](https://github.com/influxdata/influxdb/pull/10372): Do not panic when a series id iterator is nil.
+-	[#10424](https://github.com/influxdata/influxdb/pull/10424): Fix panic in IndexSet.
+-	[#10559](https://github.com/influxdata/influxdb/pull/10559): Pass the query authorizer to subqueries.
+-	[#10577](https://github.com/influxdata/influxdb/pull/10577): Fix TSM1 panic on reader error.
+
 v1.5.4 [2018-06-21]
 -------------------
 
