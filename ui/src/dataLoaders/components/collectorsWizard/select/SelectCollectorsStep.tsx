@@ -45,33 +45,36 @@ type Props = OwnProps & StateProps & DispatchProps
 export class SelectCollectorsStep extends PureComponent<Props> {
   public render() {
     return (
-      <div className="onboarding-step">
-        <h3 className="wizard-step--title">What do you want to monitor?</h3>
-        <h5 className="wizard-step--sub-title">
-          Telegraf is a plugin-based data collection agent which writes metrics
-          to a bucket in InfluxDB
-        </h5>
-        <Form onSubmit={this.props.onIncrementCurrentStepIndex}>
-          <div className="wizard-step--scroll-area">
-            <FancyScrollbar autoHide={false}>
-              <div className="wizard-step--scroll-content">
-                <StreamingSelector
-                  pluginBundles={this.props.pluginBundles}
-                  telegrafPlugins={this.props.telegrafPlugins}
-                  onTogglePluginBundle={this.handleTogglePluginBundle}
-                  buckets={this.props.buckets}
-                  bucket={this.props.bucket}
-                  onSelectBucket={this.handleSelectBucket}
-                />
-              </div>
-            </FancyScrollbar>
+      <Form
+        onSubmit={this.props.onIncrementCurrentStepIndex}
+        className="data-loading--form"
+      >
+        <FancyScrollbar
+          autoHide={false}
+          className="data-loading--scroll-content"
+        >
+          <div>
+            <h3 className="wizard-step--title">What do you want to monitor?</h3>
+            <h5 className="wizard-step--sub-title">
+              Telegraf is a plugin-based data collection agent which writes
+              metrics to a bucket in InfluxDB
+            </h5>
           </div>
-          <OnboardingButtons
-            autoFocusNext={true}
-            nextButtonStatus={this.nextButtonStatus}
+          <StreamingSelector
+            pluginBundles={this.props.pluginBundles}
+            telegrafPlugins={this.props.telegrafPlugins}
+            onTogglePluginBundle={this.handleTogglePluginBundle}
+            buckets={this.props.buckets}
+            bucket={this.props.bucket}
+            onSelectBucket={this.handleSelectBucket}
           />
-        </Form>
-      </div>
+        </FancyScrollbar>
+        <OnboardingButtons
+          autoFocusNext={true}
+          nextButtonStatus={this.nextButtonStatus}
+          className="data-loading--button-container"
+        />
+      </Form>
     )
   }
 

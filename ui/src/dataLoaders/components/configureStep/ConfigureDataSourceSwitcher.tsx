@@ -26,11 +26,7 @@ class ConfigureDataSourceSwitcher extends PureComponent<Props> {
 
     switch (dataLoaderType) {
       case DataLoaderType.Scraping:
-        return (
-          <div className="onboarding-step">
-            <Scraping onClickNext={onClickNext} buckets={buckets} />
-          </div>
-        )
+        return <Scraping onClickNext={onClickNext} buckets={buckets} />
       default:
         return <EmptyDataSourceState />
     }

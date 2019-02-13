@@ -306,17 +306,6 @@
   }
 }
 
-.wizard--columns {
-  display: flex;
-  align-items: stretch;
-  flex-direction: row;
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-}
-
 @media screen and (min-width: $grid--breakpoint-md) {
   .wizard-step--container {
     padding: $ix-marg-d;

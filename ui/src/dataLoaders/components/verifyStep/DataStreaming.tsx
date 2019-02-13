@@ -27,7 +27,7 @@ class DataStreaming extends PureComponent<Props> {
     const {authToken, org, configID, bucket, notify} = this.props
 
     return (
-      <>
+      <div className="streaming">
         <CreateOrUpdateConfig org={org}>
           {() => (
             <TelegrafInstructions
@@ -39,7 +39,7 @@ class DataStreaming extends PureComponent<Props> {
         </CreateOrUpdateConfig>
 
         <DataListening bucket={bucket} />
-      </>
+      </div>
     )
   }
 }
