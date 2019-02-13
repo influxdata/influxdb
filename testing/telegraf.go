@@ -71,10 +71,6 @@ func TelegrafConfigStore(
 			fn:   FindTelegrafConfigByID,
 		},
 		{
-			name: "FindTelegrafConfig",
-			fn:   FindTelegrafConfig,
-		},
-		{
 			name: "FindTelegrafConfigs",
 			fn:   FindTelegrafConfigs,
 		},
@@ -415,10 +411,7 @@ func FindTelegrafConfigByID(
 				id: platform.ID(0),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EEmptyValue,
-					Err:  platform.ErrInvalidID,
-				},
+				err: fmt.Errorf("<invalid> provided telegraf configuration ID has invalid format"),
 			},
 		},
 		{
@@ -460,7 +453,7 @@ func FindTelegrafConfigByID(
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.ENotFound,
-					Msg:  fmt.Sprintf("telegraf config with ID %v not found", MustIDBase16(threeID)),
+					Msg:  "telegraf configuration not found",
 				},
 			},
 		},
@@ -533,188 +526,8 @@ func FindTelegrafConfigByID(
 			}
 
 			if err != nil && tt.wants.err != nil {
-				if platform.ErrorCode(err) != platform.ErrorCode(tt.wants.err) {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
-				}
-			}
-			if diff := cmp.Diff(tc, tt.wants.telegrafConfig, telegrafCmpOptions...); diff != "" {
-				t.Errorf("telegraf configs are different -got/+want\ndiff %s", diff)
-			}
-		})
-	}
-}
-
-// FindTelegrafConfig testing
-func FindTelegrafConfig(
-	init func(TelegrafConfigFields, *testing.T) (platform.TelegrafConfigStore, func()),
-	t *testing.T,
-) {
-	type args struct {
-		filter platform.TelegrafConfigFilter
-	}
-
-	type wants struct {
-		telegrafConfig *platform.TelegrafConfig
-		err            error
-	}
-	tests := []struct {
-		name   string
-		fields TelegrafConfigFields
-		args   args
-		wants  wants
-	}{
-		{
-			name: "find telegraf config",
-			fields: TelegrafConfigFields{
-				UserResourceMappings: []*platform.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafsResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-					},
-					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafsResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-					},
-				},
-				TelegrafConfigs: []*platform.TelegrafConfig{
-					{
-						ID:             MustIDBase16(oneID),
-						OrganizationID: MustIDBase16(fourID),
-						Name:           "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
-					},
-					{
-						ID:             MustIDBase16(twoID),
-						OrganizationID: MustIDBase16(fourID),
-						Name:           "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				filter: platform.TelegrafConfigFilter{
-					UserResourceMappingFilter: platform.UserResourceMappingFilter{
-						UserID:       MustIDBase16(threeID),
-						ResourceType: platform.TelegrafsResourceType,
-						UserType:     platform.Member,
-					},
-				},
-			},
-			wants: wants{
-				telegrafConfig: &platform.TelegrafConfig{
-					ID:             MustIDBase16(twoID),
-					OrganizationID: MustIDBase16(fourID),
-					Name:           "tc2",
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment1",
-							Config: &inputs.File{
-								Files: []string{"f1", "f2"},
-							},
-						},
-						{
-							Comment: "comment2",
-							Config:  &inputs.MemStats{},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "find nothing",
-			fields: TelegrafConfigFields{
-				UserResourceMappings: []*platform.UserResourceMapping{
-					{
-						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.TelegrafsResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-					},
-					{
-						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.TelegrafsResourceType,
-						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-					},
-				},
-				TelegrafConfigs: []*platform.TelegrafConfig{
-					{
-						ID:             MustIDBase16(oneID),
-						OrganizationID: MustIDBase16(fourID),
-						Name:           "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
-					},
-					{
-						ID:             MustIDBase16(twoID),
-						OrganizationID: MustIDBase16(fourID),
-						Name:           "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
-					},
-				},
-			},
-			args: args{
-				filter: platform.TelegrafConfigFilter{
-					UserResourceMappingFilter: platform.UserResourceMappingFilter{
-						UserID:       MustIDBase16(fourID),
-						ResourceType: platform.TelegrafsResourceType,
-					},
-				},
-			},
-			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s, done := init(tt.fields, t)
-			defer done()
-			ctx := context.Background()
-
-			tc, err := s.FindTelegrafConfig(ctx, tt.args.filter)
-			if err != nil && tt.wants.err == nil {
-				t.Fatalf("expected errors to be nil got '%v'", err)
-			}
-			if err != nil && tt.wants.err != nil {
-				if platform.ErrorCode(err) != platform.ErrorCode(tt.wants.err) {
-					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+				if want, got := tt.wants.err.Error(), err.Error(); want != got {
+					t.Fatalf("expected error '%s' got '%s'", want, got)
 				}
 			}
 			if diff := cmp.Diff(tc, tt.wants.telegrafConfig, telegrafCmpOptions...); diff != "" {
@@ -1574,10 +1387,7 @@ func DeleteTelegrafConfig(
 				userID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EEmptyValue,
-					Err:  platform.ErrInvalidID,
-				},
+				err: fmt.Errorf("<invalid> provided telegraf configuration ID has invalid format"),
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
@@ -1675,9 +1485,7 @@ func DeleteTelegrafConfig(
 				userID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-				},
+				err: fmt.Errorf("<not found> telegraf configuration not found"),
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
@@ -1809,10 +1617,11 @@ func DeleteTelegrafConfig(
 			}
 
 			if err != nil && tt.wants.err != nil {
-				if platform.ErrorCode(err) != platform.ErrorCode(tt.wants.err) {
+				if want, got := tt.wants.err.Error(), err.Error(); want != got {
 					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 				}
 			}
+
 			filter := platform.TelegrafConfigFilter{
 				UserResourceMappingFilter: platform.UserResourceMappingFilter{
 					UserID:       tt.args.userID,
@@ -1825,10 +1634,11 @@ func DeleteTelegrafConfig(
 			}
 
 			if err != nil && tt.wants.err != nil {
-				if platform.ErrorCode(err) != platform.ErrorCode(tt.wants.err) {
+				if want, got := tt.wants.err.Error(), err.Error(); want != got {
 					t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 				}
 			}
+
 			if n != len(tt.wants.telegrafConfigs) {
 				t.Fatalf("telegraf configs length is different got %d, want %d", n, len(tt.wants.telegrafConfigs))
 			}

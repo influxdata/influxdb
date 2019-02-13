@@ -144,7 +144,7 @@ func CreateUserResourceMapping(
 						UserType:   platform.Member,
 					},
 				},
-				err: fmt.Errorf("mapping for user %s already exists", userOneID),
+				err: fmt.Errorf("<internal error> Unexpected error when assigning user to a resource: mapping for user %s already exists", userOneID),
 			},
 		},
 	}
@@ -226,7 +226,7 @@ func DeleteUserResourceMapping(
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{},
-				err:      fmt.Errorf("userResource mapping not found"),
+				err:      fmt.Errorf("<not found> user to resource mapping not found"),
 			},
 		},
 	}

@@ -16,12 +16,11 @@ import (
 const ErrTelegrafConfigInvalidOrganizationID = "invalid organization ID"
 
 // ErrTelegrafConfigNotFound is the error message for a missing telegraf config.
-const ErrTelegrafConfigNotFound = "telegraf config not found"
+const ErrTelegrafConfigNotFound = "telegraf configuration not found"
 
 // ops for buckets error and buckets op logs.
 var (
 	OpFindTelegrafConfigByID = "FindTelegrafConfigByID"
-	OpFindTelegrafConfig     = "FindTelegrafConfig"
 	OpFindTelegrafConfigs    = "FindTelegrafConfigs"
 	OpCreateTelegrafConfig   = "CreateTelegrafConfig"
 	OpUpdateTelegrafConfig   = "UpdateTelegrafConfig"
@@ -36,9 +35,6 @@ type TelegrafConfigStore interface {
 
 	// FindTelegrafConfigByID returns a single telegraf config by ID.
 	FindTelegrafConfigByID(ctx context.Context, id ID) (*TelegrafConfig, error)
-
-	// FindTelegrafConfig returns the first telegraf config that matches filter.
-	FindTelegrafConfig(ctx context.Context, filter TelegrafConfigFilter) (*TelegrafConfig, error)
 
 	// FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 	// Additional options provide pagination & sorting.
