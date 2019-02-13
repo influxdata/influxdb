@@ -12,9 +12,10 @@ $sidebar-width-md: 240px;
   @include no-user-select();
   overflow: hidden;
   transform: translate3d(0,0,0);
-  flex: 1 0 0;
+  flex: 0 1 auto;
   border-radius: $radius 0 0 $radius;
   background-color: $g2-kevlar;
+  max-width: 250px;
 
   &.show {
     flex: 1 0 $sidebar-width-sm;

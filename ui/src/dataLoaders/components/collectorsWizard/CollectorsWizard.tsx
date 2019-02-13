@@ -24,6 +24,9 @@ import {
   setPluginConfiguration,
 } from 'src/dataLoaders/actions/dataLoaders'
 
+// Styles
+import 'src/dataLoaders/components/DataLoadersOverlay.scss'
+
 // Types
 import {Links} from 'src/types/v2/links'
 import {Substep, TelegrafPlugin} from 'src/types/v2/dataLoaders'
@@ -94,14 +97,7 @@ class CollectorsWizard extends PureComponent<Props> {
         title={'Create a Telegraf Config'}
         onDismiss={this.handleDismiss}
       >
-        <div className="wizard-contents">
-          <div className="wizard-step--container">
-            <CollectorsStepSwitcher
-              stepProps={this.stepProps}
-              buckets={buckets}
-            />
-          </div>
-        </div>
+        <CollectorsStepSwitcher stepProps={this.stepProps} buckets={buckets} />
       </WizardOverlay>
     )
   }

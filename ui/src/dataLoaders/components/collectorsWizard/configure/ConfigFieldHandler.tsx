@@ -37,7 +37,7 @@ type Props = OwnProps & DispatchProps
 
 export class ConfigFieldHandler extends PureComponent<Props> {
   public render() {
-    return <>{this.formFields}</>
+    return <div>{this.formFields}</div>
   }
 
   private get formFields(): JSX.Element[] | JSX.Element {

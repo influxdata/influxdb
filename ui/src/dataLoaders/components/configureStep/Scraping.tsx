@@ -69,31 +69,33 @@ export class Scraping extends PureComponent<Props> {
     } = this.props
 
     return (
-      <Form onSubmit={this.handleSubmit}>
-        <div className="wizard-step--scroll-area">
-          <FancyScrollbar autoHide={false}>
-            <div className="wizard-step--scroll-content">
-              <h3 className="wizard-step--title">Add Scraper Target</h3>
-              <h5 className="wizard-step--sub-title">
-                Scrapers collect data from multiple targets at regular intervals
-                and to write to a bucket
-              </h5>
-              <ScraperTarget
-                bucket={scraperBucket}
-                buckets={buckets}
-                onSelectBucket={this.handleSelectBucket}
-                onChangeURL={onSetScraperTargetURL}
-                onChangeName={onSetScraperTargetName}
-                url={url}
-                name={name}
-              />
-            </div>
-          </FancyScrollbar>
-        </div>
+      <Form onSubmit={this.handleSubmit} className="data-loading--form">
+        <FancyScrollbar
+          autoHide={false}
+          className="data-loading--scroll-content"
+        >
+          <div>
+            <h3 className="wizard-step--title">Add Scraper Target</h3>
+            <h5 className="wizard-step--sub-title">
+              Scrapers collect data from multiple targets at regular intervals
+              and to write to a bucket
+            </h5>
+          </div>
+          <ScraperTarget
+            bucket={scraperBucket}
+            buckets={buckets}
+            onSelectBucket={this.handleSelectBucket}
+            onChangeURL={onSetScraperTargetURL}
+            onChangeName={onSetScraperTargetName}
+            url={url}
+            name={name}
+          />
+        </FancyScrollbar>
         <OnboardingButtons
           autoFocusNext={false}
           nextButtonStatus={this.nextButtonStatus}
           nextButtonText={'Finish'}
+          className="data-loading--button-container"
         />
       </Form>
     )

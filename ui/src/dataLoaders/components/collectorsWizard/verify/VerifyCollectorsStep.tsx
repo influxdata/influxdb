@@ -51,35 +51,35 @@ export class VerifyCollectorStep extends PureComponent<Props> {
     } = this.props
 
     return (
-      <div className="onboarding-step">
-        <h3 className="wizard-step--title">Test your Configuration</h3>
-        <h5 className="wizard-step--sub-title">
-          Start Telegraf and ensure data is being written to InfluxDB
-        </h5>
-        <Form onSubmit={onExit}>
-          <div className="wizard-step--scroll-area">
-            <FancyScrollbar autoHide={false}>
-              <div className="wizard-step--scroll-content">
-                <FetchAuthToken bucket={bucket} username={username}>
-                  {authToken => (
-                    <DataStreaming
-                      notify={notify}
-                      org={org}
-                      configID={telegrafConfigID}
-                      authToken={authToken}
-                      bucket={bucket}
-                    />
-                  )}
-                </FetchAuthToken>
-              </div>
-            </FancyScrollbar>
+      <Form onSubmit={onExit} className="data-loading--form">
+        <FancyScrollbar
+          autoHide={false}
+          className="data-loading--scroll-content"
+        >
+          <div>
+            <h3 className="wizard-step--title">Test your Configuration</h3>
+            <h5 className="wizard-step--sub-title">
+              Start Telegraf and ensure data is being written to InfluxDB
+            </h5>
           </div>
-          <OnboardingButtons
-            onClickBack={onDecrementCurrentStepIndex}
-            nextButtonText={'Finish'}
-          />
-        </Form>
-      </div>
+          <FetchAuthToken bucket={bucket} username={username}>
+            {authToken => (
+              <DataStreaming
+                notify={notify}
+                org={org}
+                configID={telegrafConfigID}
+                authToken={authToken}
+                bucket={bucket}
+              />
+            )}
+          </FetchAuthToken>
+        </FancyScrollbar>
+        <OnboardingButtons
+          onClickBack={onDecrementCurrentStepIndex}
+          nextButtonText={'Finish'}
+          className="data-loading--button-container"
+        />
+      </Form>
     )
   }
 }

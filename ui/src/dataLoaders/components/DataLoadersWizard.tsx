@@ -110,19 +110,15 @@ class DataLoadersWizard extends PureComponent<Props> {
         title={'Data Loading'}
         onDismiss={this.handleDismiss}
       >
-        <div className="wizard-contents">
-          <div className="wizard-step--container">
-            <StepSwitcher
-              currentStepIndex={currentStepIndex}
-              onboardingStepProps={this.stepProps}
-              bucketName={bucket}
-              onSetBucketInfo={onSetBucketInfo}
-              type={type}
-              org={org}
-              buckets={buckets}
-            />
-          </div>
-        </div>
+        <StepSwitcher
+          currentStepIndex={currentStepIndex}
+          onboardingStepProps={this.stepProps}
+          bucketName={bucket}
+          onSetBucketInfo={onSetBucketInfo}
+          type={type}
+          org={org}
+          buckets={buckets}
+        />
       </WizardOverlay>
     )
   }

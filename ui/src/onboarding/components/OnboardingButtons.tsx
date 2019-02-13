@@ -17,6 +17,7 @@ interface Props {
   nextButtonStatus?: ComponentStatus
   showSkip?: boolean
   autoFocusNext?: boolean
+  className?: string
 }
 
 class OnboardingButtons extends PureComponent<Props> {
@@ -52,7 +53,7 @@ class OnboardingButtons extends PureComponent<Props> {
   public render() {
     const {nextButtonText, nextButtonStatus} = this.props
     return (
-      <div className="wizard--button-container">
+      <div className={this.className}>
         <div className="wizard--button-bar">
           {this.backButton}
           <Button
@@ -69,6 +70,10 @@ class OnboardingButtons extends PureComponent<Props> {
         {this.skipButton}
       </div>
     )
+  }
+
+  private get className(): string {
+    return this.props.className || 'wizard--button-container'
   }
 
   private get backButton(): JSX.Element {

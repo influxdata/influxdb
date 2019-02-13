@@ -31,7 +31,7 @@ class WizardOverlay extends PureComponent<Props> {
         <OverlayContainer maxWidth={maxWidth}>
           <OverlayHeading title={title} onDismiss={onDismiss} />
           <OverlayBody>
-            <div className="wizard-overlay">{children}</div>
+            <div className="data-loading--overlay">{children}</div>
           </OverlayBody>
         </OverlayContainer>
       </OverlayTechnology>
