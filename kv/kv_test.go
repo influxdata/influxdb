@@ -8,9 +8,10 @@ import (
 
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 )
 
-func NewTestBoltStore() (*bolt.KVStore, func(), error) {
+func NewTestBoltStore() (kv.Store, func(), error) {
 	f, err := ioutil.TempFile("", "influxdata-bolt-")
 	if err != nil {
 		return nil, nil, errors.New("unable to open temporary boltdb file")
@@ -31,6 +32,6 @@ func NewTestBoltStore() (*bolt.KVStore, func(), error) {
 	return s, close, nil
 }
 
-func NewTestInmemStore() (*inmem.KVStore, func(), error) {
+func NewTestInmemStore() (kv.Store, func(), error) {
 	return inmem.NewKVStore(), func() {}, nil
 }
