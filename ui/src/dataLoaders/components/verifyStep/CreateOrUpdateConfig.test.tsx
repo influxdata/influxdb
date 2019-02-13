@@ -15,6 +15,7 @@ const setup = async (override = {}) => {
     createDashboardsForPlugins: jest.fn(),
     notify: jest.fn(),
     authToken: '',
+    telegrafConfigID: '',
     ...override,
   }
 
