@@ -226,19 +226,23 @@ func (s *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt
 // CreateUser creates a influxdb user and sets b.ID.
 func (s *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
 	return s.kv.Update(func(tx Tx) error {
-		unique := s.uniqueUserName(ctx, tx, u)
-
-		if !unique {
-			return ErrUserWithNameAlreadyExists(u.Name)
-		}
-
-		u.ID = s.IDGenerator.ID()
-		if err := s.appendUserEventToLog(ctx, tx, u.ID, userCreatedEvent); err != nil {
-			return err
-		}
-
-		return s.putUser(ctx, tx, u)
+		return s.createUser(ctx, tx, u)
 	})
+}
+
+func (s *Service) createUser(ctx context.Context, tx Tx, u *influxdb.User) error {
+	unique := s.uniqueUserName(ctx, tx, u)
+
+	if !unique {
+		return ErrUserWithNameAlreadyExists(u.Name)
+	}
+
+	u.ID = s.IDGenerator.ID()
+	if err := s.appendUserEventToLog(ctx, tx, u.ID, userCreatedEvent); err != nil {
+		return err
+	}
+
+	return s.putUser(ctx, tx, u)
 }
 
 // PutUser will put a user without setting an ID.

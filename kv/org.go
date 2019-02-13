@@ -235,28 +235,32 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 // CreateOrganization creates a influxdb organization and sets b.ID.
 func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
 	return s.kv.Update(func(tx Tx) error {
-		unique := s.uniqueOrganizationName(ctx, tx, o)
-		if !unique {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
-				Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
-			}
-		}
-
-		o.ID = s.IDGenerator.ID()
-		if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		if err := s.putOrganization(ctx, tx, o); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-		return nil
+		return s.createOrganization(ctx, tx, o)
 	})
+}
+
+func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Organization) error {
+	unique := s.uniqueOrganizationName(ctx, tx, o)
+	if !unique {
+		return &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
+		}
+	}
+
+	o.ID = s.IDGenerator.ID()
+	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	if err := s.putOrganization(ctx, tx, o); err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+	return nil
 }
 
 // PutOrganization will put a organization without setting an ID.
