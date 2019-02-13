@@ -9,8 +9,8 @@ import _ from 'lodash'
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import {Button, ComponentColor, IconFont} from '@influxdata/clockface'
 import {OverlayTechnology} from 'src/clockface'
+import CreateDashboardDropdown from 'src/dashboards/components/dashboard_index/CreateDashboardDropdown'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
@@ -118,12 +118,8 @@ class DashboardIndex extends PureComponent<Props, State> {
                 placeholderText="Filter dashboards by name..."
                 onSearch={this.filterDashboards}
               />
-              <Button
-                color={ComponentColor.Primary}
-                onClick={this.handleCreateDashboard}
-                icon={IconFont.Plus}
-                text="Create Dashboard"
-                titleText="Create a new dashboard"
+              <CreateDashboardDropdown
+                onNewDashboard={this.handleCreateDashboard}
               />
             </Page.Header.Right>
           </Page.Header>
