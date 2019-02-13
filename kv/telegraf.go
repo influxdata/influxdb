@@ -3,17 +3,67 @@ package kv
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/influxdata/influxdb"
 )
 
-// UnexpectedTelegrafBucketError is used when the error comes from an internal system.
-func UnexpectedTelegrafBucketError(err error) *influxdb.Error {
+var (
+	// ErrTelegrafNotFound is used when the telegraf configuration is not found.
+	ErrTelegrafNotFound = &influxdb.Error{
+		Msg:  "telegraf configuration not found",
+		Code: influxdb.ENotFound,
+	}
+
+	// ErrInvalidTelegrafID is used when the service was provided
+	// an invalid ID format.
+	ErrInvalidTelegrafID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "provided telegraf configuration ID has invalid format",
+	}
+
+	// ErrInvalidTelegrafOrgID is the error message for a missing or invalid organization ID.
+	ErrInvalidTelegrafOrgID = &influxdb.Error{
+		Code: influxdb.EEmptyValue,
+		Msg:  "provided telegraf configuration organization ID is missing or invalid",
+	}
+)
+
+// UnavailableTelegrafServiceError is used if we aren't able to interact with the
+// store, it means the store is not available at the moment (e.g. network).
+func UnavailableTelegrafServiceError(err error) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EInternal,
-		Msg:  "unexpected error retrieving telegraf bucket",
-		Err:  err,
-		Op:   "kv/telegrafBucket",
+		Msg:  fmt.Sprintf("Unable to connect to telegraf service. Please try again; Err: %v", err),
+		Op:   "kv/telegraf",
+	}
+}
+
+// InternalTelegrafServiceError is used when the error comes from an
+// internal system.
+func InternalTelegrafServiceError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("Unknown internal telegraf data error; Err: %v", err),
+		Op:   "kv/telegraf",
+	}
+}
+
+// CorruptTelegrafError is used when the config cannot be unmarshalled from the
+// bytes stored in the kv.
+func CorruptTelegrafError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("Unknown internal telegraf data error; Err: %v", err),
+		Op:   "kv/telegraf",
+	}
+}
+
+// ErrUnprocessableTelegraf is used when a telegraf is not able to be converted to JSON.
+func ErrUnprocessableTelegraf(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EUnprocessableEntity,
+		Msg:  fmt.Sprintf("unable to convert telegraf configuration into JSON; Err %v", err),
 	}
 }
 
@@ -33,263 +83,218 @@ func (s *Service) initializeTelegraf(ctx context.Context, tx Tx) error {
 func (s *Service) telegrafBucket(tx Tx) (Bucket, error) {
 	b, err := tx.Bucket([]byte(telegrafBucket))
 	if err != nil {
-		return nil, UnexpectedTelegrafBucketError(err)
+		return nil, UnavailableTelegrafServiceError(err)
 	}
 	return b, nil
 }
 
 // FindTelegrafConfigByID returns a single telegraf config by ID.
-func (s *Service) FindTelegrafConfigByID(ctx context.Context, id influxdb.ID) (tc *influxdb.TelegrafConfig, err error) {
-	op := OpPrefix + influxdb.OpFindTelegrafConfigByID
+func (s *Service) FindTelegrafConfigByID(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+	var (
+		tc  *influxdb.TelegrafConfig
+		err error
+	)
+
 	err = s.kv.View(func(tx Tx) error {
-		var pErr *influxdb.Error
-		tc, pErr = s.findTelegrafConfigByID(ctx, tx, id)
-		if pErr != nil {
-			pErr.Op = op
-			err = pErr
-		}
+		tc, err = s.findTelegrafConfigByID(ctx, tx, id)
 		return err
 	})
+
 	return tc, err
 }
 
-func (s *Service) findTelegrafConfigByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.TelegrafConfig, *influxdb.Error) {
+func (s *Service) findTelegrafConfigByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 	encID, err := id.Encode()
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EEmptyValue,
-			Err:  err,
-		}
+		return nil, ErrInvalidTelegrafID
 	}
-	// TODO(goller): handle errors
+
 	bucket, err := tx.Bucket(telegrafBucket)
-	d, err := bucket.Get(encID)
-	if d == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  influxdb.ErrTelegrafConfigNotFound,
-		}
-	}
-	tc := new(influxdb.TelegrafConfig)
-	err = json.Unmarshal(d, tc)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
+		return nil, UnavailableTelegrafServiceError(err)
 	}
-	return tc, nil
-}
 
-// FindTelegrafConfig returns the first telegraf config that matches filter.
-func (s *Service) FindTelegrafConfig(ctx context.Context, filter influxdb.TelegrafConfigFilter) (*influxdb.TelegrafConfig, error) {
-	op := OpPrefix + influxdb.OpFindTelegrafConfig
-	tcs, n, err := s.FindTelegrafConfigs(ctx, filter, influxdb.FindOptions{Limit: 1})
+	v, err := bucket.Get(encID)
+	if IsNotFound(err) {
+		return nil, ErrTelegrafNotFound
+	}
 	if err != nil {
-		return nil, err
+		return nil, InternalTelegrafServiceError(err)
 	}
-	if n > 0 {
-		return tcs[0], nil
-	}
-	return nil, &influxdb.Error{
-		Code: influxdb.ENotFound,
-		Op:   op,
-	}
-}
 
-func (s *Service) findTelegrafConfigs(ctx context.Context, tx Tx, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, *influxdb.Error) {
-	return nil, 0, nil
-	/* no idea here
-		tcs := make([]*influxdb.TelegrafConfig, 0)
-		m, err := s.findUserResourceMappings(ctx, tx, filter.UserResourceMappingFilter)
-		if err != nil {
-			return nil, 0, &influxdb.Error{
-				Err: err,
-			}
-		}
-		if len(m) == 0 {
-			return tcs, 0, nil
-		}
-		for _, item := range m {
-			tc, err := s.findTelegrafConfigByID(ctx, tx, item.ResourceID)
-			if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
-				return nil, 0, &influxdb.Error{
-					// return internal error, for any mapping issue
-					Err: err,
-				}
-			}
-			if tc != nil {
-				// Restrict results by organization ID, if it has been provided
-				if filter.OrganizationID != nil && filter.OrganizationID.Valid() && ts.OrganizationID != *filter.OrganizationID {
-					continue
-				}
-				tcs = append(tcs, tc)
-			}
-		}
-	    return tcs, len(tcs), nil
-	*/
+	return unmarshalTelegraf(v)
 }
 
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
 func (s *Service) FindTelegrafConfigs(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) (tcs []*influxdb.TelegrafConfig, n int, err error) {
-	op := OpPrefix + influxdb.OpFindTelegrafConfigs
 	err = s.kv.View(func(tx Tx) error {
-		var pErr *influxdb.Error
-		tcs, n, pErr = s.findTelegrafConfigs(ctx, tx, filter)
-		if pErr != nil {
-			pErr.Op = op
-			return pErr
-		}
-		return nil
+		tcs, n, err = s.findTelegrafConfigs(ctx, tx, filter)
+		return err
 	})
-	return tcs, len(tcs), err
+	return tcs, n, err
 }
 
-func (s *Service) putTelegrafConfig(ctx context.Context, tx Tx, tc *influxdb.TelegrafConfig) *influxdb.Error {
-	v, err := json.Marshal(tc)
+func (s *Service) findTelegrafConfigs(ctx context.Context, tx Tx, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
+	tcs := make([]*influxdb.TelegrafConfig, 0)
+
+	m, err := s.findUserResourceMappings(ctx, tx, filter.UserResourceMappingFilter)
 	if err != nil {
-		return &influxdb.Error{
-			Err: err,
+		return nil, 0, err
+	}
+
+	if len(m) == 0 {
+		return tcs, 0, nil
+	}
+
+	for _, item := range m {
+		tc, err := s.findTelegrafConfigByID(ctx, tx, item.ResourceID)
+		if err == ErrTelegrafNotFound { // Stale user resource mappings are skipped
+			continue
+		}
+		if err != nil {
+			return nil, 0, InternalTelegrafServiceError(err)
+		}
+
+		if tc != nil {
+			// Restrict results by organization ID, if it has been provided
+			if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
+				continue
+			}
+			tcs = append(tcs, tc)
 		}
 	}
+	return tcs, len(tcs), nil
+}
+
+// PutTelegrafConfig put a telegraf config to storage.
+func (s *Service) PutTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig) error {
+	return s.kv.Update(func(tx Tx) (err error) {
+		return s.putTelegrafConfig(ctx, tx, tc)
+	})
+}
+
+func (s *Service) putTelegrafConfig(ctx context.Context, tx Tx, tc *influxdb.TelegrafConfig) error {
 	encodedID, err := tc.ID.Encode()
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EEmptyValue,
-			Err:  err,
-		}
+		return ErrInvalidTelegrafID
 	}
+
 	if !tc.OrganizationID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EEmptyValue,
-			Msg:  influxdb.ErrTelegrafConfigInvalidOrganizationID,
-		}
+		return ErrInvalidTelegrafOrgID
 	}
+
+	v, err := marshalTelegraf(tc)
+	if err != nil {
+		return err
+	}
+
 	bucket, err := tx.Bucket(telegrafBucket)
-	// TODO(goller): deal with bucket error
+	if err != nil {
+		return UnavailableTelegrafServiceError(err)
+	}
+
 	if err := bucket.Put(encodedID, v); err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
+		return UnavailableTelegrafServiceError(err)
 	}
 	return nil
 }
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
 func (s *Service) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
-	op := OpPrefix + influxdb.OpCreateTelegrafConfig
 	return s.kv.Update(func(tx Tx) error {
-		tc.ID = s.IDGenerator.ID()
-
-		pErr := s.putTelegrafConfig(ctx, tx, tc)
-		if pErr != nil {
-			pErr.Op = op
-			return pErr
-		}
-
-		/* TODO(goller): no idea here
-				urm := &influxdb.UserResourceMapping{
-					ResourceID:   tc.ID,
-					UserID:       userID,
-					UserType:     influxdb.Owner,
-					ResourceType: influxdb.TelegrafsResourceType,
-				}
-				if err := s.createUserResourceMapping(ctx, tx, urm); err != nil {
-					return err
-		        }
-		*/
-
-		return nil
+		return s.createTelegrafConfig(ctx, tx, tc, userID)
 	})
+}
+
+func (s *Service) createTelegrafConfig(ctx context.Context, tx Tx, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
+	tc.ID = s.IDGenerator.ID()
+	if err := s.putTelegrafConfig(ctx, tx, tc); err != nil {
+		return err
+	}
+
+	urm := &influxdb.UserResourceMapping{
+		ResourceID:   tc.ID,
+		UserID:       userID,
+		UserType:     influxdb.Owner,
+		ResourceType: influxdb.TelegrafsResourceType,
+	}
+	return s.createUserResourceMapping(ctx, tx, urm)
 }
 
 // UpdateTelegrafConfig updates a single telegraf config.
 // Returns the new telegraf config after update.
 func (s *Service) UpdateTelegrafConfig(ctx context.Context, id influxdb.ID, tc *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
-	op := OpPrefix + influxdb.OpUpdateTelegrafConfig
-	err := s.kv.Update(func(tx Tx) (err error) {
-		current, pErr := s.findTelegrafConfigByID(ctx, tx, id)
-		if pErr != nil {
-			pErr.Op = op
-			err = pErr
-			return err
-		}
-		tc.ID = id
-		// OrganizationID can not be updated
-		tc.OrganizationID = current.OrganizationID
-		pErr = s.putTelegrafConfig(ctx, tx, tc)
-		if pErr != nil {
-			return &influxdb.Error{
-				Err: pErr,
-			}
-		}
-		return nil
+	var err error
+	err = s.kv.Update(func(tx Tx) error {
+		tc, err = s.updateTelegrafConfig(ctx, tx, id, tc, userID)
+		return err
 	})
+	return tc, err
+}
+
+func (s *Service) updateTelegrafConfig(ctx context.Context, tx Tx, id influxdb.ID, tc *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
+	current, err := s.findTelegrafConfigByID(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// ID and OrganizationID can not be updated
+	tc.ID = current.ID
+	tc.OrganizationID = current.OrganizationID
+	err = s.putTelegrafConfig(ctx, tx, tc)
 	return tc, err
 }
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
 func (s *Service) DeleteTelegrafConfig(ctx context.Context, id influxdb.ID) error {
-	op := OpPrefix + influxdb.OpDeleteTelegrafConfig
-	err := s.kv.Update(func(tx Tx) error {
-		encodedID, err := id.Encode()
-		if err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EEmptyValue,
-				Err:  err,
-			}
-		}
-		// TODO(goller) deal with errors
-		bucket, err := tx.Bucket(telegrafBucket)
-		if err != nil {
-			return err
-		}
-
-		if err := bucket.Delete(encodedID); err != nil {
-			return err
-		}
-
-		/* TODO(goller): no idea about mappings
-				return s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-					ResourceID:   id,
-					ResourceType: influxdb.TelegrafsResourceType,
-		        })
-		*/
-		return nil
+	return s.kv.Update(func(tx Tx) error {
+		return s.deleteTelegrafConfig(ctx, tx, id)
 	})
+}
+
+func (s *Service) deleteTelegrafConfig(ctx context.Context, tx Tx, id influxdb.ID) error {
+	encodedID, err := id.Encode()
 	if err != nil {
-		err = &influxdb.Error{
-			Code: influxdb.ErrorCode(err),
-			Op:   op,
-			Err:  err,
-		}
+		return ErrInvalidTelegrafID
 	}
-	return err
-}
 
-// PutTelegrafConfig put a telegraf config to storage.
-func (s *Service) PutTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig) error {
-	return s.kv.Update(func(tx Tx) (err error) {
-		pErr := s.putTelegrafConfig(ctx, tx, tc)
-		if pErr != nil {
-			err = pErr
-		}
-		return nil
+	bucket, err := tx.Bucket(telegrafBucket)
+	if err != nil {
+		return UnavailableTelegrafServiceError(err)
+	}
+
+	_, err = bucket.Get(encodedID)
+	if IsNotFound(err) {
+		return ErrTelegrafNotFound
+	}
+	if err != nil {
+		return InternalTelegrafServiceError(err)
+	}
+
+	if err := bucket.Delete(encodedID); err != nil {
+		return UnavailableTelegrafServiceError(err)
+	}
+
+	return s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: influxdb.TelegrafsResourceType,
 	})
 }
 
-// CreateUserResourceMapping creates a user resource mapping.
-// TODO(goller): I'm not sure mappings really need to be here
-func (s *Service) CreateUserResourceMapping(ctx context.Context, m *influxdb.UserResourceMapping) error {
-	return nil
+// unmarshalTelegraf turns the stored byte slice in the kv into a *influxdb.TelegrafConfig.
+func unmarshalTelegraf(v []byte) (*influxdb.TelegrafConfig, error) {
+	t := &influxdb.TelegrafConfig{}
+	if err := json.Unmarshal(v, t); err != nil {
+		return nil, CorruptTelegrafError(err)
+	}
+	return t, nil
 }
 
-// DeleteUserResourceMapping deletes a user resource mapping.
-func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID, userID influxdb.ID) error {
-	return nil
-}
-
-// FindUserResourceMappings returns a list of UserResourceMappings that match filter and the total count of matching mappings.
-func (s *Service) FindUserResourceMappings(ctx context.Context, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
-	return nil, 0, nil
+func marshalTelegraf(tc *influxdb.TelegrafConfig) ([]byte, error) {
+	v, err := json.Marshal(tc)
+	if err != nil {
+		return nil, ErrUnprocessableTelegraf(err)
+	}
+	return v, nil
 }

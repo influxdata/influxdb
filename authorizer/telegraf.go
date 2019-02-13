@@ -67,20 +67,6 @@ func (s *TelegrafConfigService) FindTelegrafConfigByID(ctx context.Context, id i
 	return tc, nil
 }
 
-// FindTelegrafConfig retrieves the telegraf config and checks to see if the authorizer on context has read access to the telegraf config.
-func (s *TelegrafConfigService) FindTelegrafConfig(ctx context.Context, filter influxdb.TelegrafConfigFilter) (*influxdb.TelegrafConfig, error) {
-	tc, err := s.s.FindTelegrafConfig(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := authorizeReadTelegraf(ctx, tc.OrganizationID, tc.ID); err != nil {
-		return nil, err
-	}
-
-	return tc, nil
-}
-
 // FindTelegrafConfigs retrieves all telegraf configs that match the provided filter and then filters the list down to only the resources that are authorized.
 func (s *TelegrafConfigService) FindTelegrafConfigs(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
 	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data

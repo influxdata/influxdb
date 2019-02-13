@@ -23,15 +23,13 @@ func (c *Client) initializeTelegraf(ctx context.Context, tx *bolt.Tx) error {
 
 // FindTelegrafConfigByID returns a single telegraf config by ID.
 func (c *Client) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (tc *platform.TelegrafConfig, err error) {
-	op := OpPrefix + platform.OpFindTelegrafConfigByID
 	err = c.db.View(func(tx *bolt.Tx) error {
-		var pErr *platform.Error
-		tc, pErr = c.findTelegrafConfigByID(ctx, tx, id)
-		if pErr != nil {
-			pErr.Op = op
-			err = pErr
+		var pe *platform.Error
+		tc, pe = c.findTelegrafConfigByID(ctx, tx, id)
+		if pe != nil {
+			return pe
 		}
-		return err
+		return nil
 	})
 	return tc, err
 }
@@ -40,8 +38,8 @@ func (c *Client) findTelegrafConfigByID(ctx context.Context, tx *bolt.Tx, id pla
 	encID, err := id.Encode()
 	if err != nil {
 		return nil, &platform.Error{
-			Code: platform.EEmptyValue,
-			Err:  err,
+			Code: platform.EInvalid,
+			Msg:  "provided telegraf configuration ID has invalid format",
 		}
 	}
 	d := tx.Bucket(telegrafBucket).Get(encID)
@@ -59,22 +57,6 @@ func (c *Client) findTelegrafConfigByID(ctx context.Context, tx *bolt.Tx, id pla
 		}
 	}
 	return tc, nil
-}
-
-// FindTelegrafConfig returns the first telegraf config that matches filter.
-func (c *Client) FindTelegrafConfig(ctx context.Context, filter platform.TelegrafConfigFilter) (*platform.TelegrafConfig, error) {
-	op := OpPrefix + platform.OpFindTelegrafConfig
-	tcs, n, err := c.FindTelegrafConfigs(ctx, filter, platform.FindOptions{Limit: 1})
-	if err != nil {
-		return nil, err
-	}
-	if n > 0 {
-		return tcs[0], nil
-	}
-	return nil, &platform.Error{
-		Code: platform.ENotFound,
-		Op:   op,
-	}
 }
 
 func (c *Client) findTelegrafConfigs(ctx context.Context, tx *bolt.Tx, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, *platform.Error) {
@@ -205,13 +187,12 @@ func (c *Client) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *p
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
 func (c *Client) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
-	op := OpPrefix + platform.OpDeleteTelegrafConfig
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		encodedID, err := id.Encode()
 		if err != nil {
 			return &platform.Error{
-				Code: platform.EEmptyValue,
-				Err:  err,
+				Code: platform.EInvalid,
+				Msg:  "provided telegraf configuration ID has invalid format",
 			}
 		}
 		err = tx.Bucket(telegrafBucket).Delete(encodedID)
@@ -226,7 +207,6 @@ func (c *Client) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error
 	if err != nil {
 		err = &platform.Error{
 			Code: platform.ErrorCode(err),
-			Op:   op,
 			Err:  err,
 		}
 	}
