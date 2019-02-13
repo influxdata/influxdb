@@ -5,7 +5,6 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // APIs
-import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
 
 const getCollectors = async (org: Organization) => {
@@ -28,20 +27,17 @@ import * as notifyActions from 'src/shared/actions/notifications'
 import {Page} from 'src/pageLayout'
 import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import Members from 'src/organizations/components/Members'
 import Variables from 'src/organizations/components/Variables'
 import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
-import OrgDashboardIndex from 'src/organizations/components/Dashboards'
 import OrganizationTabs from 'src/organizations/components/OrganizationTabs'
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 
 // Types
-import {AppState, Dashboard} from 'src/types/v2'
+import {AppState} from 'src/types/v2'
 import {
-  ResourceOwner,
   Bucket,
   Organization,
   Telegraf,
@@ -90,49 +86,6 @@ class OrganizationView extends PureComponent<Props> {
               activeTabUrl={params.tab}
               orgID={org.id}
             >
-              <TabbedPageSection
-                id="org-view-tab--members"
-                url="members_tab"
-                title="Members"
-              >
-                <GetOrgResources<ResourceOwner[]>
-                  organization={org}
-                  fetcher={this.getOwnersAndMembers}
-                >
-                  {(members, loading) => (
-                    <SpinnerContainer
-                      loading={loading}
-                      spinnerComponent={<TechnoSpinner />}
-                    >
-                      <Members members={members} orgName={org.name} />
-                    </SpinnerContainer>
-                  )}
-                </GetOrgResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="org-view-tab--dashboards"
-                url="dashboards_tab"
-                title="Dashboards"
-              >
-                <GetOrgResources<Dashboard[]>
-                  organization={org}
-                  fetcher={getDashboards}
-                >
-                  {(dashboards, loading, fetch) => (
-                    <SpinnerContainer
-                      loading={loading}
-                      spinnerComponent={<TechnoSpinner />}
-                    >
-                      <OrgDashboardIndex
-                        dashboards={dashboards}
-                        orgName={org.name}
-                        onChange={fetch}
-                        orgID={org.id}
-                      />
-                    </SpinnerContainer>
-                  )}
-                </GetOrgResources>
-              </TabbedPageSection>
               <TabbedPageSection
                 id="org-view-tab--tasks"
                 url="tasks_tab"
@@ -242,15 +195,6 @@ class OrganizationView extends PureComponent<Props> {
         </Page.Contents>
       </Page>
     )
-  }
-
-  private getOwnersAndMembers = async (org: Organization) => {
-    const allMembers = await Promise.all([
-      client.organizations.owners(org.id),
-      client.organizations.members(org.id),
-    ])
-
-    return [].concat(...allMembers)
   }
 }
 
