@@ -1,8 +1,7 @@
-// Libraries
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import {AppState} from 'src/types/v2'
+import {AppState, Dashboard} from 'src/types/v2'
 
 // Components
 import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
@@ -13,21 +12,17 @@ import {Page} from 'src/pageLayout'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {Bucket, Organization} from '@influxdata/influx'
-import {client} from 'src/utils/api'
+import {Organization} from '@influxdata/influx'
+import {getDashboards} from 'src/organizations/apis'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import Buckets from 'src/organizations/components/Buckets'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
-
-const getBuckets = async (org: Organization) => {
-  return client.buckets.getAllByOrg(org)
-}
+import Dashboards from 'src/organizations/components/Dashboards'
 
 interface RouterProps {
   params: {
@@ -46,13 +41,13 @@ interface StateProps {
 type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
 
 @ErrorHandling
-class OrgBucketsIndex extends Component<Props> {
+class OrgDashboardsIndex extends Component<Props> {
   constructor(props) {
     super(props)
   }
 
   public render() {
-    const {org, notify} = this.props
+    const {org} = this.props
 
     return (
       <Page titleTag={org.name}>
@@ -60,27 +55,27 @@ class OrgBucketsIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'bucket_tab'} orgID={org.id} />
+              <OrganizationNavigation tab={'dashboards_tab'} orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
-                  id="org-view-tab--buckets"
-                  url="buckets_tab"
-                  title="Buckets"
+                  id="org-view-tab--dashboards"
+                  url="dashboards_tab"
+                  title="Dashboards"
                 >
-                  <GetOrgResources<Bucket[]>
+                  <GetOrgResources<Dashboard[]>
                     organization={org}
-                    fetcher={getBuckets}
+                    fetcher={getDashboards}
                   >
-                    {(buckets, loading, fetch) => (
+                    {(dashboards, loading, fetch) => (
                       <SpinnerContainer
                         loading={loading}
                         spinnerComponent={<TechnoSpinner />}
                       >
-                        <Buckets
-                          buckets={buckets}
-                          org={org}
+                        <Dashboards
+                          dashboards={dashboards}
+                          orgName={org.name}
                           onChange={fetch}
-                          notify={notify}
+                          orgID={org.id}
                         />
                       </SpinnerContainer>
                     )}
@@ -95,7 +90,7 @@ class OrgBucketsIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: WithRouterProps) => {
+const mstp = (state: AppState, props: Props) => {
   const {orgs} = state
   const org = orgs.find(o => o.id === props.params.orgID)
   return {
@@ -110,4 +105,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<{}>(OrgBucketsIndex))
+)(withRouter<{}>(OrgDashboardsIndex))

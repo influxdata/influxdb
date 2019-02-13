@@ -34,7 +34,7 @@ import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
-import OrgDashboardIndex from 'src/organizations/components/OrgDashboardIndex'
+import OrgDashboardIndex from 'src/organizations/components/Dashboards'
 import OrganizationTabs from 'src/organizations/components/OrganizationTabs'
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 
@@ -124,7 +124,6 @@ class OrganizationView extends PureComponent<Props> {
                       spinnerComponent={<TechnoSpinner />}
                     >
                       <OrgDashboardIndex
-                        router={router}
                         dashboards={dashboards}
                         orgName={org.name}
                         onChange={fetch}
