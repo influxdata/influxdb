@@ -54,13 +54,13 @@ func initTelegrafService(s kv.Store, f influxdbtesting.TelegrafConfigFields, t *
 
 	for _, tc := range f.TelegrafConfigs {
 		if err := svc.PutTelegrafConfig(ctx, tc); err != nil {
-			t.Fatalf("failed to populate telegraf config: %s", err.Error())
+			t.Fatalf("failed to populate telegraf config: %v", err)
 		}
 	}
 
 	for _, m := range f.UserResourceMappings {
 		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
-			t.Fatalf("failed to populate user resource mapping")
+			t.Fatalf("failed to populate user resource mapping: %v", err)
 		}
 	}
 
