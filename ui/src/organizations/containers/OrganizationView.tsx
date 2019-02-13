@@ -30,14 +30,13 @@ import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Members from 'src/organizations/components/Members'
 import Variables from 'src/organizations/components/Variables'
-import Buckets from 'src/organizations/components/Buckets'
 import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
-import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import OrgDashboardIndex from 'src/organizations/components/OrgDashboardIndex'
 import OrganizationTabs from 'src/organizations/components/OrganizationTabs'
+import OrgHeader from 'src/organizations/containers/OrgHeader'
 
 // Types
 import {AppState, Dashboard} from 'src/types/v2'
@@ -83,17 +82,7 @@ class OrganizationView extends PureComponent<Props> {
 
     return (
       <Page titleTag={org.name}>
-        <Page.Header fullWidth={false}>
-          <Page.Header.Left>
-            <RenamablePageTitle
-              name={org.name}
-              maxLength={70}
-              placeholder="Name this Organization"
-              onRename={this.handleUpdateOrg}
-            />
-          </Page.Header.Left>
-          <Page.Header.Right />
-        </Page.Header>
+        <OrgHeader orgID={org.id} />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <OrganizationTabs
@@ -116,30 +105,6 @@ class OrganizationView extends PureComponent<Props> {
                       spinnerComponent={<TechnoSpinner />}
                     >
                       <Members members={members} orgName={org.name} />
-                    </SpinnerContainer>
-                  )}
-                </GetOrgResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="org-view-tab--buckets"
-                url="buckets_tab"
-                title="Buckets"
-              >
-                <GetOrgResources<Bucket[]>
-                  organization={org}
-                  fetcher={getBuckets}
-                >
-                  {(buckets, loading, fetch) => (
-                    <SpinnerContainer
-                      loading={loading}
-                      spinnerComponent={<TechnoSpinner />}
-                    >
-                      <Buckets
-                        buckets={buckets}
-                        org={org}
-                        onChange={fetch}
-                        notify={notify}
-                      />
                     </SpinnerContainer>
                   )}
                 </GetOrgResources>
@@ -278,14 +243,6 @@ class OrganizationView extends PureComponent<Props> {
         </Page.Contents>
       </Page>
     )
-  }
-
-  private handleUpdateOrg = (name: string): void => {
-    const {org, onUpdateOrg} = this.props
-
-    const updatedOrg = {...org, name}
-
-    onUpdateOrg(updatedOrg)
   }
 
   private getOwnersAndMembers = async (org: Organization) => {

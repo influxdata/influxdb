@@ -10,11 +10,7 @@ import TabsNav from 'src/clockface/components/tabs/TabsNav'
 import NavigationTab from 'src/clockface/components/tabs/NavigationTab'
 import TabContentsHeader from 'src/clockface/components/tabs/TabContentsHeader'
 
-interface Props {
-  children: JSX.Element[]
-}
-
-class Tabs extends Component<Props> {
+class Tabs extends Component {
   public static TabContents = TabContents
   public static Nav = TabsNav
   public static Tab = NavigationTab

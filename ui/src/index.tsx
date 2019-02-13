@@ -28,6 +28,7 @@ import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
 import OrganizationView from 'src/organizations/containers/OrganizationView'
 import OrgTaskPage from 'src/organizations/components/OrgTaskPage'
 import OrgTaskEditPage from 'src/organizations/components/OrgTaskEditPage'
+import OrgBucketIndex from 'src/organizations/containers/OrgBucketsIndex'
 import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
@@ -113,6 +114,10 @@ class Root extends PureComponent {
                                 <Route
                                   path="tasks_tab/:id"
                                   component={OrgTaskEditPage}
+                                />
+                                <Route
+                                  path="buckets_tab"
+                                  component={OrgBucketIndex}
                                 />
                                 <Route
                                   path=":tab"
