@@ -58,7 +58,6 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 	}
 	if filter.User != nil {
 		return nil, 0, TempDisabledErr
-		params.User = *filter.User
 	}
 	if filter.After != nil {
 		params.After = *filter.After
