@@ -5745,10 +5745,13 @@ components:
         type:
           type: string
           enum: ["query"]
-        query:
-          type: string
-        queryType:
-          type: string
+        values:
+          type: object
+          properties:
+            query:
+              type: string
+            language:
+              type: string
     Macro:
       type: object
       properties:
