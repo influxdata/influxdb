@@ -316,7 +316,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		userResourceSvc  platform.UserResourceMappingService      = m.kvService
 		labelSvc         platform.LabelService                    = m.kvService
 		secretSvc        platform.SecretService                   = m.kvService
-		lookupSvc        platform.LookupService                   = m.boltClient
+		lookupSvc        platform.LookupService                   = m.kvService
 	)
 
 	switch m.secretStore {
