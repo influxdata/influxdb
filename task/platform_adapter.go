@@ -12,6 +12,10 @@ import (
 	"github.com/influxdata/influxdb/task/options"
 )
 
+// TODO(lh): A temporary error response for all finds that use user id's
+// This should be removed when we transition to the new kv store.
+var TempDisabledErr = errors.New("temporarily disabled")
+
 type RunController interface {
 	CancelRun(ctx context.Context, taskID, runID platform.ID) error
 	//TODO: add retry run to this.
@@ -53,6 +57,7 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 		params.Org = *filter.Organization
 	}
 	if filter.User != nil {
+		return nil, 0, TempDisabledErr
 		params.User = *filter.User
 	}
 	if filter.After != nil {

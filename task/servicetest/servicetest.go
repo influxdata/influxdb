@@ -136,14 +136,11 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		Token:          cr.Token,
 	}
-
-	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
-
-	task, err := sys.ts.CreateTask(authorizedCtx, tc)
+	tsk, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, authorizer), ct)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !task.ID.Valid() {
+	if !tsk.ID.Valid() {
 		t.Fatal("no task ID set")
 	}
 
@@ -160,11 +157,11 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Look up a task the different ways we can.
 	// Map of method name to found task.
 	found := map[string]*platform.Task{
-		"Created": task,
+		"Created": tsk,
 	}
 
 	// Find by ID should return the right task.
-	f, err := sys.ts.FindTaskByID(sys.Ctx, task.ID)
+	f, err := sys.ts.FindTaskByID(sys.Ctx, tsk.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,16 +171,18 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f = findTask(fs, task.ID)
+	f = findTask(fs, tsk.ID)
 	found["FindTasks with Organization filter"] = f
 
 	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &cr.UserID})
 	if err != nil {
-		t.Fatal(err)
+		if err != task.TempDisabledErr {
+			t.Fatal(err)
+		}
+	} else {
+		f = findTask(fs, tsk.ID)
+		found["FindTasks with User filter"] = f
 	}
-
-	f = findTask(fs, task.ID)
-	found["FindTasks with User filter"] = f
 
 	for fn, f := range found {
 		if f.OrganizationID != cr.OrgID {
