@@ -220,43 +220,47 @@ func (s *Service) findAuthorizations(ctx context.Context, tx Tx, f influxdb.Auth
 
 // CreateAuthorization creates a influxdb authorization and sets b.ID, and b.UserID if not provided.
 func (s *Service) CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error {
+	return s.kv.Update(func(tx Tx) error {
+		return s.createAuthorization(ctx, tx, a)
+	})
+}
+
+func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Authorization) error {
 	if err := a.Valid(); err != nil {
 		return &influxdb.Error{
 			Err: err,
 		}
 	}
 
-	return s.kv.Update(func(tx Tx) error {
-		if _, err := s.findUserByID(ctx, tx, a.UserID); err != nil {
-			return influxdb.ErrUnableToCreateToken
-		}
+	if _, err := s.findUserByID(ctx, tx, a.UserID); err != nil {
+		return influxdb.ErrUnableToCreateToken
+	}
 
-		if _, err := s.findOrganizationByID(ctx, tx, a.OrgID); err != nil {
-			return influxdb.ErrUnableToCreateToken
-		}
+	if _, err := s.findOrganizationByID(ctx, tx, a.OrgID); err != nil {
+		return influxdb.ErrUnableToCreateToken
+	}
 
-		if unique := s.uniqueAuthorizationToken(ctx, tx, a); !unique {
-			return influxdb.ErrUnableToCreateToken
-		}
+	if unique := s.uniqueAuthorizationToken(ctx, tx, a); !unique {
+		return influxdb.ErrUnableToCreateToken
+	}
 
-		if a.Token == "" {
-			token, err := s.TokenGenerator.Token()
-			if err != nil {
-				return &influxdb.Error{
-					Err: err,
-				}
+	if a.Token == "" {
+		token, err := s.TokenGenerator.Token()
+		if err != nil {
+			return &influxdb.Error{
+				Err: err,
 			}
-			a.Token = token
 		}
+		a.Token = token
+	}
 
-		a.ID = s.IDGenerator.ID()
+	a.ID = s.IDGenerator.ID()
 
-		if err := s.putAuthorization(ctx, tx, a); err != nil {
-			return err
-		}
+	if err := s.putAuthorization(ctx, tx, a); err != nil {
+		return err
+	}
 
-		return nil
-	})
+	return nil
 }
 
 // PutAuthorization will put a authorization without setting an ID.

@@ -124,15 +124,7 @@ func (s *Service) findUserResourceMapping(ctx context.Context, tx Tx, filter inf
 // or owner.
 func (s *Service) CreateUserResourceMapping(ctx context.Context, m *influxdb.UserResourceMapping) error {
 	return s.kv.Update(func(tx Tx) error {
-		if err := s.createUserResourceMapping(ctx, tx, m); err != nil {
-			return err
-		}
-
-		if m.ResourceType == influxdb.OrgsResourceType {
-			return s.createOrgDependentMappings(ctx, tx, m)
-		}
-
-		return nil
+		return s.createUserResourceMapping(ctx, tx, m)
 	})
 }
 
@@ -158,6 +150,10 @@ func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influ
 
 	if err := b.Put(key, v); err != nil {
 		return UnavailableURMServiceError(err)
+	}
+
+	if m.ResourceType == influxdb.OrgsResourceType {
+		return s.createOrgDependentMappings(ctx, tx, m)
 	}
 
 	return nil
