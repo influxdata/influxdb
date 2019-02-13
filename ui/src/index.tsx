@@ -40,6 +40,7 @@ import GetMe from 'src/shared/containers/GetMe'
 import SourcesPage from 'src/sources/components/SourcesPage'
 import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
 import OrgDashboardsIndex from 'src/organizations/containers/OrgDashboardsIndex'
+import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -123,6 +124,10 @@ class Root extends PureComponent {
                                 <Route
                                   path="dashboards_tab"
                                   component={OrgDashboardsIndex}
+                                />
+                                <Route
+                                  path="members_tab"
+                                  component={OrgMembersIndex}
                                 />
                                 <Route
                                   path=":tab"
