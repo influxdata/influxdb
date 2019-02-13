@@ -19,6 +19,7 @@ enum CreateOption {
 
 interface Props {
   onNewDashboard: () => void
+  onToggleOverlay: () => void
 }
 
 export default class CreateDashboardDropdown extends PureComponent<Props> {
@@ -58,12 +59,12 @@ export default class CreateDashboardDropdown extends PureComponent<Props> {
   }
 
   private handleSelect = selection => {
-    const {onNewDashboard} = this.props
+    const {onNewDashboard, onToggleOverlay} = this.props
     switch (selection) {
       case CreateOption.New:
         onNewDashboard()
       case CreateOption.Import:
-      // toggle overlay here
+        onToggleOverlay()
     }
   }
 }

@@ -120,6 +120,7 @@ class DashboardIndex extends PureComponent<Props, State> {
               />
               <CreateDashboardDropdown
                 onNewDashboard={this.handleCreateDashboard}
+                onToggleOverlay={this.handleToggleImportOverlay}
               />
             </Page.Header.Right>
           </Page.Header>
@@ -143,8 +144,8 @@ class DashboardIndex extends PureComponent<Props, State> {
             </div>
           </Page.Contents>
         </Page>
-        {this.renderImportOverlay}
-        {this.renderLabelEditorOverlay}
+        {this.importOverlay}
+        {this.labelEditorOverlay}
       </>
     )
   }
@@ -253,18 +254,18 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 
-  private handleToggleOverlay = (): void => {
+  private handleToggleImportOverlay = (): void => {
     this.setState({isImportingDashboard: !this.state.isImportingDashboard})
   }
 
-  private get renderImportOverlay(): JSX.Element {
+  private get importOverlay(): JSX.Element {
     const {notify} = this.props
     const {isImportingDashboard} = this.state
 
     return (
       <OverlayTechnology visible={isImportingDashboard}>
         <ImportDashboardOverlay
-          onDismissOverlay={this.handleToggleOverlay}
+          onDismissOverlay={this.handleToggleImportOverlay}
           onImportDashboard={this.handleImportDashboard}
           notify={notify}
         />
@@ -280,7 +281,7 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.setState({isEditingDashboardLabels: false})
   }
 
-  private get renderLabelEditorOverlay(): JSX.Element {
+  private get labelEditorOverlay(): JSX.Element {
     const {onAddDashboardLabels, onRemoveDashboardLabels} = this.props
     const {isEditingDashboardLabels, dashboardLabelsEdit} = this.state
 
