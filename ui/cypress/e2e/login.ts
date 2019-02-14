@@ -6,6 +6,8 @@ interface LoginUser {
 describe('The Login Page', () => {
   let user: LoginUser
   beforeEach(() => {
+    cy.flush()
+
     cy.fixture('user').then(u => {
       user = u
     })
@@ -13,10 +15,6 @@ describe('The Login Page', () => {
     cy.createUser()
 
     cy.visit('/')
-  })
-
-  afterEach(() => {
-    cy.flush()
   })
 
   it('can login', () => {

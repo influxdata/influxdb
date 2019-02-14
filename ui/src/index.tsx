@@ -101,56 +101,49 @@ class Root extends PureComponent {
                   <Route component={GetMe}>
                     <Route component={GetOrganizations}>
                       <Route component={App}>
-                        <Route component={GetSources}>
-                          <Route component={SetActiveSource}>
-                            <IndexRoute component={MePage} />
-                            <Route path="organizations">
-                              <IndexRoute component={OrganizationsIndex} />
-                              <Route path=":orgID">
-                                <Route
-                                  path="tasks_tab/new"
-                                  component={OrgTaskPage}
-                                />
-                                <Route
-                                  path="tasks_tab/:id"
-                                  component={OrgTaskEditPage}
-                                />
-                                <Route
-                                  path="buckets_tab"
-                                  component={OrgBucketIndex}
-                                />
-                                <Route
-                                  path=":tab"
-                                  component={OrganizationView}
-                                />
-                              </Route>
-                            </Route>
-                            <Route path="tasks">
-                              <IndexRoute component={TasksPage} />
-                              <Route path=":id/runs" component={TaskRunsPage} />
-                              <Route path="new" component={TaskPage} />
-                              <Route path=":id" component={TaskEditPage} />
-                            </Route>
+                        <IndexRoute component={MePage} />
+                        <Route path="organizations">
+                          <IndexRoute component={OrganizationsIndex} />
+                          <Route path=":orgID">
                             <Route
-                              path="data-explorer"
-                              component={DataExplorerPage}
+                              path="tasks_tab/new"
+                              component={OrgTaskPage}
                             />
-                            <Route path="dashboards">
-                              <IndexRoute component={DashboardsIndex} />
-                              <Route
-                                path=":dashboardID"
-                                component={DashboardPage}
-                              />
-                            </Route>
-                            <Route path="me" component={MePage} />
-                            <Route path="account/:tab" component={Account} />
-                            <Route path="sources" component={SourcesPage} />
                             <Route
-                              path="configuration/:tab"
-                              component={ConfigurationPage}
+                              path="tasks_tab/:id"
+                              component={OrgTaskEditPage}
                             />
+                            <Route
+                              path="buckets_tab"
+                              component={OrgBucketIndex}
+                            />
+                            <Route path=":tab" component={OrganizationView} />
                           </Route>
                         </Route>
+                        <Route path="tasks">
+                          <IndexRoute component={TasksPage} />
+                          <Route path=":id/runs" component={TaskRunsPage} />
+                          <Route path="new" component={TaskPage} />
+                          <Route path=":id" component={TaskEditPage} />
+                        </Route>
+                        <Route
+                          path="data-explorer"
+                          component={DataExplorerPage}
+                        />
+                        <Route path="dashboards">
+                          <IndexRoute component={DashboardsIndex} />
+                          <Route
+                            path=":dashboardID"
+                            component={DashboardPage}
+                          />
+                        </Route>
+                        <Route path="me" component={MePage} />
+                        <Route path="account/:tab" component={Account} />
+                        <Route path="sources" component={SourcesPage} />
+                        <Route
+                          path="configuration/:tab"
+                          component={ConfigurationPage}
+                        />
                       </Route>
                     </Route>
                   </Route>
