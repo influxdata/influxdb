@@ -99,8 +99,6 @@ export const Histogram: SFC<Props> = props => {
           hoverX={hoverX}
           hoverY={hoverY}
           hoveredRowIndices={hoveredRowIndices}
-          width={innerWidth}
-          height={innerHeight}
           layer={layer}
           tooltip={props.tooltip}
         />

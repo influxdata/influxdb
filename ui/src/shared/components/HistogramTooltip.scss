@@ -8,6 +8,7 @@
   border: 1px solid $g3-castle;
   padding: 10px;
   color: $g14-chromium;
+  z-index: $z--dygraph-legend;
 }
 
 .histogram-tooltip--table {
