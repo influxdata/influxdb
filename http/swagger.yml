@@ -5754,6 +5754,10 @@ components:
               type: string
     Macro:
       type: object
+      required:
+        - name
+        - orgID
+        - arguments
       properties:
         links:
           type: object
