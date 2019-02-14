@@ -45,6 +45,13 @@ func (s *KVStore) Update(fn func(kv.Tx) error) error {
 	})
 }
 
+// Flush removes all data from the buckets.  Used for testing.
+func (s *KVStore) Flush() {
+	for _, b := range s.buckets {
+		b.btree.Clear(false)
+	}
+}
+
 // Tx is an in memory transaction.
 // TODO: make transactions actually transactional
 type Tx struct {
