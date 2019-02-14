@@ -312,6 +312,9 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	case lang.SpecCompiler:
 		qr.Type = "flux"
 		qr.Spec = c.Spec
+	case lang.ASTCompiler:
+		qr.Type = "flux"
+		qr.AST = c.AST
 	default:
 		return nil, fmt.Errorf("unsupported compiler %T", c)
 	}
