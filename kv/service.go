@@ -104,6 +104,10 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
+		if err := s.initializeScraperTargets(ctx, tx); err != nil {
+			return err
+		}
+
 		if err := s.initializeOnboarding(ctx, tx); err != nil {
 			return err
 		}

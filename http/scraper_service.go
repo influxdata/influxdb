@@ -336,7 +336,7 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.Scra
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Op:   s.OpPrefix + influxdb.OpUpdateTarget,
-			Msg:  "id is invalid",
+			Msg:  "provided scraper target ID has invalid format",
 		}
 	}
 	url, err := newURL(s.Addr, targetIDPath(update.ID))
@@ -384,14 +384,14 @@ func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.Scraper
 	if !target.OrgID.Valid() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "org id is invalid",
+			Msg:  "provided organization ID has invalid format",
 			Op:   s.OpPrefix + influxdb.OpAddTarget,
 		}
 	}
 	if !target.BucketID.Valid() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "bucket id is invalid",
+			Msg:  "provided bucket ID has invalid format",
 			Op:   s.OpPrefix + influxdb.OpAddTarget,
 		}
 	}
