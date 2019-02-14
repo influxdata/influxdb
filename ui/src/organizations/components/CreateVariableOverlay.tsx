@@ -17,7 +17,7 @@ import {Button} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Types
-import {Macro as Variable} from '@influxdata/influx'
+import {Variable} from '@influxdata/influx'
 import {
   ComponentColor,
   ComponentStatus,

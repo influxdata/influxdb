@@ -17,7 +17,7 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 import {ComponentColor, IconFont} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
 import {client} from 'src/utils/api'
-import {Macro as Variable} from '@influxdata/influx'
+import {Variable} from '@influxdata/influx'
 import {
   addVariableFailed,
   deleteVariableFailed,
