@@ -13,6 +13,10 @@ func TestBoltScraperTargetStoreService(t *testing.T) {
 	influxdbtesting.ScraperService(initBoltTargetService, t)
 }
 
+func TestInmemScraperTargetStoreService(t *testing.T) {
+	influxdbtesting.ScraperService(initInmemTargetService, t)
+}
+
 func initBoltTargetService(f influxdbtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {
 	s, closeFn, err := NewTestBoltStore()
 	if err != nil {
