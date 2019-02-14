@@ -3,16 +3,16 @@ import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
+import {Button, SlideToggle, ComponentSpacer} from '@influxdata/clockface'
+import {IndexList, ConfirmationButton, Label} from 'src/clockface'
+
+// Types
 import {
   Stack,
-  Button,
   Alignment,
-  SlideToggle,
   ComponentSize,
   ComponentColor,
-  ComponentSpacer,
 } from '@influxdata/clockface'
-import {IndexList, ConfirmationButton, Label} from 'src/clockface'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'

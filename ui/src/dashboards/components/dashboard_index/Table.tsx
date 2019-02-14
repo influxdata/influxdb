@@ -6,10 +6,10 @@ import _ from 'lodash'
 // Components
 import {
   Button,
-  ComponentColor,
   IconFont,
-  ComponentSize,
   Alignment,
+  ComponentSize,
+  ComponentColor,
 } from '@influxdata/clockface'
 import {EmptyState, IndexList} from 'src/clockface'
 import TableRows from 'src/dashboards/components/dashboard_index/TableRows'
