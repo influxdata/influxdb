@@ -5,7 +5,7 @@ declare namespace Cypress {
     getByInputName: typeof getByInputName
     createUser: typeof createUser
     flush: typeof flush
-    tempSignin: typeof tempSignin
+    createDashboard: typeof createDashboard
   }
 }
 
@@ -21,17 +21,17 @@ const signin = (): Cypress.Chainable => {
   })
 }
 
-// TODO: stop using all of this once inmem is fixed
-const tempAuth = {
-  user: 'watts',
-  pass: 'cfziu',
-}
-
-const tempSignin = (): void => {
-  cy.request({
-    method: 'POST',
-    url: '/api/v2/signin',
-    auth: tempAuth,
+// createDashboard relies on an org fixture to be set
+const createDashboard = (): Cypress.Chainable => {
+  return cy.fixture('org').then(({id}) => {
+    return cy.request({
+      method: 'POST',
+      url: '/api/v2/dashboards',
+      body: {
+        name: 'test dashboard',
+        orgID: id,
+      },
+    })
   })
 }
 
@@ -42,6 +42,8 @@ const createUser = (): Cypress.Chainable => {
       method: 'POST',
       url: '/api/v2/setup',
       body: {username, password, org, bucket},
+    }).then(({body}) => {
+      cy.writeFile('cypress/fixtures/org.json', body.org)
     })
   })
 }
@@ -68,10 +70,12 @@ Cypress.Commands.add('getByInputName', getByInputName)
 
 // auth flow
 Cypress.Commands.add('signin', signin)
-Cypress.Commands.add('tempSignin', tempSignin)
 
 // users
 Cypress.Commands.add('createUser', createUser)
+
+// dashboards
+Cypress.Commands.add('createDashboard', createDashboard)
 
 // general
 Cypress.Commands.add('flush', flush)

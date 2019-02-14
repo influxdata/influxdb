@@ -7,31 +7,38 @@ describe('Dashboards', () => {
     cy.visit('/dashboards')
   })
 
-  it('can create a dashboard', () => {
-    cy.get('.page-header--right > .button')
+  it('can create a dashboard from empty state', () => {
+    cy.get('.empty-state')
       .contains('Create')
       .click()
 
-    cy.contains('Add Cell').should('exist')
+    cy.visit('/dashboards')
+
+    cy.get('.index-list--row')
+      .its('length')
+      .should('be.eq', 1)
+  })
+
+  it('can create a dashboard from the header', () => {
+    cy.get('.page-header--container')
+      .contains('Create')
+      .click()
+
+    cy.getByDataTest('dropdown--item New Dashboard').click()
 
     cy.visit('/dashboards')
 
-    cy.get('.index-list--body')
-      .children()
-      .should(list => {
-        expect(list.length).to.be.above(0)
-      })
+    cy.get('.index-list--row')
+      .its('length')
+      .should('be.eq', 1)
   })
 
   it('can delete a dashboard', () => {
-    cy.get('.page-header--right > .button')
-      .contains('Create')
-      .click()
+    cy.createDashboard()
+    cy.createDashboard()
 
-    cy.visit('/dashboards')
-
-    cy.get('tbody').then(tbody => {
-      const numDashboards = tbody.contents().length
+    cy.get('.index-list--row').then(rows => {
+      const numDashboards = rows.length
 
       cy.get('.button-danger')
         .first()
@@ -45,5 +52,22 @@ describe('Dashboards', () => {
         .its('length')
         .should('eq', numDashboards - 1)
     })
+  })
+
+  it('can edit a dashboards name', () => {
+    cy.createDashboard().then(({body}) => {
+      cy.visit(`dashboards/${body.id}`)
+    })
+
+    const newName = 'new 🅱️ashboard'
+
+    cy.get('.renamable-page-title--title').click()
+    cy.get('.input-field')
+      .type(newName)
+      .type('{enter}')
+
+    cy.visit('/dashboards')
+
+    cy.get('.index-list--row').should('contain', newName)
   })
 })
