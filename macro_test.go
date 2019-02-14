@@ -25,7 +25,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 			json: `
 { 
   "id": "debac1e0deadbeef",
-  "org_id": "deadbeefdeadbeef",
+  "orgID": "deadbeefdeadbeef",
   "name": "howdy",
   "selected": [],
   "arguments": {

@@ -77,7 +77,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"macros":[{"id":"6162207574726f71","org_id":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71","org": "/api/v2/orgs/0000000000000001"}},{"id":"61726920617a696f","org_id":"0000000000000001","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/61726920617a696f","org": "/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0"}}`,
+				body:        `{"macros":[{"id":"6162207574726f71","orgID":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71","org": "/api/v2/orgs/0000000000000001"}},{"id":"61726920617a696f","orgID":"0000000000000001","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/61726920617a696f","org": "/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0"}}`,
 			},
 		},
 		{
@@ -128,7 +128,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"macros":[{"id":"6162207574726f71","org_id":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71","org":"/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0&orgID=0000000000000001"}}`,
+				body:        `{"macros":[{"id":"6162207574726f71","orgID":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/6162207574726f71","org":"/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/macros?descending=false&limit=20&offset=0&orgID=0000000000000001"}}`,
 			},
 		},
 	}
@@ -212,7 +212,7 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","org_id":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001"}}
 `,
 			},
 		},
@@ -329,7 +329,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 				macro: `
 {
   "name": "my-great-macro",
-  "org_id": "0000000000000001",
+  "orgID": "0000000000000001",
   "arguments": {
     "type": "constant",
     "values": [
@@ -346,7 +346,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","org_id":"0000000000000001","name":"my-great-macro","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-macro","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001"}}
 `,
 			},
 		},
@@ -463,7 +463,7 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","org_id":"0000000000000002","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000002"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/api/v2/macros/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000002"}}
 `,
 			},
 		},
