@@ -25,6 +25,8 @@ var (
 	OpRenewSession = "RenewSession"
 )
 
+const SessionAuthorizionKind = "session"
+
 // Session is a user session.
 type Session struct {
 	// ID is only required for auditing purposes.
@@ -59,7 +61,7 @@ func (s *Session) Allowed(p Permission) bool {
 }
 
 // Kind returns session and is used for auditing.
-func (s *Session) Kind() string { return "session" }
+func (s *Session) Kind() string { return SessionAuthorizionKind }
 
 // Identifier returns the sessions ID and is used for auditing.
 func (s *Session) Identifier() ID { return s.ID }
