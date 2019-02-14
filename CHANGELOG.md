@@ -2,6 +2,7 @@
 
 ### Features
 1. [11954](https://github.com/influxdata/influxdb/pull/11954): Add the ability to run a task manually from tasks page
+1. [11990](https://github.com/influxdata/influxdb/pull/11990): Add the ability to select a custom time range in explorer and dashboard
 
 ### Bug Fixes
 

@@ -1,6 +1,10 @@
 import {BuilderConfig} from 'src/types/v2'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
-import {TIME_RANGE_START, WINDOW_PERIOD} from 'src/shared/constants'
+import {
+  TIME_RANGE_START,
+  WINDOW_PERIOD,
+  TIME_RANGE_STOP,
+} from 'src/shared/constants'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, tags} = builderConfig
@@ -35,7 +39,7 @@ function buildQueryHelper(
   const fnCall = fn ? formatFunctionCall(fn) : ''
 
   const query = `from(bucket: "${bucket}")
-  |> range(start: ${TIME_RANGE_START})${tagFilterCall}${fnCall}`
+  |> range(start: ${TIME_RANGE_START}, stop: ${TIME_RANGE_STOP})${tagFilterCall}${fnCall}`
 
   return query
 }

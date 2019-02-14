@@ -11,7 +11,7 @@ describe('buildQuery', () => {
     }
 
     const expected = `from(bucket: "b0")
-  |> range(start: timeRangeStart)
+  |> range(start: timeRangeStart, stop: timeRangeStop)
   |> filter(fn: (r) => r._measurement == "m0")`
 
     const actual = buildQuery(config)
@@ -30,7 +30,7 @@ describe('buildQuery', () => {
     }
 
     const expected = `from(bucket: "b0")
-  |> range(start: timeRangeStart)
+  |> range(start: timeRangeStart, stop: timeRangeStop)
   |> filter(fn: (r) => r._measurement == "m0" or r._measurement == "m1")
   |> filter(fn: (r) => r._field == "f0" or r._field == "f1")`
 
@@ -47,7 +47,7 @@ describe('buildQuery', () => {
     }
 
     const expected = `from(bucket: "b0")
-  |> range(start: timeRangeStart)
+  |> range(start: timeRangeStart, stop: timeRangeStop)
   |> filter(fn: (r) => r._measurement == "m0")
   |> window(period: windowPeriod)
   |> mean()
@@ -55,7 +55,7 @@ describe('buildQuery', () => {
   |> yield(name: "mean")
 
 from(bucket: "b0")
-  |> range(start: timeRangeStart)
+  |> range(start: timeRangeStart, stop: timeRangeStop)
   |> filter(fn: (r) => r._measurement == "m0")
   |> window(period: windowPeriod)
   |> toFloat()
