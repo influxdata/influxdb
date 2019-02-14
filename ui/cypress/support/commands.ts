@@ -6,6 +6,7 @@ declare namespace Cypress {
     flush: typeof flush
     getByDataTest: typeof getByDataTest
     getByInputName: typeof getByInputName
+    getByTitle: typeof getByTitle
   }
 }
 
@@ -58,9 +59,14 @@ const getByInputName = (name: string): Cypress.Chainable => {
   return cy.get(`input[name=${name}]`)
 }
 
+const getByTitle = (name: string): Cypress.Chainable => {
+  return cy.get(`[title=${name}]`)
+}
+
 // getters
 Cypress.Commands.add('getByDataTest', getByDataTest)
 Cypress.Commands.add('getByInputName', getByInputName)
+Cypress.Commands.add('getByTitle', getByTitle)
 
 // auth flow
 Cypress.Commands.add('signin', signin)
