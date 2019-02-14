@@ -46,7 +46,9 @@ export const bin = (
     xColType === ColumnType.Numeric || xColType === ColumnType.Temporal
   )
 
-  const bins = createBins(xCol, binCount)
+  const domain = extent(xCol)
+  const resolvedBinCount = binCount || thresholdSturges(xCol)
+  const bins = createBins(domain, resolvedBinCount)
 
   // A group is the set of key-value pairs that a row takes on for the column
   // names specified in `groupColKeys`. The group key is a hashable
@@ -55,13 +57,19 @@ export const bin = (
 
   // Count x values by bin and group
   for (let i = 0; i < xCol.length; i++) {
-    const xDatum = xCol[i]
+    const x = xCol[i]
     const group = getGroup(table, groupColKeys, i)
     const groupKey = getGroupKey(Object.values(group))
+    const xPercentage = (x - domain[0]) / (domain[1] - domain[0])
 
-    const bin = bins.find(
-      (b, i) => (xDatum < b.max && xDatum >= b.min) || i === bins.length - 1
-    )
+    let binIndex = Math.floor(xPercentage * resolvedBinCount)
+
+    if (binIndex === bins.length) {
+      // Special case: the maximum value should be clamped to the last bin
+      binIndex = bins.length - 1
+    }
+
+    const bin = bins[binIndex]
 
     groupsByGroupKey[groupKey] = group
 
@@ -126,15 +134,9 @@ export const bin = (
 }
 
 const createBins = (
-  col: number[],
+  domain: number[],
   binCount: number
 ): Array<{max: number; min: number; values: {}}> => {
-  if (!binCount) {
-    binCount = thresholdSturges(col)
-  }
-
-  const domain = extent(col)
-
   if (domain[0] === domain[1]) {
     // Widen domains of zero width by an arbitrary amount so that they can be
     // divided into bins
@@ -146,7 +148,8 @@ const createBins = (
   const binMinimums = range(domain[0], domain[1], binWidth)
 
   const bins = binMinimums.map((min, i) => {
-    const max = i !== binMinimums.length - 1 ? binMinimums[i + 1] : domain[1]
+    const isLastBin = i === binMinimums.length - 1
+    const max = isLastBin ? domain[1] : binMinimums[i + 1]
 
     return {min, max, values: {}}
   })
