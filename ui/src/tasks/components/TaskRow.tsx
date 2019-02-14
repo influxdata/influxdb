@@ -13,6 +13,7 @@ import {
   ComponentSize,
   ComponentColor,
 } from '@influxdata/clockface'
+import EditableName from 'src/shared/components/EditableName'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
@@ -27,7 +28,6 @@ interface Task extends TaskAPI {
 
 // Constants
 import {IconFont} from 'src/clockface/types/index'
-import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   task: Task
@@ -70,12 +70,12 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
         <IndexList.Cell>{task.latestCompleted}</IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
-            <Button
+            {/* <Button
               size={ComponentSize.ExtraSmall}
               color={ComponentColor.Default}
               text="View Runs"
               onClick={this.handleViewRuns}
-            />
+            /> */}
             <Button
               size={ComponentSize.ExtraSmall}
               text="Export"
@@ -125,10 +125,10 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleViewRuns = () => {
-    const {router, task} = this.props
-    router.push(`tasks/${task.id}/runs`)
-  }
+  // private handleViewRuns = () => {
+  //   const {router, task} = this.props
+  //   router.push(`tasks/${task.id}/runs`)
+  // }
 
   private handleUpdateTask = (name: string) => {
     const {onUpdate, task} = this.props
