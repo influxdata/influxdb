@@ -4,19 +4,15 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {
-  Button,
-  ComponentColor,
-  Alignment,
-  ComponentSize,
   Stack,
-} from '@influxdata/clockface'
-import {
-  ComponentSpacer,
+  Button,
+  Alignment,
   SlideToggle,
-  IndexList,
-  ConfirmationButton,
-  Label,
-} from 'src/clockface'
+  ComponentSize,
+  ComponentColor,
+  ComponentSpacer,
+} from '@influxdata/clockface'
+import {IndexList, ConfirmationButton, Label} from 'src/clockface'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'

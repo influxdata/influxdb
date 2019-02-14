@@ -5,14 +5,14 @@ import classnames from 'classnames'
 
 // Components
 import {
-  Radio,
+  Stack,
+  Alignment,
+  ButtonShape,
   SlideToggle,
   ComponentSize,
   ComponentSpacer,
-  ButtonShape,
-  Stack,
-  Alignment,
-} from 'src/clockface'
+} from '@influxdata/clockface'
+import {Radio} from 'src/clockface'
 import NoteEditorText from 'src/dashboards/components/NoteEditorText'
 import NoteEditorPreview from 'src/dashboards/components/NoteEditorPreview'
 
