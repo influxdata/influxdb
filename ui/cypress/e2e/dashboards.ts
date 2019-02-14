@@ -1,8 +1,8 @@
 describe('Dashboards', () => {
   beforeEach(() => {
-    // cy.flush() TODO: temporarily commented out until inmem data store is fixed
+    cy.flush()
 
-    cy.tempSignin()
+    cy.signin()
 
     cy.visit('/dashboards')
   })

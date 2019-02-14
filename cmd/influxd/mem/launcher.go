@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
 	"github.com/influxdata/influxdb/proto"
@@ -61,7 +62,7 @@ type Launcher struct {
 	protosPath      string
 	secretStore     string
 
-	svc    *inmem.Service
+	svc    *kv.Service
 	engine *storage.Engine
 
 	queryController *pcontrol.Controller
@@ -265,7 +266,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	tracer.IDGenerator = snowflake.NewIDGenerator()
 	opentracing.SetGlobalTracer(tracer)
 
-	m.svc = inmem.NewService()
+	kvstore := inmem.NewKVStore()
+
+	m.svc = kv.NewService(kvstore)
+
+	if err := m.svc.Initialize(context.TODO()); err != nil {
+		return err
+	}
 
 	m.reg = prom.NewRegistry()
 	m.reg.WithLogger(m.logger)
@@ -278,7 +285,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		bucketSvc    platform.BucketService        = m.svc
 		sourceSvc    platform.SourceService        = m.svc
 		sessionSvc   platform.SessionService       = m.svc
-		basicAuthSvc platform.BasicAuthService     = m.svc
+		passwordsSvc platform.PasswordsService     = m.svc
 		dashboardSvc platform.DashboardService     = m.svc
 		/*
 			dashboardLogSvc  platform.DashboardOperationLogService    = m.svc
@@ -435,7 +442,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		*/
 		SourceService:             sourceSvc,
 		MacroService:              macroSvc,
-		BasicAuthService:          basicAuthSvc,
+		PasswordsService:          passwordsSvc,
 		OnboardingService:         onboardingSvc,
 		ProxyQueryService:         storageQueryService,
 		TaskService:               taskSvc,
@@ -458,7 +465,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	h.Logger = httpLogger
 	h.Tracer = opentracing.GlobalTracer()
 
-	m.httpServer.Handler = http.DebugFlush(h, m.svc)
+	m.httpServer.Handler = http.DebugFlush(h, &Flusher{kvstore: kvstore, kvservice: m.svc})
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
 	if err != nil {
@@ -483,4 +490,17 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}(httpLogger)
 
 	return nil
+}
+
+type Flusher struct {
+	kvstore   *inmem.KVStore
+	kvservice *kv.Service
+}
+
+func (f *Flusher) Flush() {
+	f.kvstore.Flush()
+	err := f.kvservice.Initialize(context.Background())
+	if err != nil {
+		panic(err)
+	}
 }

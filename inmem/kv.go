@@ -23,6 +23,13 @@ func NewKVStore() *KVStore {
 	}
 }
 
+func (s *KVStore) Flush() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.buckets = map[string]*Bucket{}
+}
+
 // View opens up a transaction with a read lock.
 func (s *KVStore) View(fn func(kv.Tx) error) error {
 	s.mu.RLock()

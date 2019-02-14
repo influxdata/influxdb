@@ -65,8 +65,9 @@ type Launcher struct {
 	protosPath      string
 	secretStore     string
 
-	kvService *kv.Service
-	engine    *storage.Engine
+	kvService  *kv.Service
+	engine     *storage.Engine
+	boltClient *bolt.Client
 
 	queryController *pcontrol.Controller
 
