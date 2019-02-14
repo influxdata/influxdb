@@ -48,7 +48,7 @@ import {
   ScraperTargetResponse,
 } from '@influxdata/influx'
 import * as NotificationsActions from 'src/types/actions/notifications'
-import {Macro as Variable} from '@influxdata/influx'
+import {Variable} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

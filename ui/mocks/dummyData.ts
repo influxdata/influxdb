@@ -20,7 +20,7 @@ import {
   TelegrafPluginInputSwap,
   Task as TaskApi,
   Organization,
-  Macro as Variable,
+  Variable,
 } from '@influxdata/influx'
 
 export const links: Links = {

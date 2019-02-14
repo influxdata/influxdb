@@ -10,7 +10,7 @@ import {
 } from 'src/clockface'
 
 // Types
-import {Macro as Variable} from '@influxdata/influx'
+import {Variable} from '@influxdata/influx'
 
 interface Props {
   variable: Variable

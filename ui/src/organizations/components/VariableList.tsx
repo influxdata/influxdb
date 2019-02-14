@@ -6,7 +6,7 @@ import {IndexList} from 'src/clockface'
 import VariableRow from 'src/organizations/components/VariableRow'
 
 // Types
-import {Macro as Variable} from '@influxdata/influx'
+import {Variable} from '@influxdata/influx'
 
 interface Props {
   variables: Variable[]
