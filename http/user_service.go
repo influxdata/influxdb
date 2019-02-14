@@ -306,7 +306,7 @@ type usersResponse struct {
 	Users []*userResponse   `json:"users"`
 }
 
-func (us usersResponse) Toinfluxdb() []*influxdb.User {
+func (us usersResponse) ToInfluxdb() []*influxdb.User {
 	users := make([]*influxdb.User, len(us.Users))
 	for i := range us.Users {
 		users[i] = &us.Users[i].User
@@ -580,7 +580,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter influxdb.UserFilter,
 		return nil, 0, err
 	}
 
-	us := r.Toinfluxdb()
+	us := r.ToInfluxdb()
 	return us, len(us), nil
 }
 
