@@ -8,7 +8,7 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
     alignment="left"
     revealOnHover={false}
   >
-    <ComponentSpacer
+    <Component
       align="right"
       stackChildren="columns"
     >
@@ -25,7 +25,7 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
         onEdit={[Function]}
         resourceName="this resource"
       />
-    </ComponentSpacer>
+    </Component>
   </IndexListRowCell>
   <IndexListRowCell
     alignment="left"
@@ -42,7 +42,7 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
     alignment="left"
     revealOnHover={false}
   >
-    <SlideToggle
+    <t
       active={true}
       color="primary"
       disabled={false}
@@ -65,7 +65,7 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
     alignment="right"
     revealOnHover={true}
   >
-    <ComponentSpacer
+    <Component
       align="right"
     >
       <t
@@ -138,7 +138,7 @@ from(bucket: \\"inbucket\\")
         status="default"
         text="Delete"
       />
-    </ComponentSpacer>
+    </Component>
   </IndexListRowCell>
 </IndexListRow>
 `;
