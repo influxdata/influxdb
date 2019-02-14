@@ -4,13 +4,14 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import {Context, IconFont, ComponentColor} from 'src/clockface'
+import {Context} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
 import {openNoteEditor} from 'src/dashboards/actions/v2/notes'
 
 // Types
+import {IconFont, ComponentColor} from '@influxdata/clockface'
 import {Cell, View, ViewType} from 'src/types/v2'
 import {NoteEditorMode} from 'src/types/v2/dashboards'
 

@@ -17,7 +17,7 @@ import {
   ComponentColor,
   ComponentSize,
   IconFont,
-} from 'src/clockface/types'
+} from '@influxdata/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

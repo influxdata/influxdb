@@ -4,11 +4,11 @@ import {Link} from 'react-router'
 
 // Components
 import {
+  Stack,
   Button,
   IconFont,
   ComponentSize,
   ComponentColor,
-  Stack,
 } from '@influxdata/clockface'
 import {
   IndexList,

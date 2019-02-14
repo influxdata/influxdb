@@ -3,15 +3,11 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {
-  Dropdown,
-  DropdownMode,
-  IconFont,
-  ComponentColor,
-  ComponentSize,
-} from 'src/clockface'
+import {Dropdown, DropdownMode} from 'src/clockface'
 
 // Types
+import {IconFont, ComponentColor, ComponentSize} from '@influxdata/clockface'
+
 enum CreateOption {
   New = 'New Dashboard',
   Import = 'Import Dashboard',

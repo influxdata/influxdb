@@ -6,7 +6,7 @@ import classnames from 'classnames'
 import RadioButton from 'src/clockface/components/radio_buttons/RadioButton'
 
 // Types
-import {ComponentColor, ComponentSize, ButtonShape} from 'src/clockface/types'
+import {ComponentColor, ComponentSize, ButtonShape} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

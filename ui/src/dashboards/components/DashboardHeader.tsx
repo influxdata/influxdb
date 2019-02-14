@@ -10,9 +10,9 @@ import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {
   Button,
+  IconFont,
   ButtonShape,
   ComponentColor,
-  IconFont,
 } from '@influxdata/clockface'
 
 // Constants

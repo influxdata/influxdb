@@ -2,20 +2,18 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {
-  ComponentSize,
-  ButtonShape,
-  IndexList,
-  ConfirmationButton,
-  Alignment,
-  Context,
-  ComponentColor,
-} from 'src/clockface'
+import {IndexList, ConfirmationButton, Context} from 'src/clockface'
 
 // Constants
 import {DEFAULT_BUCKET_NAME} from 'src/dashboards/constants'
 
 // Types
+import {
+  Alignment,
+  ButtonShape,
+  ComponentSize,
+  ComponentColor,
+} from '@influxdata/clockface'
 import {Bucket} from '@influxdata/influx'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import EditableName from 'src/shared/components/EditableName'

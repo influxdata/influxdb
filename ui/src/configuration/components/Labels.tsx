@@ -6,9 +6,9 @@ import {connect} from 'react-redux'
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import {
-  ComponentSize,
-  IconFont,
   Button,
+  IconFont,
+  ComponentSize,
   ComponentColor,
 } from '@influxdata/clockface'
 import {EmptyState, Input, InputType} from 'src/clockface'
