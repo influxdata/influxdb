@@ -3734,7 +3734,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TaskUpdateRequest"
+                $ref: "#/components/schemas/Task"
         default:
           description: unexpected error
           content:
