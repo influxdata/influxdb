@@ -20,7 +20,7 @@ import {
   TelegrafPluginInputSwap,
   Task as TaskApi,
   Organization,
-  Macro,
+  Macro as Variable,
 } from '@influxdata/influx'
 
 export const links: Links = {
@@ -30,7 +30,7 @@ export const links: Links = {
   external: {
     statusFeed: 'https://www.influxdata.com/feed/json',
   },
-  macros: '/api/v2/macros',
+  variables: '/api/v2/variables',
   me: '/api/v2/me',
   orgs: '/api/v2/orgs',
   query: {
@@ -308,7 +308,7 @@ export const tasks: Task[] = [
   },
 ]
 
-export const variables: Macro[] = [
+export const variables: Variable[] = [
   {
     name: 'a little variable',
     orgID: '0',

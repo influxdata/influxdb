@@ -14,12 +14,12 @@ import (
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 )
 
-var macroCmpOptions = cmp.Options{
+var variableCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []*influxdb.Macro) []*influxdb.Macro {
-		out := append([]*influxdb.Macro(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*influxdb.Variable) []*influxdb.Variable {
+		out := append([]*influxdb.Variable(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID.String() > out[j].ID.String()
 		})
@@ -27,9 +27,9 @@ var macroCmpOptions = cmp.Options{
 	}),
 }
 
-func TestMacroService_FindMacroByID(t *testing.T) {
+func TestVariableService_FindVariableByID(t *testing.T) {
 	type fields struct {
-		MacroService influxdb.MacroService
+		VariableService influxdb.VariableService
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -48,9 +48,9 @@ func TestMacroService_FindMacroByID(t *testing.T) {
 		{
 			name: "authorized to access id",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacroByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             id,
 							OrganizationID: 10,
 						}, nil
@@ -61,7 +61,7 @@ func TestMacroService_FindMacroByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.MacrosResourceType,
+						Type: influxdb.VariablesResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
@@ -74,9 +74,9 @@ func TestMacroService_FindMacroByID(t *testing.T) {
 		{
 			name: "unauthorized to access id",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacroByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             id,
 							OrganizationID: 10,
 						}, nil
@@ -87,7 +87,7 @@ func TestMacroService_FindMacroByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.MacrosResourceType,
+						Type: influxdb.VariablesResourceType,
 						ID:   influxdbtesting.IDPtr(2),
 					},
 				},
@@ -95,7 +95,7 @@ func TestMacroService_FindMacroByID(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a/macros/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/000000000000000a/variables/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -104,27 +104,27 @@ func TestMacroService_FindMacroByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewMacroService(tt.fields.MacroService)
+			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			_, err := s.FindMacroByID(ctx, tt.args.id)
+			_, err := s.FindVariableByID(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestMacroService_FindMacros(t *testing.T) {
+func TestVariableService_FindVariables(t *testing.T) {
 	type fields struct {
-		MacroService influxdb.MacroService
+		VariableService influxdb.VariableService
 	}
 	type args struct {
 		permission influxdb.Permission
 	}
 	type wants struct {
 		err    error
-		macros []*influxdb.Macro
+		variables []*influxdb.Variable
 	}
 
 	tests := []struct {
@@ -134,11 +134,11 @@ func TestMacroService_FindMacros(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to see all macros",
+			name: "authorized to see all variables",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacrosF: func(ctx context.Context, filter influxdb.MacroFilter, opt ...influxdb.FindOptions) ([]*influxdb.Macro, error) {
-						return []*influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariablesF: func(ctx context.Context, filter influxdb.VariableFilter, opt ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
+						return []*influxdb.Variable{
 							{
 								ID:             1,
 								OrganizationID: 10,
@@ -159,12 +159,12 @@ func TestMacroService_FindMacros(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.MacrosResourceType,
+						Type: influxdb.VariablesResourceType,
 					},
 				},
 			},
 			wants: wants{
-				macros: []*influxdb.Macro{
+				variables: []*influxdb.Variable{
 					{
 						ID:             1,
 						OrganizationID: 10,
@@ -181,11 +181,11 @@ func TestMacroService_FindMacros(t *testing.T) {
 			},
 		},
 		{
-			name: "authorized to access a single orgs macros",
+			name: "authorized to access a single orgs variables",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacrosF: func(ctx context.Context, filter influxdb.MacroFilter, opt ...influxdb.FindOptions) ([]*influxdb.Macro, error) {
-						return []*influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariablesF: func(ctx context.Context, filter influxdb.VariableFilter, opt ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
+						return []*influxdb.Variable{
 							{
 								ID:             1,
 								OrganizationID: 10,
@@ -206,13 +206,13 @@ func TestMacroService_FindMacros(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.MacrosResourceType,
+						Type:  influxdb.VariablesResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
 			wants: wants{
-				macros: []*influxdb.Macro{
+				variables: []*influxdb.Variable{
 					{
 						ID:             1,
 						OrganizationID: 10,
@@ -228,24 +228,24 @@ func TestMacroService_FindMacros(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewMacroService(tt.fields.MacroService)
+			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			macros, err := s.FindMacros(ctx, influxdb.MacroFilter{})
+			variables, err := s.FindVariables(ctx, influxdb.VariableFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
-			if diff := cmp.Diff(macros, tt.wants.macros, macroCmpOptions...); diff != "" {
-				t.Errorf("macros are different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(variables, tt.wants.variables, variableCmpOptions...); diff != "" {
+				t.Errorf("variables are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-func TestMacroService_UpdateMacro(t *testing.T) {
+func TestVariableService_UpdateVariable(t *testing.T) {
 	type fields struct {
-		MacroService influxdb.MacroService
+		VariableService influxdb.VariableService
 	}
 	type args struct {
 		id          influxdb.ID
@@ -262,17 +262,17 @@ func TestMacroService_UpdateMacro(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to update macro",
+			name: "authorized to update variable",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacroByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateMacroF: func(ctx context.Context, id influxdb.ID, upd *influxdb.MacroUpdate) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+					UpdateVariableF: func(ctx context.Context, id influxdb.ID, upd *influxdb.VariableUpdate) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
@@ -285,14 +285,14 @@ func TestMacroService_UpdateMacro(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -303,17 +303,17 @@ func TestMacroService_UpdateMacro(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to update macro",
+			name: "unauthorized to update variable",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacroByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateMacroF: func(ctx context.Context, id influxdb.ID, upd *influxdb.MacroUpdate) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+					UpdateVariableF: func(ctx context.Context, id influxdb.ID, upd *influxdb.VariableUpdate) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
@@ -326,7 +326,7 @@ func TestMacroService_UpdateMacro(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -334,7 +334,7 @@ func TestMacroService_UpdateMacro(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/macros/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a/variables/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -343,23 +343,23 @@ func TestMacroService_UpdateMacro(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewMacroService(tt.fields.MacroService)
+			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
 
-			_, err := s.UpdateMacro(ctx, tt.args.id, &influxdb.MacroUpdate{})
+			_, err := s.UpdateVariable(ctx, tt.args.id, &influxdb.VariableUpdate{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestMacroService_ReplaceMacro(t *testing.T) {
+func TestVariableService_ReplaceVariable(t *testing.T) {
 	type fields struct {
-		MacroService influxdb.MacroService
+		VariableService influxdb.VariableService
 	}
 	type args struct {
-		macro       influxdb.Macro
+		variable       influxdb.Variable
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -373,22 +373,22 @@ func TestMacroService_ReplaceMacro(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to replace macro",
+			name: "authorized to replace variable",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacroByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					ReplaceMacroF: func(ctx context.Context, m *influxdb.Macro) error {
+					ReplaceVariableF: func(ctx context.Context, m *influxdb.Variable) error {
 						return nil
 					},
 				},
 			},
 			args: args{
-				macro: influxdb.Macro{
+				variable: influxdb.Variable{
 					ID:             1,
 					OrganizationID: 10,
 					Name:           "replace",
@@ -397,14 +397,14 @@ func TestMacroService_ReplaceMacro(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -415,22 +415,22 @@ func TestMacroService_ReplaceMacro(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to replace macro",
+			name: "unauthorized to replace variable",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacroByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					ReplaceMacroF: func(ctx context.Context, m *influxdb.Macro) error {
+					ReplaceVariableF: func(ctx context.Context, m *influxdb.Variable) error {
 						return nil
 					},
 				},
 			},
 			args: args{
-				macro: influxdb.Macro{
+				variable: influxdb.Variable{
 					ID:             1,
 					OrganizationID: 10,
 				},
@@ -438,7 +438,7 @@ func TestMacroService_ReplaceMacro(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -446,7 +446,7 @@ func TestMacroService_ReplaceMacro(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/macros/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a/variables/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -455,20 +455,20 @@ func TestMacroService_ReplaceMacro(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewMacroService(tt.fields.MacroService)
+			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
 
-			err := s.ReplaceMacro(ctx, &tt.args.macro)
+			err := s.ReplaceVariable(ctx, &tt.args.variable)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestMacroService_DeleteMacro(t *testing.T) {
+func TestVariableService_DeleteVariable(t *testing.T) {
 	type fields struct {
-		MacroService influxdb.MacroService
+		VariableService influxdb.VariableService
 	}
 	type args struct {
 		id          influxdb.ID
@@ -485,16 +485,16 @@ func TestMacroService_DeleteMacro(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to delete macro",
+			name: "authorized to delete variable",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacroByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteMacroF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteVariableF: func(ctx context.Context, id influxdb.ID) error {
 						return nil
 					},
 				},
@@ -505,14 +505,14 @@ func TestMacroService_DeleteMacro(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -523,16 +523,16 @@ func TestMacroService_DeleteMacro(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to delete macro",
+			name: "unauthorized to delete variable",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					FindMacroByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Macro, error) {
-						return &influxdb.Macro{
+				VariableService: &mock.VariableService{
+					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteMacroF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteVariableF: func(ctx context.Context, id influxdb.ID) error {
 						return nil
 					},
 				},
@@ -543,7 +543,7 @@ func TestMacroService_DeleteMacro(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.MacrosResourceType,
+							Type: influxdb.VariablesResourceType,
 							ID:   influxdbtesting.IDPtr(1),
 						},
 					},
@@ -551,7 +551,7 @@ func TestMacroService_DeleteMacro(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/macros/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a/variables/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -560,20 +560,20 @@ func TestMacroService_DeleteMacro(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewMacroService(tt.fields.MacroService)
+			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
 
-			err := s.DeleteMacro(ctx, tt.args.id)
+			err := s.DeleteVariable(ctx, tt.args.id)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func TestMacroService_CreateMacro(t *testing.T) {
+func TestVariableService_CreateVariable(t *testing.T) {
 	type fields struct {
-		MacroService influxdb.MacroService
+		VariableService influxdb.VariableService
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -590,10 +590,10 @@ func TestMacroService_CreateMacro(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to create macro",
+			name: "authorized to create variable",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					CreateMacroF: func(ctx context.Context, o *influxdb.Macro) error {
+				VariableService: &mock.VariableService{
+					CreateVariableF: func(ctx context.Context, o *influxdb.Variable) error {
 						return nil
 					},
 				},
@@ -603,7 +603,7 @@ func TestMacroService_CreateMacro(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type:  influxdb.MacrosResourceType,
+						Type:  influxdb.VariablesResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
@@ -613,10 +613,10 @@ func TestMacroService_CreateMacro(t *testing.T) {
 			},
 		},
 		{
-			name: "unauthorized to create macro",
+			name: "unauthorized to create variable",
 			fields: fields{
-				MacroService: &mock.MacroService{
-					CreateMacroF: func(ctx context.Context, o *influxdb.Macro) error {
+				VariableService: &mock.VariableService{
+					CreateVariableF: func(ctx context.Context, o *influxdb.Variable) error {
 						return nil
 					},
 				},
@@ -626,14 +626,14 @@ func TestMacroService_CreateMacro(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type: influxdb.MacrosResourceType,
+						Type: influxdb.VariablesResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/macros is unauthorized",
+					Msg:  "write:orgs/000000000000000a/variables is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -642,12 +642,12 @@ func TestMacroService_CreateMacro(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewMacroService(tt.fields.MacroService)
+			s := authorizer.NewVariableService(tt.fields.VariableService)
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateMacro(ctx, &influxdb.Macro{OrganizationID: tt.args.orgID})
+			err := s.CreateVariable(ctx, &influxdb.Variable{OrganizationID: tt.args.orgID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

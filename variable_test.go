@@ -10,15 +10,15 @@ import (
 )
 
 var (
-	macroTestID    = "debac1e0deadbeef"
-	macroTestOrgID = "deadbeefdeadbeef"
+	variableTestID    = "debac1e0deadbeef"
+	variableTestOrgID = "deadbeefdeadbeef"
 )
 
-func TestMacro_UnmarshalJSON(t *testing.T) {
+func TestVariable_UnmarshalJSON(t *testing.T) {
 	tests := []struct {
 		name string
 		json string
-		want platform.Macro
+		want platform.Variable
 	}{
 		{
 			name: "with organization",
@@ -34,14 +34,14 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
   }
 }
 `,
-			want: platform.Macro{
-				ID:             platformtesting.MustIDBase16(macroTestID),
-				OrganizationID: platformtesting.MustIDBase16(macroTestOrgID),
+			want: platform.Variable{
+				ID:             platformtesting.MustIDBase16(variableTestID),
+				OrganizationID: platformtesting.MustIDBase16(variableTestOrgID),
 				Name:           "howdy",
 				Selected:       make([]string, 0),
-				Arguments: &platform.MacroArguments{
+				Arguments: &platform.VariableArguments{
 					Type:   "constant",
-					Values: platform.MacroConstantValues{"a", "b", "c", "d"},
+					Values: platform.VariableConstantValues{"a", "b", "c", "d"},
 				},
 			},
 		},
@@ -58,13 +58,13 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
   }
 }
 `,
-			want: platform.Macro{
-				ID:       platformtesting.MustIDBase16(macroTestID),
+			want: platform.Variable{
+				ID:       platformtesting.MustIDBase16(variableTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
-				Arguments: &platform.MacroArguments{
+				Arguments: &platform.VariableArguments{
 					Type:   "constant",
-					Values: platform.MacroConstantValues{"a", "b", "c"},
+					Values: platform.VariableConstantValues{"a", "b", "c"},
 				},
 			},
 		},
@@ -84,13 +84,13 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
   }
 }
 `,
-			want: platform.Macro{
-				ID:       platformtesting.MustIDBase16(macroTestID),
+			want: platform.Variable{
+				ID:       platformtesting.MustIDBase16(variableTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
-				Arguments: &platform.MacroArguments{
+				Arguments: &platform.VariableArguments{
 					Type:   "map",
-					Values: platform.MacroMapValues{"a": "A", "b": "B"},
+					Values: platform.VariableMapValues{"a": "A", "b": "B"},
 				},
 			},
 		},
@@ -110,13 +110,13 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
   }
 }
 `,
-			want: platform.Macro{
-				ID:       platformtesting.MustIDBase16(macroTestID),
+			want: platform.Variable{
+				ID:       platformtesting.MustIDBase16(variableTestID),
 				Name:     "howdy",
 				Selected: make([]string, 0),
-				Arguments: &platform.MacroArguments{
+				Arguments: &platform.VariableArguments{
 					Type: "query",
-					Values: platform.MacroQueryValues{
+					Values: platform.VariableQueryValues{
 						Query:    "howdy",
 						Language: "flux",
 					},
@@ -127,7 +127,7 @@ func TestMacro_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var m platform.Macro
+			var m platform.Variable
 
 			err := json.Unmarshal([]byte(tt.json), &m)
 			if err != nil {

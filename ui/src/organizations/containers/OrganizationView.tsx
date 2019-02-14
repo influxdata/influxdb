@@ -19,7 +19,7 @@ const getBuckets = async (org: Organization): Promise<Bucket[]> => {
   return client.buckets.getAllByOrg(org.name)
 }
 
-const getVariables = async (org: Organization): Promise<Macro[]> => {
+const getVariables = async (org: Organization): Promise<Variable[]> => {
   return await client.variables.getAllByOrg(org.name)
 }
 
@@ -48,7 +48,7 @@ import {
   ScraperTargetResponse,
 } from '@influxdata/influx'
 import * as NotificationsActions from 'src/types/actions/notifications'
-import {Macro} from '@influxdata/influx'
+import {Macro as Variable} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -193,7 +193,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="variables_tab"
                 title="Variables"
               >
-                <GetOrgResources<Macro[]>
+                <GetOrgResources<Variable[]>
                   organization={org}
                   fetcher={getVariables}
                 >

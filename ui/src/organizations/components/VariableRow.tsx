@@ -10,11 +10,11 @@ import {
 } from 'src/clockface'
 
 // Types
-import {Macro} from '@influxdata/influx'
+import {Macro as Variable} from '@influxdata/influx'
 
 interface Props {
-  variable: Macro
-  onDeleteVariable: (variable: Macro) => void
+  variable: Variable
+  onDeleteVariable: (variable: Variable) => void
 }
 
 export default class VariableRow extends PureComponent<Props> {

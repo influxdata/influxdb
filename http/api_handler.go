@@ -24,7 +24,7 @@ type APIHandler struct {
 	ChronografHandler    *ChronografHandler
 	ScraperHandler       *ScraperHandler
 	SourceHandler        *SourceHandler
-	MacroHandler         *MacroHandler
+	VariableHandler      *VariableHandler
 	TaskHandler          *TaskHandler
 	TelegrafHandler      *TelegrafHandler
 	QueryHandler         *FluxHandler
@@ -58,7 +58,7 @@ type APIBackend struct {
 	UserOperationLogService         influxdb.UserOperationLogService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
 	SourceService                   influxdb.SourceService
-	MacroService                    influxdb.MacroService
+	VariableService                 influxdb.VariableService
 	BasicAuthService                influxdb.BasicAuthService
 	OnboardingService               influxdb.OnboardingService
 	ProxyQueryService               query.ProxyQueryService
@@ -99,9 +99,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	dashboardBackend.DashboardService = authorizer.NewDashboardService(b.DashboardService)
 	h.DashboardHandler = NewDashboardHandler(dashboardBackend)
 
-	macroBackend := NewMacroBackend(b)
-	macroBackend.MacroService = authorizer.NewMacroService(b.MacroService)
-	h.MacroHandler = NewMacroHandler(macroBackend)
+	variableBackend := NewVariableBackend(b)
+	variableBackend.VariableService = authorizer.NewVariableService(b.VariableService)
+	h.VariableHandler = NewVariableHandler(variableBackend)
 
 	authorizationBackend := NewAuthorizationBackend(b)
 	authorizationBackend.AuthorizationService = authorizer.NewAuthorizationService(b.AuthorizationService)
@@ -154,11 +154,11 @@ var apiLinks = map[string]interface{}{
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
 	},
-	"labels": "/api/v2/labels",
-	"macros": "/api/v2/macros",
-	"me":     "/api/v2/me",
-	"orgs":   "/api/v2/orgs",
-	"protos": "/api/v2/protos",
+	"labels":    "/api/v2/labels",
+	"variables": "/api/v2/variables",
+	"me":        "/api/v2/me",
+	"orgs":      "/api/v2/orgs",
+	"protos":    "/api/v2/protos",
 	"query": map[string]string{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
@@ -279,8 +279,8 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/api/v2/macros") {
-		h.MacroHandler.ServeHTTP(w, r)
+	if strings.HasPrefix(r.URL.Path, "/api/v2/variables") {
+		h.VariableHandler.ServeHTTP(w, r)
 		return
 	}
 

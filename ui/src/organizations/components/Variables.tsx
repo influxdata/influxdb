@@ -22,7 +22,7 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 // Types
 import {OverlayState} from 'src/types'
 import {client} from 'src/utils/api'
-import {Macro} from '@influxdata/influx'
+import {Macro as Variable} from '@influxdata/influx'
 import {
   addVariableFailed,
   deleteVariableFailed,
@@ -32,7 +32,7 @@ import {
 
 interface Props {
   onChange: () => void
-  variables: Macro[]
+  variables: Variable[]
   orgName: string
   orgID: string
   notify: NotificationsActions.PublishNotificationActionCreator
@@ -74,7 +74,7 @@ export default class Variables extends PureComponent<Props, State> {
             onClick={this.handleOpenModal}
           />
         </TabbedPageHeader>
-        <FilterList<Macro>
+        <FilterList<Variable>
           searchTerm={searchTerm}
           searchKeys={['name', 'ruleString']}
           list={variables}
@@ -113,7 +113,7 @@ export default class Variables extends PureComponent<Props, State> {
     this.setState({overlayState: OverlayState.Closed})
   }
 
-  private handleCreateVariable = async (variable: Macro): Promise<void> => {
+  private handleCreateVariable = async (variable: Variable): Promise<void> => {
     const {notify, onChange} = this.props
 
     try {
@@ -127,7 +127,7 @@ export default class Variables extends PureComponent<Props, State> {
     this.handleCloseModal()
   }
 
-  private handleDeleteVariable = async (variable: Macro): Promise<void> => {
+  private handleDeleteVariable = async (variable: Variable): Promise<void> => {
     const {notify, onChange} = this.props
 
     try {

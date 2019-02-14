@@ -6,12 +6,12 @@ import {IndexList} from 'src/clockface'
 import VariableRow from 'src/organizations/components/VariableRow'
 
 // Types
-import {Macro} from '@influxdata/influx'
+import {Macro as Variable} from '@influxdata/influx'
 
 interface Props {
-  variables: Macro[]
+  variables: Variable[]
   emptyState: JSX.Element
-  onDeleteVariable: (variable: Macro) => void
+  onDeleteVariable: (variable: Variable) => void
 }
 
 class VariableList extends PureComponent<Props> {

@@ -20,10 +20,10 @@ import {Button} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Types
-import {Macro} from '@influxdata/influx'
+import {Macro as Variable} from '@influxdata/influx'
 
 interface Props {
-  onCreateVariable: (variable: Macro) => Promise<void>
+  onCreateVariable: (variable: Variable) => Promise<void>
   onCloseModal: () => void
   orgID: string
 }

@@ -20,7 +20,7 @@ type Service struct {
 	userKV                sync.Map
 	dashboardKV           sync.Map
 	viewKV                sync.Map
-	macroKV               sync.Map
+	variableKV            sync.Map
 	dbrpMappingKV         sync.Map
 	userResourceMappingKV sync.Map
 	labelKV               sync.Map

@@ -549,8 +549,8 @@ func (c *Client) FindResourceOrganizationID(ctx context.Context, rt influxdb.Res
 			return influxdb.InvalidID(), err
 		}
 		return r.OrganizationID, nil
-	case influxdb.MacrosResourceType:
-		r, err := c.FindMacroByID(ctx, id)
+	case influxdb.VariablesResourceType:
+		r, err := c.FindVariableByID(ctx, id)
 		if err != nil {
 			return influxdb.InvalidID(), err
 		}

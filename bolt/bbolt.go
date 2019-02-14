@@ -138,8 +138,8 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
-		// Always create Macros bucket.
-		if err := c.initializeMacros(ctx, tx); err != nil {
+		// Always create Variables bucket.
+		if err := c.initializeVariables(ctx, tx); err != nil {
 			return err
 		}
 

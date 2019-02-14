@@ -969,11 +969,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /macros:
+  /variables:
     get:
       tags:
-        - Macros
-      summary: get all macros
+        - Variables
+      summary: get all variables
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: query
@@ -988,11 +988,11 @@ paths:
             type: string
       responses:
         '200':
-          description: all macros for an organization
+          description: all variables for an organization
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Macros"
+                $ref: "#/components/schemas/Variables"
         '400':
           description: invalid request
           content:
@@ -1006,47 +1006,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
-      summary: create a macro
+      summary: create a variable
       tags:
-        - Macros
+        - Variables
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
       requestBody:
-        description: macro to create
+        description: variable to create
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Macro"
+              $ref: "#/components/schemas/Variable"
       responses:
         '201':
-          description: macro created
+          description: variable created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Macro"
+                $ref: "#/components/schemas/Variable"
         default:
           description: internal server error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  '/macros/{macroID}':
+  '/variables/{variableID}':
     delete:
       tags:
-        - Macros
-      summary: delete a macro
+        - Variables
+      summary: delete a variable
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
-          name: macroID
+          name: variableID
           required: true
           schema:
             type: string
-          description: id of the macro
+          description: id of the variable
       responses:
         '204':
-          description: macro deleted
+          description: variable deleted
         default:
           description: internal server error
           content:
@@ -1054,31 +1054,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
-      summary: update a macro
+      summary: update a variable
       tags:
-        - Macros
+        - Variables
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
-          name: macroID
+          name: variableID
           required: true
           schema:
             type: string
-          description: id of the macro
+          description: id of the variable
       requestBody:
-        description: macro update to apply
+        description: variable update to apply
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Macro"
+              $ref: "#/components/schemas/Variable"
       responses:
         '200':
-          description: macro updated
+          description: variable updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Macro"
+                $ref: "#/components/schemas/Variable"
         default:
           description: internal server error
           content:
@@ -1086,31 +1086,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     put:
-      summary: replace a macro
+      summary: replace a variable
       tags:
-        - Macros
+        - Variables
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
-          name: macroID
+          name: variableID
           required: true
           schema:
             type: string
-          description: id of the macro
+          description: id of the variable
       requestBody:
-        description: macro to replace
+        description: variable to replace
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Macro"
+              $ref: "#/components/schemas/Variable"
       responses:
         '200':
-          description: macro updated
+          description: variable updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Macro"
+                $ref: "#/components/schemas/Variable"
         default:
           description: internal server error
           content:
@@ -5205,7 +5205,7 @@ components:
             statusFeed:
               type: string
               format: uri
-        macros:
+        variables:
           type: string
           format: uri
         me:
@@ -5727,7 +5727,7 @@ components:
         type:
           type: string
           enum: ["empty"]
-    ConstantMacroProperties:
+    ConstantVariableProperties:
       properties:
         type:
           type: string
@@ -5736,14 +5736,14 @@ components:
           type: array
           items:
             type: string
-    MapMacroProperties:
+    MapVariableProperties:
       properties:
         type:
           type: string
           enum: ["map"]
         values:
           type: object
-    QueryMacroProperties:
+    QueryVariableProperties:
       properties:
         type:
           type: string
@@ -5755,7 +5755,7 @@ components:
               type: string
             language:
               type: string
-    Macro:
+    Variable:
       type: object
       required:
         - name
@@ -5783,13 +5783,13 @@ components:
         arguments:
           type: object
           oneOf:
-            - $ref: "#/components/schemas/QueryMacroProperties"
-            - $ref: "#/components/schemas/ConstantMacroProperties"
-            - $ref: "#/components/schemas/MapMacroProperties"
-    Macros:
+            - $ref: "#/components/schemas/QueryVariableProperties"
+            - $ref: "#/components/schemas/ConstantVariableProperties"
+            - $ref: "#/components/schemas/MapVariableProperties"
+    Variables:
       type: object
       example:
-        macros:
+        variables:
         - id: '1221432'
           name: ":ok:"
           selected:
@@ -5821,10 +5821,10 @@ components:
             query: 'from(bucket: "foo") |> showMeasurements()'
             language: flux
       properties:
-        macros:
+        variables:
           type: array
           items:
-            $ref: "#/components/schemas/Macro"
+            $ref: "#/components/schemas/Variable"
     View:
       properties:
         links:
