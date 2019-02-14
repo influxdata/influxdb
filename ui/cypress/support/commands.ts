@@ -66,7 +66,7 @@ Cypress.Commands.add('getByInputName', getByInputName)
 Cypress.Commands.add('signin', signin)
 
 // setup
-Cypress.Commands.add('createUser', setupUser)
+Cypress.Commands.add('setupUser', setupUser)
 
 // dashboards
 Cypress.Commands.add('createDashboard', createDashboard)
