@@ -30,7 +30,7 @@ const links: Links = {
   tasks: '/api/v2/tasks',
   users: '/api/v2/users',
   write: '/api/v2/write',
-  macros: '/api/v2/macros',
+  variables: '/api/v2/variables',
   views: '/api/v2/views',
   defaultDashboard: '/v2/dashboards/029d13fda9c5b000',
   me: '/api/v2/me',

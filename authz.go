@@ -111,8 +111,8 @@ const (
 	TelegrafsResourceType = ResourceType("telegrafs") // 6
 	// UsersResourceType gives permissions to one or more users.
 	UsersResourceType = ResourceType("users") // 7
-	// MacrosResourceType gives permission to one or more macros.
-	MacrosResourceType = ResourceType("macros") // 8
+	// VariablesResourceType gives permission to one or more variables.
+	VariablesResourceType = ResourceType("variables") // 8
 	// ScraperResourceType gives permission to one or more scrapers.
 	ScraperResourceType = ResourceType("scrapers") // 9
 	// SecretsResourceType gives permission to one or more secrets.
@@ -133,7 +133,7 @@ var AllResourceTypes = []ResourceType{
 	TasksResourceType,          // 5
 	TelegrafsResourceType,      // 6
 	UsersResourceType,          // 7
-	MacrosResourceType,         // 8
+	VariablesResourceType,      // 8
 	ScraperResourceType,        // 9
 	SecretsResourceType,        // 10
 	LabelsResourceType,         // 11
@@ -148,7 +148,7 @@ var OrgResourceTypes = []ResourceType{
 	TasksResourceType,      // 5
 	TelegrafsResourceType,  // 6
 	UsersResourceType,      // 7
-	MacrosResourceType,     // 8
+	VariablesResourceType,  // 8
 	SecretsResourceType,    // 10
 }
 
@@ -168,7 +168,7 @@ func (t ResourceType) Valid() (err error) {
 	case TelegrafsResourceType: // 5
 	case SourcesResourceType: // 6
 	case UsersResourceType: // 7
-	case MacrosResourceType: // 8
+	case VariablesResourceType: // 8
 	case ScraperResourceType: // 9
 	case SecretsResourceType: // 10
 	case LabelsResourceType: // 11

@@ -23,7 +23,7 @@ const initialState: Links = {
   tasks: '',
   users: '',
   write: '',
-  macros: '',
+  variables: '',
   views: '',
   defaultDashboard: '',
   me: '',

@@ -22,7 +22,7 @@ export async function renderQuery(
   variables: {[name: string]: string}
 ): Promise<string> {
   if (type === InfluxLanguage.InfluxQL) {
-    // We don't support template variables / macros in InfluxQL yet, so this is
+    // We don't support template variables / variables in InfluxQL yet, so this is
     // a no-op
     return query
   }

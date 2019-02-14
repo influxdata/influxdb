@@ -23,7 +23,7 @@ export interface Links {
   tasks: string
   write: string
   users: string
-  macros: string
+  variables: string
   views: string
   me: string
   defaultDashboard: string
