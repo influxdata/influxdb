@@ -14,6 +14,7 @@
 
 ### UI Improvements
 1. [11764](https://github.com/influxdata/influxdb/pull/11764): Move the download telegraf config button to view config overlay
+1. [11879](https://github.com/influxdata/influxdb/pull/11879): Combine permissions for user by type
 
 ## v2.0.0-alpha.2 [2019-02-07]
 
