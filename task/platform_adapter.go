@@ -252,7 +252,7 @@ func (p pAdapter) authorizationIDFromToken(ctx context.Context, token string) (p
 	if token == "" {
 		// No explicit token. Use the authorization ID from the context's authorizer.
 		k := authorizer.Kind()
-		if k != platform.AuthorizationKind {
+		if k != platform.AuthorizationKind && k != platform.SessionAuthorizionKind {
 			return 0, fmt.Errorf("unable to create task using authorization of kind %s", k)
 		}
 
