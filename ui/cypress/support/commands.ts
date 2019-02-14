@@ -3,6 +3,7 @@ declare namespace Cypress {
     signin: typeof signin
     setupUser: typeof setupUser
     createDashboard: typeof createDashboard
+    createOrg: typeof createOrg
     flush: typeof flush
     getByDataTest: typeof getByDataTest
     getByInputName: typeof getByInputName
@@ -28,6 +29,16 @@ const createDashboard = (orgID: string): Cypress.Chainable => {
     body: {
       name: 'test dashboard',
       orgID,
+    },
+  })
+}
+
+const createOrg = (): Cypress.Chainable => {
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/orgs',
+    body: {
+      name: 'test org',
     },
   })
 }
@@ -76,6 +87,9 @@ Cypress.Commands.add('setupUser', setupUser)
 
 // dashboards
 Cypress.Commands.add('createDashboard', createDashboard)
+
+// orgs
+Cypress.Commands.add('createOrg', createOrg)
 
 // general
 Cypress.Commands.add('flush', flush)
