@@ -176,7 +176,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &cr.UserID})
 	if err != nil {
-		if err != task.TempDisabledErr {
+		if err != task.ErrTempDisabled {
 			t.Fatal(err)
 		}
 	} else {
