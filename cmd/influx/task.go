@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
-	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
 )
@@ -104,13 +103,7 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		tc.OrganizationID = *oid
 	}
 
-	as := &http.AuthorizationService{Addr: flags.host, Token: flags.token}
-	auth, err := as.FindAuthorizationByToken(context.Background(), flags.token)
-	if err != nil {
-		return fmt.Errorf("error finding token: %s", err)
-	}
-
-	t, err := s.CreateTask(icontext.SetAuthorizer(context.Background(), auth), tc)
+	t, err := s.CreateTask(context.Background(), tc)
 	if err != nil {
 		return err
 	}
