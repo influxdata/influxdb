@@ -44,17 +44,10 @@ export default class CreateDashboardDropdown extends PureComponent<Props> {
       >
         {CreateOption.New}
       </Dropdown.Item>,
-      <Dropdown.Item
-        id={CreateOption.Import}
-        key={CreateOption.Import}
-        value={CreateOption.Import}
-      >
-        {CreateOption.Import}
-      </Dropdown.Item>,
     ]
   }
 
-  private handleSelect = selection => {
+  private handleSelect = (selection: CreateOption): void => {
     const {onNewDashboard, onToggleOverlay} = this.props
     switch (selection) {
       case CreateOption.New:
