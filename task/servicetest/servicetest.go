@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -179,7 +180,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &cr.UserID})
 	if err != nil {
-		if err != task.ErrTempDisabled {
+		if !strings.Contains(err.Error(), "temporarily disabled") {
 			t.Fatal(err)
 		}
 	} else {
