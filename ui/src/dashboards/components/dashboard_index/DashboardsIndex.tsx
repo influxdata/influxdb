@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 import {downloadTextFile} from 'src/shared/utils/download'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
@@ -11,7 +11,7 @@ import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {OverlayTechnology} from 'src/clockface'
 import CreateDashboardDropdown from 'src/dashboards/components/dashboard_index/CreateDashboardDropdown'
-import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
+import ImportOverlay from 'src/shared/components/ImportOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Utils
@@ -236,7 +236,7 @@ class DashboardIndex extends PureComponent<Props, State> {
       h: 4,
     }
 
-    const name = _.get(dashboard, 'name', DEFAULT_DASHBOARD_NAME)
+    const name = get(dashboard, 'name', DEFAULT_DASHBOARD_NAME)
     const cellsWithDefaultsApplied = getDeep<Cell[]>(
       dashboard,
       'cells',
@@ -263,13 +263,14 @@ class DashboardIndex extends PureComponent<Props, State> {
     const {isImportingDashboard} = this.state
 
     return (
-      <OverlayTechnology visible={isImportingDashboard}>
-        <ImportDashboardOverlay
-          onDismissOverlay={this.handleToggleImportOverlay}
-          onImportDashboard={this.handleImportDashboard}
-          notify={notify}
-        />
-      </OverlayTechnology>
+      <ImportOverlay
+        isVisible={isImportingDashboard}
+        resourceName="Dashboard"
+        onDismissOverlay={this.handleToggleImportOverlay}
+        onImport={this.handleImportDashboard}
+        notify={notify}
+        isResourceValid={this.handleValidateDashboard}
+      />
     )
   }
 
@@ -279,6 +280,10 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private handleStopEditingLabels = (): void => {
     this.setState({isEditingDashboardLabels: false})
+  }
+
+  private handleValidateDashboard = (): boolean => {
+    return true
   }
 
   private get labelEditorOverlay(): JSX.Element {
