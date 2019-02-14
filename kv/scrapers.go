@@ -3,8 +3,38 @@ package kv
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/influxdata/influxdb"
+)
+
+var (
+	// ErrScraperNotFound is used when the scraper configuration is not found.
+	ErrScraperNotFound = &influxdb.Error{
+		Msg:  "scraper target is not found",
+		Code: influxdb.ENotFound,
+	}
+
+	// ErrInvalidScraperID is used when the service was provided
+	// an invalid ID format.
+	ErrInvalidScraperID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "provided scraper target ID has invalid format",
+	}
+
+	// ErrInvalidScrapersBucketID is used when the service was provided
+	// an invalid ID format.
+	ErrInvalidScrapersBucketID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "provided bucket ID has invalid format",
+	}
+
+	// ErrInvalidScrapersOrgID is used when the service was provided
+	// an invalid ID format.
+	ErrInvalidScrapersOrgID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "provided organization ID has invalid format",
+	}
 )
 
 // UnexpectedScrapersBucketError is used when the error comes from an internal system.
@@ -13,7 +43,35 @@ func UnexpectedScrapersBucketError(err error) *influxdb.Error {
 		Code: influxdb.EInternal,
 		Msg:  "unexpected error retrieving scrapers bucket",
 		Err:  err,
-		Op:   "kv/scrapersBucket",
+		Op:   "kv/scraper",
+	}
+}
+
+// CorruptScraperError is used when the config cannot be unmarshalled from the
+// bytes stored in the kv.
+func CorruptScraperError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("Unknown internal scraper data error; Err: %v", err),
+		Op:   "kv/scraper",
+	}
+}
+
+// ErrUnprocessableScraper is used when a scraper is not able to be converted to JSON.
+func ErrUnprocessableScraper(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EUnprocessableEntity,
+		Msg:  fmt.Sprintf("unable to convert scraper target into JSON; Err %v", err),
+	}
+}
+
+// InternalScraperServiceError is used when the error comes from an
+// internal system.
+func InternalScraperServiceError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("Unknown internal scraper data error; Err: %v", err),
+		Op:   "kv/scraper",
 	}
 }
 
@@ -38,150 +96,139 @@ func (s *Service) scrapersBucket(tx Tx) (Bucket, error) {
 }
 
 // ListTargets will list all scrape targets.
-func (s *Service) ListTargets(ctx context.Context) (list []influxdb.ScraperTarget, err error) {
-	list = make([]influxdb.ScraperTarget, 0)
-	err = s.kv.View(func(tx Tx) (err error) {
-		bucket, err := s.scrapersBucket(tx)
-		if err != nil {
-			return err
-		}
-
-		cur, err := bucket.Cursor()
-		if err != nil {
-			return err
-		}
-
-		for k, v := cur.First(); k != nil; k, v = cur.Next() {
-			target := new(influxdb.ScraperTarget)
-			if err = json.Unmarshal(v, target); err != nil {
-				return err
-			}
-			list = append(list, *target)
-		}
+func (s *Service) ListTargets(ctx context.Context) ([]influxdb.ScraperTarget, error) {
+	targets := []influxdb.ScraperTarget{}
+	err := s.kv.View(func(tx Tx) error {
+		var err error
+		targets, err = s.listTargets(ctx, tx)
 		return err
 	})
+	return targets, err
+}
+
+func (s *Service) listTargets(ctx context.Context, tx Tx) ([]influxdb.ScraperTarget, error) {
+	bucket, err := s.scrapersBucket(tx)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Op:  "kv/" + influxdb.OpListTargets,
-			Err: err,
-		}
+		return nil, err
 	}
-	return list, err
+
+	cur, err := bucket.Cursor()
+	if err != nil {
+		return nil, UnexpectedScrapersBucketError(err)
+	}
+
+	targets := []influxdb.ScraperTarget{}
+	for k, v := cur.First(); k != nil; k, v = cur.Next() {
+		target, err := unmarshalScraper(v)
+		if err != nil {
+			return nil, err
+		}
+		targets = append(targets, *target)
+	}
+	return targets, nil
 }
 
 // AddTarget add a new scraper target into storage.
 func (s *Service) AddTarget(ctx context.Context, target *influxdb.ScraperTarget, userID influxdb.ID) (err error) {
-	if !target.OrgID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "org id is invalid",
-			Op:   OpPrefix + influxdb.OpAddTarget,
-		}
-	}
-	if !target.BucketID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "bucket id is invalid",
-			Op:   OpPrefix + influxdb.OpAddTarget,
-		}
-	}
-	err = s.kv.Update(func(tx Tx) error {
-		target.ID = s.IDGenerator.ID()
-		if err := s.putTarget(ctx, tx, target); err != nil {
-			return err
-		}
-
-		urm := &influxdb.UserResourceMapping{
-			ResourceID:   target.ID,
-			UserID:       userID,
-			UserType:     influxdb.Owner,
-			ResourceType: influxdb.ScraperResourceType,
-		}
-		return s.createUserResourceMapping(ctx, tx, urm)
+	return s.kv.Update(func(tx Tx) error {
+		return s.addTarget(ctx, tx, target, userID)
 	})
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-			Op:  OpPrefix + influxdb.OpAddTarget,
-		}
+}
+
+func (s *Service) addTarget(ctx context.Context, tx Tx, target *influxdb.ScraperTarget, userID influxdb.ID) error {
+	if !target.OrgID.Valid() {
+		return ErrInvalidScrapersOrgID
 	}
-	return nil
+
+	if !target.BucketID.Valid() {
+		return ErrInvalidScrapersBucketID
+	}
+
+	target.ID = s.IDGenerator.ID()
+	if err := s.putTarget(ctx, tx, target); err != nil {
+		return err
+	}
+
+	urm := &influxdb.UserResourceMapping{
+		ResourceID:   target.ID,
+		UserID:       userID,
+		UserType:     influxdb.Owner,
+		ResourceType: influxdb.ScraperResourceType,
+	}
+	return s.createUserResourceMapping(ctx, tx, urm)
 }
 
 // RemoveTarget removes a scraper target from the bucket.
 func (s *Service) RemoveTarget(ctx context.Context, id influxdb.ID) error {
-	err := s.kv.Update(func(tx Tx) error {
-		_, pe := s.findTargetByID(ctx, tx, id)
-		if pe != nil {
-			return pe
-		}
-		encID, err := id.Encode()
-		if err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Err:  err,
-			}
-		}
-
-		bucket, err := s.scrapersBucket(tx)
-		if err != nil {
-			return err
-		}
-
-		if err := bucket.Delete(encID); err != nil {
-			return err // TODO(goller): previously this returned nil... why?
-		}
-
-		return s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-			ResourceID:   id,
-			ResourceType: influxdb.ScraperResourceType,
-		})
+	return s.kv.Update(func(tx Tx) error {
+		return s.removeTarget(ctx, tx, id)
 	})
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-			Op:  OpPrefix + influxdb.OpRemoveTarget,
-		}
+}
+
+func (s *Service) removeTarget(ctx context.Context, tx Tx, id influxdb.ID) error {
+	_, pe := s.findTargetByID(ctx, tx, id)
+	if pe != nil {
+		return pe
 	}
-	return nil
+	encID, err := id.Encode()
+	if err != nil {
+		return ErrInvalidScraperID
+	}
+
+	bucket, err := s.scrapersBucket(tx)
+	if err != nil {
+		return err
+	}
+
+	_, err = bucket.Get(encID)
+	if IsNotFound(err) {
+		return ErrScraperNotFound
+	}
+	if err != nil {
+		return InternalScraperServiceError(err)
+	}
+
+	if err := bucket.Delete(encID); err != nil {
+		return InternalScraperServiceError(err)
+	}
+
+	return s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: influxdb.ScraperResourceType,
+	})
 }
 
 // UpdateTarget updates a scraper target.
 func (s *Service) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
-	op := "kv/" + influxdb.OpUpdateTarget
-	if !update.ID.Valid() {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Op:   op,
-			Msg:  "id is invalid",
-		}
-	}
-
 	var target *influxdb.ScraperTarget
 	err := s.kv.Update(func(tx Tx) error {
 		var err error
-		target, err = s.findTargetByID(ctx, tx, update.ID)
-		if err != nil {
-			return err
-		}
-		if !update.BucketID.Valid() {
-			update.BucketID = target.BucketID
-		}
-		if !update.OrgID.Valid() {
-			update.OrgID = target.OrgID
-		}
-		target = update
-		return s.putTarget(ctx, tx, target)
+		target, err = s.updateTarget(ctx, tx, update, userID)
+		return err
 	})
 
-	if err != nil {
-		return nil, &influxdb.Error{
-			Op:  op,
-			Err: err,
-		}
+	return target, err
+}
+
+func (s *Service) updateTarget(ctx context.Context, tx Tx, update *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
+	if !update.ID.Valid() {
+		return nil, ErrInvalidScraperID
 	}
 
-	return target, nil
+	target, err := s.findTargetByID(ctx, tx, update.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the bucket or org are invalid, just use the ids from the original.
+	if !update.BucketID.Valid() {
+		update.BucketID = target.BucketID
+	}
+	if !update.OrgID.Valid() {
+		update.OrgID = target.OrgID
+	}
+	target = update
+	return target, s.putTarget(ctx, tx, target)
 }
 
 // GetTargetByID retrieves a scraper target by id.
@@ -190,25 +237,16 @@ func (s *Service) GetTargetByID(ctx context.Context, id influxdb.ID) (*influxdb.
 	err := s.kv.View(func(tx Tx) error {
 		var err error
 		target, err = s.findTargetByID(ctx, tx, id)
-		if err != nil {
-			return &influxdb.Error{
-				Op:  "kv/" + influxdb.OpGetTargetByID,
-				Err: err,
-			}
-		}
-		return nil
+		return err
 	})
 
 	return target, err
 }
 
 func (s *Service) findTargetByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.ScraperTarget, error) {
-	target := new(influxdb.ScraperTarget)
 	encID, err := id.Encode()
 	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
+		return nil, ErrInvalidScraperID
 	}
 
 	bucket, err := s.scrapersBucket(tx)
@@ -217,41 +255,19 @@ func (s *Service) findTargetByID(ctx context.Context, tx Tx, id influxdb.ID) (*i
 	}
 
 	v, err := bucket.Get(encID)
+	if IsNotFound(err) {
+		return nil, ErrScraperNotFound
+	}
+	if err != nil {
+		return nil, InternalScraperServiceError(err)
+	}
+
+	target, err := unmarshalScraper(v)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(v) == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  "scraper target is not found",
-		}
-	}
-
-	if err := json.Unmarshal(v, target); err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
 	return target, nil
-}
-
-func (s *Service) putTarget(ctx context.Context, tx Tx, target *influxdb.ScraperTarget) error {
-	v, err := json.Marshal(target)
-	if err != nil {
-		return err
-	}
-	encID, err := target.ID.Encode()
-	if err != nil {
-		return err
-	}
-
-	bucket, err := s.scrapersBucket(tx)
-	if err != nil {
-		return err
-	}
-
-	return bucket.Put(encID, v)
 }
 
 // PutTarget will put a scraper target without setting an ID.
@@ -259,4 +275,44 @@ func (s *Service) PutTarget(ctx context.Context, target *influxdb.ScraperTarget)
 	return s.kv.Update(func(tx Tx) error {
 		return s.putTarget(ctx, tx, target)
 	})
+}
+
+func (s *Service) putTarget(ctx context.Context, tx Tx, target *influxdb.ScraperTarget) error {
+	v, err := marshalScraper(target)
+	if err != nil {
+		return ErrUnprocessableScraper(err)
+	}
+
+	encID, err := target.ID.Encode()
+	if err != nil {
+		return ErrInvalidScraperID
+	}
+
+	bucket, err := s.scrapersBucket(tx)
+	if err != nil {
+		return err
+	}
+
+	if err := bucket.Put(encID, v); err != nil {
+		return UnexpectedScrapersBucketError(err)
+	}
+
+	return nil
+}
+
+// unmarshalScraper turns the stored byte slice in the kv into a *influxdb.ScraperTarget.
+func unmarshalScraper(v []byte) (*influxdb.ScraperTarget, error) {
+	s := &influxdb.ScraperTarget{}
+	if err := json.Unmarshal(v, s); err != nil {
+		return nil, CorruptScraperError(err)
+	}
+	return s, nil
+}
+
+func marshalScraper(sc *influxdb.ScraperTarget) ([]byte, error) {
+	v, err := json.Marshal(sc)
+	if err != nil {
+		return nil, ErrUnprocessableScraper(err)
+	}
+	return v, nil
 }
