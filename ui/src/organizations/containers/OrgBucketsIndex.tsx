@@ -26,7 +26,7 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
 
 const getBuckets = async (org: Organization) => {
-  return client.buckets.getAllByOrg(org)
+  return client.buckets.getAllByOrg(org.name)
 }
 
 interface RouterProps {
