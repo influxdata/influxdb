@@ -6,11 +6,11 @@ import {Page} from 'src/pageLayout'
 
 import {
   Button,
-  ComponentColor,
   IconFont,
+  SlideToggle,
   ComponentSize,
+  ComponentColor,
 } from '@influxdata/clockface'
-import {SlideToggle} from 'src/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TaskOrgDropdown from 'src/tasks/components/TasksOrgDropdown'
 

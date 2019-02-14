@@ -1,15 +1,15 @@
+// Libraries
 import React, {SFC} from 'react'
 
+// Components
 import {
-  SlideToggle,
-  Grid,
-  Form,
-  Columns,
-  ComponentSize,
-  ComponentSpacer,
   Stack,
   Alignment,
-} from 'src/clockface'
+  SlideToggle,
+  ComponentSize,
+  ComponentSpacer,
+} from '@influxdata/clockface'
+import {Grid, Form, Columns} from 'src/clockface'
 
 interface Props {
   fixed: boolean

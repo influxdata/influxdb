@@ -14,12 +14,14 @@ import TimeMachineInfluxQLEditor from 'src/timeMachine/components/TimeMachineInf
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
 import {
   Button,
-  ComponentColor,
-  ComponentSize,
-  ButtonShape,
   IconFont,
+  Alignment,
+  ButtonShape,
+  SlideToggle,
+  ComponentSize,
+  ComponentColor,
+  ComponentSpacer,
 } from '@influxdata/clockface'
-import {ComponentSpacer, Alignment, SlideToggle} from 'src/clockface'
 
 // Actions
 import {addQuery} from 'src/timeMachine/actions'

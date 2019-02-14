@@ -15,7 +15,6 @@ import OverlayBody from './components/overlays/OverlayBody'
 import OverlayFooter from './components/overlays/OverlayFooter'
 import Panel from './components/panel/Panel'
 import Radio from './components/radio_buttons/RadioButtons'
-import SlideToggle from './components/slide_toggle/SlideToggle'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardOverlay from './components/wizard/WizardOverlay'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
@@ -101,7 +100,6 @@ export {
   Radio,
   ResponsiveGridSizer,
   Select,
-  SlideToggle,
   SparkleSpinner,
   Sort,
   SpinnerContainer,
