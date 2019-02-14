@@ -1,6 +1,11 @@
 describe('Dashboards', () => {
+  let orgID: string = ''
   beforeEach(() => {
     cy.flush()
+
+    cy.setupUser().then(({body}) => {
+      orgID = body.org.id
+    })
 
     cy.signin()
 
@@ -34,8 +39,8 @@ describe('Dashboards', () => {
   })
 
   it('can delete a dashboard', () => {
-    cy.createDashboard()
-    cy.createDashboard()
+    cy.createDashboard(orgID)
+    cy.createDashboard(orgID)
 
     cy.get('.index-list--row').then(rows => {
       const numDashboards = rows.length
@@ -55,8 +60,8 @@ describe('Dashboards', () => {
   })
 
   it('can edit a dashboards name', () => {
-    cy.createDashboard().then(({body}) => {
-      cy.visit(`dashboards/${body.id}`)
+    cy.createDashboard(orgID).then(({body}) => {
+      cy.visit(`/dashboards/${body.id}`)
     })
 
     const newName = 'new 🅱️ashboard'

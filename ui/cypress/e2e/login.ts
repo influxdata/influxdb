@@ -12,7 +12,7 @@ describe('The Login Page', () => {
       user = u
     })
 
-    cy.createUser()
+    cy.setupUser()
 
     cy.visit('/')
   })
