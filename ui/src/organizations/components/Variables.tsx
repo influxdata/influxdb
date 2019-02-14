@@ -7,19 +7,14 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import CreateVariableOverlay from 'src/organizations/components/CreateVariableOverlay'
 import {Button, ComponentSize} from '@influxdata/clockface'
 import VariableList from 'src/organizations/components/VariableList'
-import {
-  Input,
-  ComponentColor,
-  IconFont,
-  OverlayTechnology,
-  EmptyState,
-} from 'src/clockface'
+import {Input, OverlayTechnology, EmptyState} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 
 // Types
+import {ComponentColor, IconFont} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
 import {client} from 'src/utils/api'
 import {Macro as Variable} from '@influxdata/influx'

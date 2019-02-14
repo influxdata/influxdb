@@ -3,14 +3,12 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {Run} from '@influxdata/influx'
-import {
-  IndexList,
-  ComponentSize,
-  ComponentColor,
-  OverlayTechnology,
-} from 'src/clockface'
+import {IndexList, OverlayTechnology} from 'src/clockface'
 import {Button} from '@influxdata/clockface'
 import RunLogsOverlay from './RunLogsOverlay'
+
+// Types
+import {ComponentSize, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
   taskID: string

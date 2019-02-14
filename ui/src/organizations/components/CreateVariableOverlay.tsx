@@ -11,9 +11,6 @@ import {
   OverlayHeading,
   OverlayContainer,
   Input,
-  ComponentColor,
-  ComponentStatus,
-  ButtonType,
   OverlayFooter,
 } from 'src/clockface'
 import {Button} from '@influxdata/clockface'
@@ -21,6 +18,11 @@ import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Types
 import {Macro as Variable} from '@influxdata/influx'
+import {
+  ComponentColor,
+  ComponentStatus,
+  ButtonType,
+} from '@influxdata/clockface'
 
 interface Props {
   onCreateVariable: (variable: Variable) => Promise<void>
