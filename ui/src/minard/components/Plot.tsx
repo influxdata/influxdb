@@ -87,7 +87,7 @@ export const Plot: SFC<Props> = ({
   useEffect(() => dispatch(setColors(colors)), [colors])
 
   const mouseRegion = useRef<HTMLDivElement>(null)
-  const [hoverX, hoverY] = useMousePos(mouseRegion)
+  const {x: hoverX, y: hoverY} = useMousePos(mouseRegion.current)
 
   const childProps = useMemo(
     () => ({

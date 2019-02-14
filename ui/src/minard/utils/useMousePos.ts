@@ -1,40 +1,38 @@
-import {useState, useEffect, MutableRefObject} from 'react'
+import {useState, useEffect} from 'react'
 
-export const useMousePos = (
-  ref: MutableRefObject<Element>
-): [number, number] => {
-  const [[x, y], setXY] = useState([null, null])
+export const useMousePos = (el: Element): {x: number; y: number} => {
+  const [state, setState] = useState({x: null, y: null})
 
   useEffect(
     () => {
-      if (!ref.current) {
+      if (!el) {
         return
       }
 
       const onMouseEnter = e => {
-        const {left, top} = ref.current.getBoundingClientRect()
+        const {left, top} = el.getBoundingClientRect()
 
-        setXY([e.pageX - left, e.pageY - top])
+        setState({x: e.pageX - left, y: e.pageY - top})
       }
 
       const onMouseMove = onMouseEnter
 
       const onMouseLeave = () => {
-        setXY([null, null])
+        setState({x: null, y: null})
       }
 
-      ref.current.addEventListener('mouseenter', onMouseEnter)
-      ref.current.addEventListener('mousemove', onMouseMove)
-      ref.current.addEventListener('mouseleave', onMouseLeave)
+      el.addEventListener('mouseenter', onMouseEnter)
+      el.addEventListener('mousemove', onMouseMove)
+      el.addEventListener('mouseleave', onMouseLeave)
 
       return () => {
-        ref.current.removeEventListener('mouseenter', onMouseEnter)
-        ref.current.removeEventListener('mousemove', onMouseMove)
-        ref.current.removeEventListener('mouseleave', onMouseLeave)
+        el.removeEventListener('mouseenter', onMouseEnter)
+        el.removeEventListener('mousemove', onMouseMove)
+        el.removeEventListener('mouseleave', onMouseLeave)
       }
     },
-    [ref.current]
+    [el]
   )
 
-  return [x, y]
+  return state
 }
