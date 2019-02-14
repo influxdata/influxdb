@@ -539,6 +539,10 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 			}
 
 			fieldValues.Range(func(k string, v values.Value) {
+				if v.IsNull() {
+					fields[k] = nil
+					return
+				}
 				switch v.Type() {
 				case semantic.Float:
 					fields[k] = v.Float()
