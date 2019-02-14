@@ -56,7 +56,6 @@ interface OwnProps {
 
 type Props = OwnProps & DispatchProps & StateProps
 
-// TODO: These options are currently hardcoded
 const HistogramOptions: SFC<Props> = props => {
   const {
     xColumn,
@@ -90,6 +89,7 @@ const HistogramOptions: SFC<Props> = props => {
           selectedID={xColumn}
           onChange={onSetXColumn}
           status={xDropdownStatus}
+          titleText="None"
         >
           {availableXColumns.map(columnName => (
             <Dropdown.Item id={columnName} key={columnName} value={columnName}>
