@@ -340,14 +340,6 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad org ID, got %d result(s)", len(ts))
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{User: platform.ID(123)})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(ts) > 0 {
-			t.Fatalf("expected no results for bad user ID, got %d result(s)", len(ts))
-		}
-
 		newID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 1), Status: backend.TaskInactive})
 		if err != nil {
 			t.Fatal(err)

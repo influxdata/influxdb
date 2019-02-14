@@ -136,7 +136,10 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		Token:          cr.Token,
 	}
-	tsk, err := sys.ts.CreateTask(icontext.SetAuthorizer(sys.Ctx, authorizer), ct)
+
+	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+
+	tsk, err := sys.ts.CreateTask(authorizedCtx, tc)
 	if err != nil {
 		t.Fatal(err)
 	}
