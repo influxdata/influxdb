@@ -11,15 +11,16 @@ import {Macro} from '@influxdata/influx'
 interface Props {
   variables: Macro[]
   emptyState: JSX.Element
+  onDeleteVariable: (variable: Macro) => void
 }
 
-class VariablesList extends PureComponent<Props> {
+class VariableList extends PureComponent<Props> {
   constructor(props) {
     super(props)
   }
 
   public render() {
-    const {emptyState, variables} = this.props
+    const {emptyState, variables, onDeleteVariable} = this.props
 
     return (
       <>
@@ -30,7 +31,11 @@ class VariablesList extends PureComponent<Props> {
           </IndexList.Header>
           <IndexList.Body columnCount={3} emptyState={emptyState}>
             {variables.map(variable => (
-              <VariableRow key={variable.id} variable={variable} />
+              <VariableRow
+                key={variable.id}
+                variable={variable}
+                onDeleteVariable={onDeleteVariable}
+              />
             ))}
           </IndexList.Body>
         </IndexList>
@@ -39,4 +44,4 @@ class VariablesList extends PureComponent<Props> {
   }
 }
 
-export default VariablesList
+export default VariableList
