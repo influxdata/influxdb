@@ -44,6 +44,46 @@ func NewService(kv Store) *Service {
 // Initialize creates Buckets needed.
 func (s *Service) Initialize(ctx context.Context) error {
 	return s.kv.Update(func(tx Tx) error {
+		if err := s.initializeAuths(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeBuckets(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeDashboards(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeKVLog(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeLabels(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeMacros(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeOnboarding(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeOrgs(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializePasswords(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeScraperTargets(ctx, tx); err != nil {
+			return err
+		}
+
 		if err := s.initializeSecrets(ctx, tx); err != nil {
 			return err
 		}
@@ -56,27 +96,7 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
-		if err := s.initializeMacros(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeUsers(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeOrgs(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeBuckets(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeBuckets(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeKVLog(ctx, tx); err != nil {
+		if err := s.initializeTelegraf(ctx, tx); err != nil {
 			return err
 		}
 
@@ -84,31 +104,7 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
-		if err := s.initializeAuths(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeDashboards(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeLabels(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializePasswords(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeTelegraf(ctx, tx); err != nil {
-			return err
-		}
-
-		if err := s.initializeOnboarding(ctx, tx); err != nil {
-			return err
-		}
-
-		return nil
+		return s.initializeUsers(ctx, tx)
 	})
 }
 
