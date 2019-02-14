@@ -2,6 +2,7 @@ package influxdb_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -82,24 +83,25 @@ func TestTo_Query(t *testing.T) {
 }
 
 func TestToOpSpec_BucketsAccessed(t *testing.T) {
-	// TODO(adam) add this test back when BucketsAccessed is restored for the from function
-	// https://github.com/influxdata/flux/issues/114
-	t.Skip("https://github.com/influxdata/flux/issues/114")
 	bucketName := "my_bucket"
 	orgName := "my_org"
-	id := platform.ID(1)
+	orgIDString := "aaaabbbbccccdddd"
+	orgID, err := platform.IDFromString(orgIDString)
+	if err != nil {
+		t.Fatal(err)
+	}
 	tests := []querytest.BucketAwareQueryTestCase{
 		{
 			Name:             "from() with bucket and to with org and bucket",
-			Raw:              `from(bucket:"my_bucket") |> to(bucket:"my_bucket", org:"my_org")`,
+			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucket:"%s", org:"%s")`, bucketName, bucketName, orgName),
 			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
 			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, Organization: &orgName}},
 		},
 		{
 			Name:             "from() with bucket and to with orgID and bucket",
-			Raw:              `from(bucket:"my_bucket") |> to(bucket:"my_bucket", orgID:"0000000000000001")`,
+			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucket:"%s", orgID:"%s")`, bucketName, bucketName, orgIDString),
 			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
-			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, OrganizationID: &id}},
+			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, OrganizationID: orgID}},
 		},
 	}
 

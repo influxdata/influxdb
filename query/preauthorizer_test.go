@@ -28,45 +28,56 @@ func newBucketServiceWithOneBucket(bucket platform.Bucket) platform.BucketServic
 }
 
 func TestPreAuthorizer_PreAuthorize(t *testing.T) {
-	// TODO(adam) add this test back when BucketsAccessed is restored for the from function
-	// https://github.com/influxdata/flux/issues/114
-	t.Skip("https://github.com/influxdata/flux/issues/114")
 	ctx := context.Background()
 	now := time.Now().UTC()
-
-	q := `from(bucket:"my_bucket") |> range(start:-2h) |> yield()`
-	spec, err := flux.Compile(ctx, q, now)
-	if err != nil {
-		t.Fatalf("Error compiling query: %v", err)
-	}
-
-	// Try to pre-authorize with bucket service with no buckets
-	// and no authorization
+	// fresh pre-authorizer
 	auth := &platform.Authorization{Status: platform.Active}
 	emptyBucketService := mock.NewBucketService()
 	preAuthorizer := query.NewPreAuthorizer(emptyBucketService)
 
+	// Try to pre-authorize invalid bucketID
+	q := `from(bucketID:"invalid") |> range(start:-2h) |> yield()`
+	spec, err := flux.Compile(ctx, q, now)
+	if err != nil {
+		t.Fatalf("Error compiling query: %v", err)
+	}
 	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
-	if diagnostic := cmp.Diff("Bucket service returned nil bucket", err.Error()); diagnostic != "" {
+	if diagnostic := cmp.Diff("bucket service returned nil bucket", err.Error()); diagnostic != "" {
+		t.Errorf("Authorize message mismatch: -want/+got:\n%v", diagnostic)
+	}
+
+	// Try to pre-authorize a valid from with bucket service with no buckets
+	// and no authorization
+	q = `from(bucket:"my_bucket") |> range(start:-2h) |> yield()`
+	spec, err = flux.Compile(ctx, q, now)
+	if err != nil {
+		t.Fatalf("Error compiling query: %v", err)
+	}
+	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
+	if diagnostic := cmp.Diff("bucket service returned nil bucket", err.Error()); diagnostic != "" {
 		t.Errorf("Authorize message mismatch: -want/+got:\n%v", diagnostic)
 	}
 
 	// Try to authorize with a bucket service that knows about one bucket
 	// (still no authorization)
-	id, _ := platform.IDFromString("deadbeefdeadbeef")
+	bucketID, err := platform.IDFromString("deadbeefdeadbeef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	orgID := platform.ID(1)
 	bucketService := newBucketServiceWithOneBucket(platform.Bucket{
-		Name: "my_bucket",
-		ID:   *id,
+		Name:           "my_bucket",
+		ID:             *bucketID,
+		OrganizationID: orgID,
 	})
 
 	preAuthorizer = query.NewPreAuthorizer(bucketService)
 	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
-	if diagnostic := cmp.Diff(`No read permission for bucket: "my_bucket"`, err.Error()); diagnostic != "" {
+	if diagnostic := cmp.Diff(`no read permission for bucket: "my_bucket"`, err.Error()); diagnostic != "" {
 		t.Errorf("Authorize message mismatch: -want/+got:\n%v", diagnostic)
 	}
 
-	orgID := platform.ID(1)
-	p, err := platform.NewPermissionAtID(*id, platform.ReadAction, platform.BucketsResourceType, orgID)
+	p, err := platform.NewPermissionAtID(*bucketID, platform.ReadAction, platform.BucketsResourceType, orgID)
 	if err != nil {
 		t.Fatalf("Error creating read bucket permission query: %v", err)
 	}

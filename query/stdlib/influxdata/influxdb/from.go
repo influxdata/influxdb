@@ -79,6 +79,28 @@ func (s *FromOpSpec) Kind() flux.OperationKind {
 	return FromKind
 }
 
+// BucketsAccessed makes FromOpSpec a query.BucketAwareOperationSpec
+func (s *FromOpSpec) BucketsAccessed() (readBuckets, writeBuckets []platform.BucketFilter) {
+	bf := platform.BucketFilter{}
+	if s.Bucket != "" {
+		bf.Name = &s.Bucket
+	}
+
+	if len(s.BucketID) > 0 {
+		if id, err := platform.IDFromString(s.BucketID); err != nil {
+			invalidID := platform.InvalidID()
+			bf.ID = &invalidID
+		} else {
+			bf.ID = id
+		}
+	}
+
+	if bf.ID != nil || bf.Name != nil {
+		readBuckets = append(readBuckets, bf)
+	}
+	return readBuckets, writeBuckets
+}
+
 type FromProcedureSpec struct {
 	Bucket   string
 	BucketID string
@@ -622,9 +644,6 @@ func (FromKeysRule) Rewrite(keysNode plan.PlanNode) (plan.PlanNode, bool, error)
 
 	return keysNode, true, nil
 }
-
-// TODO(adam): implement a BucketsAccessed that doesn't depend on flux.
-// https://github.com/influxdata/flux/issues/114
 
 func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
 	spec := prSpec.(*PhysicalFromProcedureSpec)
