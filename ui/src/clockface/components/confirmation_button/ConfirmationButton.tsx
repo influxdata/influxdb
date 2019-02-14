@@ -8,13 +8,13 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
 import {
-  ComponentStatus,
   ComponentColor,
+  ComponentStatus,
   ComponentSize,
   ButtonShape,
   IconFont,
   ButtonType,
-} from 'src/clockface/types'
+} from '@influxdata/clockface'
 
 // Styles
 import 'src/clockface/components/confirmation_button/ConfirmationButton.scss'

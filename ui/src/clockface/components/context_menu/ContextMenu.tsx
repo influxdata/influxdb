@@ -9,11 +9,11 @@ import {Button} from '@influxdata/clockface'
 
 // Types
 import {
-  IconFont,
   ComponentColor,
+  IconFont,
   ComponentSize,
   ButtonShape,
-} from 'src/clockface/types'
+} from '@influxdata/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

@@ -5,8 +5,8 @@ import React, {Component} from 'react'
 import {
   Button,
   IconFont,
-  ComponentColor,
   ComponentSize,
+  ComponentColor,
 } from '@influxdata/clockface'
 import {EmptyState} from 'src/clockface'
 

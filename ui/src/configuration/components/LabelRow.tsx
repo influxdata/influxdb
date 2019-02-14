@@ -3,10 +3,10 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {
-  ComponentSize,
   Button,
-  ComponentColor,
   Alignment,
+  ComponentSize,
+  ComponentColor,
 } from '@influxdata/clockface'
 import {IndexList, Label} from 'src/clockface'
 

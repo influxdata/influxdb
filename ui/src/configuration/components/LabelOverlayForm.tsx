@@ -3,13 +3,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {
+  Stack,
   Button,
-  ComponentColor,
-  ComponentSize,
-  ButtonType,
   Columns,
   Alignment,
-  Stack,
+  ButtonType,
+  ComponentSize,
+  ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
 import {
