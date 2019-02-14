@@ -92,7 +92,7 @@ func SetPassword(
 				password: "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("passwords are required to be longer than 8 characters"),
+				err: fmt.Errorf("<invalid> passwords are required to be longer than 8 characters"),
 			},
 		},
 		{
@@ -110,7 +110,7 @@ func SetPassword(
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("your username or password is incorrect"),
+				err: fmt.Errorf("<forbidden> your username or password is incorrect"),
 			},
 		},
 	}
@@ -188,7 +188,7 @@ func ComparePassword(
 				password: "wrongpassword",
 			},
 			wants: wants{
-				err: fmt.Errorf("your username or password is incorrect"),
+				err: fmt.Errorf("<forbidden> your username or password is incorrect"),
 			},
 		},
 		{
@@ -207,7 +207,7 @@ func ComparePassword(
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("your username or password is incorrect"),
+				err: fmt.Errorf("<forbidden> your username or password is incorrect"),
 			},
 		},
 		{
@@ -225,7 +225,7 @@ func ComparePassword(
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("your username or password is incorrect"),
+				err: fmt.Errorf("<forbidden> your username or password is incorrect"),
 			},
 		},
 	}
@@ -307,11 +307,11 @@ func CompareAndSetPassword(
 				new:  "not used",
 			},
 			wants: wants{
-				err: fmt.Errorf("your username or password is incorrect"),
+				err: fmt.Errorf("<forbidden> your username or password is incorrect"),
 			},
 		},
 		{
-			name: "a new password that is less than 8 characters is an error",
+			name: "<invalid> a new password that is less than 8 characters is an error",
 			fields: PasswordFields{
 				Users: []*influxdb.User{
 					{
@@ -327,7 +327,7 @@ func CompareAndSetPassword(
 				new:  "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("passwords are required to be longer than 8 characters"),
+				err: fmt.Errorf("<invalid> passwords are required to be longer than 8 characters"),
 			},
 		},
 	}

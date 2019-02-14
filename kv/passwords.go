@@ -15,13 +15,15 @@ var (
 	// EIncorrectPassword is returned when any password operation fails in which
 	// we do not want to leak information.
 	EIncorrectPassword = &influxdb.Error{
-		Msg: "your username or password is incorrect",
+		Code: influxdb.EForbidden,
+		Msg:  "your username or password is incorrect",
 	}
 
 	// EShortPassword is used when a password is less than the minimum
 	// acceptable password length.
 	EShortPassword = &influxdb.Error{
-		Msg: "passwords are required to be longer than 8 characters",
+		Code: influxdb.EInvalid,
+		Msg:  "passwords are required to be longer than 8 characters",
 	}
 )
 
