@@ -599,6 +599,30 @@ export const invalidZoomedTimeRangeValueInURLQuery = (): Notification => ({
   message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
 })
 
+export const addVariableFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Failed to create variable.`,
+})
+
+export const addVariableSuccess = (name: string): Notification => ({
+  ...defaultSuccessNotification,
+  icon: 'cube',
+  message: `Successfully created new variable ${name}.`,
+})
+
+export const deleteVariableFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Failed to delete variable.`,
+})
+
+export const deleteVariableSuccess = (name: string): Notification => ({
+  ...defaultSuccessNotification,
+  icon: 'cube',
+  message: `Successfully deleted variable ${name}.`,
+})
+
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
 export const alertRuleCreated = (ruleName: string): Notification => ({

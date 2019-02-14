@@ -1,0 +1,41 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`VariableList rendering renders 1`] = `
+<Fragment>
+  <IndexList>
+    <IndexListHeader>
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Name"
+        width="60%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Type"
+        width="40%"
+      />
+    </IndexListHeader>
+    <IndexListBody
+      columnCount={3}
+      emptyState={<React.Fragment />}
+    >
+      <VariableRow
+        onDeleteVariable={[MockFunction]}
+        variable={
+          Object {
+            "arguments": Object {
+              "type": "query",
+              "values": Object {
+                "language": "flux",
+                "query": "1 + 1 ",
+              },
+            },
+            "name": "a little variable",
+            "orgID": "0",
+          }
+        }
+      />
+    </IndexListBody>
+  </IndexList>
+</Fragment>
+`;

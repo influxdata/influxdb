@@ -6,7 +6,7 @@ import _ from 'lodash'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CreateVariableOverlay from 'src/organizations/components/CreateVariableOverlay'
 import {Button, ComponentSize} from '@influxdata/clockface'
-import VariablesList from 'src/organizations/components/VariablesList'
+import VariableList from 'src/organizations/components/VariableList'
 import {
   Input,
   ComponentColor,
@@ -16,16 +16,26 @@ import {
 } from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 
+// Actions
+import * as NotificationsActions from 'src/types/actions/notifications'
+
 // Types
 import {OverlayState} from 'src/types'
 import {client} from 'src/utils/api'
 import {Macro} from '@influxdata/influx'
+import {
+  addVariableFailed,
+  deleteVariableFailed,
+  addVariableSuccess,
+  deleteVariableSuccess,
+} from 'src/shared/copy/notifications'
 
 interface Props {
   onChange: () => void
   variables: Macro[]
   orgName: string
   orgID: string
+  notify: NotificationsActions.PublishNotificationActionCreator
 }
 
 interface State {
@@ -70,7 +80,11 @@ export default class Variables extends PureComponent<Props, State> {
           list={variables}
         >
           {variables => (
-            <VariablesList variables={variables} emptyState={this.emptyState} />
+            <VariableList
+              variables={variables}
+              emptyState={this.emptyState}
+              onDeleteVariable={this.handleDeleteVariable}
+            />
           )}
         </FilterList>
         <OverlayTechnology visible={overlayState === OverlayState.Open}>
@@ -99,10 +113,31 @@ export default class Variables extends PureComponent<Props, State> {
     this.setState({overlayState: OverlayState.Closed})
   }
 
-  private handleCreateVariable = async (variable: Macro) => {
-    await client.variables.create(variable)
-    this.props.onChange()
+  private handleCreateVariable = async (variable: Macro): Promise<void> => {
+    const {notify, onChange} = this.props
+
+    try {
+      await client.variables.create(variable)
+      notify(addVariableSuccess(variable.name))
+    } catch (error) {
+      notify(addVariableFailed())
+    }
+
+    onChange()
     this.handleCloseModal()
+  }
+
+  private handleDeleteVariable = async (variable: Macro): Promise<void> => {
+    const {notify, onChange} = this.props
+
+    try {
+      await client.variables.delete(variable.id)
+      notify(deleteVariableSuccess(variable.name))
+    } catch (error) {
+      notify(deleteVariableFailed())
+    }
+
+    onChange()
   }
 
   private get emptyState(): JSX.Element {

@@ -208,6 +208,7 @@ class OrganizationView extends PureComponent<Props> {
                           variables={variables}
                           orgName={org.name}
                           orgID={org.id}
+                          notify={notify}
                         />
                       </SpinnerContainer>
                     )
