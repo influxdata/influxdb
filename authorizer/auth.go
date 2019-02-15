@@ -134,7 +134,7 @@ func VerifyPermissions(ctx context.Context, ps []influxdb.Permission) error {
 		if err := IsAllowed(ctx, p); err != nil {
 			return &influxdb.Error{
 				Err:  err,
-				Msg:  fmt.Sprintf("cannot create authorization with permission %s", p),
+				Msg:  fmt.Sprintf("permission %s is not allowed", p),
 				Code: influxdb.EForbidden,
 			}
 		}

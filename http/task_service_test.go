@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
@@ -942,5 +943,103 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 				t.Errorf("Diff\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestTaskHandler_CreateTaskFromSession(t *testing.T) {
+	var createdTasks []platform.TaskCreate
+	ts := &mock.TaskService{
+		CreateTaskFn: func(_ context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+			createdTasks = append(createdTasks, tc)
+			// Task with fake IDs so it can be serialized.
+			return &platform.Task{ID: 9, OrganizationID: 99, AuthorizationID: 999}, nil
+		},
+	}
+
+	i := inmem.NewService()
+	h := NewTaskHandler(&TaskBackend{
+		Logger: zaptest.NewLogger(t),
+
+		TaskService:                ts,
+		AuthorizationService:       i,
+		OrganizationService:        i,
+		UserResourceMappingService: i,
+		LabelService:               i,
+		UserService:                i,
+		BucketService:              i,
+	})
+
+	ctx := context.Background()
+
+	// Set up user and org.
+	u := &platform.User{Name: "u"}
+	if err := i.CreateUser(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	o := &platform.Organization{Name: "o"}
+	if err := i.CreateOrganization(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+
+	// Map user to org.
+	if err := i.CreateUserResourceMapping(ctx, &platform.UserResourceMapping{
+		ResourceType: platform.OrgsResourceType,
+		ResourceID:   o.ID,
+		UserID:       u.ID,
+		UserType:     platform.Owner,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Source and destination buckets for use in task.
+	bSrc := platform.Bucket{OrganizationID: o.ID, Name: "b-src"}
+	if err := i.CreateBucket(ctx, &bSrc); err != nil {
+		t.Fatal(err)
+	}
+	bDst := platform.Bucket{OrganizationID: o.ID, Name: "b-dst"}
+	if err := i.CreateBucket(ctx, &bDst); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a session for use in authorizing context.
+	s := &platform.Session{
+		UserID:      u.ID,
+		Permissions: platform.OperPermissions(),
+		ExpiresAt:   time.Now().Add(24 * time.Hour),
+	}
+
+	b, err := json.Marshal(platform.TaskCreate{
+		Flux:           `option task = {name:"x", every:1m} from(bucket:"b-src") |> range(start:-1m) |> to(bucket:"b-dst", org:"o")`,
+		OrganizationID: o.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sessionCtx := pcontext.SetAuthorizer(context.Background(), s)
+	url := fmt.Sprintf("http://localhost:9999/api/v2/tasks")
+	r := httptest.NewRequest("POST", url, bytes.NewReader(b)).WithContext(sessionCtx)
+
+	w := httptest.NewRecorder()
+
+	h.handlePostTask(w, r)
+
+	res := w.Result()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusCreated {
+		t.Logf("response body: %s", body)
+		t.Fatalf("expected status created, got %v", res.StatusCode)
+	}
+
+	if len(createdTasks) != 1 {
+		t.Fatalf("didn't create task; got %#v", createdTasks)
+	}
+
+	// The task should have been created with a valid token.
+	if _, err := i.FindAuthorizationByToken(ctx, createdTasks[0].Token); err != nil {
+		t.Fatal(err)
 	}
 }

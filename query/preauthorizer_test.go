@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
@@ -79,5 +80,48 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
 	if err != nil {
 		t.Errorf("Expected successful authorization, but got error: \"%v\"", err.Error())
+	}
+}
+
+func TestPreAuthorizer_RequiredPermissions(t *testing.T) {
+	ctx := context.Background()
+
+	i := inmem.NewService()
+
+	o := platform.Organization{Name: "o"}
+	if err := i.CreateOrganization(ctx, &o); err != nil {
+		t.Fatal(err)
+	}
+	bFrom := platform.Bucket{Name: "b-from", OrganizationID: o.ID}
+	if err := i.CreateBucket(ctx, &bFrom); err != nil {
+		t.Fatal(err)
+	}
+	bTo := platform.Bucket{Name: "b-to", OrganizationID: o.ID}
+	if err := i.CreateBucket(ctx, &bTo); err != nil {
+		t.Fatal(err)
+	}
+
+	const script = `from(bucket:"b-from") |> range(start:-1m) |> to(bucket:"b-to", org:"o")`
+	spec, err := flux.Compile(ctx, script, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	preAuthorizer := query.NewPreAuthorizer(i)
+	perms, err := preAuthorizer.RequiredPermissions(ctx, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pWrite, err := platform.NewPermissionAtID(bTo.ID, platform.WriteAction, platform.BucketsResourceType, o.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("WARNING: this test does not validate permissions on the 'from' bucket. Please update after https://github.com/influxdata/flux/issues/114.")
+
+	exp := []platform.Permission{*pWrite}
+	if diff := cmp.Diff(exp, perms); diff != "" {
+		t.Fatalf("unexpected permissions: %s", diff)
 	}
 }
