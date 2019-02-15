@@ -415,6 +415,17 @@ func (h *TaskHandler) createTaskAuthorizationIfNotExists(ctx context.Context, a 
 func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	auth, err := pcontext.GetAuthorizer(ctx)
+	if err != nil {
+		err = &platform.Error{
+			Err:  err,
+			Code: platform.EUnauthorized,
+			Msg:  "failed to get authorizer",
+		}
+		EncodeError(ctx, err, w)
+		return
+	}
+
 	req, err := decodePostTaskRequest(ctx, r)
 	if err != nil {
 		err = &platform.Error{
