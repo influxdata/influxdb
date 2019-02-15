@@ -731,7 +731,7 @@ paths:
           required: true
           description: ID of the scraper target
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
@@ -6129,7 +6129,7 @@ components:
             bucket:
               type: string
               description: name of the bucket
-            name: 
+            name:
                 type: string
                 description: name of scraper target
             links:
