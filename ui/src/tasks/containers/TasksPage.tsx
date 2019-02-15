@@ -24,6 +24,7 @@ import {
   importScript,
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
+  runTask,
 } from 'src/tasks/actions/v2'
 
 // Constants
@@ -55,6 +56,7 @@ interface ConnectedDispatchProps {
   importScript: typeof importScript
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
+  onRunTask: typeof runTask
 }
 
 interface ConnectedStateProps {
@@ -97,6 +99,7 @@ class TasksPage extends PureComponent<Props, State> {
       showInactive,
       onAddTaskLabels,
       onRemoveTaskLabels,
+      onRunTask,
     } = this.props
 
     return (
@@ -122,6 +125,7 @@ class TasksPage extends PureComponent<Props, State> {
                 onSelect={this.props.selectTask}
                 onAddTaskLabels={onAddTaskLabels}
                 onRemoveTaskLabels={onRemoveTaskLabels}
+                onRunTask={onRunTask}
               />
               {this.hiddenTaskAlert}
             </div>
@@ -249,6 +253,7 @@ const mdtp: ConnectedDispatchProps = {
   importScript,
   onRemoveTaskLabels: removeTaskLabelsAsync,
   onAddTaskLabels: addTaskLabelsAsync,
+  onRunTask: runTask,
 }
 
 export default connect<

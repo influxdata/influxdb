@@ -19,6 +19,7 @@ import {
   taskDeleteSuccess,
   taskCloneSuccess,
   taskCloneFailed,
+  taskRunSuccess,
 } from 'src/shared/copy/v2/notifications'
 
 // Types
@@ -481,4 +482,13 @@ export const getErrorMessage = (e: any) => {
 export const getRuns = async (taskID: string): Promise<Run[]> => {
   const runs = await client.tasks.getRunsByTaskID(taskID)
   return runs
+}
+
+export const runTask = (taskID: string) => async dispatch => {
+  try {
+    await client.tasks.startRunByTaskID(taskID)
+    dispatch(notify(taskRunSuccess()))
+  } catch (e) {
+    console.error(e)
+  }
 }
