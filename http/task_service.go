@@ -14,6 +14,7 @@ import (
 	"time"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/authorizer"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/julienschmidt/httprouter"
@@ -373,6 +374,44 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request) (*getTasksReque
 	return req, nil
 }
 
+// TODO(desa): remove
+func getPermissions() ([]platform.Permission, error) { return nil, nil }
+
+func (h *TaskHandler) createTaskAuthorizationIfNotExists(ctx context.Context, a platform.Authorizer, t *platform.TaskCreate) error {
+	if t.Token != "" {
+		return nil
+	}
+
+	s, ok := a.(*platform.Session)
+	if !ok {
+		// If an authorization was used continue
+		return nil
+	}
+
+	ps, err := getPermissions() // convert task to required permissions here
+	if err != nil {
+		return err
+	}
+
+	if err := authorizer.VerifyPermissions(ctx, ps); err != nil {
+		return err
+	}
+
+	auth := &platform.Authorization{
+		OrgID:       t.OrganizationID,
+		UserID:      s.UserID,
+		Permissions: ps,
+	}
+
+	if err := h.AuthorizationService.CreateAuthorization(ctx, auth); err != nil {
+		return err
+	}
+
+	t.Token = auth.Token
+
+	return nil
+}
+
 func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -412,6 +451,11 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "invalid organization id",
 		}
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.createTaskAuthorizationIfNotExists(ctx, auth, &req.TaskCreate); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
