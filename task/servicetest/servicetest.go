@@ -180,10 +180,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &cr.UserID})
 	if err != nil {
 		t.Fatal(err)
-	} else {
-		f = findTask(fs, tsk.ID)
-		found["FindTasks with User filter"] = f
 	}
+	f = findTask(fs, tsk.ID)
+	found["FindTasks with User filter"] = f
 
 	for fn, f := range found {
 		if f.OrganizationID != cr.OrgID {

@@ -219,11 +219,10 @@ func (p pAdapter) DeleteTask(ctx context.Context, id platform.ID) error {
 
 	if err != nil {
 		return err
-	} else {
-		for _, m := range urms {
-			if err := p.urm.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
-				return err
-			}
+	}
+	for _, m := range urms {
+		if err := p.urm.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
+			return err
 		}
 	}
 
