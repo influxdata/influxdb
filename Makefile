@@ -159,7 +159,7 @@ chronogiraffe: subdirs generate $(CMDS)
 run: chronogiraffe
 	./bin/$(GOOS)/influxd --assets-path=ui/build
 
-e2e: chronogiraffe
+run-e2e: chronogiraffe
 	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
 
 # assume this is running from circleci
@@ -169,4 +169,4 @@ protoc:
 	chmod +x /go/bin/protoc
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc
+.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e
