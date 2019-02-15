@@ -19,6 +19,9 @@ type RunController interface {
 
 // PlatformAdapter wraps a task.Store into the platform.TaskService interface.
 func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController, as platform.AuthorizationService, urm platform.UserResourceMappingService) platform.TaskService {
+	if urm == nil {
+		panic("urm is nil")
+	}
 	return pAdapter{s: s, r: r, rc: rc, as: as, urm: urm}
 }
 
@@ -154,14 +157,14 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		task.Offset = opts.Offset.String()
 	}
 
-	urm := &platform.UserResourceMapping{
+	mapping := &platform.UserResourceMapping{
 		UserID:       auth.GetUserID(),
 		UserType:     platform.Owner,
 		ResourceType: platform.TasksResourceType,
 		ResourceID:   task.ID,
 	}
 
-	if err := p.urm.CreateUserResourceMapping(ctx, urm); err != nil {
+	if err := p.urm.CreateUserResourceMapping(ctx, mapping); err != nil {
 		// clean up the task if we fail to map the user and resource
 		// TODO(lh): Multi step creates could benefit from a service wide transactional request
 		if derr := p.DeleteTask(ctx, task.ID); derr != nil {
