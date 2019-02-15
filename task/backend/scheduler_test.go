@@ -585,8 +585,28 @@ func TestScheduler_RunFailureCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// One more tick just to ensure that we can keep going after this type of failure too.
+	// Fail to execute next run.
+	if n := d.TotalRunsCreatedForTask(task.ID); n != 2 {
+		t.Fatalf("should have created 2 runs so far, got %d", n)
+	}
+	e.FailNextCallToExecute(errors.New("forced failure on Execute"))
 	s.Tick(8)
+	// The execution happens in the background, so check a few times for 3 runs created.
+	const attempts = 50
+	for i := 0; i < attempts; i++ {
+		time.Sleep(2 * time.Millisecond)
+		n := d.TotalRunsCreatedForTask(task.ID)
+		if n == 3 {
+			break
+		}
+		if i == attempts-1 {
+			// Fail if we haven't seen the right count by the last attempt.
+			t.Fatalf("expected 3 runs created, got %d", n)
+		}
+	}
+
+	// One more tick just to ensure that we can keep going after this type of failure too.
+	s.Tick(9)
 	_, err = e.PollForNumberRunning(task.ID, 1)
 	if err != nil {
 		t.Fatal(err)
