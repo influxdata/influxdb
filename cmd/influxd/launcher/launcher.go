@@ -50,14 +50,23 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const (
+	// BoltStore stores all REST resources in boltdb.
+	BoltStore = "bolt"
+	// MemoryStore stores all REST resources in memory (useful for testing).
+	MemoryStore = "memory"
+)
+
 // Launcher represents the main program execution.
 type Launcher struct {
 	wg      sync.WaitGroup
 	cancel  func()
 	running bool
 
-	memoryStore       bool
-	developerMode     bool
+	storeType  string
+	assetsPath string
+	testing    bool
+
 	logLevel          string
 	reportingDisabled bool
 
@@ -68,7 +77,6 @@ type Launcher struct {
 	secretStore     string
 
 	boltClient *bolt.Client
-	memKV      *inmem.KVStore
 	kvService  *kv.Service
 	engine     *storage.Engine
 
@@ -204,16 +212,21 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Desc:    "path to boltdb database",
 			},
 			{
-				DestP:   &m.developerMode,
-				Flag:    "developer-mode",
-				Default: false,
-				Desc:    "serve assets from the local filesystem in developer mode",
+				DestP: &m.assetsPath,
+				Flag:  "assets-path",
+				Desc:  "override default assets by serving from a specific directory (developer mode)",
 			},
 			{
-				DestP:   &m.memoryStore,
-				Flag:    "inmem",
+				DestP:   &m.storeType,
+				Flag:    "store",
+				Default: "bolt",
+				Desc:    "backing store for REST resources (bolt or memory)",
+			},
+			{
+				DestP:   &m.testing,
+				Flag:    "e2e-tests",
 				Default: false,
-				Desc:    "use in-memory store for all resources; useful for testing",
+				Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
 			},
 			{
 				DestP:   &m.enginePath,
@@ -287,13 +300,25 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	store := bolt.NewKVStore(m.boltPath)
-	store.WithDB(m.boltClient.DB())
-
-	m.kvService = kv.NewService(store)
-	if m.memoryStore {
-		m.memKV = inmem.NewKVStore()
-		m.kvService = kv.NewService(m.memKV)
+	var flusher http.Flusher
+	switch m.storeType {
+	case BoltStore:
+		store := bolt.NewKVStore(m.boltPath)
+		store.WithDB(m.boltClient.DB())
+		m.kvService = kv.NewService(store)
+		if m.testing {
+			flusher = store
+		}
+	case MemoryStore:
+		store := inmem.NewKVStore()
+		m.kvService = kv.NewService(store)
+		if m.testing {
+			flusher = store
+		}
+	default:
+		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
+		m.logger.Error("failed opening bolt", zap.Error(err))
+		return err
 	}
 
 	m.kvService.Logger = m.logger.With(zap.String("store", "kv"))
@@ -423,7 +448,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 
-		if m.memoryStore {
+		if m.storeType == "memory" {
 			store = taskbackend.NewInMemStore()
 		}
 
@@ -488,7 +513,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.apibackend = &http.APIBackend{
-		DeveloperMode:        m.developerMode,
+		AssetsPath:           m.assetsPath,
 		Logger:               m.logger,
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
@@ -531,11 +556,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	h.Logger = httpLogger
 	h.Tracer = opentracing.GlobalTracer()
 
-	// If we are in memory mode we allow all data to be flushed and removed.
-	if m.memoryStore {
-		m.httpServer.Handler = http.DebugFlush(h, m.memKV)
-	} else {
-		m.httpServer.Handler = http.DebugFlush(h, store)
+	// If we are in testing mode we allow all data to be flushed and removed.
+	if m.testing {
+		m.httpServer.Handler = http.DebugFlush(h, flusher)
 	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)

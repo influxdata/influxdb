@@ -157,7 +157,7 @@ chronogiraffe: subdirs generate $(CMDS)
 	@echo "$$CHRONOGIRAFFE"
 
 run: chronogiraffe
-	./bin/$(GOOS)/influxd --developer-mode=true
+	./bin/$(GOOS)/influxd --assets-path=ui/build
 
 # assume this is running from circleci
 protoc:

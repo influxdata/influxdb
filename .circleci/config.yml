@@ -65,7 +65,7 @@ jobs:
       - run: mkdir -p /home/circleci/.influxdbv2/protos
       - run: make build
       - run:
-          command: ./bin/linux/influxd --inmem
+          command: ./bin/linux/influxd --store=memory --testing
           background: true
       - run: make e2e
       - store_test_results:

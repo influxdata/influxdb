@@ -37,7 +37,7 @@ func NewPlatformHandler(b *APIBackend) *PlatformHandler {
 	h.RegisterNoAuthRoute("GET", "/api/v2/swagger.json")
 
 	assetHandler := NewAssetHandler()
-	assetHandler.DeveloperMode = b.DeveloperMode
+	assetHandler.Path = b.AssetsPath
 
 	return &PlatformHandler{
 		AssetHandler: assetHandler,
