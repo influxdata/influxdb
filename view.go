@@ -395,6 +395,7 @@ type HistogramViewProperties struct {
 	ViewColors        []ViewColor      `json:"colors"`
 	XColumn           string           `json:"xColumn"`
 	FillColumns       []string         `json:"fillColumns"`
+	XDomain           []float64        `json:"xDomain,omitEmpty"`
 	Position          string           `json:"position"`
 	BinCount          int              `json:"binCount"`
 	Note              string           `json:"note"`

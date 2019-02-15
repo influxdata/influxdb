@@ -23,7 +23,7 @@ export const drawAxes = (
     margins,
     xTicks,
     yTicks,
-    defaults: {
+    baseLayer: {
       scales: {x: xScale, y: yScale},
     },
   } = env
@@ -60,7 +60,7 @@ export const drawAxes = (
     context.lineTo(x, margins.top)
     context.stroke()
 
-    context.fillText(xTick, x, xAxisY + TICK_PADDING_TOP)
+    context.fillText(String(xTick), x, xAxisY + TICK_PADDING_TOP)
   }
 
   context.textAlign = 'end'
@@ -75,7 +75,7 @@ export const drawAxes = (
     context.lineTo(width - margins.right, y)
     context.stroke()
 
-    context.fillText(yTick, margins.left - TICK_PADDING_RIGHT, y)
+    context.fillText(String(yTick), margins.left - TICK_PADDING_RIGHT, y)
   }
 }
 

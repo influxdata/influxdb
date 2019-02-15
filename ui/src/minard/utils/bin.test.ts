@@ -38,7 +38,7 @@ const TABLE = {
 
 describe('bin', () => {
   test('without grouping', () => {
-    const actual = bin(TABLE, '_value', [], 5, HistogramPosition.Stacked)
+    const actual = bin(TABLE, '_value', null, [], 5, HistogramPosition.Stacked)
     const expected = [
       {
         columnTypes: {
@@ -64,6 +64,7 @@ describe('bin', () => {
     const actual = bin(
       TABLE,
       '_value',
+      null,
       ['_field'],
       5,
       HistogramPosition.Stacked
@@ -95,6 +96,7 @@ describe('bin', () => {
     const actual = bin(
       TABLE,
       '_value',
+      null,
       ['_field'],
       5,
       HistogramPosition.Overlaid
@@ -116,6 +118,26 @@ describe('bin', () => {
       xMax: [20, 40, 60, 80, 100, 20, 40, 60, 80, 100],
       xMin: [0, 20, 40, 60, 80, 0, 20, 40, 60, 80],
       yMax: [0, 0, 1, 3, 1, 1, 0, 1, 3, 0],
+      yMin: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    }
+
+    expect(actual).toEqual(expected)
+  })
+
+  test('with an explicitly set xDomain', () => {
+    const actual = bin(
+      TABLE,
+      '_value',
+      [-200, 200],
+      [],
+      10,
+      HistogramPosition.Stacked
+    )[0].columns
+
+    const expected = {
+      xMax: [-160, -120, -80, -40, 0, 40, 80, 120, 160, 200],
+      xMin: [-200, -160, -120, -80, -40, 0, 40, 80, 120, 160],
+      yMax: [0, 0, 0, 0, 0, 1, 8, 1, 0, 0],
       yMin: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     }
 

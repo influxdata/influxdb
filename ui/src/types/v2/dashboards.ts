@@ -226,6 +226,7 @@ export interface HistogramView {
   queries: DashboardQuery[]
   xColumn: string
   fillColumns: string[]
+  xDomain: [number, number]
   position: HistogramPosition
   binCount: number
   colors: Color[]
