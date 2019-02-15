@@ -3,6 +3,7 @@
 exports[`Tasks.Components.TaskRow renders 1`] = `
 <IndexListRow
   disabled={false}
+  testID="table-row"
 >
   <IndexListRowCell
     alignment="left"
