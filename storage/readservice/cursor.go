@@ -47,9 +47,6 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, req *datatypes.R
 	}
 	p := &indexSeriesCursor{row: reads.SeriesRow{Query: tsdb.CursorIterators{queries}}}
 
-	m := tsdb.EncodeName(platform.ID(src.OrganizationID), platform.ID(src.BucketID))
-	mi := tsdb.NewMeasurementSliceIterator([][]byte{m[:]})
-
 	if root := req.Predicate.GetRoot(); root != nil {
 		if p.cond, err = reads.NodeToExpr(root, nil); err != nil {
 			return nil, err
@@ -66,7 +63,10 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, req *datatypes.R
 		}
 	}
 
-	p.sqry, err = engine.CreateSeriesCursor(ctx, storage.SeriesCursorRequest{Measurements: mi}, opt.Condition)
+	scr := storage.SeriesCursorRequest{
+		Name: tsdb.EncodeName(platform.ID(src.OrganizationID), platform.ID(src.BucketID)),
+	}
+	p.sqry, err = engine.CreateSeriesCursor(ctx, scr, opt.Condition)
 	if err != nil {
 		p.Close()
 		return nil, err
