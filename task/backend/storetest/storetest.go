@@ -48,7 +48,6 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 		"FinishRun":            testStoreFinishRun,
 		"ManuallyRunTimeRange": testStoreManuallyRunTimeRange,
 		"DeleteOrg":            testStoreDeleteOrg,
-		"DeleteUser":           testStoreDeleteUser,
 	}
 
 	return func(t *testing.T) {
@@ -341,14 +340,6 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad org ID, got %d result(s)", len(ts))
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{User: platform.ID(123)})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(ts) > 0 {
-			t.Fatalf("expected no results for bad user ID, got %d result(s)", len(ts))
-		}
-
 		newID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 1), Status: backend.TaskInactive})
 		if err != nil {
 			t.Fatal(err)
@@ -432,10 +423,6 @@ from(bucket:"test") |> range(start:-1h)`
 					t.Fatalf("task org mismatch at index %d: got %x, expected %x", i, g.Task.Org, orgID)
 				}
 
-				if userID != g.Task.User {
-					t.Fatalf("task user mismatch at index %d: got %x, expected %x", i, g.Task.User, userID)
-				}
-
 				if tasks[i].name != g.Task.Name {
 					t.Fatalf("task name mismatch at index %d: got %q, expected %q", i, g.Task.Name, tasks[i].name)
 				}
@@ -457,10 +444,6 @@ from(bucket:"test") |> range(start:-1h)`
 
 		if _, err := s.ListTasks(context.Background(), backend.TaskSearchParams{PageSize: math.MaxInt32}); err == nil {
 			t.Fatal("expected error for huge page size but got nil")
-		}
-
-		if _, err := s.ListTasks(context.Background(), backend.TaskSearchParams{Org: platform.ID(1), User: platform.ID(2)}); err == nil {
-			t.Fatal("expected error when specifying both org and user, but got nil")
 		}
 	})
 }
@@ -496,9 +479,6 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 		if task.Org != org {
 			t.Fatalf("unexpected org: got %v, exp %v", task.Org, org)
-		}
-		if task.User != user {
-			t.Fatalf("unexpected user: got %v, exp %v", task.User, user)
 		}
 		if task.Name != "a task" {
 			t.Fatalf("unexpected name %q", task.Name)
@@ -703,9 +683,6 @@ from(bucket:"test") |> range(start:-1h)`
 	}
 	if task.Org != org {
 		t.Fatalf("unexpected org: got %v, exp %v", task.Org, org)
-	}
-	if task.User != user {
-		t.Fatalf("unexpected user: got %v, exp %v", task.User, user)
 	}
 	if task.Name != "a task" {
 		t.Fatalf("unexpected name %q", task.Name)
@@ -1013,30 +990,6 @@ from(bucket:"test") |> range(start:-1h)`
 
 	if !rc.HasQueue {
 		t.Fatal("CreateNextRun should have reported that there is a queue")
-	}
-}
-
-func testStoreDeleteUser(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
-	s := create(t)
-	defer destroy(t, s)
-	ids := createABunchOFTasks(t, s,
-		func(u, _ uint64) bool {
-			return u == 1
-		},
-	)
-	user := platform.ID(1)
-	err := s.DeleteUser(context.Background(), user)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := range ids {
-		task, err := s.FindTaskByID(context.Background(), ids[i])
-		if err != nil {
-			t.Fatal(err)
-		}
-		if task != nil {
-			t.Fatal("expected task to be deleted but it was not")
-		}
 	}
 }
 

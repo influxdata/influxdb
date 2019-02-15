@@ -18,8 +18,8 @@ type RunController interface {
 }
 
 // PlatformAdapter wraps a task.Store into the platform.TaskService interface.
-func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController, as platform.AuthorizationService) platform.TaskService {
-	return pAdapter{s: s, r: r, rc: rc, as: as}
+func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController, as platform.AuthorizationService, urm platform.UserResourceMappingService) platform.TaskService {
+	return pAdapter{s: s, r: r, rc: rc, as: as, urm: urm}
 }
 
 type pAdapter struct {
@@ -28,7 +28,8 @@ type pAdapter struct {
 	r  backend.LogReader
 
 	// Needed to look up authorization ID from token during create.
-	as platform.AuthorizationService
+	as  platform.AuthorizationService
+	urm platform.UserResourceMappingService
 }
 
 var _ platform.TaskService = pAdapter{}
@@ -53,8 +54,35 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 		params.Org = *filter.Organization
 	}
 	if filter.User != nil {
-		params.User = *filter.User
+		ownedTasks, _, err := p.urm.FindUserResourceMappings(
+			ctx,
+			platform.UserResourceMappingFilter{
+				UserID:       *filter.User,
+				UserType:     platform.Owner,
+				ResourceType: platform.TasksResourceType,
+			},
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		var tasks []*platform.Task
+		for _, ownedTask := range ownedTasks {
+			storeTask, meta, err := p.s.FindTaskByIDWithMeta(ctx, ownedTask.ResourceID)
+			if err != nil {
+				return nil, 0, err
+			}
+			task, err := toPlatformTask(*storeTask, meta)
+			if err != nil {
+				return nil, 0, err
+			}
+
+			tasks = append(tasks, task)
+
+		}
+		return tasks, len(tasks), nil
 	}
+
 	if filter.After != nil {
 		params.After = *filter.After
 	}
@@ -126,6 +154,23 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		task.Offset = opts.Offset.String()
 	}
 
+	mapping := &platform.UserResourceMapping{
+		UserID:       auth.GetUserID(),
+		UserType:     platform.Owner,
+		ResourceType: platform.TasksResourceType,
+		ResourceID:   task.ID,
+	}
+
+	if err := p.urm.CreateUserResourceMapping(ctx, mapping); err != nil {
+		// clean up the task if we fail to map the user and resource
+		// TODO(lh): Multi step creates could benefit from a service wide transactional request
+		if derr := p.DeleteTask(ctx, task.ID); derr != nil {
+			err = fmt.Errorf("%s: failed to clean up task: %s", err.Error(), derr.Error())
+		}
+
+		return nil, err
+	}
+
 	return task, nil
 }
 
@@ -161,8 +206,27 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 
 func (p pAdapter) DeleteTask(ctx context.Context, id platform.ID) error {
 	_, err := p.s.DeleteTask(ctx, id)
+	if err != nil {
+		return err
+	}
 	// TODO(mr): Store.DeleteTask returns false, nil if ID didn't match; do we want to handle that case?
-	return err
+
+	// clean up resource maps for deleted task
+	urms, _, err := p.urm.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: platform.TasksResourceType,
+	})
+
+	if err != nil {
+		return err
+	}
+	for _, m := range urms {
+		if err := p.urm.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (p pAdapter) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
