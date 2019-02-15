@@ -71,7 +71,7 @@ export default class Variables extends PureComponent<Props, State> {
         </TabbedPageHeader>
         <FilterList<Variable>
           searchTerm={searchTerm}
-          searchKeys={['name', 'ruleString']}
+          searchKeys={['name']}
           list={variables}
         >
           {variables => (
