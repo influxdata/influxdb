@@ -1,6 +1,7 @@
 // Libraries
 import React, {useMemo, useEffect, SFC} from 'react'
 import {connect} from 'react-redux'
+import {AutoSizer} from 'react-virtualized'
 import {
   Plot as MinardPlot,
   Histogram as MinardHistogram,
@@ -9,12 +10,16 @@ import {
 
 // Components
 import HistogramTooltip from 'src/shared/components/HistogramTooltip'
+import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Actions
 import {tableLoaded} from 'src/timeMachine/actions'
 
 // Utils
 import {toMinardTable} from 'src/shared/utils/toMinardTable'
+
+// Constants
+import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
 import {FluxTable} from 'src/types'
@@ -25,8 +30,6 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  width: number
-  height: number
   tables: FluxTable[]
   properties: HistogramView
 }
@@ -34,7 +37,7 @@ interface OwnProps {
 type Props = OwnProps & DispatchProps
 
 const Histogram: SFC<Props> = props => {
-  const {tables, width, height, onTableLoaded} = props
+  const {tables, onTableLoaded} = props
   const {xColumn, fillColumns, binCount, position, colors} = props.properties
   const colorHexes = colors.map(c => c.hex)
 
@@ -59,7 +62,7 @@ const Histogram: SFC<Props> = props => {
   let x: string
   let fill: string[]
 
-  if (table.columns[xColumn]) {
+  if (table.columns[xColumn] && table.columnTypes[x] === ColumnType.Numeric) {
     x = xColumn
   } else {
     x = Object.entries(table.columnTypes)
@@ -73,20 +76,28 @@ const Histogram: SFC<Props> = props => {
     fill = []
   }
 
+  if (!x) {
+    return <EmptyGraphMessage message={INVALID_DATA_COPY} />
+  }
+
   return (
-    <MinardPlot table={table} width={width} height={height}>
-      {env => (
-        <MinardHistogram
-          env={env}
-          x={x}
-          fill={fill}
-          binCount={binCount}
-          position={position}
-          tooltip={HistogramTooltip}
-          colors={colorHexes}
-        />
+    <AutoSizer>
+      {({width, height}) => (
+        <MinardPlot table={table} width={width} height={height}>
+          {env => (
+            <MinardHistogram
+              env={env}
+              x={x}
+              fill={fill}
+              binCount={binCount}
+              position={position}
+              tooltip={HistogramTooltip}
+              colors={colorHexes}
+            />
+          )}
+        </MinardPlot>
       )}
-    </MinardPlot>
+    </AutoSizer>
   )
 }
 
