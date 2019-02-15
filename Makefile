@@ -159,6 +159,9 @@ chronogiraffe: subdirs generate $(CMDS)
 run: chronogiraffe
 	./bin/$(GOOS)/influxd --assets-path=ui/build
 
+e2e: chronogiraffe
+	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
+
 # assume this is running from circleci
 protoc:
 	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip

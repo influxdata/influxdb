@@ -224,7 +224,7 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 			},
 			{
 				DestP:   &m.testing,
-				Flag:    "e2e-tests",
+				Flag:    "e2e-testing",
 				Default: false,
 				Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
 			},
@@ -556,6 +556,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	h.Logger = httpLogger
 	h.Tracer = opentracing.GlobalTracer()
 
+	m.httpServer.Handler = h
 	// If we are in testing mode we allow all data to be flushed and removed.
 	if m.testing {
 		m.httpServer.Handler = http.DebugFlush(h, flusher)
