@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 	"sort"
 	"sync"
@@ -11,20 +12,28 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+var (
+	errUnexpectedOrg                   = errors.New("seriesCursor: unexpected org")
+	errUnexpectedTagComparisonOperator = errors.New("seriesCursor: unexpected tag comparison operator")
+)
+
 type SeriesCursor interface {
 	Close() error
 	Next() (*SeriesCursorRow, error)
 }
 
 type SeriesCursorRequest struct {
-	Measurements tsdb.MeasurementIterator
+	// Name contains the tsdb encoded org and bucket ID
+	Name [16]byte
 }
 
 // seriesCursor is an implementation of SeriesCursor over an tsi1.Index.
 type seriesCursor struct {
 	once  sync.Once
 	index *tsi1.Index
+	sfile *tsdb.SeriesFile
 	mitr  tsdb.MeasurementIterator
+	orgID []byte
 	keys  [][]byte
 	ofs   int
 	row   SeriesCursorRow
@@ -37,25 +46,19 @@ type SeriesCursorRow struct {
 }
 
 // newSeriesCursor returns a new instance of SeriesCursor.
-func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, cond influxql.Expr) (_ SeriesCursor, err error) {
-	// Only equality operators are allowed.
-	influxql.WalkFunc(cond, func(node influxql.Node) {
-		switch n := node.(type) {
-		case *influxql.BinaryExpr:
-			switch n.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX, influxql.OR, influxql.AND:
-			default:
-				err = errors.New("invalid tag comparison operator")
+func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, sfile *tsdb.SeriesFile, cond influxql.Expr) (_ SeriesCursor, err error) {
+	if cond != nil {
+		var err error
+		influxql.WalkFunc(cond, func(node influxql.Node) {
+			switch n := node.(type) {
+			case *influxql.BinaryExpr:
+				switch n.Op {
+				case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX, influxql.OR, influxql.AND:
+				default:
+					err = errUnexpectedTagComparisonOperator
+				}
 			}
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	mitr := req.Measurements
-	if mitr == nil {
-		mitr, err = index.MeasurementIterator()
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +66,9 @@ func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, cond influxql.E
 
 	return &seriesCursor{
 		index: index,
-		mitr:  mitr,
+		sfile: sfile,
+		mitr:  tsdb.NewMeasurementSliceIterator([][]byte{req.Name[:]}),
+		orgID: req.Name[:8],
 		cond:  cond,
 	}, nil
 }
@@ -98,6 +103,9 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 		}
 
 		cur.row.Name, cur.row.Tags = tsdb.ParseSeriesKey(cur.keys[cur.ofs])
+		if !bytes.HasPrefix(cur.row.Name, cur.orgID) {
+			return nil, errUnexpectedOrg
+		}
 		cur.ofs++
 		return &cur.row, nil
 	}
@@ -123,7 +131,7 @@ func (cur *seriesCursor) readSeriesKeys(name []byte) error {
 			break
 		}
 
-		key := cur.index.SeriesFile().SeriesKey(elem.SeriesID)
+		key := cur.sfile.SeriesKey(elem.SeriesID)
 		if len(key) == 0 {
 			continue
 		}
