@@ -80,8 +80,8 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 
 			tasks = append(tasks, task)
 
-			return tasks, len(tasks), nil
 		}
+		return tasks, len(tasks), nil
 	}
 
 	if filter.After != nil {
