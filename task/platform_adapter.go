@@ -67,7 +67,6 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 		}
 
 		var tasks []*platform.Task
-
 		for _, ownedTask := range ownedTasks {
 			storeTask, meta, err := p.s.FindTaskByIDWithMeta(ctx, ownedTask.ResourceID)
 			if err != nil {
@@ -155,6 +154,23 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		task.Offset = opts.Offset.String()
 	}
 
+	urm := &platform.UserResourceMapping{
+		UserID:       auth.GetUserID(),
+		UserType:     platform.Owner,
+		ResourceType: platform.TasksResourceType,
+		ResourceID:   task.ID,
+	}
+
+	if err := p.urm.CreateUserResourceMapping(ctx, urm); err != nil {
+		// clean up the task if we fail to map the user and resource
+		// TODO(lh): Multi step creates could benefit from a service wide transactional request
+		if derr := p.DeleteTask(ctx, task.ID); derr != nil {
+			err = fmt.Errorf("%s: failed to clean up task: %s", err.Error(), derr.Error())
+		}
+
+		return nil, err
+	}
+
 	return task, nil
 }
 
@@ -190,8 +206,28 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 
 func (p pAdapter) DeleteTask(ctx context.Context, id platform.ID) error {
 	_, err := p.s.DeleteTask(ctx, id)
+	if err != nil {
+		return err
+	}
 	// TODO(mr): Store.DeleteTask returns false, nil if ID didn't match; do we want to handle that case?
-	return err
+
+	// clean up resource maps for deleted task
+	urms, _, err := p.urm.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: platform.TasksResourceType,
+	})
+
+	if err != nil {
+		return err
+	} else {
+		for _, m := range urms {
+			if err := p.urm.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (p pAdapter) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {

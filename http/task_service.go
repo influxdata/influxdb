@@ -415,17 +415,6 @@ func (h *TaskHandler) createTaskAuthorizationIfNotExists(ctx context.Context, a 
 func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	auth, err := pcontext.GetAuthorizer(ctx)
-	if err != nil {
-		err = &platform.Error{
-			Err:  err,
-			Code: platform.EUnauthorized,
-			Msg:  "failed to get authorizer",
-		}
-		EncodeError(ctx, err, w)
-		return
-	}
-
 	req, err := decodePostTaskRequest(ctx, r)
 	if err != nil {
 		err = &platform.Error{
@@ -469,29 +458,6 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to create task",
 		}
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	// add User resource map
-	urm := &platform.UserResourceMapping{
-		UserID:       auth.GetUserID(),
-		UserType:     platform.Owner,
-		ResourceType: platform.TasksResourceType,
-		ResourceID:   task.ID,
-	}
-	if err := h.UserResourceMappingService.CreateUserResourceMapping(ctx, urm); err != nil {
-		// clean up the task if we fail to map the user and resource
-		// TODO(lh): Multi step creates could benefit from a service wide transactional request
-		if derr := h.TaskService.DeleteTask(ctx, task.ID); derr != nil {
-			err = fmt.Errorf("%s: failed to clean up task: %s", err.Error(), derr.Error())
-		}
-
-		err = &platform.Error{
-			Err: err,
-			Msg: "failed to add user permissions",
-		}
-
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -699,21 +665,6 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		}
 		EncodeError(ctx, err, w)
 		return
-	}
-	// clean up resource maps for deleted task
-	urms, _, err := h.UserResourceMappingService.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
-		ResourceID:   req.TaskID,
-		ResourceType: platform.TasksResourceType,
-	})
-
-	if err != nil {
-		h.logger.Warn("failed to pull user resource mapping", zap.Error(err))
-	} else {
-		for _, m := range urms {
-			if err := h.UserResourceMappingService.DeleteUserResourceMapping(ctx, m.ResourceID, m.UserID); err != nil {
-				h.logger.Warn(fmt.Sprintf("failed to remove user resource mapping for task %s", m.ResourceID.String()), zap.Error(err))
-			}
-		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
