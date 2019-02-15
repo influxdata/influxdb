@@ -12,18 +12,14 @@ import (
 	"github.com/influxdata/influxdb/task/options"
 )
 
-// TODO(lh): A temporary error response for all finds that use user id's
-// This should be removed when we transition to the new kv store.
-var ErrTempDisabled = errors.New("temporarily disabled")
-
 type RunController interface {
 	CancelRun(ctx context.Context, taskID, runID platform.ID) error
 	//TODO: add retry run to this.
 }
 
 // PlatformAdapter wraps a task.Store into the platform.TaskService interface.
-func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController, as platform.AuthorizationService) platform.TaskService {
-	return pAdapter{s: s, r: r, rc: rc, as: as}
+func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController, as platform.AuthorizationService, urm platform.UserResourceMappingService) platform.TaskService {
+	return pAdapter{s: s, r: r, rc: rc, as: as, urm: urm}
 }
 
 type pAdapter struct {
@@ -32,7 +28,8 @@ type pAdapter struct {
 	r  backend.LogReader
 
 	// Needed to look up authorization ID from token during create.
-	as platform.AuthorizationService
+	as  platform.AuthorizationService
+	urm platform.UserResourceMappingService
 }
 
 var _ platform.TaskService = pAdapter{}
@@ -57,8 +54,36 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 		params.Org = *filter.Organization
 	}
 	if filter.User != nil {
-		return nil, 0, ErrTempDisabled
+		ownedTasks, _, err := p.urm.FindUserResourceMappings(
+			ctx,
+			platform.UserResourceMappingFilter{
+				UserID:       *filter.User,
+				UserType:     platform.Owner,
+				ResourceType: platform.TasksResourceType,
+			},
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		var tasks []*platform.Task
+
+		for _, ownedTask := range ownedTasks {
+			storeTask, meta, err := p.s.FindTaskByIDWithMeta(ctx, ownedTask.ResourceID)
+			if err != nil {
+				return nil, 0, err
+			}
+			task, err := toPlatformTask(*storeTask, meta)
+			if err != nil {
+				return nil, 0, err
+			}
+
+			tasks = append(tasks, task)
+
+			return tasks, len(tasks), nil
+		}
 	}
+
 	if filter.After != nil {
 		params.After = *filter.After
 	}

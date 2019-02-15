@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"math"
 	"runtime"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -44,7 +43,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 	sys, cancel := fn(t)
 	defer cancel()
 	if sys.TaskServiceFunc == nil {
-		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch, sys.I)
+		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch, sys.I, sys.I)
 	} else {
 		sys.ts = sys.TaskServiceFunc()
 	}
@@ -180,9 +179,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &cr.UserID})
 	if err != nil {
-		if !strings.Contains(err.Error(), "temporarily disabled") {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	} else {
 		f = findTask(fs, tsk.ID)
 		found["FindTasks with User filter"] = f
