@@ -23,13 +23,6 @@ func NewKVStore() *KVStore {
 	}
 }
 
-func (s *KVStore) Flush() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.buckets = map[string]*Bucket{}
-}
-
 // View opens up a transaction with a read lock.
 func (s *KVStore) View(fn func(kv.Tx) error) error {
 	s.mu.RLock()
@@ -54,6 +47,8 @@ func (s *KVStore) Update(fn func(kv.Tx) error) error {
 
 // Flush removes all data from the buckets.  Used for testing.
 func (s *KVStore) Flush() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, b := range s.buckets {
 		b.btree.Clear(false)
 	}

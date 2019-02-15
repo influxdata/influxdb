@@ -64,10 +64,6 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
-		if err := s.initializeMacros(ctx, tx); err != nil {
-			return err
-		}
-
 		if err := s.initializeOnboarding(ctx, tx); err != nil {
 			return err
 		}
@@ -101,6 +97,10 @@ func (s *Service) Initialize(ctx context.Context) error {
 		}
 
 		if err := s.initializeURMs(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeVariables(ctx, tx); err != nil {
 			return err
 		}
 
