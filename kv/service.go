@@ -48,6 +48,54 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
+		if err := s.initializeBuckets(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeDashboards(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeKVLog(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeLabels(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeMacros(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeOnboarding(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeOrgs(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializePasswords(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeScraperTargets(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeSecrets(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeSessions(ctx, tx); err != nil {
+			return err
+		}
+
+		if err := s.initializeSources(ctx, tx); err != nil {
+			return err
+		}
+
 		if err := s.initializeTelegraf(ctx, tx); err != nil {
 			return err
 		}

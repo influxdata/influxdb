@@ -2,7 +2,7 @@ package http
 
 import "net/http"
 
-// Flusher flushes
+// Flusher flushes data from a store to reset; used for testing.
 type Flusher interface {
 	Flush()
 }

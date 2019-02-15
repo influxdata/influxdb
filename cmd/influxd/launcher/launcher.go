@@ -20,6 +20,7 @@ import (
 	protofs "github.com/influxdata/influxdb/fs"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
@@ -55,6 +56,7 @@ type Launcher struct {
 	cancel  func()
 	running bool
 
+	memoryStore       bool
 	developerMode     bool
 	logLevel          string
 	reportingDisabled bool
@@ -66,6 +68,7 @@ type Launcher struct {
 	secretStore     string
 
 	boltClient *bolt.Client
+	memKV      *inmem.KVStore
 	kvService  *kv.Service
 	engine     *storage.Engine
 
@@ -207,6 +210,12 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Desc:    "serve assets from the local filesystem in developer mode",
 			},
 			{
+				DestP:   &m.memoryStore,
+				Flag:    "inmem",
+				Default: false,
+				Desc:    "use in-memory store for all resources; useful for testing",
+			},
+			{
 				DestP:   &m.enginePath,
 				Flag:    "engine-path",
 				Default: filepath.Join(dir, "engine"),
@@ -282,6 +291,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	store.WithDB(m.boltClient.DB())
 
 	m.kvService = kv.NewService(store)
+	if m.memoryStore {
+		m.memKV = inmem.NewKVStore()
+		m.kvService = kv.NewService(m.memKV)
+	}
+
 	m.kvService.Logger = m.logger.With(zap.String("store", "kv"))
 	if err := m.kvService.Initialize(ctx); err != nil {
 		m.logger.Error("failed to initialize kv service", zap.Error(err))
@@ -399,24 +413,32 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
-		boltStore, err := taskbolt.New(m.boltClient.DB(), "tasks")
+		var (
+			store taskbackend.Store
+			err   error
+		)
+		store, err = taskbolt.New(m.boltClient.DB(), "tasks")
 		if err != nil {
 			m.logger.Error("failed opening task bolt", zap.Error(err))
 			return err
 		}
 
-		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, boltStore)
+		if m.memoryStore {
+			store = taskbackend.NewInMemStore()
+		}
+
+		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, store)
 
 		lw := taskbackend.NewPointLogWriter(pointsWriter)
-		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+		m.scheduler = taskbackend.NewScheduler(store, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
 		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
 		lr := taskbackend.NewQueryLogReader(queryService)
-		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler, authSvc)
+		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, store), lr, m.scheduler, authSvc)
 		taskSvc = task.NewValidator(taskSvc, bucketSvc)
-		m.taskStore = boltStore
+		m.taskStore = store
 	}
 
 	// NATS streaming server
@@ -509,7 +531,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	h.Logger = httpLogger
 	h.Tracer = opentracing.GlobalTracer()
 
-	m.httpServer.Handler = h
+	// If we are in memory mode we allow all data to be flushed and removed.
+	if m.memoryStore {
+		m.httpServer.Handler = http.DebugFlush(h, m.memKV)
+	} else {
+		m.httpServer.Handler = http.DebugFlush(h, store)
+	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
 	if err != nil {
