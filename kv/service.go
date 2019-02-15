@@ -64,7 +64,7 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
-		if err := s.initializeMacros(ctx, tx); err != nil {
+		if err := s.initializeVariables(ctx, tx); err != nil {
 			return err
 		}
 
