@@ -74,6 +74,13 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
           <ComponentSpacer align={Alignment.Left} stackChildren={Stack.Columns}>
             <Button
               size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Default}
+              text="Export"
+              icon={IconFont.Export}
+              onClick={this.handleExport}
+            />
+            <Button
+              size={ComponentSize.ExtraSmall}
               color={ComponentColor.Secondary}
               text="Clone"
               icon={IconFont.Duplicate}
@@ -191,5 +198,10 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
   private handleClone = () => {
     const {onCloneDashboard, dashboard} = this.props
     onCloneDashboard(dashboard)
+  }
+
+  private handleExport = () => {
+    const {onExportDashboard, dashboard} = this.props
+    onExportDashboard(dashboard)
   }
 }
