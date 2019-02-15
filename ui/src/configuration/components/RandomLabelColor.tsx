@@ -1,9 +1,8 @@
 import React, {Component} from 'react'
 import _ from 'lodash'
 
-import {Button} from '@influxdata/clockface'
-
 import {PRESET_LABEL_COLORS} from 'src/configuration/constants/LabelColors'
+import {IconFont} from 'src/clockface'
 
 // Styles
 import 'src/configuration/components/RandomLabelColor.scss'
@@ -25,13 +24,13 @@ export default class RandomLabelColorButton extends Component<Props> {
         className="button button-sm button-default random-color--button "
         onClick={this.handleClick}
       >
-        New Color
         <div
           className="label-colors--swatch"
           style={{
             backgroundColor: colorHex,
           }}
         />
+        <span className={`button-icon icon ${IconFont.Refresh}`} />
       </button>
     )
   }

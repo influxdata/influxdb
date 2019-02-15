@@ -8,20 +8,14 @@ import {
   ComponentColor,
   ButtonType,
   Columns,
-  Alignment,
-  Stack,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {Grid, Form, Input, ComponentSpacer, InputType} from 'src/clockface'
+import {Grid, Form, Input, InputType} from 'src/clockface'
 import RandomLabelColorButton from 'src/configuration/components/RandomLabelColor'
 import {Label, LabelProperties} from 'src/types/v2/labels'
 
 // Constants
-import {
-  CUSTOM_LABEL,
-  HEX_CODE_CHAR_LENGTH,
-  PRESET_LABEL_COLORS,
-} from 'src/configuration/constants/LabelColors'
+import {HEX_CODE_CHAR_LENGTH} from 'src/configuration/constants/LabelColors'
 
 // Utils
 import {validateHexCode} from 'src/configuration/utils/labels'
@@ -68,6 +62,26 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
     return (
       <Grid>
         <Grid.Row>
+          <Grid.Column widthSM={Columns.Ten}>
+            <Grid.Column widthXS={Columns.Two}>
+              <RandomLabelColorButton
+                colorHex={this.colorHex}
+                onClick={this.handleColorChange}
+              />
+            </Grid.Column>
+            <Grid.Column widthXS={Columns.Three}>
+              {this.customColorInput}
+            </Grid.Column>
+            <Grid.Column widthXS={Columns.Seven}>
+              <Input
+                type={InputType.Text}
+                placeholder="Add a optional description"
+                name="description"
+                value={this.description}
+                onChange={this.handleInputChange}
+              />
+            </Grid.Column>
+          </Grid.Column>
           <Grid.Column widthXS={Columns.Two}>
             <Button
               text="Create Label"
@@ -78,26 +92,6 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
               }
               onClick={this.handleSubmit}
             />
-          </Grid.Column>
-          <Grid.Column widthSM={Columns.Ten}>
-            <Grid.Column widthXS={Columns.Three}>
-              <RandomLabelColorButton
-                colorHex={this.colorHex}
-                onClick={this.handleColorChange}
-              />
-            </Grid.Column>
-            <Grid.Column widthXS={Columns.Three}>
-              {this.customColorInput}
-            </Grid.Column>
-            <Grid.Column widthXS={Columns.Six}>
-              <Input
-                type={InputType.Text}
-                placeholder="Add a optional description"
-                name="description"
-                value={this.description}
-                onChange={this.handleInputChange}
-              />
-            </Grid.Column>
           </Grid.Column>
         </Grid.Row>
       </Grid>

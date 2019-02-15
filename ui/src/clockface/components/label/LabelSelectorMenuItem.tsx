@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component} from 'react'
-import classnames from 'classnames'
 import _ from 'lodash'
 
 // Components
@@ -33,12 +32,6 @@ class LabelSelectorMenuItem extends Component<Props> {
         />
       </span>
     )
-  }
-
-  private get className(): string {
-    const {highlighted} = this.props
-
-    return classnames('label-selector--menu-item', {active: highlighted})
   }
 
   private handleMouseOver = (): void => {
