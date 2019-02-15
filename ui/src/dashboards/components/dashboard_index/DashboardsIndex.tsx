@@ -2,7 +2,6 @@
 import React, {PureComponent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
-import {downloadTextFile} from 'src/shared/utils/download'
 import {get} from 'lodash'
 
 // Components
@@ -12,6 +11,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {OverlayTechnology} from 'src/clockface'
 import CreateDashboardDropdown from 'src/dashboards/components/dashboard_index/CreateDashboardDropdown'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
+import ExportOverlay from 'src/shared/components/ExportOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Utils
@@ -35,8 +35,6 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import {
   dashboardSetDefaultFailed,
-  dashboardExported,
-  dashboardExportFailed,
   dashboardCreateFailed,
 } from 'src/shared/copy/notifications'
 
@@ -45,7 +43,6 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {DashboardFile} from 'src/types/v2/dashboards'
 import {Links, Cell, Dashboard, AppState, Organization} from 'src/types/v2'
 
 // Decorators
@@ -78,6 +75,8 @@ type Props = DispatchProps & StateProps & OwnProps
 interface State {
   searchTerm: string
   isImportingDashboard: boolean
+  isExportingDashboard: boolean
+  exportDashboard: Dashboard
   isEditingDashboardLabels: boolean
   dashboardLabelsEdit: Dashboard
 }
@@ -90,6 +89,8 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.state = {
       searchTerm: '',
       isImportingDashboard: false,
+      isExportingDashboard: false,
+      exportDashboard: null,
       isEditingDashboardLabels: false,
       dashboardLabelsEdit: null,
     }
@@ -145,6 +146,7 @@ class DashboardIndex extends PureComponent<Props, State> {
           </Page.Contents>
         </Page>
         {this.importOverlay}
+        {this.exportOverlay}
         {this.labelEditorOverlay}
       </>
     )
@@ -202,28 +204,8 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.props.handleDeleteDashboard(dashboard)
   }
 
-  private handleExportDashboard = async (
-    dashboard: Dashboard
-  ): Promise<void> => {
-    const {notify} = this.props
-    const dashboardForDownload = await this.modifyDashboardForDownload(
-      dashboard
-    )
-    try {
-      downloadTextFile(
-        JSON.stringify(dashboardForDownload, null, '\t'),
-        `${dashboard.name}.json`
-      )
-      notify(dashboardExported(dashboard.name))
-    } catch (error) {
-      notify(dashboardExportFailed(dashboard.name, error))
-    }
-  }
-
-  private modifyDashboardForDownload = async (
-    dashboard: Dashboard
-  ): Promise<DashboardFile> => {
-    return {meta: {chronografVersion: '2.0'}, dashboard}
+  private handleExportDashboard = (dashboard: Dashboard): void => {
+    this.setState({exportDashboard: dashboard, isExportingDashboard: true})
   }
 
   private handleImportDashboard = async (
@@ -258,6 +240,10 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.setState({isImportingDashboard: !this.state.isImportingDashboard})
   }
 
+  private handleToggleExportOverlay = (): void => {
+    this.setState({isExportingDashboard: !this.state.isExportingDashboard})
+  }
+
   private get importOverlay(): JSX.Element {
     const {notify} = this.props
     const {isImportingDashboard} = this.state
@@ -270,6 +256,19 @@ class DashboardIndex extends PureComponent<Props, State> {
         onImport={this.handleImportDashboard}
         notify={notify}
         isResourceValid={this.handleValidateDashboard}
+      />
+    )
+  }
+
+  private get exportOverlay(): JSX.Element {
+    const {isExportingDashboard, exportDashboard} = this.state
+
+    return (
+      <ExportOverlay
+        resource={exportDashboard}
+        isVisible={isExportingDashboard}
+        resourceName="Dashboard"
+        onDismissOverlay={this.handleToggleExportOverlay}
       />
     )
   }
