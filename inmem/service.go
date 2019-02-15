@@ -63,7 +63,7 @@ func (s *Service) Flush() {
 	s.flush(&s.userKV)
 	s.flush(&s.dashboardKV)
 	s.flush(&s.viewKV)
-	s.flush(&s.macroKV)
+	s.flush(&s.variableKV)
 	s.flush(&s.dbrpMappingKV)
 	s.flush(&s.userResourceMappingKV)
 	s.flush(&s.labelKV)
