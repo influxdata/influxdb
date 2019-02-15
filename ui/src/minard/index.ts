@@ -9,19 +9,6 @@ export const TICK_PADDING_TOP = 5
 export const TICK_CHAR_WIDTH = 7
 export const TICK_CHAR_HEIGHT = 10
 
-export const CATEGORY_10 = [
-  '#1f77b4',
-  '#ff7f0e',
-  '#2ca02c',
-  '#d62728',
-  '#9467bd',
-  '#8c564b',
-  '#e377c2',
-  '#7f7f7f',
-  '#bcbd22',
-  '#17becf',
-]
-
 export {Plot} from 'src/minard/components/Plot'
 
 export {
@@ -45,7 +32,9 @@ export interface AestheticDataMappings {
 }
 
 export interface AestheticScaleMappings {
-  [aestheticName: string]: Scale<any, any>
+  x?: Scale<number, number>
+  y?: Scale<number, number>
+  fill?: Scale<string, string>
 }
 
 export interface Layer {
@@ -53,6 +42,8 @@ export interface Layer {
   aesthetics: AestheticDataMappings
   scales: AestheticScaleMappings
   colors?: string[]
+  xDomain?: [number, number]
+  yDomain?: [number, number]
 }
 
 export interface Margins {
@@ -67,13 +58,19 @@ export interface PlotEnv {
   height: number
   innerWidth: number
   innerHeight: number
-  defaults: Layer
-  layers: {[layerKey: string]: Layer}
-  xDomain: number[]
-  yDomain: number[]
-  xTicks: string[]
-  yTicks: string[]
   margins: Margins
+  xTicks: number[]
+  yTicks: number[]
+
+  // If the domains have been explicitly passed in to the `Plot` component,
+  // they will be stored here. Scales and child layers use the `xDomain` and
+  // `yDomain` in the `baseLayer`, which are set from these domains if they
+  // exist or computed from the extent of data otherwise
+  xDomain: [number, number]
+  yDomain: [number, number]
+
+  baseLayer: Layer
+  layers: {[layerKey: string]: Layer}
   hoverX: number
   hoverY: number
   dispatch: (action: PlotAction) => void

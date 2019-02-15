@@ -1,90 +1,77 @@
-import React, {
-  useReducer,
-  useEffect,
-  useRef,
-  useMemo,
-  SFC,
-  CSSProperties,
-} from 'react'
+import React, {useReducer, useRef, useMemo, SFC, CSSProperties} from 'react'
 
-import {Table, PlotEnv, CATEGORY_10} from 'src/minard'
+import {Table, PlotEnv} from 'src/minard'
 import {Axes} from 'src/minard/components/Axes'
-import {plotEnvReducer, INITIAL_PLOT_ENV} from 'src/minard/utils/plotEnvReducer'
 import {useMousePos} from 'src/minard/utils/useMousePos'
+import {useMountedEffect} from 'src/minard/utils/useMountedEffect'
 import {
   setDimensions,
   setTable,
-  setColors,
+  setControlledXDomain,
+  setControlledYDomain,
 } from 'src/minard/utils/plotEnvActions'
+import {plotEnvReducer, INITIAL_PLOT_ENV} from 'src/minard/utils/plotEnvReducer'
 
 export interface Props {
+  //
   // Required props
-  // --------------
+  // ==============
   //
   table: Table
   width: number
   height: number
   children: (env: PlotEnv) => JSX.Element
 
-  // Aesthetic mappings
-  // ------------------
   //
-  x?: string
-  fill?: string[]
-  // y?: string
-  // start?: string
-  // stop?: string
-  // lower?: string
-  // upper?: string
-  // stroke?: string
-  // strokeWidth?: string
-  // shape?: ShapeKind
-  // radius?: number
-  // alpha?: number
-
-  // Misc options
-  // ------------
+  // Miscellaneous options
+  // =====================
   //
   axesStroke?: string
   tickFont?: string
   tickFill?: string
-  colors?: string[]
-  // xBrushable?: boolean
-  // yBrushable?: boolean
-  // xAxisTitle?: string
-  // yAxisTitle?: string
-  // xAxisPrefix?: string
-  // yAxisPrefix?: string
-  // xAxisSuffix?: string
-  // yAxisSuffix?: string
-  // xTicksStroke?: string
-  // yTicksStroke?: string
+
+  // The x domain of the plot can be explicitly set. If this prop is passed,
+  // then the component is operating in a "controlled" mode, where it always
+  // uses the passed x domain. Any interaction with the plot that should change
+  // the x domain (clicking, brushing, etc.) will call the `onSetXDomain` prop
+  // when the component is in controlled mode. If the `xDomain` prop is not
+  // passed, then the component is "uncontrolled". It will compute and set the
+  // `xDomain` automatically.
+  xDomain?: [number, number]
+  onSetXDomain?: (xDomain: [number, number]) => void
+
+  // See the `xDomain` and `onSetXDomain` props
+  yDomain?: [number, number]
+  onSetYDomain?: (yDomain: [number, number]) => void
 }
 
 export const Plot: SFC<Props> = ({
   width,
   height,
   table,
-  x,
-  fill,
   children,
-  colors = CATEGORY_10,
   axesStroke = '#31313d',
   tickFont = 'bold 10px Roboto',
   tickFill = '#8e91a1',
+  xDomain = null,
+  yDomain = null,
 }) => {
   const [env, dispatch] = useReducer(plotEnvReducer, {
     ...INITIAL_PLOT_ENV,
     width,
     height,
-    defaults: {table, colors, aesthetics: {x, fill}, scales: {}},
+    xDomain,
+    yDomain,
+    baseLayer: {...INITIAL_PLOT_ENV.baseLayer, table},
   })
 
-  // TODO: Batch these on first render
-  // TODO: Handle aesthetic prop changes
-  useEffect(() => dispatch(setTable(table)), [table])
-  useEffect(() => dispatch(setDimensions(width, height)), [width, height])
-  useEffect(() => dispatch(setColors(colors)), [colors])
+  useMountedEffect(() => dispatch(setTable(table)), [table])
+  useMountedEffect(() => dispatch(setControlledXDomain(xDomain)), [xDomain])
+  useMountedEffect(() => dispatch(setControlledYDomain(yDomain)), [yDomain])
+  useMountedEffect(() => dispatch(setDimensions(width, height)), [
+    width,
+    height,
+  ])
 
   const mouseRegion = useRef<HTMLDivElement>(null)
   const {x: hoverX, y: hoverY} = useMousePos(mouseRegion.current)

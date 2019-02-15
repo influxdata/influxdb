@@ -7,7 +7,7 @@ import {getGroupKey} from 'src/minard/utils/getGroupKey'
 /*
   Compute the data of a histogram visualization.
 
-  The column specified by the `xColKey` will be divided into `binCount` evenly
+  The column specified by the `xColName` will be divided into `binCount` evenly
   spaced bins, and the number of rows in each bin will be counted.
 
   If the `groupKeyCols` option is passed, rows in each bin are further grouped
@@ -32,37 +32,42 @@ import {getGroupKey} from 'src/minard/utils/getGroupKey'
 */
 export const bin = (
   table: Table,
-  xColKey: string,
-  groupColKeys: string[] = [],
+  xColName: string,
+  xDomain: [number, number],
+  groupColNames: string[] = [],
   binCount: number,
   position: HistogramPosition
 ) => {
-  const xCol = table.columns[xColKey]
-  const xColType = table.columnTypes[xColKey]
+  const xCol = table.columns[xColName]
+  const xColType = table.columnTypes[xColName]
 
-  assert(`could not find column "${xColKey}"`, !!xCol)
+  assert(`could not find column "${xColName}"`, !!xCol)
   assert(
     `unsupported value column type "${xColType}"`,
     xColType === ColumnType.Numeric || xColType === ColumnType.Temporal
   )
 
-  const domain = extent(xCol)
-  const resolvedBinCount = binCount || thresholdSturges(xCol)
-  const bins = createBins(domain, resolvedBinCount)
+  if (!binCount) {
+    binCount = thresholdSturges(xCol)
+  }
+
+  xDomain = resolveXDomain(xCol, xDomain)
+
+  const bins = createBins(xDomain, binCount)
 
   // A group is the set of key-value pairs that a row takes on for the column
-  // names specified in `groupColKeys`. The group key is a hashable
+  // names specified in `groupColNames`. The group key is a hashable
   // representation of the values of these pairs.
   const groupsByGroupKey = {}
 
   // Count x values by bin and group
   for (let i = 0; i < xCol.length; i++) {
     const x = xCol[i]
-    const group = getGroup(table, groupColKeys, i)
+    const group = getGroup(table, groupColNames, i)
     const groupKey = getGroupKey(Object.values(group))
-    const xPercentage = (x - domain[0]) / (domain[1] - domain[0])
+    const xPercentage = (x - xDomain[0]) / (xDomain[1] - xDomain[0])
 
-    let binIndex = Math.floor(xPercentage * resolvedBinCount)
+    let binIndex = Math.floor(xPercentage * binCount)
 
     if (binIndex === bins.length) {
       // Special case: the maximum value should be clamped to the last bin
@@ -92,9 +97,9 @@ export const bin = (
   }
 
   // Include original columns used to group data in the resulting table
-  for (const key of groupColKeys) {
-    statTable.columns[key] = []
-    statTable.columnTypes[key] = table.columnTypes[key]
+  for (const name of groupColNames) {
+    statTable.columns[name] = []
+    statTable.columnTypes[name] = table.columnTypes[name]
   }
 
   const groupKeys = Object.keys(groupsByGroupKey)
@@ -127,29 +132,23 @@ export const bin = (
     xMax: 'xMax',
     yMin: 'yMin',
     yMax: 'yMax',
-    fill: groupColKeys,
+    fill: groupColNames,
   }
 
   return [statTable, mappings]
 }
 
 const createBins = (
-  domain: number[],
+  xDomain: number[],
   binCount: number
 ): Array<{max: number; min: number; values: {}}> => {
-  if (domain[0] === domain[1]) {
-    // Widen domains of zero width by an arbitrary amount so that they can be
-    // divided into bins
-    domain[1] += 1
-  }
-
-  const domainWidth = domain[1] - domain[0]
+  const domainWidth = xDomain[1] - xDomain[0]
   const binWidth = domainWidth / binCount
-  const binMinimums = range(domain[0], domain[1], binWidth)
+  const binMinimums = range(xDomain[0], xDomain[1], binWidth)
 
   const bins = binMinimums.map((min, i) => {
     const isLastBin = i === binMinimums.length - 1
-    const max = isLastBin ? domain[1] : binMinimums[i + 1]
+    const max = isLastBin ? xDomain[1] : binMinimums[i + 1]
 
     return {min, max, values: {}}
   })
@@ -157,10 +156,31 @@ const createBins = (
   return bins
 }
 
-const getGroup = (table: Table, groupColKeys: string[], i: number) => {
+const resolveXDomain = (
+  xCol: number[],
+  preferredXDomain?: [number, number]
+): [number, number] => {
+  let domain: [number, number]
+
+  if (preferredXDomain) {
+    domain = [preferredXDomain[0], preferredXDomain[1]]
+  } else {
+    domain = extent(xCol)
+  }
+
+  if (domain[0] === domain[1]) {
+    // Widen domains of zero width by an arbitrary amount so that they can be
+    // divided into bins
+    domain[1] = domain[0] + 1
+  }
+
+  return domain
+}
+
+const getGroup = (table: Table, groupColNames: string[], i: number) => {
   const result = {}
 
-  for (const key of groupColKeys) {
+  for (const key of groupColNames) {
     result[key] = table.columns[key][i]
   }
 
