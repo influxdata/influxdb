@@ -9,7 +9,9 @@ describe('Dashboards', () => {
 
     cy.signin()
 
-    cy.visit('/dashboards')
+    cy.fixture('routes').then(({dashboards}) => {
+      cy.visit(dashboards)
+    })
   })
 
   it('can create a dashboard from empty state', () => {
