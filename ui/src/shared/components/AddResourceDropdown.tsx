@@ -8,14 +8,10 @@ import {Dropdown, DropdownMode} from 'src/clockface'
 // Types
 import {IconFont, ComponentColor, ComponentSize} from '@influxdata/clockface'
 
-enum CreateOption {
-  New = 'New Dashboard',
-  Import = 'Import Dashboard',
-}
-
 interface Props {
-  onNewDashboard: () => void
-  onToggleOverlay: () => void
+  onSelectNew: () => void
+  onSelectImport: () => void
+  resourceName: string
 }
 
 export default class CreateDashboardDropdown extends PureComponent<Props> {
@@ -23,7 +19,7 @@ export default class CreateDashboardDropdown extends PureComponent<Props> {
     return (
       <Dropdown
         mode={DropdownMode.ActionList}
-        titleText={'Create Dashboard'}
+        titleText={`Create ${this.props.resourceName}`}
         icon={IconFont.Plus}
         buttonColor={ComponentColor.Primary}
         buttonSize={ComponentSize.Small}
@@ -38,22 +34,37 @@ export default class CreateDashboardDropdown extends PureComponent<Props> {
   private get optionItems(): JSX.Element[] {
     return [
       <Dropdown.Item
-        id={CreateOption.New}
-        key={CreateOption.New}
-        value={CreateOption.New}
+        id={this.newOption}
+        key={this.newOption}
+        value={this.newOption}
       >
-        {CreateOption.New}
+        {this.newOption}
+      </Dropdown.Item>,
+      <Dropdown.Item
+        id={this.importOption}
+        key={this.importOption}
+        value={this.importOption}
+      >
+        {this.importOption}
       </Dropdown.Item>,
     ]
   }
 
-  private handleSelect = (selection: CreateOption): void => {
-    const {onNewDashboard, onToggleOverlay} = this.props
+  private get newOption(): string {
+    return `New ${this.props.resourceName}`
+  }
+
+  private get importOption(): string {
+    return `Import ${this.props.resourceName}`
+  }
+
+  private handleSelect = (selection: string): void => {
+    const {onSelectNew, onSelectImport} = this.props
     switch (selection) {
-      case CreateOption.New:
-        onNewDashboard()
-      case CreateOption.Import:
-        onToggleOverlay()
+      case this.newOption:
+        onSelectNew()
+      case this.importOption:
+        onSelectImport()
     }
   }
 }

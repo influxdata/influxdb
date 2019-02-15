@@ -9,6 +9,7 @@ import {Button, ComponentSize} from '@influxdata/clockface'
 import VariableList from 'src/organizations/components/VariableList'
 import {Input, OverlayTechnology, EmptyState} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -35,106 +36,11 @@ interface Props {
 
 interface State {
   searchTerm: string
-  overlayState: OverlayState
+  createOverlayState: OverlayState
+  importOverlayState: OverlayState
 }
 
 export default class Variables extends PureComponent<Props, State> {
-  constructor(props: Props) {
-    super(props)
-    this.state = {
-      searchTerm: '',
-      overlayState: OverlayState.Closed,
-    }
-  }
-
-  public render() {
-    const {variables, orgID} = this.props
-    const {searchTerm, overlayState} = this.state
-
-    return (
-      <>
-        <TabbedPageHeader>
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter variables..."
-            widthPixels={290}
-            value={searchTerm}
-            onChange={this.handleFilterChange}
-            onBlur={this.handleFilterBlur}
-          />
-          <Button
-            text="Create Variable"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={this.handleOpenModal}
-          />
-        </TabbedPageHeader>
-        <FilterList<Variable>
-          searchTerm={searchTerm}
-          searchKeys={['name']}
-          list={variables}
-        >
-          {variables => (
-            <VariableList
-              variables={variables}
-              emptyState={this.emptyState}
-              onDeleteVariable={this.handleDeleteVariable}
-            />
-          )}
-        </FilterList>
-        <OverlayTechnology visible={overlayState === OverlayState.Open}>
-          <CreateVariableOverlay
-            onCreateVariable={this.handleCreateVariable}
-            onCloseModal={this.handleCloseModal}
-            orgID={orgID}
-          />
-        </OverlayTechnology>
-      </>
-    )
-  }
-
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {value} = e.target
-    this.setState({searchTerm: value})
-  }
-
-  private handleFilterBlur() {}
-
-  private handleOpenModal = (): void => {
-    this.setState({overlayState: OverlayState.Open})
-  }
-
-  private handleCloseModal = (): void => {
-    this.setState({overlayState: OverlayState.Closed})
-  }
-
-  private handleCreateVariable = async (variable: Variable): Promise<void> => {
-    const {notify, onChange} = this.props
-
-    try {
-      await client.variables.create(variable)
-      notify(addVariableSuccess(variable.name))
-    } catch (error) {
-      notify(addVariableFailed())
-    }
-
-    onChange()
-    this.handleCloseModal()
-  }
-
-  private handleDeleteVariable = async (variable: Variable): Promise<void> => {
-    const {notify, onChange} = this.props
-
-    try {
-      await client.variables.delete(variable.id)
-      notify(deleteVariableSuccess(variable.name))
-    } catch (error) {
-      notify(deleteVariableFailed())
-    }
-
-    onChange()
-  }
-
   private get emptyState(): JSX.Element {
     const {orgName} = this.props
     const {searchTerm} = this.state
@@ -150,7 +56,7 @@ export default class Variables extends PureComponent<Props, State> {
             text="Create Variable"
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
-            onClick={this.handleOpenModal}
+            onClick={this.handleOpenCreateOverlay}
           />
         </EmptyState>
       )
@@ -161,5 +67,102 @@ export default class Variables extends PureComponent<Props, State> {
         <EmptyState.Text text="No Variables match your query" />
       </EmptyState>
     )
+  }
+  constructor(props: Props) {
+    super(props)
+    this.state = {
+      searchTerm: '',
+      createOverlayState: OverlayState.Closed,
+      importOverlayState: OverlayState.Closed,
+    }
+  }
+
+  public render() {
+    const {variables, orgID} = this.props
+    const {searchTerm, createOverlayState} = this.state
+
+    return (
+      <>
+        <TabbedPageHeader>
+          <Input
+            icon={IconFont.Search}
+            placeholder="Filter variables..."
+            widthPixels={290}
+            value={searchTerm}
+            onChange={this.handleFilterChange}
+            onBlur={this.handleFilterBlur}
+          />
+          <AddResourceDropdown
+            resourceName="Variable"
+            onSelectImport={this.handleOpenImportOverlay}
+            onSelectNew={this.handleOpenCreateOverlay}
+          />
+        </TabbedPageHeader>
+        <FilterList<Variable>
+          searchTerm={searchTerm}
+          searchKeys={['name']}
+          list={variables}
+        >
+          {variables => (
+            <VariableList
+              variables={variables}
+              emptyState={this.emptyState}
+              onDeleteVariable={this.handleDeleteVariable}
+            />
+          )}
+        </FilterList>
+        <OverlayTechnology visible={createOverlayState === OverlayState.Open}>
+          <CreateVariableOverlay
+            onCreateVariable={this.handleCreateVariable}
+            onCloseModal={this.handleCloseCreateOverlay}
+            orgID={orgID}
+          />
+        </OverlayTechnology>
+      </>
+    )
+  }
+
+  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const {value} = e.target
+    this.setState({searchTerm: value})
+  }
+
+  private handleFilterBlur() {}
+
+  private handleOpenImportOverlay = (): void => {}
+
+  private handleOpenCreateOverlay = (): void => {
+    this.setState({createOverlayState: OverlayState.Open})
+  }
+
+  private handleCloseCreateOverlay = (): void => {
+    this.setState({createOverlayState: OverlayState.Closed})
+  }
+
+  private handleCreateVariable = async (variable: Variable): Promise<void> => {
+    const {notify, onChange} = this.props
+
+    try {
+      await client.variables.create(variable)
+      notify(addVariableSuccess(variable.name))
+    } catch (error) {
+      notify(addVariableFailed())
+    }
+
+    onChange()
+    this.handleCloseCreateOverlay()
+  }
+
+  private handleDeleteVariable = async (variable: Variable): Promise<void> => {
+    const {notify, onChange} = this.props
+
+    try {
+      await client.variables.delete(variable.id)
+      notify(deleteVariableSuccess(variable.name))
+    } catch (error) {
+      notify(deleteVariableFailed())
+    }
+
+    onChange()
   }
 }
