@@ -25,6 +25,7 @@ import {
   importScript,
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
+  runTask,
 } from 'src/tasks/actions/v2'
 
 // Types
@@ -51,6 +52,7 @@ interface ConnectedDispatchProps {
   importScript: typeof importScript
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
+  onRunTask: typeof runTask
 }
 
 interface ConnectedStateProps {
@@ -89,6 +91,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
       searchTerm,
       onAddTaskLabels,
       onRemoveTaskLabels,
+      onRunTask,
     } = this.props
 
     return (
@@ -129,6 +132,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
                 onAddTaskLabels={onAddTaskLabels}
                 onRemoveTaskLabels={onRemoveTaskLabels}
                 onUpdate={this.handleUpdateTask}
+                onRunTask={onRunTask}
               />
             )}
           </FilterList>
@@ -245,6 +249,7 @@ const mdtp: ConnectedDispatchProps = {
   importScript,
   onRemoveTaskLabels: removeTaskLabelsAsync,
   onAddTaskLabels: addTaskLabelsAsync,
+  onRunTask: runTask,
 }
 
 export default connect<

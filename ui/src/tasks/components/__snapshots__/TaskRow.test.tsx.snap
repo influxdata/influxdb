@@ -90,6 +90,16 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
         text="Clone"
         type="button"
       />
+      <t
+        active={false}
+        color="primary"
+        onClick={[Function]}
+        shape="none"
+        size="xs"
+        status="default"
+        text="RunTask"
+        type="button"
+      />
       <ConfirmationButton
         confirmText="Confirm"
         onConfirm={[MockFunction]}
