@@ -1,17 +1,4 @@
-declare namespace Cypress {
-  interface Chainable<Subject> {
-    signin: typeof signin
-    setupUser: typeof setupUser
-    createDashboard: typeof createDashboard
-    createOrg: typeof createOrg
-    flush: typeof flush
-    getByDataTest: typeof getByDataTest
-    getByInputName: typeof getByInputName
-    getByTitle: typeof getByTitle
-  }
-}
-
-const signin = (): Cypress.Chainable => {
+export const signin = (): Cypress.Chainable<Response> => {
   return cy.fixture('user').then(user => {
     cy.request({
       method: 'POST',
@@ -22,7 +9,9 @@ const signin = (): Cypress.Chainable => {
 }
 
 // createDashboard relies on an org fixture to be set
-const createDashboard = (orgID: string): Cypress.Chainable => {
+export const createDashboard = (
+  orgID: string
+): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
     url: '/api/v2/dashboards',
@@ -33,7 +22,7 @@ const createDashboard = (orgID: string): Cypress.Chainable => {
   })
 }
 
-const createOrg = (): Cypress.Chainable => {
+export const createOrg = (): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
     url: '/api/v2/orgs',
@@ -43,7 +32,7 @@ const createOrg = (): Cypress.Chainable => {
   })
 }
 
-const createBucket = (): Cypress.Chainable => {
+export const createBucket = (): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
     url: '/api/v2/buckets',
@@ -54,7 +43,7 @@ const createBucket = (): Cypress.Chainable => {
 }
 
 // TODO: have to go through setup because we cannot create a user w/ a password via the user API
-const setupUser = (): Cypress.Chainable => {
+export const setupUser = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password, org, bucket}) => {
     return cy.request({
       method: 'POST',
@@ -64,7 +53,7 @@ const setupUser = (): Cypress.Chainable => {
   })
 }
 
-const flush = () => {
+export const flush = () => {
   cy.request({
     method: 'GET',
     url: '/debug/flush',
@@ -72,15 +61,15 @@ const flush = () => {
 }
 
 // DOM node getters
-const getByDataTest = (dataTest: string): Cypress.Chainable => {
+export const getByDataTest = (dataTest: string): Cypress.Chainable => {
   return cy.get(`[data-testid="${dataTest}"]`)
 }
 
-const getByInputName = (name: string): Cypress.Chainable => {
+export const getByInputName = (name: string): Cypress.Chainable => {
   return cy.get(`input[name=${name}]`)
 }
 
-const getByTitle = (name: string): Cypress.Chainable => {
+export const getByTitle = (name: string): Cypress.Chainable => {
   return cy.get(`[title=${name}]`)
 }
 
