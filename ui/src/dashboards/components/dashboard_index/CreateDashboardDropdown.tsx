@@ -27,7 +27,7 @@ export default class CreateDashboardDropdown extends PureComponent<Props> {
         icon={IconFont.Plus}
         buttonColor={ComponentColor.Primary}
         buttonSize={ComponentSize.Small}
-        widthPixels={200}
+        widthPixels={160}
         onChange={this.handleSelect}
       >
         {this.optionItems}

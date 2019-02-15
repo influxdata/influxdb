@@ -762,3 +762,13 @@ export const ProtoDashboardFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: `Could not create dashboards for one or more plugins`,
 })
+
+export const importSucceeded = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Import was successful',
+})
+
+export const importFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to import resource.`,
+})
