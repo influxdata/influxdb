@@ -65,6 +65,7 @@ class OrgDashboardsIndex extends Component<Props> {
                   <GetOrgResources<Dashboard[]>
                     organization={org}
                     fetcher={getDashboards}
+                    orderBy={{keys: ['name']}}
                   >
                     {(dashboards, loading, fetch) => (
                       <SpinnerContainer

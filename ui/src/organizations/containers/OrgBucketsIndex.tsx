@@ -68,6 +68,7 @@ class OrgBucketsIndex extends Component<Props> {
                   title="Buckets"
                 >
                   <GetOrgResources<Bucket[]>
+                    orderBy={{keys: ['name']}}
                     organization={org}
                     fetcher={getBuckets}
                   >

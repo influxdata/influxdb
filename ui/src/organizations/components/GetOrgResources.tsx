@@ -1,5 +1,6 @@
 // Libraries
 import {PureComponent} from 'react'
+import _ from 'lodash'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -11,6 +12,10 @@ import {Organization} from '@influxdata/influx'
 interface Props<T> {
   organization: Organization
   fetcher: (org: Organization) => Promise<T>
+  orderBy?: {
+    keys: string[]
+    orders?: string[]
+  }
   children: (
     resources: T,
     loading: RemoteDataState,
@@ -55,7 +60,24 @@ export default class GetOrgResources<T> extends PureComponent<
     const {fetcher, organization} = this.props
     if (organization) {
       const resources = await fetcher(organization)
-      this.setState({resources, loading: RemoteDataState.Done})
+      this.setState({
+        resources: this.order(resources),
+        loading: RemoteDataState.Done,
+      })
     }
+  }
+
+  // Todo: unpack the type for resources
+  private order(resources) {
+    const {orderBy} = this.props
+    const isArray = resources instanceof Array
+
+    if (!orderBy || !isArray) {
+      return resources
+    }
+
+    const {keys, orders} = orderBy
+
+    return _.orderBy(resources, keys, orders)
   }
 }
