@@ -27,14 +27,10 @@
 
 .label-selector--menu {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  min-height: 50px;
 }
 
 .label-selector--menu-item {
-  display: flex;
-  align-items: center;
   padding: $ix-marg-a $ix-marg-b;
   color: $g13-mist;
   transition: color 0.25s ease, background-color 0.25s ease;
@@ -45,10 +41,6 @@
     color: $g18-cloud;
     background-color: $g6-smoke;
   }
-}
-
-.label-selector--label {
-  flex: 4 0 0
 }
 
 .label-selector--description,

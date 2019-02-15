@@ -24,21 +24,14 @@ class LabelSelectorMenuItem extends Component<Props> {
     const {name, colorHex, description, id} = this.props
 
     return (
-      <div
-        className={this.className}
-        onMouseOver={this.handleMouseOver}
-        onClick={this.handleClick}
-      >
-        <div className="label-selector--label">
-          <Label
-            name={name}
-            description={description}
-            id={id}
-            colorHex={colorHex}
-          />
-        </div>
-        <div className="label-selector--description">{description}</div>
-      </div>
+      <span onMouseOver={this.handleMouseOver} onClick={this.handleClick}>
+        <Label
+          name={name}
+          description={description}
+          id={id}
+          colorHex={colorHex}
+        />
+      </span>
     )
   }
 

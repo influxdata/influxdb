@@ -13,7 +13,7 @@ import {
   ComponentStatus,
 } from '@influxdata/clockface'
 import {Grid, Form, Input, ComponentSpacer, InputType} from 'src/clockface'
-import LabelColorDropdown from 'src/configuration/components/LabelColorDropdown'
+import RandomLabelColorButton from 'src/configuration/components/RandomLabelColor'
 import {Label, LabelProperties} from 'src/types/v2/labels'
 
 // Constants
@@ -26,9 +26,6 @@ import {
 // Utils
 import {validateHexCode} from 'src/configuration/utils/labels'
 
-// Styles
-import 'src/configuration/components/LabelOverlayForm.scss'
-
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -38,7 +35,7 @@ interface Props {
 }
 
 interface State {
-  isCustomColor: boolean
+  isValid: boolean
   label: Label
 }
 
@@ -48,12 +45,12 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      isCustomColor: false,
+      isValid: false,
       label: {
         name: props.labelName,
         properties: {
           description: '',
-          color: _.sample(PRESET_LABEL_COLORS.slice(1)).colorHex,
+          color: '',
         },
       },
     }
@@ -66,25 +63,31 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {isCustomColor} = this.state
+    const {isValid} = this.state
 
     return (
       <Grid>
         <Grid.Row>
+          <Grid.Column widthXS={Columns.Two}>
+            <Button
+              text="Create Label"
+              color={ComponentColor.Success}
+              type={ButtonType.Submit}
+              status={
+                isValid ? ComponentStatus.Default : ComponentStatus.Disabled
+              }
+              onClick={this.handleSubmit}
+            />
+          </Grid.Column>
           <Grid.Column widthSM={Columns.Ten}>
-            <Grid.Column widthXS={Columns.Six}>
-              <ComponentSpacer
-                align={Alignment.Left}
-                stackChildren={Stack.Rows}
-              >
-                <LabelColorDropdown
-                  colorHex={this.dropdownColorHex}
-                  onChange={this.handleColorChange}
-                  useCustomColorHex={isCustomColor}
-                  onToggleCustomColorHex={this.handleToggleCustomColorHex}
-                />
-                {this.customColorInput}
-              </ComponentSpacer>
+            <Grid.Column widthXS={Columns.Three}>
+              <RandomLabelColorButton
+                colorHex={this.colorHex}
+                onClick={this.handleColorChange}
+              />
+            </Grid.Column>
+            <Grid.Column widthXS={Columns.Three}>
+              {this.customColorInput}
             </Grid.Column>
             <Grid.Column widthXS={Columns.Six}>
               <Input
@@ -95,17 +98,6 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
                 onChange={this.handleInputChange}
               />
             </Grid.Column>
-          </Grid.Column>
-          <Grid.Column widthXS={Columns.Two}>
-            <ComponentSpacer align={Alignment.Center}>
-              <Button
-                text="Create Label"
-                color={ComponentColor.Success}
-                type={ButtonType.Submit}
-                status={ComponentStatus.Default}
-                onClick={this.handleSubmit}
-              />
-            </ComponentSpacer>
           </Grid.Column>
         </Grid.Row>
       </Grid>
@@ -121,19 +113,25 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
   private handleCustomColorChange = (
     e: ChangeEvent<HTMLInputElement>
   ): void => {
-    this.updateProperties({color: e.target.value})
+    const {value} = e.target
+
+    if (validateHexCode(value)) {
+      this.setState({isValid: false})
+    } else {
+      this.setState({isValid: true})
+    }
+
+    this.updateProperties({color: value})
   }
 
   private handleColorChange = (color: string) => {
+    this.setState({isValid: true})
+
     this.updateProperties({color})
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     this.updateProperties({description: e.target.value})
-  }
-
-  private handleToggleCustomColorHex = (isCustomColor: boolean) => {
-    this.setState({isCustomColor})
   }
 
   private updateProperties(update: Partial<LabelProperties>) {
@@ -147,24 +145,12 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
     })
   }
 
-  private get dropdownColorHex(): string {
-    if (this.state.isCustomColor) {
-      return CUSTOM_LABEL.colorHex
-    }
-
-    return this.colorHex
-  }
-
   private get customColorInput(): JSX.Element {
     const {colorHex} = this
 
-    if (!this.state.isCustomColor) {
-      return null
-    }
-
     return (
       <Form.ValidationElement
-        label="Enter a Hexcode"
+        label=""
         value={colorHex}
         validationFunc={validateHexCode}
       >
@@ -175,7 +161,6 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
             placeholder="#000000"
             onChange={this.handleCustomColorChange}
             status={status}
-            autoFocus={true}
             maxLength={HEX_CODE_CHAR_LENGTH}
           />
         )}
