@@ -65,9 +65,9 @@ type Launcher struct {
 	protosPath      string
 	secretStore     string
 
+	boltClient *bolt.Client
 	kvService  *kv.Service
 	engine     *storage.Engine
-	boltClient *bolt.Client
 
 	queryController *pcontrol.Controller
 
@@ -486,6 +486,17 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		OrganizationOperationLogService: orgLogSvc,
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
+		PasswordsService:                passwdsSvc,
+		OnboardingService:               onboardingSvc,
+		ProxyQueryService:               storageQueryService,
+		TaskService:                     taskSvc,
+		TelegrafService:                 telegrafSvc,
+		ScraperTargetStoreService:       scraperTargetSvc,
+		ChronografService:               chronografSvc,
+		SecretService:                   secretSvc,
+		LookupService:                   lookupSvc,
+		ProtoService:                    protoSvc,
+		OrgLookupService:                m.kvService,
 	}
 
 	// HTTP server
