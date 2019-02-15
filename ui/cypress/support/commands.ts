@@ -43,6 +43,16 @@ const createOrg = (): Cypress.Chainable => {
   })
 }
 
+const createBucket = (): Cypress.Chainable => {
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/buckets',
+    body: {
+      name: 'test org',
+    },
+  })
+}
+
 // TODO: have to go through setup because we cannot create a user w/ a password via the user API
 const setupUser = (): Cypress.Chainable => {
   return cy.fixture('user').then(({username, password, org, bucket}) => {
@@ -90,6 +100,9 @@ Cypress.Commands.add('createDashboard', createDashboard)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)
+
+// buckets
+Cypress.Commands.add('createBucket', createBucket)
 
 // general
 Cypress.Commands.add('flush', flush)

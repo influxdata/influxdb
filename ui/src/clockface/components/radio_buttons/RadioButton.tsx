@@ -14,6 +14,7 @@ interface Props {
   disabled?: boolean
   titleText: string
   disabledTitleText?: string
+  testID?: string
 }
 
 @ErrorHandling
@@ -21,10 +22,11 @@ class RadioButton extends Component<Props> {
   public static defaultProps: Partial<Props> = {
     disabled: false,
     disabledTitleText: 'This option is disabled',
+    testID: 'radio-button',
   }
 
   public render() {
-    const {children, disabled} = this.props
+    const {children, disabled, testID} = this.props
 
     return (
       <button
@@ -33,6 +35,7 @@ class RadioButton extends Component<Props> {
         disabled={disabled}
         onClick={this.handleClick}
         title={this.title}
+        data-testid={testID}
       >
         {children}
       </button>
