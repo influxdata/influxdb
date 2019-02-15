@@ -509,8 +509,14 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				}
 			}
 			fallthrough
-		case "min", "max", "sum", "first", "last", "mean", "time_weighted_average":
+		case "min", "max", "sum", "first", "last", "mean":
 			return b.callIterator(ctx, expr, opt)
+		case "time_weighted_average":
+			input, err := buildExprIterator(ctx, expr.Args[0].(*influxql.VarRef), b.ic, b.sources, opt, false, false)
+			if err != nil {
+				return nil, err
+			}
+			return newTimeWeightedAverageIterator(input, opt)
 		case "median":
 			opt.Ordered = true
 			input, err := buildExprIterator(ctx, expr.Args[0].(*influxql.VarRef), b.ic, b.sources, opt, false, false)

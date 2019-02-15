@@ -53,8 +53,6 @@ func NewCallIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 		return newLastIterator(input, opt)
 	case "mean":
 		return newMeanIterator(input, opt)
-	case "time_weighted_average":
-		return newTimeWeightedAverageIterator(input, opt)
 	default:
 		return nil, fmt.Errorf("unsupported function call: %s", name)
 	}
