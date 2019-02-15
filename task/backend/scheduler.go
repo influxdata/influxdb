@@ -634,9 +634,14 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	defer sp.Finish()
 
 	rp, err := r.executor.Execute(spCtx, qr)
-
 	if err != nil {
-		// TODO(mr): retry? and log error.
+		runLogger.Info("Failed to begin run execution", zap.Error(err))
+		if err := r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
+			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
+			runLogger.Error("Beginning run execution failed, and desired state update failed", zap.Error(err))
+		}
+
+		// TODO(mr): retry?
 		atomic.StoreUint32(r.state, runnerIdle)
 		r.updateRunState(qr, RunFail, runLogger)
 		return
@@ -675,7 +680,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		runLogger.Info("Failed to wait for execution result", zap.Error(err))
 		if err := r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
 			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
-			runLogger.Error("Waiting for execution result failed, and desired update failed", zap.Error(err))
+			runLogger.Error("Waiting for execution result failed, and desired state update failed", zap.Error(err))
 		}
 
 		// TODO(mr): retry?
@@ -687,7 +692,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		runLogger.Info("Run failed to execute", zap.Error(err))
 		if err := r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
 			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
-			runLogger.Error("Run failed to execute, and desired update failed", zap.Error(err))
+			runLogger.Error("Run failed to execute, and desired state update failed", zap.Error(err))
 		}
 		// TODO(mr): retry?
 		r.updateRunState(qr, RunFail, runLogger)

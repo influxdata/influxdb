@@ -172,15 +172,19 @@ type DesiredState struct {
 
 	// Map of stringified task ID to task meta.
 	meta map[string]backend.StoreTaskMeta
+
+	// Map of task ID to total number of runs created for that task.
+	totalRunsCreated map[platform.ID]int
 }
 
 var _ backend.DesiredState = (*DesiredState)(nil)
 
 func NewDesiredState() *DesiredState {
 	return &DesiredState{
-		runIDs:  make(map[string]uint64),
-		created: make(map[string]backend.QueuedRun),
-		meta:    make(map[string]backend.StoreTaskMeta),
+		runIDs:           make(map[string]uint64),
+		created:          make(map[string]backend.QueuedRun),
+		meta:             make(map[string]backend.StoreTaskMeta),
+		totalRunsCreated: make(map[platform.ID]int),
 	}
 }
 
@@ -221,6 +225,7 @@ func (d *DesiredState) CreateNextRun(_ context.Context, taskID platform.ID, now 
 	d.meta[tid] = meta
 	rc.Created.TaskID = taskID
 	d.created[tid+rc.Created.RunID.String()] = rc.Created
+	d.totalRunsCreated[taskID]++
 	return rc, nil
 }
 
@@ -257,7 +262,15 @@ func (d *DesiredState) CreatedFor(taskID platform.ID) []backend.QueuedRun {
 	return qrs
 }
 
-// PollForNumberCreated blocks for a small amount of time waiting for exactly the given count of created runs for the given task ID.
+// TotalRunsCreatedForTask returns the number of runs created for taskID.
+func (d *DesiredState) TotalRunsCreatedForTask(taskID platform.ID) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return d.totalRunsCreated[taskID]
+}
+
+// PollForNumberCreated blocks for a small amount of time waiting for exactly the given count of created and unfinished runs for the given task ID.
 // If the expected number isn't found in time, it returns an error.
 //
 // Because the scheduler and executor do a lot of state changes asynchronously, this is useful in test.
@@ -273,7 +286,7 @@ func (d *DesiredState) PollForNumberCreated(taskID platform.ID, count int) ([]sc
 			return created, nil
 		}
 	}
-	return created, fmt.Errorf("did not see count of %d created task(s) for ID %s in time, instead saw %d", count, taskID.String(), actualCount) // we return created anyways, to make it easier to debug
+	return created, fmt.Errorf("did not see count of %d created run(s) for task with ID %s in time, instead saw %d", count, taskID.String(), actualCount) // we return created anyways, to make it easier to debug
 }
 
 type Executor struct {
@@ -285,6 +298,9 @@ type Executor struct {
 
 	// Map of stringified, concatenated task and run ID, to results of runs that have executed and completed.
 	finished map[string]backend.RunResult
+
+	// Forced error for next call to Execute.
+	nextExecuteErr error
 
 	wg sync.WaitGroup
 }
@@ -303,6 +319,11 @@ func (e *Executor) Execute(ctx context.Context, run backend.QueuedRun) (backend.
 	rp.WithHanging(ctx, e.hangingFor)
 	id := run.TaskID.String() + run.RunID.String()
 	e.mu.Lock()
+	if err := e.nextExecuteErr; err != nil {
+		e.nextExecuteErr = nil
+		e.mu.Unlock()
+		return nil, err
+	}
 	e.running[id] = rp
 	e.mu.Unlock()
 	e.wg.Add(1)
@@ -319,6 +340,13 @@ func (e *Executor) Execute(ctx context.Context, run backend.QueuedRun) (backend.
 
 func (e *Executor) Wait() {
 	e.wg.Wait()
+}
+
+// FailNextCallToExecute causes the next call to e.Execute to unconditionally return err.
+func (e *Executor) FailNextCallToExecute(err error) {
+	e.mu.Lock()
+	e.nextExecuteErr = err
+	e.mu.Unlock()
 }
 
 func (e *Executor) WithHanging(dt time.Duration) {
