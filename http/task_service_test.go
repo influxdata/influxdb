@@ -440,7 +440,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 						runs := []*platform.Run{
 							{
 								ID:           platform.ID(2),
-								TaskID:       *f.Task,
+								TaskID:       f.Task,
 								Status:       "success",
 								ScheduledFor: "2018-12-01T17:00:13Z",
 								StartedAt:    "2018-12-01T17:00:03.155645Z",
@@ -617,7 +617,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			name: "get task logs",
 			svc: &mock.TaskService{
 				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
-					if *f.Task == taskID {
+					if f.Task == taskID {
 						return nil, 0, nil
 					}
 
@@ -633,7 +633,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			name: "get run logs",
 			svc: &mock.TaskService{
 				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
-					if *f.Task != taskID {
+					if f.Task != taskID {
 						return nil, 0, backend.ErrTaskNotFound
 					}
 					if *f.Run != runID {
@@ -652,7 +652,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			name: "get runs",
 			svc: &mock.TaskService{
 				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
-					if *f.Task != taskID {
+					if f.Task != taskID {
 						return nil, 0, backend.ErrTaskNotFound
 					}
 

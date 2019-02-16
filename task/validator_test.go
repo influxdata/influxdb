@@ -323,7 +323,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, OrgID: &taskID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindLogs(ctx, influxdb.LogFilter{
-					Org: &orgID,
+					Task: taskID,
 				})
 				if err == nil {
 					return errors.New("returned no error with a invalid auth")
@@ -336,16 +336,8 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindLogs(ctx, influxdb.LogFilter{
-					Org: &orgID,
+					Task: taskID,
 				})
-				return err
-			},
-		},
-		{
-			name: "FindLogs without org",
-			auth: &influxdb.Authorization{Status: "active"},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindLogs(ctx, influxdb.LogFilter{})
 				return err
 			},
 		},
@@ -354,7 +346,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.OrgsResourceType, OrgID: &taskID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindRuns(ctx, influxdb.RunFilter{
-					Org: &orgID,
+					Task: taskID,
 				})
 				if err == nil {
 					return errors.New("returned no error with a invalid auth")
@@ -367,16 +359,8 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 			auth: &influxdb.Authorization{Status: "active", Permissions: []influxdb.Permission{influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.TasksResourceType, OrgID: &orgID}}}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindRuns(ctx, influxdb.RunFilter{
-					Org: &orgID,
+					Task: taskID,
 				})
-				return err
-			},
-		},
-		{
-			name: "FindRuns without org",
-			auth: &influxdb.Authorization{Status: "active"},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindRuns(ctx, influxdb.RunFilter{})
 				return err
 			},
 		},
@@ -469,5 +453,4 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
 			}
 		})
 	}
-
 }

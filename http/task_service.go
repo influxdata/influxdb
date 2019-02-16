@@ -766,24 +766,7 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	if err != nil {
 		return nil, err
 	}
-	req.filter.Task = taskID
-
-	qp := r.URL.Query()
-
-	if orgName := qp.Get("org"); orgName != "" {
-		o, err := orgs.FindOrganization(ctx, platform.OrganizationFilter{Name: &orgName})
-		if err != nil {
-			return nil, err
-		}
-
-		req.filter.Org = &o.ID
-	} else if oid := qp.Get("orgID"); oid != "" {
-		orgID, err := platform.IDFromString(oid)
-		if err != nil {
-			return nil, err
-		}
-		req.filter.Org = orgID
-	}
+	req.filter.Task = *taskID
 
 	if runID := params.ByName("rid"); runID != "" {
 		id, err := platform.IDFromString(runID)
@@ -823,7 +806,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newRunsResponse(runs, *req.filter.Task)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newRunsResponse(runs, req.filter.Task)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}
@@ -848,24 +831,9 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	if err != nil {
 		return nil, err
 	}
-	req.filter.Task = taskID
+	req.filter.Task = *taskID
 
 	qp := r.URL.Query()
-
-	if orgName := qp.Get("org"); orgName != "" {
-		o, err := orgs.FindOrganization(ctx, platform.OrganizationFilter{Name: &orgName})
-		if err != nil {
-			return nil, err
-		}
-
-		req.filter.Org = &o.ID
-	} else if orgID := qp.Get("orgID"); orgID != "" {
-		oid, err := platform.IDFromString(orgID)
-		if err != nil {
-			return nil, err
-		}
-		req.filter.Org = oid
-	}
 
 	if id := qp.Get("after"); id != "" {
 		afterID, err := platform.IDFromString(id)
@@ -1401,26 +1369,21 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 
 // FindLogs returns logs for a run.
 func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
-	if filter.Task == nil {
+	if !filter.Task.Valid() {
 		return nil, 0, errors.New("task ID required")
 	}
 
 	var urlPath string
 	if filter.Run == nil {
-		urlPath = path.Join(taskIDPath(*filter.Task), "logs")
+		urlPath = path.Join(taskIDPath(filter.Task), "logs")
 	} else {
-		urlPath = path.Join(taskIDRunIDPath(*filter.Task, *filter.Run), "logs")
+		urlPath = path.Join(taskIDRunIDPath(filter.Task, *filter.Run), "logs")
 	}
 
 	u, err := newURL(t.Addr, urlPath)
 	if err != nil {
 		return nil, 0, err
 	}
-	val := url.Values{}
-	if filter.Org != nil {
-		val.Set("orgID", filter.Org.String())
-	}
-	u.RawQuery = val.Encode()
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -1450,19 +1413,16 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 
 // FindRuns returns a list of runs that match a filter and the total count of returned runs.
 func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
-	if filter.Task == nil {
+	if !filter.Task.Valid() {
 		return nil, 0, errors.New("task ID required")
 	}
 
-	u, err := newURL(t.Addr, taskIDRunsPath(*filter.Task))
+	u, err := newURL(t.Addr, taskIDRunsPath(filter.Task))
 	if err != nil {
 		return nil, 0, err
 	}
 
 	val := url.Values{}
-	if filter.Org != nil {
-		val.Set("orgID", filter.Org.String())
-	}
 	if filter.After != nil {
 		val.Set("after", filter.After.String())
 	}

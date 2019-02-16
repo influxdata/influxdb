@@ -378,7 +378,6 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 type TaskLogFindFlags struct {
 	taskID string
 	runID  string
-	orgID  string
 }
 
 var taskLogFindFlags TaskLogFindFlags
@@ -392,7 +391,6 @@ func init() {
 
 	taskLogFindCmd.Flags().StringVarP(&taskLogFindFlags.taskID, "task-id", "", "", "task id (required)")
 	taskLogFindCmd.Flags().StringVarP(&taskLogFindFlags.runID, "run-id", "", "", "run id")
-	taskLogFindCmd.Flags().StringVarP(&taskLogFindFlags.orgID, "org-id", "", "", "organization id")
 	taskLogFindCmd.MarkFlagRequired("task-id")
 
 	logCmd.AddCommand(taskLogFindCmd)
@@ -409,7 +407,7 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	filter.Task = id
+	filter.Task = *id
 
 	if taskLogFindFlags.runID != "" {
 		id, err := platform.IDFromString(taskLogFindFlags.runID)
@@ -417,14 +415,6 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		filter.Run = id
-	}
-
-	if taskLogFindFlags.orgID != "" {
-		id, err := platform.IDFromString(taskLogFindFlags.orgID)
-		if err != nil {
-			return err
-		}
-		filter.Org = id
 	}
 
 	ctx := context.TODO()
@@ -451,7 +441,6 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 type TaskRunFindFlags struct {
 	runID      string
 	taskID     string
-	orgID      string
 	afterTime  string
 	beforeTime string
 	limit      int
@@ -468,13 +457,11 @@ func init() {
 
 	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")
 	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
-	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.orgID, "org-id", "", "", "organization id")
 	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
 	taskRunFindCmd.Flags().StringVarP(&taskRunFindFlags.beforeTime, "before", "", "", "before time for filtering")
 	taskRunFindCmd.Flags().IntVarP(&taskRunFindFlags.limit, "limit", "", 0, "limit the results")
 
 	taskRunFindCmd.MarkFlagRequired("task-id")
-	taskRunFindCmd.MarkFlagRequired("org-id")
 
 	runCmd.AddCommand(taskRunFindCmd)
 }
@@ -494,13 +481,7 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	filter.Task = taskID
-
-	orgID, err := platform.IDFromString(taskRunFindFlags.orgID)
-	if err != nil {
-		return err
-	}
-	filter.Org = orgID
+	filter.Task = *taskID
 
 	var runs []*platform.Run
 	if taskRunFindFlags.runID != "" {
@@ -508,7 +489,7 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		run, err := s.FindRunByID(context.Background(), *filter.Org, *id)
+		run, err := s.FindRunByID(context.Background(), filter.Task, *id)
 		if err != nil {
 			return err
 		}

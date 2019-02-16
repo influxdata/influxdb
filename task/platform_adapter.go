@@ -230,7 +230,12 @@ func (p pAdapter) DeleteTask(ctx context.Context, id platform.ID) error {
 }
 
 func (p pAdapter) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
-	logs, err := p.r.ListLogs(ctx, filter)
+	task, err := p.s.FindTaskByID(ctx, filter.Task)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	logs, err := p.r.ListLogs(ctx, task.Org, filter)
 	logPointers := make([]*platform.Log, len(logs))
 	for i := range logs {
 		logPointers[i] = &logs[i]
@@ -239,7 +244,12 @@ func (p pAdapter) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*p
 }
 
 func (p pAdapter) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
-	runs, err := p.r.ListRuns(ctx, filter)
+	task, err := p.s.FindTaskByID(ctx, filter.Task)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	runs, err := p.r.ListRuns(ctx, task.Org, filter)
 	return runs, len(runs), err
 }
 

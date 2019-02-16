@@ -22,18 +22,17 @@ type QueryLogReader struct {
 	queryService query.QueryService
 }
 
+var _ LogReader = (*QueryLogReader)(nil)
+
 func NewQueryLogReader(qs query.QueryService) *QueryLogReader {
 	return &QueryLogReader{
 		queryService: qs,
 	}
 }
 
-func (qlr *QueryLogReader) ListLogs(ctx context.Context, logFilter platform.LogFilter) ([]platform.Log, error) {
-	if logFilter.Org == nil {
-		return nil, errors.New("org required")
-	}
-	if logFilter.Task == nil && logFilter.Run == nil {
-		return nil, errors.New("task or run is required")
+func (qlr *QueryLogReader) ListLogs(ctx context.Context, orgID platform.ID, logFilter platform.LogFilter) ([]platform.Log, error) {
+	if !logFilter.Task.Valid() {
+		return nil, errors.New("task ID required to list logs")
 	}
 
 	filterPart := ""
@@ -58,7 +57,7 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, logFilter platform.LogF
 	if auth.Kind() != "authorization" {
 		return nil, platform.ErrAuthorizerNotSupported
 	}
-	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: *logFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
+	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: orgID, Compiler: lang.FluxCompiler{Query: listScript}}
 
 	ittr, err := qlr.queryService.Query(ctx, request)
 	if err != nil {
@@ -78,6 +77,10 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, logFilter platform.LogF
 	}
 
 	runs := re.Runs()
+	if len(runs) == 0 {
+		return nil, errors.New("no matching runs found")
+	}
+
 	logs := make([]platform.Log, len(runs))
 	for i, r := range runs {
 		logs[i] = r.Log
@@ -85,12 +88,9 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, logFilter platform.LogF
 	return logs, nil
 }
 
-func (qlr *QueryLogReader) ListRuns(ctx context.Context, runFilter platform.RunFilter) ([]*platform.Run, error) {
-	if runFilter.Task == nil {
+func (qlr *QueryLogReader) ListRuns(ctx context.Context, orgID platform.ID, runFilter platform.RunFilter) ([]*platform.Run, error) {
+	if !runFilter.Task.Valid() {
 		return nil, errors.New("task required")
-	}
-	if runFilter.Org == nil {
-		return nil, errors.New("org required")
 	}
 
 	limit := "|> limit(n: 100)\n"
@@ -129,14 +129,23 @@ from(bucketID: "000000000000000a")
 	if auth.Kind() != "authorization" {
 		return nil, platform.ErrAuthorizerNotSupported
 	}
-	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: *runFilter.Org, Compiler: lang.FluxCompiler{Query: listScript}}
+	request := &query.Request{Authorization: auth.(*platform.Authorization), OrganizationID: orgID, Compiler: lang.FluxCompiler{Query: listScript}}
 
 	ittr, err := qlr.queryService.Query(ctx, request)
 	if err != nil {
 		return nil, err
 	}
 
-	return queryIttrToRuns(ittr)
+	runs, err := queryIttrToRuns(ittr)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(runs) == 0 {
+		return nil, errors.New("no matching runs found")
+	}
+
+	return runs, nil
 }
 
 func (qlr *QueryLogReader) FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error) {
