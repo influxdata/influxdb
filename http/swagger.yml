@@ -6160,7 +6160,7 @@ components:
             bucket:
               type: string
               description: name of the bucket
-            name: 
+            name:
                 type: string
                 description: name of scraper target
             links:
