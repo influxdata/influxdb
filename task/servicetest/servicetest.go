@@ -462,7 +462,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Limit 1 should only return the earlier run.
-		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &cr.OrgID, Task: &task.ID, Limit: 1})
+		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Task: task.ID, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -483,7 +483,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Unspecified limit returns both runs.
-		runs, _, err = sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &cr.OrgID, Task: &task.ID})
+		runs, _, err = sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Task: task.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -745,9 +745,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Ensure it is returned when filtering logs by run ID.
-		logs, err := sys.LR.ListLogs(sys.Ctx, platform.LogFilter{
-			Org:  &cr.OrgID,
-			Task: &task.ID,
+		logs, err := sys.LR.ListLogs(sys.Ctx, cr.OrgID, platform.LogFilter{
+			Task: task.ID,
 			Run:  &rc1.Created.RunID,
 		})
 		if err != nil {
@@ -767,9 +766,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Ensure both returned when filtering logs by task ID.
-		logs, err = sys.LR.ListLogs(sys.Ctx, platform.LogFilter{
-			Org:  &cr.OrgID,
-			Task: &task.ID,
+		logs, err = sys.LR.ListLogs(sys.Ctx, cr.OrgID, platform.LogFilter{
+			Task: task.ID,
 		})
 		if err != nil {
 			t.Fatal(err)

@@ -173,8 +173,11 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 
-	if _, err := reader.ListRuns(ctx, platform.RunFilter{Task: &task.ID}); err == nil {
-		t.Fatal("failed to error on bad id")
+	if _, err := reader.ListRuns(ctx, task.ID, platform.RunFilter{Task: task.ID}); err == nil {
+		t.Fatal("failed to error on bad org id")
+	}
+	if _, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{Task: task.Org}); err == nil {
+		t.Fatal("failed to error on bad task id")
 	}
 
 	now := time.Now().UTC()
@@ -201,13 +204,15 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		}
 	}
 
-	if _, err := reader.ListRuns(ctx, platform.RunFilter{}); err == nil {
-		t.Fatal("failed to error without any filter")
+	if _, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{}); err == nil {
+		t.Fatal("failed to error with invalid task ID")
+	}
+	if _, err := reader.ListRuns(ctx, 0, platform.RunFilter{Task: task.ID}); err == nil {
+		t.Fatal("failed to error with invalid org ID")
 	}
 
-	listRuns, err := reader.ListRuns(ctx, platform.RunFilter{
-		Task:  &task.ID,
-		Org:   &task.Org,
+	listRuns, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{
+		Task:  task.ID,
 		Limit: 2 * nRuns,
 	})
 	if err != nil {
@@ -219,9 +224,8 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	}
 
 	const afterIDIdx = 20
-	listRuns, err = reader.ListRuns(ctx, platform.RunFilter{
-		Task:  &task.ID,
-		Org:   &task.Org,
+	listRuns, err = reader.ListRuns(ctx, task.Org, platform.RunFilter{
+		Task:  task.ID,
 		After: &runs[afterIDIdx].ID,
 		Limit: 2 * nRuns,
 	})
@@ -233,9 +237,8 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), len(runs)-(afterIDIdx+1))
 	}
 
-	listRuns, err = reader.ListRuns(ctx, platform.RunFilter{
-		Task:  &task.ID,
-		Org:   &task.Org,
+	listRuns, err = reader.ListRuns(ctx, task.Org, platform.RunFilter{
+		Task:  task.ID,
 		Limit: 30,
 	})
 	if err != nil {
@@ -248,9 +251,8 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	const afterTimeIdx = 34
 	scheduledFor, _ := time.Parse(time.RFC3339, runs[afterTimeIdx].ScheduledFor)
-	listRuns, err = reader.ListRuns(ctx, platform.RunFilter{
-		Task:      &task.ID,
-		Org:       &task.Org,
+	listRuns, err = reader.ListRuns(ctx, task.Org, platform.RunFilter{
+		Task:      task.ID,
 		AfterTime: scheduledFor.Format(time.RFC3339),
 		Limit:     2 * nRuns,
 	})
@@ -264,9 +266,8 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	const beforeTimeIdx = 34
 	scheduledFor, _ = time.Parse(time.RFC3339, runs[beforeTimeIdx].ScheduledFor)
-	listRuns, err = reader.ListRuns(ctx, platform.RunFilter{
-		Task:       &task.ID,
-		Org:        &task.Org,
+	listRuns, err = reader.ListRuns(ctx, task.Org, platform.RunFilter{
+		Task:       task.ID,
 		BeforeTime: scheduledFor.Add(time.Millisecond).Format(time.RFC3339),
 	})
 	if err != nil {
@@ -348,11 +349,11 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 
-	if _, err := reader.ListLogs(ctx, platform.LogFilter{}); err == nil {
-		t.Fatal("failed to error with no filter")
+	if _, err := reader.ListLogs(ctx, task.Org, platform.LogFilter{}); err == nil {
+		t.Fatal("failed to error with missing task ID")
 	}
-	if _, err := reader.ListLogs(ctx, platform.LogFilter{Run: &task.ID}); err == nil {
-		t.Fatal("failed to error with a non-run-ID")
+	if _, err := reader.ListLogs(ctx, 9999999, platform.LogFilter{Task: task.ID}); err == nil {
+		t.Fatal("failed to error with an invalid org ID")
 	}
 
 	now := time.Now().UTC()
@@ -381,7 +382,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	}
 
 	const targetRun = 4
-	logs, err := reader.ListLogs(ctx, platform.LogFilter{Run: &runs[targetRun].ID, Org: &task.Org})
+	logs, err := reader.ListLogs(ctx, task.Org, platform.LogFilter{Task: task.ID, Run: &runs[targetRun].ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +395,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		t.Fatalf("expected: %q, got: %q", fmtTimelog+": log4", string(logs[0]))
 	}
 
-	logs, err = reader.ListLogs(ctx, platform.LogFilter{Task: &task.ID, Org: &task.Org})
+	logs, err = reader.ListLogs(ctx, task.Org, platform.LogFilter{Task: task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}

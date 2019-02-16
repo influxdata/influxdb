@@ -251,17 +251,20 @@ type TaskFilter struct {
 
 // RunFilter represents a set of filters that restrict the returned results
 type RunFilter struct {
-	Org        *ID
-	Task       *ID
+	// Task ID is required for listing runs.
+	Task ID
+
 	After      *ID
 	Limit      int
 	AfterTime  string
 	BeforeTime string
 }
 
-// LogFilter represents a set of filters that restrict the returned results
+// LogFilter represents a set of filters that restrict the returned log results.
 type LogFilter struct {
-	Org  *ID
-	Task *ID
-	Run  *ID
+	// Task ID is required.
+	Task ID
+
+	// The optional Run ID limits logs to a single run.
+	Run *ID
 }
