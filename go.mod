@@ -28,6 +28,7 @@ require (
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/duosecurity/duo_api_golang v0.0.0-20190107154727-539434bf0d45 // indirect
+	github.com/editorconfig-checker/editorconfig-checker v0.0.0-20190208081306-44819d1a54a8
 	github.com/elazarl/go-bindata-assetfs v1.0.0
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/getkin/kin-openapi v0.1.1-0.20190103155524-1fa206970bc1
@@ -125,6 +126,8 @@ require (
 	google.golang.org/genproto v0.0.0-20190108161440-ae2f86662275 // indirect
 	google.golang.org/grpc v1.17.0
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
+	gopkg.in/editorconfig/editorconfig-core-go.v1 v1.3.0 // indirect
+	gopkg.in/ini.v1 v1.41.0 // indirect
 	gopkg.in/ldap.v2 v2.5.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce // indirect
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5

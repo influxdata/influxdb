@@ -21,6 +21,9 @@ influxd.bolt
 /transpilerd
 /bin
 
+# Project tools that you might install with go build.
+/editorconfig-checker
+
 ui/node_modules
 ui/npm-error.log
 ui/yarn.lock

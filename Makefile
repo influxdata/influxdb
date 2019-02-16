@@ -91,6 +91,7 @@ fmt: $(SOURCES_NO_VENDOR)
 
 checkfmt:
 	./etc/checkfmt.sh
+	$(GO_RUN) github.com/editorconfig-checker/editorconfig-checker/cmd/editorconfig-checker
 
 tidy:
 	GO111MODULE=on go mod tidy
