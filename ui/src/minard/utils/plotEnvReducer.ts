@@ -42,6 +42,9 @@ export const INITIAL_PLOT_ENV: PlotEnv = {
   dispatch: () => {},
 }
 
+const DEFAULT_X_DOMAIN: [number, number] = [0, 1]
+const DEFAULT_Y_DOMAIN: [number, number] = [0, 1]
+
 export const plotEnvReducer = (state: PlotEnv, action: PlotAction): PlotEnv =>
   produce(state, draftState => {
     switch (action.type) {
@@ -175,11 +178,9 @@ const setXDomain = (draftState: PlotEnv): void => {
   if (draftState.xDomain) {
     draftState.baseLayer.xDomain = draftState.xDomain
   } else {
-    draftState.baseLayer.xDomain = getDomainForAesthetics(draftState, [
-      'x',
-      'xMin',
-      'xMax',
-    ])
+    draftState.baseLayer.xDomain =
+      getDomainForAesthetics(draftState, ['x', 'xMin', 'xMax']) ||
+      DEFAULT_X_DOMAIN
   }
 }
 
@@ -190,11 +191,9 @@ const setYDomain = (draftState: PlotEnv): void => {
   if (draftState.yDomain) {
     draftState.baseLayer.yDomain = draftState.yDomain
   } else {
-    draftState.baseLayer.yDomain = getDomainForAesthetics(draftState, [
-      'y',
-      'yMin',
-      'yMax',
-    ])
+    draftState.baseLayer.yDomain =
+      getDomainForAesthetics(draftState, ['y', 'yMin', 'yMax']) ||
+      DEFAULT_Y_DOMAIN
   }
 }
 
@@ -214,13 +213,8 @@ const getTicks = ([d0, d1]: number[], length: number): number[] => {
 */
 const setLayout = (draftState: PlotEnv): void => {
   const {width, height} = draftState
-  const {xDomain, yDomain} = draftState.baseLayer
-
-  if (!xDomain || !yDomain) {
-    setSkeletonLayout(draftState)
-
-    return
-  }
+  const xDomain = draftState.xDomain || draftState.baseLayer.xDomain
+  const yDomain = draftState.yDomain || draftState.baseLayer.yDomain
 
   draftState.xTicks = getTicks(xDomain, width)
   draftState.yTicks = getTicks(yDomain, height)
@@ -249,23 +243,6 @@ const setLayout = (draftState: PlotEnv): void => {
   draftState.baseLayer.scales.y = scaleLinear()
     .domain(yDomain)
     .range([innerHeight, 0])
-}
-
-/*
-  If the plot doesn't have all the data needed to create a layout, set a dummy
-  layout instead.
-*/
-const setSkeletonLayout = (draftState: PlotEnv): void => {
-  draftState.xTicks = []
-  draftState.yTicks = []
-  draftState.innerWidth = draftState.width - PLOT_PADDING * 2
-  draftState.innerHeight = draftState.height - PLOT_PADDING * 2
-  draftState.margins = {
-    top: PLOT_PADDING,
-    right: PLOT_PADDING,
-    bottom: PLOT_PADDING,
-    left: PLOT_PADDING,
-  }
 }
 
 /*

@@ -12,6 +12,7 @@ import {
   AutoInput,
 } from 'src/clockface'
 import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
+import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 
 // Actions
 import {
@@ -20,6 +21,7 @@ import {
   setBinCount,
   setHistogramPosition,
   setColors,
+  setXDomain,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -44,6 +46,7 @@ interface DispatchProps {
   onSetBinCount: typeof setBinCount
   onSetPosition: typeof setHistogramPosition
   onSetColors: typeof setColors
+  onSetXDomain: typeof setXDomain
 }
 
 interface OwnProps {
@@ -52,6 +55,7 @@ interface OwnProps {
   position: HistogramPosition
   binCount: number
   colors: Color[]
+  xDomain: [number, number]
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -65,11 +69,13 @@ const HistogramOptions: SFC<Props> = props => {
     position,
     binCount,
     colors,
+    xDomain,
     onSetXColumn,
     onSetFillColumns,
     onSetPosition,
     onSetBinCount,
     onSetColors,
+    onSetXDomain,
   } = props
 
   const xDropdownStatus = availableXColumns.length
@@ -144,6 +150,11 @@ const HistogramOptions: SFC<Props> = props => {
           min={0}
         />
       </Form.Element>
+      <AutoDomainInput
+        domain={xDomain}
+        onSetDomain={onSetXDomain}
+        label="Set X Axis Domain"
+      />
     </Grid.Column>
   )
 }
@@ -160,6 +171,7 @@ const mdtp = {
   onSetBinCount: setBinCount,
   onSetPosition: setHistogramPosition,
   onSetColors: setColors,
+  onSetXDomain: setXDomain,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

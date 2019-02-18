@@ -63,6 +63,11 @@ export const bin = (
   // Count x values by bin and group
   for (let i = 0; i < xCol.length; i++) {
     const x = xCol[i]
+
+    if (x < xDomain[0] || x > xDomain[1]) {
+      continue
+    }
+
     const group = getGroup(table, groupColNames, i)
     const groupKey = getGroupKey(Object.values(group))
     const xPercentage = (x - xDomain[0]) / (xDomain[1] - xDomain[0])
