@@ -104,7 +104,7 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 		report.BucketID = bucketID
 	}
 
-	err := report.Run()
+	_, err := report.Run(true)
 	if err != nil {
 		panic(err)
 	}
