@@ -272,11 +272,7 @@ export const timeMachineReducer = (
 
     case 'TABLE_LOADED': {
       return produce(state, draftState => {
-        const {
-          availableXColumns,
-          availableGroupColumns,
-          defaultGroupColumns,
-        } = action.payload
+        const {availableXColumns, availableGroupColumns} = action.payload
 
         draftState.availableXColumns = availableXColumns
         draftState.availableGroupColumns = availableGroupColumns
@@ -298,7 +294,7 @@ export const timeMachineReducer = (
         }
 
         if (fillColumnsStale) {
-          draftState.view.properties.fillColumns = defaultGroupColumns
+          draftState.view.properties.fillColumns = []
         }
       })
     }

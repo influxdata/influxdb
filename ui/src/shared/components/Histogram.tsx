@@ -53,7 +53,7 @@ const resolveMappings = (
   table: Table,
   preferredXColumn: string,
   preferredFillColumns: string[] = []
-): [string, string[]] => {
+): {x: string; fill: string[]} => {
   let x: string = preferredXColumn
 
   if (!table.columns[x] || table.columnTypes[x] !== ColumnType.Numeric) {
@@ -66,7 +66,7 @@ const resolveMappings = (
 
   fill = fill.filter(name => table.columns[name])
 
-  return [x, fill]
+  return {x, fill}
 }
 
 const Histogram: SFC<Props> = ({
@@ -83,17 +83,16 @@ const Histogram: SFC<Props> = ({
 }) => {
   const [xDomain, setXDomain] = useOneWayState(defaultXDomain)
   const colorHexes = useMemo(() => colors.map(c => c.hex), [colors])
-  const tableResult = useMemo(() => toMinardTable(tables), [tables])
+  const {table} = useMemo(() => toMinardTable(tables), [tables])
 
   useEffect(
     () => {
-      onTableLoaded(tableResult)
+      onTableLoaded(table)
     },
-    [tableResult]
+    [table]
   )
 
-  const {table} = tableResult
-  const [x, fill] = resolveMappings(table, xColumn, fillColumns)
+  const {x, fill} = resolveMappings(table, xColumn, fillColumns)
 
   if (!x) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />

@@ -21,15 +21,6 @@ describe('toMinardTable', () => {
     const actual = toMinardTable(tables)
     const expected = {
       schemaConflicts: [],
-      defaultGroupColumns: [
-        '_start',
-        '_stop',
-        '_field',
-        '_measurement',
-        'cpu',
-        'host',
-        'result',
-      ],
       table: {
         columnTypes: {
           _field: 'categorical',
@@ -78,15 +69,6 @@ describe('toMinardTable', () => {
     const actual = toMinardTable(tables)
     const expected = {
       schemaConflicts: ['_value'],
-      defaultGroupColumns: [
-        '_start',
-        '_stop',
-        '_field',
-        '_measurement',
-        'cpu',
-        'host',
-        'result',
-      ],
       table: {
         columnTypes: {
           _field: 'categorical',
