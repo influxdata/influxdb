@@ -15,8 +15,7 @@ import {
 } from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
-import {HistogramPosition, ColumnType} from 'src/minard'
-import {ToMinardTableResult} from 'src/shared/utils/toMinardTable'
+import {Table, HistogramPosition, ColumnType} from 'src/minard'
 
 export type Action =
   | QueryBuilderAction
@@ -508,22 +507,17 @@ interface TableLoadedAction {
   payload: {
     availableXColumns: string[]
     availableGroupColumns: string[]
-    defaultGroupColumns: string[]
   }
 }
 
-export const tableLoaded = (result: ToMinardTableResult): TableLoadedAction => {
-  const availableXColumns = Object.entries(result.table.columnTypes)
+export const tableLoaded = (table: Table): TableLoadedAction => {
+  const availableXColumns = Object.entries(table.columnTypes)
     .filter(([__, type]) => type === ColumnType.Numeric)
     .map(([name]) => name)
 
   const invalidGroupColumns = new Set(['_value', '_start', '_stop', '_time'])
 
-  const availableGroupColumns = Object.keys(result.table.columns).filter(
-    name => !invalidGroupColumns.has(name)
-  )
-
-  const defaultGroupColumns = result.defaultGroupColumns.filter(
+  const availableGroupColumns = Object.keys(table.columns).filter(
     name => !invalidGroupColumns.has(name)
   )
 
@@ -532,7 +526,6 @@ export const tableLoaded = (result: ToMinardTableResult): TableLoadedAction => {
     payload: {
       availableXColumns,
       availableGroupColumns,
-      defaultGroupColumns,
     },
   }
 }
