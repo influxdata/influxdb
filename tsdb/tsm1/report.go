@@ -77,6 +77,7 @@ func (r *Report) Run() error {
 	}
 	var processedFiles int
 
+	var tagBuf models.Tags // Buffer that can be re-used when parsing keys.
 	for _, path := range files {
 		if r.Pattern != "" && strings.Contains(path, r.Pattern) {
 			continue
@@ -142,21 +143,22 @@ func (r *Report) Run() error {
 			if r.Detailed {
 				sep := bytes.Index(key, KeyFieldSeparatorBytes)
 				seriesKey := key[:sep] // Snip the tsm1 field key off.
-				tags := models.ParseTags(seriesKey)
+				_, tagBuf = models.ParseKeyBytesWithTags(seriesKey, tagBuf)
 
-				for _, t := range tags {
+				for _, t := range tagBuf {
 					tk := string(t.Key)
 					switch tk {
 					case tsdb.MeasurementTagKey:
+						mname := string(t.Value)
 						// Total series cardinality segmented by measurement name.
-						mCount := mCardinalities[string(t.Value)] // measurement name.
+						mCount := mCardinalities[mname] // measurement name.
 						if mCount == nil {
 							mCount = newCounterFn()
-							mCardinalities[string(t.Value)] = mCount
+							mCardinalities[mname] = mCount
 						}
 						mCount.Add(key) // full series keys associated with measurement name.
 					case tsdb.FieldKeyTagKey:
-						mname := tags.GetString(tsdb.MeasurementTagKey)
+						mname := tagBuf.GetString(tsdb.MeasurementTagKey)
 						fCount := fCardinalities[mname]
 						if fCount == nil {
 							fCount = newCounterFn()
