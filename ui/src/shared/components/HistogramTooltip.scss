@@ -11,6 +11,10 @@
   z-index: $z--dygraph-legend;
 }
 
+.histogram-tooltip--bin {
+  white-space: nowrap;
+}
+
 .histogram-tooltip--table {
   display: flex;
   justify-content: space-between;
