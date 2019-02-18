@@ -143,4 +143,24 @@ describe('bin', () => {
 
     expect(actual).toEqual(expected)
   })
+
+  test('ignores values outside of xDomain', () => {
+    const actual = bin(
+      TABLE,
+      '_value',
+      [50, 80],
+      [],
+      3,
+      HistogramPosition.Stacked
+    )[0].columns
+
+    const expected = {
+      xMax: [60, 70, 80],
+      xMin: [50, 60, 70],
+      yMax: [1, 3, 3],
+      yMin: [0, 0, 0],
+    }
+
+    expect(actual).toEqual(expected)
+  })
 })

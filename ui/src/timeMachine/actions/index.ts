@@ -61,6 +61,7 @@ export type Action =
   | SetBinCountAction
   | SetHistogramPositionAction
   | TableLoadedAction
+  | SetXDomainAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -535,3 +536,13 @@ export const tableLoaded = (result: ToMinardTableResult): TableLoadedAction => {
     },
   }
 }
+
+interface SetXDomainAction {
+  type: 'SET_VIEW_X_DOMAIN'
+  payload: {xDomain: [number, number]}
+}
+
+export const setXDomain = (xDomain: [number, number]): SetXDomainAction => ({
+  type: 'SET_VIEW_X_DOMAIN',
+  payload: {xDomain},
+})
