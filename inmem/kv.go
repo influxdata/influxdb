@@ -27,6 +27,9 @@ func NewKVStore() *KVStore {
 func (s *KVStore) View(fn func(kv.Tx) error) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.buckets == nil {
+		s.buckets = map[string]*Bucket{}
+	}
 	return fn(&Tx{
 		kv:       s,
 		writable: false,
@@ -38,11 +41,24 @@ func (s *KVStore) View(fn func(kv.Tx) error) error {
 func (s *KVStore) Update(fn func(kv.Tx) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.buckets == nil {
+		s.buckets = map[string]*Bucket{}
+	}
+
 	return fn(&Tx{
 		kv:       s,
 		writable: true,
 		ctx:      context.Background(),
 	})
+}
+
+// Buckets returns the names of all buckets within inmem.KVStore.
+func (s *KVStore) Buckets() []string {
+	buckets := make([]string, 0, len(s.buckets))
+	for b := range s.buckets {
+		buckets = append(buckets, b)
+	}
+	return buckets
 }
 
 // Tx is an in memory transaction.
