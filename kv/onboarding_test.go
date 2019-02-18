@@ -9,7 +9,7 @@ import (
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 )
 
-func TestBolOnboardingService(t *testing.T) {
+func TestBoltOnboardingService(t *testing.T) {
 	influxdbtesting.Generate(initBoltOnboardingService, t)
 }
 

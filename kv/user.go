@@ -24,7 +24,7 @@ func (s *Service) initializeUsers(ctx context.Context, tx Tx) error {
 		return err
 	}
 
-	if _, err := s.userIndex(tx); err != nil {
+	if _, err := s.userIndexBucket(tx); err != nil {
 		return err
 	}
 	return nil
@@ -39,7 +39,7 @@ func (s *Service) userBucket(tx Tx) (Bucket, error) {
 	return b, nil
 }
 
-func (s *Service) userIndex(tx Tx) (Bucket, error) {
+func (s *Service) userIndexBucket(tx Tx) (Bucket, error) {
 	b, err := tx.Bucket([]byte(userIndex))
 	if err != nil {
 		return nil, UnexpectedUserIndexError(err)
@@ -128,7 +128,7 @@ func (s *Service) FindUserByName(ctx context.Context, n string) (*influxdb.User,
 }
 
 func (s *Service) findUserByName(ctx context.Context, tx Tx, n string) (*influxdb.User, error) {
-	b, err := s.userIndex(tx)
+	b, err := s.userIndexBucket(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -231,10 +231,8 @@ func (s *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
 }
 
 func (s *Service) createUser(ctx context.Context, tx Tx, u *influxdb.User) error {
-	unique := s.uniqueUserName(ctx, tx, u)
-
-	if !unique {
-		return ErrUserWithNameAlreadyExists(u.Name)
+	if err := s.uniqueUserName(ctx, tx, u); err != nil {
+		return err
 	}
 
 	u.ID = s.IDGenerator.ID()
@@ -262,7 +260,7 @@ func (s *Service) putUser(ctx context.Context, tx Tx, u *influxdb.User) error {
 		return InvalidUserIDError(err)
 	}
 
-	idx, err := s.userIndex(tx)
+	idx, err := s.userIndexBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -312,16 +310,16 @@ func (s *Service) forEachUser(ctx context.Context, tx Tx, fn func(*influxdb.User
 	return nil
 }
 
-func (s *Service) uniqueUserName(ctx context.Context, tx Tx, u *influxdb.User) bool {
-	idx, err := s.userIndex(tx)
-	if err != nil {
-		return false
-	}
+func (s *Service) uniqueUserName(ctx context.Context, tx Tx, u *influxdb.User) error {
+	key := userIndexKey(u.Name)
 
-	if _, err := idx.Get(userIndexKey(u.Name)); err == ErrKeyNotFound {
-		return true
+	// if the name is not unique across all users in all organizations, then,
+	// do not allow creation.
+	err := s.unique(ctx, tx, userIndex, key)
+	if err == NotUniqueError {
+		return UserAlreadyExistsError(u.Name)
 	}
-	return false
+	return err
 }
 
 // UpdateUser updates a user according the parameters set on upd.
@@ -371,7 +369,7 @@ func (s *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 func (s *Service) removeUserFromIndex(ctx context.Context, tx Tx, id influxdb.ID, name string) error {
 	// Users are indexed by name and so the user index must be pruned
 	// when name is modified.
-	idx, err := s.userIndex(tx)
+	idx, err := s.userIndexBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -405,7 +403,7 @@ func (s *Service) deleteUser(ctx context.Context, tx Tx, id influxdb.ID) error {
 		return InvalidUserIDError(err)
 	}
 
-	idx, err := s.userIndex(tx)
+	idx, err := s.userIndexBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -536,9 +534,9 @@ func ErrInternalUserServiceError(err error) *influxdb.Error {
 	}
 }
 
-// ErrUserWithNameAlreadyExists is used when attempting to create a user with a name
+// UserAlreadyExistsError is used when attempting to create a user with a name
 // that already exists.
-func ErrUserWithNameAlreadyExists(n string) *influxdb.Error {
+func UserAlreadyExistsError(n string) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EConflict,
 		Msg:  fmt.Sprintf("user with name %s already exists", n),
@@ -549,8 +547,7 @@ func ErrUserWithNameAlreadyExists(n string) *influxdb.Error {
 func UnexpectedUserBucketError(err error) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EInternal,
-		Msg:  "unexpected error retrieving user bucket",
-		Err:  err,
+		Msg:  fmt.Sprintf("unexpected error retrieving user bucket; Err: %v", err),
 		Op:   "kv/userBucket",
 	}
 }
@@ -559,8 +556,7 @@ func UnexpectedUserBucketError(err error) *influxdb.Error {
 func UnexpectedUserIndexError(err error) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EInternal,
-		Msg:  "unexpected error retrieving user index",
-		Err:  err,
+		Msg:  fmt.Sprintf("unexpected error retrieving user index; Err: %v", err),
 		Op:   "kv/userIndex",
 	}
 }

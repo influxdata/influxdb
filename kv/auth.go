@@ -3,6 +3,7 @@ package kv
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	influxdb "github.com/influxdata/influxdb"
 )
@@ -18,7 +19,7 @@ func (s *Service) initializeAuths(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket(authBucket); err != nil {
 		return err
 	}
-	if _, err := tx.Bucket(authIndex); err != nil {
+	if _, err := authIndexBucket(tx); err != nil {
 		return err
 	}
 	return nil
@@ -103,7 +104,7 @@ func (s *Service) FindAuthorizationByToken(ctx context.Context, n string) (*infl
 }
 
 func (s *Service) findAuthorizationByToken(ctx context.Context, tx Tx, n string) (*influxdb.Authorization, error) {
-	idx, err := tx.Bucket(authIndex)
+	idx, err := authIndexBucket(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -240,8 +241,8 @@ func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Au
 		return influxdb.ErrUnableToCreateToken
 	}
 
-	if unique := s.uniqueAuthorizationToken(ctx, tx, a); !unique {
-		return influxdb.ErrUnableToCreateToken
+	if err := s.uniqueAuthToken(ctx, tx, a); err != nil {
+		return err
 	}
 
 	if a.Token == "" {
@@ -302,7 +303,7 @@ func (s *Service) putAuthorization(ctx context.Context, tx Tx, a *influxdb.Autho
 		}
 	}
 
-	idx, err := tx.Bucket(authIndex)
+	idx, err := authIndexBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -368,16 +369,6 @@ func (s *Service) forEachAuthorization(ctx context.Context, tx Tx, fn func(*infl
 	return nil
 }
 
-func (s *Service) uniqueAuthorizationToken(ctx context.Context, tx Tx, a *influxdb.Authorization) bool {
-	idx, err := tx.Bucket(authIndex)
-	if err != nil {
-		return false
-	}
-
-	_, err = idx.Get(authIndexKey(a.Token))
-	return IsNotFound(err)
-}
-
 // DeleteAuthorization deletes a authorization and prunes it from the index.
 func (s *Service) DeleteAuthorization(ctx context.Context, id influxdb.ID) error {
 	return s.kv.Update(func(tx Tx) (err error) {
@@ -391,7 +382,7 @@ func (s *Service) deleteAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 		return err
 	}
 
-	idx, err := tx.Bucket(authIndex)
+	idx, err := authIndexBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -461,4 +452,34 @@ func (s *Service) updateAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 		}
 	}
 	return nil
+}
+
+func authIndexBucket(tx Tx) (Bucket, error) {
+	b, err := tx.Bucket([]byte(authIndex))
+	if err != nil {
+		return nil, UnexpectedAuthIndexError(err)
+	}
+
+	return b, nil
+}
+
+// UnexpectedAuthIndexError is used when the error comes from an internal system.
+func UnexpectedAuthIndexError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("unexpected error retrieving auth index; Err: %v", err),
+		Op:   "kv/authIndex",
+	}
+}
+
+func (s *Service) uniqueAuthToken(ctx context.Context, tx Tx, a *influxdb.Authorization) error {
+	err := s.unique(ctx, tx, authIndex, authIndexKey(a.Token))
+	if err == NotUniqueError {
+		// by returning a generic error we are trying to hide when
+		// a token is non-unique.
+		return influxdb.ErrUnableToCreateToken
+	}
+	// otherwise, this is some sort of internal server error and we
+	// should provide some debugging information.
+	return err
 }
