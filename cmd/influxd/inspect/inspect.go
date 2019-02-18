@@ -1,10 +1,14 @@
 package inspect
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/internal/fs"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/spf13/cobra"
 )
 
@@ -18,10 +22,9 @@ func NewCommand() *cobra.Command {
 	reportTSMCommand := &cobra.Command{
 		Use:   "report-tsm",
 		Short: "Run TSM report",
-		Run:   nil,
+		Run:   inspectReportTSMF,
 	}
 
-	var reportTSMFlags = &reportTSMFlags{}
 	reportTSMCommand.Flags().StringVarP(&reportTSMFlags.pattern, "pattern", "", "", "only process TSM files containing pattern")
 	reportTSMCommand.Flags().BoolVarP(&reportTSMFlags.exact, "exact", "", false, "calculate and exact cardinality count. Warning, may use significant memory...")
 	reportTSMCommand.Flags().BoolVarP(&reportTSMFlags.detailed, "detailed", "", false, "emit series cardinality segmented by measurements, tag keys and fields. Warning, may take a while...")
@@ -47,4 +50,44 @@ type reportTSMFlags struct {
 
 	orgName, bucketName string
 	dataDir             string
+}
+
+var reportTSMFlags = &reportTSMFlags{}
+
+// inspectReportTSMF runs the report-tsm tool.
+func inspectReportTSMF(cmd *cobra.Command, args []string) error {
+	report := &tsm1.Report{
+		Stderr:   os.Stderr,
+		Stdout:   os.Stdout,
+		Dir:      reportTSMFlags.dataDir,
+		Pattern:  reportTSMFlags.pattern,
+		Detailed: reportTSMFlags.detailed,
+		Exact:    reportTSMFlags.exact,
+	}
+
+	if reportTSMFlags.orgID == "" && reportTSMFlags.bucketID != "" {
+		return errors.New("org-id must be set for non-empty bucket-id")
+	}
+
+	if reportTSMFlags.orgID != "" {
+		orgID, err := influxdb.IDFromString(reportTSMFlags.orgID)
+		if err != nil {
+			return err
+		}
+		report.OrgID = orgID
+	}
+
+	if reportTSMFlags.bucketID != "" {
+		bucketID, err := influxdb.IDFromString(reportTSMFlags.bucketID)
+		if err != nil {
+			return err
+		}
+		report.BucketID = bucketID
+	}
+
+	err := report.Run()
+	if err != nil {
+		panic(err)
+	}
+	return err
 }
