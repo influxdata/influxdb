@@ -731,11 +731,11 @@ paths:
           required: true
           description: ID of the scraper target
         - in: path
-          name: label
+          name: labelID
           schema:
             type: string
           required: true
-          description: the label name
+          description: ID of the label
       responses:
         '204':
           description: delete has been accepted
@@ -768,7 +768,7 @@ paths:
           schema:
             type: string
           required: true
-          description: the label name
+          description: ID of the label
       requestBody:
         description: label update to apply
         required: true
