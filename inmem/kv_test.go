@@ -41,17 +41,17 @@ func TestKVStore_Buckets(t *testing.T) {
 	tests := []struct {
 		name    string
 		buckets []string
-		want    []string
+		want    [][]byte
 	}{
 		{
 			name:    "single bucket is returned if only one bucket is added",
 			buckets: []string{"b1"},
-			want:    []string{"b1"},
+			want:    [][]byte{[]byte("b1")},
 		},
 		{
 			name:    "multiple buckets are returned if multiple buckets added",
 			buckets: []string{"b1", "b2", "b3"},
-			want:    []string{"b1", "b2", "b3"},
+			want:    [][]byte{[]byte("b1"), []byte("b2"), []byte("b3")},
 		},
 	}
 	for _, tt := range tests {
@@ -69,8 +69,9 @@ func TestKVStore_Buckets(t *testing.T) {
 				t.Fatalf("unable to setup store with buckets: %v", err)
 			}
 			got := s.Buckets()
-			sort.Strings(got)
-			sort.Strings(tt.want)
+			sort.Slice(got, func(i, j int) bool {
+				return string(got[i]) < string(got[j])
+			})
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("KVStore.Buckets() = %v, want %v", got, tt.want)
 			}

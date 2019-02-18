@@ -53,10 +53,10 @@ func (s *KVStore) Update(fn func(kv.Tx) error) error {
 }
 
 // Buckets returns the names of all buckets within inmem.KVStore.
-func (s *KVStore) Buckets() []string {
-	buckets := make([]string, 0, len(s.buckets))
+func (s *KVStore) Buckets() [][]byte {
+	buckets := make([][]byte, 0, len(s.buckets))
 	for b := range s.buckets {
-		buckets = append(buckets, b)
+		buckets = append(buckets, []byte(b))
 	}
 	return buckets
 }
