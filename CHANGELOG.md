@@ -120,6 +120,7 @@ v1.6.0 [2018-07-05]
 -	[#11791](https://github.com/influxdata/influxdb/pull/11791): Revert "Limit force-full and cold compaction size.".
 -	[#11829](https://github.com/influxdata/influxdb/pull/11829): Convert TagValueSeriesIDCache to use string fields.
 -	[#11832](https://github.com/influxdata/influxdb/pull/11832): Ensure that cached series id sets are Go heap backed.
+-	[#11750](https://github.com/influxdata/influxdb/pull/11750): Update tagKeyValue mutex to write lock.
 
 v1.5.4 [2018-06-21]
 -------------------
