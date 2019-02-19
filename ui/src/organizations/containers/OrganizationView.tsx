@@ -96,7 +96,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="tasks_tab"
                 title="Tasks"
               >
-                <GetOrgResources<Task[]> organization={org} fetcher={getTasks}>
+                <GetOrgResources<Task> organization={org} fetcher={getTasks}>
                   {(tasks, loading, fetch) => (
                     <SpinnerContainer
                       loading={loading}
@@ -118,7 +118,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="telegrafs_tab"
                 title="Telegraf"
               >
-                <GetOrgResources<Telegraf[]>
+                <GetOrgResources<Telegraf>
                   organization={org}
                   fetcher={getCollectors}
                 >
@@ -127,7 +127,7 @@ class OrganizationView extends PureComponent<Props> {
                       loading={loading}
                       spinnerComponent={<TechnoSpinner />}
                     >
-                      <GetOrgResources<Bucket[]>
+                      <GetOrgResources<Bucket>
                         organization={org}
                         fetcher={getBuckets}
                       >
@@ -155,7 +155,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="scrapers_tab"
                 title="Scrapers"
               >
-                <GetOrgResources<ScraperTargetResponse[]>
+                <GetOrgResources<ScraperTargetResponse>
                   organization={org}
                   fetcher={getScrapers}
                 >
@@ -165,7 +165,7 @@ class OrganizationView extends PureComponent<Props> {
                         loading={loading}
                         spinnerComponent={<TechnoSpinner />}
                       >
-                        <GetOrgResources<Bucket[]>
+                        <GetOrgResources<Bucket>
                           organization={org}
                           fetcher={getBuckets}
                         >
@@ -193,7 +193,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="variables_tab"
                 title="Variables"
               >
-                <GetOrgResources<Variable[]>
+                <GetOrgResources<Variable>
                   organization={org}
                   fetcher={getVariables}
                 >

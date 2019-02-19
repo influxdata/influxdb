@@ -157,7 +157,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             {isInOverlay && (
               <Grid.Column widthXS={Columns.Six}>
                 <Form.Element label="Output Bucket">
-                  <GetOrgResources<Bucket[]>
+                  <GetOrgResources<Bucket>
                     organization={this.toOrganization}
                     fetcher={getBuckets}
                   >
