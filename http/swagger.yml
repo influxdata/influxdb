@@ -5067,7 +5067,7 @@ components:
         offset:
           description: Duration to delay after the schedule, before executing the task; parsed from flux.
           type: string
-        latest_completed:
+        latestCompleted:
           description: Timestamp of latest scheduled, completed run, RFC3339.
           type: string
           format: date-time
