@@ -76,11 +76,11 @@ class LabelSelector extends Component<Props, State> {
     return (
       <ClickOutside onClickOutside={this.handleStopSuggesting}>
         <div className="label-selector">
-          {this.input}
-          <div className="label-selector--bottom">
+          <div className="label-selector--selection">
             {this.selectedLabels}
             {this.clearSelectedButton}
           </div>
+          {this.input}
         </div>
       </ClickOutside>
     )

@@ -23,7 +23,11 @@ class LabelSelectorMenuItem extends Component<Props> {
     const {name, colorHex, description, id} = this.props
 
     return (
-      <span onMouseOver={this.handleMouseOver} onClick={this.handleClick}>
+      <span
+        className="label-selector--menu-item"
+        onMouseOver={this.handleMouseOver}
+        onClick={this.handleClick}
+      >
         <Label
           name={name}
           description={description}
