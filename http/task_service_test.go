@@ -79,14 +79,12 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 								ID:              1,
 								Name:            "task1",
 								OrganizationID:  1,
-								Owner:           platform.User{ID: 1, Name: "user1"},
 								AuthorizationID: 0x100,
 							},
 							{
 								ID:              2,
 								Name:            "task2",
 								OrganizationID:  2,
-								Owner:           platform.User{ID: 2, Name: "user2"},
 								AuthorizationID: 0x200,
 							},
 						}
@@ -239,7 +237,6 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 							Name:            "task1",
 							OrganizationID:  1,
 							Organization:    "test",
-							Owner:           platform.User{ID: 1, Name: "user1"},
 							AuthorizationID: 0x100,
 							Flux:            "abc",
 						}, nil

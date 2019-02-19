@@ -22,9 +22,6 @@ var (
 	// ErrTaskNotFound indicates no task could be found for given parameters.
 	ErrTaskNotFound = errors.New("task not found")
 
-	// ErrUserNotFound is an error for when we can't find a user
-	ErrUserNotFound = errors.New("user not found")
-
 	// ErrOrgNotFound is an error for when we can't find an org
 	ErrOrgNotFound = errors.New("org not found")
 
@@ -147,8 +144,8 @@ type RunCreation struct {
 
 // CreateTaskRequest encapsulates state of a new task to be created.
 type CreateTaskRequest struct {
-	// Owners.
-	Org, User platform.ID
+	// Owner.
+	Org platform.ID
 
 	// Authorization ID to use when executing the task later.
 	// This is stored directly in the storage layer,
@@ -377,9 +374,6 @@ type TaskSearchParams struct {
 	// Return tasks belonging to this exact organization ID. May be nil.
 	Org platform.ID
 
-	// Return tasks belonging to this exact user ID. May be nil.
-	User platform.ID
-
 	// Return tasks starting after this ID.
 	After platform.ID
 
@@ -394,7 +388,7 @@ type StoreTask struct {
 	ID platform.ID
 
 	// IDs for the owning organization and user.
-	Org, User platform.ID
+	Org platform.ID
 
 	// The user-supplied name of the Task.
 	Name string
@@ -434,9 +428,6 @@ func (StoreValidation) CreateArgs(req CreateTaskRequest) (options.Options, error
 
 	if !req.Org.Valid() {
 		missing = append(missing, "organization ID")
-	}
-	if !req.User.Valid() {
-		missing = append(missing, "user ID")
 	}
 	if !req.AuthorizationID.Valid() {
 		missing = append(missing, "authorization ID")
