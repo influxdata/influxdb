@@ -634,7 +634,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return nil, 0, backend.ErrTaskNotFound
 					}
 					if *f.Run != runID {
-						return nil, 0, backend.ErrRunNotFound
+						return nil, 0, backend.ErrNoRunsFound
 					}
 
 					return nil, 0, nil
@@ -646,11 +646,27 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			notFoundPathArgs: notFoundTaskRun,
 		},
 		{
-			name: "get runs",
+			name: "get runs: task not found",
 			svc: &mock.TaskService{
 				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
 					if f.Task != taskID {
 						return nil, 0, backend.ErrTaskNotFound
+					}
+
+					return nil, 0, nil
+				},
+			},
+			method:           http.MethodGet,
+			pathFmt:          "/tasks/%s/runs",
+			okPathArgs:       okTask,
+			notFoundPathArgs: notFoundTask,
+		},
+		{
+			name: "get runs: task found but no runs found",
+			svc: &mock.TaskService{
+				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
+					if f.Task != taskID {
+						return nil, 0, backend.ErrNoRunsFound
 					}
 
 					return nil, 0, nil

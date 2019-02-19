@@ -78,7 +78,7 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, orgID platform.ID, logF
 
 	runs := re.Runs()
 	if len(runs) == 0 {
-		return nil, errors.New("no matching runs found")
+		return nil, ErrNoRunsFound
 	}
 
 	logs := make([]platform.Log, len(runs))
@@ -142,7 +142,7 @@ from(bucketID: "000000000000000a")
 	}
 
 	if len(runs) == 0 {
-		return nil, errors.New("no matching runs found")
+		return nil, ErrNoRunsFound
 	}
 
 	return runs, nil

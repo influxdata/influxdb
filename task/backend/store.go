@@ -28,8 +28,11 @@ var (
 	// ErrManualQueueFull is returned when a manual run request cannot be completed.
 	ErrManualQueueFull = errors.New("manual queue at capacity")
 
-	// ErrRunNotFound is returned when searching for a run that doesn't exist.
+	// ErrRunNotFound is returned when searching for a single run that doesn't exist.
 	ErrRunNotFound = errors.New("run not found")
+
+	// ErrNoRunsFound is returned when searching for a range of runs, but none are found.
+	ErrNoRunsFound = errors.New("no matching runs found")
 
 	// ErrRunNotFinished is returned when a retry is invalid due to the run not being finished yet.
 	ErrRunNotFinished = errors.New("run is still in progress")
