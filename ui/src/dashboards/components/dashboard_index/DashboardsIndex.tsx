@@ -9,7 +9,7 @@ import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/D
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {OverlayTechnology} from 'src/clockface'
-import CreateDashboardDropdown from 'src/dashboards/components/dashboard_index/CreateDashboardDropdown'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 import ExportOverlay from 'src/shared/components/ExportOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
@@ -119,9 +119,10 @@ class DashboardIndex extends PureComponent<Props, State> {
                 placeholderText="Filter dashboards by name..."
                 onSearch={this.filterDashboards}
               />
-              <CreateDashboardDropdown
-                onNewDashboard={this.handleCreateDashboard}
-                onToggleOverlay={this.handleToggleImportOverlay}
+              <AddResourceDropdown
+                onSelectNew={this.handleCreateDashboard}
+                onSelectImport={this.handleToggleImportOverlay}
+                resourceName="Dashboard"
               />
             </Page.Header.Right>
           </Page.Header>
