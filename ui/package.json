@@ -9,7 +9,7 @@
     "url": "github:influxdata/chronograf"
   },
   "engines": {
-    "npm": "~6.4",
+    "npm": "~6.8",
     "node": "~10.5"
   },
   "alias": {
