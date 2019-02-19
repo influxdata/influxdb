@@ -19,7 +19,6 @@ var (
 
 var _ platform.UserService = (*Client)(nil)
 var _ platform.UserOperationLogService = (*Client)(nil)
-var _ platform.BasicAuthService = (*Client)(nil)
 
 func (c *Client) initializeUsers(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(userBucket)); err != nil {
@@ -119,8 +118,6 @@ func (c *Client) findUserByName(ctx context.Context, tx *bolt.Tx, n string) (*pl
 }
 
 // FindUser retrives a user using an arbitrary user filter.
-// Filters using ID, or Name should be efficient.
-// Other filters will do a linear scan across users until it finds a match.
 func (c *Client) FindUser(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
 	var u *platform.User
 	var err error
@@ -147,33 +144,10 @@ func (c *Client) FindUser(ctx context.Context, filter platform.UserFilter) (*pla
 		return u, nil
 	}
 
-	filterFn := filterUsersFn(filter)
-
-	err = c.db.View(func(tx *bolt.Tx) error {
-		return forEachUser(ctx, tx, func(usr *platform.User) bool {
-			if filterFn(usr) {
-				u = usr
-				return false
-			}
-			return true
-		})
-	})
-
-	if err != nil {
-		return nil, &platform.Error{
-			Op:  op,
-			Err: err,
-		}
+	return nil, &platform.Error{
+		Code: platform.ENotFound,
+		Msg:  "user not found",
 	}
-
-	if u == nil {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Msg:  "user not found",
-		}
-	}
-
-	return u, nil
 }
 
 func filterUsersFn(filter platform.UserFilter) func(u *platform.User) bool {

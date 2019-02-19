@@ -8,11 +8,13 @@ import (
 
 // TODO(goller): remove opPrefix argument
 func diffPlatformErrors(name string, actual, expected error, opPrefix string, t *testing.T) {
+	t.Helper()
 	ErrorsEqual(t, actual, expected)
 }
 
 // ErrorsEqual checks to see if the provided errors are equivalent.
 func ErrorsEqual(t *testing.T, actual, expected error) {
+	t.Helper()
 	if expected == nil && actual == nil {
 		return
 	}
@@ -26,10 +28,12 @@ func ErrorsEqual(t *testing.T, actual, expected error) {
 	}
 
 	if platform.ErrorCode(expected) != platform.ErrorCode(actual) {
+		t.Logf("\nexpected: %v\nactual %v\n\n", expected, actual)
 		t.Errorf("expected error code %q but received %q", platform.ErrorCode(expected), platform.ErrorCode(actual))
 	}
 
 	if platform.ErrorMessage(expected) != platform.ErrorMessage(actual) {
+		t.Logf("\nexpected: %v\nactual %v\n\n", expected, actual)
 		t.Errorf("expected error message %q but received %q", platform.ErrorMessage(expected), platform.ErrorMessage(actual))
 	}
 }

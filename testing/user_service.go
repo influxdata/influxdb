@@ -705,6 +705,27 @@ func FindUser(
 			},
 		},
 		{
+			name: "filter with no name nor id returns error",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:   MustIDBase16(userTwoID),
+						Name: "xyz",
+					},
+				},
+			},
+			args: args{
+				filter: platform.UserFilter{},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "user not found",
+					Op:   platform.OpFindUser,
+				},
+			},
+		},
+		{
 			name: "filter both name and non-existent id returns no user",
 			fields: UserFields{
 				Users: []*platform.User{

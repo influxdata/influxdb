@@ -1,40 +1,14 @@
 package inmem_test
 
 import (
-	"context"
+	"reflect"
+	"sort"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
-
-func initExampleService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {
-	s := inmem.NewKVStore()
-	svc := kv.NewExampleService(s, f.IDGenerator)
-	if err := svc.Initialize(); err != nil {
-		t.Fatalf("error initializing user service: %v", err)
-	}
-
-	ctx := context.Background()
-	for _, u := range f.Users {
-		if err := svc.PutUser(ctx, u); err != nil {
-			t.Fatalf("failed to populate users")
-		}
-	}
-	return svc, "kv/", func() {
-		for _, u := range f.Users {
-			if err := svc.DeleteUser(ctx, u.ID); err != nil {
-				t.Logf("failed to remove users: %v", err)
-			}
-		}
-	}
-}
-
-func TestExampleService(t *testing.T) {
-	platformtesting.UserService(initExampleService, t)
-}
 
 func initKVStore(f platformtesting.KVStoreFields, t *testing.T) (kv.Store, func()) {
 	s := inmem.NewKVStore()
@@ -61,4 +35,46 @@ func initKVStore(f platformtesting.KVStoreFields, t *testing.T) (kv.Store, func(
 
 func TestKVStore(t *testing.T) {
 	platformtesting.KVStore(initKVStore, t)
+}
+
+func TestKVStore_Buckets(t *testing.T) {
+	tests := []struct {
+		name    string
+		buckets []string
+		want    [][]byte
+	}{
+		{
+			name:    "single bucket is returned if only one bucket is added",
+			buckets: []string{"b1"},
+			want:    [][]byte{[]byte("b1")},
+		},
+		{
+			name:    "multiple buckets are returned if multiple buckets added",
+			buckets: []string{"b1", "b2", "b3"},
+			want:    [][]byte{[]byte("b1"), []byte("b2"), []byte("b3")},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &inmem.KVStore{}
+			err := s.Update(func(tx kv.Tx) error {
+				for _, b := range tt.buckets {
+					if _, err := tx.Bucket([]byte(b)); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("unable to setup store with buckets: %v", err)
+			}
+			got := s.Buckets()
+			sort.Slice(got, func(i, j int) bool {
+				return string(got[i]) < string(got[j])
+			})
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("KVStore.Buckets() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

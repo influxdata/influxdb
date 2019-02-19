@@ -49,14 +49,14 @@ func (c *Client) AddTarget(ctx context.Context, target *platform.ScraperTarget, 
 	if !target.OrgID.Valid() {
 		return &platform.Error{
 			Code: platform.EInvalid,
-			Msg:  "org id is invalid",
+			Msg:  "provided organization ID has invalid format",
 			Op:   OpPrefix + platform.OpAddTarget,
 		}
 	}
 	if !target.BucketID.Valid() {
 		return &platform.Error{
 			Code: platform.EInvalid,
-			Msg:  "bucket id is invalid",
+			Msg:  "provided bucket ID has invalid format",
 			Op:   OpPrefix + platform.OpAddTarget,
 		}
 	}
@@ -121,7 +121,7 @@ func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarge
 		return nil, &platform.Error{
 			Code: platform.EInvalid,
 			Op:   op,
-			Msg:  "id is invalid",
+			Msg:  "provided scraper target ID has invalid format",
 		}
 	}
 	err = c.db.Update(func(tx *bolt.Tx) error {

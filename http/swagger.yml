@@ -6833,6 +6833,7 @@ components:
       type: object
       properties:
         allowed:
+          description: true means that the influxdb instance has NOT had initial setup; false means that the database has been setup.
           type: boolean
     OnboardingRequest:
       type: object

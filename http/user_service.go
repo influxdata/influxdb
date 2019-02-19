@@ -5,43 +5,41 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
 	"path"
 
-	platform "github.com/influxdata/influxdb"
-	platcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // UserBackend is all services and associated parameters required to construct
 // the UserHandler.
 type UserBackend struct {
-	Logger *zap.Logger
-
-	UserService             platform.UserService
-	UserOperationLogService platform.UserOperationLogService
-	BasicAuthService        platform.BasicAuthService
+	Logger                  *zap.Logger
+	UserService             influxdb.UserService
+	UserOperationLogService influxdb.UserOperationLogService
+	PasswordsService        influxdb.PasswordsService
 }
 
+// NewUserBackend creates a UserBackend using information in the APIBackend.
 func NewUserBackend(b *APIBackend) *UserBackend {
 	return &UserBackend{
-		Logger: b.Logger.With(zap.String("handler", "user")),
-
+		Logger:                  b.Logger.With(zap.String("handler", "user")),
 		UserService:             b.UserService,
 		UserOperationLogService: b.UserOperationLogService,
-		BasicAuthService:        b.BasicAuthService,
+		PasswordsService:        b.PasswordsService,
 	}
 }
 
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
-	Logger *zap.Logger
-
-	UserService             platform.UserService
-	UserOperationLogService platform.UserOperationLogService
-	BasicAuthService        platform.BasicAuthService
+	Logger                  *zap.Logger
+	UserService             influxdb.UserService
+	UserOperationLogService influxdb.UserOperationLogService
+	PasswordsService        influxdb.PasswordsService
 }
 
 const (
@@ -61,7 +59,7 @@ func NewUserHandler(b *UserBackend) *UserHandler {
 
 		UserService:             b.UserService,
 		UserOperationLogService: b.UserOperationLogService,
-		BasicAuthService:        b.BasicAuthService,
+		PasswordsService:        b.PasswordsService,
 	}
 
 	h.HandlerFunc("POST", usersPath, h.handlePostUser)
@@ -85,7 +83,7 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 		return "", err
 	}
 
-	err = h.BasicAuthService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
+	err = h.PasswordsService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +98,7 @@ func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Reque
 		EncodeError(ctx, err, w)
 		return
 	}
-	filter := platform.UserFilter{
+	filter := influxdb.UserFilter{
 		Name: &username,
 	}
 	b, err := h.UserService.FindUser(ctx, filter)
@@ -134,8 +132,8 @@ func decodePasswordResetRequest(ctx context.Context, r *http.Request) (*password
 	pr := new(passwordResetRequestBody)
 	err := json.NewDecoder(r.Body).Decode(pr)
 	if err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
@@ -169,11 +167,11 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type postUserRequest struct {
-	User *platform.User
+	User *influxdb.User
 }
 
 func decodePostUserRequest(ctx context.Context, r *http.Request) (*postUserRequest, error) {
-	b := &platform.User{}
+	b := &influxdb.User{}
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return nil, err
 	}
@@ -187,17 +185,17 @@ func decodePostUserRequest(ctx context.Context, r *http.Request) (*postUserReque
 func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	a, err := platcontext.GetAuthorizer(ctx)
+	a, err := icontext.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	var id platform.ID
+	var id influxdb.ID
 	switch s := a.(type) {
-	case *platform.Session:
+	case *influxdb.Session:
 		id = s.UserID
-	case *platform.Authorization:
+	case *influxdb.Authorization:
 		id = s.UserID
 	}
 
@@ -236,20 +234,20 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type getUserRequest struct {
-	UserID platform.ID
+	UserID influxdb.ID
 }
 
 func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -280,20 +278,20 @@ func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type deleteUserRequest struct {
-	UserID platform.ID
+	UserID influxdb.ID
 }
 
 func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -308,15 +306,15 @@ type usersResponse struct {
 	Users []*userResponse   `json:"users"`
 }
 
-func (us usersResponse) ToPlatform() []*platform.User {
-	users := make([]*platform.User, len(us.Users))
+func (us usersResponse) ToInfluxdb() []*influxdb.User {
+	users := make([]*influxdb.User, len(us.Users))
 	for i := range us.Users {
 		users[i] = &us.Users[i].User
 	}
 	return users
 }
 
-func newUsersResponse(users []*platform.User) *usersResponse {
+func newUsersResponse(users []*influxdb.User) *usersResponse {
 	res := usersResponse{
 		Links: map[string]string{
 			"self": "/api/v2/users",
@@ -331,10 +329,10 @@ func newUsersResponse(users []*platform.User) *usersResponse {
 
 type userResponse struct {
 	Links map[string]string `json:"links"`
-	platform.User
+	influxdb.User
 }
 
-func newUserResponse(u *platform.User) *userResponse {
+func newUserResponse(u *influxdb.User) *userResponse {
 	return &userResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
@@ -368,7 +366,7 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 type getUsersRequest struct {
-	filter platform.UserFilter
+	filter influxdb.UserFilter
 }
 
 func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersRequest, error) {
@@ -376,7 +374,7 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 	req := &getUsersRequest{}
 
 	if userID := qp.Get("id"); userID != "" {
-		id, err := platform.IDFromString(userID)
+		id, err := influxdb.IDFromString(userID)
 		if err != nil {
 			return nil, err
 		}
@@ -413,26 +411,26 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchUserRequest struct {
-	Update platform.UserUpdate
-	UserID platform.ID
+	Update influxdb.UserUpdate
+	UserID influxdb.ID
 }
 
 func decodePatchUserRequest(ctx context.Context, r *http.Request) (*patchUserRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
-	var upd platform.UserUpdate
+	var upd influxdb.UserUpdate
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, err
 	}
@@ -453,7 +451,7 @@ type UserService struct {
 }
 
 // FindMe returns user information about the owner of the token
-func (s *UserService) FindMe(ctx context.Context, id platform.ID) (*platform.User, error) {
+func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 	url, err := newURL(s.Addr, mePath)
 	if err != nil {
 		return nil, err
@@ -484,7 +482,7 @@ func (s *UserService) FindMe(ctx context.Context, id platform.ID) (*platform.Use
 }
 
 // FindUserByID returns a single user by ID.
-func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platform.User, error) {
+func (s *UserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 	url, err := newURL(s.Addr, userIDPath(id))
 	if err != nil {
 		return nil, err
@@ -516,19 +514,25 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 }
 
 // FindUser returns the first user that matches filter.
-func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) (*platform.User, error) {
+func (s *UserService) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
+	if filter.ID == nil && filter.Name == nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  "user not found",
+		}
+	}
 	users, n, err := s.FindUsers(ctx, filter)
 	if err != nil {
-		return nil, &platform.Error{
-			Op:  s.OpPrefix + platform.OpFindUser,
+		return nil, &influxdb.Error{
+			Op:  s.OpPrefix + influxdb.OpFindUser,
 			Err: err,
 		}
 	}
 
 	if n == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Op:   s.OpPrefix + platform.OpFindUser,
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   s.OpPrefix + influxdb.OpFindUser,
 			Msg:  "no results found",
 		}
 	}
@@ -538,7 +542,7 @@ func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) 
 
 // FindUsers returns a list of users that match filter and the total count of matching users.
 // Additional options provide pagination & sorting.
-func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter, opt ...platform.FindOptions) ([]*platform.User, int, error) {
+func (s *UserService) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {
 	url, err := newURL(s.Addr, usersPath)
 	if err != nil {
 		return nil, 0, err
@@ -576,12 +580,12 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 		return nil, 0, err
 	}
 
-	us := r.ToPlatform()
+	us := r.ToInfluxdb()
 	return us, len(us), nil
 }
 
 // CreateUser creates a new user and sets u.ID with the new identifier.
-func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
+func (s *UserService) CreateUser(ctx context.Context, u *influxdb.User) error {
 	url, err := newURL(s.Addr, usersPath)
 	if err != nil {
 		return err
@@ -622,7 +626,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
 
 // UpdateUser updates a single user with changeset.
 // Returns the new user state after update.
-func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platform.UserUpdate) (*platform.User, error) {
+func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	url, err := newURL(s.Addr, userIDPath(id))
 	if err != nil {
 		return nil, err
@@ -662,7 +666,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 }
 
 // DeleteUser removes a user by ID.
-func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
+func (s *UserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
 	url, err := newURL(s.Addr, userIDPath(id))
 	if err != nil {
 		return err
@@ -684,7 +688,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
-func userIDPath(id platform.ID) string {
+func userIDPath(id influxdb.ID) string {
 	return path.Join(usersPath, id.String())
 }
 
@@ -711,21 +715,21 @@ func (h *UserHandler) handleGetUserLog(w http.ResponseWriter, r *http.Request) {
 }
 
 type getUserLogRequest struct {
-	UserID platform.ID
-	opts   platform.FindOptions
+	UserID influxdb.ID
+	opts   influxdb.FindOptions
 }
 
 func decodeGetUserLogRequest(ctx context.Context, r *http.Request) (*getUserLogRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -741,7 +745,7 @@ func decodeGetUserLogRequest(ctx context.Context, r *http.Request) (*getUserLogR
 	}, nil
 }
 
-func newUserLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
+func newUserLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
 	log := make([]*operationLogEntryResponse, 0, len(es))
 	for _, e := range es {
 		log = append(log, newOperationLogEntryResponse(e))

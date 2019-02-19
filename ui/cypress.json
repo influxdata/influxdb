@@ -1,0 +1,4 @@
+{
+  "baseUrl": "http://localhost:9999",
+  "integrationFolder": "cypress/e2e"
+}

@@ -41,6 +41,7 @@ export default class Retention extends PureComponent<Props> {
             active={type === BucketRetentionRules.TypeEnum.Expire}
             onClick={this.handleRadioClick}
             value={BucketRetentionRules.TypeEnum.Expire}
+            testID="retention-intervals"
           >
             Periodically
           </Radio.Button>

@@ -27,6 +27,10 @@ ui/yarn.lock
 ui/build
 ui/.cache
 
+# e2e test artifacts
+ui/cypress/screenshots
+ui/cypress/videos
+
 ui/src/api/.gitignore
 ui/src/api/.openapi-generator-ignore
 ui/src/api/.openapi-generator/VERSION
@@ -118,6 +122,9 @@ man/*.1.gz
 
 # test outputs
 /test-results.xml
+junit-results
+cypress/screenshots
+cypress/videos
 
 # profile data
 /prof

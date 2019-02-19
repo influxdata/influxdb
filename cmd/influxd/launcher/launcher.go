@@ -20,9 +20,11 @@ import (
 	protofs "github.com/influxdata/influxdb/fs"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
 	infprom "github.com/influxdata/influxdb/prometheus"
@@ -48,13 +50,23 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const (
+	// BoltStore stores all REST resources in boltdb.
+	BoltStore = "bolt"
+	// MemoryStore stores all REST resources in memory (useful for testing).
+	MemoryStore = "memory"
+)
+
 // Launcher represents the main program execution.
 type Launcher struct {
 	wg      sync.WaitGroup
 	cancel  func()
 	running bool
 
-	developerMode     bool
+	storeType  string
+	assetsPath string
+	testing    bool
+
 	logLevel          string
 	reportingDisabled bool
 
@@ -65,6 +77,7 @@ type Launcher struct {
 	secretStore     string
 
 	boltClient *bolt.Client
+	kvService  *kv.Service
 	engine     *storage.Engine
 
 	queryController *pcontrol.Controller
@@ -199,10 +212,21 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Desc:    "path to boltdb database",
 			},
 			{
-				DestP:   &m.developerMode,
-				Flag:    "developer-mode",
+				DestP: &m.assetsPath,
+				Flag:  "assets-path",
+				Desc:  "override default assets by serving from a specific directory (developer mode)",
+			},
+			{
+				DestP:   &m.storeType,
+				Flag:    "store",
+				Default: "bolt",
+				Desc:    "backing store for REST resources (bolt or memory)",
+			},
+			{
+				DestP:   &m.testing,
+				Flag:    "e2e-testing",
 				Default: false,
-				Desc:    "serve assets from the local filesystem in developer mode",
+				Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
 			},
 			{
 				DestP:   &m.enginePath,
@@ -276,6 +300,33 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	var flusher http.Flusher
+	switch m.storeType {
+	case BoltStore:
+		store := bolt.NewKVStore(m.boltPath)
+		store.WithDB(m.boltClient.DB())
+		m.kvService = kv.NewService(store)
+		if m.testing {
+			flusher = store
+		}
+	case MemoryStore:
+		store := inmem.NewKVStore()
+		m.kvService = kv.NewService(store)
+		if m.testing {
+			flusher = store
+		}
+	default:
+		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
+		m.logger.Error("failed opening bolt", zap.Error(err))
+		return err
+	}
+
+	m.kvService.Logger = m.logger.With(zap.String("store", "kv"))
+	if err := m.kvService.Initialize(ctx); err != nil {
+		m.logger.Error("failed to initialize kv service", zap.Error(err))
+		return err
+	}
+
 	m.reg = prom.NewRegistry()
 	m.reg.MustRegister(
 		prometheus.NewGoCollector(),
@@ -285,26 +336,26 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		orgSvc           platform.OrganizationService             = m.boltClient
-		authSvc          platform.AuthorizationService            = m.boltClient
-		userSvc          platform.UserService                     = m.boltClient
-		variableSvc      platform.VariableService                 = m.boltClient
-		bucketSvc        platform.BucketService                   = m.boltClient
-		sourceSvc        platform.SourceService                   = m.boltClient
-		sessionSvc       platform.SessionService                  = m.boltClient
-		basicAuthSvc     platform.BasicAuthService                = m.boltClient
-		dashboardSvc     platform.DashboardService                = m.boltClient
-		dashboardLogSvc  platform.DashboardOperationLogService    = m.boltClient
-		userLogSvc       platform.UserOperationLogService         = m.boltClient
-		bucketLogSvc     platform.BucketOperationLogService       = m.boltClient
-		orgLogSvc        platform.OrganizationOperationLogService = m.boltClient
-		onboardingSvc    platform.OnboardingService               = m.boltClient
-		scraperTargetSvc platform.ScraperTargetStoreService       = m.boltClient
-		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
-		userResourceSvc  platform.UserResourceMappingService      = m.boltClient
-		labelSvc         platform.LabelService                    = m.boltClient
-		secretSvc        platform.SecretService                   = m.boltClient
-		lookupSvc        platform.LookupService                   = m.boltClient
+		orgSvc           platform.OrganizationService             = m.kvService
+		authSvc          platform.AuthorizationService            = m.kvService
+		userSvc          platform.UserService                     = m.kvService
+		variableSvc      platform.VariableService                 = m.kvService
+		bucketSvc        platform.BucketService                   = m.kvService
+		sourceSvc        platform.SourceService                   = m.kvService
+		sessionSvc       platform.SessionService                  = m.kvService
+		passwdsSvc       platform.PasswordsService                = m.kvService
+		dashboardSvc     platform.DashboardService                = m.kvService
+		dashboardLogSvc  platform.DashboardOperationLogService    = m.kvService
+		userLogSvc       platform.UserOperationLogService         = m.kvService
+		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
+		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
+		onboardingSvc    platform.OnboardingService               = m.kvService
+		scraperTargetSvc platform.ScraperTargetStoreService       = m.kvService
+		telegrafSvc      platform.TelegrafConfigStore             = m.kvService
+		userResourceSvc  platform.UserResourceMappingService      = m.kvService
+		labelSvc         platform.LabelService                    = m.kvService
+		secretSvc        platform.SecretService                   = m.kvService
+		lookupSvc        platform.LookupService                   = m.kvService
 	)
 
 	switch m.secretStore {
@@ -387,24 +438,32 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
-		boltStore, err := taskbolt.New(m.boltClient.DB(), "tasks")
+		var (
+			store taskbackend.Store
+			err   error
+		)
+		store, err = taskbolt.New(m.boltClient.DB(), "tasks")
 		if err != nil {
 			m.logger.Error("failed opening task bolt", zap.Error(err))
 			return err
 		}
 
-		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, boltStore)
+		if m.storeType == "memory" {
+			store = taskbackend.NewInMemStore()
+		}
+
+		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, store)
 
 		lw := taskbackend.NewPointLogWriter(pointsWriter)
-		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+		m.scheduler = taskbackend.NewScheduler(store, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
 		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
 		lr := taskbackend.NewQueryLogReader(queryService)
-		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler, authSvc, userResourceSvc)
+		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, store), lr, m.scheduler, authSvc, userResourceSvc)
 		taskSvc = task.NewValidator(taskSvc, bucketSvc)
-		m.taskStore = boltStore
+		m.taskStore = store
 	}
 
 	// NATS streaming server
@@ -454,7 +513,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.apibackend = &http.APIBackend{
-		DeveloperMode:        m.developerMode,
+		AssetsPath:           m.assetsPath,
 		Logger:               m.logger,
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
@@ -474,7 +533,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		OrganizationOperationLogService: orgLogSvc,
 		SourceService:                   sourceSvc,
 		VariableService:                 variableSvc,
-		BasicAuthService:                basicAuthSvc,
+		PasswordsService:                passwdsSvc,
 		OnboardingService:               onboardingSvc,
 		ProxyQueryService:               storageQueryService,
 		TaskService:                     taskSvc,
@@ -484,7 +543,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
 		ProtoService:                    protoSvc,
-		OrgLookupService:                m.boltClient,
+		OrgLookupService:                m.kvService,
 	}
 
 	// HTTP server
@@ -498,6 +557,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	h.Tracer = opentracing.GlobalTracer()
 
 	m.httpServer.Handler = h
+	// If we are in testing mode we allow all data to be flushed and removed.
+	if m.testing {
+		m.httpServer.Handler = http.DebugFlush(h, flusher)
+	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
 	if err != nil {
@@ -524,34 +587,42 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	return nil
 }
 
+// OrganizationService returns the internal organization service.
 func (m *Launcher) OrganizationService() platform.OrganizationService {
 	return m.apibackend.OrganizationService
 }
 
+// QueryController returns the internal query service.
 func (m *Launcher) QueryController() *pcontrol.Controller {
 	return m.queryController
 }
 
+// BucketService returns the internal bucket service.
 func (m *Launcher) BucketService() platform.BucketService {
 	return m.apibackend.BucketService
 }
 
+// UserService returns the internal suser service.
 func (m *Launcher) UserService() platform.UserService {
 	return m.apibackend.UserService
 }
 
+// AuthorizationService returns the internal authorization service.
 func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
 }
 
+// TaskService returns the internal task service.
 func (m *Launcher) TaskService() platform.TaskService {
 	return m.apibackend.TaskService
 }
 
+// TaskStore returns the internal store service.
 func (m *Launcher) TaskStore() taskbackend.Store {
 	return m.taskStore
 }
 
+// TaskScheduler returns the internal scheduler service.
 func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
 	return m.scheduler
 }

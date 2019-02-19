@@ -41,6 +41,7 @@ var targetCmpOptions = cmp.Options{
 func ScraperService(
 	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()), t *testing.T,
 ) {
+	t.Helper()
 	tests := []struct {
 		name string
 		fn   func(init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
@@ -79,6 +80,7 @@ func AddTarget(
 	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
+	t.Helper()
 	type args struct {
 		userID platform.ID
 		target *platform.ScraperTarget
@@ -160,7 +162,7 @@ func AddTarget(
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EInvalid,
-					Msg:  "org id is invalid",
+					Msg:  "provided organization ID has invalid format",
 					Op:   platform.OpAddTarget,
 				},
 				userResourceMappings: []*platform.UserResourceMapping{},
@@ -204,7 +206,7 @@ func AddTarget(
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EInvalid,
-					Msg:  "bucket id is invalid",
+					Msg:  "provided bucket ID has invalid format",
 					Op:   platform.OpAddTarget,
 				},
 				userResourceMappings: []*platform.UserResourceMapping{},
@@ -401,6 +403,7 @@ func GetTargetByID(
 	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
+	t.Helper()
 	type args struct {
 		id platform.ID
 	}
@@ -706,7 +709,7 @@ func UpdateTarget(
 				err: &platform.Error{
 					Code: platform.EInvalid,
 					Op:   platform.OpUpdateTarget,
-					Msg:  "id is invalid",
+					Msg:  "provided scraper target ID has invalid format",
 				},
 			},
 		},

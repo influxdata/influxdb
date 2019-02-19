@@ -26,6 +26,7 @@ exports[`MemberList rendering renders 1`] = `
     <IndexListRow
       disabled={false}
       key="1"
+      testID="table-row"
     >
       <IndexListRowCell
         alignment="left"
@@ -47,6 +48,7 @@ exports[`MemberList rendering renders 1`] = `
     <IndexListRow
       disabled={false}
       key="2"
+      testID="table-row"
     >
       <IndexListRowCell
         alignment="left"
@@ -68,6 +70,7 @@ exports[`MemberList rendering renders 1`] = `
     <IndexListRow
       disabled={false}
       key="3"
+      testID="table-row"
     >
       <IndexListRowCell
         alignment="left"

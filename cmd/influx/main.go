@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/internal/fs"
@@ -116,7 +117,7 @@ func wrapCheckSetup(fn func(*cobra.Command, []string) error) func(*cobra.Command
 			return nil
 		}
 
-		if setupErr := checkSetup(flags.host); setupErr != nil {
+		if setupErr := checkSetup(flags.host); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
 			return setupErr
 		}
 
