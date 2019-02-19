@@ -1,6 +1,10 @@
 v1.7.5 [unreleased]
 -------------------
 
+### Bugfixes
+
+-	[#11908](https://github.com/influxdata/influxdb/pull/11908): Update tagKeyValue mutex to write lock.
+
 v1.7.4 [2019-02-13]
 -------------------
 
