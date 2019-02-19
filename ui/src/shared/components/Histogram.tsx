@@ -19,6 +19,7 @@ import {tableLoaded} from 'src/timeMachine/actions'
 // Utils
 import {toMinardTable} from 'src/shared/utils/toMinardTable'
 import {useOneWayState} from 'src/shared/utils/useOneWayState'
+import {useSetIdentity} from 'src/shared/utils/useSetIdentity'
 
 // Constants
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
@@ -92,9 +93,10 @@ const Histogram: SFC<Props> = ({
     [table]
   )
 
-  const {x, fill} = resolveMappings(table, xColumn, fillColumns)
+  const mappings = resolveMappings(table, xColumn, fillColumns)
+  const fill = useSetIdentity(mappings.fill)
 
-  if (!x) {
+  if (!mappings.x) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
 
@@ -111,7 +113,7 @@ const Histogram: SFC<Props> = ({
           {env => (
             <MinardHistogram
               env={env}
-              x={x}
+              x={mappings.x}
               fill={fill}
               binCount={binCount}
               position={position}

@@ -32,7 +32,7 @@ class VariableList extends PureComponent<Props> {
           <IndexList.Body columnCount={3} emptyState={emptyState}>
             {variables.map(variable => (
               <VariableRow
-                key={variable.id}
+                key={`variable-${variable.id}`}
                 variable={variable}
                 onDeleteVariable={onDeleteVariable}
               />

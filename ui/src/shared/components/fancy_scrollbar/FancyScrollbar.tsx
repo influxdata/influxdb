@@ -13,6 +13,7 @@ interface DefaultProps {
   maxHeight: number
   setScrollTop: (value: React.MouseEvent<HTMLElement>) => void
   style: React.CSSProperties
+  hideTracksWhenNotNeeded?: boolean
 }
 
 interface Props {
@@ -27,6 +28,7 @@ interface Props {
 class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
   public static defaultProps: DefaultProps = {
     autoHide: true,
+    hideTracksWhenNotNeeded: true,
     autoHeight: false,
     maxHeight: null,
     style: {},
@@ -70,6 +72,7 @@ class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
       style,
       thumbStartColor,
       thumbStopColor,
+      hideTracksWhenNotNeeded,
     } = this.props
 
     return (
@@ -87,6 +90,7 @@ class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
         autoHeightMax={maxHeight}
         thumbStartColor={thumbStartColor}
         thumbStopColor={thumbStopColor}
+        hideTracksWhenNotNeeded={hideTracksWhenNotNeeded}
       >
         {children}
       </Scrollbars>

@@ -1032,6 +1032,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/variables/{variableID}':
+    get:
+      tags:
+        - Variables
+      summary: get a variable
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: variableID
+          required: true
+          schema:
+            type: string
+          description: ID of the variable
+      responses:
+        '200':
+          description: variable found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Variable"
+        '404':
+          description: variable not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     delete:
       tags:
         - Variables
@@ -5036,7 +5067,7 @@ components:
         offset:
           description: Duration to delay after the schedule, before executing the task; parsed from flux.
           type: string
-        latest_completed:
+        latestCompleted:
           description: Timestamp of latest scheduled, completed run, RFC3339.
           type: string
           format: date-time
