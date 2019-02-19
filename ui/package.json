@@ -9,7 +9,7 @@
     "url": "github:influxdata/chronograf"
   },
   "engines": {
-    "npm": "~6.4",
+    "npm": "~6.8",
     "node": "~10.5"
   },
   "alias": {
@@ -108,7 +108,7 @@
     "prettier": "^1.14.3",
     "react-testing-library": "^5.4.4",
     "sass": "^1.15.3",
-    "ts-jest": "^23.10.3",
+    "ts-jest": "^24.0.0",
     "tslib": "^1.9.0",
     "tslint": "^5.9.1",
     "tslint-config-prettier": "^1.15.0",
