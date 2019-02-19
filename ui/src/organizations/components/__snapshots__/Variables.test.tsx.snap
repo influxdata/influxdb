@@ -20,6 +20,7 @@ exports[`VariableList rendering renders 1`] = `
       emptyState={<React.Fragment />}
     >
       <VariableRow
+        key="variable-undefined"
         onDeleteVariable={[MockFunction]}
         variable={
           Object {
