@@ -700,11 +700,6 @@ func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) e
 	return nil
 }
 
-// InitializeSeries is a no-op. This only applies to the in-memory index.
-func (i *Index) InitializeSeries(*tsdb.SeriesCollection) error {
-	return nil
-}
-
 // DropSeries drops the provided series from the index.  If cascade is true
 // and this is the last series to the measurement, the measurment will also be dropped.
 func (i *Index) DropSeries(seriesID tsdb.SeriesID, key []byte, cascade bool) error {
@@ -743,9 +738,6 @@ func (i *Index) DropSeries(seriesID tsdb.SeriesID, key []byte, cascade bool) err
 	}
 	return nil
 }
-
-// DropSeriesGlobal is a no-op on the tsi1 index.
-func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
@@ -1147,12 +1139,6 @@ func (i *Index) RetainFileSet() (*FileSet, error) {
 	}
 	return fs, nil
 }
-
-// SetFieldName is a no-op on this index.
-func (i *Index) SetFieldName(measurement []byte, name string) {}
-
-// Rebuild rebuilds an index. It's a no-op for this index.
-func (i *Index) Rebuild() {}
 
 // MeasurementCardinalityStats returns cardinality stats for all measurements.
 func (i *Index) MeasurementCardinalityStats() MeasurementCardinalityStats {

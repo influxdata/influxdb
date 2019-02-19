@@ -1,4 +1,4 @@
-package tsm1_test
+package tsm1
 
 import (
 	"fmt"
@@ -12,12 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
+	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
-	"github.com/influxdata/influxql"
 )
 
 // Test that series id set gets updated and returned appropriately.
@@ -95,58 +94,18 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 	}
 }
 
-func TestEngine_SnapshotsDisabled(t *testing.T) {
-	sfile := MustOpenSeriesFile()
-	defer sfile.Close()
-
-	// Generate temporary file.
-	dir, _ := ioutil.TempDir("", "tsm")
-	defer os.RemoveAll(dir)
-
-	// Create a tsm1 engine.
-	idx := MustOpenIndex(filepath.Join(dir, "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile)
-	defer idx.Close()
-
-	config := tsm1.NewConfig()
-	e := tsm1.NewEngine(filepath.Join(dir, "data"), idx, config,
-		tsm1.WithCompactionPlanner(newMockPlanner()))
-
-	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
-		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
-	}
-
-	// Make sure Snapshots are disabled.
-	e.SetCompactionsEnabled(false)
-	e.Compactor.DisableSnapshots()
-
-	// Writing a snapshot should not fail when the snapshot is empty
-	// even if snapshots are disabled.
-	if err := e.WriteSnapshot(); err != nil {
-		t.Fatalf("failed to snapshot: %s", err.Error())
-	}
-}
-
+// TestEngine_ShouldCompactCache makes sure that shouldCompactCache acts according to
+// the configuration.
 func TestEngine_ShouldCompactCache(t *testing.T) {
 	nowTime := time.Now()
 
-	e, err := NewEngine()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// mock the planner so compactions don't run during the test
-	e.CompactionPlan = &mockPlanner{}
-	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
-		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
-	}
+	e := MustOpenEngine()
 	defer e.Close()
 
-	e.CacheFlushMemorySizeThreshold = 1024
-	e.CacheFlushWriteColdDuration = time.Minute
+	e.config.Cache.SnapshotMemorySize = 1024
+	e.config.Cache.SnapshotWriteColdDuration = toml.Duration(time.Minute)
 
-	if e.ShouldCompactCache(nowTime) {
+	if e.shouldCompactCache(nowTime) {
 		t.Fatal("nothing written to cache, so should not compact")
 	}
 
@@ -154,38 +113,17 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if e.ShouldCompactCache(nowTime) {
+	if e.shouldCompactCache(nowTime) {
 		t.Fatal("cache size < flush threshold and nothing written to FileStore, so should not compact")
 	}
 
-	if !e.ShouldCompactCache(nowTime.Add(time.Hour)) {
+	if !e.shouldCompactCache(nowTime.Add(time.Hour)) {
 		t.Fatal("last compaction was longer than flush write cold threshold, so should compact")
 	}
 
-	e.CacheFlushMemorySizeThreshold = 1
-	if !e.ShouldCompactCache(nowTime) {
+	e.config.Cache.SnapshotMemorySize = 1
+	if !e.shouldCompactCache(nowTime) {
 		t.Fatal("cache size > flush threshold, so should compact")
-	}
-}
-
-func makeBlockTypeSlice(n int) []byte {
-	r := make([]byte, n)
-	b := tsm1.BlockFloat64
-	m := tsm1.BlockUnsigned + 1
-	for i := 0; i < len(r); i++ {
-		r[i] = b % m
-	}
-	return r
-}
-
-var blockType = influxql.Unknown
-
-func BenchmarkBlockTypeToInfluxQLDataType(b *testing.B) {
-	t := makeBlockTypeSlice(1000)
-	for i := 0; i < b.N; i++ {
-		for j := 0; j < len(t); j++ {
-			blockType = tsm1.BlockTypeToInfluxQLDataType(t[j])
-		}
 	}
 }
 
@@ -201,16 +139,16 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
-			e.SetCompactionsEnabled(true)
-			e.SetCompactionsEnabled(false)
+			e.setCompactionsEnabled(true)
+			e.setCompactionsEnabled(false)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
-			e.SetCompactionsEnabled(false)
-			e.SetCompactionsEnabled(true)
+			e.setCompactionsEnabled(false)
+			e.setCompactionsEnabled(true)
 		}
 	}()
 
@@ -228,6 +166,8 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 	}
 }
 
+// BenchmarkEngine_WritePoints reports how quickly we can write points for different
+// batch sizes.
 func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
@@ -251,6 +191,8 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 	}
 }
 
+// BenchmarkEngine_WritePoints_Parallel reports how quickly we can write points
+// for different batch sizes and under different concurrent loads.
 func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	batchSizes := []int{1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000}
 	for _, sz := range batchSizes {
@@ -297,120 +239,171 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	}
 }
 
-// Engine is a test wrapper for tsm1.Engine.
-type Engine struct {
-	*tsm1.Engine
-	root      string
-	indexPath string
-	index     *tsi1.Index
-	sfile     *tsdb.SeriesFile
+//
+// helpers
+//
+
+// tempDir wraps a temporary directory to make it easy to clean up
+// and join paths to it.
+type tempDir struct {
+	dir string
 }
 
-// NewEngine returns a new instance of Engine at a temporary location.
-func NewEngine() (*Engine, error) {
-	root, err := ioutil.TempDir("", "tsm1-")
+// newTempDir makes a new temporary directory.
+func newTempDir() (*tempDir, error) {
+	dir, err := ioutil.TempDir("", "tsm1-")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	return &tempDir{dir: dir}, nil
+}
 
-	// Setup series file.
-	sfile := tsdb.NewSeriesFile(filepath.Join(root, "_series"))
-	sfile.Logger = logger.New(os.Stdout)
-	if err = sfile.Open(); err != nil {
+// Dir returns the current temporary directory.
+func (t *tempDir) Dir() string { return t.dir }
+
+// Join is a helper to join a directory to the temporary directory.
+func (t *tempDir) Join(dir string) string { return filepath.Join(t.dir, dir) }
+
+// Close removes the temporary directory.
+func (t *tempDir) Close() (err error) {
+	if t.dir == "" {
+		err = os.RemoveAll(t.dir)
+		t.dir = ""
+	}
+	return err
+}
+
+// testEngine is a test wrapper for an Engine.
+type testEngine struct {
+	dir     *tempDir
+	options []EngineOption
+
+	*Engine
+	index *tsi1.Index
+	sfile *tsdb.SeriesFile
+}
+
+// newTestEngine returns a new instance of Engine at a temporary location.
+func newTestEngine(options ...EngineOption) (*testEngine, error) {
+	dir, err := newTempDir()
+	if err != nil {
 		return nil, err
 	}
 
-	idxPath := filepath.Join(root, "index")
-	idx := MustOpenIndex(idxPath, tsdb.NewSeriesIDSet(), sfile)
+	baseOptions := []EngineOption{
+		WithCompactionPlanner(newMockPlanner()),
+	}
 
-	config := tsm1.NewConfig()
-	tsm1Engine := tsm1.NewEngine(filepath.Join(root, "data"), idx, config,
-		tsm1.WithCompactionPlanner(newMockPlanner()))
+	e := new(testEngine)
+	if err := e.init(dir, append(baseOptions, options...)); err != nil {
+		dir.Close()
+		return nil, err
+	}
 
-	return &Engine{
-		Engine:    tsm1Engine,
-		root:      root,
-		indexPath: idxPath,
-		index:     idx,
-		sfile:     sfile,
-	}, nil
+	return e, nil
+}
+
+// init sets the fields on the testEngine based on the
+func (e *testEngine) init(dir *tempDir, options []EngineOption) error {
+	var opener lifecycle.Opener
+
+	sfile := tsdb.NewSeriesFile(dir.Join("_series"))
+	opener.Open(sfile)
+
+	index := tsi1.NewIndex(sfile, tsi1.NewConfig(), tsi1.WithPath(dir.Join("index")))
+	opener.Open(index)
+
+	if err := opener.Done(); err != nil {
+		return err
+	}
+
+	e.dir = dir
+	e.options = options
+	e.sfile = sfile
+	e.index = index
+	e.Engine = NewEngine(dir.Join("data"), index, NewConfig(), options...)
+	return nil
 }
 
 // MustOpenEngine returns a new, open instance of Engine.
-func MustOpenEngine() *Engine {
-	e, err := NewEngine()
+func MustOpenEngine(options ...EngineOption) *testEngine {
+	e, err := newTestEngine(options...)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := e.Open(); err != nil {
+	if err := e.Engine.Open(); err != nil {
+		e.Close()
 		panic(err)
 	}
+
 	return e
 }
 
 // Close closes the engine and removes all underlying data.
-func (e *Engine) Close() error {
+func (e *testEngine) Close() error {
 	return e.close(true)
 }
 
-func (e *Engine) close(cleanup bool) error {
+// close closes the engine and removes all of the underlying data if
+// cleanup is true.
+func (e *testEngine) close(cleanup bool) error {
+	var closer lifecycle.Closer
+
 	if e.index != nil {
-		e.index.Close()
+		closer.Close(e.index)
+		e.index = nil
 	}
 
 	if e.sfile != nil {
-		e.sfile.Close()
+		closer.Close(e.sfile)
+		e.sfile = nil
 	}
 
-	defer func() {
-		if cleanup {
-			os.RemoveAll(e.root)
-		}
-	}()
-	return e.Engine.Close()
+	if e.Engine != nil {
+		closer.Close(e.Engine)
+		e.Engine = nil
+	}
+
+	if cleanup && e.dir != nil {
+		closer.Close(e.dir)
+		e.dir = nil
+	}
+
+	return closer.Done()
 }
 
 // Reopen closes and reopens the engine.
-func (e *Engine) Reopen() error {
+func (e *testEngine) Reopen() error {
 	// Close engine without removing underlying engine data.
 	if err := e.close(false); err != nil {
 		return err
 	}
 
-	// Re-open series file. Must create a new series file using the same data.
-	e.sfile = tsdb.NewSeriesFile(e.sfile.Path())
-	if err := e.sfile.Open(); err != nil {
+	// Initialize the fields on the testEngine again.
+	if err := e.init(e.dir, e.options); err != nil {
 		return err
 	}
 
-	// Re-open index.
-	e.index = MustOpenIndex(e.indexPath, tsdb.NewSeriesIDSet(), e.sfile)
-
-	// Re-initialize engine.
-	config := tsm1.NewConfig()
-	e.Engine = tsm1.NewEngine(filepath.Join(e.root, "data"), e.index, config,
-		tsm1.WithCompactionPlanner(newMockPlanner()))
-
-	// Reopen engine
+	// Open the engine and clean up if that fails.
 	if err := e.Engine.Open(); err != nil {
+		e.close(true)
 		return err
 	}
 
-	// Reload series data into index (no-op on TSI).
 	return nil
 }
 
 // SeriesIDSet provides access to the underlying series id bitset in the engine's
 // index. It will panic if the underlying index does not have a SeriesIDSet
 // method.
-func (e *Engine) SeriesIDSet() *tsdb.SeriesIDSet {
+func (e *testEngine) SeriesIDSet() *tsdb.SeriesIDSet {
 	return e.index.SeriesIDSet()
 }
 
 // AddSeries adds the provided series data to the index and writes a point to
 // the engine with default values for a field and a time of now.
-func (e *Engine) AddSeries(name string, tags map[string]string) error {
+func (e *testEngine) AddSeries(name string, tags map[string]string) error {
 	point, err := models.NewPoint(name, models.NewTags(tags), models.Fields{"v": 1.0}, time.Now())
 	if err != nil {
 		return err
@@ -420,7 +413,7 @@ func (e *Engine) AddSeries(name string, tags map[string]string) error {
 
 // WritePointsString calls WritePointsString on the underlying engine, but also
 // adds the associated series to the index.
-func (e *Engine) WritePointsString(ptstr ...string) error {
+func (e *testEngine) WritePointsString(ptstr ...string) error {
 	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"))
 	if err != nil {
 		return err
@@ -430,7 +423,7 @@ func (e *Engine) WritePointsString(ptstr ...string) error {
 
 // writePoints adds the series for the provided points to the index, and writes
 // the point data to the engine.
-func (e *Engine) writePoints(points ...models.Point) error {
+func (e *testEngine) writePoints(points ...models.Point) error {
 	// Write into the index.
 	collection := tsdb.NewSeriesCollection(points)
 	if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
@@ -441,54 +434,15 @@ func (e *Engine) writePoints(points ...models.Point) error {
 }
 
 // MustAddSeries calls AddSeries, panicking if there is an error.
-func (e *Engine) MustAddSeries(name string, tags map[string]string) {
+func (e *testEngine) MustAddSeries(name string, tags map[string]string) {
 	if err := e.AddSeries(name, tags); err != nil {
 		panic(err)
 	}
 }
 
 // MustWriteSnapshot forces a snapshot of the engine. Panic on error.
-func (e *Engine) MustWriteSnapshot() {
+func (e *testEngine) MustWriteSnapshot() {
 	if err := e.WriteSnapshot(); err != nil {
-		panic(err)
-	}
-}
-
-func MustOpenIndex(path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile) *tsi1.Index {
-	idx := tsi1.NewIndex(sfile, tsi1.NewConfig(), tsi1.WithPath(path))
-	if err := idx.Open(); err != nil {
-		panic(err)
-	}
-	return idx
-}
-
-// SeriesFile is a test wrapper for tsdb.SeriesFile.
-type SeriesFile struct {
-	*tsdb.SeriesFile
-}
-
-// NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
-func NewSeriesFile() *SeriesFile {
-	dir, err := ioutil.TempDir("", "tsdb-series-file-")
-	if err != nil {
-		panic(err)
-	}
-	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
-}
-
-// MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
-func MustOpenSeriesFile() *SeriesFile {
-	f := NewSeriesFile()
-	if err := f.Open(); err != nil {
-		panic(err)
-	}
-	return f
-}
-
-// Close closes the log file and removes it from disk.
-func (f *SeriesFile) Close() {
-	defer os.RemoveAll(f.Path())
-	if err := f.SeriesFile.Close(); err != nil {
 		panic(err)
 	}
 }
@@ -505,16 +459,15 @@ func MustParsePointsString(buf string) []models.Point {
 // MustParsePointString parses the first point from a string. Panic on error.
 func MustParsePointString(buf string) models.Point { return MustParsePointsString(buf)[0] }
 
+// mockPlanner is a CompactionPlanner that never compacts anything.
 type mockPlanner struct{}
 
-func newMockPlanner() tsm1.CompactionPlanner {
-	return &mockPlanner{}
-}
+func newMockPlanner() CompactionPlanner { return &mockPlanner{} }
 
-func (m *mockPlanner) Plan(lastWrite time.Time) []tsm1.CompactionGroup { return nil }
-func (m *mockPlanner) PlanLevel(level int) []tsm1.CompactionGroup      { return nil }
-func (m *mockPlanner) PlanOptimize() []tsm1.CompactionGroup            { return nil }
-func (m *mockPlanner) Release(groups []tsm1.CompactionGroup)           {}
-func (m *mockPlanner) FullyCompacted() bool                            { return false }
-func (m *mockPlanner) ForceFull()                                      {}
-func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore)                 {}
+func (m *mockPlanner) Plan(lastWrite time.Time) []CompactionGroup { return nil }
+func (m *mockPlanner) PlanLevel(level int) []CompactionGroup      { return nil }
+func (m *mockPlanner) PlanOptimize() []CompactionGroup            { return nil }
+func (m *mockPlanner) Release(groups []CompactionGroup)           {}
+func (m *mockPlanner) FullyCompacted() bool                       { return false }
+func (m *mockPlanner) ForceFull()                                 {}
+func (m *mockPlanner) SetFileStore(fs *FileStore)                 {}

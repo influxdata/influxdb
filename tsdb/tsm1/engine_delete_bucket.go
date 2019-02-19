@@ -66,7 +66,7 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	}
 	possiblyDead.keys = make(map[string]struct{})
 
-	if err := e.FileStore.Apply(func(r TSMFile) error {
+	if err := e.fileStore.Apply(func(r TSMFile) error {
 		return r.DeletePrefix(name, min, max, func(key []byte) {
 			possiblyDead.Lock()
 			possiblyDead.keys[string(key)] = struct{}{}
@@ -79,7 +79,7 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	var deleteKeys [][]byte
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+	_ = e.cache.ApplyEntryFn(func(k []byte, _ *entry) error {
 		if bytes.HasPrefix(k, name) {
 			if deleteKeys == nil {
 				deleteKeys = make([][]byte, 0, 10000)
@@ -97,11 +97,11 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	bytesutil.Sort(deleteKeys)
 
 	// Delete from the cache.
-	e.Cache.DeleteBucketRange(name, min, max)
+	e.cache.DeleteBucketRange(name, min, max)
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.
-	if err := e.FileStore.Apply(func(r TSMFile) error {
+	if err := e.fileStore.Apply(func(r TSMFile) error {
 		possiblyDead.RLock()
 		defer possiblyDead.RUnlock()
 
@@ -133,7 +133,7 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	}
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+	_ = e.cache.ApplyEntryFn(func(k []byte, _ *entry) error {
 		if bytes.HasPrefix(k, name) {
 			delete(possiblyDead.keys, string(k))
 		}

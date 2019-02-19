@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -73,15 +72,15 @@ type EngineOption func(i *Engine)
 // WithTraceLogging sets if trace logging is enabled for the engine.
 func WithTraceLogging(logging bool) EngineOption {
 	return func(e *Engine) {
-		e.FileStore.enableTraceLogging(logging)
+		e.fileStore.enableTraceLogging(logging)
 	}
 }
 
 // WithCompactionPlanner sets the compaction planner for the engine.
 func WithCompactionPlanner(planner CompactionPlanner) EngineOption {
 	return func(e *Engine) {
-		planner.SetFileStore(e.FileStore)
-		e.CompactionPlan = planner
+		planner.SetFileStore(e.fileStore)
+		e.compactionPlanner = planner
 	}
 }
 
@@ -109,7 +108,9 @@ func WithSnapshotter(snapshotter Snapshotter) EngineOption {
 type Engine struct {
 	mu sync.RWMutex
 
-	index *tsi1.Index
+	path   string
+	index  *tsi1.Index
+	config Config
 
 	// The following group of fields is used to track the state of level compactions within the
 	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
@@ -126,33 +127,18 @@ type Engine struct {
 	snapDone chan struct{}   // channel to signal snapshot compactions to stop
 	snapWG   *sync.WaitGroup // waitgroup for running snapshot compactions
 
-	path         string
 	sfile        *tsdb.SeriesFile
 	logger       *zap.Logger // Logger to be used for important messages
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
-	Cache          *Cache
-	Compactor      *Compactor
-	CompactionPlan CompactionPlanner
-	FileStore      *FileStore
-
-	MaxPointsPerBlock int
-
-	// CacheFlushMemorySizeThreshold specifies the minimum size threshold for
-	// the cache when the engine should write a snapshot to a TSM file
-	CacheFlushMemorySizeThreshold uint64
-
-	// CacheFlushWriteColdDuration specifies the length of time after which if
-	// no writes have been committed to the WAL, the engine will write
-	// a snapshot of the cache to a TSM file
-	CacheFlushWriteColdDuration time.Duration
+	cache             *Cache
+	compactor         *Compactor
+	compactionPlanner CompactionPlanner
+	fileStore         *FileStore
 
 	// Invoked when creating a backup file "as new".
 	formatFileName FormatFileNameFunc
-
-	// Controls whether to enabled compactions when the engine is open
-	enableCompactionsOnOpen bool
 
 	compactionTracker   *compactionTracker // Used to track state of compactions.
 	defaultMetricLabels prometheus.Labels  // N.B this must not be mutated after Open is called.
@@ -201,26 +187,24 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 
 	logger := zap.NewNop()
 	e := &Engine{
-		path:        path,
-		index:       idx,
+		path:   path,
+		index:  idx,
+		config: config,
+
 		sfile:       idx.SeriesFile(),
 		logger:      logger,
 		traceLogger: logger,
 
-		Cache: cache,
-
-		FileStore: fs,
-		Compactor: c,
-		CompactionPlan: NewDefaultPlanner(fs,
+		cache:     cache,
+		fileStore: fs,
+		compactor: c,
+		compactionPlanner: NewDefaultPlanner(fs,
 			time.Duration(config.Compaction.FullWriteColdDuration)),
 
-		CacheFlushMemorySizeThreshold: uint64(config.Cache.SnapshotMemorySize),
-		CacheFlushWriteColdDuration:   time.Duration(config.Cache.SnapshotWriteColdDuration),
-		enableCompactionsOnOpen:       true,
-		formatFileName:                DefaultFormatFileName,
-		compactionLimiter:             limiter.NewFixed(maxCompactions),
-		scheduler:                     newScheduler(maxCompactions),
-		snapshotter:                   new(noSnapshotter),
+		formatFileName:    DefaultFormatFileName,
+		compactionLimiter: limiter.NewFixed(maxCompactions),
+		scheduler:         newScheduler(maxCompactions),
+		snapshotter:       new(noSnapshotter),
 	}
 
 	for _, option := range options {
@@ -230,23 +214,27 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 	return e
 }
 
+// WithFormatFileNameFunc sets the engine's function to format file names.
 func (e *Engine) WithFormatFileNameFunc(formatFileNameFunc FormatFileNameFunc) {
-	e.Compactor.WithFormatFileNameFunc(formatFileNameFunc)
+	e.compactor.WithFormatFileNameFunc(formatFileNameFunc)
 	e.formatFileName = formatFileNameFunc
 }
 
+// WithParseFileNameFunc sets the engine's function to parse file names.
 func (e *Engine) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
-	e.FileStore.WithParseFileNameFunc(parseFileNameFunc)
-	e.Compactor.WithParseFileNameFunc(parseFileNameFunc)
+	e.fileStore.WithParseFileNameFunc(parseFileNameFunc)
+	e.compactor.WithParseFileNameFunc(parseFileNameFunc)
 }
 
+// WithFileStoreObserver sets an observer for files in the file store.
 func (e *Engine) WithFileStoreObserver(obs FileStoreObserver) {
-	e.FileStore.WithObserver(obs)
+	e.fileStore.WithObserver(obs)
 }
 
+// WithCompactionPlanner sets the CompactionPlanner the engine will use.
 func (e *Engine) WithCompactionPlanner(planner CompactionPlanner) {
-	planner.SetFileStore(e.FileStore)
-	e.CompactionPlan = planner
+	planner.SetFileStore(e.fileStore)
+	e.compactionPlanner = planner
 }
 
 // SetDefaultMetricLabels sets the default labels for metrics on the engine.
@@ -255,15 +243,9 @@ func (e *Engine) SetDefaultMetricLabels(labels prometheus.Labels) {
 	e.defaultMetricLabels = labels
 }
 
-// SetEnabled sets whether the engine is enabled.
-func (e *Engine) SetEnabled(enabled bool) {
-	e.enableCompactionsOnOpen = enabled
-	e.SetCompactionsEnabled(enabled)
-}
-
-// SetCompactionsEnabled enables compactions on the engine.  When disabled
+// setCompactionsEnabled enables compactions on the engine.  When disabled
 // all running compactions are aborted and new compactions stop running.
-func (e *Engine) SetCompactionsEnabled(enabled bool) {
+func (e *Engine) setCompactionsEnabled(enabled bool) {
 	if enabled {
 		e.enableSnapshotCompactions()
 		e.enableLevelCompactions(false)
@@ -299,7 +281,7 @@ func (e *Engine) enableLevelCompactions(wait bool) {
 	}
 
 	// last one to enable, start things back up
-	e.Compactor.EnableCompactions()
+	e.compactor.EnableCompactions()
 	e.done = make(chan struct{})
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
@@ -336,7 +318,7 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 		}
 
 		// Prevent new compactions from starting
-		e.Compactor.DisableCompactions()
+		e.compactor.DisableCompactions()
 
 		// Stop all background compaction goroutines
 		close(e.done)
@@ -362,6 +344,7 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 	wg.Wait()
 }
 
+// enableSnapshotCompactions starts up snapshot compactions.
 func (e *Engine) enableSnapshotCompactions() {
 	// Check if already enabled under read lock
 	e.mu.RLock()
@@ -378,7 +361,7 @@ func (e *Engine) enableSnapshotCompactions() {
 		return
 	}
 
-	e.Compactor.EnableSnapshots()
+	e.compactor.EnableSnapshots()
 	e.snapDone = make(chan struct{})
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
@@ -388,6 +371,8 @@ func (e *Engine) enableSnapshotCompactions() {
 	go func() { defer wg.Done(); e.compactCache() }()
 }
 
+// disableSnapshotCompactions will disable and wait for any snapshot compactions
+// to be completed.
 func (e *Engine) disableSnapshotCompactions() {
 	e.mu.Lock()
 	if e.snapDone == nil {
@@ -406,7 +391,7 @@ func (e *Engine) disableSnapshotCompactions() {
 
 	// first one here, disable and wait for completion
 	close(e.snapDone)
-	e.Compactor.DisableSnapshots()
+	e.compactor.DisableSnapshots()
 	wg := e.snapWG
 	e.mu.Unlock()
 
@@ -430,53 +415,25 @@ func (e *Engine) ScheduleFullCompaction() error {
 	}
 
 	// Cancel running compactions
-	e.SetCompactionsEnabled(false)
+	e.setCompactionsEnabled(false)
 
 	// Ensure compactions are restarted
-	defer e.SetCompactionsEnabled(true)
+	defer e.setCompactionsEnabled(true)
 
 	// Force the planner to only create a full plan.
-	e.CompactionPlan.ForceFull()
+	e.compactionPlanner.ForceFull()
 	return nil
 }
 
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-func (e *Engine) SetFieldName(measurement []byte, name string) {
-	e.index.SetFieldName(measurement, name)
-}
-
-func (e *Engine) MeasurementExists(name []byte) (bool, error) {
-	return e.index.MeasurementExists(name)
-}
-
-func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
-	return e.index.MeasurementNamesByRegex(re)
-}
-
-func (e *Engine) HasTagKey(name, key []byte) (bool, error) {
-	return e.index.HasTagKey(name, key)
-}
-
-func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
-	return e.index.MeasurementTagKeysByExpr(name, expr)
-}
-
-func (e *Engine) TagKeyCardinality(name, key []byte) int {
-	return e.index.TagKeyCardinality(name, key)
-}
-
-// SeriesN returns the unique number of series in the index.
-func (e *Engine) SeriesN() int64 {
-	return e.index.SeriesN()
-}
-
 // MeasurementStats returns the current measurement stats for the engine.
 func (e *Engine) MeasurementStats() (MeasurementStats, error) {
-	return e.FileStore.MeasurementStats()
+	return e.fileStore.MeasurementStats()
 }
 
+// initTrackers sets up the metrics trackers for the engine.
 func (e *Engine) initTrackers() {
 	mmu.Lock()
 	defer mmu.Unlock()
@@ -488,8 +445,8 @@ func (e *Engine) initTrackers() {
 
 	// Propagate prometheus metrics down into trackers.
 	e.compactionTracker = newCompactionTracker(bms.compactionMetrics, e.defaultMetricLabels)
-	e.FileStore.tracker = newFileTracker(bms.fileMetrics, e.defaultMetricLabels)
-	e.Cache.tracker = newCacheTracker(bms.cacheMetrics, e.defaultMetricLabels)
+	e.fileStore.tracker = newFileTracker(bms.fileMetrics, e.defaultMetricLabels)
+	e.cache.tracker = newCacheTracker(bms.cacheMetrics, e.defaultMetricLabels)
 
 	e.scheduler.setCompactionTracker(e.compactionTracker)
 }
@@ -506,29 +463,26 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	if err := e.FileStore.Open(); err != nil {
+	if err := e.fileStore.Open(); err != nil {
 		return err
 	}
 
-	e.Compactor.Open()
-
-	if e.enableCompactionsOnOpen {
-		e.SetCompactionsEnabled(true)
-	}
+	e.compactor.Open()
+	e.setCompactionsEnabled(true)
 
 	return nil
 }
 
 // Close closes the engine. Subsequent calls to Close are a nop.
 func (e *Engine) Close() error {
-	e.SetCompactionsEnabled(false)
+	e.setCompactionsEnabled(false)
 
 	// Lock now and close everything else down.
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
 
-	if err := e.FileStore.Close(); err != nil {
+	if err := e.fileStore.Close(); err != nil {
 		return err
 	}
 
@@ -543,14 +497,14 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 		e.traceLogger = e.logger
 	}
 
-	e.FileStore.WithLogger(e.logger)
+	e.fileStore.WithLogger(e.logger)
 }
 
 // IsIdle returns true if the cache is empty, there are no running compactions and the
 // shard is fully compacted.
 func (e *Engine) IsIdle() bool {
-	cacheEmpty := e.Cache.Size() == 0
-	return cacheEmpty && e.compactionTracker.AllActive() == 0 && e.CompactionPlan.FullyCompacted()
+	cacheEmpty := e.cache.Size() == 0
+	return cacheEmpty && e.compactionTracker.AllActive() == 0 && e.compactionPlanner.FullyCompacted()
 }
 
 // WritePoints saves the set of points in the engine.
@@ -568,16 +522,19 @@ func (e *Engine) WriteValues(values map[string][]Value) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	if err := e.Cache.WriteMulti(values); err != nil {
+	if err := e.cache.WriteMulti(values); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// ForEachMeasurementName iterates over each measurement name in the engine.
-func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
-	return e.index.ForEachMeasurementName(fn)
+// DisableMaxSize disables the cache's maximum size limit until the returned function
+// is called. It is not safe to call this while there is a closure already returned.
+func (e *Engine) DisableMaxSize() func() {
+	limit := e.cache.MaxSize()
+	e.cache.SetMaxSize(0)
+	return func() { e.cache.SetMaxSize(limit) }
 }
 
 // compactionLevel describes a snapshot or levelled compaction.
@@ -758,7 +715,7 @@ func (e *Engine) WriteSnapshot() error {
 		segments = segs
 
 		e.mu.Lock()
-		snapshot, err = e.Cache.Snapshot()
+		snapshot, err = e.cache.Snapshot()
 		e.mu.Unlock()
 		return err
 	}); err != nil {
@@ -766,7 +723,7 @@ func (e *Engine) WriteSnapshot() error {
 	}
 
 	if snapshot.Size() == 0 {
-		e.Cache.ClearSnapshot(true)
+		e.cache.ClearSnapshot(true)
 		return nil
 	}
 
@@ -786,12 +743,12 @@ func (e *Engine) WriteSnapshot() error {
 func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache, segments []string) (err error) {
 	defer func() {
 		if err != nil {
-			e.Cache.ClearSnapshot(false)
+			e.cache.ClearSnapshot(false)
 		}
 	}()
 
 	// write the new snapshot files
-	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
+	newFiles, err := e.compactor.WriteSnapshot(snapshot)
 	if err != nil {
 		log.Info("Error writing snapshot from compactor", zap.Error(err))
 		return err
@@ -802,13 +759,13 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache, segmen
 		defer e.mu.RUnlock()
 
 		// update the file store with these new files
-		if err := e.FileStore.Replace(nil, newFiles); err != nil {
+		if err := e.fileStore.Replace(nil, newFiles); err != nil {
 			log.Info("Error adding new TSM files from snapshot", zap.Error(err))
 			return err
 		}
 
 		// clear the snapshot from the in-memory cache
-		e.Cache.ClearSnapshot(true)
+		e.cache.ClearSnapshot(true)
 		return nil
 	})
 }
@@ -827,34 +784,36 @@ func (e *Engine) compactCache() {
 			return
 
 		case <-t.C:
-			e.Cache.UpdateAge()
-			if e.ShouldCompactCache(time.Now()) {
-				start := time.Now()
-				e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
-				err := e.WriteSnapshot()
-				if err != nil && err != errCompactionsDisabled {
-					e.logger.Info("Error writing snapshot", zap.Error(err))
-				}
-				e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
+			e.cache.UpdateAge()
+			if !e.shouldCompactCache(time.Now()) {
+				continue
 			}
+
+			start := time.Now()
+			e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
+			err := e.WriteSnapshot()
+			if err != nil && err != errCompactionsDisabled {
+				e.logger.Info("Error writing snapshot", zap.Error(err))
+			}
+			e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
 		}
 	}
 }
 
-// ShouldCompactCache returns true if the Cache is over its flush threshold
+// shouldCompactCache returns true if the Cache is over its flush threshold
 // or if the passed in lastWriteTime is older than the write cold threshold.
-func (e *Engine) ShouldCompactCache(t time.Time) bool {
-	sz := e.Cache.Size()
+func (e *Engine) shouldCompactCache(t time.Time) bool {
+	sz := e.cache.Size()
 
 	if sz == 0 {
 		return false
 	}
 
-	if sz > e.CacheFlushMemorySizeThreshold {
+	if sz > uint64(e.config.Cache.SnapshotMemorySize) {
 		return true
 	}
 
-	return t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration
+	return t.Sub(e.cache.LastWriteTime()) > time.Duration(e.config.Cache.SnapshotWriteColdDuration)
 }
 
 func (e *Engine) compact(wg *sync.WaitGroup) {
@@ -873,15 +832,15 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 		case <-t.C:
 
 			// Find our compaction plans
-			level1Groups := e.CompactionPlan.PlanLevel(1)
-			level2Groups := e.CompactionPlan.PlanLevel(2)
-			level3Groups := e.CompactionPlan.PlanLevel(3)
-			level4Groups := e.CompactionPlan.Plan(e.FileStore.LastModified())
+			level1Groups := e.compactionPlanner.PlanLevel(1)
+			level2Groups := e.compactionPlanner.PlanLevel(2)
+			level3Groups := e.compactionPlanner.PlanLevel(3)
+			level4Groups := e.compactionPlanner.Plan(e.fileStore.LastModified())
 			e.compactionTracker.SetOptimiseQueue(uint64(len(level4Groups)))
 
 			// If no full compactions are need, see if an optimize is needed
 			if len(level4Groups) == 0 {
-				level4Groups = e.CompactionPlan.PlanOptimize()
+				level4Groups = e.compactionPlanner.PlanOptimize()
 				e.compactionTracker.SetOptimiseQueue(uint64(len(level4Groups)))
 			}
 
@@ -919,10 +878,10 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			}
 
 			// Release all the plans we didn't start.
-			e.CompactionPlan.Release(level1Groups)
-			e.CompactionPlan.Release(level2Groups)
-			e.CompactionPlan.Release(level3Groups)
-			e.CompactionPlan.Release(level4Groups)
+			e.compactionPlanner.Release(level1Groups)
+			e.compactionPlanner.Release(level2Groups)
+			e.compactionPlanner.Release(level3Groups)
+			e.compactionPlanner.Release(level4Groups)
 		}
 	}
 }
@@ -946,7 +905,7 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLev
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
-			e.CompactionPlan.Release([]CompactionGroup{s.group})
+			e.compactionPlanner.Release([]CompactionGroup{s.group})
 		}()
 		return true
 	}
@@ -973,7 +932,7 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level compactionLev
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
-			e.CompactionPlan.Release([]CompactionGroup{s.group})
+			e.compactionPlanner.Release([]CompactionGroup{s.group})
 		}()
 		return true
 	}
@@ -998,7 +957,7 @@ func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
 			defer e.compactionLimiter.Release()
 			s.Apply()
 			// Release the files in the compaction plan
-			e.CompactionPlan.Release([]CompactionGroup{s.group})
+			e.compactionPlanner.Release([]CompactionGroup{s.group})
 		}()
 		return true
 	}
@@ -1086,8 +1045,8 @@ func (e *Engine) levelCompactionStrategy(group CompactionGroup, fast bool, level
 	return &compactionStrategy{
 		group:     group,
 		logger:    e.logger.With(zap.Int("tsm1_level", int(level)), zap.String("tsm1_strategy", "level")),
-		fileStore: e.FileStore,
-		compactor: e.Compactor,
+		fileStore: e.fileStore,
+		compactor: e.compactor,
 		fast:      fast,
 		engine:    e,
 		level:     level,
@@ -1101,8 +1060,8 @@ func (e *Engine) fullCompactionStrategy(group CompactionGroup, optimize bool) *c
 	s := &compactionStrategy{
 		group:     group,
 		logger:    e.logger.With(zap.String("tsm1_strategy", "full"), zap.Bool("tsm1_optimize", optimize)),
-		fileStore: e.FileStore,
-		compactor: e.Compactor,
+		fileStore: e.fileStore,
+		compactor: e.compactor,
 		fast:      optimize,
 		engine:    e,
 		level:     5,
@@ -1138,6 +1097,8 @@ func (e *Engine) cleanup() error {
 	return e.cleanupTempTSMFiles()
 }
 
+// cleanupTempTSMFiles removes all of the temporary tsm files that may have been left over
+// from any previous processes.
 func (e *Engine) cleanupTempTSMFiles() error {
 	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionTempExtension)))
 	if err != nil {
@@ -1154,7 +1115,7 @@ func (e *Engine) cleanupTempTSMFiles() error {
 
 // KeyCursor returns a KeyCursor for the given key starting at time t.
 func (e *Engine) KeyCursor(ctx context.Context, key []byte, t int64, ascending bool) *KeyCursor {
-	return e.FileStore.KeyCursor(ctx, key, t, ascending)
+	return e.fileStore.KeyCursor(ctx, key, t, ascending)
 }
 
 // IteratorCost produces the cost of an iterator.
@@ -1219,12 +1180,13 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 	return cost, nil
 }
 
+// seriesCost returns an estimate of the cost of reading the series.
 func (e *Engine) seriesCost(seriesKey, field string, tmin, tmax int64) query.IteratorCost {
 	key := SeriesFieldKeyBytes(seriesKey, field)
-	c := e.FileStore.Cost(key, tmin, tmax)
+	c := e.fileStore.Cost(key, tmin, tmax)
 
 	// Retrieve the range of values within the cache.
-	cacheValues := e.Cache.Values(key)
+	cacheValues := e.cache.Values(key)
 	c.CachedValues = int64(len(cacheValues.Include(tmin, tmax)))
 	return c
 }
@@ -1234,6 +1196,7 @@ func SeriesFieldKey(seriesKey, field string) string {
 	return seriesKey + keyFieldSeparator + field
 }
 
+// SeriesFieldKeyBytes returns a combined series key and field as a byte slice.
 func SeriesFieldKeyBytes(seriesKey, field string) []byte {
 	b := make([]byte, len(seriesKey)+len(keyFieldSeparator)+len(field))
 	i := copy(b[:], seriesKey)
@@ -1241,21 +1204,6 @@ func SeriesFieldKeyBytes(seriesKey, field string) []byte {
 	copy(b[i:], field)
 	return b
 }
-
-var (
-	blockToFieldType = [8]influxql.DataType{
-		BlockFloat64:  influxql.Float,
-		BlockInteger:  influxql.Integer,
-		BlockBoolean:  influxql.Boolean,
-		BlockString:   influxql.String,
-		BlockUnsigned: influxql.Unsigned,
-		5:             influxql.Unknown,
-		6:             influxql.Unknown,
-		7:             influxql.Unknown,
-	}
-)
-
-func BlockTypeToInfluxQLDataType(typ byte) influxql.DataType { return blockToFieldType[typ&7] }
 
 // SeriesAndFieldFromCompositeKey returns the series key and the field key extracted from the composite key.
 func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {

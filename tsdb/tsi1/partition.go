@@ -870,10 +870,6 @@ func (p *Partition) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
-func (p *Partition) SetFieldName(measurement []byte, name string) {}
-func (p *Partition) RemoveShard(shardID uint64)                   {}
-func (p *Partition) AssignShard(k string, shardID uint64)         {}
-
 // Compact requests a compaction of log files.
 func (p *Partition) Compact() {
 	p.mu.Lock()
@@ -1100,8 +1096,6 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		}
 	}
 }
-
-func (p *Partition) Rebuild() {}
 
 func (p *Partition) CheckLogFile() error {
 	// Check log file size under read lock.

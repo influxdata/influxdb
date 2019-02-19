@@ -1,4 +1,4 @@
-package tsm1_test
+package tsm1
 
 import (
 	"bytes"
@@ -19,16 +19,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	p7 := MustParsePointString("mem,host=C value=1.3 1")
 	p8 := MustParsePointString("disk,host=C value=1.3 1")
 
-	e, err := NewEngine()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// mock the planner so compactions don't run during the test
-	e.CompactionPlan = &mockPlanner{}
-	if err := e.Open(); err != nil {
-		t.Fatal(err)
-	}
+	e := MustOpenEngine()
 	defer e.Close()
 
 	if err := e.writePoints(p1, p2, p3, p4, p5, p6, p7, p8); err != nil {
@@ -39,7 +30,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
-	keys := e.FileStore.Keys()
+	keys := e.fileStore.Keys()
 	if exp, got := 6, len(keys); exp != got {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}
@@ -48,7 +39,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
-	keys = e.FileStore.Keys()
+	keys = e.fileStore.Keys()
 	if exp, got := 4, len(keys); exp != got {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}
@@ -94,7 +85,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
-	keys = e.FileStore.Keys()
+	keys = e.fileStore.Keys()
 	if exp, got := 2, len(keys); exp != got {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}

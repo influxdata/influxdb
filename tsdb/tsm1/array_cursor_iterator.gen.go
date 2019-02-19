@@ -17,7 +17,7 @@ import (
 // buildFloatArrayCursor creates an array cursor for a float field.
 func (q *arrayCursorIterator) buildFloatArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) tsdb.FloatArrayCursor {
 	key := q.seriesFieldKeyBytes(name, tags, field)
-	cacheValues := q.e.Cache.Values(key)
+	cacheValues := q.e.cache.Values(key)
 	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
 	if opt.Ascending {
 		if q.asc.Float == nil {
@@ -37,7 +37,7 @@ func (q *arrayCursorIterator) buildFloatArrayCursor(ctx context.Context, name []
 // buildIntegerArrayCursor creates an array cursor for a integer field.
 func (q *arrayCursorIterator) buildIntegerArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) tsdb.IntegerArrayCursor {
 	key := q.seriesFieldKeyBytes(name, tags, field)
-	cacheValues := q.e.Cache.Values(key)
+	cacheValues := q.e.cache.Values(key)
 	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
 	if opt.Ascending {
 		if q.asc.Integer == nil {
@@ -57,7 +57,7 @@ func (q *arrayCursorIterator) buildIntegerArrayCursor(ctx context.Context, name 
 // buildUnsignedArrayCursor creates an array cursor for a unsigned field.
 func (q *arrayCursorIterator) buildUnsignedArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) tsdb.UnsignedArrayCursor {
 	key := q.seriesFieldKeyBytes(name, tags, field)
-	cacheValues := q.e.Cache.Values(key)
+	cacheValues := q.e.cache.Values(key)
 	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
 	if opt.Ascending {
 		if q.asc.Unsigned == nil {
@@ -77,7 +77,7 @@ func (q *arrayCursorIterator) buildUnsignedArrayCursor(ctx context.Context, name
 // buildStringArrayCursor creates an array cursor for a string field.
 func (q *arrayCursorIterator) buildStringArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) tsdb.StringArrayCursor {
 	key := q.seriesFieldKeyBytes(name, tags, field)
-	cacheValues := q.e.Cache.Values(key)
+	cacheValues := q.e.cache.Values(key)
 	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
 	if opt.Ascending {
 		if q.asc.String == nil {
@@ -97,7 +97,7 @@ func (q *arrayCursorIterator) buildStringArrayCursor(ctx context.Context, name [
 // buildBooleanArrayCursor creates an array cursor for a boolean field.
 func (q *arrayCursorIterator) buildBooleanArrayCursor(ctx context.Context, name []byte, tags models.Tags, field string, opt query.IteratorOptions) tsdb.BooleanArrayCursor {
 	key := q.seriesFieldKeyBytes(name, tags, field)
-	cacheValues := q.e.Cache.Values(key)
+	cacheValues := q.e.cache.Values(key)
 	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
 	if opt.Ascending {
 		if q.asc.Boolean == nil {

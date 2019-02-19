@@ -12,6 +12,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
@@ -190,12 +191,12 @@ func (e *Engine) Open() (err error) {
 	}
 
 	// Open the services in order and clean up if any fail.
-	var oh openHelper
-	oh.Open(e.sfile)
-	oh.Open(e.index)
-	oh.Open(e.wal)
-	oh.Open(e.engine)
-	if err := oh.Done(); err != nil {
+	var opener lifecycle.Opener
+	opener.Open(e.sfile)
+	opener.Open(e.index)
+	opener.Open(e.wal)
+	opener.Open(e.engine)
+	if err := opener.Done(); err != nil {
 		return err
 	}
 
@@ -229,9 +230,7 @@ func (e *Engine) replayWAL() error {
 	// OOM situations when reloading huge WALs.
 
 	// Disable the max size during loading
-	limit := e.engine.Cache.MaxSize()
-	defer func() { e.engine.Cache.SetMaxSize(limit) }()
-	e.engine.Cache.SetMaxSize(0)
+	defer e.engine.DisableMaxSize()()
 
 	// Execute all the entries in the WAL again
 	reader := wal.NewWALReader(walPaths)
@@ -321,12 +320,12 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.closing = nil
 
-	var ch closeHelper
-	ch.Close(e.engine)
-	ch.Close(e.wal)
-	ch.Close(e.index)
-	ch.Close(e.sfile)
-	return ch.Done()
+	var closer lifecycle.Closer
+	closer.Close(e.engine)
+	closer.Close(e.wal)
+	closer.Close(e.index)
+	closer.Close(e.sfile)
+	return closer.Done()
 }
 
 // CreateSeriesCursor creates a SeriesCursor for usage with the read service.
