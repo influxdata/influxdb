@@ -9,13 +9,9 @@ import {RemoteDataState} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Organization} from '@influxdata/influx'
 
-interface Props<T> {
+interface PassedProps<T> {
   organization: Organization
   fetcher: (org: Organization) => Promise<T>
-  orderBy?: {
-    keys: string[]
-    orders?: string[]
-  }
   children: (
     resources: T,
     loading: RemoteDataState,
@@ -28,6 +24,19 @@ interface State<T> {
   loading: RemoteDataState
 }
 
+interface DefaultProps<T> {
+  orderBy?: {
+    keys: Array<keyof Unpack<T>>
+    orders?: string[]
+  }
+}
+
+type Props<T> = DefaultProps<T> & PassedProps<T>
+
+type Unpack<T> = T extends Array<infer U> ? U : never
+
+const DEFAULT_SORT_KEY = 'name'
+
 @ErrorHandling
 export default class GetOrgResources<T> extends PureComponent<
   Props<T>,
@@ -35,6 +44,7 @@ export default class GetOrgResources<T> extends PureComponent<
 > {
   constructor(props: Props<T>) {
     super(props)
+
     this.state = {
       resources: null,
       loading: RemoteDataState.NotStarted,
@@ -61,23 +71,45 @@ export default class GetOrgResources<T> extends PureComponent<
     if (organization) {
       const resources = await fetcher(organization)
       this.setState({
-        resources: this.order(resources),
+        resources: this.order(resources) as T,
         loading: RemoteDataState.Done,
       })
     }
   }
 
-  // Todo: unpack the type for resources
-  private order(resources) {
+  // Todo: improve typing for unpacking array
+  private order(resources: T | Array<Unpack<T>>): T | Array<Unpack<T>> {
     const {orderBy} = this.props
-    const isArray = resources instanceof Array
-
-    if (!orderBy || !isArray) {
+    if (!this.isArray(resources)) {
       return resources
+    } else {
+      const defaultKeys = this.extractDefaultKeys(resources)
+      if (orderBy) {
+        return _.orderBy(resources, orderBy.keys, orderBy.orders)
+      } else if (defaultKeys.length !== 0) {
+        return _.orderBy(resources, defaultKeys)
+      } else {
+        return resources
+      }
     }
+  }
 
-    const {keys, orders} = orderBy
+  private extractDefaultKeys(
+    resources: Array<Unpack<T>>
+  ): Array<keyof Unpack<T>> {
+    return this.hasKeyOf(resources, DEFAULT_SORT_KEY) ? [DEFAULT_SORT_KEY] : []
+  }
 
-    return _.orderBy(resources, keys, orders)
+  private hasKeyOf(
+    resources: Array<Unpack<T>>,
+    key: string | number | symbol
+  ): key is keyof Unpack<T> {
+    return key in resources[0]
+  }
+
+  private isArray(
+    resources: T | Array<Unpack<T>>
+  ): resources is Array<Unpack<T>> {
+    return resources instanceof Array
   }
 }

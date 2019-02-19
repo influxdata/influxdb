@@ -160,7 +160,6 @@ export default class TaskForm extends PureComponent<Props, State> {
                   <GetOrgResources<Bucket[]>
                     organization={this.toOrganization}
                     fetcher={getBuckets}
-                    orderBy={{keys: ['name']}}
                   >
                     {(buckets, loading) => (
                       <TaskOptionsBucketDropdown

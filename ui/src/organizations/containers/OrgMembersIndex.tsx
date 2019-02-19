@@ -69,7 +69,6 @@ class OrgMembersIndex extends Component<Props> {
                   <GetOrgResources<ResourceOwner[]>
                     organization={org}
                     fetcher={getOwnersAndMembers}
-                    orderBy={{keys: ['name']}}
                   >
                     {(members, loading) => (
                       <SpinnerContainer

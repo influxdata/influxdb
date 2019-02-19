@@ -96,11 +96,7 @@ class OrganizationView extends PureComponent<Props> {
                 url="tasks_tab"
                 title="Tasks"
               >
-                <GetOrgResources<Task[]>
-                  organization={org}
-                  fetcher={getTasks}
-                  orderBy={{keys: ['name']}}
-                >
+                <GetOrgResources<Task[]> organization={org} fetcher={getTasks}>
                   {(tasks, loading, fetch) => (
                     <SpinnerContainer
                       loading={loading}
@@ -125,7 +121,6 @@ class OrganizationView extends PureComponent<Props> {
                 <GetOrgResources<Telegraf[]>
                   organization={org}
                   fetcher={getCollectors}
-                  orderBy={{keys: ['name']}}
                 >
                   {(collectors, loading, fetch) => (
                     <SpinnerContainer
@@ -135,7 +130,6 @@ class OrganizationView extends PureComponent<Props> {
                       <GetOrgResources<Bucket[]>
                         organization={org}
                         fetcher={getBuckets}
-                        orderBy={{keys: ['name']}}
                       >
                         {(buckets, loading) => (
                           <SpinnerContainer
@@ -164,7 +158,6 @@ class OrganizationView extends PureComponent<Props> {
                 <GetOrgResources<ScraperTargetResponse[]>
                   organization={org}
                   fetcher={getScrapers}
-                  orderBy={{keys: ['name']}}
                 >
                   {(scrapers, loading, fetch) => {
                     return (
@@ -175,7 +168,6 @@ class OrganizationView extends PureComponent<Props> {
                         <GetOrgResources<Bucket[]>
                           organization={org}
                           fetcher={getBuckets}
-                          orderBy={{keys: ['name']}}
                         >
                           {(buckets, loading) => (
                             <SpinnerContainer
@@ -204,7 +196,6 @@ class OrganizationView extends PureComponent<Props> {
                 <GetOrgResources<Variable[]>
                   organization={org}
                   fetcher={getVariables}
-                  orderBy={{keys: ['name']}}
                 >
                   {(variables, loading, fetch) => {
                     return (
