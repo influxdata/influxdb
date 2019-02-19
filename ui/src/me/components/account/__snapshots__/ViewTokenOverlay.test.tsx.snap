@@ -37,6 +37,7 @@ exports[`Account rendering renders! 1`] = `
   >
     <div
       className="overlay--container"
+      data-testid="overlay--container"
       style={
         Object {
           "maxWidth": "800px",

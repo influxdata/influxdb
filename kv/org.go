@@ -606,8 +606,8 @@ func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.Re
 	}
 }
 
-// BucketAlreadyExistsError is used when creating a new organization with
-// a name that is already used. Organization names must be unique.
+// OrgAlreadyExistsError is used when creating a new organization with
+// a name that has already been used. Organization names must be unique.
 func OrgAlreadyExistsError(o *influxdb.Organization) error {
 	return &influxdb.Error{
 		Code: influxdb.EConflict,

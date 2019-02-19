@@ -65,6 +65,7 @@ class Notification extends Component<Props, State> {
         <div
           className={this.notificationClassname}
           ref={this.handleNotificationRef}
+          data-testid={this.dataTest}
         >
           <span className={`icon ${icon}`} />
           <div className="notification-message">{message}</div>
@@ -72,6 +73,11 @@ class Notification extends Component<Props, State> {
         </div>
       </div>
     )
+  }
+
+  private get dataTest(): string {
+    const {type} = this.props.notification
+    return `notification-${type}`
   }
 
   private get notificationClassname(): string {

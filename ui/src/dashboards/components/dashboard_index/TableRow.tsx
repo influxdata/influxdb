@@ -47,7 +47,11 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     const {id} = dashboard
 
     return (
-      <IndexList.Row key={`dashboard-id--${id}`} disabled={false}>
+      <IndexList.Row
+        key={`dashboard-id--${id}`}
+        disabled={false}
+        testID={`dashboard-index--row ${id}`}
+      >
         <IndexList.Cell>
           <ComponentSpacer
             stackChildren={Stack.Rows}

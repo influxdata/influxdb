@@ -58,6 +58,34 @@ func (s *KVStore) Close() error {
 	return nil
 }
 
+// Flush removes all bolt keys within each bucket.
+func (s *KVStore) Flush() {
+	_ = s.db.Update(
+		func(tx *bolt.Tx) error {
+			return tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+				s.cleanBucket(tx, b)
+				return nil
+			})
+
+		},
+	)
+}
+
+func (s *KVStore) cleanBucket(tx *bolt.Tx, b *bolt.Bucket) {
+	// nested bucket recursion base case:
+	if b == nil {
+		return
+	}
+	c := b.Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		_ = v
+		if err := c.Delete(); err != nil {
+			// clean out nexted buckets
+			s.cleanBucket(tx, b.Bucket(k))
+		}
+	}
+}
+
 // WithLogger sets the logger on the store.
 func (s *KVStore) WithLogger(l *zap.Logger) {
 	s.logger = l

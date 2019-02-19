@@ -39,6 +39,7 @@ exports[`SaveAsButton rendering renders 1`] = `
               disabled={false}
               disabledTitleText="This option is disabled"
               onClick={[Function]}
+              testID="radio-button"
               value="dashboard"
             >
               Dashboard Cell
@@ -49,6 +50,7 @@ exports[`SaveAsButton rendering renders 1`] = `
               disabled={false}
               disabledTitleText="This option is disabled"
               onClick={[Function]}
+              testID="radio-button"
               value="task"
             >
               Task

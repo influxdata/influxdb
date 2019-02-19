@@ -128,8 +128,8 @@ class DashboardIndex extends PureComponent<Props, State> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-md-12">
               <DashboardsIndexContents
-                dashboards={dashboards}
                 orgs={orgs}
+                dashboards={dashboards}
                 onSetDefaultDashboard={this.handleSetDefaultDashboard}
                 defaultDashboardLink={links.defaultDashboard}
                 onDeleteDashboard={this.handleDeleteDashboard}

@@ -37,6 +37,7 @@ Object {
         >
           <tr
             class="index-list--row"
+            data-testid="table-row"
           >
             <td
               class="index-list--row-cell index-list--align-left"
@@ -166,6 +167,7 @@ Object {
           </tr>
           <tr
             class="index-list--row"
+            data-testid="table-row"
           >
             <td
               class="index-list--row-cell index-list--align-left"
@@ -352,6 +354,7 @@ Object {
       >
         <tr
           class="index-list--row"
+          data-testid="table-row"
         >
           <td
             class="index-list--row-cell index-list--align-left"
@@ -481,6 +484,7 @@ Object {
         </tr>
         <tr
           class="index-list--row"
+          data-testid="table-row"
         >
           <td
             class="index-list--row-cell index-list--align-left"

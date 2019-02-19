@@ -32,7 +32,10 @@ const NavMenuItem: SFC<Props> = ({
   const isActive = !!length
 
   return (
-    <div className={classnames('nav--item', {active: isActive})}>
+    <div
+      className={classnames('nav--item', {active: isActive})}
+      data-testid={`nav-menu-item ${icon}`}
+    >
       <Link className="nav--item-icon" to={link}>
         <span className={`icon sidebar--icon ${icon}`} />
       </Link>

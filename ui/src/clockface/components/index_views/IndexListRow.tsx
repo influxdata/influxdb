@@ -9,18 +9,24 @@ interface Props {
   disabled?: boolean
   children: JSX.Element[] | JSX.Element
   customClass?: string
+  testID: string
 }
 
 @ErrorHandling
 class IndexListRow extends Component<Props> {
   public static defaultProps: Partial<Props> = {
     disabled: false,
+    testID: 'table-row',
   }
 
   public render() {
-    const {children} = this.props
+    const {children, testID} = this.props
 
-    return <tr className={this.className}>{children}</tr>
+    return (
+      <tr data-testid={testID} className={this.className}>
+        {children}
+      </tr>
+    )
   }
 
   private get className(): string {

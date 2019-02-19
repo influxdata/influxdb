@@ -52,6 +52,15 @@ func (s *KVStore) Update(fn func(kv.Tx) error) error {
 	})
 }
 
+// Flush removes all data from the buckets.  Used for testing.
+func (s *KVStore) Flush() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, b := range s.buckets {
+		b.btree.Clear(false)
+	}
+}
+
 // Buckets returns the names of all buckets within inmem.KVStore.
 func (s *KVStore) Buckets() [][]byte {
 	s.mu.RLock()

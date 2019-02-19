@@ -287,9 +287,11 @@ exports[`Account rendering renders! 1`] = `
                   >
                     <IndexListRow
                       disabled={false}
+                      testID="table-row"
                     >
                       <tr
                         className="index-list--row"
+                        data-testid="table-row"
                       >
                         <IndexListRowCell
                           alignment="left"
@@ -403,9 +405,11 @@ exports[`Account rendering renders! 1`] = `
                   >
                     <IndexListRow
                       disabled={false}
+                      testID="table-row"
                     >
                       <tr
                         className="index-list--row"
+                        data-testid="table-row"
                       >
                         <IndexListRowCell
                           alignment="left"

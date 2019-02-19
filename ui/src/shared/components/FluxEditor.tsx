@@ -98,7 +98,7 @@ class FluxEditor extends PureComponent<Props, State> {
     }
 
     return (
-      <div className="time-machine-editor">
+      <div className="time-machine-editor" data-testid="flux-editor">
         <ReactCodeMirror
           autoFocus={true}
           autoCursor={true}

@@ -38,8 +38,8 @@ type APIHandler struct {
 // APIBackend is all services and associated parameters required to construct
 // an APIHandler.
 type APIBackend struct {
-	DeveloperMode bool
-	Logger        *zap.Logger
+	AssetsPath string // if empty then assets are served from bindata.
+	Logger     *zap.Logger
 
 	NewBucketService func(*influxdb.Source) (influxdb.BucketService, error)
 	NewQueryService  func(*influxdb.Source) (query.ProxyQueryService, error)
