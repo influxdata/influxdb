@@ -14,7 +14,7 @@ interface Props {
   resourceName: string
 }
 
-export default class CreateDashboardDropdown extends PureComponent<Props> {
+export default class AddResourceDropdown extends PureComponent<Props> {
   public render() {
     return (
       <Dropdown
