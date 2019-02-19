@@ -568,37 +568,36 @@ func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.Re
 			return influxdb.InvalidID(), err
 		}
 		return r.ID, nil
-		// TODO(desa): uncomment these as more resource types are added.
-		//case influxdb.DashboardsResourceType:
-		//	r, err := s.FindDashboardByID(ctx, id)
-		//	if err != nil {
-		//		return influxdb.InvalidID(), err
-		//	}
-		//	return r.OrganizationID, nil
-		//case influxdb.SourcesResourceType:
-		//	r, err := s.FindSourceByID(ctx, id)
-		//	if err != nil {
-		//		return influxdb.InvalidID(), err
-		//	}
-		//	return r.OrganizationID, nil
-		//case influxdb.TelegrafsResourceType:
-		//	r, err := s.FindTelegrafConfigByID(ctx, id)
-		//	if err != nil {
-		//		return influxdb.InvalidID(), err
-		//	}
-		//	return r.OrganizationID, nil
-		//case influxdb.MacrosResourceType:
-		//	r, err := s.FindMacroByID(ctx, id)
-		//	if err != nil {
-		//		return influxdb.InvalidID(), err
-		//	}
-		//	return r.OrganizationID, nil
-		//case influxdb.ScraperResourceType:
-		//	r, err := s.GetTargetByID(ctx, id)
-		//	if err != nil {
-		//		return influxdb.InvalidID(), err
-		//	}
-		//	return r.OrgID, nil
+	case influxdb.DashboardsResourceType:
+		r, err := s.FindDashboardByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.OrganizationID, nil
+	case influxdb.SourcesResourceType:
+		r, err := s.FindSourceByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.OrganizationID, nil
+	case influxdb.TelegrafsResourceType:
+		r, err := s.FindTelegrafConfigByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.OrganizationID, nil
+	case influxdb.VariablesResourceType:
+		r, err := s.FindVariableByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.OrganizationID, nil
+	case influxdb.ScraperResourceType:
+		r, err := s.GetTargetByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.OrgID, nil
 	}
 
 	return influxdb.InvalidID(), &influxdb.Error{
