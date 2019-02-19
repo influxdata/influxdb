@@ -97,10 +97,10 @@ export default class GetOrgResources<T> extends PureComponent<
     resources: T[],
     key: string | number | symbol
   ): key is keyof T {
-    const resource = resources[0]
+    const resource = _.get(resources, '0', null)
     // gaurd against null and primitive types
     const isObject = !!resource && typeof resource === 'object'
 
-    return isObject && key in resource
+    return isObject && _.hasIn(resource, key)
   }
 }
