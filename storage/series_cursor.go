@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"sort"
-	"sync"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
@@ -24,20 +24,19 @@ type SeriesCursor interface {
 
 type SeriesCursorRequest struct {
 	// Name contains the tsdb encoded org and bucket ID
-	Name [16]byte
+	Name [influxdb.IDLength]byte
 }
 
 // seriesCursor is an implementation of SeriesCursor over an tsi1.Index.
 type seriesCursor struct {
-	once  sync.Once
 	index *tsi1.Index
 	sfile *tsdb.SeriesFile
-	mitr  tsdb.MeasurementIterator
-	orgID []byte
+	name  [influxdb.IDLength]byte
 	keys  [][]byte
 	ofs   int
 	row   SeriesCursorRow
 	cond  influxql.Expr
+	init  bool
 }
 
 type SeriesCursorRow struct {
@@ -46,7 +45,7 @@ type SeriesCursorRow struct {
 }
 
 // newSeriesCursor returns a new instance of SeriesCursor.
-func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, sfile *tsdb.SeriesFile, cond influxql.Expr) (_ SeriesCursor, err error) {
+func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, sfile *tsdb.SeriesFile, cond influxql.Expr) (SeriesCursor, error) {
 	if cond != nil {
 		var err error
 		influxql.WalkFunc(cond, func(node influxql.Node) {
@@ -67,52 +66,39 @@ func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, sfile *tsdb.Ser
 	return &seriesCursor{
 		index: index,
 		sfile: sfile,
-		mitr:  tsdb.NewMeasurementSliceIterator([][]byte{req.Name[:]}),
-		orgID: req.Name[:8],
+		name:  req.Name,
 		cond:  cond,
 	}, nil
 }
 
 // Close closes the iterator.
-func (cur *seriesCursor) Close() (err error) {
-	cur.once.Do(func() {
-		if cur.mitr != nil {
-			err = cur.mitr.Close()
-		}
-	})
-	return err
+func (cur *seriesCursor) Close() error {
+	return nil
 }
 
 // Next emits the next point in the iterator.
 func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
-	for {
-		// Read series keys for next measurement if no more keys remaining.
-		// Exit if there are no measurements remaining.
-		if cur.ofs == len(cur.keys) {
-			m, err := cur.mitr.Next()
-			if err != nil {
-				return nil, err
-			} else if m == nil {
-				return nil, nil
-			}
-
-			if err := cur.readSeriesKeys(m); err != nil {
-				return nil, err
-			}
-			continue
+	if !cur.init {
+		if err := cur.readSeriesKeys(); err != nil {
+			return nil, err
 		}
+		cur.init = true
+	}
 
+	if cur.ofs < len(cur.keys) {
 		cur.row.Name, cur.row.Tags = tsdb.ParseSeriesKey(cur.keys[cur.ofs])
-		if !bytes.HasPrefix(cur.row.Name, cur.orgID) {
+		if !bytes.HasPrefix(cur.row.Name, cur.name[:influxdb.OrgIDLength]) {
 			return nil, errUnexpectedOrg
 		}
 		cur.ofs++
 		return &cur.row, nil
 	}
+
+	return nil, nil
 }
 
-func (cur *seriesCursor) readSeriesKeys(name []byte) error {
-	sitr, err := cur.index.MeasurementSeriesByExprIterator(name, cur.cond)
+func (cur *seriesCursor) readSeriesKeys() error {
+	sitr, err := cur.index.MeasurementSeriesByExprIterator(cur.name[:], cur.cond)
 	if err != nil {
 		return err
 	} else if sitr == nil {
@@ -120,9 +106,6 @@ func (cur *seriesCursor) readSeriesKeys(name []byte) error {
 	}
 	defer sitr.Close()
 
-	// Slurp all series keys.
-	cur.ofs = 0
-	cur.keys = cur.keys[:0]
 	for {
 		elem, err := sitr.Next()
 		if err != nil {

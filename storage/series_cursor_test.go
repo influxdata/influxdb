@@ -20,7 +20,8 @@ func Test_NewSeriesCursor_UnexpectedOrg(t *testing.T) {
 			makeKey(0x0f0f, 0xb0b0),
 			makeKey(0xffff, 0xb0b0),
 		},
-		orgID: nm[:8],
+		name: nm,
+		init: true,
 	}
 	_, err := cur.Next()
 	if err != nil {
