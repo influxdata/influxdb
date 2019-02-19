@@ -49,7 +49,6 @@ func mockTaskService() influxdb.TaskService {
 		ID:             influxdb.ID(2),
 		OrganizationID: influxdb.ID(1),
 		Name:           "cows",
-		Owner:          influxdb.User{ID: influxdb.ID(3), Name: "farmer"},
 		Flux: `option task = {
  name: "my_task",
  every: 1s,
