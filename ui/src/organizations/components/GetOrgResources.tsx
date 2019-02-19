@@ -75,11 +75,11 @@ export default class GetOrgResources<T> extends PureComponent<
     }
   }
 
-  // Todo: improve typing for unpacking array
   private order(resources: T[]): T[] {
     const {orderBy} = this.props
 
     const defaultKeys = this.extractDefaultKeys(resources)
+
     if (orderBy) {
       return _.orderBy(resources, orderBy.keys, orderBy.orders)
     } else if (defaultKeys.length !== 0) {
@@ -97,6 +97,10 @@ export default class GetOrgResources<T> extends PureComponent<
     resources: T[],
     key: string | number | symbol
   ): key is keyof T {
-    return key in resources[0]
+    const resource = _.get(resources, '0', null)
+    // gaurd against null and primitive types
+    const isObject = !!resource && typeof resource === 'object'
+
+    return isObject && _.hasIn(resource, key)
   }
 }
