@@ -459,8 +459,8 @@ func TestScheduler_RunLog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := rl.ListRuns(context.Background(), task.Org, platform.RunFilter{Task: task.ID}); err != backend.ErrRunNotFound {
-		t.Fatal(err)
+	if _, err := rl.ListRuns(context.Background(), task.Org, platform.RunFilter{Task: task.ID}); err != backend.ErrNoRunsFound {
+		t.Fatalf("expected error %v, got %v", backend.ErrNoRunsFound, err)
 	}
 
 	s.Tick(6)
