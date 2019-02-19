@@ -122,7 +122,7 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 		}
 		time.Sleep(5 * time.Millisecond)
 
-		runs, _, err := be.TaskService().FindRuns(ctx, influxdb.RunFilter{Org: &org.ID, Task: &created.ID, Limit: 1})
+		runs, _, err := be.TaskService().FindRuns(ctx, influxdb.RunFilter{Task: created.ID, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -219,7 +219,7 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	})
 
 	// now lets see a logs
-	logs, _, err := be.TaskService().FindLogs(ctx, influxdb.LogFilter{Org: &org.ID, Task: &created.ID, Run: &targetRun.ID})
+	logs, _, err := be.TaskService().FindLogs(ctx, influxdb.LogFilter{Task: created.ID, Run: &targetRun.ID})
 	if err != nil {
 		t.Fatal(err)
 	}

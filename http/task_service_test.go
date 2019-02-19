@@ -440,7 +440,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 						runs := []*platform.Run{
 							{
 								ID:           platform.ID(2),
-								TaskID:       *f.Task,
+								TaskID:       f.Task,
 								Status:       "success",
 								ScheduledFor: "2018-12-01T17:00:13Z",
 								StartedAt:    "2018-12-01T17:00:03.155645Z",
@@ -617,7 +617,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			name: "get task logs",
 			svc: &mock.TaskService{
 				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
-					if *f.Task == taskID {
+					if f.Task == taskID {
 						return nil, 0, nil
 					}
 
@@ -633,7 +633,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			name: "get run logs",
 			svc: &mock.TaskService{
 				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
-					if *f.Task != taskID {
+					if f.Task != taskID {
 						return nil, 0, backend.ErrTaskNotFound
 					}
 					if *f.Run != runID {
@@ -652,7 +652,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			name: "get runs",
 			svc: &mock.TaskService{
 				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
-					if *f.Task != taskID {
+					if f.Task != taskID {
 						return nil, 0, backend.ErrTaskNotFound
 					}
 
@@ -783,68 +783,6 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 				}
 			})
 		})
-	}
-}
-
-func TestTaskUserResourceMap(t *testing.T) {
-	task := platform.Task{
-		Name:            "task1",
-		OrganizationID:  1,
-		AuthorizationID: 0x100,
-	}
-
-	b, err := json.Marshal(task)
-	if err != nil {
-		t.Fatalf("failed to unmarshal task: %v", err)
-	}
-
-	r := httptest.NewRequest("POST", "http://any.url/v1", bytes.NewReader(b))
-	ctx := pcontext.SetAuthorizer(context.Background(), &platform.Authorization{UserID: 2})
-	r = r.WithContext(ctx)
-
-	w := httptest.NewRecorder()
-
-	var created *platform.UserResourceMapping
-	var deletedUser platform.ID
-	var deletedResource platform.ID
-
-	urms := &mock.UserResourceMappingService{
-		CreateMappingFn: func(_ context.Context, urm *platform.UserResourceMapping) error { created = urm; return nil },
-		DeleteMappingFn: func(_ context.Context, rid platform.ID, uid platform.ID) error {
-			deletedUser = uid
-			deletedResource = rid
-			return nil
-		},
-		FindMappingsFn: func(context.Context, platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error) {
-			return []*platform.UserResourceMapping{created}, 1, nil
-		},
-	}
-
-	taskBackend := NewMockTaskBackend(t)
-	taskBackend.UserResourceMappingService = urms
-	h := NewTaskHandler(taskBackend)
-	taskID := platform.ID(1)
-
-	h.TaskService = &mock.TaskService{
-		CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
-			taskCopy := task
-			return &taskCopy, nil
-		},
-		DeleteTaskFn: func(ctx context.Context, id platform.ID) error {
-			return nil
-		},
-	}
-	h.handlePostTask(w, r)
-	r = httptest.NewRequest("DELETE", "http://any.url/api/v2/tasks/"+taskID.String(), nil)
-
-	h.ServeHTTP(w, r)
-
-	if created.UserID != deletedUser {
-		t.Fatalf("deleted user (%s) doesn't match created user (%s)", deletedUser, created.UserID)
-	}
-
-	if created.ResourceID != deletedResource {
-		t.Fatalf("deleted resource (%s) doesn't match created resource (%s)", deletedResource, created.ResourceID)
 	}
 }
 

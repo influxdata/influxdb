@@ -36,6 +36,7 @@ interface Props {
   onSelect: (task: Task) => void
   onClone: (task: Task) => void
   onEditLabels: (task: Task) => void
+  onRunTask: (taskID: string) => void
   onUpdate?: (task: Task) => void
 }
 
@@ -89,6 +90,12 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
               icon={IconFont.Duplicate}
               onClick={this.handleClone}
             />
+            <Button
+              size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Primary}
+              text="RunTask"
+              onClick={this.handleRunTask}
+            />
             <ConfirmationButton
               size={ComponentSize.ExtraSmall}
               text="Delete"
@@ -123,6 +130,10 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
         {task.name}
       </a>
     )
+  }
+
+  private handleRunTask = () => {
+    this.props.onRunTask(this.props.task.id)
   }
 
   // private handleViewRuns = () => {

@@ -297,9 +297,6 @@ type Store interface {
 	// DeleteOrg deletes the org.
 	DeleteOrg(ctx context.Context, orgID platform.ID) error
 
-	// DeleteUser deletes a user with userID.
-	DeleteUser(ctx context.Context, userID platform.ID) error
-
 	// Close closes the store for usage and cleans up running processes.
 	Close() error
 }
@@ -332,6 +329,8 @@ type LogWriter interface {
 // This is useful for test, but not much else.
 type NopLogWriter struct{}
 
+var _ LogWriter = NopLogWriter{}
+
 func (NopLogWriter) UpdateRunState(context.Context, RunLogBase, time.Time, RunStatus) error {
 	return nil
 }
@@ -343,21 +342,25 @@ func (NopLogWriter) AddRunLog(context.Context, RunLogBase, time.Time, string) er
 // LogReader reads log information and log data from a store.
 type LogReader interface {
 	// ListRuns returns a list of runs belonging to a task.
-	ListRuns(ctx context.Context, runFilter platform.RunFilter) ([]*platform.Run, error)
+	// orgID is necessary to look in the correct system bucket.
+	ListRuns(ctx context.Context, orgID platform.ID, runFilter platform.RunFilter) ([]*platform.Run, error)
 
 	// FindRunByID finds a run given a orgID and runID.
 	// orgID is necessary to look in the correct system bucket.
 	FindRunByID(ctx context.Context, orgID, runID platform.ID) (*platform.Run, error)
 
 	// ListLogs lists logs for a task or a specified run of a task.
-	ListLogs(ctx context.Context, logFilter platform.LogFilter) ([]platform.Log, error)
+	// orgID is necessary to look in the correct system bucket.
+	ListLogs(ctx context.Context, orgID platform.ID, logFilter platform.LogFilter) ([]platform.Log, error)
 }
 
-// NopLogWriter is a LogWriter that doesn't do anything when its methods are called.
+// NopLogReader is a LogReader that doesn't do anything when its methods are called.
 // This is useful for test, but not much else.
 type NopLogReader struct{}
 
-func (NopLogReader) ListRuns(ctx context.Context, runFilter platform.RunFilter) ([]*platform.Run, error) {
+var _ LogReader = NopLogReader{}
+
+func (NopLogReader) ListRuns(ctx context.Context, orgID platform.ID, runFilter platform.RunFilter) ([]*platform.Run, error) {
 	return nil, nil
 }
 
@@ -365,7 +368,7 @@ func (NopLogReader) FindRunByID(ctx context.Context, orgID, runID platform.ID) (
 	return nil, nil
 }
 
-func (NopLogReader) ListLogs(ctx context.Context, logFilter platform.LogFilter) ([]platform.Log, error) {
+func (NopLogReader) ListLogs(ctx context.Context, orgID platform.ID, logFilter platform.LogFilter) ([]platform.Log, error) {
 	return nil, nil
 }
 

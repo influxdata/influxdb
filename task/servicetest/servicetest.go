@@ -43,7 +43,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 	sys, cancel := fn(t)
 	defer cancel()
 	if sys.TaskServiceFunc == nil {
-		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch, sys.I)
+		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch, sys.I, sys.I)
 	} else {
 		sys.ts = sys.TaskServiceFunc()
 	}
@@ -139,11 +139,11 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
 
-	task, err := sys.ts.CreateTask(authorizedCtx, tc)
+	tsk, err := sys.ts.CreateTask(authorizedCtx, tc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !task.ID.Valid() {
+	if !tsk.ID.Valid() {
 		t.Fatal("no task ID set")
 	}
 
@@ -160,11 +160,11 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Look up a task the different ways we can.
 	// Map of method name to found task.
 	found := map[string]*platform.Task{
-		"Created": task,
+		"Created": tsk,
 	}
 
 	// Find by ID should return the right task.
-	f, err := sys.ts.FindTaskByID(sys.Ctx, task.ID)
+	f, err := sys.ts.FindTaskByID(sys.Ctx, tsk.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,15 +174,14 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f = findTask(fs, task.ID)
+	f = findTask(fs, tsk.ID)
 	found["FindTasks with Organization filter"] = f
 
 	fs, _, err = sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{User: &cr.UserID})
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	f = findTask(fs, task.ID)
+	f = findTask(fs, tsk.ID)
 	found["FindTasks with User filter"] = f
 
 	for fn, f := range found {
@@ -463,7 +462,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Limit 1 should only return the earlier run.
-		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &cr.OrgID, Task: &task.ID, Limit: 1})
+		runs, _, err := sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Task: task.ID, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -484,7 +483,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Unspecified limit returns both runs.
-		runs, _, err = sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Org: &cr.OrgID, Task: &task.ID})
+		runs, _, err = sys.ts.FindRuns(sys.Ctx, platform.RunFilter{Task: task.ID})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -746,9 +745,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Ensure it is returned when filtering logs by run ID.
-		logs, err := sys.LR.ListLogs(sys.Ctx, platform.LogFilter{
-			Org:  &cr.OrgID,
-			Task: &task.ID,
+		logs, err := sys.LR.ListLogs(sys.Ctx, cr.OrgID, platform.LogFilter{
+			Task: task.ID,
 			Run:  &rc1.Created.RunID,
 		})
 		if err != nil {
@@ -768,9 +766,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Ensure both returned when filtering logs by task ID.
-		logs, err = sys.LR.ListLogs(sys.Ctx, platform.LogFilter{
-			Org:  &cr.OrgID,
-			Task: &task.ID,
+		logs, err = sys.LR.ListLogs(sys.Ctx, cr.OrgID, platform.LogFilter{
+			Task: task.ID,
 		})
 		if err != nil {
 			t.Fatal(err)

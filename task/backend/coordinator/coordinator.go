@@ -148,23 +148,6 @@ func (c *Coordinator) DeleteOrg(ctx context.Context, orgID platform.ID) error {
 	return c.Store.DeleteOrg(ctx, orgID)
 }
 
-func (c *Coordinator) DeleteUser(ctx context.Context, userID platform.ID) error {
-	userTasks, err := c.Store.ListTasks(ctx, backend.TaskSearchParams{
-		User: userID,
-	})
-	if err != nil {
-		return err
-	}
-
-	for _, userTask := range userTasks {
-		if err := c.sch.ReleaseTask(userTask.Task.ID); err != nil {
-			return err
-		}
-	}
-
-	return c.Store.DeleteUser(ctx, userID)
-}
-
 func (c *Coordinator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
 	return c.sch.CancelRun(ctx, taskID, runID)
 }

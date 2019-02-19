@@ -20,6 +20,7 @@ const setup = (override = {}) => {
     onClone: jest.fn(),
     onSelect: jest.fn(),
     onEditLabels: jest.fn(),
+    onRunTask: jest.fn(),
     ...override,
   }
 

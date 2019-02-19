@@ -19,13 +19,31 @@ var _ influxdb.BucketService = (*Service)(nil)
 var _ influxdb.BucketOperationLogService = (*Service)(nil)
 
 func (s *Service) initializeBuckets(ctx context.Context, tx Tx) error {
-	if _, err := tx.Bucket(bucketBucket); err != nil {
+	if _, err := s.bucketsBucket(tx); err != nil {
 		return err
 	}
-	if _, err := tx.Bucket(bucketIndex); err != nil {
+	if _, err := s.bucketsIndexBucket(tx); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (s *Service) bucketsBucket(tx Tx) (Bucket, error) {
+	b, err := tx.Bucket(bucketBucket)
+	if err != nil {
+		return nil, UnexpectedBucketError(err)
+	}
+
+	return b, nil
+}
+
+func (s *Service) bucketsIndexBucket(tx Tx) (Bucket, error) {
+	b, err := tx.Bucket(bucketIndex)
+	if err != nil {
+		return nil, UnexpectedBucketIndexError(err)
+	}
+
+	return b, nil
 }
 
 func (s *Service) setOrganizationOnBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
@@ -72,7 +90,7 @@ func (s *Service) findBucketByID(ctx context.Context, tx Tx, id influxdb.ID) (*i
 		}
 	}
 
-	bkt, err := tx.Bucket(bucketBucket)
+	bkt, err := s.bucketsBucket(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +154,7 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 		}
 	}
 
-	idx, err := tx.Bucket(bucketIndex)
+	idx, err := s.bucketsIndexBucket(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -355,14 +373,10 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) e
 		b.OrganizationID = o.ID
 	}
 
-	unique := s.uniqueBucketName(ctx, tx, b)
-
-	if !unique {
-		// TODO: make standard error
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
-			Msg:  fmt.Sprintf("bucket with name %s already exists", b.Name),
-		}
+	// if the bucket name is not unique for this organization, then, do not
+	// allow creation.
+	if err := s.uniqueBucketName(ctx, tx, b); err != nil {
+		return err
 	}
 
 	b.ID = s.IDGenerator.ID()
@@ -442,7 +456,7 @@ func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) erro
 		return pe
 	}
 
-	idx, err := tx.Bucket(bucketIndex)
+	idx, err := s.bucketsIndexBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -453,7 +467,7 @@ func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) erro
 		}
 	}
 
-	bkt, err := tx.Bucket(bucketBucket)
+	bkt, err := s.bucketsBucket(tx)
 	if bkt.Put(encodedID, v); err != nil {
 		return &influxdb.Error{
 			Err: err,
@@ -462,6 +476,7 @@ func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) erro
 	return s.setOrganizationOnBucket(ctx, tx, b)
 }
 
+// bucketIndexKey is a combination of the orgID and the bucket name.
 func bucketIndexKey(b *influxdb.Bucket) ([]byte, error) {
 	orgID, err := b.OrganizationID.Encode()
 	if err != nil {
@@ -478,7 +493,7 @@ func bucketIndexKey(b *influxdb.Bucket) ([]byte, error) {
 
 // forEachBucket will iterate through all buckets while fn returns true.
 func (s *Service) forEachBucket(ctx context.Context, tx Tx, descending bool, fn func(*influxdb.Bucket) bool) error {
-	bkt, err := tx.Bucket(bucketBucket)
+	bkt, err := s.bucketsBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -517,19 +532,19 @@ func (s *Service) forEachBucket(ctx context.Context, tx Tx, descending bool, fn 
 	return nil
 }
 
-func (s *Service) uniqueBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket) bool {
+func (s *Service) uniqueBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
 	key, err := bucketIndexKey(b)
 	if err != nil {
-		return false
-	}
-	idx, err := tx.Bucket(bucketIndex)
-	if err != nil {
-		return false
+		return err
 	}
 
-	_, err = idx.Get(key)
-
-	return IsNotFound(err)
+	// if the bucket name is not unique for this organization, then, do not
+	// allow creation.
+	err = s.unique(ctx, tx, bucketIndex, key)
+	if err == NotUniqueError {
+		return BucketAlreadyExistsError(b)
+	}
+	return err
 }
 
 // UpdateBucket updates a bucket according the parameters set on upd.
@@ -562,7 +577,7 @@ func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd i
 		if err != nil {
 			return nil, err
 		}
-		idx, err := tx.Bucket(bucketIndex)
+		idx, err := s.bucketsIndexBucket(tx)
 		if err != nil {
 			return nil, err
 		}
@@ -610,7 +625,7 @@ func (s *Service) deleteBucket(ctx context.Context, tx Tx, id influxdb.ID) error
 		return pe
 	}
 
-	idx, err := tx.Bucket(bucketIndex)
+	idx, err := s.bucketsIndexBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -629,7 +644,7 @@ func (s *Service) deleteBucket(ctx context.Context, tx Tx, id influxdb.ID) error
 		}
 	}
 
-	bkt, err := tx.Bucket(bucketBucket)
+	bkt, err := s.bucketsBucket(tx)
 	if err != nil {
 		return err
 	}
@@ -721,4 +736,32 @@ func (s *Service) appendBucketEventToLog(ctx context.Context, tx Tx, id influxdb
 	}
 
 	return s.addLogEntry(ctx, tx, k, v, s.time())
+}
+
+// UnexpectedBucketError is used when the error comes from an internal system.
+func UnexpectedBucketError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("unexpected error retrieving bucket's bucket; Err %v", err),
+		Op:   "kv/bucketBucket",
+	}
+}
+
+// UnexpectedBucketIndexError is used when the error comes from an internal system.
+func UnexpectedBucketIndexError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("unexpected error retrieving bucket index; Err: %v", err),
+		Op:   "kv/bucketIndex",
+	}
+}
+
+// BucketAlreadyExistsError is used when creating a bucket with a name
+// that already exists within an organization.
+func BucketAlreadyExistsError(b *influxdb.Bucket) error {
+	return &influxdb.Error{
+		Code: influxdb.EConflict,
+		Op:   "kv/bucket",
+		Msg:  fmt.Sprintf("bucket with name %s already exists", b.Name),
+	}
 }

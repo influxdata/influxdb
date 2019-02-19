@@ -47,8 +47,7 @@ func (s *inmem) CreateTask(_ context.Context, req CreateTaskRequest) (platform.I
 	task := StoreTask{
 		ID: id,
 
-		Org:  req.Org,
-		User: req.User,
+		Org: req.Org,
 
 		Name: o.Name,
 
@@ -128,10 +127,6 @@ func (s *inmem) UpdateTask(_ context.Context, req UpdateTaskRequest) (UpdateTask
 }
 
 func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTaskWithMeta, error) {
-	if params.Org.Valid() && params.User.Valid() {
-		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
-	}
-
 	if params.PageSize < 0 {
 		return nil, errors.New("ListTasks: PageSize must be positive")
 	}
@@ -147,7 +142,6 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 	out := make([]StoreTaskWithMeta, 0, lim)
 
 	org := params.Org
-	user := params.User
 
 	var after platform.ID
 	if !params.After.Valid() {
@@ -164,9 +158,6 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 			continue
 		}
 		if org.Valid() && org != t.Org {
-			continue
-		}
-		if user.Valid() && user != t.User {
 			continue
 		}
 
@@ -357,10 +348,6 @@ func (s *inmem) delete(ctx context.Context, id platform.ID, f func(StoreTask) pl
 	return nil
 }
 
-func getUser(st StoreTask) platform.ID {
-	return st.User
-}
-
 func getOrg(st StoreTask) platform.ID {
 	return st.Org
 }
@@ -368,9 +355,4 @@ func getOrg(st StoreTask) platform.ID {
 // DeleteOrg synchronously deletes an org and all their tasks from a from an in-mem store store.
 func (s *inmem) DeleteOrg(ctx context.Context, id platform.ID) error {
 	return s.delete(ctx, id, getOrg)
-}
-
-// DeleteUser synchronously deletes a user and all their tasks from a from an in-mem store store.
-func (s *inmem) DeleteUser(ctx context.Context, id platform.ID) error {
-	return s.delete(ctx, id, getUser)
 }

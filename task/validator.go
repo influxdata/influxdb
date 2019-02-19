@@ -35,6 +35,7 @@ func NewValidator(ts platform.TaskService, bs platform.BucketService) platform.T
 		preAuth:     query.NewPreAuthorizer(bs),
 	}
 }
+
 func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
 	task, err := ts.TaskService.FindTaskByID(ctx, id)
 	if err != nil {
@@ -128,33 +129,29 @@ func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) 
 }
 
 func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
-	if filter.Org != nil {
-		perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, *filter.Org)
-		if err != nil {
-			return nil, -1, err
-		}
-
-		if err := validatePermission(ctx, *perm); err != nil {
-			return nil, -1, err
-		}
-
+	// Look up the task first, through the validator, to ensure we have permission to view the task.
+	if _, err := ts.FindTaskByID(ctx, filter.Task); err != nil {
+		return nil, -1, err
 	}
 
-	// TODO(lyon): If the user no longer has permission to the organization we might fail or filter here?
+	// If we can find the task, we can read its logs.
 	return ts.TaskService.FindLogs(ctx, filter)
 }
 
 func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
-	if filter.Org != nil {
-		perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, *filter.Org)
-		if err != nil {
-			return nil, -1, err
-		}
+	// Look up the task first, through the validator, to ensure we have permission to view the task.
+	task, err := ts.FindTaskByID(ctx, filter.Task)
+	if err != nil {
+		return nil, -1, err
+	}
 
-		if err := validatePermission(ctx, *perm); err != nil {
-			return nil, -1, err
-		}
+	perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
+	if err != nil {
+		return nil, -1, err
+	}
 
+	if err := validatePermission(ctx, *perm); err != nil {
+		return nil, -1, err
 	}
 
 	// TODO(lyon): If the user no longer has permission to the organization we might fail or filter here?

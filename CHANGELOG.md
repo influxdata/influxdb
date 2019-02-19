@@ -1,4 +1,13 @@
-## v2.0.0-alpha.3 [unreleased]
+## v2.0.0-alpha.4 [unreleased]
+
+### Features
+1. [11954](https://github.com/influxdata/influxdb/pull/11954): Add the ability to run a task manually from tasks page
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.3 [2019-02-15]
 
 ### Features
 1. [11809](https://github.com/influxdata/influxdb/pull/11809): Add the ability to name a scraper target

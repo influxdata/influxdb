@@ -1,16 +1,19 @@
-import {SFC} from 'react'
+import {PureComponent} from 'react'
 
 interface Props {
   name?: string
-  children?: any
 }
 
-const FeatureFlag: SFC<Props> = props => {
-  if (process.env.NODE_ENV === 'development') {
-    return props.children
+export default class extends PureComponent<Props> {
+  public render() {
+    if (this.isHidden) {
+      return null
+    }
+
+    return this.props.children
   }
 
-  return null
+  private get isHidden(): boolean {
+    return process.env.NODE_ENV !== 'development'
+  }
 }
-
-export default FeatureFlag

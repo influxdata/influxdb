@@ -19,7 +19,11 @@ interface Task extends TaskAPI {
 }
 
 import {Sort} from 'src/clockface'
-import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions/v2'
+import {
+  addTaskLabelsAsync,
+  removeTaskLabelsAsync,
+  runTask,
+} from 'src/tasks/actions/v2'
 
 interface Props {
   tasks: Task[]
@@ -32,6 +36,7 @@ interface Props {
   totalCount: number
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onAddTaskLabels: typeof addTaskLabelsAsync
+  onRunTask: typeof runTask
   onUpdate?: (task: Task) => void
 }
 
@@ -131,7 +136,14 @@ export default class TasksList extends PureComponent<Props, State> {
   }
 
   private rows = (tasks: Task[]): JSX.Element => {
-    const {onActivate, onDelete, onSelect, onClone, onUpdate} = this.props
+    const {
+      onActivate,
+      onDelete,
+      onSelect,
+      onClone,
+      onUpdate,
+      onRunTask,
+    } = this.props
     const taskrows = (
       <>
         {tasks.map(t => (
@@ -144,6 +156,7 @@ export default class TasksList extends PureComponent<Props, State> {
             onSelect={onSelect}
             onEditLabels={this.handleStartEditingLabels}
             onUpdate={onUpdate}
+            onRunTask={onRunTask}
           />
         ))}
       </>

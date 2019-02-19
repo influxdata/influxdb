@@ -240,12 +240,8 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 }
 
 func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Organization) error {
-	unique := s.uniqueOrganizationName(ctx, tx, o)
-	if !unique {
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
-			Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
-		}
+	if err := s.uniqueOrganizationName(ctx, tx, o); err != nil {
+		return err
 	}
 
 	o.ID = s.IDGenerator.ID()
@@ -342,14 +338,16 @@ func forEachOrganization(ctx context.Context, tx Tx, fn func(*influxdb.Organizat
 	return nil
 }
 
-func (s *Service) uniqueOrganizationName(ctx context.Context, tx Tx, o *influxdb.Organization) bool {
-	b, err := tx.Bucket(organizationIndex)
-	if err != nil {
-		return false
-	}
+func (s *Service) uniqueOrganizationName(ctx context.Context, tx Tx, o *influxdb.Organization) error {
+	key := organizationIndexKey(o.Name)
 
-	_, err = b.Get(organizationIndexKey(o.Name))
-	return IsNotFound(err)
+	// if the name is not unique across all organizations, then, do not
+	// allow creation.
+	err := s.unique(ctx, tx, organizationIndex, key)
+	if err == NotUniqueError {
+		return OrgAlreadyExistsError(o)
+	}
+	return err
 }
 
 // UpdateOrganization updates a organization according the parameters set on upd.
@@ -605,5 +603,14 @@ func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.Re
 
 	return influxdb.InvalidID(), &influxdb.Error{
 		Msg: fmt.Sprintf("unsupported resource type %s", rt),
+	}
+}
+
+// OrgAlreadyExistsError is used when creating a new organization with
+// a name that has already been used. Organization names must be unique.
+func OrgAlreadyExistsError(o *influxdb.Organization) error {
+	return &influxdb.Error{
+		Code: influxdb.EConflict,
+		Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
 	}
 }

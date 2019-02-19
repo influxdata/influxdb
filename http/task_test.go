@@ -24,7 +24,7 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 
 	i := inmem.NewService()
 
-	backingTS := task.PlatformAdapter(store, rrw, sch, i)
+	backingTS := task.PlatformAdapter(store, rrw, sch, i, i)
 
 	h := http.NewAuthenticationHandler()
 	h.AuthorizationService = i
