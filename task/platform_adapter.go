@@ -125,7 +125,6 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		ScheduleAfter: scheduleAfter,
 		Status:        backend.TaskStatus(t.Status),
 		Script:        t.Flux,
-		User:          auth.GetUserID(),
 	}
 	req.AuthorizationID, err = p.authorizationIDFromToken(ctx, t.Token)
 	if err != nil {

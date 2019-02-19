@@ -300,7 +300,7 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 		t.Parallel()
 
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, User: tc.UserID, AuthorizationID: tc.AuthzID, Script: script})
+		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -362,7 +362,7 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, User: tc.UserID, AuthorizationID: tc.AuthzID, Script: script})
+		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -391,7 +391,7 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, User: tc.UserID, AuthorizationID: tc.AuthzID, Script: script})
+		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -419,7 +419,7 @@ func testExecutorServiceError(t *testing.T, fn createSysFn) {
 	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, User: tc.UserID, AuthorizationID: tc.AuthzID, Script: script})
+		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -486,7 +486,7 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			defer ctxCancel()
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, User: tc.UserID, AuthorizationID: tc.AuthzID, Script: script})
+			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -526,7 +526,7 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			ctx := context.Background()
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, User: tc.UserID, AuthorizationID: tc.AuthzID, Script: script})
+			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -567,7 +567,7 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			ctx := context.Background()
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, User: tc.UserID, AuthorizationID: tc.AuthzID, Script: script})
+			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -608,7 +608,7 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			ctx := context.Background()
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, User: tc.UserID, AuthorizationID: tc.AuthzID, Script: script})
+			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -677,5 +677,5 @@ func createCreds(t *testing.T, i *inmem.Service) testCreds {
 		t.Fatal(err)
 	}
 
-	return testCreds{OrgID: org.ID, UserID: user.ID, AuthzID: auth.ID}
+	return testCreds{OrgID: org.ID, AuthzID: auth.ID}
 }
