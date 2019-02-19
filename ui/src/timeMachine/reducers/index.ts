@@ -272,11 +272,7 @@ export const timeMachineReducer = (
 
     case 'TABLE_LOADED': {
       return produce(state, draftState => {
-        const {
-          availableXColumns,
-          availableGroupColumns,
-          defaultGroupColumns,
-        } = action.payload
+        const {availableXColumns, availableGroupColumns} = action.payload
 
         draftState.availableXColumns = availableXColumns
         draftState.availableGroupColumns = availableGroupColumns
@@ -298,7 +294,7 @@ export const timeMachineReducer = (
         }
 
         if (fillColumnsStale) {
-          draftState.view.properties.fillColumns = defaultGroupColumns
+          draftState.view.properties.fillColumns = []
         }
       })
     }
@@ -325,6 +321,12 @@ export const timeMachineReducer = (
       const {binCount} = action.payload
 
       return setViewProperties(state, {binCount})
+    }
+
+    case 'SET_VIEW_X_DOMAIN': {
+      const {xDomain} = action.payload
+
+      return setViewProperties(state, {xDomain})
     }
 
     case 'SET_PREFIX': {

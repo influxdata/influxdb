@@ -1,30 +1,28 @@
-import {Table, AestheticDataMappings} from 'src/minard'
+import {Table, PlotEnv, Layer} from 'src/minard'
 
 export type PlotAction =
   | RegisterLayerAction
   | UnregisterLayerAction
   | SetDimensionsAction
   | SetTableAction
-  | SetColorsAction
+  | ResetAction
+  | SetControlledXDomainAction
+  | SetControlledYDomainAction
 
 interface RegisterLayerAction {
   type: 'REGISTER_LAYER'
   payload: {
     layerKey: string
-    table: Table
-    aesthetics: AestheticDataMappings
-    colors?: string[]
+    layer: Layer
   }
 }
 
 export const registerLayer = (
   layerKey: string,
-  table: Table,
-  aesthetics: AestheticDataMappings,
-  colors?: string[]
+  layer: Layer
 ): RegisterLayerAction => ({
   type: 'REGISTER_LAYER',
-  payload: {layerKey, table, aesthetics, colors},
+  payload: {layerKey, layer},
 })
 
 interface UnregisterLayerAction {
@@ -60,15 +58,36 @@ export const setTable = (table: Table): SetTableAction => ({
   payload: {table},
 })
 
-interface SetColorsAction {
-  type: 'SET_COLORS'
-  payload: {colors: string[]; layerKey?: string}
+interface ResetAction {
+  type: 'RESET'
+  payload: Partial<PlotEnv>
 }
 
-export const setColors = (
-  colors: string[],
-  layerKey?: string
-): SetColorsAction => ({
-  type: 'SET_COLORS',
-  payload: {colors, layerKey},
+export const reset = (initialState: Partial<PlotEnv>): ResetAction => ({
+  type: 'RESET',
+  payload: initialState,
+})
+
+interface SetControlledXDomainAction {
+  type: 'SET_CONTROLLED_X_DOMAIN'
+  payload: {xDomain: [number, number]}
+}
+
+export const setControlledXDomain = (
+  xDomain: [number, number]
+): SetControlledXDomainAction => ({
+  type: 'SET_CONTROLLED_X_DOMAIN',
+  payload: {xDomain},
+})
+
+interface SetControlledYDomainAction {
+  type: 'SET_CONTROLLED_Y_DOMAIN'
+  payload: {yDomain: [number, number]}
+}
+
+export const setControlledYDomain = (
+  yDomain: [number, number]
+): SetControlledYDomainAction => ({
+  type: 'SET_CONTROLLED_Y_DOMAIN',
+  payload: {yDomain},
 })

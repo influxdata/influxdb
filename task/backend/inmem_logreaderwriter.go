@@ -91,7 +91,7 @@ func (r *runReaderWriter) ListRuns(ctx context.Context, orgID platform.ID, runFi
 
 	ex, ok := r.byOrgTask[orgtask{o: orgID, t: runFilter.Task}]
 	if !ok {
-		return nil, ErrRunNotFound
+		return nil, ErrNoRunsFound
 	}
 
 	afterID := ""
@@ -159,7 +159,7 @@ func (r *runReaderWriter) ListLogs(ctx context.Context, orgID platform.ID, logFi
 	}
 
 	if len(logs) == 0 {
-		return nil, errors.New("no matching runs found")
+		return nil, ErrNoRunsFound
 	}
 
 	return logs, nil

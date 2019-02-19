@@ -1,5 +1,6 @@
 // Libraries
 import {PureComponent} from 'react'
+import _ from 'lodash'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -8,20 +9,31 @@ import {RemoteDataState} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Organization} from '@influxdata/influx'
 
-interface Props<T> {
+interface PassedProps<T> {
   organization: Organization
-  fetcher: (org: Organization) => Promise<T>
+  fetcher: (org: Organization) => Promise<T[]>
   children: (
-    resources: T,
+    resources: T[],
     loading: RemoteDataState,
     fetch?: () => void
   ) => JSX.Element
 }
 
 interface State<T> {
-  resources: T
+  resources: T[]
   loading: RemoteDataState
 }
+
+interface DefaultProps<T> {
+  orderBy?: {
+    keys: Array<keyof T>
+    orders?: string[]
+  }
+}
+
+type Props<T> = DefaultProps<T> & PassedProps<T>
+
+const DEFAULT_SORT_KEY = 'name'
 
 @ErrorHandling
 export default class GetOrgResources<T> extends PureComponent<
@@ -30,6 +42,7 @@ export default class GetOrgResources<T> extends PureComponent<
 > {
   constructor(props: Props<T>) {
     super(props)
+
     this.state = {
       resources: null,
       loading: RemoteDataState.NotStarted,
@@ -55,7 +68,35 @@ export default class GetOrgResources<T> extends PureComponent<
     const {fetcher, organization} = this.props
     if (organization) {
       const resources = await fetcher(organization)
-      this.setState({resources, loading: RemoteDataState.Done})
+      this.setState({
+        resources: this.order(resources),
+        loading: RemoteDataState.Done,
+      })
     }
+  }
+
+  // Todo: improve typing for unpacking array
+  private order(resources: T[]): T[] {
+    const {orderBy} = this.props
+
+    const defaultKeys = this.extractDefaultKeys(resources)
+    if (orderBy) {
+      return _.orderBy(resources, orderBy.keys, orderBy.orders)
+    } else if (defaultKeys.length !== 0) {
+      return _.orderBy(resources, defaultKeys)
+    } else {
+      return resources
+    }
+  }
+
+  private extractDefaultKeys(resources: T[]): Array<keyof T> {
+    return this.hasKeyOf(resources, DEFAULT_SORT_KEY) ? [DEFAULT_SORT_KEY] : []
+  }
+
+  private hasKeyOf(
+    resources: T[],
+    key: string | number | symbol
+  ): key is keyof T {
+    return key in resources[0]
   }
 }

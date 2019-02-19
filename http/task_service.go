@@ -734,7 +734,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find task logs",
 		}
-		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrNoRunsFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -799,7 +799,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find runs",
 		}
-		if err.Err == backend.ErrTaskNotFound {
+		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrNoRunsFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)

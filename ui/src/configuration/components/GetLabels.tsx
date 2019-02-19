@@ -1,5 +1,6 @@
 // Libraries
 import {PureComponent} from 'react'
+import _ from 'lodash'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -26,7 +27,10 @@ export default class GetLabels extends PureComponent<Props, State> {
 
   public async componentDidMount() {
     const labels = await client.labels.getAll()
-    this.setState({labels, loading: RemoteDataState.Done})
+    this.setState({
+      labels: _.orderBy(labels, ['name']),
+      loading: RemoteDataState.Done,
+    })
   }
 
   public render() {

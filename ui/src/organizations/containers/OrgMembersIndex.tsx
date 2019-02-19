@@ -66,7 +66,7 @@ class OrgMembersIndex extends Component<Props> {
                   url="members_tab"
                   title="Members"
                 >
-                  <GetOrgResources<ResourceOwner[]>
+                  <GetOrgResources<ResourceOwner>
                     organization={org}
                     fetcher={getOwnersAndMembers}
                   >

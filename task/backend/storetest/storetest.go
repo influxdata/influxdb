@@ -81,29 +81,25 @@ from(bucket:"test") |> range(start:-1h)`
 
 	for _, args := range []struct {
 		caseName  string
-		org, user platform.ID
+		org       platform.ID
 		script    string
 		status    backend.TaskStatus
 		omitAuthz bool
 		noerr     bool
 	}{
-		{caseName: "happy path", org: platform.ID(1), user: platform.ID(2), script: script, noerr: true},
-		{caseName: "missing org", org: platform.ID(0), user: platform.ID(2), script: script},
-		{caseName: "missing user", org: platform.ID(1), user: platform.ID(0), script: script},
-		{caseName: "missing name", org: platform.ID(1), user: platform.ID(2), script: scriptNoName},
-		{caseName: "missing authz", org: platform.ID(1), user: platform.ID(2), script: script, omitAuthz: true},
-		{caseName: "missing script", org: platform.ID(1), user: platform.ID(2), script: ""},
-		{caseName: "repeated name and org", org: platform.ID(1), user: platform.ID(3), script: script, noerr: true},
-		{caseName: "repeated name and user", org: platform.ID(3), user: platform.ID(2), script: script, noerr: true},
-		{caseName: "repeated name, org, and user", org: platform.ID(1), user: platform.ID(2), script: script, noerr: true},
-		{caseName: "explicitly active", org: 1, user: 2, script: script, status: backend.TaskActive, noerr: true},
-		{caseName: "explicitly inactive", org: 1, user: 2, script: script, status: backend.TaskInactive, noerr: true},
-		{caseName: "invalid status", org: 1, user: 2, script: script, status: backend.TaskStatus("this is not a valid status")},
+		{caseName: "happy path", org: platform.ID(1), script: script, noerr: true},
+		{caseName: "missing org", org: platform.ID(0), script: script},
+		{caseName: "missing name", org: platform.ID(1), script: scriptNoName},
+		{caseName: "missing authz", org: platform.ID(1), script: script, omitAuthz: true},
+		{caseName: "missing script", org: platform.ID(1), script: ""},
+		{caseName: "repeated name and org", org: platform.ID(1), script: script, noerr: true},
+		{caseName: "explicitly active", org: 1, script: script, status: backend.TaskActive, noerr: true},
+		{caseName: "explicitly inactive", org: 1, script: script, status: backend.TaskInactive, noerr: true},
+		{caseName: "invalid status", org: 1, script: script, status: backend.TaskStatus("this is not a valid status")},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
 			req := backend.CreateTaskRequest{
 				Org:    args.org,
-				User:   args.user,
 				Script: args.script,
 				Status: args.status,
 			}
@@ -147,7 +143,7 @@ from(bucket:"y") |> range(start:-1h)`
 
 		const origAuthzID = 3
 
-		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: origAuthzID, Script: script})
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: origAuthzID, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -262,11 +258,11 @@ from(bucket:"y") |> range(start:-1h)`
 	t.Run("name repetition", func(t *testing.T) {
 		s := create(t)
 		defer destroy(t, s)
-		id1, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script})
+		id1, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script2})
+		_, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script2})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -288,10 +284,9 @@ from(bucket:"test") |> range(start:-1h)`
 		defer destroy(t, s)
 
 		orgID := platform.ID(1)
-		userID := platform.ID(2)
 		authzID := platform.ID(3)
 
-		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 0)})
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 0)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -314,16 +309,6 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("exp meta %v, got meta %v", *meta, ts[0].Meta)
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{User: userID})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(ts) != 1 {
-			t.Fatalf("expected 1 result, got %d", len(ts))
-		}
-		if ts[0].Task.ID != id {
-			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, id)
-		}
 		meta, err = s.FindTaskMetaByID(context.Background(), id)
 		if err != nil {
 			t.Fatal(err)
@@ -340,7 +325,7 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad org ID, got %d result(s)", len(ts))
 		}
 
-		newID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 1), Status: backend.TaskInactive})
+		newID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 1), Status: backend.TaskInactive})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -375,7 +360,6 @@ from(bucket:"test") |> range(start:-1h)`
 		defer destroy(t, s)
 
 		orgID := platform.ID(1)
-		userID := platform.ID(2)
 		authzID := platform.ID(3)
 
 		type createdTask struct {
@@ -394,7 +378,7 @@ from(bucket:"test") |> range(start:-1h)`
 			tasks[i].name = fmt.Sprintf("my_bucket_%d", i)
 			tasks[i].script = fmt.Sprintf(script, i, i)
 
-			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, AuthorizationID: authzID, Script: tasks[i].script})
+			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: tasks[i].script})
 			if err != nil {
 				t.Fatalf("failed to create task %d: %v", i, err)
 			}
@@ -403,7 +387,6 @@ from(bucket:"test") |> range(start:-1h)`
 
 		for _, p := range []backend.TaskSearchParams{
 			{Org: orgID, PageSize: 100},
-			{User: userID, PageSize: 100},
 		} {
 			got, err := s.ListTasks(context.Background(), p)
 			if err != nil {
@@ -461,10 +444,9 @@ from(bucket:"test") |> range(start:-1h)`
 		defer destroy(t, s)
 
 		org := platform.ID(1)
-		user := platform.ID(2)
 		authz := platform.ID(3)
 
-		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, AuthorizationID: authz, Script: script})
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, AuthorizationID: authz, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -517,10 +499,9 @@ from(bucket:"test") |> range(start:-1h)`
 		defer destroy(t, s)
 
 		org := platform.ID(1)
-		user := platform.ID(2)
 		authz := platform.ID(3)
 
-		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, AuthorizationID: authz, Script: script, ScheduleAfter: 6000})
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, AuthorizationID: authz, Script: script, ScheduleAfter: 6000})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -593,7 +574,7 @@ from(bucket:"test") |> range(start:-1h)`
 		defer destroy(t, s)
 
 		for _, st := range []backend.TaskStatus{backend.TaskActive, backend.TaskInactive} {
-			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script, Status: st})
+			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script, Status: st})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -635,7 +616,7 @@ from(bucket: "b") |> range(start:-1h) |> http.to(url: "http://example.com")`
 			{e: "2d", sa: (2 * secondsPerDay) + 1, lc: 2 * secondsPerDay},
 		} {
 			script := fmt.Sprintf(scriptFmt, tc.e)
-			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script, ScheduleAfter: tc.sa})
+			id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script, ScheduleAfter: tc.sa})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -665,10 +646,9 @@ from(bucket:"test") |> range(start:-1h)`
 	defer destroy(t, s)
 
 	org := platform.ID(1)
-	user := platform.ID(2)
 	authz := platform.ID(3)
 
-	id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, AuthorizationID: authz, Script: script, ScheduleAfter: 6000})
+	id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, AuthorizationID: authz, Script: script, ScheduleAfter: 6000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -729,8 +709,8 @@ from(bucket:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		org, user, authz := idGen.ID(), idGen.ID(), idGen.ID()
-		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, AuthorizationID: authz, Script: script})
+		org, authz := idGen.ID(), idGen.ID()
+		id, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, AuthorizationID: authz, Script: script})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -761,7 +741,7 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 		// It's safe to reuse the same name, for the same org with a new user, after deleting the original.
-		id, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: idGen.ID(), AuthorizationID: idGen.ID(), Script: script})
+		id, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, AuthorizationID: idGen.ID(), Script: script})
 		if err != nil {
 			t.Fatalf("Error when reusing task name that was previously deleted: %v", err)
 		}
@@ -770,7 +750,7 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 		// Reuse the same name, for the original user but a new org.
-		if _, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: idGen.ID(), User: user, AuthorizationID: idGen.ID(), Script: script}); err != nil {
+		if _, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: idGen.ID(), AuthorizationID: idGen.ID(), Script: script}); err != nil {
 			t.Fatalf("Error when reusing task name that was previously deleted: %v", err)
 		}
 	})
@@ -790,7 +770,7 @@ from(bucket:"test") |> range(start:-1h)`
 	defer destroy(t, s)
 
 	t.Run("no queue", func(t *testing.T) {
-		taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script, ScheduleAfter: 30})
+		taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script, ScheduleAfter: 30})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -847,7 +827,7 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 	from(bucket:"test") |> range(start:-1h)`
-		taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 5, User: 6, AuthorizationID: 7, Script: script, ScheduleAfter: 2999})
+		taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 5, AuthorizationID: 7, Script: script, ScheduleAfter: 2999})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -937,7 +917,7 @@ from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script})
+	task, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -966,7 +946,7 @@ from(bucket:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, User: 2, AuthorizationID: 3, Script: script})
+	taskID, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -997,7 +977,7 @@ func testStoreDeleteOrg(t *testing.T, create CreateStoreFunc, destroy DestroySto
 	s := create(t)
 	defer destroy(t, s)
 	ids := createABunchOFTasks(t, s,
-		func(_, o uint64) bool {
+		func(o uint64) bool {
 			return o == 1
 		},
 	)
@@ -1017,7 +997,7 @@ func testStoreDeleteOrg(t *testing.T, create CreateStoreFunc, destroy DestroySto
 	}
 }
 
-func createABunchOFTasks(t *testing.T, s backend.Store, filter func(user, org uint64) bool) []platform.ID {
+func createABunchOFTasks(t *testing.T, s backend.Store, filter func(org uint64) bool) []platform.ID {
 	const script = `option task = {
 		name: "a task",
 		cron: "* * * * *",
@@ -1028,16 +1008,13 @@ from(bucket:"test") |> range(start:-1h)`
 	var ids []platform.ID
 	var err error
 	for i := 0; i < 15; i++ {
-		for userInt := uint64(1); userInt < 5; userInt++ {
-			for orgInt := uint64(1); orgInt < 4; orgInt++ {
-				org := platform.ID(orgInt)
-				user := platform.ID(userInt)
-				if id, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, User: user, Script: script}); err != nil {
-					t.Fatal(err)
-				}
-				if filter(userInt, orgInt) {
-					ids = append(ids, id)
-				}
+		for orgInt := uint64(1); orgInt < 4; orgInt++ {
+			org := platform.ID(orgInt)
+			if id, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: org, Script: script}); err != nil {
+				t.Fatal(err)
+			}
+			if filter(orgInt) {
+				ids = append(ids, id)
 			}
 		}
 	}

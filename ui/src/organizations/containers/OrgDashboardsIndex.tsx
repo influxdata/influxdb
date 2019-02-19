@@ -62,7 +62,7 @@ class OrgDashboardsIndex extends Component<Props> {
                   url="dashboards_tab"
                   title="Dashboards"
                 >
-                  <GetOrgResources<Dashboard[]>
+                  <GetOrgResources<Dashboard>
                     organization={org}
                     fetcher={getDashboards}
                   >

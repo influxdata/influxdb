@@ -125,7 +125,6 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		ScheduleAfter: scheduleAfter,
 		Status:        backend.TaskStatus(t.Status),
 		Script:        t.Flux,
-		User:          auth.GetUserID(),
 	}
 	req.AuthorizationID, err = p.authorizationIDFromToken(ctx, t.Token)
 	if err != nil {
@@ -142,7 +141,6 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		Cron:            opts.Cron,
 		Name:            opts.Name,
 		OrganizationID:  t.OrganizationID,
-		Owner:           platform.User{ID: req.User},
 		Status:          t.Status,
 		AuthorizationID: req.AuthorizationID,
 	}
@@ -366,12 +364,8 @@ func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Ta
 		ID:             t.ID,
 		OrganizationID: t.Org,
 		Name:           t.Name,
-		Owner: platform.User{
-			ID:   t.User,
-			Name: "", // TODO(mr): how to get owner name?
-		},
-		Flux: t.Script,
-		Cron: opts.Cron,
+		Flux:           t.Script,
+		Cron:           opts.Cron,
 	}
 	if opts.Every != 0 {
 		pt.Every = opts.Every.String()

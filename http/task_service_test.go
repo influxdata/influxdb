@@ -79,14 +79,12 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 								ID:              1,
 								Name:            "task1",
 								OrganizationID:  1,
-								Owner:           platform.User{ID: 1, Name: "user1"},
 								AuthorizationID: 0x100,
 							},
 							{
 								ID:              2,
 								Name:            "task2",
 								OrganizationID:  2,
-								Owner:           platform.User{ID: 2, Name: "user2"},
 								AuthorizationID: 0x200,
 							},
 						}
@@ -239,7 +237,6 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 							Name:            "task1",
 							OrganizationID:  1,
 							Organization:    "test",
-							Owner:           platform.User{ID: 1, Name: "user1"},
 							AuthorizationID: 0x100,
 							Flux:            "abc",
 						}, nil
@@ -637,7 +634,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return nil, 0, backend.ErrTaskNotFound
 					}
 					if *f.Run != runID {
-						return nil, 0, backend.ErrRunNotFound
+						return nil, 0, backend.ErrNoRunsFound
 					}
 
 					return nil, 0, nil
@@ -649,11 +646,27 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			notFoundPathArgs: notFoundTaskRun,
 		},
 		{
-			name: "get runs",
+			name: "get runs: task not found",
 			svc: &mock.TaskService{
 				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
 					if f.Task != taskID {
 						return nil, 0, backend.ErrTaskNotFound
+					}
+
+					return nil, 0, nil
+				},
+			},
+			method:           http.MethodGet,
+			pathFmt:          "/tasks/%s/runs",
+			okPathArgs:       okTask,
+			notFoundPathArgs: notFoundTask,
+		},
+		{
+			name: "get runs: task found but no runs found",
+			svc: &mock.TaskService{
+				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
+					if f.Task != taskID {
+						return nil, 0, backend.ErrNoRunsFound
 					}
 
 					return nil, 0, nil

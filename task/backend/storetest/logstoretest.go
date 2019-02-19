@@ -173,11 +173,11 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 
-	if _, err := reader.ListRuns(ctx, task.ID, platform.RunFilter{Task: task.ID}); err == nil {
-		t.Fatal("failed to error on bad org id")
+	if _, err := reader.ListRuns(ctx, task.ID, platform.RunFilter{Task: task.ID}); err != backend.ErrNoRunsFound {
+		t.Fatalf("with bad org ID, expected error %v, got %v", backend.ErrNoRunsFound, err)
 	}
-	if _, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{Task: task.Org}); err == nil {
-		t.Fatal("failed to error on bad task id")
+	if _, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{Task: task.Org}); err != backend.ErrNoRunsFound {
+		t.Fatalf("with bad task ID, expected error %v, got %v", backend.ErrNoRunsFound, err)
 	}
 
 	now := time.Now().UTC()
@@ -350,10 +350,10 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	ctx := pcontext.SetAuthorizer(context.Background(), makeNewAuthorization())
 
 	if _, err := reader.ListLogs(ctx, task.Org, platform.LogFilter{}); err == nil {
-		t.Fatal("failed to error with missing task ID")
+		t.Fatalf("expected error when task ID missing, but got nil")
 	}
-	if _, err := reader.ListLogs(ctx, 9999999, platform.LogFilter{Task: task.ID}); err == nil {
-		t.Fatal("failed to error with an invalid org ID")
+	if _, err := reader.ListLogs(ctx, 9999999, platform.LogFilter{Task: task.ID}); err != backend.ErrNoRunsFound {
+		t.Fatalf("with bad org ID, expected error %v, got %v", backend.ErrNoRunsFound, err)
 	}
 
 	now := time.Now().UTC()
