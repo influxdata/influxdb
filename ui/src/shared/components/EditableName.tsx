@@ -113,6 +113,7 @@ class EditableName extends Component<Props, State> {
     const {workingName} = this.state
 
     if (e.key === 'Enter') {
+      e.persist()
       if (!workingName) {
         this.setState({isEditing: false, workingName: name})
         return
