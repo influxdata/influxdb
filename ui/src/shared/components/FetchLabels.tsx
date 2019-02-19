@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
 
 // Components
 import {EmptyState, SpinnerContainer, TechnoSpinner} from 'src/clockface'
@@ -36,7 +37,10 @@ class FetchLabels extends PureComponent<Props, State> {
 
   public async componentDidMount() {
     const labels = await client.labels.getAll()
-    this.setState({loading: RemoteDataState.Done, labels})
+    this.setState({
+      loading: RemoteDataState.Done,
+      labels: _.orderBy(labels, ['name']),
+    })
   }
 
   public render() {

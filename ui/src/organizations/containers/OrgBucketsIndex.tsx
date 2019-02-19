@@ -67,7 +67,7 @@ class OrgBucketsIndex extends Component<Props> {
                   url="buckets_tab"
                   title="Buckets"
                 >
-                  <GetOrgResources<Bucket[]>
+                  <GetOrgResources<Bucket>
                     organization={org}
                     fetcher={getBuckets}
                   >
