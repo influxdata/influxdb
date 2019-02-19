@@ -10,7 +10,14 @@ import {
   Columns,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {Grid, Form, Input, InputType} from 'src/clockface'
+import {
+  Grid,
+  Form,
+  Input,
+  InputType,
+  ComponentSpacer,
+  Alignment,
+} from 'src/clockface'
 import RandomLabelColorButton from 'src/configuration/components/RandomLabelColor'
 import {Label, LabelProperties} from 'src/types/v2/labels'
 
@@ -22,6 +29,9 @@ import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Style
+import 'src/shared/components/ResourceLabelForm.scss'
 
 interface Props {
   labelName: string
@@ -60,19 +70,21 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
     const {isValid} = this.state
 
     return (
-      <Grid>
+      <div className="resource-label--form">
         <Grid.Row>
-          <Grid.Column widthSM={Columns.Ten}>
-            <Grid.Column widthXS={Columns.Two}>
-              <RandomLabelColorButton
-                colorHex={this.colorHex}
-                onClick={this.handleColorChange}
-              />
-            </Grid.Column>
-            <Grid.Column widthXS={Columns.Three}>
-              {this.customColorInput}
-            </Grid.Column>
-            <Grid.Column widthXS={Columns.Seven}>
+          <Grid.Column widthXS={Columns.Five}>
+            <Form.Element label="Color">
+              <ComponentSpacer stretchToFitWidth={true} align={Alignment.Left}>
+                <RandomLabelColorButton
+                  colorHex={this.colorHex}
+                  onClick={this.handleColorChange}
+                />
+                {this.customColorInput}
+              </ComponentSpacer>
+            </Form.Element>
+          </Grid.Column>
+          <Grid.Column widthXS={Columns.Five}>
+            <Form.Element label="Description">
               <Input
                 type={InputType.Text}
                 placeholder="Add a optional description"
@@ -80,21 +92,24 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
                 value={this.description}
                 onChange={this.handleInputChange}
               />
-            </Grid.Column>
+            </Form.Element>
           </Grid.Column>
           <Grid.Column widthXS={Columns.Two}>
-            <Button
-              text="Create Label"
-              color={ComponentColor.Success}
-              type={ButtonType.Submit}
-              status={
-                isValid ? ComponentStatus.Default : ComponentStatus.Disabled
-              }
-              onClick={this.handleSubmit}
-            />
+            <Form.Element label="">
+              <Button
+                customClass="resource-label--create-button"
+                text="Create Label"
+                color={ComponentColor.Success}
+                type={ButtonType.Submit}
+                status={
+                  isValid ? ComponentStatus.Default : ComponentStatus.Disabled
+                }
+                onClick={this.handleSubmit}
+              />
+            </Form.Element>
           </Grid.Column>
         </Grid.Row>
-      </Grid>
+      </div>
     )
   }
 
