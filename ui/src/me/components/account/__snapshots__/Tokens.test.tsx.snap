@@ -56,14 +56,16 @@ exports[`Account rendering renders! 1`] = `
   <ResourceFetcher
     fetcher={[Function]}
   >
-    <SpinnerContainer
+    <t
       loading="Done"
       spinnerComponent={
-        <TechnoSpinner
+        <t
           diameterPixels={100}
           strokeWidth="sm"
+          testID="techno-spinner"
         />
       }
+      testID="spinner-container"
     >
       <FilterList
         list={
@@ -349,11 +351,13 @@ exports[`Account rendering renders! 1`] = `
                                     shape="none"
                                     size="xs"
                                     status="default"
+                                    testID="button"
                                     text="Delete"
                                     type="button"
                                   >
                                     <button
                                       className="button button-xs button-danger"
+                                      data-testid="button"
                                       disabled={false}
                                       tabIndex={0}
                                       title="Delete"
@@ -467,11 +471,13 @@ exports[`Account rendering renders! 1`] = `
                                     shape="none"
                                     size="xs"
                                     status="default"
+                                    testID="button"
                                     text="Delete"
                                     type="button"
                                   >
                                     <button
                                       className="button button-xs button-danger"
+                                      data-testid="button"
                                       disabled={false}
                                       tabIndex={0}
                                       title="Delete"
@@ -509,7 +515,7 @@ exports[`Account rendering renders! 1`] = `
           </OverlayTechnology>
         </TokenList>
       </FilterList>
-    </SpinnerContainer>
+    </t>
   </ResourceFetcher>
 </Tokens>
 `;
