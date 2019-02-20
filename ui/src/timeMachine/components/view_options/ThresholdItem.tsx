@@ -77,16 +77,15 @@ class Threshold extends PureComponent<Props, State> {
           stretchToFit={isBase}
           widthPixels={this.dropdownWidthPixels}
         />
-        {isDeletable &&
-          !isBase && (
-            <Button
-              size={ComponentSize.Small}
-              shape={ButtonShape.Square}
-              onClick={this.handleDelete}
-              icon={IconFont.Remove}
-              type={ButtonType.Button}
-            />
-          )}
+        {isDeletable && !isBase && (
+          <Button
+            size={ComponentSize.Small}
+            shape={ButtonShape.Square}
+            onClick={this.handleDelete}
+            icon={IconFont.Remove}
+            type={ButtonType.Button}
+          />
+        )}
       </div>
     )
   }

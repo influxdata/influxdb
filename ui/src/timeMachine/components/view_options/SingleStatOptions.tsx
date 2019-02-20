@@ -57,20 +57,22 @@ const SingleStatOptions: SFC<Props> = props => {
     onSetColors,
   } = props
 
-  const colorConfigs = colors.filter(c => c.type !== 'scale').map(color => {
-    const isBase = color.id === THRESHOLD_TYPE_BASE
+  const colorConfigs = colors
+    .filter(c => c.type !== 'scale')
+    .map(color => {
+      const isBase = color.id === THRESHOLD_TYPE_BASE
 
-    const config: ThresholdConfig = {
-      color,
-      isBase,
-    }
+      const config: ThresholdConfig = {
+        color,
+        isBase,
+      }
 
-    if (isBase) {
-      config.label = 'Base'
-    }
+      if (isBase) {
+        config.label = 'Base'
+      }
 
-    return config
-  })
+      return config
+    })
 
   return (
     <>
