@@ -54,6 +54,7 @@ export const createSource = (
       name: 'defsource',
       default: true,
       orgID,
+      type: 'self',
     },
   })
 }
