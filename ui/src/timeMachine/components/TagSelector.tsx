@@ -9,6 +9,9 @@ import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 import WaitingText from 'src/shared/components/WaitingText'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 // Actions
 import {
   selectTagKey,
@@ -62,6 +65,7 @@ interface OwnProps {
 
 type Props = StateProps & DispatchProps & OwnProps
 
+@ErrorHandling
 class TagSelector extends PureComponent<Props> {
   private debouncer = new DefaultDebouncer()
 
@@ -87,14 +91,7 @@ class TagSelector extends PureComponent<Props> {
     if (keysStatus === RemoteDataState.Error) {
       return (
         <>
-          <div className="tag-selector--top">
-            <Button
-              shape={ButtonShape.Square}
-              icon={IconFont.Remove}
-              onClick={this.handleRemoveTagSelector}
-              customClass="tag-selector--remove"
-            />
-          </div>
+          <div className="tag-selector--top">{this.removeButton}</div>
           <div className="tag-selector--empty">Failed to load tag keys</div>
         </>
       )
@@ -103,14 +100,7 @@ class TagSelector extends PureComponent<Props> {
     if (keysStatus === RemoteDataState.Done && !keys.length) {
       return (
         <>
-          <div className="tag-selector--top">
-            <Button
-              shape={ButtonShape.Square}
-              icon={IconFont.Remove}
-              onClick={this.handleRemoveTagSelector}
-              customClass="tag-selector--remove"
-            />
-          </div>
+          <div className="tag-selector--top">{this.removeButton}</div>
           <div className="tag-selector--empty">No more tag keys found</div>
         </>
       )
@@ -140,14 +130,7 @@ class TagSelector extends PureComponent<Props> {
             ))}
           </SearchableDropdown>
           {this.selectedCounter}
-          {index !== 0 && (
-            <Button
-              shape={ButtonShape.Square}
-              icon={IconFont.Remove}
-              onClick={this.handleRemoveTagSelector}
-              customClass="tag-selector--remove"
-            />
-          )}
+          {this.removeButton}
         </div>
         <Input
           value={valuesSearchTerm}
@@ -157,6 +140,22 @@ class TagSelector extends PureComponent<Props> {
         />
         {this.values}
       </>
+    )
+  }
+
+  private get removeButton(): JSX.Element {
+    const {index} = this.props
+    if (index === 0) {
+      return null
+    }
+
+    return (
+      <Button
+        shape={ButtonShape.Square}
+        icon={IconFont.Remove}
+        onClick={this.handleRemoveTagSelector}
+        customClass="tag-selector--remove"
+      />
     )
   }
 
