@@ -30,7 +30,7 @@ type Task struct {
 	Every           string `json:"every,omitempty"`
 	Cron            string `json:"cron,omitempty"`
 	Offset          string `json:"offset,omitempty"`
-	LatestCompleted string `json:"latest_completed,omitempty"`
+	LatestCompleted string `json:"latestCompleted,omitempty"`
 	CreatedAt       string `json:"createdAt,omitempty"`
 	UpdatedAt       string `json:"updatedAt,omitempty"`
 }
