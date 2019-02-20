@@ -13,6 +13,7 @@ import SigninForm from 'src/onboarding/components/SigninForm'
 import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import {RemoteDataState} from 'src/types'
 import Notifications from 'src/shared/components/notifications/Notifications'
+import VersionInfo from 'src/shared/components/VersionInfo'
 
 interface State {
   status: RemoteDataState
@@ -50,6 +51,7 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
             <SplashPage.Header title="InfluxData" />
             <SigninForm />
           </SplashPage.Panel>
+          <VersionInfo widthPixels={300} />
         </SplashPage>
       </SpinnerContainer>
     )

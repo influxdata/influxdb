@@ -1,0 +1,12 @@
+/*
+  VersionInfo
+  -----------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules';
+
+.version-info {
+  border-radius: 0 0 $ix-radius $ix-radius;
+  color: $g9-mountain;
+  background-color: mix($g3-castle, $g2-kevlar, 50%);
+}
