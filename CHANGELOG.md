@@ -5,6 +5,7 @@
 1. [11990](https://github.com/influxdata/influxdb/pull/11990): Add the ability to select a custom time range in explorer and dashboard
 
 ### Bug Fixes
+1. [11997](https://github.com/influxdata/influxdb/pull/11997): Update the bucket retention policy to update the time in seconds
 
 ### UI Improvements
 

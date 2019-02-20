@@ -10,6 +10,9 @@ import {
 } from 'src/clockface'
 import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
 
+// Constants
+import {DEFAULT_SECONDS} from 'src/organizations/components/Retention'
+
 // Types
 import {Bucket, BucketRetentionRules} from '@influxdata/influx'
 
@@ -75,7 +78,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     )
 
     if (!rule) {
-      return 3600
+      return DEFAULT_SECONDS
     }
 
     return rule.everySeconds
@@ -104,7 +107,7 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     this.setState({bucket})
   }
 
-  private handleChangeRuleType = ruleType => {
+  private handleChangeRuleType = (ruleType: BucketRetentionRules.TypeEnum) => {
     this.setState({ruleType})
   }
 
