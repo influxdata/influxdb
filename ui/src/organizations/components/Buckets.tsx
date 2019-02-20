@@ -44,7 +44,14 @@ interface State {
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {bucketDeleted} from 'src/shared/copy/v2/notifications'
+import {
+  bucketDeleteSuccess,
+  bucketDeleteFailed,
+  bucketCreateFailed,
+  bucketCreateSuccess,
+  bucketUpdateFailed,
+  bucketUpdateSuccess,
+} from 'src/shared/copy/v2/notifications'
 
 @ErrorHandling
 export default class Buckets extends PureComponent<Props, State> {
@@ -106,21 +113,40 @@ export default class Buckets extends PureComponent<Props, State> {
   }
 
   private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {
-    await client.buckets.update(updatedBucket.id, updatedBucket)
-    this.props.onChange()
+    const {onChange, notify} = this.props
+    try {
+      await client.buckets.update(updatedBucket.id, updatedBucket)
+      onChange()
+      notify(bucketUpdateSuccess(updatedBucket.name))
+    } catch (e) {
+      console.error(e)
+      notify(bucketUpdateFailed(updatedBucket.name))
+    }
   }
 
   private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
     const {onChange, notify} = this.props
-    await client.buckets.delete(deletedBucket.id)
-    onChange()
-    notify(bucketDeleted(deletedBucket.name))
+    try {
+      await client.buckets.delete(deletedBucket.id)
+      onChange()
+      notify(bucketDeleteSuccess(deletedBucket.name))
+    } catch (e) {
+      console.error(e)
+      bucketDeleteFailed(deletedBucket.name)
+    }
   }
 
   private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
-    await client.buckets.create(bucket)
-    this.props.onChange()
-    this.handleCloseModal()
+    const {onChange, notify} = this.props
+    try {
+      await client.buckets.create(bucket)
+      onChange()
+      this.handleCloseModal()
+      notify(bucketCreateSuccess())
+    } catch (e) {
+      console.error(e)
+      notify(bucketCreateFailed())
+    }
   }
 
   private handleOpenModal = (): void => {

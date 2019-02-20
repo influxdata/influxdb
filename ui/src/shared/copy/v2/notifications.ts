@@ -120,9 +120,34 @@ export const labelUpdateFailed = (): Notification => ({
   message: 'Failed to update label',
 })
 
-export const bucketDeleted = (bucketName: string): Notification => ({
+export const bucketDeleteSuccess = (bucketName: string): Notification => ({
   ...defaultSuccessNotification,
-  message: `Bucket ${bucketName} was successfully deleted`,
+  message: `Bucket "${bucketName}" was successfully deleted`,
+})
+
+export const bucketDeleteFailed = (bucketName: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete bucket: "${bucketName}"`,
+})
+
+export const bucketCreateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Bucket was successfully created',
+})
+
+export const bucketCreateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create bucket',
+})
+
+export const bucketUpdateSuccess = (bucketName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Bucket "${bucketName}" was successfully updated`,
+})
+
+export const bucketUpdateFailed = (bucketName: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update bucket: "${bucketName}"`,
 })
 
 export const scraperDeleteSuccess = (scraperName: string): Notification => ({
