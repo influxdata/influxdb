@@ -19,7 +19,7 @@ import {CancellationError} from 'src/types/promises'
 //
 export function restartable<T extends any[], V>(
   f: (...args: T) => Promise<V>
-): ((...args: T) => Promise<V>) {
+): (...args: T) => Promise<V> {
   let id: number = 0
 
   const checkResult = async (

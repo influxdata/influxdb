@@ -114,19 +114,18 @@ class ThresholdList extends PureComponent<Props> {
   }
 
   private handleChooseColor = (threshold: Color) => {
-    const colors = this.props.colorConfigs.map(
-      ({color}) =>
-        color.id === threshold.id
-          ? {...color, hex: threshold.hex, name: threshold.name}
-          : color
+    const colors = this.props.colorConfigs.map(({color}) =>
+      color.id === threshold.id
+        ? {...color, hex: threshold.hex, name: threshold.name}
+        : color
     )
 
     this.props.onUpdateColors(colors)
   }
 
   private handleUpdateColorValue = (threshold: Color, value: number) => {
-    const colors = this.props.colorConfigs.map(
-      ({color}) => (color.id === threshold.id ? {...color, value} : color)
+    const colors = this.props.colorConfigs.map(({color}) =>
+      color.id === threshold.id ? {...color, value} : color
     )
 
     this.props.onUpdateColors(colors)

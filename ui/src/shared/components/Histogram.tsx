@@ -86,12 +86,9 @@ const Histogram: SFC<Props> = ({
   const colorHexes = useMemo(() => colors.map(c => c.hex), [colors])
   const {table} = useMemo(() => toMinardTable(tables), [tables])
 
-  useEffect(
-    () => {
-      onTableLoaded(table)
-    },
-    [table]
-  )
+  useEffect(() => {
+    onTableLoaded(table)
+  }, [table])
 
   const mappings = resolveMappings(table, xColumn, fillColumns)
   const fill = useSetIdentity(mappings.fill)

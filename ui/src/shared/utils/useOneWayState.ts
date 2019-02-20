@@ -12,18 +12,15 @@ export const useOneWayState = (defaultState: any) => {
   const isFirstRender = useRef(true)
   const [state, setState] = useState(defaultState)
 
-  useEffect(
-    () => {
-      if (isFirstRender.current) {
-        isFirstRender.current = false
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
 
-        return
-      }
+      return
+    }
 
-      setState(defaultState)
-    },
-    [defaultState]
-  )
+    setState(defaultState)
+  }, [defaultState])
 
   return [state, setState]
 }
