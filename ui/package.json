@@ -161,6 +161,7 @@
     "react": "^16.8.0",
     "react-codemirror2": "^4.2.1",
     "react-copy-to-clipboard": "^5.0.1",
+    "react-datepicker": "^2.1.0",
     "react-dimensions": "^1.2.0",
     "react-dnd": "^2.6.0",
     "react-dnd-html5-backend": "^2.6.0",

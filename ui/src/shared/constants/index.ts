@@ -410,6 +410,7 @@ export const LAYOUT_MARGIN = 4
 export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5
 
 export const TIME_RANGE_START = 'timeRangeStart'
+export const TIME_RANGE_STOP = 'timeRangeStop'
 export const WINDOW_PERIOD = 'windowPeriod'
 
 export const DYGRAPH_CONTAINER_H_MARGIN = 16

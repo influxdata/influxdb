@@ -121,45 +121,6 @@
   }
 }
 
-.flux-functions-toolbar--tooltip-dismiss {
-  position: absolute;
-  z-index: 5000;
-  top: 0;
-  right: 0;
-  transform: translate(0,-50%);
-  width: 24px;
-  height: 24px;
-  outline: none;
-  border-radius: 50%;
-  background-color: $c-pool;
-  transition: background-color 0.25s ease;
-  border: 0;
-
-  &:before,
-  &:after {
-    content: '';
-    position: absolute;
-    width: 13px;
-    height: 3px;
-    top: 50%;
-    left: 50%;
-    border-radius: 1px;
-    background-color: $g20-white;
-  }
-
-  &:before {
-    transform: translate(-50%, -50%) rotate(45deg);
-  }
-
-  &:after {
-    transform: translate(-50%, -50%) rotate(-45deg);
-  }
-
-  &:hover {
-    background-color: $c-laser;
-    cursor: pointer;
-  }
-}
 
 .flux-functions-toolbar--tooltip-dismiss {
   position: absolute;
