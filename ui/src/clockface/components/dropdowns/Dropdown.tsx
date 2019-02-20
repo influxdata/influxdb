@@ -122,11 +122,11 @@ class Dropdown extends Component<Props, State> {
       buttonColor,
       buttonSize,
       icon,
-      children,
       titleText,
       buttonTestID,
     } = this.props
     const {expanded} = this.state
+    const children: JSX.Element[] = this.props.children
 
     const selectedChild = children.find(child => child.props.id === selectedID)
     const isLoading = status === ComponentStatus.Loading
