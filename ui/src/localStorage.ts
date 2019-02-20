@@ -16,7 +16,7 @@ export const loadLocalStorage = (): LocalStorage => {
     if (state.VERSION && state.VERSION !== VERSION) {
       const version = VERSION ? ` (${VERSION})` : ''
 
-      console.log(newVersion(version).message) // tslint:disable-line no-console
+      console.log(newVersion(version).message) // eslint-disable-line no-console
     }
 
     delete state.VERSION
