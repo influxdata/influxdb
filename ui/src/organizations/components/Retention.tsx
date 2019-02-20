@@ -23,6 +23,8 @@ interface Props {
   onChangeRuleType: (type: BucketRetentionRules.TypeEnum) => void
 }
 
+export const DEFAULT_SECONDS = 0
+
 export default class Retention extends PureComponent<Props> {
   public render() {
     const {retentionSeconds, type} = this.props
@@ -56,6 +58,7 @@ export default class Retention extends PureComponent<Props> {
   }
 
   private handleRadioClick = (type: BucketRetentionRules.TypeEnum) => {
+    this.props.onChangeRetentionRule(DEFAULT_SECONDS)
     this.props.onChangeRuleType(type)
   }
 
