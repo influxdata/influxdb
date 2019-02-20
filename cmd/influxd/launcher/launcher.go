@@ -626,3 +626,8 @@ func (m *Launcher) TaskStore() taskbackend.Store {
 func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
 	return m.scheduler
 }
+
+// KeyValueService returns the internal key-value service.
+func (m *Launcher) KeyValueService() *kv.Service {
+	return m.kvService
+}
