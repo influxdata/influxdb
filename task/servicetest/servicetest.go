@@ -43,7 +43,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 	sys, cancel := fn(t)
 	defer cancel()
 	if sys.TaskServiceFunc == nil {
-		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch, sys.I, sys.I)
+		sys.ts = task.PlatformAdapter(sys.S, sys.LR, sys.Sch, sys.I, sys.I, sys.I)
 	} else {
 		sys.ts = sys.TaskServiceFunc()
 	}
@@ -83,6 +83,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 // TestCreds encapsulates credentials needed for a system to properly work with tasks.
 type TestCreds struct {
 	OrgID, UserID, AuthorizationID platform.ID
+	Org                            string
 	Token                          string
 }
 
@@ -188,8 +189,8 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		if f.OrganizationID != cr.OrgID {
 			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, cr.OrgID.String(), f.OrganizationID.String())
 		}
-		if f.Organization != "TestTaskService_org" {
-			t.Fatalf("%s: wrong organization returned; want 'TestTaskService_org', got %q", fn, f.Organization)
+		if f.Organization != cr.Org {
+			t.Fatalf("%s: wrong organization returned; want %q, got %q", fn, cr.Org, f.Organization)
 		}
 		if f.AuthorizationID != authzID {
 			t.Fatalf("%s: wrong authorization ID returned; want %s, got %s", fn, authzID.String(), f.AuthorizationID.String())
@@ -983,6 +984,7 @@ func creds(t *testing.T, s *System) TestCreds {
 
 		return TestCreds{
 			OrgID:           o.ID,
+			Org:             o.Name,
 			UserID:          u.ID,
 			AuthorizationID: authz.ID,
 			Token:           authz.Token,

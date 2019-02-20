@@ -79,12 +79,14 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 								ID:              1,
 								Name:            "task1",
 								OrganizationID:  1,
+								Organization:    "test",
 								AuthorizationID: 0x100,
 							},
 							{
 								ID:              2,
 								Name:            "task2",
 								OrganizationID:  2,
+								Organization:    "test",
 								AuthorizationID: 0x200,
 							},
 						}

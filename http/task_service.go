@@ -312,17 +312,6 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for _, task := range tasks {
-		if err := h.populateOrg(ctx, task); err != nil {
-			err = &platform.Error{
-				Err: err,
-				Msg: "could not identify organization",
-			}
-			EncodeError(ctx, err, w)
-			return
-		}
-	}
-
 	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, h.LabelService)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -446,15 +435,6 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.populateTaskCreateOrg(ctx, &req.TaskCreate); err != nil {
-		err = &platform.Error{
-			Err: err,
-			Msg: "could not identify organization",
-		}
-		EncodeError(ctx, err, w)
-		return
-	}
-
 	if !req.TaskCreate.OrganizationID.Valid() {
 		err := &platform.Error{
 			Code: platform.EInvalid,
@@ -523,15 +503,6 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 			Err:  err,
 			Code: platform.ENotFound,
 			Msg:  "failed to find task",
-		}
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	if err := h.populateOrg(ctx, task); err != nil {
-		err = &platform.Error{
-			Err: err,
-			Msg: "could not identify organization",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -610,15 +581,6 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		err = &platform.Error{
 			Err: err,
 			Msg: "failed to find resource labels",
-		}
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	if err := h.populateOrg(ctx, task); err != nil {
-		err = &platform.Error{
-			Err: err,
-			Msg: "could not identify organization",
 		}
 		EncodeError(ctx, err, w)
 		return
@@ -717,7 +679,7 @@ func decodeDeleteTaskRequest(ctx context.Context, r *http.Request) (*deleteTaskR
 func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeGetLogsRequest(ctx, r, h.OrganizationService)
+	req, err := decodeGetLogsRequest(ctx, r)
 	if err != nil {
 		err = &platform.Error{
 			Err:  err,
@@ -751,7 +713,7 @@ type getLogsRequest struct {
 	filter platform.LogFilter
 }
 
-func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.OrganizationService) (*getLogsRequest, error) {
+func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -782,7 +744,7 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeGetRunsRequest(ctx, r, h.OrganizationService)
+	req, err := decodeGetRunsRequest(ctx, r)
 	if err != nil {
 		err = &platform.Error{
 			Err:  err,
@@ -816,7 +778,7 @@ type getRunsRequest struct {
 	filter platform.RunFilter
 }
 
-func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.OrganizationService) (*getRunsRequest, error) {
+func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -1633,54 +1595,4 @@ func taskIDRunsPath(id platform.ID) string {
 
 func taskIDRunIDPath(taskID, runID platform.ID) string {
 	return path.Join(tasksPath, taskID.String(), "runs", runID.String())
-}
-
-func (h *TaskHandler) populateOrg(ctx context.Context, t *platform.Task) error {
-	if t.OrganizationID.Valid() && t.Organization != "" {
-		return nil
-	}
-
-	if !t.OrganizationID.Valid() && t.Organization == "" {
-		return errors.New("missing orgID and organization name")
-	}
-
-	if t.OrganizationID.Valid() {
-		o, err := h.OrganizationService.FindOrganizationByID(ctx, t.OrganizationID)
-		if err != nil {
-			return err
-		}
-		t.Organization = o.Name
-	} else {
-		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &t.Organization})
-		if err != nil {
-			return err
-		}
-		t.OrganizationID = o.ID
-	}
-	return nil
-}
-
-func (h *TaskHandler) populateTaskCreateOrg(ctx context.Context, tc *platform.TaskCreate) error {
-	if tc.OrganizationID.Valid() && tc.Organization != "" {
-		return nil
-	}
-
-	if !tc.OrganizationID.Valid() && tc.Organization == "" {
-		return errors.New("missing orgID and organization name")
-	}
-
-	if tc.OrganizationID.Valid() {
-		o, err := h.OrganizationService.FindOrganizationByID(ctx, tc.OrganizationID)
-		if err != nil {
-			return err
-		}
-		tc.Organization = o.Name
-	} else {
-		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &tc.Organization})
-		if err != nil {
-			return err
-		}
-		tc.OrganizationID = o.ID
-	}
-	return nil
 }

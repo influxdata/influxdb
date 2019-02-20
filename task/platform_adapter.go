@@ -18,8 +18,8 @@ type RunController interface {
 }
 
 // PlatformAdapter wraps a task.Store into the platform.TaskService interface.
-func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController, as platform.AuthorizationService, urm platform.UserResourceMappingService) platform.TaskService {
-	return pAdapter{s: s, r: r, rc: rc, as: as, urm: urm}
+func PlatformAdapter(s backend.Store, r backend.LogReader, rc RunController, as platform.AuthorizationService, urm platform.UserResourceMappingService, orgSvc platform.OrganizationService) platform.TaskService {
+	return pAdapter{s: s, r: r, rc: rc, as: as, urm: urm, orgSvc: orgSvc}
 }
 
 type pAdapter struct {
@@ -28,8 +28,9 @@ type pAdapter struct {
 	r  backend.LogReader
 
 	// Needed to look up authorization ID from token during create.
-	as  platform.AuthorizationService
-	urm platform.UserResourceMappingService
+	as     platform.AuthorizationService
+	urm    platform.UserResourceMappingService
+	orgSvc platform.OrganizationService
 }
 
 var _ platform.TaskService = pAdapter{}
@@ -45,7 +46,7 @@ func (p pAdapter) FindTaskByID(ctx context.Context, id platform.ID) (*platform.T
 		return nil, nil
 	}
 
-	return toPlatformTask(*t, m)
+	return p.toPlatformTask(ctx, *t, m)
 }
 
 func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
@@ -72,7 +73,7 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 			if err != nil {
 				return nil, 0, err
 			}
-			task, err := toPlatformTask(*storeTask, meta)
+			task, err := p.toPlatformTask(ctx, *storeTask, meta)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -93,7 +94,7 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 
 	pts := make([]*platform.Task, len(ts))
 	for i, t := range ts {
-		pts[i], err = toPlatformTask(t.Task, &t.Meta)
+		pts[i], err = p.toPlatformTask(ctx, t.Task, &t.Meta)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -120,8 +121,13 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		t.Status = string(backend.DefaultTaskStatus)
 	}
 
+	org := platform.Organization{ID: t.OrganizationID, Name: t.Organization}
+	if err := p.populateOrg(ctx, &org); err != nil {
+		return nil, err
+	}
+
 	req := backend.CreateTaskRequest{
-		Org:           t.OrganizationID,
+		Org:           org.ID,
 		ScheduleAfter: scheduleAfter,
 		Status:        backend.TaskStatus(t.Status),
 		Script:        t.Flux,
@@ -140,8 +146,8 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		Flux:            t.Flux,
 		Cron:            opts.Cron,
 		Name:            opts.Name,
-		OrganizationID:  t.OrganizationID,
-		Organization:    t.Organization,
+		OrganizationID:  org.ID,
+		Organization:    org.Name,
 		Status:          t.Status,
 		AuthorizationID: req.AuthorizationID,
 	}
@@ -355,15 +361,21 @@ func (p pAdapter) authorizationIDFromToken(ctx context.Context, token string) (p
 	return a.ID, nil
 }
 
-func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Task, error) {
+func (p *pAdapter) toPlatformTask(ctx context.Context, t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Task, error) {
 	opts, err := options.FromScript(t.Script)
 	if err != nil {
 		return nil, err
 	}
 
+	org := platform.Organization{ID: t.Org}
+	if err := p.populateOrg(ctx, &org); err != nil {
+		return nil, err
+	}
+
 	pt := &platform.Task{
 		ID:             t.ID,
-		OrganizationID: t.Org,
+		OrganizationID: org.ID,
+		Organization:   org.Name,
 		Name:           t.Name,
 		Flux:           t.Script,
 		Cron:           opts.Cron,
@@ -386,4 +398,29 @@ func toPlatformTask(t backend.StoreTask, m *backend.StoreTaskMeta) (*platform.Ta
 		pt.AuthorizationID = platform.ID(m.AuthorizationID)
 	}
 	return pt, nil
+}
+
+func (p *pAdapter) populateOrg(ctx context.Context, org *platform.Organization) error {
+	if org.ID.Valid() && org.Name != "" {
+		return nil
+	}
+
+	if !org.ID.Valid() && org.Name == "" {
+		return errors.New("missing orgID and organization name")
+	}
+
+	if org.ID.Valid() {
+		o, err := p.orgSvc.FindOrganizationByID(ctx, org.ID)
+		if err != nil {
+			return err
+		}
+		org.Name = o.Name
+	} else {
+		o, err := p.orgSvc.FindOrganization(ctx, platform.OrganizationFilter{Name: &org.Name})
+		if err != nil {
+			return err
+		}
+		org.ID = o.ID
+	}
+	return nil
 }
