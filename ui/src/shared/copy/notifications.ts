@@ -623,6 +623,18 @@ export const deleteVariableSuccess = (name: string): Notification => ({
   message: `Successfully deleted variable ${name}.`,
 })
 
+export const updateVariableFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Failed to update variable.`,
+})
+
+export const updateVariableSuccess = (name: string): Notification => ({
+  ...defaultSuccessNotification,
+  icon: 'cube',
+  message: `Successfully updated variable ${name}.`,
+})
+
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
 export const alertRuleCreated = (ruleName: string): Notification => ({

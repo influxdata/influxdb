@@ -11,10 +11,13 @@ import {
 
 // Types
 import {Variable} from '@influxdata/influx'
+import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   variable: Variable
   onDeleteVariable: (variable: Variable) => void
+  onUpdateVariableName: (variable: Partial<Variable>) => void
+  onEditVariable: (variable: Variable) => void
 }
 
 export default class VariableRow extends PureComponent<Props> {
@@ -24,7 +27,14 @@ export default class VariableRow extends PureComponent<Props> {
     return (
       <IndexList.Row>
         <IndexList.Cell alignment={Alignment.Left}>
-          {variable.name}
+          <EditableName
+            onUpdate={this.handleUpdateVariableName}
+            name={variable.name}
+            noNameString={'NAME THIS VARIABLE'}
+            onEditName={this.handleEditVariable}
+          >
+            {variable.name}
+          </EditableName>
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Left}>{'Query'}</IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
@@ -38,5 +48,15 @@ export default class VariableRow extends PureComponent<Props> {
         </IndexList.Cell>
       </IndexList.Row>
     )
+  }
+
+  private handleUpdateVariableName = (name: string) => {
+    const {onUpdateVariableName, variable} = this.props
+
+    onUpdateVariableName({id: variable.id, name})
+  }
+
+  private handleEditVariable = (): void => {
+    this.props.onEditVariable(this.props.variable)
   }
 }
