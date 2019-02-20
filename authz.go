@@ -121,6 +121,8 @@ const (
 	LabelsResourceType = ResourceType("labels") // 11
 	// ViewsResourceType gives permission to one or more views.
 	ViewsResourceType = ResourceType("views") // 12
+	// BillingResourceType gives permission to one or more billings.
+	BillingResourceType = ResourceType("billing") // 13
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -138,6 +140,7 @@ var AllResourceTypes = []ResourceType{
 	SecretsResourceType,        // 10
 	LabelsResourceType,         // 11
 	ViewsResourceType,          // 12
+	BillingResourceType,        // 13
 }
 
 // OrgResourceTypes is the list of all known resource types that belong to an organization.
@@ -173,6 +176,7 @@ func (t ResourceType) Valid() (err error) {
 	case SecretsResourceType: // 10
 	case LabelsResourceType: // 11
 	case ViewsResourceType: // 12
+	case BillingResourceType: // 13
 	default:
 		err = ErrInvalidResourceType
 	}
