@@ -188,6 +188,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		if f.OrganizationID != cr.OrgID {
 			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, cr.OrgID.String(), f.OrganizationID.String())
 		}
+		if f.Organization != "TestTaskService_org" {
+			t.Fatalf("%s: wrong organization returned; want 'TestTaskService_org', got %q", fn, f.Organization)
+		}
 		if f.AuthorizationID != authzID {
 			t.Fatalf("%s: wrong authorization ID returned; want %s, got %s", fn, authzID.String(), f.AuthorizationID.String())
 		}

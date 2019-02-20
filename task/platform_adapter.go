@@ -141,6 +141,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		Cron:            opts.Cron,
 		Name:            opts.Name,
 		OrganizationID:  t.OrganizationID,
+		Organization:    t.Organization,
 		Status:          t.Status,
 		AuthorizationID: req.AuthorizationID,
 	}
