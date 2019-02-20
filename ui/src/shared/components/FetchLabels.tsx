@@ -3,7 +3,8 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {EmptyState, SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {EmptyState} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // APIs
 import {client} from 'src/utils/api'

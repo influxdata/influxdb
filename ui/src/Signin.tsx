@@ -7,7 +7,7 @@ import {client} from 'src/utils/api'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'

@@ -8,7 +8,8 @@ import LogoutButton from 'src/me/components/LogoutButton'
 import OrgsList from 'src/me/components/OrgsList'
 import DashboardsList from 'src/me/components/DashboardsList'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
-import {Panel, SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {Panel} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import VersionInfo from 'src/shared/components/VersionInfo'
 
 // APIs

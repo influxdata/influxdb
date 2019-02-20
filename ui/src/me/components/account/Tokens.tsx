@@ -3,7 +3,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {IconFont, Input, SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {IconFont, Input} from 'src/clockface'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import TokenList from 'src/me/components/account/TokensList'
 import FilterList from 'src/shared/components/Filter'
