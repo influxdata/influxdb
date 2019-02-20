@@ -8,11 +8,12 @@ interface Props<T> {
   list: T[]
   searchTerm: string
   searchKeys: string[]
+  sortByKey?: string
   children: (list: T[]) => any
 }
 
 const INEXACT_PATH = /\w+\[\]/g
-
+const EMPTY_ARRAY_BRACKETS = /\[\]?\./
 /**
  * Filters a list using a searchTerm and searchKeys where
  *  searchKeys is an array of strings represents either an
@@ -22,7 +23,7 @@ const INEXACT_PATH = /\w+\[\]/g
  */
 export default class FilterList<T> extends PureComponent<Props<T>> {
   public render() {
-    return this.props.children(this.filtered)
+    return this.props.children(_.sortBy(this.filtered, this.props.sortByKey))
   }
 
   private get filtered(): T[] {
@@ -37,8 +38,7 @@ export default class FilterList<T> extends PureComponent<Props<T>> {
       const isInList = searchKeys.some(key => {
         const value = this.getKey(item, key)
 
-        const isStringArray =
-          (_.isArray(value) && _.isEmpty(value)) || _.isString(value[0])
+        const isStringArray = this.isStringArray(value)
 
         if (!isStringArray && _.isObject(value)) {
           throw new Error(
@@ -67,6 +67,18 @@ export default class FilterList<T> extends PureComponent<Props<T>> {
     return filtered
   }
 
+  private isStringArray(value: any): boolean {
+    if (!_.isArray(value)) {
+      return false
+    }
+
+    if (_.isEmpty(value) || _.isString(value[0])) {
+      return true
+    }
+
+    return false
+  }
+
   private get formattedSearchTerm(): string {
     return this.props.searchTerm.trimLeft().toLocaleLowerCase()
   }
@@ -77,15 +89,19 @@ export default class FilterList<T> extends PureComponent<Props<T>> {
     if (!isInexact) {
       return _.get(item, key, '')
     } else {
-      const paths = key.split(/\[\]?\./)
-      // flattens nested arrays into one large array
-      const values = paths.reduce(
-        (results, path) => _.flatMap(results, r => _.get(r, path, [])),
-        [item]
-      )
-
-      return values
+      return this.getInExactKey(item, key)
     }
+  }
+
+  private getInExactKey(item: T, key: string) {
+    const paths = key.split(EMPTY_ARRAY_BRACKETS)
+    // flattens nested arrays into one large array
+    const values = paths.reduce(
+      (results, path) => _.flatMap(results, r => _.get(r, path, [])),
+      [item]
+    )
+
+    return values
   }
 
   private createIndex = (terms: string[]) => {

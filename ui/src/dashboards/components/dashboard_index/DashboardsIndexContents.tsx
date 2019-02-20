@@ -52,6 +52,7 @@ export default class DashboardsIndexContents extends Component<Props> {
         list={dashboards}
         searchTerm={searchTerm}
         searchKeys={['name', 'labels[].name']}
+        sortByKey="name"
       >
         {filteredDashboards => (
           <Table
