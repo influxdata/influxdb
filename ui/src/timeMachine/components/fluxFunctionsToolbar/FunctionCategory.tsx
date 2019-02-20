@@ -2,7 +2,7 @@
 import React, {SFC} from 'react'
 
 // Components
-import ToolbarFunction from 'src/timeMachine/components/flux_functions_toolbar/ToolbarFunction'
+import ToolbarFunction from 'src/timeMachine/components/fluxFunctionsToolbar/ToolbarFunction'
 
 // Types
 import {FluxToolbarFunction} from 'src/types/shared'

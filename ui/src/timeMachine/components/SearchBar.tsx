@@ -8,8 +8,12 @@ import {Input, IconFont} from 'src/clockface'
 // Types
 import {InputType} from 'src/clockface/components/inputs/Input'
 
+// Styles
+import 'src/timeMachine/components/SearchBar.scss'
+
 interface Props {
   onSearch: (s: string) => void
+  resourceName: string
 }
 
 interface State {
@@ -31,11 +35,11 @@ class SearchBar extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <div className="flux-functions-toolbar--search">
+      <div className="search-bar">
         <Input
           type={InputType.Text}
           icon={IconFont.Search}
-          placeholder="Filter Functions..."
+          placeholder={`Filter ${this.props.resourceName}...`}
           onChange={this.handleChange}
           value={this.state.searchTerm}
         />

@@ -3,10 +3,10 @@ import React, {PureComponent, MouseEvent, CSSProperties, createRef} from 'react'
 
 // Components
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
-import TooltipDescription from 'src/timeMachine/components/flux_functions_toolbar/TooltipDescription'
-import TooltipArguments from 'src/timeMachine/components/flux_functions_toolbar/TooltipArguments'
-import TooltipExample from 'src/timeMachine/components/flux_functions_toolbar/TooltipExample'
-import TooltipLink from 'src/timeMachine/components/flux_functions_toolbar/TooltipLink'
+import TooltipDescription from 'src/timeMachine/components/fluxFunctionsToolbar/TooltipDescription'
+import TooltipArguments from 'src/timeMachine/components/fluxFunctionsToolbar/TooltipArguments'
+import TooltipExample from 'src/timeMachine/components/fluxFunctionsToolbar/TooltipExample'
+import TooltipLink from 'src/timeMachine/components/fluxFunctionsToolbar/TooltipLink'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types

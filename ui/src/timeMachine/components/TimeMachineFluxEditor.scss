@@ -1,4 +1,14 @@
-@import "src/style/modules";
+@import 'src/style/modules';
+
+.toolbar-tab-container {
+  width: 100%;
+  display: inline-flex;
+  align-items: stretch;
+  height: 38px;
+  background-color: $g2-kevlar;
+  padding: $ix-marg-b;
+  padding-bottom: 0;
+}
 
 .time-machine-flux-editor {
   position: absolute;
