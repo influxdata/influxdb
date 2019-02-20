@@ -1,14 +1,11 @@
 // currently getting unauthorized errors for task creation
 describe.skip('Tasks', () => {
-  let orgID: string = ''
   beforeEach(() => {
     cy.flush()
 
     cy.setupUser().then(({body}) => {
-      orgID = body.org.id
+      cy.signin(body.org.id)
     })
-
-    cy.signin()
 
     cy.visit('/tasks')
   })

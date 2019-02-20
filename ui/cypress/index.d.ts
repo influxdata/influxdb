@@ -3,6 +3,7 @@ import {
   setupUser,
   createDashboard,
   createOrg,
+  createSource,
   flush,
   getByDataTest,
   getByInputName,
@@ -14,6 +15,7 @@ declare global {
     interface Chainable {
       signin: typeof signin
       setupUser: typeof setupUser
+      createSource: typeof createSource
       createDashboard: typeof createDashboard
       createOrg: typeof createOrg
       flush: typeof flush

@@ -5,9 +5,8 @@ describe('Dashboards', () => {
 
     cy.setupUser().then(({body}) => {
       orgID = body.org.id
+      cy.signin(orgID)
     })
-
-    cy.signin()
 
     cy.fixture('routes').then(({dashboards}) => {
       cy.visit(dashboards)
