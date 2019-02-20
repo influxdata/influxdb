@@ -2,7 +2,7 @@
 import React, {PureComponent, createRef} from 'react'
 
 // Component
-import FunctionTooltip from 'src/timeMachine/components/flux_functions_toolbar/FunctionTooltip'
+import FunctionTooltip from 'src/timeMachine/components/fluxFunctionsToolbar/FunctionTooltip'
 
 // Types
 import {FluxToolbarFunction} from 'src/types/shared'
