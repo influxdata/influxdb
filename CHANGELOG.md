@@ -11,6 +11,7 @@
 
 ### UI Improvements
 1. [12016](https://github.com/influxdata/influxdb/pull/12016): Update the preview in the label overlays to be shorter
+1. [12012](https://github.com/influxdata/influxdb/pull/12012): Add notifications to scrapers page for created/deleted/failed scrapers 
 
 ## v2.0.0-alpha.3 [2019-02-15]
 

@@ -16,6 +16,9 @@ import {
 import {EmptyState, Input, InputType, Tabs} from 'src/clockface'
 import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
 
+// Actions
+import * as NotificationsActions from 'src/types/actions/notifications'
+
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -23,12 +26,19 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ScraperTargetResponse, Bucket} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
 import {DataLoaderType, DataLoaderStep} from 'src/types/v2/dataLoaders'
+import {
+  scraperDeleteSuccess,
+  scraperDeleteFailed,
+  scraperUpdateSuccess,
+  scraperUpdateFailed,
+} from 'src/shared/copy/v2/notifications'
 
 interface Props {
   scrapers: ScraperTargetResponse[]
   onChange: () => void
   orgName: string
   buckets: Bucket[]
+  notify: NotificationsActions.PublishNotificationActionCreator
 }
 
 interface State {
@@ -160,13 +170,27 @@ export default class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleUpdateScraper = async (scraper: ScraperTargetResponse) => {
-    await client.scrapers.update(scraper.id, scraper)
-    this.props.onChange()
+    const {onChange, notify} = this.props
+    try {
+      await client.scrapers.update(scraper.id, scraper)
+      onChange()
+      notify(scraperUpdateSuccess(scraper.name))
+    } catch (e) {
+      console.error(e)
+      notify(scraperUpdateFailed(scraper.name))
+    }
   }
 
   private handleDeleteScraper = async (scraper: ScraperTargetResponse) => {
-    await client.scrapers.delete(scraper.id)
-    this.props.onChange()
+    const {onChange, notify} = this.props
+    try {
+      await client.scrapers.delete(scraper.id)
+      onChange()
+      notify(scraperDeleteSuccess(scraper.name))
+    } catch (e) {
+      notify(scraperDeleteFailed(scraper.name))
+      console.error(e)
+    }
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
