@@ -231,21 +231,34 @@ func (l *Launcher) ShutdownOrFail(tb testing.TB, ctx context.Context) {
 
 // SetupOrFail creates a new user, bucket, org, and auth token. Fail on error.
 func (l *Launcher) SetupOrFail(tb testing.TB) {
-	svc := &http.SetupService{Addr: l.URL()}
-	results, err := svc.Generate(ctx, &platform.OnboardingRequest{
+	results := l.OnBoardOrFail(tb, &platform.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",
 		Org:      "ORG",
 		Bucket:   "BUCKET",
 	})
-	if err != nil {
-		tb.Fatal(err)
-	}
 
 	l.User = results.User
 	l.Org = results.Org
 	l.Bucket = results.Bucket
 	l.Auth = results.Auth
+}
+
+// OnBoardOrFail attempts an on-boarding request or fails on error.
+// The on-boarding status is also reset to allow multiple user/org/buckets to be created.
+func (l *Launcher) OnBoardOrFail(tb testing.TB, req *platform.OnboardingRequest) *platform.OnboardingResults {
+	tb.Helper()
+	res, err := l.KeyValueService().Generate(context.Background(), req)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	err = l.KeyValueService().PutOnboardingStatus(context.Background(), false)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	return res
 }
 
 func (l *Launcher) FluxService() *http.FluxService {
@@ -272,5 +285,17 @@ func (l *Launcher) MustNewHTTPRequest(method, rawurl, body string) *nethttp.Requ
 	}
 
 	req.Header.Set("Authorization", "Token "+l.Auth.Token)
+	return req
+}
+
+// MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.
+func (l *Launcher) NewHTTPRequestOrFail(tb testing.TB, method, rawurl, token string, body string) *nethttp.Request {
+	tb.Helper()
+	req, err := nethttp.NewRequest(method, l.URL()+rawurl, strings.NewReader(body))
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	req.Header.Set("Authorization", "Token "+token)
 	return req
 }
