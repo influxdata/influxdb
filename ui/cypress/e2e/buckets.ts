@@ -8,9 +8,9 @@ describe('Buckets', () => {
       const {org, bucket} = body
       orgID = org.id
       bucketName = bucket.name
-    })
 
-    cy.signin()
+      cy.signin(orgID)
+    })
 
     cy.fixture('routes').then(({orgs}) => {
       cy.visit(`${orgs}/${orgID}/buckets_tab`)
