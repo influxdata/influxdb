@@ -103,7 +103,7 @@ export class Collectors extends PureComponent<Props, State> {
             <Grid.Column widthSM={Columns.Twelve}>
               <FilterList<Telegraf>
                 searchTerm={searchTerm}
-                searchKeys={['plugins.0.config.bucket']}
+                searchKeys={['plugins.0.config.bucket', 'labels[].name']}
                 list={collectors}
               >
                 {cs => (

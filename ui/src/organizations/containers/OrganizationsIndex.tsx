@@ -20,6 +20,7 @@ import {Organization, Links} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import FilterList from 'src/shared/components/Filter'
 
 interface StateProps {
   links: Links
@@ -51,7 +52,7 @@ class OrganizationsIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {links, onCreateOrg, onDeleteOrg} = this.props
+    const {links, onCreateOrg, onDeleteOrg, orgs} = this.props
     const {modalState, searchTerm} = this.state
 
     return (
@@ -76,11 +77,19 @@ class OrganizationsIndex extends PureComponent<Props, State> {
             </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <OrganizationsIndexContents
-              orgs={this.filteredOrgs}
-              onDeleteOrg={onDeleteOrg}
+            <FilterList<Organization>
+              searchKeys={['name']}
               searchTerm={searchTerm}
-            />
+              list={orgs}
+            >
+              {filteredOrgs => (
+                <OrganizationsIndexContents
+                  orgs={filteredOrgs}
+                  onDeleteOrg={onDeleteOrg}
+                  searchTerm={searchTerm}
+                />
+              )}
+            </FilterList>
           </Page.Contents>
         </Page>
         <OverlayTechnology visible={modalState === ModalState.Open}>
@@ -92,17 +101,6 @@ class OrganizationsIndex extends PureComponent<Props, State> {
         </OverlayTechnology>
       </>
     )
-  }
-
-  private get filteredOrgs(): Organization[] {
-    const {orgs} = this.props
-    const {searchTerm} = this.state
-
-    const filteredOrgs = orgs.filter(org =>
-      org.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-
-    return filteredOrgs
   }
 
   private handleOpenModal = (): void => {
