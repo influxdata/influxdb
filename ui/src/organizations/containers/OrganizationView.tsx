@@ -132,6 +132,7 @@ class OrganizationView extends PureComponent<Props> {
                                 onChange={fetch}
                                 orgName={org.name}
                                 buckets={buckets}
+                                notify={notify}
                               />
                             </SpinnerContainer>
                           )}
