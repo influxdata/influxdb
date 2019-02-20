@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions

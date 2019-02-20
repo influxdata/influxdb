@@ -204,12 +204,14 @@ exports[`Account rendering renders! 1`] = `
                   shape="none"
                   size="sm"
                   status="default"
+                  testID="button"
                   text="Copy"
                   titleText="copy to clipboard"
                   type="button"
                 >
                   <button
                     className="button button-sm button-default copy-button"
+                    data-testid="button"
                     disabled={false}
                     onClick={[Function]}
                     tabIndex={0}

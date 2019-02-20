@@ -2,7 +2,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 import {GetSources} from 'src/shared/containers/GetSources'
 import MockChild from 'mocks/MockChild'
-import {SpinnerContainer} from 'src/clockface'
+import {SpinnerContainer} from '@influxdata/clockface'
 
 import {source} from 'mocks/dummyData'
 

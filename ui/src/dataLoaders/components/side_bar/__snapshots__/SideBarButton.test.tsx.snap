@@ -9,6 +9,7 @@ exports[`SideBarButton rendering renders! wee! 1`] = `
   shape="none"
   size="sm"
   status="default"
+  testID="button"
   text="text"
   titleText="titleText"
   type="button"

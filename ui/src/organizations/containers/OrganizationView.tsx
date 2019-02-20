@@ -25,7 +25,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 
 // Components
 import {Page} from 'src/pageLayout'
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Variables from 'src/organizations/components/Variables'
 import OrgTasksPage from 'src/organizations/components/OrgTasksPage'

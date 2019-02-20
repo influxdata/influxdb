@@ -17,7 +17,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Organization} from '@influxdata/influx'
 
 // Components
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 

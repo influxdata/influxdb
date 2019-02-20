@@ -131,7 +131,7 @@
     "webpack": "^4.29.0"
   },
   "dependencies": {
-    "@influxdata/clockface": "0.0.4",
+    "@influxdata/clockface": "0.0.5",
     "@influxdata/influx": "^0.2.11",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "axios": "^0.18.0",
