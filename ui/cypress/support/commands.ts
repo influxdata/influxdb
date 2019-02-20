@@ -58,13 +58,6 @@ export const createSource = (
   })
 }
 
-const user = {
-  username: 'u1',
-  password: 'password1',
-  org: 'deforg',
-  bucket: 'defbuck',
-}
-
 // TODO: have to go through setup because we cannot create a user w/ a password via the user API
 export const setupUser = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password, org, bucket}) => {

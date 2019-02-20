@@ -20,6 +20,8 @@ import Signin from 'src/Signin'
 import SigninPage from 'src/onboarding/containers/SigninPage'
 import Logout from 'src/Logout'
 import TaskPage from 'src/tasks/containers/TaskPage'
+import GetSources from 'src/shared/containers/GetSources'
+import SetActiveSource from 'src/shared/containers/SetActiveSource'
 import TasksPage from 'src/tasks/containers/TasksPage'
 import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
 import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
@@ -99,49 +101,56 @@ class Root extends PureComponent {
                   <Route component={GetMe}>
                     <Route component={GetOrganizations}>
                       <Route component={App}>
-                        <IndexRoute component={MePage} />
-                        <Route path="organizations">
-                          <IndexRoute component={OrganizationsIndex} />
-                          <Route path=":orgID">
+                        <Route component={GetSources}>
+                          <Route component={SetActiveSource}>
+                            <IndexRoute component={MePage} />
+                            <Route path="organizations">
+                              <IndexRoute component={OrganizationsIndex} />
+                              <Route path=":orgID">
+                                <Route
+                                  path="tasks_tab/new"
+                                  component={OrgTaskPage}
+                                />
+                                <Route
+                                  path="tasks_tab/:id"
+                                  component={OrgTaskEditPage}
+                                />
+                                <Route
+                                  path="buckets_tab"
+                                  component={OrgBucketIndex}
+                                />
+                                <Route
+                                  path=":tab"
+                                  component={OrganizationView}
+                                />
+                              </Route>
+                            </Route>
+                            <Route path="tasks">
+                              <IndexRoute component={TasksPage} />
+                              <Route path=":id/runs" component={TaskRunsPage} />
+                              <Route path="new" component={TaskPage} />
+                              <Route path=":id" component={TaskEditPage} />
+                            </Route>
                             <Route
-                              path="tasks_tab/new"
-                              component={OrgTaskPage}
+                              path="data-explorer"
+                              component={DataExplorerPage}
                             />
+                            <Route path="dashboards">
+                              <IndexRoute component={DashboardsIndex} />
+                              <Route
+                                path=":dashboardID"
+                                component={DashboardPage}
+                              />
+                            </Route>
+                            <Route path="me" component={MePage} />
+                            <Route path="account/:tab" component={Account} />
+                            <Route path="sources" component={SourcesPage} />
                             <Route
-                              path="tasks_tab/:id"
-                              component={OrgTaskEditPage}
+                              path="configuration/:tab"
+                              component={ConfigurationPage}
                             />
-                            <Route
-                              path="buckets_tab"
-                              component={OrgBucketIndex}
-                            />
-                            <Route path=":tab" component={OrganizationView} />
                           </Route>
                         </Route>
-                        <Route path="tasks">
-                          <IndexRoute component={TasksPage} />
-                          <Route path=":id/runs" component={TaskRunsPage} />
-                          <Route path="new" component={TaskPage} />
-                          <Route path=":id" component={TaskEditPage} />
-                        </Route>
-                        <Route
-                          path="data-explorer"
-                          component={DataExplorerPage}
-                        />
-                        <Route path="dashboards">
-                          <IndexRoute component={DashboardsIndex} />
-                          <Route
-                            path=":dashboardID"
-                            component={DashboardPage}
-                          />
-                        </Route>
-                        <Route path="me" component={MePage} />
-                        <Route path="account/:tab" component={Account} />
-                        <Route path="sources" component={SourcesPage} />
-                        <Route
-                          path="configuration/:tab"
-                          component={ConfigurationPage}
-                        />
                       </Route>
                     </Route>
                   </Route>
