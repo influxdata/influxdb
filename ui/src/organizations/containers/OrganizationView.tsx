@@ -7,10 +7,6 @@ import _ from 'lodash'
 // APIs
 import {client} from 'src/utils/api'
 
-const getCollectors = async (org: Organization) => {
-  return client.telegrafConfigs.getAllByOrg(org)
-}
-
 const getScrapers = async (): Promise<ScraperTargetResponse[]> => {
   return await client.scrapers.getAll()
 }
@@ -33,7 +29,6 @@ import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Variables from 'src/organizations/components/Variables'
 import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
-import Collectors from 'src/organizations/components/Collectors'
 import Scrapers from 'src/organizations/components/Scrapers'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 import OrganizationTabs from 'src/organizations/components/OrganizationTabs'
@@ -41,12 +36,7 @@ import OrgHeader from 'src/organizations/containers/OrgHeader'
 
 // Types
 import {AppState} from 'src/types/v2'
-import {
-  Bucket,
-  Organization,
-  Telegraf,
-  ScraperTargetResponse,
-} from '@influxdata/influx'
+import {Bucket, Organization, ScraperTargetResponse} from '@influxdata/influx'
 import * as NotificationsActions from 'src/types/actions/notifications'
 import {Variable} from '@influxdata/influx'
 
@@ -109,43 +99,6 @@ class OrganizationView extends PureComponent<Props> {
                         onChange={fetch}
                         router={router}
                       />
-                    </SpinnerContainer>
-                  )}
-                </GetOrgResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="org-view-tab--telegrafs"
-                url="telegrafs_tab"
-                title="Telegraf"
-              >
-                <GetOrgResources<Telegraf>
-                  organization={org}
-                  fetcher={getCollectors}
-                >
-                  {(collectors, loading, fetch) => (
-                    <SpinnerContainer
-                      loading={loading}
-                      spinnerComponent={<TechnoSpinner />}
-                    >
-                      <GetOrgResources<Bucket>
-                        organization={org}
-                        fetcher={getBuckets}
-                      >
-                        {(buckets, loading) => (
-                          <SpinnerContainer
-                            loading={loading}
-                            spinnerComponent={<TechnoSpinner />}
-                          >
-                            <Collectors
-                              collectors={collectors}
-                              onChange={fetch}
-                              notify={notify}
-                              buckets={buckets}
-                              orgName={org.name}
-                            />
-                          </SpinnerContainer>
-                        )}
-                      </GetOrgResources>
                     </SpinnerContainer>
                   )}
                 </GetOrgResources>

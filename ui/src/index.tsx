@@ -39,6 +39,9 @@ import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
 import SourcesPage from 'src/sources/components/SourcesPage'
 import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
+import OrgDashboardsIndex from 'src/organizations/containers/OrgDashboardsIndex'
+import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
+import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -118,6 +121,18 @@ class Root extends PureComponent {
                                 <Route
                                   path="buckets_tab"
                                   component={OrgBucketIndex}
+                                />
+                                <Route
+                                  path="dashboards_tab"
+                                  component={OrgDashboardsIndex}
+                                />
+                                <Route
+                                  path="members_tab"
+                                  component={OrgMembersIndex}
+                                />
+                                <Route
+                                  path="telegrafs_tab"
+                                  component={OrgTelegrafsIndex}
                                 />
                                 <Route
                                   path=":tab"

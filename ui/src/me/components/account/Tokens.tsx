@@ -96,7 +96,7 @@ const mdtp = {
   onNotify: notify,
 }
 
-export default connect<Props>(
+export default connect<{}, Props>(
   null,
   mdtp
 )(Tokens)
