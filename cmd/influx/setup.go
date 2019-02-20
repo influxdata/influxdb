@@ -187,7 +187,10 @@ You have entered:
 	}
 }
 
-var errPasswordIsNotMatch = fmt.Errorf("passwords do not match")
+var (
+	errPasswordIsNotMatch = fmt.Errorf("passwords do not match")
+	errPasswordIsTooShort = fmt.Errorf("passwords is too short")
+)
 
 func getPassword(ui *input.UI) (password string) {
 	var err error
@@ -198,10 +201,19 @@ enterPasswd:
 			Required:  true,
 			HideOrder: true,
 			Hide:      true,
+			ValidateFunc: func(s string) error {
+				if len(s) < 8 {
+					return errPasswordIsTooShort
+				}
+				return nil
+			},
 		})
 		switch err {
 		case input.ErrInterrupted:
 			os.Exit(1)
+		case errPasswordIsTooShort:
+			fmt.Println(promptWithColor("Password too short - minimum length is 8 characters!", colorRed))
+			goto enterPasswd
 		default:
 			if password = strings.TrimSpace(password); password == "" {
 				continue
