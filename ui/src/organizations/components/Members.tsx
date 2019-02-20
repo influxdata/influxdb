@@ -34,7 +34,7 @@ export default class Members extends PureComponent<Props, State> {
         <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
-            placeholder="Filter tasks..."
+            placeholder="Filter members..."
             widthPixels={290}
             value={searchTerm}
             onChange={this.handleFilterChange}
