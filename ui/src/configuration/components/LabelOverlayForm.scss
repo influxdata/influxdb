@@ -8,9 +8,10 @@
 .label-overlay--preview {
   display: flex;
   justify-content: center;
+  height: 50px;
 
   > .label {
-    margin: $ix-marg-d 0;
+    margin: $ix-marg-a 0;
   }
 }
 

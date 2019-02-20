@@ -10,6 +10,7 @@
 1. [11997](https://github.com/influxdata/influxdb/pull/11997): Update the bucket retention policy to update the time in seconds
 
 ### UI Improvements
+1. [12016](https://github.com/influxdata/influxdb/pull/12016): Update the preview in the label overlays to be shorter
 
 ## v2.0.0-alpha.3 [2019-02-15]
 
