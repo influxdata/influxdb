@@ -1,0 +1,30 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`VersionInfo renders correctly 1`] = `
+<div
+  className="version-info"
+>
+  <p>
+    Version 
+    2.0.0
+     
+  </p>
+</div>
+`;
+
+exports[`VersionInfo when width is specified renders corectly 1`] = `
+<div
+  className="version-info"
+  style={
+    Object {
+      "width": "300px",
+    }
+  }
+>
+  <p>
+    Version 
+    2.0.0
+     
+  </p>
+</div>
+`;
