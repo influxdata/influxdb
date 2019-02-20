@@ -2335,7 +2335,7 @@ paths:
       tags:
         - Users
         - Dashboards
-      summary: removes an owner from an dashboard
+      summary: removes an owner from a dashboard
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -2353,6 +2353,35 @@ paths:
       responses:
         '204':
           description: owner removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}/logs':
+    get:
+      tags:
+        - Dashboards
+        - OperationLogs
+      summary: Retrieve operation logs for a dashboard
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - in: path
+          name: dashboardID
+          required: true
+          description: ID of the dashboard
+          schema:
+            type: string
+      responses:
+        '200':
+          description: operation logs for the dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationLogs"
         default:
           description: unexpected error
           content:
@@ -3180,6 +3209,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/buckets/{bucketID}/logs':
+    get:
+      tags:
+        - Buckets
+        - OperationLogs
+      summary: Retrieve operation logs for a bucket
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - in: path
+          name: bucketID
+          required: true
+          description: ID of the bucket
+          schema:
+            type: string
+      responses:
+        '200':
+          description: operation logs for the bucket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationLogs"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /orgs:
     get:
       tags:
@@ -3664,6 +3722,35 @@ paths:
       responses:
         '204':
           description: owner removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgID}/logs':
+    get:
+      tags:
+        - Organizations
+        - OperationLogs
+      summary: Retrieve operation logs for an organization
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - in: path
+          name: orgID
+          required: true
+          description: ID of the organization
+          schema:
+            type: string
+      responses:
+        '200':
+          description: operation logs for the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationLogs"
         default:
           description: unexpected error
           content:
@@ -4513,6 +4600,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/users/{userID}/logs':
+    get:
+      tags:
+        - Users
+        - OperationLogs
+      summary: Retrieve operation logs for a user
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - in: path
+          name: userID
+          required: true
+          description: ID of the user
+          schema:
+            type: string
+      responses:
+        '200':
+          description: operation logs for the user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationLogs"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   parameters:
     Offset:
@@ -4890,6 +5006,32 @@ components:
           description: A description of the event that occurred.
           type: string
           example: Halt and catch fire
+    OperationLog:
+      type: object
+      readOnly: true
+      properties:
+        description:
+          type: string
+          description: A description of the event that occurred.
+          example: Bucket Created
+        time:
+          type: string
+          description: Time event occurred, RFC3339Nano.
+          format: date-time
+        links:
+          type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/Link"
+    OperationLogs:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/OperationLog"
+        links:
+          $ref: "#/components/schemas/Links"
     Organization:
       properties:
         links:
