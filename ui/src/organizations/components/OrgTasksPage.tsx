@@ -11,8 +11,7 @@ import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
 import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {OverlayTechnology} from 'src/clockface'
-import ImportTaskOverlay from 'src/tasks/components/ImportTaskOverlay'
+import ImportOverlay from 'src/shared/components/ImportOverlay'
 
 // Actions
 import {
@@ -22,7 +21,7 @@ import {
   cloneTask,
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
-  importScript,
+  importTask,
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
@@ -49,7 +48,7 @@ interface ConnectedDispatchProps {
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
-  importScript: typeof importScript
+  importTask: typeof importTask
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onRunTask: typeof runTask
@@ -64,7 +63,7 @@ interface ConnectedStateProps {
 type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
 
 interface State {
-  isImportOverlayVisible: boolean
+  isImporting: boolean
   taskLabelsEdit: Task
 }
 
@@ -79,7 +78,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
     }
 
     this.state = {
-      isImportOverlayVisible: false,
+      isImporting: false,
       taskLabelsEdit: null,
     }
   }
@@ -110,7 +109,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
             setSearchTerm={setSearchTerm}
             setShowInactive={this.handleToggle}
             showInactive={showInactive}
-            toggleOverlay={this.handleToggleOverlay}
+            toggleOverlay={this.handleToggleImportOverlay}
             showOrgDropdown={false}
             showFilter={false}
           />
@@ -137,7 +136,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
             )}
           </FilterList>
         </Page>
-        {this.renderImportOverlay}
+        {this.importOverlay}
       </>
     )
   }
@@ -198,25 +197,26 @@ class OrgTasksPage extends PureComponent<Props, State> {
     router.push(`/organizations/${orgID}/tasks_tab/new`)
   }
 
-  private handleToggleOverlay = () => {
-    this.setState({isImportOverlayVisible: !this.state.isImportOverlayVisible})
+  private handleToggleImportOverlay = (): void => {
+    this.setState({isImporting: !this.state.isImporting})
   }
 
-  private handleSave = (script: string, fileName: string) => {
-    this.props.importScript(script, fileName)
-  }
-
-  private get renderImportOverlay(): JSX.Element {
-    const {isImportOverlayVisible} = this.state
-
+  private get importOverlay(): JSX.Element {
+    const {isImporting} = this.state
+    const {importTask} = this.props
     return (
-      <OverlayTechnology visible={isImportOverlayVisible}>
-        <ImportTaskOverlay
-          onDismissOverlay={this.handleToggleOverlay}
-          onSave={this.handleSave}
-        />
-      </OverlayTechnology>
+      <ImportOverlay
+        isVisible={isImporting}
+        resourceName="Task"
+        onDismissOverlay={this.handleToggleImportOverlay}
+        onImport={importTask}
+        isResourceValid={this.handleValidateTask}
+      />
     )
+  }
+
+  private handleValidateTask = (): boolean => {
+    return true
   }
 
   private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -246,7 +246,7 @@ const mdtp: ConnectedDispatchProps = {
   cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
-  importScript,
+  importTask,
   onRemoveTaskLabels: removeTaskLabelsAsync,
   onAddTaskLabels: addTaskLabelsAsync,
   onRunTask: runTask,

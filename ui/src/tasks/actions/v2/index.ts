@@ -398,22 +398,13 @@ export const saveNewScript = (
   }
 }
 
-export const importScript = (script: string, fileName: string) => async (
+export const importTask = (script: string) => async (
   dispatch,
   getState: GetStateFunc
 ): Promise<void> => {
   try {
-    const validFileExtension = '.flux'
-
-    const fileExtensionRegex = new RegExp(`${validFileExtension}$`)
-
-    if (!fileName.match(fileExtensionRegex)) {
-      dispatch(notify(taskImportFailed(fileName, 'Please import a .flux file')))
-      return
-    }
-
     if (_.isEmpty(script)) {
-      dispatch(notify(taskImportFailed(fileName, 'No Flux found in file')))
+      dispatch(notify(taskImportFailed('File is empty')))
       return
     }
 
@@ -424,11 +415,11 @@ export const importScript = (script: string, fileName: string) => async (
 
     dispatch(populateTasks())
 
-    dispatch(notify(taskImportSuccess(fileName)))
+    dispatch(notify(taskImportSuccess()))
   } catch (error) {
     console.error(error)
     const message = _.get(error, 'response.data.error.message', '')
-    dispatch(notify(taskImportFailed(fileName, message)))
+    dispatch(notify(taskImportFailed(message)))
   }
 }
 

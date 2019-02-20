@@ -71,19 +71,16 @@ export const taskUpdateSuccess = (): Notification => ({
   message: 'Task was updated successfully',
 })
 
-export const taskImportFailed = (
-  fileName: string,
-  errorMessage: string
-): Notification => ({
+export const taskImportFailed = (errorMessage: string): Notification => ({
   ...defaultErrorNotification,
   duration: INFINITE,
-  message: `Failed to import Task from file ${fileName}: ${errorMessage}.`,
+  message: `Failed to import Task from file. ${errorMessage}.`,
 })
 
-export const taskImportSuccess = (fileName: string): Notification => ({
+export const taskImportSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   duration: FIVE_SECONDS,
-  message: `Successfully imported file ${fileName}.`,
+  message: `Successfully imported task from file.`,
 })
 
 export const taskRunSuccess = (): Notification => ({

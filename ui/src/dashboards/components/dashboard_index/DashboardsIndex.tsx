@@ -33,13 +33,12 @@ import {setDefaultDashboard} from 'src/shared/actions/links'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/v2/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
+// Constants
+import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 import {
   dashboardSetDefaultFailed,
   dashboardCreateFailed,
 } from 'src/shared/copy/notifications'
-
-// Constants
-import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {Notification} from 'src/types/notifications'

@@ -3,16 +3,10 @@ import React, {PureComponent} from 'react'
 import {Page} from 'src/pageLayout'
 
 // Components
-
-import {
-  Button,
-  IconFont,
-  SlideToggle,
-  ComponentSize,
-  ComponentColor,
-} from '@influxdata/clockface'
+import {SlideToggle, ComponentSize} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TaskOrgDropdown from 'src/tasks/components/TasksOrgDropdown'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 import 'src/tasks/components/TasksPage.scss'
 
@@ -57,17 +51,10 @@ export default class TasksHeader extends PureComponent<Props> {
           />
           {this.filterSearch}
           {this.orgDropDown}
-          <Button
-            text="Import"
-            icon={IconFont.Import}
-            onClick={toggleOverlay}
-          />
-          <Button
-            color={ComponentColor.Primary}
-            onClick={onCreateTask}
-            icon={IconFont.Plus}
-            text="Create Task"
-            titleText="Create a new Task"
+          <AddResourceDropdown
+            onSelectNew={onCreateTask}
+            onSelectImport={toggleOverlay}
+            resourceName="Task"
           />
         </Page.Header.Right>
       </Page.Header>
