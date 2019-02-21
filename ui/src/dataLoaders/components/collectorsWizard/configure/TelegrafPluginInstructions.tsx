@@ -53,7 +53,12 @@ type Props = DispatchProps & StateProps
 
 export class TelegrafPluginInstructions extends PureComponent<Props> {
   public render() {
-    const {telegrafConfigName, telegrafConfigDescription, telegrafPlugins, onDecrementStep} = this.props
+    const {
+      telegrafConfigName,
+      telegrafConfigDescription,
+      telegrafPlugins,
+      onDecrementStep,
+    } = this.props
 
     return (
       <Form onSubmit={this.handleFormSubmit} className="data-loading--form">
@@ -160,7 +165,12 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
 
 const mstp = ({
   dataLoading: {
-    dataLoaders: {telegrafConfigName, telegrafConfigDescription, telegrafPlugins, telegrafConfigID},
+    dataLoaders: {
+      telegrafConfigName,
+      telegrafConfigDescription,
+      telegrafPlugins,
+      telegrafConfigID,
+    },
   },
 }: AppState): StateProps => {
   return {
