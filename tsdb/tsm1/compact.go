@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -43,9 +44,8 @@ const (
 )
 
 var (
-	errMaxFileExceeded     = fmt.Errorf("max file exceeded")
-	errSnapshotsDisabled   = fmt.Errorf("snapshots disabled")
-	errCompactionsDisabled = fmt.Errorf("compactions disabled")
+	errMaxFileExceeded  = fmt.Errorf("max file exceeded")
+	errCompactionClosed = fmt.Errorf("compaction closed")
 )
 
 type errCompactionInProgress struct {
@@ -698,19 +698,12 @@ type Compactor struct {
 	formatFileName FormatFileNameFunc
 	parseFileName  ParseFileNameFunc
 
-	mu                 sync.RWMutex
-	snapshotsEnabled   bool
-	compactionsEnabled bool
+	mu      sync.RWMutex
+	tracker lifecycle.Tracker
 
 	// lastSnapshotDuration is the amount of time the last snapshot took to complete.
 	lastSnapshotDuration time.Duration
-
-	snapshotLatencies *latencies
-
-	// The channel to signal that any in progress snapshots should be aborted.
-	snapshotsInterrupt chan struct{}
-	// The channel to signal that any in progress level compactions should be aborted.
-	compactionsInterrupt chan struct{}
+	snapshotLatencies    *latencies
 
 	files map[string]struct{}
 }
@@ -718,8 +711,10 @@ type Compactor struct {
 // NewCompactor returns a new instance of Compactor.
 func NewCompactor() *Compactor {
 	return &Compactor{
-		formatFileName: DefaultFormatFileName,
-		parseFileName:  DefaultParseFileName,
+		formatFileName:    DefaultFormatFileName,
+		parseFileName:     DefaultParseFileName,
+		snapshotLatencies: &latencies{values: make([]time.Duration, 4)},
+		files:             make(map[string]struct{}),
 	}
 }
 
@@ -731,92 +726,47 @@ func (c *Compactor) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	c.parseFileName = parseFileNameFunc
 }
 
-// Open initializes the Compactor.
+// Open starts the compactor.
 func (c *Compactor) Open() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.snapshotsEnabled || c.compactionsEnabled {
-		return
-	}
-
-	c.snapshotsEnabled = true
-	c.compactionsEnabled = true
-	c.snapshotsInterrupt = make(chan struct{})
-	c.compactionsInterrupt = make(chan struct{})
-	c.snapshotLatencies = &latencies{values: make([]time.Duration, 4)}
-
-	c.files = make(map[string]struct{})
+	c.tracker.Open()
 }
 
-// Close disables the Compactor.
+// Close closes the compactor and cancels any compactions. It waits for any
+// running tasks to be cancelled and finish before returning.
 func (c *Compactor) Close() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !(c.snapshotsEnabled || c.compactionsEnabled) {
-		return
-	}
-	c.snapshotsEnabled = false
-	c.compactionsEnabled = false
-	if c.compactionsInterrupt != nil {
-		close(c.compactionsInterrupt)
-	}
-	if c.snapshotsInterrupt != nil {
-		close(c.snapshotsInterrupt)
-	}
+	c.tracker.Close()
 }
 
-// DisableSnapshots disables the compactor from performing snapshots.
-func (c *Compactor) DisableSnapshots() {
-	c.mu.Lock()
-	c.snapshotsEnabled = false
-	if c.snapshotsInterrupt != nil {
-		close(c.snapshotsInterrupt)
-		c.snapshotsInterrupt = nil
+// startTask should be called when starting a task that should be able to be aborted
+// by a call to Close. It reports an error if the Compactor is already closed.
+func (c *Compactor) startTask() (chan struct{}, error) {
+	intC, ok := c.tracker.Start()
+	if !ok {
+		return nil, errCompactionClosed
 	}
-	c.mu.Unlock()
+	return intC, nil
 }
 
-// EnableSnapshots allows the compactor to perform snapshots.
-func (c *Compactor) EnableSnapshots() {
-	c.mu.Lock()
-	c.snapshotsEnabled = true
-	if c.snapshotsInterrupt == nil {
-		c.snapshotsInterrupt = make(chan struct{})
-	}
-	c.mu.Unlock()
+// stopTask should be called when a task has finished.
+func (c *Compactor) stopTask() {
+	c.tracker.Stop()
 }
 
-// DisableSnapshots disables the compactor from performing compactions.
-func (c *Compactor) DisableCompactions() {
-	c.mu.Lock()
-	c.compactionsEnabled = false
-	if c.compactionsInterrupt != nil {
-		close(c.compactionsInterrupt)
-		c.compactionsInterrupt = nil
+// checkTask reports an error if the Compactor has been closed.
+func (c *Compactor) checkTask() error {
+	if !c.tracker.Check() {
+		return errCompactionAborted{}
 	}
-	c.mu.Unlock()
-}
-
-// EnableCompactions allows the compactor to perform compactions.
-func (c *Compactor) EnableCompactions() {
-	c.mu.Lock()
-	c.compactionsEnabled = true
-	if c.compactionsInterrupt == nil {
-		c.compactionsInterrupt = make(chan struct{})
-	}
-	c.mu.Unlock()
+	return nil
 }
 
 // WriteSnapshot writes a Cache snapshot to one or more new TSM files.
 func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
-	c.mu.RLock()
-	enabled := c.snapshotsEnabled
-	intC := c.snapshotsInterrupt
-	c.mu.RUnlock()
-
-	if !enabled {
-		return nil, errSnapshotsDisabled
+	intC, err := c.startTask()
+	if err != nil {
+		return nil, err
 	}
+	defer c.stopTask()
 
 	start := time.Now()
 	card := cache.Count()
@@ -849,11 +799,9 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 			iter := NewCacheKeyIterator(sp, MaxPointsPerBlock, intC)
 			files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, nil, iter, throttle)
 			resC <- res{files: files, err: err}
-
 		}(splits[i])
 	}
 
-	var err error
 	files := make([]string, 0, concurrency)
 	for i := 0; i < concurrency; i++ {
 		result := <-resC
@@ -866,30 +814,25 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	dur := time.Since(start).Truncate(time.Second)
 
 	c.mu.Lock()
-
-	// See if we were disabled while writing a snapshot
-	enabled = c.snapshotsEnabled
 	c.lastSnapshotDuration = dur
 	c.snapshotLatencies.add(time.Since(start))
 	c.mu.Unlock()
-
-	if !enabled {
-		return nil, errSnapshotsDisabled
-	}
 
 	return files, err
 }
 
 // compact writes multiple smaller TSM files into 1 or more larger files.
 func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
+	intC, err := c.startTask()
+	if err != nil {
+		return nil, err
+	}
+	defer c.stopTask()
+
 	size := c.Size
 	if size <= 0 {
 		size = MaxPointsPerBlock
 	}
-
-	c.mu.RLock()
-	intC := c.compactionsInterrupt
-	c.mu.RUnlock()
 
 	// The new compacted files need to added to the max generation in the
 	// set.  We need to find that max generation as well as the max sequence
@@ -914,10 +857,8 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 	// For each TSM file, create a TSM reader
 	var trs []*TSMReader
 	for _, file := range tsmFiles {
-		select {
-		case <-intC:
-			return nil, errCompactionAborted{}
-		default:
+		if err := c.checkTask(); err != nil {
+			return nil, err
 		}
 
 		tr := c.FileStore.TSMReader(file)
@@ -945,13 +886,10 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 
 // CompactFull writes multiple smaller TSM files into 1 or more larger files.
 func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
-	c.mu.RLock()
-	enabled := c.compactionsEnabled
-	c.mu.RUnlock()
-
-	if !enabled {
-		return nil, errCompactionsDisabled
+	if _, err := c.startTask(); err != nil {
+		return nil, err
 	}
+	defer c.stopTask()
 
 	if !c.add(tsmFiles) {
 		return nil, errCompactionInProgress{}
@@ -959,31 +897,19 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 	defer c.remove(tsmFiles)
 
 	files, err := c.compact(false, tsmFiles)
-
-	// See if we were disabled while writing a snapshot
-	c.mu.RLock()
-	enabled = c.compactionsEnabled
-	c.mu.RUnlock()
-
-	if !enabled {
-		if err := c.removeTmpFiles(files); err != nil {
-			return nil, err
-		}
-		return nil, errCompactionsDisabled
+	if err != nil {
+		c.removeTmpFiles(files)
+		return nil, err
 	}
-
-	return files, err
+	return files, nil
 }
 
 // CompactFast writes multiple smaller TSM files into 1 or more larger files.
 func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
-	c.mu.RLock()
-	enabled := c.compactionsEnabled
-	c.mu.RUnlock()
-
-	if !enabled {
-		return nil, errCompactionsDisabled
+	if _, err := c.startTask(); err != nil {
+		return nil, err
 	}
+	defer c.stopTask()
 
 	if !c.add(tsmFiles) {
 		return nil, errCompactionInProgress{}
@@ -991,32 +917,21 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 	defer c.remove(tsmFiles)
 
 	files, err := c.compact(true, tsmFiles)
-
-	// See if we were disabled while writing a snapshot
-	c.mu.RLock()
-	enabled = c.compactionsEnabled
-	c.mu.RUnlock()
-
-	if !enabled {
-		if err := c.removeTmpFiles(files); err != nil {
-			return nil, err
-		}
-		return nil, errCompactionsDisabled
+	if err != nil {
+		c.removeTmpFiles(files)
+		return nil, err
 	}
-
-	return files, err
-
+	return files, nil
 }
 
 // removeTmpFiles is responsible for cleaning up a compaction that
 // was started, but then abandoned before the temporary files were dealt with.
-func (c *Compactor) removeTmpFiles(files []string) error {
+// If there is an error removing the file, it will be cleaned up on the next
+// engine restart.
+func (c *Compactor) removeTmpFiles(files []string) {
 	for _, f := range files {
-		if err := os.Remove(f); err != nil {
-			return fmt.Errorf("error removing temp compaction file: %v", err)
-		}
+		os.Remove(f)
 	}
-	return nil
 }
 
 // writeNewFiles writes from the iterator into new TSM files, rotating
@@ -1079,6 +994,11 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 }
 
 func (c *Compactor) write(path string, iter KeyIterator, throttle bool) (err error) {
+	if _, err := c.startTask(); err != nil {
+		return err
+	}
+	defer c.stopTask()
+
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 	if err != nil {
 		return errCompactionInProgress{err: err}
@@ -1136,13 +1056,10 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool) (err err
 	}()
 
 	for iter.Next() {
-		c.mu.RLock()
-		enabled := c.snapshotsEnabled || c.compactionsEnabled
-		c.mu.RUnlock()
-
-		if !enabled {
-			return errCompactionAborted{}
+		if err := c.checkTask(); err != nil {
+			return err
 		}
+
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our
 		// chunk size (1000)

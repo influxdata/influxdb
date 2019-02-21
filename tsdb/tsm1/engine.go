@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
@@ -106,26 +107,12 @@ func WithSnapshotter(snapshotter Snapshotter) EngineOption {
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	mu sync.RWMutex
+	mu      sync.RWMutex
+	tracker lifecycle.Tracker
 
 	path   string
 	index  *tsi1.Index
 	config Config
-
-	// The following group of fields is used to track the state of level compactions within the
-	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
-	// used to signal those goroutines to shutdown. Every request to disable level compactions will
-	// call 'Wait' on 'wg', with the first goroutine to arrive (levelWorkers == 0 while holding the
-	// lock) will close the done channel and re-assign 'nil' to the variable. Re-enabling will
-	// decrease 'levelWorkers', and when it decreases to zero, level compactions will be started
-	// back up again.
-
-	wg           *sync.WaitGroup // waitgroup for active level compaction goroutines
-	done         chan struct{}   // channel to signal level compactions to stop
-	levelWorkers int             // Number of "workers" that expect compactions to be in a disabled state
-
-	snapDone chan struct{}   // channel to signal snapshot compactions to stop
-	snapWG   *sync.WaitGroup // waitgroup for running snapshot compactions
 
 	sfile        *tsdb.SeriesFile
 	logger       *zap.Logger // Logger to be used for important messages
@@ -243,188 +230,6 @@ func (e *Engine) SetDefaultMetricLabels(labels prometheus.Labels) {
 	e.defaultMetricLabels = labels
 }
 
-// setCompactionsEnabled enables compactions on the engine.  When disabled
-// all running compactions are aborted and new compactions stop running.
-func (e *Engine) setCompactionsEnabled(enabled bool) {
-	if enabled {
-		e.enableSnapshotCompactions()
-		e.enableLevelCompactions(false)
-	} else {
-		e.disableSnapshotCompactions()
-		e.disableLevelCompactions(false)
-	}
-}
-
-// enableLevelCompactions will request that level compactions start back up again
-//
-// 'wait' signifies that a corresponding call to disableLevelCompactions(true) was made at some
-// point, and the associated task that required disabled compactions is now complete
-func (e *Engine) enableLevelCompactions(wait bool) {
-	// If we don't need to wait, see if we're already enabled
-	if !wait {
-		e.mu.RLock()
-		if e.done != nil {
-			e.mu.RUnlock()
-			return
-		}
-		e.mu.RUnlock()
-	}
-
-	e.mu.Lock()
-	if wait {
-		e.levelWorkers -= 1
-	}
-	if e.levelWorkers != 0 || e.done != nil {
-		// still waiting on more workers or already enabled
-		e.mu.Unlock()
-		return
-	}
-
-	// last one to enable, start things back up
-	e.compactor.EnableCompactions()
-	e.done = make(chan struct{})
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	e.wg = wg
-	e.mu.Unlock()
-
-	go func() { defer wg.Done(); e.compact(wg) }()
-}
-
-// disableLevelCompactions will stop level compactions before returning.
-//
-// If 'wait' is set to true, then a corresponding call to enableLevelCompactions(true) will be
-// required before level compactions will start back up again.
-func (e *Engine) disableLevelCompactions(wait bool) {
-	e.mu.Lock()
-	old := e.levelWorkers
-	if wait {
-		e.levelWorkers += 1
-	}
-
-	// Hold onto the current done channel so we can wait on it if necessary
-	waitCh := e.done
-	wg := e.wg
-
-	if old == 0 && e.done != nil {
-		// It's possible we have closed the done channel and released the lock and another
-		// goroutine has attempted to disable compactions.  We're current in the process of
-		// disabling them so check for this and wait until the original completes.
-		select {
-		case <-e.done:
-			e.mu.Unlock()
-			return
-		default:
-		}
-
-		// Prevent new compactions from starting
-		e.compactor.DisableCompactions()
-
-		// Stop all background compaction goroutines
-		close(e.done)
-		e.mu.Unlock()
-		wg.Wait()
-
-		// Signal that all goroutines have exited.
-		e.mu.Lock()
-		e.done = nil
-		e.mu.Unlock()
-		return
-	}
-	e.mu.Unlock()
-
-	// Compaction were already disabled.
-	if waitCh == nil {
-		return
-	}
-
-	// We were not the first caller to disable compactions and they were in the process
-	// of being disabled.  Wait for them to complete before returning.
-	<-waitCh
-	wg.Wait()
-}
-
-// enableSnapshotCompactions starts up snapshot compactions.
-func (e *Engine) enableSnapshotCompactions() {
-	// Check if already enabled under read lock
-	e.mu.RLock()
-	if e.snapDone != nil {
-		e.mu.RUnlock()
-		return
-	}
-	e.mu.RUnlock()
-
-	// Check again under write lock
-	e.mu.Lock()
-	if e.snapDone != nil {
-		e.mu.Unlock()
-		return
-	}
-
-	e.compactor.EnableSnapshots()
-	e.snapDone = make(chan struct{})
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	e.snapWG = wg
-	e.mu.Unlock()
-
-	go func() { defer wg.Done(); e.compactCache() }()
-}
-
-// disableSnapshotCompactions will disable and wait for any snapshot compactions
-// to be completed.
-func (e *Engine) disableSnapshotCompactions() {
-	e.mu.Lock()
-	if e.snapDone == nil {
-		e.mu.Unlock()
-		return
-	}
-
-	// We may be in the process of stopping snapshots.  See if the channel
-	// was closed.
-	select {
-	case <-e.snapDone:
-		e.mu.Unlock()
-		return
-	default:
-	}
-
-	// first one here, disable and wait for completion
-	close(e.snapDone)
-	e.compactor.DisableSnapshots()
-	wg := e.snapWG
-	e.mu.Unlock()
-
-	// Wait for the snapshot goroutine to exit.
-	wg.Wait()
-
-	// Signal that the goroutines are exit and everything is stopped by setting
-	// snapDone to nil.
-	e.mu.Lock()
-	e.snapDone = nil
-	e.mu.Unlock()
-}
-
-// ScheduleFullCompaction will force the engine to fully compact all data stored.
-// This will cancel and running compactions and snapshot any data in the cache to
-// TSM files.  This is an expensive operation.
-func (e *Engine) ScheduleFullCompaction() error {
-	// Snapshot any data in the cache
-	if err := e.WriteSnapshot(); err != nil {
-		return err
-	}
-
-	// Cancel running compactions
-	e.setCompactionsEnabled(false)
-
-	// Ensure compactions are restarted
-	defer e.setCompactionsEnabled(true)
-
-	// Force the planner to only create a full plan.
-	e.compactionPlanner.ForceFull()
-	return nil
-}
-
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
@@ -453,6 +258,9 @@ func (e *Engine) initTrackers() {
 
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	e.initTrackers()
 
 	if err := os.MkdirAll(e.path, 0777); err != nil {
@@ -463,28 +271,35 @@ func (e *Engine) Open() error {
 		return err
 	}
 
+	intC := e.tracker.Open()
 	if err := e.fileStore.Open(); err != nil {
 		return err
 	}
-
 	e.compactor.Open()
-	e.setCompactionsEnabled(true)
+
+	// Start the two tasks. We can't call start from within the
+	// goroutine in the same way that you shouldn't for Add on
+	// a wait group.
+	e.tracker.Start()
+	go e.compactCache(intC)
+
+	e.tracker.Start()
+	go e.compactLevels(intC)
 
 	return nil
 }
 
 // Close closes the engine. Subsequent calls to Close are a nop.
 func (e *Engine) Close() error {
-	e.setCompactionsEnabled(false)
-
 	// Lock now and close everything else down.
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.done = nil // Ensures that the channel will not be closed again.
 
+	e.compactor.Close()
 	if err := e.fileStore.Close(); err != nil {
 		return err
 	}
+	e.tracker.Close()
 
 	return nil
 }
@@ -504,7 +319,9 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 // shard is fully compacted.
 func (e *Engine) IsIdle() bool {
 	cacheEmpty := e.cache.Size() == 0
-	return cacheEmpty && e.compactionTracker.AllActive() == 0 && e.compactionPlanner.FullyCompacted()
+	return cacheEmpty &&
+		e.compactionTracker.AllActive() == 0 &&
+		e.compactionPlanner.FullyCompacted()
 }
 
 // WritePoints saves the set of points in the engine.
@@ -695,7 +512,6 @@ func (t *compactionTracker) SetFullQueue(length uint64) { t.SetQueue(5, length) 
 func (e *Engine) WriteSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
-
 	started := time.Now()
 
 	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "tsm1_cache_snapshot")
@@ -771,16 +587,15 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache, segmen
 }
 
 // compactCache continually checks if the WAL cache should be written to disk.
-func (e *Engine) compactCache() {
+func (e *Engine) compactCache(intC chan struct{}) {
+	defer e.tracker.Stop()
+
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
-	for {
-		e.mu.RLock()
-		quit := e.snapDone
-		e.mu.RUnlock()
 
+	for {
 		select {
-		case <-quit:
+		case <-intC:
 			return
 
 		case <-t.C:
@@ -792,10 +607,10 @@ func (e *Engine) compactCache() {
 			start := time.Now()
 			e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
 			err := e.WriteSnapshot()
-			if err != nil && err != errCompactionsDisabled {
+			if err != nil {
 				e.logger.Info("Error writing snapshot", zap.Error(err))
 			}
-			e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
+			e.compactionTracker.SnapshotAttempted(err == nil, time.Since(start))
 		}
 	}
 }
@@ -813,20 +628,19 @@ func (e *Engine) shouldCompactCache(t time.Time) bool {
 		return true
 	}
 
-	return t.Sub(e.cache.LastWriteTime()) > time.Duration(e.config.Cache.SnapshotWriteColdDuration)
+	return t.Sub(e.cache.LastWriteTime()) >
+		time.Duration(e.config.Cache.SnapshotWriteColdDuration)
 }
 
-func (e *Engine) compact(wg *sync.WaitGroup) {
+func (e *Engine) compactLevels(intC chan struct{}) {
+	defer e.tracker.Stop()
+
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	for {
-		e.mu.RLock()
-		quit := e.done
-		e.mu.RUnlock()
-
 		select {
-		case <-quit:
+		case <-intC:
 			return
 
 		case <-t.C:
@@ -859,19 +673,19 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			if level, runnable := e.scheduler.next(); runnable {
 				switch level {
 				case 1:
-					if e.compactHiPriorityLevel(level1Groups[0], 1, false, wg) {
+					if e.compactHiPriorityLevel(level1Groups[0], 1, false) {
 						level1Groups = level1Groups[1:]
 					}
 				case 2:
-					if e.compactHiPriorityLevel(level2Groups[0], 2, false, wg) {
+					if e.compactHiPriorityLevel(level2Groups[0], 2, false) {
 						level2Groups = level2Groups[1:]
 					}
 				case 3:
-					if e.compactLoPriorityLevel(level3Groups[0], 3, true, wg) {
+					if e.compactLoPriorityLevel(level3Groups[0], 3, true) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
-					if e.compactFull(level4Groups[0], wg) {
+					if e.compactFull(level4Groups[0]) {
 						level4Groups = level4Groups[1:]
 					}
 				}
@@ -888,7 +702,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
 // true if the compaction was started
-func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLevel, fast bool, wg *sync.WaitGroup) bool {
+func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLevel, fast bool) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
@@ -896,18 +710,18 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLev
 
 	// Try hi priority limiter, otherwise steal a little from the low priority if we can.
 	if e.compactionLimiter.TryTake() {
-		e.compactionTracker.IncActive(level)
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer e.compactionTracker.DecActive(level)
-			defer e.compactionLimiter.Release()
-			s.Apply()
-			// Release the files in the compaction plan
-			e.compactionPlanner.Release([]CompactionGroup{s.group})
-		}()
-		return true
+		if _, ok := e.tracker.Start(); ok {
+			e.compactionTracker.IncActive(level)
+			go func() {
+				defer e.tracker.Stop()
+				defer e.compactionTracker.DecActive(level)
+				defer e.compactionLimiter.Release()
+				s.Apply()
+				// Release the files in the compaction plan
+				e.compactionPlanner.Release([]CompactionGroup{s.group})
+			}()
+			return true
+		}
 	}
 
 	// Return the unused plans
@@ -916,7 +730,7 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLev
 
 // compactLoPriorityLevel kicks off compactions using the lo priority policy. It returns
 // the plans that were not able to be started
-func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level compactionLevel, fast bool, wg *sync.WaitGroup) bool {
+func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level compactionLevel, fast bool) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
@@ -924,24 +738,25 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level compactionLev
 
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
-		e.compactionTracker.IncActive(level)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer e.compactionTracker.DecActive(level)
-			defer e.compactionLimiter.Release()
-			s.Apply()
-			// Release the files in the compaction plan
-			e.compactionPlanner.Release([]CompactionGroup{s.group})
-		}()
-		return true
+		if _, ok := e.tracker.Start(); ok {
+			e.compactionTracker.IncActive(level)
+			go func() {
+				defer e.tracker.Stop()
+				defer e.compactionTracker.DecActive(level)
+				defer e.compactionLimiter.Release()
+				s.Apply()
+				// Release the files in the compaction plan
+				e.compactionPlanner.Release([]CompactionGroup{s.group})
+			}()
+			return true
+		}
 	}
 	return false
 }
 
 // compactFull kicks off full and optimize compactions using the lo priority policy. It returns
 // the plans that were not able to be started.
-func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
+func (e *Engine) compactFull(grp CompactionGroup) bool {
 	s := e.fullCompactionStrategy(grp, false)
 	if s == nil {
 		return false
@@ -949,17 +764,18 @@ func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
 
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
-		e.compactionTracker.IncFullActive()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer e.compactionTracker.DecFullActive()
-			defer e.compactionLimiter.Release()
-			s.Apply()
-			// Release the files in the compaction plan
-			e.compactionPlanner.Release([]CompactionGroup{s.group})
-		}()
-		return true
+		if _, ok := e.tracker.Start(); ok {
+			e.compactionTracker.IncFullActive()
+			go func() {
+				defer e.tracker.Stop()
+				defer e.compactionTracker.DecFullActive()
+				defer e.compactionLimiter.Release()
+				s.Apply()
+				// Release the files in the compaction plan
+				e.compactionPlanner.Release([]CompactionGroup{s.group})
+			}()
+			return true
+		}
 	}
 	return false
 }
@@ -1009,13 +825,9 @@ func (s *compactionStrategy) compactGroup() {
 	}
 
 	if err != nil {
-		_, inProgress := err.(errCompactionInProgress)
-		if err == errCompactionsDisabled || inProgress {
+		if _, ok := err.(errCompactionInProgress); ok {
 			log.Info("Aborted compaction", zap.Error(err))
-
-			if _, ok := err.(errCompactionInProgress); ok {
-				time.Sleep(time.Second)
-			}
+			time.Sleep(time.Second)
 			return
 		}
 

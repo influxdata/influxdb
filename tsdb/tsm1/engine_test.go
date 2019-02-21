@@ -127,45 +127,6 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 	}
 }
 
-// This test ensures that "sync: WaitGroup is reused before previous Wait has returned" is
-// is not raised.
-func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
-	e := MustOpenEngine()
-	defer e.Close()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 1000; i++ {
-			e.setCompactionsEnabled(true)
-			e.setCompactionsEnabled(false)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 1000; i++ {
-			e.setCompactionsEnabled(false)
-			e.setCompactionsEnabled(true)
-		}
-	}()
-
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	// Wait for waitgroup or fail if it takes too long.
-	select {
-	case <-time.NewTimer(30 * time.Second).C:
-		t.Fatalf("timed out after 30 seconds waiting for waitgroup")
-	case <-done:
-	}
-}
-
 // BenchmarkEngine_WritePoints reports how quickly we can write points for different
 // batch sizes.
 func BenchmarkEngine_WritePoints(b *testing.B) {

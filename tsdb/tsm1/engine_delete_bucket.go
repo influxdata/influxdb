@@ -32,15 +32,6 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	}
 	defer fs.Release()
 
-	// Disable and abort running compactions so that tombstones added existing tsm
-	// files don't get removed. This would cause deleted measurements/series to
-	// re-appear once the compaction completed. We only disable the level compactions
-	// so that snapshotting does not stop while writing out tombstones. If it is stopped,
-	// and writing tombstones takes a long time, writes can get rejected due to the cache
-	// filling up.
-	e.disableLevelCompactions(true)
-	defer e.enableLevelCompactions(true)
-
 	e.sfile.DisableCompactions()
 	defer e.sfile.EnableCompactions()
 	e.sfile.Wait()
