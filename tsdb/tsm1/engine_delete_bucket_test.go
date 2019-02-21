@@ -2,6 +2,7 @@ package tsm1_test
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -120,5 +121,43 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	}
 	if !elem.SeriesID.IsZero() {
 		t.Fatalf("got an undeleted series id, but series should be dropped from index")
+	}
+}
+
+func BenchmarkEngine_DeleteBucketRange(b *testing.B) {
+	batchSizes := []int{100, 1000, 5000, 10000, 50000}
+	for _, sz := range batchSizes {
+		e, err := NewEngine()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		// mock the planner so compactions don't run during the test
+		e.CompactionPlan = &mockPlanner{}
+		if err := e.Open(); err != nil {
+			b.Fatal(err)
+		}
+		defer e.Close()
+
+		pp := make([]models.Point, 0, sz)
+		for i := 0; i < sz; i++ {
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.1 %d", i, i))
+			pp = append(pp, p)
+		}
+
+		err = e.writePoints(pp...)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		b.Run(fmt.Sprintf("%d", sz), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				err := e.DeleteBucketRange([]byte("cpu"), 0, int64(sz/2))
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }
