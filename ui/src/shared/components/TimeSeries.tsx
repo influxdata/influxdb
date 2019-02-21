@@ -10,18 +10,20 @@ import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {getSources, getActiveSource} from 'src/sources/selectors'
 import {renderQuery} from 'src/shared/utils/renderQuery'
+import {getActiveOrg} from 'src/organizations/selectors'
 
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/v2/dashboards'
-import {AppState, Source} from 'src/types/v2'
+import {AppState, Source, Organization} from 'src/types/v2'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 
 type URLQuery = DashboardQuery & {url: string}
 
 const executeRenderedQuery = (
   {text, type, url}: URLQuery,
-  variables: {[key: string]: string}
+  variables: {[key: string]: string},
+  orgID: string
 ): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
   let isCancelled = false
   let cancelExecution
@@ -39,7 +41,7 @@ const executeRenderedQuery = (
       return Promise.reject(new CancellationError())
     }
 
-    const pendingResult = executeQuery(url, renderedQuery, type)
+    const pendingResult = executeQuery(url, orgID, renderedQuery, type)
 
     cancelExecution = pendingResult.cancel
 
@@ -61,6 +63,7 @@ export interface QueriesState {
 interface StateProps {
   dynamicSourceURL: string
   sources: Source[]
+  activeOrg: Organization
 }
 
 interface OwnProps {
@@ -141,7 +144,7 @@ class TimeSeries extends Component<Props, State> {
   }
 
   private reload = async () => {
-    const {inView, variables} = this.props
+    const {inView, variables, activeOrg} = this.props
     const queries = this.queries
 
     if (!inView) {
@@ -167,7 +170,9 @@ class TimeSeries extends Component<Props, State> {
       this.pendingResults.forEach(({cancel}) => cancel())
 
       // Issue new queries
-      this.pendingResults = queries.map(q => executeRenderedQuery(q, variables))
+      this.pendingResults = queries.map(q =>
+        executeRenderedQuery(q, variables, activeOrg.id)
+      )
 
       // Wait for new queries to complete
       const results = await Promise.all(this.pendingResults.map(r => r.promise))
@@ -218,8 +223,9 @@ class TimeSeries extends Component<Props, State> {
 const mstp = (state: AppState) => {
   const sources = getSources(state)
   const dynamicSourceURL = getActiveSource(state).links.query
+  const activeOrg = getActiveOrg(state)
 
-  return {sources, dynamicSourceURL}
+  return {sources, dynamicSourceURL, activeOrg}
 }
 
 export default connect<StateProps, {}, OwnProps>(

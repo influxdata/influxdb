@@ -1,9 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Apis
 import {executeQuery} from 'src/shared/apis/v2/query'
+import {getActiveOrg} from 'src/organizations/selectors'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -18,11 +20,18 @@ import ConnectionInformation, {
 } from 'src/dataLoaders/components/verifyStep/ConnectionInformation'
 
 // Types
+import {AppState, Organization} from 'src/types/v2'
 import {InfluxLanguage} from 'src/types/v2/dashboards'
 
-export interface Props {
+interface OwnProps {
   bucket: string
 }
+
+interface StateProps {
+  activeOrg: Organization
+}
+
+type Props = OwnProps & StateProps
 
 interface State {
   loading: LoadingState
@@ -112,7 +121,7 @@ class DataListening extends PureComponent<Props, State> {
   }
 
   private checkForData = async (): Promise<void> => {
-    const {bucket} = this.props
+    const {bucket, activeOrg} = this.props
     const {secondsLeft} = this.state
     const script = `from(bucket: "${bucket}")
       |> range(start: -1m)`
@@ -123,6 +132,7 @@ class DataListening extends PureComponent<Props, State> {
     try {
       const response = await executeQuery(
         '/api/v2/query',
+        activeOrg.id,
         script,
         InfluxLanguage.Flux
       ).promise
@@ -165,4 +175,11 @@ class DataListening extends PureComponent<Props, State> {
   }
 }
 
-export default DataListening
+const mstp = (state: AppState) => ({
+  activeOrg: getActiveOrg(state),
+})
+
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(DataListening)

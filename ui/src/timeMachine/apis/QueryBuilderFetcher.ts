@@ -19,7 +19,7 @@ class QueryBuilderFetcher {
   private findValuesCache: {[key: string]: string[]} = {}
   private findBucketsCache: {[key: string]: string[]} = {}
 
-  public async findBuckets(url: string): Promise<string[]> {
+  public async findBuckets(url: string, orgID: string): Promise<string[]> {
     this.cancelFindBuckets()
 
     const cacheKey = JSON.stringify([...arguments])
@@ -29,7 +29,7 @@ class QueryBuilderFetcher {
       return Promise.resolve(cachedResult)
     }
 
-    const pendingResult = findBuckets(url)
+    const pendingResult = findBuckets(url, orgID)
 
     pendingResult.promise.then(result => {
       this.findBucketsCache[cacheKey] = result
@@ -47,6 +47,7 @@ class QueryBuilderFetcher {
   public async findKeys(
     index: number,
     url: string,
+    orgID: string,
     bucket: string,
     tagsSelections: BuilderConfig['tags'],
     searchTerm: string = ''
@@ -60,7 +61,13 @@ class QueryBuilderFetcher {
       return Promise.resolve(cachedResult)
     }
 
-    const pendingResult = findKeys(url, bucket, tagsSelections, searchTerm)
+    const pendingResult = findKeys(
+      url,
+      orgID,
+      bucket,
+      tagsSelections,
+      searchTerm
+    )
 
     this.findKeysQueries[index] = pendingResult
 
@@ -80,6 +87,7 @@ class QueryBuilderFetcher {
   public async findValues(
     index: number,
     url: string,
+    orgID: string,
     bucket: string,
     tagsSelections: BuilderConfig['tags'],
     key: string,
@@ -96,6 +104,7 @@ class QueryBuilderFetcher {
 
     const pendingResult = findValues(
       url,
+      orgID,
       bucket,
       tagsSelections,
       key,
