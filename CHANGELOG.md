@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.5 [unreleased]
 
 ### Features
+1. [12096](https://github.com/influxdata/influxdb/pull/12096): Add labels to cloned tasks
 
 ### Bug Fixes
 
