@@ -2704,12 +2704,12 @@ paths:
             - application/vnd.flux
       - in: query
         name: org
-        description: specifies the name of the organization executing the query.
+        description: specifies the name of the organization executing the query; if both orgID and org are specified, orgID takes precendence.
         schema:
           type: string
       - in: query
         name: orgID
-        description: specifies the ID of the organization executing the query.
+        description: specifies the ID of the organization executing the query; if both orgID and org are specified, orgID takes precendence.
         schema:
           type: string
     requestBody:
@@ -3243,6 +3243,18 @@ paths:
       tags:
         - Organizations
       summary: List all organizations
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: query
+          name: org
+          schema:
+            type: string
+          description: filter organizations to a specific organization name
+        - in: query
+          name: orgID
+          schema:
+            type: string
+          description: filter organizations to a specific organization ID
       responses:
         '200':
           description: A list of organizations

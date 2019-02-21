@@ -603,6 +603,7 @@ func FindOrganization(
 ) {
 	type args struct {
 		name string
+		id   platform.ID
 	}
 
 	type wants struct {
@@ -641,6 +642,48 @@ func FindOrganization(
 			},
 		},
 		{
+			name: "find organization in which no name filter matches should return no org",
+			args: args{
+				name: "unknown",
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindOrganization,
+					Msg:  "organization name \"unknown\" not found",
+				},
+			},
+		},
+		{
+			name: "find organization in which no id filter matches should return no org",
+			args: args{
+				id: platform.ID(3),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "organization not found",
+				},
+			},
+		},
+		{
+			name: "find organization no filter is set returns an error about filters not provided",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "o1",
+					},
+				},
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EInvalid,
+					Msg:  "no filter parameters provided",
+				},
+			},
+		},
+		{
 			name: "missing organization returns error",
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{},
@@ -666,6 +709,9 @@ func FindOrganization(
 			filter := platform.OrganizationFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
+			}
+			if tt.args.id != platform.InvalidID() {
+				filter.ID = &tt.args.id
 			}
 
 			organization, err := s.FindOrganization(ctx, filter)
