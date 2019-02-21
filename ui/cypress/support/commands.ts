@@ -1,4 +1,4 @@
-export const signin = (orgID: string): Cypress.Chainable<Response> => {
+export const signin = (orgID?: string): Cypress.Chainable<Response> => {
   return cy.fixture('user').then(user => {
     cy.request({
       method: 'POST',
@@ -12,7 +12,7 @@ export const signin = (orgID: string): Cypress.Chainable<Response> => {
 
 // createDashboard relies on an org fixture to be set
 export const createDashboard = (
-  orgID: string
+  orgID?: string
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -45,7 +45,7 @@ export const createBucket = (): Cypress.Chainable<Cypress.Response> => {
 }
 
 export const createSource = (
-  orgID: string
+  orgID?: string
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
