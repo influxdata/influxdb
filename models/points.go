@@ -676,6 +676,11 @@ func scanTagsKey(buf []byte, i int) (int, error) {
 		return i, fmt.Errorf("missing tag key")
 	}
 
+	// Ensure tag key not start with "_"
+	if buf[i] == '_' {
+		return i, fmt.Errorf("tag key cannot start with '_'")
+	}
+
 	// Examine each character in the tag key until we hit an unescaped
 	// equals (the tag value), or we hit an error (i.e., unescaped
 	// space or comma).

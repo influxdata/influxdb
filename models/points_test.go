@@ -505,6 +505,27 @@ func TestParsePointMissingTagKey(t *testing.T) {
 	}
 }
 
+func TestParsePointEnsureTagKeyNotStartWithUnderscores(t *testing.T) {
+	expectedSuffix := "tag key cannot start with '_'"
+	examples := []string{
+		`cpu,_host=serverA,region=us-east value=1i`,
+		`cpu,host=serverA,_region=us-east value=1i`,
+		`cpu,_host=serverA,_region=us-east value=1i`,
+		`cpu,_=serverA,region=us-east value=1i`,
+		`cpu,host=serverA,_=us-east value=1i`,
+		`cpu,_=serverA,_=us-east value=1i`,
+	}
+
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got nil, exp error`, i, example)
+		} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got %q, exp suffix %q`, i, example, err, expectedSuffix)
+		}
+	}
+}
+
 func TestParsePointMissingTagValue(t *testing.T) {
 	expectedSuffix := "missing tag value"
 	examples := []string{
