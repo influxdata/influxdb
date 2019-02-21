@@ -3870,7 +3870,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Task"
+              $ref: "#/components/schemas/TaskUpdateRequest"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5183,8 +5183,6 @@ components:
         name:
           description: A description of the task.
           type: string
-        owner:
-          $ref: "#/components/schemas/User"
         status:
           description: The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
           default: active
