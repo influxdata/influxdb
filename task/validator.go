@@ -37,12 +37,13 @@ func NewValidator(ts platform.TaskService, bs platform.BucketService) platform.T
 }
 
 func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
+	// Unauthenticated task lookup, to identify the task's organization.
 	task, err := ts.TaskService.FindTaskByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
+	perm, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -55,20 +56,29 @@ func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID
 }
 
 func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
-	if filter.Organization != nil {
-		perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, *filter.Organization)
+	// First, get the tasks in the organization, without authentication.
+	unauthenticatedTasks, _, err := ts.TaskService.FindTasks(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Then, filter down to what the user is allowed to see.
+	tasks := make([]*platform.Task, 0, len(unauthenticatedTasks))
+	for _, t := range unauthenticatedTasks {
+		perm, err := platform.NewPermissionAtID(t.ID, platform.ReadAction, platform.TasksResourceType, t.OrganizationID)
 		if err != nil {
-			return nil, -1, err
+			continue
 		}
 
 		if err := validatePermission(ctx, *perm); err != nil {
-			return nil, -1, err
+			continue
 		}
 
+		// Allowed to read it.
+		tasks = append(tasks, t)
 	}
 
-	// TODO(lyon): If the user no longer has permission to the organization we might fail or filter here?
-	return ts.TaskService.FindTasks(ctx, filter)
+	return tasks, len(tasks), nil
 }
 
 func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskCreate) (*platform.Task, error) {
@@ -89,12 +99,13 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 }
 
 func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+	// Unauthenticated task lookup, to identify the task's organization.
 	task, err := ts.TaskService.FindTaskByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +122,13 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, 
 }
 
 func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) error {
+	// Unauthenticated task lookup, to identify the task's organization.
 	task, err := ts.TaskService.FindTaskByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -145,7 +157,7 @@ func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.Ru
 		return nil, -1, err
 	}
 
-	perm, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
+	perm, err := platform.NewPermissionAtID(task.ID, platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -159,12 +171,13 @@ func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.Ru
 }
 
 func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	// Unauthenticated task lookup, to identify the task's organization.
 	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := platform.NewPermissionAtID(taskID, platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -177,12 +190,13 @@ func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID p
 }
 
 func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
+	// Unauthenticated task lookup, to identify the task's organization.
 	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := platform.NewPermissionAtID(taskID, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -195,12 +209,13 @@ func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID pla
 }
 
 func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	// Unauthenticated task lookup, to identify the task's organization.
 	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := platform.NewPermissionAtID(taskID, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -213,12 +228,13 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID plat
 }
 
 func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+	// Unauthenticated task lookup, to identify the task's organization.
 	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := platform.NewPermissionAtID(taskID, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
