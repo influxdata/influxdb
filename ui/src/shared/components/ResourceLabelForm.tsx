@@ -52,7 +52,7 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      isValid: false,
+      isValid: true,
       label: {
         name: props.labelName,
         properties: {
