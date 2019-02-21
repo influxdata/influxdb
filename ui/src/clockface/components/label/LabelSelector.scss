@@ -26,30 +26,34 @@
 }
 
 .label-selector--menu {
+  display: flex;
+  flex-wrap: wrap;
   width: 100%;
-  min-height: 50px;
-  padding: $ix-marg-b;
+  padding: $ix-marg-b - ($ix-border / 2);
 }
 
 .label-selector--menu-item {
-  margin: 1px;
+  display: inline-flex;
+  align-items: flex-start;
+  margin: $ix-border / 2;
 }
 
 .label-selector--empty {
+  width: 100%;
   font-size: 13px;
   font-weight: 500;
   user-select: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.label-selector--empty {
-  padding: $ix-marg-a $ix-marg-b;
   color: $g9-mountain;
   font-style: italic;
   min-height: 30px;
   line-height: 30px;
+  
+  &:first-child {
+    margin-bottom: $ix-marg-b - ($ix-border / 2);
+  }
 }
 
 .label-selector--selection {

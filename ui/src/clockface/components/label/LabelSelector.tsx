@@ -74,15 +74,15 @@ class LabelSelector extends Component<Props, State> {
 
   public render() {
     return (
-      <ClickOutside onClickOutside={this.handleStopSuggesting}>
-        <div className="label-selector">
-          <div className="label-selector--selection">
-            {this.selectedLabels}
-            {this.clearSelectedButton}
-          </div>
-          {this.input}
+      <div className="label-selector">
+        <div className="label-selector--selection">
+          {this.selectedLabels}
+          {this.clearSelectedButton}
         </div>
-      </ClickOutside>
+        <ClickOutside onClickOutside={this.handleStopSuggesting}>
+          {this.input}
+        </ClickOutside>
+      </div>
     )
   }
 
@@ -169,8 +169,9 @@ class LabelSelector extends Component<Props, State> {
 
   private handleStartSuggesting = () => {
     const {availableLabels} = this
+    const {isSuggesting} = this.state
 
-    if (_.isEmpty(availableLabels)) {
+    if (_.isEmpty(availableLabels) && !isSuggesting) {
       return this.setState({
         isSuggesting: true,
         highlightedID: null,

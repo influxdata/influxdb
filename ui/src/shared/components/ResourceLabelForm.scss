@@ -5,9 +5,12 @@
 */
 
 .resource-label--form {
-    margin-bottom: $ix-marg-b;
+  width: 100%;
 
-    .resource-label--create-button {
-        margin-top: $ix-marg-c + 2px;
-    }
+  .form--element {
+    margin: 0;
+  }
+  .component-spacer--horizontal {
+    align-items: flex-start;
+  }
 }   

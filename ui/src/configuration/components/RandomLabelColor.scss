@@ -9,9 +9,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: $ix-marg-b;
 
     .label-colors--swatch {
-        margin-right: $ix-marg-c;
+        margin-right: $ix-marg-b;
+    }
+
+    > span.button-icon {
+      margin-right: 0;
     }
 }
