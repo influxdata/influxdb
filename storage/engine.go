@@ -336,7 +336,8 @@ func (e *Engine) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest
 	if e.closing == nil {
 		return nil, ErrEngineClosed
 	}
-	return newSeriesCursor(req, e.index, cond)
+
+	return newSeriesCursor(req, e.index, e.sfile, cond)
 }
 
 // CreateCursorIterator creates a CursorIterator for usage with the read service.

@@ -264,6 +264,9 @@ workflows:
       - litmus_daily:
           requires:
             - build
+          filters:
+            branches:
+              only: /^(?!pull\/).*$/
 
   e2e:
     jobs:

@@ -99,10 +99,10 @@ export const SetupSuccess: Notification = {
   message: 'Initial user details have been successfully set',
 }
 
-export const SetupError: Notification = {
+export const SetupError = (message: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Could not initial user at this time.`,
-}
+  message: `Could not set up admin user: ${message}`,
+})
 
 export const SetupNotAllowed: Notification = {
   ...defaultErrorNotification,
@@ -621,6 +621,18 @@ export const deleteVariableSuccess = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'cube',
   message: `Successfully deleted variable ${name}.`,
+})
+
+export const updateVariableFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Failed to update variable.`,
+})
+
+export const updateVariableSuccess = (name: string): Notification => ({
+  ...defaultSuccessNotification,
+  icon: 'cube',
+  message: `Successfully updated variable ${name}.`,
 })
 
 //  Rule Builder Notifications

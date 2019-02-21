@@ -116,7 +116,7 @@ class DashboardIndex extends PureComponent<Props, State> {
             <Page.Header.Right>
               <SearchWidget
                 placeholderText="Filter dashboards by name..."
-                onSearch={this.filterDashboards}
+                onSearch={this.handleFilterDashboards}
               />
               <AddResourceDropdown
                 onSelectNew={this.handleCreateDashboard}
@@ -232,7 +232,7 @@ class DashboardIndex extends PureComponent<Props, State> {
     })
   }
 
-  private filterDashboards = (searchTerm: string): void => {
+  private handleFilterDashboards = (searchTerm: string): void => {
     this.setState({searchTerm})
   }
 

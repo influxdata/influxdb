@@ -59,7 +59,7 @@ $panel-nested-background: $g4-onyx;
 
 //  Panels Nested inside Tabbed Pages
 //  ----------------------------------------------------------------------------
-.tabbed-page .panel {
+.tabs--contents .panel {
   background-color: $panel-nested-background;
 
   .panel-footer {

@@ -8,9 +8,9 @@ import {FluxToolbarFunction} from 'src/types/shared'
 interface Props {
   funcs: FluxToolbarFunction[]
   searchTerm?: string
-  children: (
-    funcs: {[category: string]: FluxToolbarFunction[]}
-  ) => JSX.Element | JSX.Element[]
+  children: (funcs: {
+    [category: string]: FluxToolbarFunction[]
+  }) => JSX.Element | JSX.Element[]
 }
 
 const TransformToolbarFunctions: SFC<Props> = props => {

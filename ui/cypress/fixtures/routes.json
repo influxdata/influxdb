@@ -1,4 +1,5 @@
 {
   "orgs": "/organizations",
-  "dashboards": "/dashboards"
+  "dashboards": "/dashboards",
+  "explorer": "/data-explorer"
 }

@@ -461,7 +461,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
 		lr := taskbackend.NewQueryLogReader(queryService)
-		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, store), lr, m.scheduler, authSvc, userResourceSvc)
+		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, store), lr, m.scheduler, authSvc, userResourceSvc, orgSvc)
 		taskSvc = task.NewValidator(taskSvc, bucketSvc)
 		m.taskStore = store
 	}
@@ -625,4 +625,9 @@ func (m *Launcher) TaskStore() taskbackend.Store {
 // TaskScheduler returns the internal scheduler service.
 func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
 	return m.scheduler
+}
+
+// KeyValueService returns the internal key-value service.
+func (m *Launcher) KeyValueService() *kv.Service {
+	return m.kvService
 }

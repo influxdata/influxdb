@@ -1,5 +1,13 @@
+import _ from 'lodash'
+
 import {LabelType} from 'src/clockface'
-import {HEX_CODE_CHAR_LENGTH} from 'src/configuration/constants/LabelColors'
+import {
+  HEX_CODE_CHAR_LENGTH,
+  PRESET_LABEL_COLORS,
+} from 'src/configuration/constants/LabelColors'
+
+export const randomPresetColor = () =>
+  _.sample(PRESET_LABEL_COLORS.slice(1)).colorHex
 
 export const validateLabelName = (
   labels: LabelType[],

@@ -125,11 +125,11 @@ class MultiSelectDropdown extends Component<Props, State> {
       buttonColor,
       buttonSize,
       icon,
-      children,
       emptyText,
       separatorText,
     } = this.props
     const {expanded} = this.state
+    const children: JSX.Element[] = this.props.children
 
     const selectedChildren = children.filter(child =>
       _.includes(selectedIDs, child.props.id)

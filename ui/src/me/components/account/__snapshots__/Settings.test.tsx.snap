@@ -62,11 +62,13 @@ exports[`Account rendering renders! 1`] = `
                                 shape="none"
                                 size="sm"
                                 status="default"
+                                testID="button"
                                 text="Edit About Me"
                                 type="button"
                               >
                                 <button
                                   className="button button-sm button-default"
+                                  data-testid="button"
                                   disabled={false}
                                   tabIndex={0}
                                   title="Edit About Me"

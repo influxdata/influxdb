@@ -12,6 +12,11 @@
   @include custom-scrollbar($g3-castle, $c-pool);
   @include gradient-v($g3-castle, $g0-obsidian);
   padding: $sidebar--width;
+
+  .version-info {
+    text-align: center;
+    padding: $ix-marg-b $ix-marg-b * 2;
+  }
 }
 
 .auth-image {
@@ -190,10 +195,11 @@
 
 
 .auth-panel {
-  border-radius: $radius;
+  border-radius: $radius $radius 0 0;
   background-color: $g3-castle;
   padding: 32px;
   text-align: center;
+
 }
 
 .auth-heading {

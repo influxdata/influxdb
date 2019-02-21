@@ -3,11 +3,18 @@
 ### Features
 1. [11954](https://github.com/influxdata/influxdb/pull/11954): Add the ability to run a task manually from tasks page
 1. [11990](https://github.com/influxdata/influxdb/pull/11990): Add the ability to select a custom time range in explorer and dashboard
+1. [12009](https://github.com/influxdata/influxdb/pull/12009): Display the version information on the login page
+1. [12011](https://github.com/influxdata/influxdb/pull/12011): Add the ability to update a Variable's name and query.
+1. [12026](https://github.com/influxdata/influxdb/pull/12026): Add labels to cloned dashboard
 
 ### Bug Fixes
 1. [11997](https://github.com/influxdata/influxdb/pull/11997): Update the bucket retention policy to update the time in seconds
 
 ### UI Improvements
+1. [12016](https://github.com/influxdata/influxdb/pull/12016): Update the preview in the label overlays to be shorter
+1. [12012](https://github.com/influxdata/influxdb/pull/12012): Add notifications to scrapers page for created/deleted/updated scrapers 
+1. [12023](https://github.com/influxdata/influxdb/pull/12023): Add notifications to buckets page for created/deleted/updated buckets
+1. [12072](https://github.com/influxdata/influxdb/pull/12072): Update the admin page to display error for password length
 
 ## v2.0.0-alpha.3 [2019-02-15]
 

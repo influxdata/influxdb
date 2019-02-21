@@ -61,6 +61,7 @@ export type Action =
   | SetScraperTargetID
   | ClearDataLoaders
   | SetTelegrafConfigName
+  | SetTelegrafConfigDescription
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -90,6 +91,18 @@ interface SetTelegrafConfigName {
 export const setTelegrafConfigName = (name: string): SetTelegrafConfigName => ({
   type: 'SET_TELEGRAF_CONFIG_NAME',
   payload: {name},
+})
+
+interface SetTelegrafConfigDescription {
+  type: 'SET_TELEGRAF_CONFIG_DESCRIPTION'
+  payload: {description: string}
+}
+
+export const setTelegrafConfigDescription = (
+  description: string
+): SetTelegrafConfigDescription => ({
+  type: 'SET_TELEGRAF_CONFIG_DESCRIPTION',
+  payload: {description},
 })
 
 interface UpdateTelegrafPluginConfig {
@@ -300,7 +313,12 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
 ) => {
   const {
     dataLoading: {
-      dataLoaders: {telegrafPlugins, telegrafConfigID, telegrafConfigName},
+      dataLoaders: {
+        telegrafPlugins,
+        telegrafConfigID,
+        telegrafConfigName,
+        telegrafConfigDescription,
+      },
       steps: {org, bucket, orgID},
     },
   } = getState()
@@ -330,6 +348,7 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
   if (telegrafConfigID) {
     await client.telegrafConfigs.update(telegrafConfigID, {
       name: telegrafConfigName,
+      description: telegrafConfigDescription,
       plugins,
     })
     dispatch(setTelegrafConfigID(telegrafConfigID))
@@ -338,6 +357,7 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
 
   const telegrafRequest: TelegrafRequest = {
     name: telegrafConfigName,
+    description: telegrafConfigDescription,
     agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
     organizationID: orgID,
     plugins,

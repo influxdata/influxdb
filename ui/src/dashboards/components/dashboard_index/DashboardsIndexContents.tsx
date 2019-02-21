@@ -4,6 +4,7 @@ import _ from 'lodash'
 
 // Components
 import Table from 'src/dashboards/components/dashboard_index/Table'
+import FilterList from 'src/shared/components/Filter'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -43,33 +44,33 @@ export default class DashboardsIndexContents extends Component<Props> {
       searchTerm,
       orgs,
       showOwnerColumn,
+      dashboards,
     } = this.props
 
     return (
-      <Table
+      <FilterList<Dashboard>
+        list={dashboards}
         searchTerm={searchTerm}
-        dashboards={this.filteredDashboards}
-        onDeleteDashboard={onDeleteDashboard}
-        onCreateDashboard={onCreateDashboard}
-        onCloneDashboard={onCloneDashboard}
-        onExportDashboard={onExportDashboard}
-        defaultDashboardLink={defaultDashboardLink}
-        onSetDefaultDashboard={onSetDefaultDashboard}
-        onUpdateDashboard={onUpdateDashboard}
-        onEditLabels={onEditLabels}
-        orgs={orgs}
-        showOwnerColumn={showOwnerColumn}
-      />
+        searchKeys={['name', 'labels[].name']}
+        sortByKey="name"
+      >
+        {filteredDashboards => (
+          <Table
+            searchTerm={searchTerm}
+            dashboards={filteredDashboards}
+            onDeleteDashboard={onDeleteDashboard}
+            onCreateDashboard={onCreateDashboard}
+            onCloneDashboard={onCloneDashboard}
+            onExportDashboard={onExportDashboard}
+            defaultDashboardLink={defaultDashboardLink}
+            onSetDefaultDashboard={onSetDefaultDashboard}
+            onUpdateDashboard={onUpdateDashboard}
+            onEditLabels={onEditLabels}
+            orgs={orgs}
+            showOwnerColumn={showOwnerColumn}
+          />
+        )}
+      </FilterList>
     )
-  }
-
-  private get filteredDashboards(): Dashboard[] {
-    const {dashboards, searchTerm} = this.props
-
-    const matchingDashboards = dashboards.filter(d =>
-      d.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-
-    return _.sortBy(matchingDashboards, d => d.name.toLowerCase())
   }
 }

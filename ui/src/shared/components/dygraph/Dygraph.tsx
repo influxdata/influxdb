@@ -68,6 +68,7 @@ interface OwnProps {
   onZoom?: (timeRange: TimeRange) => void
   mode?: string
   underlayCallback?: () => void
+  children?: JSX.Element
 }
 
 type Props = OwnProps & InjectedHoverProps

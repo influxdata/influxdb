@@ -24,6 +24,8 @@ import {
   deleteVariableFailed,
   addVariableSuccess,
   deleteVariableSuccess,
+  updateVariableFailed,
+  updateVariableSuccess,
 } from 'src/shared/copy/notifications'
 
 interface Props {
@@ -108,6 +110,7 @@ export default class Variables extends PureComponent<Props, State> {
               variables={variables}
               emptyState={this.emptyState}
               onDeleteVariable={this.handleDeleteVariable}
+              onUpdateVariable={this.handleUpdateVariable}
             />
           )}
         </FilterList>
@@ -161,6 +164,24 @@ export default class Variables extends PureComponent<Props, State> {
       notify(deleteVariableSuccess(variable.name))
     } catch (error) {
       notify(deleteVariableFailed())
+    }
+
+    onChange()
+  }
+
+  private handleUpdateVariable = async (
+    variable: Partial<Variable>
+  ): Promise<void> => {
+    const {notify, onChange} = this.props
+
+    try {
+      const updatedVariable = await client.variables.update(
+        variable.id,
+        variable
+      )
+      notify(updateVariableSuccess(updatedVariable.name))
+    } catch (error) {
+      notify(updateVariableFailed())
     }
 
     onChange()

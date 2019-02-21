@@ -21,7 +21,6 @@ import WizardProgressHeader from './components/wizard/WizardProgressHeader'
 import ProgressBar from './components/wizard/ProgressBar'
 import ComponentSpacer from './components/component_spacer/ComponentSpacer'
 import EmptyState from './components/empty_state/EmptyState'
-import SparkleSpinner from './components/spinners/SparkleSpinner'
 import IndexList from './components/index_views/IndexList'
 import Context from './components/context_menu/Context'
 import FormElement from 'src/clockface/components/form_layout/FormElement'
@@ -33,8 +32,6 @@ import ResponsiveGridSizer from 'src/clockface/components/grid_sizer/ResponsiveG
 import Select from 'src/clockface/components/Select'
 import Grid from 'src/clockface/components/grid_layout/Grid'
 import QuestionMarkTooltip from 'src/clockface/components/tooltips/QuestionMarkTooltip'
-import SpinnerContainer from 'src/clockface/components/spinners/SpinnerContainer'
-import TechnoSpinner from 'src/clockface/components/spinners/TechnoSpinner'
 import Tabs from './components/tabs/Tabs'
 
 // Import Types
@@ -100,12 +97,9 @@ export {
   Radio,
   ResponsiveGridSizer,
   Select,
-  SparkleSpinner,
   Sort,
-  SpinnerContainer,
   Stack,
   Tabs,
-  TechnoSpinner,
   WizardFullScreen,
   WizardProgressHeader,
   WizardOverlay,

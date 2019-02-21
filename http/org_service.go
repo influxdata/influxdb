@@ -305,7 +305,7 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 	qp := r.URL.Query()
 	req := &getOrgsRequest{}
 
-	if orgID := qp.Get("id"); orgID != "" {
+	if orgID := qp.Get(OrgID); orgID != "" {
 		id, err := influxdb.IDFromString(orgID)
 		if err != nil {
 			return nil, err
@@ -313,7 +313,7 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 		req.filter.ID = id
 	}
 
-	if name := qp.Get("name"); name != "" {
+	if name := qp.Get(OrgName); name != "" {
 		req.filter.Name = &name
 	}
 
@@ -586,6 +586,12 @@ func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id influ
 
 // FindOrganization gets a single organization matching the filter using HTTP.
 func (s *OrganizationService) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+	if filter.ID == nil && filter.Name == nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "no filter parameters provided",
+		}
+	}
 	os, n, err := s.FindOrganizations(ctx, filter)
 	if err != nil {
 		return nil, &influxdb.Error{
@@ -614,10 +620,10 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 	qp := url.Query()
 
 	if filter.Name != nil {
-		qp.Add("name", *filter.Name)
+		qp.Add(OrgName, *filter.Name)
 	}
 	if filter.ID != nil {
-		qp.Add("id", filter.ID.String())
+		qp.Add(OrgID, filter.ID.String())
 	}
 	url.RawQuery = qp.Encode()
 

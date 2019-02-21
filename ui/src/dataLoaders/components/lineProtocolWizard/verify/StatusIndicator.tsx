@@ -3,7 +3,8 @@ import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 import {connect} from 'react-redux'
 
-import {SparkleSpinner} from 'src/clockface'
+// Components
+import {SparkleSpinner} from '@influxdata/clockface'
 
 // Types
 import {RemoteDataState} from 'src/types'

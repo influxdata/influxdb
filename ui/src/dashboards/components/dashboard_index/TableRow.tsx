@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
+import moment from 'moment'
 
 // Components
 import {
@@ -17,18 +18,18 @@ import {
   ComponentSpacer,
 } from 'src/clockface'
 import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
+import FeatureFlag from 'src/shared/components/FeatureFlag'
+import EditableName from 'src/shared/components/EditableName'
 
 // Types
 import {Dashboard, Organization} from 'src/types/v2'
 import {Alignment} from 'src/clockface'
-import moment from 'moment'
 
 // Constants
 import {
   UPDATED_AT_TIME_FORMAT,
   DEFAULT_DASHBOARD_NAME,
 } from 'src/dashboards/constants'
-import EditableName from 'src/shared/components/EditableName'
 
 interface Props {
   dashboard: Dashboard
@@ -76,13 +77,15 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
         {this.lastModifiedCell}
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Left} stackChildren={Stack.Columns}>
-            <Button
-              size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Default}
-              text="Export"
-              icon={IconFont.Export}
-              onClick={this.handleExport}
-            />
+            <FeatureFlag>
+              <Button
+                size={ComponentSize.ExtraSmall}
+                color={ComponentColor.Default}
+                text="Export"
+                icon={IconFont.Export}
+                onClick={this.handleExport}
+              />
+            </FeatureFlag>
             <Button
               size={ComponentSize.ExtraSmall}
               color={ComponentColor.Secondary}

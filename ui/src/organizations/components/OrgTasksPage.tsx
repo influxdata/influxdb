@@ -115,7 +115,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
           />
           <FilterList<Task>
             searchTerm={searchTerm}
-            searchKeys={['name']}
+            searchKeys={['name', 'labels[].name']}
             list={this.filteredTasks}
           >
             {ts => (

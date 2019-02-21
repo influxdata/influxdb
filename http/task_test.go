@@ -24,7 +24,7 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 
 	i := inmem.NewService()
 
-	backingTS := task.PlatformAdapter(store, rrw, sch, i, i)
+	backingTS := task.PlatformAdapter(store, rrw, sch, i, i, i)
 
 	h := http.NewAuthenticationHandler()
 	h.AuthorizationService = i
@@ -65,6 +65,7 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 	cFunc := func() (servicetest.TestCreds, error) {
 		return servicetest.TestCreds{
 			OrgID:           org.ID,
+			Org:             org.Name,
 			UserID:          user.ID,
 			AuthorizationID: auth.ID,
 			Token:           auth.Token,

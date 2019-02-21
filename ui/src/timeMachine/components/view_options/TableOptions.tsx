@@ -145,8 +145,8 @@ export class TableOptions extends Component<Props, {}> {
 
   private handleUpdateColumn = (fieldOption: FieldOption) => {
     const {internalName} = fieldOption
-    const fieldOptions = this.props.fieldOptions.map(
-      fopt => (fopt.internalName === internalName ? fieldOption : fopt)
+    const fieldOptions = this.props.fieldOptions.map(fopt =>
+      fopt.internalName === internalName ? fieldOption : fopt
     )
 
     this.props.onSetFieldOptions(fieldOptions)

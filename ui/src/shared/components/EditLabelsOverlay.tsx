@@ -23,7 +23,7 @@ import FetchLabels from 'src/shared/components/FetchLabels'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Label} from '@influxdata/influx'
+import {Label} from 'src/types/v2/labels'
 import {RemoteDataState} from 'src/types'
 
 // Utils

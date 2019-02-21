@@ -5,7 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {Page} from 'src/pageLayout'
 import GetLabels from 'src/configuration/components/GetLabels'
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Labels from 'src/configuration/components/Labels'

@@ -17,10 +17,15 @@ import {
   saveScraperTarget,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
+import {notify as notifyAction, notify} from 'src/shared/actions/notifications'
 
 // Types
 import {Bucket} from '@influxdata/influx'
 import {AppState} from 'src/types/v2/index'
+import {
+  scraperCreateSuccess,
+  scraperCreateFailed,
+} from 'src/shared/copy/v2/notifications'
 
 interface OwnProps {
   onClickNext: () => void
@@ -33,6 +38,7 @@ interface DispatchProps {
   onSetScraperTargetName: typeof setScraperTargetName
   onSaveScraperTarget: typeof saveScraperTarget
   onSetBucketInfo: typeof setBucketInfo
+  notify: typeof notifyAction
 }
 
 interface StateProps {
@@ -122,9 +128,15 @@ export class Scraping extends PureComponent<Props> {
   }
 
   private handleSubmit = async () => {
-    const {onSaveScraperTarget, onClickNext} = this.props
-    await onSaveScraperTarget()
-    onClickNext()
+    try {
+      const {onSaveScraperTarget, onClickNext, notify} = this.props
+      await onSaveScraperTarget()
+      onClickNext()
+      notify(scraperCreateSuccess())
+    } catch (e) {
+      console.error(e)
+      notify(scraperCreateFailed())
+    }
   }
 }
 
@@ -148,6 +160,7 @@ const mdtp: DispatchProps = {
   onSaveScraperTarget: saveScraperTarget,
   onSetBucketInfo: setBucketInfo,
   onSetScraperTargetName: setScraperTargetName,
+  notify: notifyAction,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

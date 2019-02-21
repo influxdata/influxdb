@@ -1,3 +1,6 @@
+// Libraries
+import _ from 'lodash'
+
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {SetupSuccess, SetupError} from 'src/shared/copy/notifications'
@@ -5,6 +8,7 @@ import {SetupSuccess, SetupError} from 'src/shared/copy/notifications'
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
+// APIs
 import {client} from 'src/utils/api'
 
 // Types
@@ -62,7 +66,9 @@ export const setBucketID = (bucketID: string): SetBucketID => ({
   payload: {bucketID},
 })
 
-export const setupAdmin = (params: ISetupParams) => async dispatch => {
+export const setupAdmin = (params: ISetupParams) => async (
+  dispatch
+): Promise<boolean> => {
   try {
     dispatch(setSetupParams(params))
     const response = await client.setup.create(params)
@@ -77,8 +83,12 @@ export const setupAdmin = (params: ISetupParams) => async dispatch => {
 
     await client.auth.signin(username, password)
     dispatch(notify(SetupSuccess))
+    dispatch(setStepStatus(1, StepStatus.Complete))
+    return true
   } catch (err) {
     console.error(err)
-    dispatch(notify(SetupError))
+    let message = _.get(err, 'response.data.message', '')
+    dispatch(notify(SetupError(message)))
+    dispatch(setStepStatus(1, StepStatus.Error))
   }
 }

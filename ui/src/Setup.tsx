@@ -11,7 +11,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Utils
 import {isOnboardingURL} from 'src/onboarding/utils'

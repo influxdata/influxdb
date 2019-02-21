@@ -17,7 +17,7 @@ import {Bucket, Organization} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 
 // Components
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Buckets from 'src/organizations/components/Buckets'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'

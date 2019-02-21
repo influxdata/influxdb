@@ -10,6 +10,7 @@ exports[`SaveAsButton rendering renders 1`] = `
     shape="none"
     size="sm"
     status="default"
+    testID="button"
     text="Save As"
     titleText="Save your query as a Dashboard Cell or a Task"
     type="button"
