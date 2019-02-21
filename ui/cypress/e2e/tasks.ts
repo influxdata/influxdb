@@ -1,9 +1,12 @@
+import {Organization} from '@influxdata/influx'
+
 describe('Tasks', () => {
   beforeEach(() => {
     cy.flush()
 
     cy.setupUser().then(({body}) => {
       cy.signin(body.org.id)
+      cy.wrap(body.org).as('org')
     })
 
     cy.visit('/tasks')
@@ -30,8 +33,23 @@ describe('Tasks', () => {
     cy.contains('Save').click()
 
     cy.getByDataTest('task-row')
-      .and('have.length', 1)
+      .should('have.length', 1)
       .and('contain', taskName)
+  })
+
+  it('can delete a task', () => {
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createTask(id)
+      cy.createTask(id)
+    })
+
+    cy.getByDataTest('task-row').should('have.length', 2)
+
+    cy.getByDataTest('confirmation-button')
+      .first()
+      .click({force: true})
+
+    cy.getByDataTest('task-row').should('have.length', 1)
   })
 
   it('fails to create a task without a valid script', () => {

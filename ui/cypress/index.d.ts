@@ -9,6 +9,7 @@ import {
   getByDataTest,
   getByInputName,
   getByTitle,
+  createTask
 } from './support/commands'
 
 declare global {
@@ -17,6 +18,7 @@ declare global {
       signin: typeof signin
       setupUser: typeof setupUser
       createSource: typeof createSource
+      createTask: typeof createTask
       createDashboard: typeof createDashboard
       createOrg: typeof createOrg
       flush: typeof flush

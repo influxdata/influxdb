@@ -33,6 +33,7 @@ interface Props {
   titleText?: string
   tabIndex?: number
   className?: string
+  testID?: string
 }
 
 interface State {
@@ -45,6 +46,7 @@ class ConfirmationButton extends Component<Props, State> {
     size: ComponentSize.Small,
     shape: ButtonShape.Default,
     status: ComponentStatus.Default,
+    testID: 'confirmation-button',
   }
 
   public ref: RefObject<HTMLButtonElement> = React.createRef()
@@ -67,6 +69,7 @@ class ConfirmationButton extends Component<Props, State> {
       status,
       confirmText,
       icon,
+      testID,
     } = this.props
     const {isTooltipVisible} = this.state
 
@@ -89,6 +92,7 @@ class ConfirmationButton extends Component<Props, State> {
           <div className={this.tooltipClassName}>
             <div
               data-test="confirmation-button--click-target"
+              data-testid={testID}
               className="confirmation-button--tooltip-body"
               onClick={this.handleTooltipClick}
             >
