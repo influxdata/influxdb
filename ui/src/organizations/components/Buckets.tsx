@@ -89,7 +89,7 @@ export default class Buckets extends PureComponent<Props, State> {
         </Tabs.TabContentsHeader>
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
-          searchKeys={['name', 'ruleString']}
+          searchKeys={['name', 'ruleString', 'labels[].name']}
           list={this.prettyBuckets(buckets)}
         >
           {bs => (
