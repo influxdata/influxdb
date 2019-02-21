@@ -114,18 +114,20 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 		"Name",
 		"OrganizationID",
 		"Organization",
+		"AuthorizationID",
 		"Status",
 		"Every",
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
+		"ID":              t.ID.String(),
+		"Name":            t.Name,
+		"OrganizationID":  t.OrganizationID.String(),
+		"Organization":    t.Organization,
+		"AuthorizationID": t.AuthorizationID.String(),
+		"Status":          t.Status,
+		"Every":           t.Every,
+		"Cron":            t.Cron,
 	})
 	w.Flush()
 
@@ -213,19 +215,21 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 		"Name",
 		"OrganizationID",
 		"Organization",
+		"AuthorizationID",
 		"Status",
 		"Every",
 		"Cron",
 	)
 	for _, t := range tasks {
 		w.Write(map[string]interface{}{
-			"ID":             t.ID.String(),
-			"Name":           t.Name,
-			"OrganizationID": t.OrganizationID.String(),
-			"Organization":   t.Organization,
-			"Status":         t.Status,
-			"Every":          t.Every,
-			"Cron":           t.Cron,
+			"ID":              t.ID.String(),
+			"Name":            t.Name,
+			"OrganizationID":  t.OrganizationID.String(),
+			"Organization":    t.Organization,
+			"AuthorizationID": t.AuthorizationID.String(),
+			"Status":          t.Status,
+			"Every":           t.Every,
+			"Cron":            t.Cron,
 		})
 	}
 	w.Flush()
@@ -290,18 +294,20 @@ func taskUpdateF(cmd *cobra.Command, args []string) error {
 		"Name",
 		"OrganizationID",
 		"Organization",
+		"AuthorizationID",
 		"Status",
 		"Every",
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
+		"ID":              t.ID.String(),
+		"Name":            t.Name,
+		"OrganizationID":  t.OrganizationID.String(),
+		"Organization":    t.Organization,
+		"AuthorizationID": t.AuthorizationID.String(),
+		"Status":          t.Status,
+		"Every":           t.Every,
+		"Cron":            t.Cron,
 	})
 	w.Flush()
 
@@ -356,18 +362,20 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 		"Name",
 		"OrganizationID",
 		"Organization",
+		"AuthorizationID",
 		"Status",
 		"Every",
 		"Cron",
 	)
 	w.Write(map[string]interface{}{
-		"ID":             t.ID.String(),
-		"Name":           t.Name,
-		"OrganizationID": t.OrganizationID.String(),
-		"Organization":   t.Organization,
-		"Status":         t.Status,
-		"Every":          t.Every,
-		"Cron":           t.Cron,
+		"ID":              t.ID.String(),
+		"Name":            t.Name,
+		"OrganizationID":  t.OrganizationID.String(),
+		"Organization":    t.Organization,
+		"AuthorizationID": t.AuthorizationID.String(),
+		"Status":          t.Status,
+		"Every":           t.Every,
+		"Cron":            t.Cron,
 	})
 	w.Flush()
 
