@@ -20,6 +20,7 @@ interface XHRError extends Error {
 
 export const executeQuery = (
   url: string,
+  orgID: string,
   query: string,
   language: InfluxLanguage = InfluxLanguage.Flux
 ): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
@@ -127,7 +128,7 @@ export const executeQuery = (
   const dialect = {annotations: ['group', 'datatype', 'default']}
   const body = JSON.stringify({query, dialect, type: language})
 
-  xhr.open('POST', url)
+  xhr.open('POST', `${url}?orgID=${encodeURIComponent(orgID)}`)
   xhr.setRequestHeader('Content-Type', 'application/json')
   xhr.send(body)
 

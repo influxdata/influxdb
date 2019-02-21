@@ -14,12 +14,12 @@ export const LIMIT = 200
 
 type CancelableQuery = WrappedCancelablePromise<string[]>
 
-export function findBuckets(url: string): CancelableQuery {
+export function findBuckets(url: string, orgID: string): CancelableQuery {
   const query = `buckets()
   |> sort(columns: ["name"])
   |> limit(n: ${LIMIT})`
 
-  const {promise, cancel} = executeQuery(url, query, InfluxLanguage.Flux)
+  const {promise, cancel} = executeQuery(url, orgID, query, InfluxLanguage.Flux)
 
   return {
     promise: promise.then(resp => extractCol(resp, 'name')),
@@ -29,6 +29,7 @@ export function findBuckets(url: string): CancelableQuery {
 
 export function findKeys(
   url: string,
+  orgID: string,
   bucket: string,
   tagsSelections: BuilderConfig['tags'],
   searchTerm: string = ''
@@ -49,7 +50,7 @@ v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, start: -${SEARCH_DURAT
   |> sort()
   |> limit(n: ${LIMIT})`
 
-  const {promise, cancel} = executeQuery(url, query, InfluxLanguage.Flux)
+  const {promise, cancel} = executeQuery(url, orgID, query, InfluxLanguage.Flux)
 
   return {
     promise: promise.then(resp => extractCol(resp, '_value')),
@@ -59,6 +60,7 @@ v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, start: -${SEARCH_DURAT
 
 export function findValues(
   url: string,
+  orgID: string,
   bucket: string,
   tagsSelections: BuilderConfig['tags'],
   key: string,
@@ -73,7 +75,7 @@ v1.tagValues(bucket: "${bucket}", tag: "${key}", predicate: ${tagFilters}, start
   |> limit(n: ${LIMIT})
   |> sort()`
 
-  const {promise, cancel} = executeQuery(url, query, InfluxLanguage.Flux)
+  const {promise, cancel} = executeQuery(url, orgID, query, InfluxLanguage.Flux)
 
   return {
     promise: promise.then(resp => extractCol(resp, '_value')),

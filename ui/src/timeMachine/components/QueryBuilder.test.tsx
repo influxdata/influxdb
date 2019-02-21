@@ -17,6 +17,11 @@ const setInitialState = state => {
         [source.id]: source,
       },
     },
+    orgs: [
+      {
+        id: 'foo',
+      },
+    ],
   }
 }
 

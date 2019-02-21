@@ -1,44 +1,39 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
 
 // Components
 import DataListening from 'src/dataLoaders/components/verifyStep/DataListening'
-import ConnectionInformation from 'src/dataLoaders/components/verifyStep/ConnectionInformation'
-import {Button} from '@influxdata/clockface'
 
-const setup = (override = {}) => {
-  const props = {
-    bucket: 'defbuck',
-    stepIndex: 4,
-    ...override,
+// Utils
+import {renderWithRedux} from 'src/mockState'
+import {fireEvent} from 'react-testing-library'
+
+const setInitialState = state => {
+  return {
+    ...state,
+    orgs: [
+      {
+        id: 'foo',
+      },
+    ],
   }
-
-  const wrapper = shallow(<DataListening {...props} />)
-
-  return {wrapper}
 }
 
 describe('Onboarding.Components.DataListening', () => {
-  it('renders', () => {
-    const {wrapper} = setup()
-    const button = wrapper.find(Button)
-
-    expect(wrapper.exists()).toBe(true)
-    expect(button.exists()).toBe(true)
-  })
-
   describe('if button is clicked', () => {
     it('displays connection information', () => {
-      const {wrapper} = setup()
+      const {getByTitle, getByText} = renderWithRedux(
+        <DataListening bucket="bucket" />,
+        setInitialState
+      )
 
-      const button = wrapper.find(Button)
-      button.simulate('click')
+      const button = getByTitle('Listen for Data')
 
-      const connectionInfo = wrapper.find(ConnectionInformation)
+      fireEvent.click(button)
 
-      expect(wrapper.exists()).toBe(true)
-      expect(connectionInfo.exists()).toBe(true)
+      const message = getByText('Awaiting Connection...')
+
+      expect(message).toBeDefined()
     })
   })
 })
