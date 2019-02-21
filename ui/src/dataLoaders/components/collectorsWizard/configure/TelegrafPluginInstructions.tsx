@@ -11,6 +11,7 @@ import PluginsSideBar from 'src/dataLoaders/components/collectorsWizard/configur
 // Actions
 import {
   setTelegrafConfigName,
+  setTelegrafConfigDescription,
   setActiveTelegrafPlugin,
   setPluginConfiguration,
 } from 'src/dataLoaders/actions/dataLoaders'
@@ -25,6 +26,7 @@ import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
 
 interface DispatchProps {
   onSetTelegrafConfigName: typeof setTelegrafConfigName
+  onSetTelegrafConfigDescription: typeof setTelegrafConfigDescription
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetPluginConfiguration: typeof setPluginConfiguration
   onIncrementStep: typeof incrementCurrentStepIndex
@@ -33,6 +35,7 @@ interface DispatchProps {
 
 interface StateProps {
   telegrafConfigName: string
+  telegrafConfigDescription: string
   telegrafPlugins: TelegrafPlugin[]
 }
 
@@ -42,10 +45,12 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
   public render() {
     const {
       telegrafConfigName,
+      telegrafConfigDescription,
       telegrafPlugins,
       onDecrementStep,
       onIncrementStep,
     } = this.props
+
     return (
       <Form onSubmit={onIncrementStep} className="data-loading--form">
         <div className="data-loading--scroll-content">
@@ -78,6 +83,15 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
                     autoFocus={true}
                   />
                 </Form.Element>
+                <Form.Element label="Telegraf Configuration Description">
+                  <Input
+                    type={InputType.Text}
+                    value={telegrafConfigDescription}
+                    onChange={this.handleDescriptionInput}
+                    titleText="Telegraf Configuration Description"
+                    size={ComponentSize.Medium}
+                  />
+                </Form.Element>
               </FancyScrollbar>
             </div>
           </div>
@@ -102,6 +116,10 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
     this.props.onSetTelegrafConfigName(e.target.value)
   }
 
+  private handleDescriptionInput = (e: ChangeEvent<HTMLInputElement>) => {
+    this.props.onSetTelegrafConfigDescription(e.target.value)
+  }
+
   private handleClickSideBarTab = (tabID: string) => {
     const {
       onSetActiveTelegrafPlugin,
@@ -120,17 +138,23 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
 
 const mstp = ({
   dataLoading: {
-    dataLoaders: {telegrafConfigName, telegrafPlugins},
+    dataLoaders: {
+      telegrafConfigName,
+      telegrafConfigDescription,
+      telegrafPlugins,
+    },
   },
 }: AppState): StateProps => {
   return {
     telegrafConfigName,
+    telegrafConfigDescription,
     telegrafPlugins,
   }
 }
 
 const mdtp: DispatchProps = {
   onSetTelegrafConfigName: setTelegrafConfigName,
+  onSetTelegrafConfigDescription: setTelegrafConfigDescription,
   onIncrementStep: incrementCurrentStepIndex,
   onDecrementStep: decrementCurrentStepIndex,
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,

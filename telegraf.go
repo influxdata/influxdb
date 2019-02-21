@@ -63,6 +63,7 @@ type TelegrafConfig struct {
 	ID             ID
 	OrganizationID ID
 	Name           string
+	Description    string
 
 	Agent   TelegrafAgentConfig
 	Plugins []TelegrafPlugin
@@ -137,6 +138,7 @@ type telegrafConfigEncode struct {
 	ID             ID     `json:"id"`
 	OrganizationID ID     `json:"organizationID,omitempty"`
 	Name           string `json:"name"`
+	Description    string `json:"description"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -157,6 +159,7 @@ type telegrafConfigDecode struct {
 	ID             ID     `json:"id"`
 	OrganizationID ID     `json:"organizationID,omitempty"`
 	Name           string `json:"name"`
+	Description    string `json:"description"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -199,6 +202,7 @@ func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
 		ID:             tc.ID,
 		OrganizationID: tc.OrganizationID,
 		Name:           tc.Name,
+		Description:    tc.Description,
 		Agent:          tc.Agent,
 		Plugins:        make([]telegrafPluginEncode, len(tc.Plugins)),
 	}
@@ -305,6 +309,7 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 		ID:             tcd.ID,
 		OrganizationID: tcd.OrganizationID,
 		Name:           tcd.Name,
+		Description:    tcd.Description,
 		Agent:          tcd.Agent,
 		Plugins:        make([]TelegrafPlugin, len(tcd.Plugins)),
 	}

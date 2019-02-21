@@ -85,10 +85,6 @@ from(bucket: \\"inbucket\\")
                 },
                 "name": "RadicalOrganization",
               },
-              "owner": Object {
-                "id": "02ee9e2a19d73000",
-                "name": "",
-              },
               "status": "active",
             },
             Object {
@@ -129,10 +125,6 @@ from(bucket: \\"inbucket\\")
                   "tasks": "/api/v2/tasks?org=RadicalOrganization",
                 },
                 "name": "RadicalOrganization",
-              },
-              "owner": Object {
-                "id": "02ee9e2a19d73000",
-                "name": "",
               },
               "status": "active",
             },

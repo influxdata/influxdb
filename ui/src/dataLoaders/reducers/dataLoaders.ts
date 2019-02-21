@@ -41,6 +41,7 @@ export const INITIAL_STATE: DataLoadersState = {
     name: 'Name this Scraper Target',
   },
   telegrafConfigName: 'Name this Configuration',
+  telegrafConfigDescription: '',
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -273,6 +274,11 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
       return {
         ...state,
         telegrafConfigName: action.payload.name,
+      }
+    case 'SET_TELEGRAF_CONFIG_DESCRIPTION':
+      return {
+        ...state,
+        telegrafConfigDescription: action.payload.description,
       }
     case 'SET_SCRAPER_TARGET_NAME':
       const {name} = action.payload

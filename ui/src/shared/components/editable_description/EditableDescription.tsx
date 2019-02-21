@@ -122,7 +122,7 @@ class EditableDescription extends Component<Props, State> {
     const {description} = this.props
 
     return classnames('editable-description--preview', {
-      untitled: description === '',
+      untitled: !description,
     })
   }
 }
