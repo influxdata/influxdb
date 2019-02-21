@@ -84,7 +84,7 @@ class Labels extends PureComponent<Props, State> {
             value={searchTerm}
             onBlur={this.handleFilterBlur}
             onChange={this.handleFilterChange}
-            placeholder="Filter Labels..."
+            placeholder="Filter labels..."
           />
           <Button
             text="Create Label"

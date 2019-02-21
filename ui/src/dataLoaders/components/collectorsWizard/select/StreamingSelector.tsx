@@ -92,7 +92,7 @@ class StreamingSelector extends PureComponent<Props, State> {
                 value={searchTerm}
                 onBlur={this.handleFilterBlur}
                 onChange={this.handleFilterChange}
-                placeholder="Filter Plugins..."
+                placeholder="Filter plugins..."
               />
             </FormElement>
           </Grid.Column>

@@ -33,7 +33,7 @@ class OrgHeader extends Component<Props> {
           <RenamablePageTitle
             name={org.name}
             maxLength={70}
-            placeholder="Name this Organization"
+            placeholder="Name this organization"
             onRename={this.handleUpdateOrg}
           />
         </Page.Header.Left>

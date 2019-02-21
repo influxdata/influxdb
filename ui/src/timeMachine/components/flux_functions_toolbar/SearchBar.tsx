@@ -35,7 +35,7 @@ class SearchBar extends PureComponent<Props, State> {
         <Input
           type={InputType.Text}
           icon={IconFont.Search}
-          placeholder="Filter Functions..."
+          placeholder="Filter functions..."
           onChange={this.handleChange}
           value={this.state.searchTerm}
         />

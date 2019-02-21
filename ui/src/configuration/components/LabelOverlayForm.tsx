@@ -99,7 +99,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                 {status => (
                   <Input
                     type={InputType.Text}
-                    placeholder="Name this Label"
+                    placeholder="Name this label"
                     name="name"
                     autoFocus={true}
                     value={name}

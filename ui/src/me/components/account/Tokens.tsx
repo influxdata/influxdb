@@ -53,7 +53,7 @@ export class Tokens extends PureComponent<Props, State> {
           <Input
             icon={IconFont.Search}
             value={searchTerm}
-            placeholder="Filter Tokens..."
+            placeholder="Filter tokens..."
             onChange={this.handleChangeSearchTerm}
             widthPixels={256}
           />

@@ -77,7 +77,7 @@ export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
 
 export const DashboardTemplate: EmptyDefaultDashboard = {
   id: '0',
-  name: 'Create a New Dashboard',
+  name: 'Create a new dashboard',
   cells: [],
 }
 
@@ -87,12 +87,12 @@ type NewDefaultDashboard = Pick<
     cells: NewDefaultCell[]
   }
 >
-export const DEFAULT_CELL_NAME = 'Name this Cell'
-export const DEFAULT_DASHBOARD_NAME = 'Name this Dashboard'
-export const DEFAULT_BUCKET_NAME = 'Name this Bucket'
-export const DEFAULT_COLLECTOR_NAME = 'Name this Collector'
-export const DEFAULT_TASK_NAME = 'Name this Task'
-export const DEFAULT_SCRAPER_NAME = 'Name this Scraper'
+export const DEFAULT_CELL_NAME = 'Name this cell'
+export const DEFAULT_DASHBOARD_NAME = 'Name this dashboard'
+export const DEFAULT_BUCKET_NAME = 'Name this bucket'
+export const DEFAULT_COLLECTOR_NAME = 'Name this collector'
+export const DEFAULT_TASK_NAME = 'Name this task'
+export const DEFAULT_SCRAPER_NAME = 'Name this scraper'
 export const NEW_DASHBOARD: NewDefaultDashboard = {
   name: DEFAULT_DASHBOARD_NAME,
   cells: [NEW_DEFAULT_DASHBOARD_CELL],

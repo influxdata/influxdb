@@ -92,7 +92,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
               <Form.Element label="Cell Name">
                 <Input
                   type={InputType.Text}
-                  placeholder="Add optional cell name"
+                  placeholder="Add an optional cell name"
                   name="cellName"
                   value={cellName}
                   onChange={this.handleChangeCellName}
@@ -133,7 +133,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
         <Form.Element label="New Dashboard Name">
           <Input
             type={InputType.Text}
-            placeholder="Add dashboard name"
+            placeholder="Add a dashboard name"
             name="dashboardName"
             value={newDashboardName}
             onChange={this.handleChangeDashboardName}

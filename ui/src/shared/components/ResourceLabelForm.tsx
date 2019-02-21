@@ -90,7 +90,7 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
             <Form.Element label="Description">
               <Input
                 type={InputType.Text}
-                placeholder="Add a optional description"
+                placeholder="Add an optional description"
                 name="description"
                 value={this.description}
                 onChange={this.handleInputChange}
