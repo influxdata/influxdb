@@ -6320,6 +6320,8 @@ components:
       properties:
         name:
           type: string
+        description:
+          type: string
         agent:
           type: object
           properties:
