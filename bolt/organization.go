@@ -140,35 +140,11 @@ func (c *Client) FindOrganization(ctx context.Context, filter influxdb.Organizat
 		return o, nil
 	}
 
-	filterFn := filterOrganizationsFn(filter)
-
-	var o *influxdb.Organization
-	err := c.db.View(func(tx *bolt.Tx) error {
-		return forEachOrganization(ctx, tx, func(org *influxdb.Organization) bool {
-			if filterFn(org) {
-				o = org
-				return false
-			}
-			return true
-		})
-	})
-
-	if err != nil {
-		return nil, &influxdb.Error{
-			Op:  op,
-			Err: err,
-		}
+	// If name and ID are not set, then, this is an invalid usage of the API.
+	return nil, &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "no filter parameters provided",
 	}
-
-	if o == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Op:   op,
-			Msg:  "organization not found",
-		}
-	}
-
-	return o, nil
 }
 
 func filterOrganizationsFn(filter influxdb.OrganizationFilter) func(o *influxdb.Organization) bool {

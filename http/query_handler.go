@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -342,9 +343,6 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 	if err := CheckError(resp); err != nil {
 		return 0, err
 	}
-	if err := CheckError(resp); err != nil {
-		return 0, err
-	}
 	return io.Copy(w, resp.Body)
 }
 
@@ -404,4 +402,56 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 
 	decoder := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
 	return decoder.Decode(resp.Body)
+}
+
+// SimpleQuery runs a flux query with common parameters and returns CSV results.
+func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
+	u, err := newURL(addr, fluxPath)
+	if err != nil {
+		return nil, err
+	}
+	params := url.Values{}
+	params.Set(OrgName, org)
+	u.RawQuery = params.Encode()
+
+	header := true
+	qr := &QueryRequest{
+		Type:  "flux",
+		Query: flux,
+		Dialect: QueryDialect{
+			Header:         &header,
+			Delimiter:      ",",
+			CommentPrefix:  "#",
+			DateTimeFormat: "RFC3339",
+		},
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(qr); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", u.String(), &body)
+	if err != nil {
+		return nil, err
+	}
+
+	SetToken(token, req)
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/csv")
+
+	insecureSkipVerify := false
+	hc := newClient(u.Scheme, insecureSkipVerify)
+	res, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(res); err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+	return ioutil.ReadAll(res.Body)
 }

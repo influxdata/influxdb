@@ -77,13 +77,11 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
 		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v` + "\r\n\r\n"
 
-	var buf bytes.Buffer
-	req := (http.QueryRequest{Query: qs, Org: l.Org}).WithDefaults()
-	if preq, err := req.ProxyRequest(); err != nil {
-		t.Fatal(err)
-	} else if _, err := l.FluxService().Query(ctx, &buf, preq); err != nil {
-		t.Fatal(err)
-	} else if diff := cmp.Diff(buf.String(), exp); diff != "" {
+	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
+	if err != nil {
+		t.Fatalf("unexpected error querying server: %v", err)
+	}
+	if diff := cmp.Diff(string(buf), exp); diff != "" {
 		t.Fatal(diff)
 	}
 }
@@ -117,13 +115,11 @@ func TestLauncher_BucketDelete(t *testing.T) {
 	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
 		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v` + "\r\n\r\n"
 
-	var buf bytes.Buffer
-	req := (http.QueryRequest{Query: qs, Org: l.Org}).WithDefaults()
-	if preq, err := req.ProxyRequest(); err != nil {
-		t.Fatal(err)
-	} else if _, err := l.FluxService().Query(ctx, &buf, preq); err != nil {
-		t.Fatal(err)
-	} else if diff := cmp.Diff(buf.String(), exp); diff != "" {
+	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
+	if err != nil {
+		t.Fatalf("unexpected error querying server: %v", err)
+	}
+	if diff := cmp.Diff(string(buf), exp); diff != "" {
 		t.Fatal(diff)
 	}
 
