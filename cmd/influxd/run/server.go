@@ -568,7 +568,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	s.Logger.Info("Sending usage statistics to usage.influxdata.com")
+	s.Logger.Info("Sending usage statistics to " + cl.URL)
 
 	go cl.Save(usage)
 }
