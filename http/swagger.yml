@@ -336,11 +336,11 @@ paths:
               $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
-          description: a list of all labels for a telegraf config
+          description: "the label added to the telegraf config"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LabelsResponse"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -2136,7 +2136,7 @@ paths:
               $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
-          description: a list of all labels for a dashboard
+          description: the label added to the dashboard
           content:
             application/json:
               schema:
