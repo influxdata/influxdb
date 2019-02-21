@@ -2,6 +2,9 @@
 import React, {Component, ChangeEvent, KeyboardEvent} from 'react'
 import _ from 'lodash'
 
+// APIs
+import {client} from 'src/utils/api'
+
 // Components
 import {Button} from '@influxdata/clockface'
 import Input from 'src/clockface/components/inputs/Input'
@@ -12,7 +15,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
 import {ComponentSize} from 'src/clockface/types'
-import {Label as LabelAPI} from '@influxdata/influx'
+import {Label as APILabel} from 'src/types/v2/labels'
 
 // Styles
 import './LabelSelector.scss'
@@ -25,18 +28,19 @@ enum ArrowDirection {
 }
 
 interface Props {
-  selectedLabels: LabelAPI[]
-  allLabels: LabelAPI[]
-  onAddLabel: (label: LabelAPI) => void
-  onRemoveLabel: (label: LabelAPI) => void
+  selectedLabels: APILabel[]
+  allLabels: APILabel[]
+  onAddLabel: (label: APILabel) => void
+  onRemoveLabel: (label: APILabel) => void
   onRemoveAllLabels: () => void
+  onCreateLabel: (label: APILabel) => void
   resourceType: string
   inputSize?: ComponentSize
 }
 
 interface State {
   filterValue: string
-  filteredLabels: LabelAPI[]
+  filteredLabels: APILabel[]
   isSuggesting: boolean
   highlightedID: string
 }
@@ -64,31 +68,21 @@ class LabelSelector extends Component<Props, State> {
     }
   }
 
-  public render() {
-    const {resourceType, inputSize} = this.props
-    const {filterValue} = this.state
+  public componentDidMount() {
+    this.handleStartSuggesting()
+  }
 
+  public render() {
     return (
-      <div className="label-selector">
-        <ClickOutside onClickOutside={this.handleStopSuggesting}>
-          <div className="label-selector--input">
-            <Input
-              placeholder={`Add labels to ${resourceType}`}
-              value={filterValue}
-              onFocus={this.handleStartSuggesting}
-              onKeyDown={this.handleKeyDown}
-              onChange={this.handleInputChange}
-              size={inputSize}
-              autoFocus={true}
-            />
-            {this.suggestionMenu}
+      <ClickOutside onClickOutside={this.handleStopSuggesting}>
+        <div className="label-selector">
+          <div className="label-selector--selection">
+            {this.selectedLabels}
+            {this.clearSelectedButton}
           </div>
-        </ClickOutside>
-        <div className="label-selector--bottom">
-          {this.selectedLabels}
-          {this.clearSelectedButton}
+          {this.input}
         </div>
-      </div>
+      </ClickOutside>
     )
   }
 
@@ -121,21 +115,43 @@ class LabelSelector extends Component<Props, State> {
 
   private get suggestionMenu(): JSX.Element {
     const {allLabels, selectedLabels} = this.props
-    const {isSuggesting, highlightedID} = this.state
+    const {isSuggesting, highlightedID, filterValue} = this.state
 
     const allLabelsUsed = allLabels.length === selectedLabels.length
 
     if (isSuggesting) {
       return (
         <LabelSelectorMenu
+          filterValue={filterValue}
           allLabelsUsed={allLabelsUsed}
           filteredLabels={this.availableLabels}
           highlightItemID={highlightedID}
           onItemClick={this.handleAddLabel}
           onItemHighlight={this.handleItemHighlight}
+          onCreateLabel={this.handleCreateLabel}
         />
       )
     }
+  }
+
+  private get input(): JSX.Element {
+    const {resourceType, inputSize} = this.props
+    const {filterValue} = this.state
+
+    return (
+      <div className="label-selector--input">
+        <Input
+          placeholder={`Add labels to ${resourceType}`}
+          value={filterValue}
+          onFocus={this.handleStartSuggesting}
+          onKeyDown={this.handleKeyDown}
+          onChange={this.handleInputChange}
+          size={inputSize}
+          autoFocus={true}
+        />
+        {this.suggestionMenu}
+      </div>
+    )
   }
 
   private handleAddLabel = (labelID: string): void => {
@@ -184,20 +200,7 @@ class LabelSelector extends Component<Props, State> {
     )
 
     const filteredLabels = availableLabels.filter(label => {
-      const filterChars = _.lowerCase(filterValue)
-        .replace(/\s/g, '')
-        .split('')
-      const labelChars = _.lowerCase(label.name)
-        .replace(/\s/g, '')
-        .split('')
-
-      const overlap = _.difference(filterChars, labelChars)
-
-      if (overlap.length) {
-        return false
-      }
-
-      return true
+      return label.name.includes(filterValue)
     })
 
     const highlightedIDAvailable = filteredLabels.find(
@@ -208,10 +211,19 @@ class LabelSelector extends Component<Props, State> {
       highlightedID = filteredLabels[0].name
     }
 
+    if (filterValue.length === 0) {
+      return this.setState({
+        isSuggesting: true,
+        filteredLabels: this.props.allLabels,
+        highlightedID: null,
+        filterValue: '',
+      })
+    }
+
     this.setState({filterValue, filteredLabels, highlightedID})
   }
 
-  private get availableLabels(): LabelAPI[] {
+  private get availableLabels(): APILabel[] {
     const {selectedLabels} = this.props
     const {filteredLabels} = this.state
 
@@ -287,6 +299,12 @@ class LabelSelector extends Component<Props, State> {
         onClick={onRemoveAllLabels}
       />
     )
+  }
+
+  private handleCreateLabel = async (label: APILabel) => {
+    const newLabel = await client.labels.create(label.name, label.properties)
+    this.props.onAddLabel(newLabel)
+    this.handleStopSuggesting()
   }
 }
 

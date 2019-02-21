@@ -1,0 +1,13 @@
+@import 'src/style/modules';
+/*
+  Resource Label Form styling
+  ---------------------------------------------
+*/
+
+.resource-label--form {
+    margin-bottom: $ix-marg-b;
+
+    .resource-label--create-button {
+        margin-top: $ix-marg-c + 2px;
+    }
+}   

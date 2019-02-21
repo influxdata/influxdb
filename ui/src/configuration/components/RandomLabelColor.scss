@@ -1,0 +1,17 @@
+@import 'src/style/modules';
+
+/*
+  RandomLabelColor Styles
+  ------------------------------------------------------------------------------
+*/
+
+.random-color--button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: $ix-marg-b;
+
+    .label-colors--swatch {
+        margin-right: $ix-marg-c;
+    }
+}

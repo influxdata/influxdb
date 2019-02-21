@@ -11,7 +11,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Label} from '@influxdata/influx'
+import {Label} from 'src/types/v2/labels'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

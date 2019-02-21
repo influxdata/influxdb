@@ -27,31 +27,14 @@
 
 .label-selector--menu {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  min-height: 50px;
+  margin: $ix-marg-b;
 }
 
 .label-selector--menu-item {
-  display: flex;
-  align-items: center;
-  padding: $ix-marg-a $ix-marg-b;
-  color: $g13-mist;
-  transition: color 0.25s ease, background-color 0.25s ease;
-  
-  &.active,
-  &.active:hover {
-    cursor: pointer;
-    color: $g18-cloud;
-    background-color: $g6-smoke;
-  }
+  margin: 1px;
 }
 
-.label-selector--label {
-  flex: 4 0 0
-}
-
-.label-selector--description,
 .label-selector--empty {
   font-size: 13px;
   font-weight: 500;
@@ -69,15 +52,10 @@
   line-height: 30px;
 }
 
-.label-selector--description {
-  margin-left: 6px;
-  color: $g13-mist;
-  flex: 2 0 50%;
-}
-
-.label-selector--bottom {
+.label-selector--selection {
   display: flex;
   flex-wrap: nowrap;
+  margin-bottom: $ix-marg-c;
 }
 
 .label-selector--remove-all {
