@@ -70,18 +70,33 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
     <Component
       align="right"
     >
-      <t
-        active={false}
-        color="default"
-        icon="export"
-        onClick={[Function]}
-        shape="none"
-        size="xs"
-        status="default"
-        testID="button"
-        text="Export"
-        type="button"
-      />
+      <default_1>
+        <t
+          active={false}
+          color="default"
+          onClick={[Function]}
+          shape="none"
+          size="xs"
+          status="default"
+          testID="button"
+          text="View Runs"
+          type="button"
+        />
+      </default_1>
+      <default_1>
+        <t
+          active={false}
+          color="default"
+          icon="export"
+          onClick={[Function]}
+          shape="none"
+          size="xs"
+          status="default"
+          testID="button"
+          text="Export"
+          type="button"
+        />
+      </default_1>
       <t
         active={false}
         color="secondary"

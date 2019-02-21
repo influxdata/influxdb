@@ -5,6 +5,8 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {Button, SlideToggle, ComponentSpacer} from '@influxdata/clockface'
 import {IndexList, ConfirmationButton, Label} from 'src/clockface'
+import FeatureFlag from 'src/shared/components/FeatureFlag'
+import EditableName from 'src/shared/components/EditableName'
 
 // Types
 import {
@@ -13,21 +15,18 @@ import {
   ComponentSize,
   ComponentColor,
 } from '@influxdata/clockface'
-import EditableName from 'src/shared/components/EditableName'
+import {Task as TaskAPI, Organization} from '@influxdata/influx'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
-import {Task as TaskAPI, Organization} from '@influxdata/influx'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
+import {IconFont} from 'src/clockface/types/index'
 
 interface Task extends TaskAPI {
   organization: Organization
 }
-
-// Constants
-import {IconFont} from 'src/clockface/types/index'
 
 interface Props {
   task: Task
@@ -71,18 +70,22 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
         <IndexList.Cell>{task.latestCompleted}</IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
-            {/* <Button
-              size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Default}
-              text="View Runs"
-              onClick={this.handleViewRuns}
-            /> */}
-            <Button
-              size={ComponentSize.ExtraSmall}
-              text="Export"
-              icon={IconFont.Export}
-              onClick={this.handleExport}
-            />
+            <FeatureFlag>
+              <Button
+                size={ComponentSize.ExtraSmall}
+                color={ComponentColor.Default}
+                text="View Runs"
+                onClick={this.handleViewRuns}
+              />
+            </FeatureFlag>
+            <FeatureFlag>
+              <Button
+                size={ComponentSize.ExtraSmall}
+                text="Export"
+                icon={IconFont.Export}
+                onClick={this.handleExport}
+              />
+            </FeatureFlag>
             <Button
               size={ComponentSize.ExtraSmall}
               color={ComponentColor.Secondary}
@@ -136,10 +139,10 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
     this.props.onRunTask(this.props.task.id)
   }
 
-  // private handleViewRuns = () => {
-  //   const {router, task} = this.props
-  //   router.push(`tasks/${task.id}/runs`)
-  // }
+  private handleViewRuns = () => {
+    const {router, task} = this.props
+    router.push(`tasks/${task.id}/runs`)
+  }
 
   private handleUpdateTask = (name: string) => {
     const {onUpdate, task} = this.props

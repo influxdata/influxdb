@@ -40,13 +40,6 @@ export default class AddResourceDropdown extends PureComponent<Props> {
       >
         {this.newOption}
       </Dropdown.Item>,
-      <Dropdown.Item
-        id={this.importOption}
-        key={this.importOption}
-        value={this.importOption}
-      >
-        {this.importOption}
-      </Dropdown.Item>,
     ]
   }
 
