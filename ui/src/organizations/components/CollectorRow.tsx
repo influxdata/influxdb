@@ -2,7 +2,12 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {ComponentSpacer, IndexList, ConfirmationButton} from 'src/clockface'
+import {
+  ComponentSpacer,
+  Stack,
+  IndexList,
+  ConfirmationButton,
+} from 'src/clockface'
 import {
   ComponentSize,
   Alignment,
@@ -11,6 +16,7 @@ import {
 } from '@influxdata/clockface'
 import {Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
+import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
 
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
@@ -27,15 +33,27 @@ interface Props {
 export default class CollectorRow extends PureComponent<Props> {
   public render() {
     const {collector, bucket} = this.props
+
     return (
       <>
         <IndexList.Row>
           <IndexList.Cell>
-            <EditableName
-              onUpdate={this.handleUpdateConfig}
-              name={collector.name}
-              noNameString={DEFAULT_COLLECTOR_NAME}
-            />
+            <ComponentSpacer
+              stackChildren={Stack.Rows}
+              align={Alignment.Left}
+              stretchToFitWidth={true}
+            >
+              <EditableName
+                onUpdate={this.handleUpdateName}
+                name={collector.name}
+                noNameString={DEFAULT_COLLECTOR_NAME}
+              />
+              <EditableDescription
+                description={collector.description}
+                placeholder={`Describe ${collector.name}`}
+                onUpdate={this.handleUpdateDescription}
+              />
+            </ComponentSpacer>
           </IndexList.Cell>
           <IndexList.Cell>{bucket}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
@@ -65,9 +83,16 @@ export default class CollectorRow extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateConfig = (name: string) => {
+  private handleUpdateName = (name: string) => {
     const {onUpdate, collector} = this.props
+
     onUpdate({...collector, name})
+  }
+
+  private handleUpdateDescription = (description: string) => {
+    const {onUpdate, collector} = this.props
+
+    onUpdate({...collector, description})
   }
 
   private handleOpenConfig = (): void => {

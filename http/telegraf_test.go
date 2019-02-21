@@ -54,6 +54,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 								ID:             platform.ID(1),
 								OrganizationID: platform.ID(2),
 								Name:           "tc1",
+								Description:    "",
 								Plugins: []platform.TelegrafPlugin{
 									{
 										Config: &inputs.CPUStats{},
@@ -76,6 +77,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 						"id":"0000000000000001",
 						"organizationID":"0000000000000002",
 						"name":"tc1",
+						"description":"",
 						"agent":{
 						  "collectionInterval":0
 						},
@@ -104,6 +106,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 							ID:             platform.ID(1),
 							OrganizationID: platform.ID(2),
 							Name:           "my config",
+							Description:    "my description",
 							Agent: platform.TelegrafAgentConfig{
 								Interval: 10000,
 							},
@@ -136,6 +139,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
             "id": "0000000000000001",
             "organizationID": "0000000000000002",
             "name": "my config",
+						"description": "my description",
             "agent": {
               "collectionInterval": 10000
             },
@@ -215,6 +219,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						ID:             platform.ID(1),
 						OrganizationID: platform.ID(2),
 						Name:           "my config",
+						Description:    "",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 10000,
 						},
@@ -244,6 +249,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
             "id": "0000000000000001",
             "organizationID": "0000000000000002",
             "name": "my config",
+						"description": "",
             "agent": {
               "collectionInterval": 10000
             },
@@ -281,6 +287,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						ID:             platform.ID(1),
 						OrganizationID: platform.ID(2),
 						Name:           "my config",
+						Description:    "",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 10000,
 						},
@@ -310,6 +317,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
             "id": "0000000000000001",
             "organizationID": "0000000000000002",
             "name": "my config",
+						"description": "",
             "agent": {
               "collectionInterval": 10000
             },
@@ -738,6 +746,7 @@ func Test_newTelegrafResponses(t *testing.T) {
 						ID:             platform.ID(1),
 						OrganizationID: platform.ID(2),
 						Name:           "my config",
+						Description:    "",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 10000,
 						},
@@ -765,6 +774,7 @@ func Test_newTelegrafResponses(t *testing.T) {
           "id": "0000000000000001",
           "organizationID": "0000000000000002",
           "name": "my config",
+					"description": "",
           "agent": {
             "collectionInterval": 10000
           },
@@ -824,6 +834,7 @@ func Test_newTelegrafResponse(t *testing.T) {
 					ID:             platform.ID(1),
 					OrganizationID: platform.ID(2),
 					Name:           "my config",
+					Description:    "my description",
 					Agent: platform.TelegrafAgentConfig{
 						Interval: 10000,
 					},
@@ -848,6 +859,7 @@ func Test_newTelegrafResponse(t *testing.T) {
       "id": "0000000000000001",
       "organizationID": "0000000000000002",
       "name": "my config",
+			"description": "my description",
       "agent": {
         "collectionInterval": 10000
       },

@@ -146,10 +146,6 @@ from(bucket: \\"inbucket\\")
               },
               "name": "RadicalOrganization",
             },
-            "owner": Object {
-              "id": "02ee9e2a19d73000",
-              "name": "",
-            },
             "status": "active",
           }
         }

@@ -70,6 +70,7 @@ export interface DataLoadersState {
   precision: WritePrecision
   scraperTarget: ScraperTarget
   telegrafConfigName: string
+  telegrafConfigDescription: string
 }
 
 export enum ConfigurationState {
