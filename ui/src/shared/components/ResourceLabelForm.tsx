@@ -9,13 +9,7 @@ import {
   ButtonType,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {
-  Form,
-  Input,
-  InputType,
-  ComponentSpacer,
-  Alignment,
-} from 'src/clockface'
+import {Form, Input, InputType, ComponentSpacer, Alignment} from 'src/clockface'
 import RandomLabelColorButton from 'src/configuration/components/RandomLabelColor'
 import {Label, LabelProperties} from 'src/types/v2/labels'
 

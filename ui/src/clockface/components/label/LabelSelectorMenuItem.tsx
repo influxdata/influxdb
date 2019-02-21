@@ -26,7 +26,7 @@ class LabelSelectorMenuItem extends Component<Props> {
       <span
         className="label-selector--menu-item"
         onMouseOver={this.handleMouseOver}
-        >
+      >
         <Label
           onClick={this.handleClick}
           name={name}

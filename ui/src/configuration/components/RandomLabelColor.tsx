@@ -10,9 +10,7 @@ import {validateHexCode} from 'src/configuration/utils/labels'
 import 'src/configuration/components/RandomLabelColor.scss'
 
 // Constants
-import {
-  INPUT_ERROR_COLOR,
-} from 'src/configuration/constants/LabelColors'
+import {INPUT_ERROR_COLOR} from 'src/configuration/constants/LabelColors'
 
 interface Props {
   colorHex: string

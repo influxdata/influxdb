@@ -75,14 +75,14 @@ class LabelSelector extends Component<Props, State> {
   public render() {
     return (
       <div className="label-selector">
-          <div className="label-selector--selection">
-            {this.selectedLabels}
-            {this.clearSelectedButton}
-          </div>
-          <ClickOutside onClickOutside={this.handleStopSuggesting}>
-            {this.input}
-          </ClickOutside>
+        <div className="label-selector--selection">
+          {this.selectedLabels}
+          {this.clearSelectedButton}
         </div>
+        <ClickOutside onClickOutside={this.handleStopSuggesting}>
+          {this.input}
+        </ClickOutside>
+      </div>
     )
   }
 
