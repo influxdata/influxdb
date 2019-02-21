@@ -1,7 +1,6 @@
 package launcher_test
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	nethttp "net/http"
@@ -75,15 +74,11 @@ func (l *Launcher) WriteOrFail(tb testing.TB, to *influxdb.OnboardingResults, da
 // or fails if there is an error.
 func (l *Launcher) FluxQueryOrFail(tb testing.TB, org *influxdb.Organization, token string, query string) string {
 	tb.Helper()
-	var buf bytes.Buffer
 
-	fs := &http.FluxService{Addr: l.URL(), Token: token}
-
-	req := (http.QueryRequest{Query: query, Org: org}).WithDefaults()
-	if preq, err := req.ProxyRequest(); err != nil {
-		tb.Fatal(err)
-	} else if _, err := fs.Query(ctx, &buf, preq); err != nil {
+	b, err := http.SimpleQuery(l.URL(), query, org.Name, token)
+	if err != nil {
 		tb.Fatal(err)
 	}
-	return buf.String()
+
+	return string(b)
 }
