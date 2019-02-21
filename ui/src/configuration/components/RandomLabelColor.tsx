@@ -20,6 +20,7 @@ export default class RandomLabelColorButton extends Component<Props> {
       <button
         className="button button-sm button-default random-color--button "
         onClick={this.handleClick}
+        title="Randomize label color"
       >
         <div
           className="label-colors--swatch"
