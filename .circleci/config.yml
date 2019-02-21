@@ -264,6 +264,8 @@ workflows:
       - litmus_daily:
           requires:
             - build
+          filters:
+            only: /^(?!pull\/).*$/
 
   e2e:
     jobs:
@@ -289,8 +291,6 @@ workflows:
       - litmus_nightly:
           requires:
             - deploy-nightly
-          filters:
-            only: /^(?!pull\/).*$/
 
   release:
     jobs:
