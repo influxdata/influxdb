@@ -1,7 +1,8 @@
 import React, {Component} from 'react'
 import _ from 'lodash'
 
-import {PRESET_LABEL_COLORS} from 'src/configuration/constants/LabelColors'
+// Utils
+import {randomPresetColor} from 'src/configuration/utils/labels'
 import {IconFont} from 'src/clockface'
 
 // Styles
@@ -13,10 +14,6 @@ interface Props {
 }
 
 export default class RandomLabelColorButton extends Component<Props> {
-  public componentDidMount() {
-    this.handleClick()
-  }
-
   public render() {
     const {colorHex} = this.props
     return (
@@ -36,10 +33,6 @@ export default class RandomLabelColorButton extends Component<Props> {
   }
 
   private handleClick = () => {
-    this.props.onClick(this.randomColor())
-  }
-
-  private randomColor(): string {
-    return _.sample(PRESET_LABEL_COLORS.slice(1)).colorHex
+    this.props.onClick(randomPresetColor())
   }
 }

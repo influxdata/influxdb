@@ -25,7 +25,10 @@ import {Label, LabelProperties} from 'src/types/v2/labels'
 import {HEX_CODE_CHAR_LENGTH} from 'src/configuration/constants/LabelColors'
 
 // Utils
-import {validateHexCode} from 'src/configuration/utils/labels'
+import {
+  validateHexCode,
+  randomPresetColor,
+} from 'src/configuration/utils/labels'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -54,7 +57,7 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
         name: props.labelName,
         properties: {
           description: '',
-          color: '',
+          color: randomPresetColor(),
         },
       },
     }
