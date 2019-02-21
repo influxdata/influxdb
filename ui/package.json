@@ -35,12 +35,15 @@
     "cypress:open": "cypress open"
   },
   "jest": {
-    "setupTestFrameworkScriptFile": "./jestSetup.ts",
+    "setupFilesAfterEnv": [
+      "./jestSetup.ts"
+    ],
     "displayName": "test",
     "testURL": "http://localhost",
     "testPathIgnorePatterns": [
       "build",
-      "<rootDir>/node_modules/(?!(jest-test))"
+      "<rootDir>/node_modules/(?!(jest-test))",
+      "cypress"
     ],
     "setupFiles": [
       "<rootDir>/testSetup.ts"
