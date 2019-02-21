@@ -900,16 +900,27 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 }
 
 func TestTaskHandler_CreateTaskFromSession(t *testing.T) {
+	i := inmem.NewService()
+
+	taskID := platform.ID(9)
 	var createdTasks []platform.TaskCreate
 	ts := &mock.TaskService{
 		CreateTaskFn: func(_ context.Context, tc platform.TaskCreate) (*platform.Task, error) {
 			createdTasks = append(createdTasks, tc)
 			// Task with fake IDs so it can be serialized.
-			return &platform.Task{ID: 9, OrganizationID: 99, AuthorizationID: 999}, nil
+			return &platform.Task{ID: taskID, OrganizationID: 99, AuthorizationID: 999, Name: "x"}, nil
+		},
+		// Needed due to task authorization bootstrapping.
+		UpdateTaskFn: func(ctx context.Context, id platform.ID, tu platform.TaskUpdate) (*platform.Task, error) {
+			authz, err := i.FindAuthorizationByToken(ctx, tu.Token)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			return &platform.Task{ID: taskID, OrganizationID: 99, AuthorizationID: authz.ID, Name: "x"}, nil
 		},
 	}
 
-	i := inmem.NewService()
 	h := NewTaskHandler(&TaskBackend{
 		Logger: zaptest.NewLogger(t),
 
@@ -992,7 +1003,57 @@ func TestTaskHandler_CreateTaskFromSession(t *testing.T) {
 	}
 
 	// The task should have been created with a valid token.
-	if _, err := i.FindAuthorizationByToken(ctx, createdTasks[0].Token); err != nil {
+	var createdTask platform.Task
+	if err := json.Unmarshal([]byte(body), &createdTask); err != nil {
 		t.Fatal(err)
+	}
+	authz, err := i.FindAuthorizationByID(ctx, createdTask.AuthorizationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if authz.UserID != u.ID {
+		t.Fatalf("expected authorization to be associated with user %v, got %v", u.ID, authz.UserID)
+	}
+	if authz.OrgID != o.ID {
+		t.Fatalf("expected authorization to be associated with org %v, got %v", o.ID, authz.OrgID)
+	}
+	const expDesc = `auto-generated authorization for task "x"`
+	if authz.Description != expDesc {
+		t.Fatalf("expected authorization to be created with description %q, got %q", expDesc, authz.Description)
+	}
+
+	// The authorization should be allowed to read and write the target buckets,
+	// and it should be allowed to read its task.
+	if !authz.Allowed(platform.Permission{
+		Action: platform.ReadAction,
+		Resource: platform.Resource{
+			Type:  platform.BucketsResourceType,
+			OrgID: &o.ID,
+			ID:    &bSrc.ID,
+		},
+	}) {
+		t.Logf("WARNING: permissions on `from` buckets not yet accessible: update test after https://github.com/influxdata/flux/issues/114 is fixed.")
+	}
+
+	if !authz.Allowed(platform.Permission{
+		Action: platform.WriteAction,
+		Resource: platform.Resource{
+			Type:  platform.BucketsResourceType,
+			OrgID: &o.ID,
+			ID:    &bDst.ID,
+		},
+	}) {
+		t.Fatalf("expected authorization to be allowed write access to destination bucket, but it wasn't allowed")
+	}
+
+	if !authz.Allowed(platform.Permission{
+		Action: platform.ReadAction,
+		Resource: platform.Resource{
+			Type:  platform.TasksResourceType,
+			OrgID: &o.ID,
+			ID:    &taskID,
+		},
+	}) {
+		t.Fatalf("expected authorization to be allowed to read its task, but it wasn't allowed")
 	}
 }
