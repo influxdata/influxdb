@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
-	"github.com/tcnksm/go-input"
+	input "github.com/tcnksm/go-input"
 )
 
 // setup Command
@@ -21,6 +21,7 @@ var setupCmd = &cobra.Command{
 	RunE:  wrapErrorFmt(setupF),
 }
 
+// SetupFlags are used when setup is not in interactive mode.
 type SetupFlags struct {
 	username  string
 	password  string
@@ -61,7 +62,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance at %q has already been setup", flags.host)
 	}
 
-	req, err := getOnboardingRequest()
+	req, err := onboardingRequest()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
 	}
@@ -90,7 +91,37 @@ func setupF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getOnboardingRequest() (req *platform.OnboardingRequest, err error) {
+func isInteractive() bool {
+	return !setupFlags.force ||
+		setupFlags.username == "" ||
+		setupFlags.password == "" ||
+		setupFlags.org == "" ||
+		setupFlags.bucket == ""
+}
+
+func onboardingRequest() (*platform.OnboardingRequest, error) {
+	if isInteractive() {
+		return interactive()
+	}
+	return nonInteractive()
+}
+
+func nonInteractive() (*platform.OnboardingRequest, error) {
+	req := &platform.OnboardingRequest{
+		User:            setupFlags.username,
+		Password:        setupFlags.password,
+		Token:           setupFlags.token,
+		Org:             setupFlags.org,
+		Bucket:          setupFlags.bucket,
+		RetentionPeriod: uint(setupFlags.retention),
+	}
+	if req.RetentionPeriod < 0 {
+		req.RetentionPeriod = platform.InfiniteRetention
+	}
+	return req, nil
+}
+
+func interactive() (req *platform.OnboardingRequest, err error) {
 	ui := &input.UI{
 		Writer: os.Stdout,
 		Reader: os.Stdin,
