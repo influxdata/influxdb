@@ -115,7 +115,8 @@ func nonInteractive() (*platform.OnboardingRequest, error) {
 		Bucket:          setupFlags.bucket,
 		RetentionPeriod: uint(setupFlags.retention),
 	}
-	if req.RetentionPeriod < 0 {
+
+	if setupFlags.retention < 0 {
 		req.RetentionPeriod = platform.InfiniteRetention
 	}
 	return req, nil
