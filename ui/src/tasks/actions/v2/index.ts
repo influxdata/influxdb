@@ -249,9 +249,7 @@ export const deleteTask = (task: Task) => async dispatch => {
 
 export const cloneTask = (task: Task, _) => async dispatch => {
   try {
-    // const allTaskNames = tasks.map(t => t.name)
-    // const clonedName = incrementCloneName(allTaskNames, task.name)
-    await client.tasks.create(task.orgID, task.flux)
+    await client.tasks.clone(task.id)
 
     dispatch(notify(taskCloneSuccess(task.name)))
     dispatch(populateTasks())
