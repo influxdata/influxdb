@@ -384,7 +384,7 @@ export const saveNewScript = (
       org = orgs[0]
     }
 
-    await client.tasks.create(getDeep<string>(org, 'id', ''), scriptWithOptions)
+    await client.tasks.create(org.name, scriptWithOptions)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
