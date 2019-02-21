@@ -442,7 +442,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			store taskbackend.Store
 			err   error
 		)
-		store, err = taskbolt.New(m.boltClient.DB(), "tasks")
+		store, err = taskbolt.New(m.boltClient.DB(), "tasks", taskbolt.NoCatchUp)
 		if err != nil {
 			m.logger.Error("failed opening task bolt", zap.Error(err))
 			return err
