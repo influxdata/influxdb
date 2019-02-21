@@ -549,7 +549,7 @@ func (c *Cache) Values(key []byte) Values {
 // DeleteBucketRange removes values for all keys containing points
 // with timestamps between min and max contained in the bucket identified
 // by name from the cache.
-func (c *Cache) DeleteBucketRange(name []byte, min, max int64) {
+func (c *Cache) DeleteBucketRange(name []byte, min, max int64) [][]byte {
 	c.init()
 
 	// TODO(edd/jeff): find a way to optimize lock usage
@@ -591,6 +591,8 @@ func (c *Cache) DeleteBucketRange(name []byte, min, max int64) {
 
 	c.tracker.DecCacheSize(total)
 	c.tracker.SetMemBytes(uint64(c.Size()))
+
+	return toDelete
 }
 
 // SetMaxSize updates the memory limit of the cache.

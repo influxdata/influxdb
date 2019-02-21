@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
@@ -76,28 +75,11 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 		return err
 	}
 
-	var deleteKeys [][]byte
-
-	// ApplySerialEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-		if bytes.HasPrefix(k, name) {
-			if deleteKeys == nil {
-				deleteKeys = make([][]byte, 0, 10000)
-			}
-			deleteKeys = append(deleteKeys, k)
-
-			// we have to double check every key in the cache because maybe
-			// it exists in the index but not yet on disk.
-			possiblyDead.keys[string(k)] = struct{}{}
-		}
-		return nil
-	})
-
-	// Sort the series keys because ApplyEntryFn iterates over the keys randomly.
-	bytesutil.Sort(deleteKeys)
-
 	// Delete from the cache.
-	e.Cache.DeleteBucketRange(name, min, max)
+	deleteKeys := e.Cache.DeleteBucketRange(name, min, max)
+	for _, k := range deleteKeys {
+		possiblyDead.keys[string(k)] = struct{}{}
+	}
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.
@@ -131,14 +113,6 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	}); err != nil {
 		return err
 	}
-
-	// ApplySerialEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-		if bytes.HasPrefix(k, name) {
-			delete(possiblyDead.keys, string(k))
-		}
-		return nil
-	})
 
 	if len(possiblyDead.keys) > 0 {
 		buf := make([]byte, 1024)
