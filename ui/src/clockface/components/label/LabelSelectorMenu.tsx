@@ -31,6 +31,7 @@ class LabelSelectorMenu extends Component<Props> {
         <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={250}>
           <div className="label-selector--menu">
             {this.menuItems}
+            {this.emptyText}
             {this.resourceLabelForm}
           </div>
         </FancyScrollbar>
@@ -60,18 +61,22 @@ class LabelSelectorMenu extends Component<Props> {
         />
       ))
     }
-
-    return <div className="label-selector--empty">{this.emptyText}</div>
   }
 
-  private get emptyText(): string {
+  private get emptyText(): JSX.Element {
     const {allLabelsUsed, filterValue} = this.props
 
-    if (allLabelsUsed) {
-      return 'You have somehow managed to add all the labels, wow!'
+    if (!filterValue) {
+      return null
     }
 
-    return `No labels match "${filterValue}" want to create a new label?`
+    let text = `No labels match "${filterValue}" want to create a new label?`
+
+    if (allLabelsUsed) {
+      text = 'You have somehow managed to add all the labels, wow!'
+    }
+
+    return <div className="label-selector--empty">{text}</div>
   }
 
   private get resourceLabelForm(): JSX.Element {
