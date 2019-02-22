@@ -19,7 +19,7 @@ $label-edit-button-diameter: 18px;
   display: flex;
   flex-wrap: wrap;
   padding: $label-margin;
-  
+
   > .label {
     margin: $label-margin;
   }
@@ -30,7 +30,8 @@ $label-edit-button-diameter: 18px;
   ------------------------------------------------------------------------------
 */
 
-.additional-labels {
+.additional-labels,
+.no-labels {
   position: relative;
   user-select: none;
   font-weight: 700;
@@ -38,12 +39,6 @@ $label-edit-button-diameter: 18px;
   transition: background-color 0.25s ease, color 0.25s ease;
   background-color: rgba($g6-smoke, 0.5);
   color: $g11-sidewalk;
-
-  &:hover {
-    cursor: pointer;
-    background-color: $g6-smoke;
-    color: $g15-platinum;
-  }
 }
 
 .label--tooltip {
@@ -81,12 +76,20 @@ $label-edit-button-diameter: 18px;
   }
 }
 
-.additional-labels:hover .label--tooltip {
-  visibility: visible;
-}
+.additional-labels {
+  &:hover {
+    cursor: pointer;
+    background-color: $g6-smoke;
+    color: $g15-platinum;
 
-.additional-labels:hover .label--tooltip-container {
-  opacity: 1;
+    .label--tooltip {
+      visibility: visible;
+    }
+
+    .label--tooltip-container {
+      opacity: 1;
+    }
+  }
 }
 
 /*
@@ -109,7 +112,7 @@ $label-edit-button-diameter: 18px;
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%,-50%);
+    transform: translate(-50%, -50%);
     z-index: 3;
     transition: width 0.25s ease;
     height: $ix-border;
@@ -117,9 +120,9 @@ $label-edit-button-diameter: 18px;
     border-radius: $ix-border / 2;
   }
 
-   &:after {
-     transform: translate(-50%,-50%) rotate(90deg);
-   }
+  &:after {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
 
   > .button.button-sm {
     position: absolute;
@@ -131,19 +134,15 @@ $label-edit-button-diameter: 18px;
     transform: translate(-50%, -50%);
     border-radius: 50%;
     color: transparent;
-    transition:
-      background-color 0.25s ease,
-      border-color 0.25s ease,
-      box-shadow 0.25s ease,
-      height 0.25s ease,
-      width 0.25s ease;
+    transition: background-color 0.25s ease, border-color 0.25s ease,
+      box-shadow 0.25s ease, height 0.25s ease, width 0.25s ease;
 
     > .button-icon {
       font-size: $form-sm-font;
       position: absolute;
       top: 50%;
       left: 50%;
-      transform: translate(-50%,-50%);
+      transform: translate(-50%, -50%);
     }
   }
 
@@ -159,9 +158,9 @@ $label-edit-button-diameter: 18px;
 }
 
 /* When used inside an index list, hide until row hover */
-  .index-list--row-cell .label--edit-button {
-    opacity: 0;
-  }
-  .index-list--row-cell:hover .label--edit-button {
-    opacity: 1;
-  }
+.index-list--row-cell .label--edit-button {
+  opacity: 0;
+}
+.index-list--row-cell:hover .label--edit-button {
+  opacity: 1;
+}

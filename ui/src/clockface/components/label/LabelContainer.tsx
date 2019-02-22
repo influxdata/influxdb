@@ -8,23 +8,36 @@ import LabelTooltip from 'src/clockface/components/label/LabelTooltip'
 import {Button} from '@influxdata/clockface'
 
 // Types
-import {ButtonShape, IconFont, ComponentColor} from '@influxdata/clockface'
+import {
+  ButtonShape,
+  IconFont,
+  ComponentColor,
+  ComponentSize,
+} from '@influxdata/clockface'
 
 // Styles
 import 'src/clockface/components/label/LabelContainer.scss'
 
-interface Props {
+interface PassedProps {
   children?: JSX.Element[]
   className?: string
-  limitChildCount?: number
-  resourceName?: string
   onEdit?: () => void
+  size?: ComponentSize
 }
 
+interface DefaultProps {
+  limitChildCount?: number
+  resourceName?: string
+  size: ComponentSize
+}
+
+type Props = PassedProps & DefaultProps
+
 class LabelContainer extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     limitChildCount: 999,
     resourceName: 'this resource',
+    size: ComponentSize.ExtraSmall,
   }
 
   public render() {
@@ -38,6 +51,7 @@ class LabelContainer extends Component<Props> {
       >
         <div className="label--container-margin">
           {this.children}
+          {this.noChildrenIndicator}
           {this.additionalChildrenIndicator}
           {this.editButton}
         </div>
@@ -74,15 +88,35 @@ class LabelContainer extends Component<Props> {
     }
   }
 
+  private get noChildrenIndicator(): JSX.Element {
+    const {children, size} = this.props
+
+    const childCount = React.Children.count(children)
+
+    if (!childCount) {
+      return (
+        <div
+          className={classnames('label no-labels', {[`label--${size}`]: size})}
+        >
+          No labels
+        </div>
+      )
+    }
+  }
+
   private get additionalChildrenIndicator(): JSX.Element {
-    const {children, limitChildCount} = this.props
+    const {children, limitChildCount, size} = this.props
 
     const childCount = React.Children.count(children)
 
     if (limitChildCount < childCount) {
       const additionalCount = childCount - limitChildCount
       return (
-        <div className="additional-labels">
+        <div
+          className={classnames('label additional-labels', {
+            [`label--${size}`]: size,
+          })}
+        >
           +{additionalCount} more
           <LabelTooltip labels={this.sortedChildren.slice(limitChildCount)} />
         </div>
