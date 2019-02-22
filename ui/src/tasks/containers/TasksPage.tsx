@@ -120,6 +120,7 @@ class TasksPage extends PureComponent<Props, State> {
                 onActivate={this.handleActivate}
                 onDelete={this.handleDelete}
                 onCreate={this.handleCreateTask}
+                onImport={this.handleToggleImportOverlay}
                 onClone={this.handleClone}
                 onSelect={this.props.selectTask}
                 onAddTaskLabels={onAddTaskLabels}

@@ -32,6 +32,7 @@ interface Props {
   onDelete: (task: Task) => void
   onCreate: () => void
   onSelect: (task: Task) => void
+  onImport: () => void
   onClone: (task: Task) => void
   totalCount: number
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
@@ -61,7 +62,7 @@ export default class TasksList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {searchTerm, onCreate, totalCount} = this.props
+    const {searchTerm, onCreate, totalCount, onImport} = this.props
     const {sortKey, sortDirection} = this.state
 
     const headerKeys: SortKey[] = [
@@ -118,6 +119,7 @@ export default class TasksList extends PureComponent<Props, State> {
               <EmptyTasksList
                 searchTerm={searchTerm}
                 onCreate={onCreate}
+                onImport={onImport}
                 totalCount={totalCount}
               />
             }

@@ -4,13 +4,8 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {
-  Button,
-  IconFont,
-  Alignment,
-  ComponentSize,
-  ComponentColor,
-} from '@influxdata/clockface'
+import {Alignment, ComponentSize} from '@influxdata/clockface'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import {EmptyState, IndexList} from 'src/clockface'
 import TableRows from 'src/dashboards/components/dashboard_index/TableRows'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
@@ -31,6 +26,7 @@ interface Props {
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
+  onImportDashboard: () => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onSetDefaultDashboard: (dashboardLink: string) => void
   onEditLabels: (dashboard: Dashboard) => void
@@ -175,7 +171,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   }
 
   private get emptyState(): JSX.Element {
-    const {onCreateDashboard, searchTerm} = this.props
+    const {onCreateDashboard, searchTerm, onImportDashboard} = this.props
 
     if (searchTerm) {
       return (
@@ -191,12 +187,10 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
           text="Looks like you don’t have any Dashboards , why not create one?"
           highlightWords={['Dashboards']}
         />
-        <Button
-          text="Create a Dashboard"
-          icon={IconFont.Plus}
-          color={ComponentColor.Primary}
-          onClick={onCreateDashboard}
-          size={ComponentSize.Medium}
+        <AddResourceDropdown
+          onSelectNew={onCreateDashboard}
+          onSelectImport={onImportDashboard}
+          resourceName="Dashboard"
         />
       </EmptyState>
     )

@@ -136,6 +136,7 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onCreateDashboard={this.handleCreateDashboard}
                 onCloneDashboard={this.handleCloneDashboard}
                 onExportDashboard={this.handleExportDashboard}
+                onImportDashboard={this.handleToggleImportOverlay}
                 onUpdateDashboard={handleUpdateDashboard}
                 onEditLabels={this.handleStartEditingLabels}
                 notify={notify}
