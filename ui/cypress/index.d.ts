@@ -9,7 +9,7 @@ import {
   getByDataTest,
   getByInputName,
   getByTitle,
-  createTask
+  createTask,
 } from './support/commands'
 
 declare global {

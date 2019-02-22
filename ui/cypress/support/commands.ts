@@ -43,8 +43,10 @@ export const createBucket = (): Cypress.Chainable<Cypress.Response> => {
   })
 }
 
-export const createTask = (orgID?: string): Cypress.Chainable<Cypress.Response> => {
-  const flux = `option task = { 
+export const createTask = (
+  orgID?: string
+): Cypress.Chainable<Cypress.Response> => {
+  const flux = `option task = {
     name: "🦄ask",
     every: 1d,
     offset: 20m
@@ -57,11 +59,10 @@ export const createTask = (orgID?: string): Cypress.Chainable<Cypress.Response> 
     url: '/api/v2/tasks',
     body: {
       flux,
-      orgID
-    }
+      orgID,
+    },
   })
 }
-
 
 export const createSource = (
   orgID?: string
