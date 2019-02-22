@@ -67,7 +67,7 @@ export default class CollectorRow extends PureComponent<Props> {
               <Button
                 size={ComponentSize.ExtraSmall}
                 color={ComponentColor.Secondary}
-                text={'Setup Details'}
+                text={'Setup Instructions'}
                 onClick={this.handleOpenInstructions}
               />
               <ConfirmationButton
