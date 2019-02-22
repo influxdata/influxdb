@@ -1,6 +1,6 @@
 import React, {SFC} from 'react'
 
-import {PlotEnv} from 'src/minard'
+import {PlotEnv, HistogramLayer} from 'src/minard'
 import {bin} from 'src/minard/utils/bin'
 import HistogramBars from 'src/minard/components/HistogramBars'
 import HistogramTooltip from 'src/minard/components/HistogramTooltip'
@@ -56,10 +56,10 @@ export const Histogram: SFC<Props> = ({
         position
       )
 
-      return {table, mappings, colors, scales: {}}
+      return {type: 'histogram', table, mappings, colors}
     },
     [baseTable, xDomain, x, fill, position, binCount, colors]
-  )
+  ) as HistogramLayer
 
   if (!layer) {
     return null
@@ -75,12 +75,10 @@ export const Histogram: SFC<Props> = ({
     },
   } = env
 
-  const {mappings, table} = layer
+  const {table} = layer
 
   const hoveredRowIndices = findHoveredRowIndices(
-    table.columns[mappings.xMin],
-    table.columns[mappings.xMax],
-    table.columns[mappings.yMax],
+    table,
     hoverX,
     hoverY,
     xScale,

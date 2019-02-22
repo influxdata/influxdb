@@ -5,8 +5,8 @@ import {AutoSizer} from 'react-virtualized'
 import {
   Plot as MinardPlot,
   Histogram as MinardHistogram,
-  ColumnType,
   Table,
+  isNumeric,
 } from 'src/minard'
 
 // Components
@@ -52,18 +52,18 @@ type Props = OwnProps & DispatchProps
 */
 const resolveMappings = (
   table: Table,
-  preferredXColumn: string,
-  preferredFillColumns: string[] = []
+  preferredXColumnName: string,
+  preferredFillColumnNames: string[] = []
 ): {x: string; fill: string[]} => {
-  let x: string = preferredXColumn
+  let x: string = preferredXColumnName
 
-  if (!table.columns[x] || table.columnTypes[x] !== ColumnType.Numeric) {
-    x = Object.entries(table.columnTypes)
-      .filter(([__, type]) => type === ColumnType.Numeric)
+  if (!table.columns[x] || !isNumeric(table.columns[x].type)) {
+    x = Object.entries(table.columns)
+      .filter(([__, {type}]) => isNumeric(type))
       .map(([name]) => name)[0]
   }
 
-  let fill = preferredFillColumns || []
+  let fill = preferredFillColumnNames || []
 
   fill = fill.filter(name => table.columns[name])
 
@@ -99,27 +99,33 @@ const Histogram: SFC<Props> = ({
 
   return (
     <AutoSizer>
-      {({width, height}) => (
-        <MinardPlot
-          table={table}
-          width={width}
-          height={height}
-          xDomain={xDomain}
-          onSetXDomain={setXDomain}
-        >
-          {env => (
-            <MinardHistogram
-              env={env}
-              x={mappings.x}
-              fill={fill}
-              binCount={binCount}
-              position={position}
-              tooltip={HistogramTooltip}
-              colors={colorHexes}
-            />
-          )}
-        </MinardPlot>
-      )}
+      {({width, height}) => {
+        if (width === 0 || height === 0) {
+          return null
+        }
+
+        return (
+          <MinardPlot
+            table={table}
+            width={width}
+            height={height}
+            xDomain={xDomain}
+            onSetXDomain={setXDomain}
+          >
+            {env => (
+              <MinardHistogram
+                env={env}
+                x={mappings.x}
+                fill={fill}
+                binCount={binCount}
+                position={position}
+                tooltip={HistogramTooltip}
+                colors={colorHexes}
+              />
+            )}
+          </MinardPlot>
+        )
+      }}
     </AutoSizer>
   )
 }

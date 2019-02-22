@@ -1,5 +1,5 @@
 import {FluxTable} from 'src/types'
-import {Table, ColumnType} from 'src/minard'
+import {Table, ColumnType, isNumeric} from 'src/minard'
 
 export const GROUP_KEY_COL_NAME = 'group_key'
 
@@ -53,8 +53,7 @@ export interface ToMinardTableResult {
 
 */
 export const toMinardTable = (tables: FluxTable[]): ToMinardTableResult => {
-  const columns = {}
-  const columnTypes = {}
+  const outColumns = {}
   const schemaConflicts = []
 
   let k = 0
@@ -68,34 +67,37 @@ export const toMinardTable = (tables: FluxTable[]): ToMinardTableResult => {
     }
 
     for (let j = 0; j < header.length; j++) {
-      const column = header[j]
+      const columnName = header[j]
 
-      if (column === '' || column === 'table') {
+      if (columnName === '' || columnName === 'table') {
         // Ignore these columns
         continue
       }
 
-      const columnType = toMinardColumnType(table.dataTypes[column])
+      const columnType = toMinardColumnType(table.dataTypes[columnName])
+
       let columnConflictsSchema = false
 
-      if (columnTypes[column] && columnTypes[column] !== columnType) {
-        schemaConflicts.push(column)
+      if (
+        outColumns[columnName] &&
+        outColumns[columnName].type !== columnType
+      ) {
+        schemaConflicts.push(columnName)
         columnConflictsSchema = true
-      } else if (!columnTypes[column]) {
-        columns[column] = []
-        columnTypes[column] = columnType
+      } else if (!outColumns[columnName]) {
+        outColumns[columnName] = {data: [], type: columnType}
       }
 
       for (let i = 1; i < table.data.length; i++) {
         let value
 
-        if (column === 'result') {
+        if (columnName === 'result') {
           value = table.result
         } else if (!columnConflictsSchema) {
           value = parseValue(table.data[i][j].trim(), columnType)
         }
 
-        columns[column][k + i - 1] = value
+        outColumns[columnName].data[k + i - 1] = value
       }
     }
 
@@ -103,7 +105,7 @@ export const toMinardTable = (tables: FluxTable[]): ToMinardTableResult => {
   }
 
   const result: ToMinardTableResult = {
-    table: {columns, columnTypes},
+    table: {columns: outColumns, length: k},
     schemaConflicts,
   }
 
@@ -111,12 +113,12 @@ export const toMinardTable = (tables: FluxTable[]): ToMinardTableResult => {
 }
 
 const TO_MINARD_COLUMN_TYPE = {
-  boolean: ColumnType.Boolean,
-  unsignedLong: ColumnType.Numeric,
-  long: ColumnType.Numeric,
-  double: ColumnType.Numeric,
-  string: ColumnType.Categorical,
-  'dateTime:RFC3339': ColumnType.Temporal,
+  boolean: 'bool',
+  unsignedLong: 'uint',
+  long: 'int',
+  double: 'float',
+  string: 'string',
+  'dateTime:RFC3339': 'time',
 }
 
 const toMinardColumnType = (fluxDataType: string): ColumnType => {
@@ -138,24 +140,24 @@ const parseValue = (value: string, columnType: ColumnType): any => {
     return NaN
   }
 
-  if (columnType === ColumnType.Boolean && value === 'true') {
+  if (columnType === 'bool' && value === 'true') {
     return true
   }
 
-  if (columnType === ColumnType.Boolean && value === 'false') {
+  if (columnType === 'bool' && value === 'false') {
     return false
   }
 
-  if (columnType === ColumnType.Categorical) {
+  if (columnType === 'string') {
     return value
   }
 
-  if (columnType === ColumnType.Numeric) {
-    return Number(value)
+  if (columnType === 'time') {
+    return Date.parse(value)
   }
 
-  if (columnType === ColumnType.Temporal) {
-    return Date.parse(value)
+  if (isNumeric(columnType)) {
+    return Number(value)
   }
 
   return null

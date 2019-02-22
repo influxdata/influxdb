@@ -6,6 +6,7 @@ import chroma from 'chroma-js'
 import {
   PlotEnv,
   Layer,
+  HistogramLayer,
   Scale,
   PLOT_PADDING,
   TICK_CHAR_WIDTH,
@@ -15,6 +16,9 @@ import {
 } from 'src/minard'
 import {PlotAction} from 'src/minard/utils/plotEnvActions'
 import {getGroupKey} from 'src/minard/utils/getGroupKey'
+
+const DEFAULT_X_DOMAIN: [number, number] = [0, 1]
+const DEFAULT_Y_DOMAIN: [number, number] = [0, 1]
 
 export const INITIAL_PLOT_ENV: PlotEnv = {
   width: 0,
@@ -32,9 +36,15 @@ export const INITIAL_PLOT_ENV: PlotEnv = {
   xDomain: null,
   yDomain: null,
   baseLayer: {
-    table: {columns: {}, columnTypes: {}},
+    type: 'base',
+    table: {columns: {}, length: 0},
+    xDomain: DEFAULT_X_DOMAIN,
+    yDomain: DEFAULT_Y_DOMAIN,
     mappings: {},
-    scales: {},
+    scales: {
+      x: null,
+      y: null,
+    },
   },
   layers: {},
   hoverX: null,
@@ -42,16 +52,13 @@ export const INITIAL_PLOT_ENV: PlotEnv = {
   dispatch: () => {},
 }
 
-const DEFAULT_X_DOMAIN: [number, number] = [0, 1]
-const DEFAULT_Y_DOMAIN: [number, number] = [0, 1]
-
 export const plotEnvReducer = (state: PlotEnv, action: PlotAction): PlotEnv =>
   produce(state, draftState => {
     switch (action.type) {
       case 'REGISTER_LAYER': {
         const {layerKey, layer} = action.payload
 
-        draftState.layers[layerKey] = layer
+        draftState.layers[layerKey] = {...layer, scales: {}} as Layer
 
         setXDomain(draftState)
         setYDomain(draftState)
@@ -133,8 +140,8 @@ const getColumnsForAesthetics = (
 
       if (colName) {
         const col = layer.table
-          ? layer.table.columns[colName]
-          : baseLayer.table.columns[colName]
+          ? layer.table.columns[colName].data
+          : baseLayer.table.columns[colName].data
 
         cols.push(col)
       }
@@ -273,7 +280,7 @@ const getColorScale = (
   of data (for now). So the domain of the scale is a set of "group keys" which
   represent all possible groupings of data in the layer.
 */
-const getFillDomain = ({table, mappings}: Layer): string[] => {
+const getFillDomain = ({table, mappings}: HistogramLayer): string[] => {
   const fillColKeys = mappings.fill
 
   if (!fillColKeys.length) {
@@ -281,10 +288,9 @@ const getFillDomain = ({table, mappings}: Layer): string[] => {
   }
 
   const fillDomain = new Set()
-  const n = Object.values(table.columns)[0].length
 
-  for (let i = 0; i < n; i++) {
-    fillDomain.add(getGroupKey(fillColKeys.map(k => table.columns[k][i])))
+  for (let i = 0; i < table.length; i++) {
+    fillDomain.add(getGroupKey(fillColKeys.map(k => table.columns[k].data[i])))
   }
 
   return [...fillDomain].sort()
@@ -298,11 +304,8 @@ const setFillScales = (draftState: PlotEnv) => {
   const layers = Object.values(draftState.layers)
 
   layers
-    .filter(
-      // Pick out the layers that actually need a fill scale
-      layer => layer.mappings.fill && layer.colors && layer.colors.length
-    )
-    .forEach(layer => {
+    .filter(layer => layer.type === 'histogram')
+    .forEach((layer: HistogramLayer) => {
       layer.scales.fill = getColorScale(getFillDomain(layer), layer.colors)
     })
 }
