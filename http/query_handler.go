@@ -42,7 +42,7 @@ func NewFluxBackend(b *APIBackend) *FluxBackend {
 	return &FluxBackend{
 		Logger: b.Logger.With(zap.String("handler", "query")),
 
-		ProxyQueryService:   b.ProxyQueryService,
+		ProxyQueryService:   b.FluxService,
 		OrganizationService: b.OrganizationService,
 	}
 }
