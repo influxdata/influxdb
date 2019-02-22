@@ -28,7 +28,8 @@ export default class CollectorList extends PureComponent<Props> {
         <IndexList>
           <IndexList.Header>
             <IndexList.HeaderCell columnName="Name" width="50%" />
-            <IndexList.HeaderCell columnName="Bucket" width="50%" />
+            <IndexList.HeaderCell columnName="Bucket" width="25%" />
+            <IndexList.HeaderCell columnName="" width="25%" />
           </IndexList.Header>
           <IndexList.Body columnCount={3} emptyState={emptyState}>
             {this.collectorsList}
