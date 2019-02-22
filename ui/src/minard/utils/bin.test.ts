@@ -1,39 +1,44 @@
-import {HistogramPosition, ColumnType} from 'src/minard'
+import {HistogramPosition, Table} from 'src/minard'
 import {bin} from 'src/minard/utils/bin'
 
-const TABLE = {
+const TABLE: Table = {
   columns: {
-    _value: [70, 56, 60, 100, 76, 0, 63, 48, 79, 67],
-    _field: [
-      'usage_guest',
-      'usage_guest',
-      'usage_guest',
-      'usage_guest',
-      'usage_guest',
-      'usage_idle',
-      'usage_idle',
-      'usage_idle',
-      'usage_idle',
-      'usage_idle',
-    ],
-    cpu: [
-      'cpu0',
-      'cpu0',
-      'cpu0',
-      'cpu1',
-      'cpu1',
-      'cpu0',
-      'cpu0',
-      'cpu0',
-      'cpu1',
-      'cpu1',
-    ],
+    _value: {
+      data: [70, 56, 60, 100, 76, 0, 63, 48, 79, 67],
+      type: 'int',
+    },
+    _field: {
+      data: [
+        'usage_guest',
+        'usage_guest',
+        'usage_guest',
+        'usage_guest',
+        'usage_guest',
+        'usage_idle',
+        'usage_idle',
+        'usage_idle',
+        'usage_idle',
+        'usage_idle',
+      ],
+      type: 'string',
+    },
+    cpu: {
+      data: [
+        'cpu0',
+        'cpu0',
+        'cpu0',
+        'cpu1',
+        'cpu1',
+        'cpu0',
+        'cpu0',
+        'cpu0',
+        'cpu1',
+        'cpu1',
+      ],
+      type: 'string',
+    },
   },
-  columnTypes: {
-    _value: ColumnType.Numeric,
-    _field: ColumnType.Categorical,
-    cpu: ColumnType.Categorical,
-  },
+  length: 10,
 }
 
 describe('bin', () => {
@@ -41,20 +46,15 @@ describe('bin', () => {
     const actual = bin(TABLE, '_value', null, [], 5, HistogramPosition.Stacked)
     const expected = [
       {
-        columnTypes: {
-          xMax: 'numeric',
-          xMin: 'numeric',
-          yMax: 'numeric',
-          yMin: 'numeric',
-        },
         columns: {
-          xMax: [20, 40, 60, 80, 100],
-          xMin: [0, 20, 40, 60, 80],
-          yMax: [1, 0, 2, 6, 1],
-          yMin: [0, 0, 0, 0, 0],
+          xMin: {data: [0, 20, 40, 60, 80], type: 'int'},
+          xMax: {data: [20, 40, 60, 80, 100], type: 'int'},
+          yMin: {data: [0, 0, 0, 0, 0], type: 'int'},
+          yMax: {data: [1, 0, 2, 6, 1], type: 'int'},
         },
+        length: 5,
       },
-      {fill: [], xMax: 'xMax', xMin: 'xMin', yMax: 'yMax', yMin: 'yMin'},
+      {xMin: 'xMin', xMax: 'xMax', yMin: 'yMin', yMax: 'yMax', fill: []},
     ]
 
     expect(actual).toEqual(expected)
@@ -71,22 +71,25 @@ describe('bin', () => {
     )[0].columns
 
     const expected = {
-      _field: [
-        'usage_guest',
-        'usage_guest',
-        'usage_guest',
-        'usage_guest',
-        'usage_guest',
-        'usage_idle',
-        'usage_idle',
-        'usage_idle',
-        'usage_idle',
-        'usage_idle',
-      ],
-      xMax: [20, 40, 60, 80, 100, 20, 40, 60, 80, 100],
-      xMin: [0, 20, 40, 60, 80, 0, 20, 40, 60, 80],
-      yMax: [0, 0, 1, 3, 1, 1, 0, 2, 6, 1],
-      yMin: [0, 0, 0, 0, 0, 0, 0, 1, 3, 1],
+      xMin: {data: [0, 20, 40, 60, 80, 0, 20, 40, 60, 80], type: 'int'},
+      xMax: {data: [20, 40, 60, 80, 100, 20, 40, 60, 80, 100], type: 'int'},
+      yMin: {data: [0, 0, 0, 0, 0, 0, 0, 1, 3, 1], type: 'int'},
+      yMax: {data: [0, 0, 1, 3, 1, 1, 0, 2, 6, 1], type: 'int'},
+      _field: {
+        data: [
+          'usage_guest',
+          'usage_guest',
+          'usage_guest',
+          'usage_guest',
+          'usage_guest',
+          'usage_idle',
+          'usage_idle',
+          'usage_idle',
+          'usage_idle',
+          'usage_idle',
+        ],
+        type: 'string',
+      },
     }
 
     expect(actual).toEqual(expected)
@@ -103,22 +106,25 @@ describe('bin', () => {
     )[0].columns
 
     const expected = {
-      _field: [
-        'usage_guest',
-        'usage_guest',
-        'usage_guest',
-        'usage_guest',
-        'usage_guest',
-        'usage_idle',
-        'usage_idle',
-        'usage_idle',
-        'usage_idle',
-        'usage_idle',
-      ],
-      xMax: [20, 40, 60, 80, 100, 20, 40, 60, 80, 100],
-      xMin: [0, 20, 40, 60, 80, 0, 20, 40, 60, 80],
-      yMax: [0, 0, 1, 3, 1, 1, 0, 1, 3, 0],
-      yMin: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      xMin: {data: [0, 20, 40, 60, 80, 0, 20, 40, 60, 80], type: 'int'},
+      xMax: {data: [20, 40, 60, 80, 100, 20, 40, 60, 80, 100], type: 'int'},
+      yMin: {data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], type: 'int'},
+      yMax: {data: [0, 0, 1, 3, 1, 1, 0, 1, 3, 0], type: 'int'},
+      _field: {
+        data: [
+          'usage_guest',
+          'usage_guest',
+          'usage_guest',
+          'usage_guest',
+          'usage_guest',
+          'usage_idle',
+          'usage_idle',
+          'usage_idle',
+          'usage_idle',
+          'usage_idle',
+        ],
+        type: 'string',
+      },
     }
 
     expect(actual).toEqual(expected)
@@ -135,10 +141,16 @@ describe('bin', () => {
     )[0].columns
 
     const expected = {
-      xMax: [-160, -120, -80, -40, 0, 40, 80, 120, 160, 200],
-      xMin: [-200, -160, -120, -80, -40, 0, 40, 80, 120, 160],
-      yMax: [0, 0, 0, 0, 0, 1, 8, 1, 0, 0],
-      yMin: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      xMin: {
+        data: [-200, -160, -120, -80, -40, 0, 40, 80, 120, 160],
+        type: 'int',
+      },
+      xMax: {
+        data: [-160, -120, -80, -40, 0, 40, 80, 120, 160, 200],
+        type: 'int',
+      },
+      yMin: {data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], type: 'int'},
+      yMax: {data: [0, 0, 0, 0, 0, 1, 8, 1, 0, 0], type: 'int'},
     }
 
     expect(actual).toEqual(expected)
@@ -155,10 +167,10 @@ describe('bin', () => {
     )[0].columns
 
     const expected = {
-      xMax: [60, 70, 80],
-      xMin: [50, 60, 70],
-      yMax: [1, 3, 3],
-      yMin: [0, 0, 0],
+      xMin: {data: [50, 60, 70], type: 'int'},
+      xMax: {data: [60, 70, 80], type: 'int'},
+      yMin: {data: [0, 0, 0], type: 'int'},
+      yMax: {data: [1, 3, 3], type: 'int'},
     }
 
     expect(actual).toEqual(expected)

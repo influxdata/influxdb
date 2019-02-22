@@ -1,6 +1,6 @@
 import React, {useRef, useLayoutEffect, SFC} from 'react'
 
-import {Scale, HistogramPosition, Layer} from 'src/minard'
+import {Scale, HistogramPosition, HistogramLayer} from 'src/minard'
 import {clearCanvas} from 'src/minard/utils/clearCanvas'
 import {getBarFill} from 'src/minard/utils/getBarFill'
 
@@ -11,7 +11,7 @@ const BAR_PADDING = 1.5
 interface Props {
   width: number
   height: number
-  layer: Layer
+  layer: HistogramLayer
   xScale: Scale<number, number>
   yScale: Scale<number, number>
   position: HistogramPosition
@@ -24,11 +24,11 @@ const drawBars = (
 ): void => {
   clearCanvas(canvas, width, height)
 
-  const {table, mappings} = layer
-  const xMinCol = table.columns[mappings.xMin]
-  const xMaxCol = table.columns[mappings.xMax]
-  const yMinCol = table.columns[mappings.yMin]
-  const yMaxCol = table.columns[mappings.yMax]
+  const {table} = layer
+  const xMinCol = table.columns.xMin.data
+  const xMaxCol = table.columns.xMax.data
+  const yMinCol = table.columns.yMin.data
+  const yMaxCol = table.columns.yMax.data
 
   const context = canvas.getContext('2d')
 
