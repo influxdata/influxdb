@@ -435,6 +435,15 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.populateTaskCreateOrg(ctx, &req.TaskCreate); err != nil {
+		err = &platform.Error{
+			Err: err,
+			Msg: "could not identify organization",
+		}
+		EncodeError(ctx, err, w)
+		return
+	}
+
 	if !req.TaskCreate.OrganizationID.Valid() {
 		err := &platform.Error{
 			Code: platform.EInvalid,
@@ -1124,6 +1133,31 @@ func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunReque
 		RunID:  ri,
 		TaskID: ti,
 	}, nil
+}
+
+func (h *TaskHandler) populateTaskCreateOrg(ctx context.Context, tc *platform.TaskCreate) error {
+	if tc.OrganizationID.Valid() && tc.Organization != "" {
+		return nil
+	}
+
+	if !tc.OrganizationID.Valid() && tc.Organization == "" {
+		return errors.New("missing orgID and organization name")
+	}
+
+	if tc.OrganizationID.Valid() {
+		o, err := h.OrganizationService.FindOrganizationByID(ctx, tc.OrganizationID)
+		if err != nil {
+			return err
+		}
+		tc.Organization = o.Name
+	} else {
+		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &tc.Organization})
+		if err != nil {
+			return err
+		}
+		tc.OrganizationID = o.ID
+	}
+	return nil
 }
 
 // TaskService connects to Influx via HTTP using tokens to manage tasks.
