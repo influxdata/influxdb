@@ -4,9 +4,8 @@ import ReactDatePicker from 'react-datepicker'
 
 // Styles
 import 'react-datepicker/dist/react-datepicker.css'
-import {Input} from 'src/clockface'
-import {ComponentSize} from '@influxdata/clockface'
-import FormLabel from 'src/clockface/components/form_layout/FormLabel'
+import {Input, Form, Grid} from 'src/clockface'
+import {ComponentSize, Columns} from '@influxdata/clockface'
 
 interface Props {
   label: string
@@ -22,37 +21,42 @@ class DatePicker extends PureComponent<Props> {
     const date = new Date(dateTime)
 
     return (
-      <FormLabel label={label}>
-        <div className="range-picker--date-picker">
-          <ReactDatePicker
-            selected={date}
-            onChange={this.handleSelectDate}
-            startOpen={true}
-            dateFormat="yyyy-MM-dd HH:mm"
-            showTimeSelect={true}
-            timeFormat="HH:mm"
-            shouldCloseOnSelect={false}
-            disabledKeyboardNavigation={true}
-            customInput={this.customInput}
-            popperContainer={this.popperContainer}
-            popperClassName="range-picker--popper"
-            calendarClassName="range-picker--calendar"
-            dayClassName={this.dayClassName}
-            timeIntervals={60}
-            fixedHeight={true}
-          />
-        </div>
-      </FormLabel>
+      <div className="range-picker--date-picker">
+        <Grid.Row>
+          <Grid.Column widthXS={Columns.Twelve}>
+            <Form.Element label={label}>
+              <ReactDatePicker
+                selected={date}
+                onChange={this.handleSelectDate}
+                startOpen={true}
+                dateFormat="yyyy-MM-dd HH:mm"
+                showTimeSelect={true}
+                timeFormat="HH:mm"
+                shouldCloseOnSelect={false}
+                disabledKeyboardNavigation={true}
+                customInput={this.customInput}
+                popperContainer={this.popperContainer}
+                popperClassName="range-picker--popper"
+                calendarClassName="range-picker--calendar"
+                dayClassName={this.dayClassName}
+                timeIntervals={60}
+                fixedHeight={true}
+              />
+            </Form.Element>
+          </Grid.Column>
+        </Grid.Row>
+      </div>
     )
   }
 
   private get customInput() {
+    const {label} = this.props
+
     return (
       <Input
-        widthPixels={314}
         size={ComponentSize.Medium}
         customClass="range-picker--input react-datepicker-ignore-onclickoutside"
-        titleText="Start"
+        titleText={label}
       />
     )
   }
