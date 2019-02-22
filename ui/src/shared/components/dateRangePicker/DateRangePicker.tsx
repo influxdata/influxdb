@@ -26,7 +26,7 @@ interface State {
   topPosition?: number
 }
 
-const PICKER_HEIGHT = 410
+const PICKER_HEIGHT = 416
 const HORIZONTAL_PADDING = 2
 const VERTICAL_PADDING = 15
 
