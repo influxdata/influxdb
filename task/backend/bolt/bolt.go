@@ -384,6 +384,7 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 
 				if stm.LatestCompleted < s.minLatestCompleted {
 					stm.LatestCompleted = s.minLatestCompleted
+					stm.AlignLatestCompleted()
 				}
 
 				tasks[i].Meta = stm
@@ -454,6 +455,7 @@ func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.
 
 	if stm.LatestCompleted < s.minLatestCompleted {
 		stm.LatestCompleted = s.minLatestCompleted
+		stm.AlignLatestCompleted()
 	}
 
 	return &stm, nil
@@ -496,6 +498,7 @@ func (s *Store) FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*back
 
 	if stm.LatestCompleted < s.minLatestCompleted {
 		stm.LatestCompleted = s.minLatestCompleted
+		stm.AlignLatestCompleted()
 	}
 
 	return &backend.StoreTask{
@@ -567,6 +570,7 @@ func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 
 		if stm.LatestCompleted < s.minLatestCompleted {
 			stm.LatestCompleted = s.minLatestCompleted
+			stm.AlignLatestCompleted()
 		}
 
 		rc, err = stm.CreateNextRun(now, func() (platform.ID, error) {
