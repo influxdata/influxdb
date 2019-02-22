@@ -13,6 +13,7 @@ import {
   TICK_CHAR_HEIGHT,
   TICK_PADDING_RIGHT,
   TICK_PADDING_TOP,
+  AXIS_LABEL_PADDING_BOTTOM,
 } from 'src/minard'
 import {PlotAction} from 'src/minard/utils/plotEnvActions'
 import {getGroupKey} from 'src/minard/utils/getGroupKey'
@@ -33,6 +34,8 @@ export const INITIAL_PLOT_ENV: PlotEnv = {
   },
   xTicks: [],
   yTicks: [],
+  xAxisLabel: '',
+  yAxisLabel: '',
   xDomain: null,
   yDomain: null,
   baseLayer: {
@@ -115,6 +118,26 @@ export const plotEnvReducer = (state: PlotEnv, action: PlotAction): PlotEnv =>
         draftState.yDomain = yDomain
 
         setYDomain(draftState)
+        setLayout(draftState)
+
+        return
+      }
+
+      case 'SET_X_AXIS_LABEL': {
+        const {xAxisLabel} = action.payload
+
+        draftState.xAxisLabel = xAxisLabel
+
+        setLayout(draftState)
+
+        return
+      }
+
+      case 'SET_Y_AXIS_LABEL': {
+        const {yAxisLabel} = action.payload
+
+        draftState.yAxisLabel = yAxisLabel
+
         setLayout(draftState)
 
         return
@@ -230,11 +253,20 @@ const setLayout = (draftState: PlotEnv): void => {
   const yTickWidth =
     Math.max(...draftState.yTicks.map(t => String(t).length)) * TICK_CHAR_WIDTH
 
+  const xAxisLabelHeight = draftState.xAxisLabel
+    ? TICK_CHAR_HEIGHT + AXIS_LABEL_PADDING_BOTTOM
+    : 0
+
+  const yAxisLabelHeight = draftState.yAxisLabel
+    ? TICK_CHAR_HEIGHT + AXIS_LABEL_PADDING_BOTTOM
+    : 0
+
   const margins = {
     top: PLOT_PADDING,
     right: PLOT_PADDING,
-    bottom: TICK_CHAR_HEIGHT + TICK_PADDING_TOP + PLOT_PADDING,
-    left: yTickWidth + TICK_PADDING_RIGHT + PLOT_PADDING,
+    bottom:
+      TICK_CHAR_HEIGHT + TICK_PADDING_TOP + PLOT_PADDING + xAxisLabelHeight,
+    left: yTickWidth + TICK_PADDING_RIGHT + PLOT_PADDING + yAxisLabelHeight,
   }
 
   const innerWidth = width - margins.left - margins.right

@@ -8,6 +8,8 @@ export type PlotAction =
   | ResetAction
   | SetControlledXDomainAction
   | SetControlledYDomainAction
+  | SetXAxisLabelAction
+  | SetYAxisLabelAction
 
 interface RegisterLayerAction {
   type: 'REGISTER_LAYER'
@@ -90,4 +92,24 @@ export const setControlledYDomain = (
 ): SetControlledYDomainAction => ({
   type: 'SET_CONTROLLED_Y_DOMAIN',
   payload: {yDomain},
+})
+
+interface SetXAxisLabelAction {
+  type: 'SET_X_AXIS_LABEL'
+  payload: {xAxisLabel: string}
+}
+
+export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
+  type: 'SET_X_AXIS_LABEL',
+  payload: {xAxisLabel},
+})
+
+interface SetYAxisLabelAction {
+  type: 'SET_Y_AXIS_LABEL'
+  payload: {yAxisLabel: string}
+}
+
+export const setYAxisLabel = (yAxisLabel: string): SetYAxisLabelAction => ({
+  type: 'SET_Y_AXIS_LABEL',
+  payload: {yAxisLabel},
 })
