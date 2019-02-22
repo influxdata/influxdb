@@ -32,15 +32,18 @@
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty --skipLibCheck",
     "tsc:watch": "tsc -p ./tsconfig.json --noEmit --pretty -w",
     "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",
-    "cypress:open": "cypress open"
+    "e2e": "cypress open"
   },
   "jest": {
-    "setupTestFrameworkScriptFile": "./jestSetup.ts",
+    "setupFilesAfterEnv": [
+      "./jestSetup.ts"
+    ],
     "displayName": "test",
     "testURL": "http://localhost",
     "testPathIgnorePatterns": [
       "build",
-      "<rootDir>/node_modules/(?!(jest-test))"
+      "<rootDir>/node_modules/(?!(jest-test))",
+      "cypress"
     ],
     "setupFiles": [
       "<rootDir>/testSetup.ts"

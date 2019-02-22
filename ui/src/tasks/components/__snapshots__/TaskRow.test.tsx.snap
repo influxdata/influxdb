@@ -3,7 +3,7 @@
 exports[`Tasks.Components.TaskRow renders 1`] = `
 <IndexListRow
   disabled={false}
-  testID="table-row"
+  testID="task-row"
 >
   <IndexListRowCell
     alignment="left"
@@ -152,6 +152,7 @@ from(bucket: \\"inbucket\\")
         shape="none"
         size="xs"
         status="default"
+        testID="confirmation-button"
         text="Delete"
       />
     </Component>

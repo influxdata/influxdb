@@ -1,19 +1,21 @@
+import {Bucket} from '@influxdata/influx'
+
 describe('Buckets', () => {
-  let orgID: string = ''
-  let bucketName: string = ''
   beforeEach(() => {
     cy.flush()
 
     cy.setupUser().then(({body}) => {
-      const {org, bucket} = body
-      orgID = org.id
-      bucketName = bucket.name
+      const {
+        org: {id},
+        bucket,
+      } = body
+      cy.wrap(bucket).as('bucket')
 
-      cy.signin(orgID)
-    })
+      cy.signin(id)
 
-    cy.fixture('routes').then(({orgs}) => {
-      cy.visit(`${orgs}/${orgID}/buckets_tab`)
+      cy.fixture('routes').then(({orgs}) => {
+        cy.visit(`${orgs}/${id}/buckets_tab`)
+      })
     })
   })
 
@@ -38,7 +40,9 @@ describe('Buckets', () => {
     it('can update a buckets name and retention rules', () => {
       const newName = 'newdefbuck'
 
-      cy.contains(bucketName).click()
+      cy.get<Bucket>('@bucket').then(({name}) => {
+        cy.contains(name).click()
+      })
 
       cy.getByDataTest('retention-intervals').click()
 
