@@ -23,10 +23,8 @@ class DatePicker extends PureComponent<Props> {
     return (
       <div className="range-picker--date-picker">
         <Grid.Row>
-          <Grid.Column
-            widthXS={Columns.Twelve}
-          >
-          <Form.Element label={label}>
+          <Grid.Column widthXS={Columns.Twelve}>
+            <Form.Element label={label}>
               <ReactDatePicker
                 selected={date}
                 onChange={this.handleSelectDate}
@@ -43,8 +41,8 @@ class DatePicker extends PureComponent<Props> {
                 dayClassName={this.dayClassName}
                 timeIntervals={60}
                 fixedHeight={true}
-                />
-              </Form.Element>
+              />
+            </Form.Element>
           </Grid.Column>
         </Grid.Row>
       </div>
@@ -55,13 +53,11 @@ class DatePicker extends PureComponent<Props> {
     const {label} = this.props
 
     return (
-    
-        <Input
-          size={ComponentSize.Medium}
-          customClass="range-picker--input react-datepicker-ignore-onclickoutside"
-          titleText={label}
-        />
-      
+      <Input
+        size={ComponentSize.Medium}
+        customClass="range-picker--input react-datepicker-ignore-onclickoutside"
+        titleText={label}
+      />
     )
   }
 
