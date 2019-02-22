@@ -114,6 +114,7 @@ export class Collectors extends PureComponent<Props, State> {
                     onUpdate={this.handleUpdateTelegraf}
                     onOpenInstructions={this.handleOpenInstructions}
                     onOpenTelegrafConfig={this.handleOpenTelegrafConfig}
+                    onFilterChange={this.handleFilterUpdate}
                   />
                 )}
               </FilterList>
@@ -258,11 +259,15 @@ export class Collectors extends PureComponent<Props, State> {
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+    this.handleFilterUpdate(e.target.value)
   }
 
   private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
     this.setState({searchTerm: e.target.value})
+  }
+
+  private handleFilterUpdate = (searchTerm: string) => {
+    this.setState({searchTerm})
   }
 }
 

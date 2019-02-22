@@ -19,22 +19,25 @@ interface Props {
   limitChildCount?: number
   resourceName?: string
   onEdit?: () => void
+  testID?: string
 }
 
 class LabelContainer extends Component<Props> {
   public static defaultProps: Partial<Props> = {
     limitChildCount: 999,
     resourceName: 'this resource',
+    testID: 'labels-con',
   }
 
   public render() {
-    const {className} = this.props
+    const {className, testID} = this.props
 
     return (
       <div
         className={classnames('label--container', {
           [`${className}`]: className,
         })}
+        data-testid={testID}
       >
         <div className="label--container-margin">
           {this.children}

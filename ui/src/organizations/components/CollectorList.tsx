@@ -17,6 +17,7 @@ interface Props {
   onUpdate: (telegraf: Telegraf) => void
   onOpenInstructions: (telegrafID: string) => void
   onOpenTelegrafConfig: (telegrafID: string, telegrafName: string) => void
+  onFilterChange: (searchTerm: string) => void
 }
 
 export default class CollectorList extends PureComponent<Props> {
@@ -46,6 +47,7 @@ export default class CollectorList extends PureComponent<Props> {
       onUpdate,
       onOpenInstructions,
       onOpenTelegrafConfig,
+      onFilterChange,
     } = this.props
 
     if (collectors !== undefined) {
@@ -58,6 +60,7 @@ export default class CollectorList extends PureComponent<Props> {
           onUpdate={onUpdate}
           onOpenInstructions={onOpenInstructions}
           onOpenTelegrafConfig={onOpenTelegrafConfig}
+          onFilterChange={onFilterChange}
         />
       ))
     }

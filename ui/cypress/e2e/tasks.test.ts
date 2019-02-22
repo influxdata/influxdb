@@ -68,4 +68,44 @@ describe('Tasks', () => {
 
     cy.getByTestID('notification-error').should('exist')
   })
+
+  describe('labeling', () => {
+    it.only('can click to filter tasks by labels', () => {
+      const newLabelName = 'click-me'
+
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.createTask(id).then(({body}) => {
+          cy.createLabel('tasks', body.id, newLabelName)
+        })
+
+        cy.createTask(id).then(({body}) => {
+          cy.createLabel('tasks', body.id, 'bar')
+        })
+      })
+
+      cy.visit('/tasks')
+
+      cy.getByTestID('task-row').should('have.length', 2)
+
+      cy.getByTestID(`label--pill ${newLabelName}`).click()
+
+      cy.getByTestID('task-row').should('have.length', 1)
+    })
+  })
+
+  describe('searching', () => {
+    it('can search by task name', () => {
+      const searchName = 'beepBoop'
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.createTask(id, searchName)
+        cy.createTask(id)
+      })
+
+      cy.visit('/tasks')
+
+      cy.getByTestID('search-widget').type('bEE')
+
+      cy.getByTestID('task-row').should('have.length', 1)
+    })
+  })
 })

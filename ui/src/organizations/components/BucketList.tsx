@@ -24,6 +24,7 @@ interface OwnProps {
   emptyState: JSX.Element
   onUpdateBucket: (b: PrettyBucket) => Promise<void>
   onDeleteBucket: (b: PrettyBucket) => Promise<void>
+  onFilterChange: (searchTerm: string) => void
 }
 
 interface DispatchProps {
@@ -65,7 +66,13 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
   }
 
   public render() {
-    const {dataLoaderType, buckets, emptyState, onDeleteBucket} = this.props
+    const {
+      dataLoaderType,
+      buckets,
+      emptyState,
+      onDeleteBucket,
+      onFilterChange,
+    } = this.props
 
     return (
       <>
@@ -84,6 +91,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
                 onDeleteBucket={onDeleteBucket}
                 onAddData={this.handleStartAddData}
                 onUpdateBucket={this.handleUpdateBucket}
+                onFilterChange={onFilterChange}
               />
             ))}
           </IndexList.Body>

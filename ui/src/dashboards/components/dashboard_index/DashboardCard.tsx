@@ -21,6 +21,7 @@ interface Props {
   onUpdateDashboard: (dashboard: Dashboard) => void
   onEditLabels: (dashboard: Dashboard) => void
   showOwnerColumn: boolean
+  onFilterChange: (searchTerm: string) => void
 }
 
 export default class DashboardCard extends PureComponent<Props> {
@@ -133,10 +134,17 @@ export default class DashboardCard extends PureComponent<Props> {
             colorHex={label.properties.color}
             name={label.name}
             description={label.properties.description}
+            onClick={this.handleLabelClick}
           />
         ))}
       </Label.Container>
     )
+  }
+
+  private handleLabelClick = (id: string) => {
+    const label = this.props.dashboard.labels.find(l => l.id === id)
+
+    this.props.onFilterChange(label.name)
   }
 
   private handleEditLabels = () => {
