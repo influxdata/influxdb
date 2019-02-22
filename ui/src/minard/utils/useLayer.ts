@@ -10,7 +10,7 @@ import {registerLayer, unregisterLayer} from 'src/minard/utils/plotEnvActions'
 */
 export const useLayer = (
   env: PlotEnv,
-  layerFactory: () => Layer,
+  layerFactory: () => Partial<Layer>,
   inputs?: DependencyList
 ) => {
   const {current: layerKey} = useRef(uuid.v4())

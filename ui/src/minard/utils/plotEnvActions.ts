@@ -13,13 +13,13 @@ interface RegisterLayerAction {
   type: 'REGISTER_LAYER'
   payload: {
     layerKey: string
-    layer: Layer
+    layer: Partial<Layer>
   }
 }
 
 export const registerLayer = (
   layerKey: string,
-  layer: Layer
+  layer: Partial<Layer>
 ): RegisterLayerAction => ({
   type: 'REGISTER_LAYER',
   payload: {layerKey, layer},

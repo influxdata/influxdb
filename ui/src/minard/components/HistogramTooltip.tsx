@@ -1,6 +1,6 @@
 import React, {useRef, SFC} from 'react'
 
-import {HistogramTooltipProps, Layer} from 'src/minard'
+import {HistogramTooltipProps, HistogramLayer} from 'src/minard'
 import {useLayoutStyle} from 'src/minard/utils/useLayoutStyle'
 import {useMousePos} from 'src/minard/utils/useMousePos'
 import {getHistogramTooltipProps} from 'src/minard/utils/getHistogramTooltipProps'
@@ -12,7 +12,7 @@ interface Props {
   hoverX: number
   hoverY: number
   tooltip?: (props: HistogramTooltipProps) => JSX.Element
-  layer: Layer
+  layer: HistogramLayer
   hoveredRowIndices: number[] | null
 }
 
