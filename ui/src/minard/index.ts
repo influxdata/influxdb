@@ -39,7 +39,7 @@ export interface AestheticScaleMappings {
 
 export interface Layer {
   table?: Table
-  aesthetics: AestheticDataMappings
+  mappings: AestheticDataMappings
   scales: AestheticScaleMappings
   colors?: string[]
   xDomain?: [number, number]
