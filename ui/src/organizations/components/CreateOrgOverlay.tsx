@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import _ from 'lodash'
 
 // Components
 import {
@@ -13,6 +14,7 @@ import {
   OverlayBody,
   OverlayHeading,
   OverlayContainer,
+  OverlayFooter,
   Input,
 } from 'src/clockface'
 
@@ -47,13 +49,13 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
     const {org, nameInputStatus, errorMessage} = this.state
 
     return (
-      <OverlayContainer>
+      <OverlayContainer maxWidth={500}>
         <OverlayHeading
           title="Create Organization"
           onDismiss={this.props.onCloseModal}
         />
-        <OverlayBody>
-          <Form onSubmit={this.handleCreateOrg}>
+        <Form onSubmit={this.handleCreateOrg}>
+          <OverlayBody>
             <Form.Element label="Name" errorMessage={errorMessage}>
               <Input
                 placeholder="Give your organization a name"
@@ -64,22 +66,29 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
                 status={nameInputStatus}
               />
             </Form.Element>
-            <Form.Footer>
-              <Button
-                text="Cancel"
-                color={ComponentColor.Danger}
-                onClick={onCloseModal}
-              />
-              <Button
-                text="Create"
-                type={ButtonType.Submit}
-                color={ComponentColor.Primary}
-              />
-            </Form.Footer>
-          </Form>
-        </OverlayBody>
+          </OverlayBody>
+          <OverlayFooter>
+            <Button text="Cancel" onClick={onCloseModal} />
+            <Button
+              text="Create"
+              type={ButtonType.Submit}
+              color={ComponentColor.Primary}
+              status={this.submitButtonStatus}
+            />
+          </OverlayFooter>
+        </Form>
       </OverlayContainer>
     )
+  }
+
+  private get submitButtonStatus(): ComponentStatus {
+    const {org} = this.state
+
+    if (org.name) {
+      return ComponentStatus.Default
+    }
+
+    return ComponentStatus.Disabled
   }
 
   private handleCreateOrg = async () => {
@@ -98,7 +107,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
       return this.setState({
         org,
         nameInputStatus: ComponentStatus.Error,
-        errorMessage: `Organization ${key} cannot be empty`,
+        errorMessage: this.randomErrorMessage(key),
       })
     }
 
@@ -107,5 +116,18 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
       nameInputStatus: ComponentStatus.Valid,
       errorMessage: '',
     })
+  }
+
+  private randomErrorMessage = (key: string): string => {
+    const messages = [
+      `Imagine that! An organization without a ${key}`,
+      `An organization needs a ${key}`,
+      `You're not getting far without a ${key}`,
+      `The organization formerly known as...`,
+      `Pick a ${key}, any ${key}`,
+      `Any ${key} will do`,
+    ]
+
+    return _.sample(messages)
   }
 }
