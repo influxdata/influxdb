@@ -9,6 +9,8 @@ export const TICK_PADDING_TOP = 5
 export const TICK_CHAR_WIDTH = 7
 export const TICK_CHAR_HEIGHT = 10
 
+export const AXIS_LABEL_PADDING_BOTTOM = 15
+
 export {Plot} from 'src/minard/components/Plot'
 
 export {
@@ -146,6 +148,8 @@ export interface PlotEnv {
   margins: Margins
   xTicks: number[]
   yTicks: number[]
+  xAxisLabel: string
+  yAxisLabel: string
 
   // If the domains have been explicitly passed in to the `Plot` component,
   // they will be stored here. Scales and child layers use the `xDomain` and
