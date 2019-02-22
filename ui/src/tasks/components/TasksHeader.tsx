@@ -4,6 +4,7 @@ import {Page} from 'src/pageLayout'
 
 // Components
 import {SlideToggle, ComponentSize} from '@influxdata/clockface'
+import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TaskOrgDropdown from 'src/tasks/components/TasksOrgDropdown'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
@@ -17,16 +18,16 @@ interface Props {
   showInactive: boolean
   toggleOverlay: () => void
   showOrgDropdown?: boolean
-  showFilter?: boolean
+  isFullPage?: boolean
 }
 
 export default class TasksHeader extends PureComponent<Props> {
   public static defaultProps: {
     showOrgDropdown: boolean
-    showFilter: boolean
+    isFullPage: boolean
   } = {
     showOrgDropdown: true,
-    showFilter: true,
+    isFullPage: true,
   }
 
   public render() {
@@ -35,29 +36,51 @@ export default class TasksHeader extends PureComponent<Props> {
       setShowInactive,
       showInactive,
       toggleOverlay,
+      isFullPage,
     } = this.props
 
+    if (isFullPage) {
+      return (
+        <Page.Header fullWidth={false}>
+          <Page.Header.Left>
+            <Page.Title title={this.pageTitle} />
+          </Page.Header.Left>
+          <Page.Header.Right>
+            <SlideToggle.Label text="Show Inactive" />
+            <SlideToggle
+              active={showInactive}
+              size={ComponentSize.ExtraSmall}
+              onChange={setShowInactive}
+            />
+            {this.filterSearch}
+            {this.orgDropDown}
+            <AddResourceDropdown
+              onSelectNew={onCreateTask}
+              onSelectImport={toggleOverlay}
+              resourceName="Task"
+            />
+          </Page.Header.Right>
+        </Page.Header>
+      )
+    }
+
     return (
-      <Page.Header fullWidth={false}>
-        <Page.Header.Left>
-          <Page.Title title={this.pageTitle} />
-        </Page.Header.Left>
-        <Page.Header.Right>
+      <Tabs.TabContentsHeader>
+        {this.filterSearch}
+        <ComponentSpacer align={Alignment.Right} stackChildren={Stack.Columns}>
           <SlideToggle.Label text="Show Inactive" />
           <SlideToggle
             active={showInactive}
             size={ComponentSize.ExtraSmall}
             onChange={setShowInactive}
           />
-          {this.filterSearch}
-          {this.orgDropDown}
           <AddResourceDropdown
             onSelectNew={onCreateTask}
             onSelectImport={toggleOverlay}
             resourceName="Task"
           />
-        </Page.Header.Right>
-      </Page.Header>
+        </ComponentSpacer>
+      </Tabs.TabContentsHeader>
     )
   }
 
@@ -71,17 +94,14 @@ export default class TasksHeader extends PureComponent<Props> {
   }
 
   private get filterSearch(): JSX.Element {
-    const {setSearchTerm, showFilter} = this.props
+    const {setSearchTerm} = this.props
 
-    if (showFilter) {
-      return (
-        <SearchWidget
-          placeholderText="Filter tasks by name..."
-          onSearch={setSearchTerm}
-        />
-      )
-    }
-    return <></>
+    return (
+      <SearchWidget
+        placeholderText="Filter tasks by name..."
+        onSearch={setSearchTerm}
+      />
+    )
   }
 
   private get orgDropDown(): JSX.Element {
