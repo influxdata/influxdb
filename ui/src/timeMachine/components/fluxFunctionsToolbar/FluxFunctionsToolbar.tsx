@@ -3,9 +3,9 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import TransformToolbarFunctions from 'src/timeMachine/components/flux_functions_toolbar/TransformToolbarFunctions'
-import FunctionCategory from 'src/timeMachine/components/flux_functions_toolbar/FunctionCategory'
-import SearchBar from 'src/timeMachine/components/flux_functions_toolbar/SearchBar'
+import TransformToolbarFunctions from 'src/timeMachine/components/fluxFunctionsToolbar/TransformToolbarFunctions'
+import FunctionCategory from 'src/timeMachine/components/fluxFunctionsToolbar/FunctionCategory'
+import SearchBar from 'src/timeMachine/components/SearchBar'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -19,7 +19,7 @@ import {getActiveQuery} from 'src/timeMachine/selectors'
 import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
 
 // Styles
-import 'src/timeMachine/components/flux_functions_toolbar/FluxFunctionsToolbar.scss'
+import 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar.scss'
 
 // Types
 import {AppState} from 'src/types/v2'
@@ -46,7 +46,7 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
 
     return (
       <div className="flux-functions-toolbar">
-        <SearchBar onSearch={this.handleSearch} />
+        <SearchBar onSearch={this.handleSearch} resourceName="Functions" />
         <FancyScrollbar>
           <div className="flux-functions-toolbar--list">
             <TransformToolbarFunctions
