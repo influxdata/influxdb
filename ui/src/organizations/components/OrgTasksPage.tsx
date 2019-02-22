@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {InjectedRouter} from 'react-router'
 import _ from 'lodash'
