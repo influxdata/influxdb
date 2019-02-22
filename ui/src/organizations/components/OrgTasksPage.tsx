@@ -206,14 +206,6 @@ class OrgTasksPage extends PureComponent<Props, State> {
   private handleValidateTask = (): boolean => {
     return true
   }
-
-  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.props.setSearchTerm(e.target.value)
-  }
-
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.props.setSearchTerm(e.target.value)
-  }
 }
 
 const mstp = ({
