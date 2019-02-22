@@ -47,7 +47,7 @@ export const Histogram: SFC<Props> = ({
   const layer = useLayer(
     env,
     () => {
-      const [table, aesthetics] = bin(
+      const [table, mappings] = bin(
         baseTable,
         x,
         xDomain,
@@ -56,7 +56,7 @@ export const Histogram: SFC<Props> = ({
         position
       )
 
-      return {table, aesthetics, colors, scales: {}}
+      return {table, mappings, colors, scales: {}}
     },
     [baseTable, xDomain, x, fill, position, binCount, colors]
   )
@@ -75,12 +75,12 @@ export const Histogram: SFC<Props> = ({
     },
   } = env
 
-  const {aesthetics, table} = layer
+  const {mappings, table} = layer
 
   const hoveredRowIndices = findHoveredRowIndices(
-    table.columns[aesthetics.xMin],
-    table.columns[aesthetics.xMax],
-    table.columns[aesthetics.yMax],
+    table.columns[mappings.xMin],
+    table.columns[mappings.xMax],
+    table.columns[mappings.yMax],
     hoverX,
     hoverY,
     xScale,
