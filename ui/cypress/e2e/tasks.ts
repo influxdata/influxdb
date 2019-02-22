@@ -1,6 +1,6 @@
 import {Organization} from '@influxdata/influx'
 
-describe.skip('Tasks', () => {
+describe('Tasks', () => {
   beforeEach(() => {
     cy.flush()
 
