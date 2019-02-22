@@ -12,7 +12,12 @@ exports[`CollectorList rendering renders 1`] = `
       <IndexListHeaderCell
         alignment="left"
         columnName="Bucket"
-        width="50%"
+        width="25%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName=""
+        width="25%"
       />
     </IndexListHeader>
     <IndexListBody
