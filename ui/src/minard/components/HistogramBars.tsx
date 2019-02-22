@@ -24,11 +24,11 @@ const drawBars = (
 ): void => {
   clearCanvas(canvas, width, height)
 
-  const {table, aesthetics} = layer
-  const xMinCol = table.columns[aesthetics.xMin]
-  const xMaxCol = table.columns[aesthetics.xMax]
-  const yMinCol = table.columns[aesthetics.yMin]
-  const yMaxCol = table.columns[aesthetics.yMax]
+  const {table, mappings} = layer
+  const xMinCol = table.columns[mappings.xMin]
+  const xMaxCol = table.columns[mappings.xMax]
+  const yMinCol = table.columns[mappings.yMin]
+  const yMaxCol = table.columns[mappings.yMax]
 
   const context = canvas.getContext('2d')
 

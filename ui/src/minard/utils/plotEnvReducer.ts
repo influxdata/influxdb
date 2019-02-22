@@ -33,7 +33,7 @@ export const INITIAL_PLOT_ENV: PlotEnv = {
   yDomain: null,
   baseLayer: {
     table: {columns: {}, columnTypes: {}},
-    aesthetics: {},
+    mappings: {},
     scales: {},
   },
   layers: {},
@@ -117,20 +117,21 @@ export const plotEnvReducer = (state: PlotEnv, action: PlotAction): PlotEnv =>
 
 /*
   Find all columns in the current in all layers that are mapped to the supplied
-  aesthetics
+  aesthetic mappings
 */
 const getColumnsForAesthetics = (
   state: PlotEnv,
-  aesthetics: string[]
+  mappings: string[]
 ): any[][] => {
   const {baseLayer, layers} = state
 
   const cols = []
 
   for (const layer of Object.values(layers)) {
-    for (const aes of aesthetics) {
-      if (layer.aesthetics[aes]) {
-        const colName = layer.aesthetics[aes]
+    for (const mapping of mappings) {
+      const colName = layer.mappings[mapping]
+
+      if (colName) {
         const col = layer.table
           ? layer.table.columns[colName]
           : baseLayer.table.columns[colName]
@@ -272,8 +273,8 @@ const getColorScale = (
   of data (for now). So the domain of the scale is a set of "group keys" which
   represent all possible groupings of data in the layer.
 */
-const getFillDomain = ({table, aesthetics}: Layer): string[] => {
-  const fillColKeys = aesthetics.fill
+const getFillDomain = ({table, mappings}: Layer): string[] => {
+  const fillColKeys = mappings.fill
 
   if (!fillColKeys.length) {
     return []
@@ -299,7 +300,7 @@ const setFillScales = (draftState: PlotEnv) => {
   layers
     .filter(
       // Pick out the layers that actually need a fill scale
-      layer => layer.aesthetics.fill && layer.colors && layer.colors.length
+      layer => layer.mappings.fill && layer.colors && layer.colors.length
     )
     .forEach(layer => {
       layer.scales.fill = getColorScale(getFillDomain(layer), layer.colors)
