@@ -9,7 +9,7 @@ import OverlayContainer from 'src/clockface/components/overlays/OverlayContainer
 import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
 import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 import TelegrafConfig from 'src/organizations/components/TelegrafConfig'
-import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
+import {ComponentColor, Button} from '@influxdata/clockface'
 import {OverlayFooter} from 'src/clockface'
 
 // Utils
@@ -66,7 +66,6 @@ export class TelegrafConfigOverlay extends PureComponent<Props> {
           </OverlayBody>
           <OverlayFooter>
             <Button
-              size={ComponentSize.ExtraSmall}
               color={ComponentColor.Secondary}
               text={'Download Config'}
               onClick={this.handleDownloadConfig}
