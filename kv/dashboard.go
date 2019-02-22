@@ -926,7 +926,7 @@ func (s *Service) GetDashboardOperationLog(ctx context.Context, id influxdb.ID, 
 		})
 	})
 
-	if err != nil {
+	if err != nil && err != errKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 
