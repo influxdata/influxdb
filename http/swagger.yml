@@ -5819,7 +5819,7 @@ components:
           properties:
             x:
               $ref: '#/components/schemas/Axis'
-            y:
+            "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
               $ref: '#/components/schemas/Axis'
             y2:
               $ref: '#/components/schemas/Axis'
@@ -6051,7 +6051,7 @@ components:
         x:
           type: integer
           format: int32
-        y:
+        "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
           type: integer
           format: int32
         w:
@@ -6099,7 +6099,7 @@ components:
         x:
           type: integer
           format: int32
-        y:
+        "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
           type: integer
           format: int32
         w:
