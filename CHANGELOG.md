@@ -1,4 +1,12 @@
-## v2.0.0-alpha.4 [unreleased]
+## v2.0.0-alpha.5 [unreleased]
+
+### Features
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.4 [2019-02-21]
 
 ### Features
 1. [11954](https://github.com/influxdata/influxdb/pull/11954): Add the ability to run a task manually from tasks page
