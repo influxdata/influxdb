@@ -70,7 +70,14 @@ export const bin = (
   for (let i = 0; i < xCol.length; i++) {
     const x = xCol[i]
 
-    if (x < xDomain[0] || x > xDomain[1]) {
+    const shouldSkipPoint =
+      x === undefined ||
+      x === null ||
+      isNaN(x) ||
+      x < xDomain[0] ||
+      x > xDomain[1]
+
+    if (shouldSkipPoint) {
       continue
     }
 
