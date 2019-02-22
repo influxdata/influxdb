@@ -381,6 +381,11 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 				if err := stm.Unmarshal(b.Bucket(taskMetaPath).Get(encodedID)); err != nil {
 					return err
 				}
+
+				if stm.LatestCompleted < s.minLatestCompleted {
+					stm.LatestCompleted = s.minLatestCompleted
+				}
+
 				tasks[i].Meta = stm
 			}
 		}
