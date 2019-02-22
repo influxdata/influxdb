@@ -61,7 +61,8 @@ type APIBackend struct {
 	VariableService                 influxdb.VariableService
 	PasswordsService                influxdb.PasswordsService
 	OnboardingService               influxdb.OnboardingService
-	ProxyQueryService               query.ProxyQueryService
+	InfluxQLService                 query.ProxyQueryService
+	FluxService                     query.ProxyQueryService
 	TaskService                     influxdb.TaskService
 	TelegrafService                 influxdb.TelegrafConfigStore
 	ScraperTargetStoreService       influxdb.ScraperTargetStoreService

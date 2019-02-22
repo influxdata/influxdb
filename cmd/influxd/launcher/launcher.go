@@ -535,7 +535,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		VariableService:                 variableSvc,
 		PasswordsService:                passwdsSvc,
 		OnboardingService:               onboardingSvc,
-		ProxyQueryService:               storageQueryService,
+		InfluxQLService:                 nil, // No InfluxQL support
+		FluxService:                     storageQueryService,
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
