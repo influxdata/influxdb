@@ -61,6 +61,7 @@ export type Action =
   | SetHistogramPositionAction
   | TableLoadedAction
   | SetXDomainAction
+  | SetXAxisLabelAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -538,4 +539,14 @@ interface SetXDomainAction {
 export const setXDomain = (xDomain: [number, number]): SetXDomainAction => ({
   type: 'SET_VIEW_X_DOMAIN',
   payload: {xDomain},
+})
+
+interface SetXAxisLabelAction {
+  type: 'SET_X_AXIS_LABEL'
+  payload: {xAxisLabel: string}
+}
+
+export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
+  type: 'SET_X_AXIS_LABEL',
+  payload: {xAxisLabel},
 })
