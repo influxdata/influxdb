@@ -22,6 +22,7 @@ import ProgressBar from './components/wizard/ProgressBar'
 import ComponentSpacer from './components/component_spacer/ComponentSpacer'
 import EmptyState from './components/empty_state/EmptyState'
 import IndexList from './components/index_views/IndexList'
+import ResourceList from './components/resource_list/ResourceList'
 import Context from './components/context_menu/Context'
 import FormElement from 'src/clockface/components/form_layout/FormElement'
 import DraggableResizer from 'src/clockface/components/draggable_resizer/DraggableResizer'
@@ -95,6 +96,7 @@ export {
   ProgressBar,
   QuestionMarkTooltip,
   Radio,
+  ResourceList,
   ResponsiveGridSizer,
   Select,
   Sort,
