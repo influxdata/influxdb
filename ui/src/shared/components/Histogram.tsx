@@ -79,6 +79,7 @@ const Histogram: SFC<Props> = ({
     binCount,
     position,
     colors,
+    xAxisLabel,
     xDomain: defaultXDomain,
   },
 }) => {
@@ -109,6 +110,7 @@ const Histogram: SFC<Props> = ({
             table={table}
             width={width}
             height={height}
+            xAxisLabel={xAxisLabel}
             xDomain={xDomain}
             onSetXDomain={setXDomain}
           >

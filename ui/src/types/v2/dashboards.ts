@@ -227,6 +227,7 @@ export interface HistogramView {
   xColumn: string
   fillColumns: string[]
   xDomain: [number, number]
+  xAxisLabel: string
   position: HistogramPosition
   binCount: number
   colors: Color[]
