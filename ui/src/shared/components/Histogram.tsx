@@ -1,7 +1,6 @@
 // Libraries
 import React, {useMemo, useEffect, SFC} from 'react'
 import {connect} from 'react-redux'
-import {AutoSizer} from 'react-virtualized'
 import {
   Plot as MinardPlot,
   Histogram as MinardHistogram,
@@ -99,36 +98,24 @@ const Histogram: SFC<Props> = ({
   }
 
   return (
-    <AutoSizer>
-      {({width, height}) => {
-        if (width === 0 || height === 0) {
-          return null
-        }
-
-        return (
-          <MinardPlot
-            table={table}
-            width={width}
-            height={height}
-            xAxisLabel={xAxisLabel}
-            xDomain={xDomain}
-            onSetXDomain={setXDomain}
-          >
-            {env => (
-              <MinardHistogram
-                env={env}
-                x={mappings.x}
-                fill={fill}
-                binCount={binCount}
-                position={position}
-                tooltip={HistogramTooltip}
-                colors={colorHexes}
-              />
-            )}
-          </MinardPlot>
-        )
-      }}
-    </AutoSizer>
+    <MinardPlot
+      table={table}
+      xAxisLabel={xAxisLabel}
+      xDomain={xDomain}
+      onSetXDomain={setXDomain}
+    >
+      {env => (
+        <MinardHistogram
+          env={env}
+          x={mappings.x}
+          fill={fill}
+          binCount={binCount}
+          position={position}
+          tooltip={HistogramTooltip}
+          colors={colorHexes}
+        />
+      )}
+    </MinardPlot>
   )
 }
 
