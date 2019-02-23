@@ -60,7 +60,7 @@ class OrgBucketsIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'bucket_tab'} orgID={org.id} />
+              <OrganizationNavigation tab={'buckets_tab'} orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--buckets"

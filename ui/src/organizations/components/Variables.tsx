@@ -49,12 +49,13 @@ export default class Variables extends PureComponent<Props, State> {
 
     if (_.isEmpty(searchTerm)) {
       return (
-        <EmptyState size={ComponentSize.Medium}>
+        <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text
             text={`${orgName} does not own any Variables , why not create one?`}
-            highlightWords={['Buckets']}
+            highlightWords={['Variables']}
           />
           <Button
+            size={ComponentSize.Medium}
             text="Create Variable"
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
@@ -65,7 +66,7 @@ export default class Variables extends PureComponent<Props, State> {
     }
 
     return (
-      <EmptyState size={ComponentSize.Medium}>
+      <EmptyState size={ComponentSize.Large}>
         <EmptyState.Text text="No Variables match your query" />
       </EmptyState>
     )

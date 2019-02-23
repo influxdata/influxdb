@@ -47,6 +47,7 @@ export default class CollectorRow extends PureComponent<Props> {
                 onUpdate={this.handleUpdateName}
                 name={collector.name}
                 noNameString={DEFAULT_COLLECTOR_NAME}
+                onEditName={this.handleOpenConfig}
               />
               <EditableDescription
                 description={collector.description}
@@ -61,13 +62,7 @@ export default class CollectorRow extends PureComponent<Props> {
               <Button
                 size={ComponentSize.ExtraSmall}
                 color={ComponentColor.Secondary}
-                text={'View'}
-                onClick={this.handleOpenConfig}
-              />
-              <Button
-                size={ComponentSize.ExtraSmall}
-                color={ComponentColor.Secondary}
-                text={'Setup Details'}
+                text={'Setup Instructions'}
                 onClick={this.handleOpenInstructions}
               />
               <ConfirmationButton
