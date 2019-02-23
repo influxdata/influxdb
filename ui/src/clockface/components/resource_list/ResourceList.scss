@@ -83,14 +83,12 @@
   ------------------------------------------------------------------------------
 */
 
-$resource-card-padding: $ix-marg-c - $ix-border;
-
 .resource-list--card {
   position: relative;
   color: $g13-mist;
   background-color: $g3-castle;
   border-radius: $radius;
-  padding: ($resource-card-padding - $ix-border) $resource-card-padding;
+  padding: $ix-marg-b $ix-marg-c;
   margin-bottom: $ix-border;
   transition: background-color 0.25s ease, color 0.25s ease;
   display: flex;
@@ -137,6 +135,6 @@ $resource-card-padding: $ix-marg-c - $ix-border;
 
 .resource-list--context-menu {
   position: absolute;
-  top: $resource-card-padding;
-  right: $resource-card-padding;
+  top: $ix-marg-b;
+  right: $ix-marg-c;
 }
