@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/influxdata/flux"
@@ -16,6 +17,9 @@ import (
 const (
 	TaskDefaultPageSize = 100
 	TaskMaxPageSize     = 500
+
+	TaskStatusActive   = "active"
+	TaskStatusInactive = "inactive"
 )
 
 // Task is a task. 🎊
@@ -96,6 +100,18 @@ type TaskCreate struct {
 	OrganizationID ID     `json:"orgID,omitempty"`
 	Organization   string `json:"org,omitempty"`
 	Token          string `json:"token,omitempty"`
+}
+
+func (t TaskCreate) Validate() error {
+	switch {
+	case t.Flux == "":
+		return errors.New("missing flux")
+	case !t.OrganizationID.Valid() && t.Organization == "":
+		return errors.New("missing orgID and org")
+	case t.Status != "" && t.Status != TaskStatusActive && t.Status != TaskStatusInactive:
+		return fmt.Errorf("invalid task status: %q", t.Status)
+	}
+	return nil
 }
 
 // TaskUpdate represents updates to a task. Options updates override any options set in the Flux field.
@@ -189,6 +205,8 @@ func (t TaskUpdate) Validate() error {
 		return errors.New("cannot specify both every and cron")
 	case t.Flux == nil && t.Status == nil && t.Options.IsZero() && t.Token == "":
 		return errors.New("cannot update task without content")
+	case t.Status != nil && *t.Status != TaskStatusActive && *t.Status != TaskStatusInactive:
+		return fmt.Errorf("invalid task status: %q", *t.Status)
 	}
 	return nil
 }

@@ -557,6 +557,10 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 		return nil, err
 	}
 
+	if err := tc.Validate(); err != nil {
+		return nil, err
+	}
+
 	return &postTaskRequest{
 		TaskCreate: tc,
 	}, nil
@@ -693,6 +697,10 @@ func decodeUpdateTaskRequest(ctx context.Context, r *http.Request) (*updateTaskR
 
 	var upd platform.TaskUpdate
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
+		return nil, err
+	}
+
+	if err := upd.Validate(); err != nil {
 		return nil, err
 	}
 

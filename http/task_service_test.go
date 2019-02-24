@@ -596,7 +596,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 				},
 			},
 			method:           http.MethodPatch,
-			body:             "{}",
+			body:             `{"status": "active"}`,
 			pathFmt:          "/tasks/%s",
 			okPathArgs:       okTask,
 			notFoundPathArgs: notFoundTask,
