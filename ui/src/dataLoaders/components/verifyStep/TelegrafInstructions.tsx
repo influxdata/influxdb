@@ -49,7 +49,7 @@ class TelegrafInstructions extends PureComponent<Props> {
         <CodeSnippet copyText={exportToken} notify={notify} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>
-          Finally, you can run the following command the start Telegraf agent
+          Finally, you can run the following command to start the Telegraf agent
           running on your machine.
         </p>
         <CodeSnippet copyText={configScript} notify={notify} label="CLI" />
