@@ -34,10 +34,10 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
     3. Start Telegraf
   </h6>
   <p>
-    Finally, you can run the following command the start Telegraf agent running on your machine.
+    Finally, you can run the following command to start the Telegraf agent running on your machine.
   </p>
   <CodeSnippet
-    copyText="telegraf -config http://localhost/api/v2/telegrafs/"
+    copyText="telegraf --config http://localhost/api/v2/telegrafs/"
     label="CLI"
     notify={[MockFunction]}
   />
