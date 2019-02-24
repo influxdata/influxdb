@@ -22,7 +22,7 @@ class TelegrafInstructions extends PureComponent<Props> {
   public render() {
     const {notify, token, configID} = this.props
     const exportToken = `export INFLUX_TOKEN=${token || ''}`
-    const configScript = `telegraf -config ${
+    const configScript = `telegraf --config ${
       this.origin
     }/api/v2/telegrafs/${configID || ''}`
     return (
