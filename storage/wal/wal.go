@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/pool"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/value"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -785,7 +786,7 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 		case value.StringValue:
 			curType = stringEntryType
 		default:
-			return nil, fmt.Errorf("unsupported value type: %T", v[0])
+			return nil, tsdb.ErrUnknownFieldType
 		}
 		dst[n] = curType
 		n++
@@ -804,25 +805,25 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 			switch vv := vv.(type) {
 			case value.FloatValue:
 				if curType != float64EntryType {
-					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
+					return nil, tsdb.ErrFieldTypeConflict
 				}
 				binary.BigEndian.PutUint64(dst[n:n+8], math.Float64bits(vv.RawValue()))
 				n += 8
 			case value.IntegerValue:
 				if curType != integerEntryType {
-					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
+					return nil, tsdb.ErrFieldTypeConflict
 				}
 				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.RawValue()))
 				n += 8
 			case value.UnsignedValue:
 				if curType != unsignedEntryType {
-					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
+					return nil, tsdb.ErrFieldTypeConflict
 				}
 				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.RawValue()))
 				n += 8
 			case value.BooleanValue:
 				if curType != booleanEntryType {
-					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
+					return nil, tsdb.ErrFieldTypeConflict
 				}
 				if vv.RawValue() {
 					dst[n] = 1
@@ -832,13 +833,13 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 				n++
 			case value.StringValue:
 				if curType != stringEntryType {
-					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
+					return nil, tsdb.ErrFieldTypeConflict
 				}
 				binary.BigEndian.PutUint32(dst[n:n+4], uint32(len(vv.RawValue())))
 				n += 4
 				n += copy(dst[n:], vv.RawValue())
 			default:
-				return nil, fmt.Errorf("unsupported value found in %T slice: %T", v[0].Value(), vv)
+				return nil, tsdb.ErrUnknownFieldType
 			}
 		}
 	}
@@ -978,7 +979,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 			w.Values[k] = values
 
 		default:
-			return fmt.Errorf("unsupported value type: %#v", typ)
+			return tsdb.ErrUnknownFieldType
 		}
 	}
 	return nil
