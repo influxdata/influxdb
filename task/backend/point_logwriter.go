@@ -25,7 +25,7 @@ const (
 // Copy of storage.PointsWriter interface.
 // Duplicating it here to avoid having tasks/backend depend directly on storage.
 type PointsWriter interface {
-	WritePoints(points []models.Point) error
+	WritePoints(ctx context.Context, points []models.Point) error
 }
 
 // PointLogWriter writes task and run logs as time-series points.
@@ -61,7 +61,7 @@ func (p *PointLogWriter) UpdateRunState(ctx context.Context, rlb RunLogBase, whe
 		return err
 	}
 
-	return p.pointsWriter.WritePoints(exploded)
+	return p.pointsWriter.WritePoints(ctx, exploded)
 }
 
 func (p *PointLogWriter) AddRunLog(ctx context.Context, rlb RunLogBase, when time.Time, log string) error {
@@ -83,5 +83,5 @@ func (p *PointLogWriter) AddRunLog(ctx context.Context, rlb RunLogBase, when tim
 		return err
 	}
 
-	return p.pointsWriter.WritePoints(exploded)
+	return p.pointsWriter.WritePoints(ctx, exploded)
 }

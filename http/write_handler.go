@@ -218,7 +218,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.PointsWriter.WritePoints(exploded); err != nil {
+	if err := h.PointsWriter.WritePoints(ctx, exploded); err != nil {
 		logger.Error("Error writing points", zap.Error(err))
 		EncodeError(ctx, &platform.Error{
 			Code: platform.EInternal,
