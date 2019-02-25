@@ -18,13 +18,13 @@ describe('Dashboards', () => {
   })
 
   it('can create a dashboard from empty state', () => {
-    cy.get('.empty-state')
+    cy.getByDataTest('empty-state')
       .contains('Create')
       .click()
 
     cy.visit('/dashboards')
 
-    cy.get('.index-list--row')
+    cy.getByDataTest('resource-card')
       .its('length')
       .should('be.eq', 1)
   })
@@ -38,7 +38,7 @@ describe('Dashboards', () => {
 
     cy.visit('/dashboards')
 
-    cy.get('.index-list--row')
+    cy.getByDataTest('resource-card')
       .its('length')
       .should('be.eq', 1)
   })
@@ -49,39 +49,43 @@ describe('Dashboards', () => {
       cy.createDashboard(id)
     })
 
-    cy.get('.index-list--row').then(rows => {
-      const numDashboards = rows.length
+    cy.getByDataTest('resource-card')
+      .its('length')
+      .should('eq', 2)
 
-      cy.get('.button-danger')
-        .first()
-        .click()
+    cy.getByDataTest('resource-card')
+      .first()
+      .trigger('mouseover')
+      .within(() => {
+        cy.getByDataTest('context-delete-menu').click()
 
-      cy.contains('Confirm')
-        .first()
-        .click({force: true})
+        cy.getByDataTest('context-delete-dashboard').click()
+      })
 
-      cy.get('.index-list--row')
-        .its('length')
-        .should('eq', numDashboards - 1)
-    })
+    cy.getByDataTest('resource-card')
+      .its('length')
+      .should('eq', 1)
   })
 
-  it('can edit a dashboards name', () => {
+  it.only('can edit a dashboards name', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createDashboard(id).then(({body}) => {
-        cy.visit(`/dashboards/${body.id}`)
-      })
+      cy.createDashboard(id)
     })
 
     const newName = 'new 🅱️ashboard'
 
-    cy.get('.renamable-page-title--title').click()
-    cy.get('.input-field')
-      .type(newName)
-      .type('{enter}')
+    cy.getByDataTest('resource-card').within(() => {
+      cy.getByDataTest('dashboard-card--name').trigger('mouseover')
+
+      cy.getByDataTest('dashboard-card--name-button').click()
+
+      cy.get('.input-field')
+        .type(newName)
+        .type('{enter}')
+    })
 
     cy.visit('/dashboards')
 
-    cy.get('.index-list--row').should('contain', newName)
+    cy.getByDataTest('resource-card').should('contain', newName)
   })
 })

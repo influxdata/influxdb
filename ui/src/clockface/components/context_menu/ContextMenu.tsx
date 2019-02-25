@@ -17,15 +17,20 @@ import {
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface PassedProps {
   children: JSX.Element | JSX.Element[]
   icon: IconFont
-  text?: string
-  title
-  color?: ComponentColor
-  shape?: ButtonShape
   onBoostZIndex?: (boostZIndex: boolean) => void
 }
+
+interface DefaultProps {
+  text?: string
+  color?: ComponentColor
+  shape?: ButtonShape
+  testID?: string
+}
+
+type Props = PassedProps & DefaultProps
 
 interface State {
   isExpanded: boolean
@@ -33,10 +38,11 @@ interface State {
 
 @ErrorHandling
 class ContextMenu extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     color: ComponentColor.Primary,
     shape: ButtonShape.Square,
     text: '',
+    testID: 'context-menu',
   }
 
   constructor(props: Props) {
@@ -48,7 +54,7 @@ class ContextMenu extends Component<Props, State> {
   }
 
   public render() {
-    const {icon, text, shape, color} = this.props
+    const {icon, text, shape, color, testID} = this.props
 
     return (
       <ClickOutside onClickOutside={this.handleCollapseMenu}>
@@ -61,6 +67,7 @@ class ContextMenu extends Component<Props, State> {
             icon={icon}
             size={ComponentSize.ExtraSmall}
             color={color}
+            testID={testID}
           />
           {this.menu}
         </div>

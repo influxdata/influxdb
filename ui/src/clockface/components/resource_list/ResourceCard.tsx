@@ -9,7 +9,7 @@ import {Organization} from 'src/types/v2'
 // Constants
 import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
 
-interface Props {
+interface PassedProps {
   name: () => JSX.Element
   description?: () => JSX.Element
   updatedAt?: string
@@ -19,15 +19,24 @@ interface Props {
   meta2?: () => JSX.Element
   contextMenu?: () => JSX.Element
   children?: JSX.Element[] | JSX.Element
+}
+
+interface DefaultProps {
   testID?: string
 }
 
+type Props = PassedProps & DefaultProps
+
 export default class ResourceListCard extends PureComponent<Props> {
+  public static defaultProps: DefaultProps = {
+    testID: 'resource-card',
+  }
+
   public render() {
     const {description, children, testID, labels} = this.props
 
     return (
-      <div className="resource-list--card" data-test-id={testID}>
+      <div className="resource-list--card" data-testid={testID}>
         {this.nameAndMeta}
         {description()}
         {labels()}

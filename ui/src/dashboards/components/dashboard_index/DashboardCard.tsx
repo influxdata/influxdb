@@ -31,13 +31,16 @@ export default class DashboardCard extends PureComponent<Props> {
     return (
       <ResourceList.Card
         key={`dashboard-id--${id}`}
-        testID={`dashboard-index--row ${id}`}
+        testID="resource-card"
         name={() => (
           <ResourceList.Name
             onUpdate={this.handleUpdateDashboard}
             name={dashboard.name}
             hrefValue={`/dashboards/${dashboard.id}`}
             noNameString={DEFAULT_DASHBOARD_NAME}
+            parentTestID="dashboard-card--name"
+            buttonTestID="dashboard-card--name-button"
+            inputTestID="dashboard-card--input"
           />
         )}
         description={() => (
@@ -88,11 +91,16 @@ export default class DashboardCard extends PureComponent<Props> {
             value={dashboard}
           />
         </Context.Menu>
-        <Context.Menu icon={IconFont.Trash} color={ComponentColor.Danger}>
+        <Context.Menu
+          icon={IconFont.Trash}
+          color={ComponentColor.Danger}
+          testID="context-delete-menu"
+        >
           <Context.Item
             label="Delete"
             action={onDeleteDashboard}
             value={dashboard}
+            testID="context-delete-dashboard"
           />
         </Context.Menu>
       </Context>

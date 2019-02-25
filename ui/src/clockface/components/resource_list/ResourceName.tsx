@@ -21,6 +21,9 @@ interface PassedProps {
 }
 
 interface DefaultProps {
+  parentTestID?: string
+  buttonTestID?: string
+  inputTestID?: string
   hrefValue?: string
 }
 
@@ -34,6 +37,9 @@ interface State {
 @ErrorHandling
 class ResourceName extends Component<Props, State> {
   public static defaultProps: DefaultProps = {
+    parentTestID: 'resource-name',
+    buttonTestID: 'resource-name--button',
+    inputTestID: 'resource-name--input',
     hrefValue: '#',
   }
 
@@ -47,16 +53,24 @@ class ResourceName extends Component<Props, State> {
   }
 
   public render() {
-    const {name, onEditName, hrefValue, noNameString} = this.props
+    const {
+      name,
+      onEditName,
+      hrefValue,
+      noNameString,
+      parentTestID,
+      buttonTestID,
+    } = this.props
 
     return (
-      <div className={this.className}>
+      <div className={this.className} data-testid={parentTestID}>
         <a href={hrefValue} onClick={onEditName}>
           <span>{name || noNameString}</span>
         </a>
         <div
           className="resource-name--toggle"
           onClick={this.handleStartEditing}
+          data-testid={buttonTestID}
         >
           <span className="icon pencil" />
         </div>
@@ -66,7 +80,7 @@ class ResourceName extends Component<Props, State> {
   }
 
   private get input(): JSX.Element {
-    const {placeholder} = this.props
+    const {placeholder, inputTestID} = this.props
     const {workingName, isEditing} = this.state
 
     if (isEditing) {
@@ -83,6 +97,7 @@ class ResourceName extends Component<Props, State> {
             onKeyDown={this.handleKeyDown}
             customClass="resource-name--input"
             value={workingName}
+            dataTest={inputTestID}
           />
         </ClickOutside>
       )
