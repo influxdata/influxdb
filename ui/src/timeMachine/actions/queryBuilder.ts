@@ -2,6 +2,7 @@
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 
 // Utils
+import {getActiveOrg} from 'src/organizations/selectors'
 import {
   getActiveQuerySource,
   getActiveQuery,
@@ -203,11 +204,13 @@ export const loadBuckets = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
+  const queryURL = getActiveQuerySource(getState()).links.query
+  const orgID = getActiveOrg(getState()).id
+
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    const queryURL = getActiveQuerySource(getState()).links.query
-    const buckets = await queryBuilderFetcher.findBuckets(queryURL)
+    const buckets = await queryBuilderFetcher.findBuckets(queryURL, orgID)
     const selectedBucket = getActiveQuery(getState()).builderConfig.buckets[0]
 
     dispatch(setBuilderBuckets(buckets))
@@ -247,6 +250,7 @@ export const loadTagSelector = (index: number) => async (
 
   const tagPredicates = tags.slice(0, index)
   const queryURL = getActiveQuerySource(getState()).links.query
+  const orgID = getActiveOrg(getState()).id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
@@ -257,6 +261,7 @@ export const loadTagSelector = (index: number) => async (
     const keys = await queryBuilderFetcher.findKeys(
       index,
       queryURL,
+      orgID,
       buckets[0],
       tagPredicates,
       searchTerm
@@ -299,6 +304,7 @@ const loadTagSelectorValues = (index: number) => async (
   const {buckets, tags} = getActiveQuery(getState()).builderConfig
   const tagPredicates = tags.slice(0, index)
   const queryURL = getActiveQuerySource(getState()).links.query
+  const orgID = getActiveOrg(getState()).id
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
@@ -309,6 +315,7 @@ const loadTagSelectorValues = (index: number) => async (
     const values = await queryBuilderFetcher.findValues(
       index,
       queryURL,
+      orgID,
       buckets[0],
       tagPredicates,
       key,

@@ -130,6 +130,7 @@ const NEW_VIEW_CREATORS = {
       shape: ViewShape.ChronografV2,
       xColumn: '_value',
       xDomain: null,
+      xAxisLabel: '',
       fillColumns: null,
       position: HistogramPosition.Stacked,
       binCount: 30,

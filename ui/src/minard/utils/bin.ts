@@ -1,6 +1,13 @@
 import {extent, range, thresholdSturges} from 'd3-array'
 
-import {Table, HistogramPosition, ColumnType} from 'src/minard'
+import {
+  Table,
+  HistogramTable,
+  HistogramMappings,
+  HistogramPosition,
+  NumericColumnType,
+  isNumeric,
+} from 'src/minard'
 import {assert} from 'src/minard/utils/assert'
 import {getGroupKey} from 'src/minard/utils/getGroupKey'
 
@@ -37,15 +44,14 @@ export const bin = (
   groupColNames: string[] = [],
   binCount: number,
   position: HistogramPosition
-) => {
-  const xCol = table.columns[xColName]
-  const xColType = table.columnTypes[xColName]
+): [HistogramTable, HistogramMappings] => {
+  const col = table.columns[xColName]
 
-  assert(`could not find column "${xColName}"`, !!xCol)
-  assert(
-    `unsupported value column type "${xColType}"`,
-    xColType === ColumnType.Numeric || xColType === ColumnType.Temporal
-  )
+  assert(`could not find column "${xColName}"`, !!col)
+  assert(`unsupported value column type "${col.type}"`, isNumeric(col.type))
+
+  const xCol = col.data as number[]
+  const xColType = col.type as NumericColumnType
 
   if (!binCount) {
     binCount = thresholdSturges(xCol)
@@ -64,7 +70,14 @@ export const bin = (
   for (let i = 0; i < xCol.length; i++) {
     const x = xCol[i]
 
-    if (x < xDomain[0] || x > xDomain[1]) {
+    const shouldSkipPoint =
+      x === undefined ||
+      x === null ||
+      isNaN(x) ||
+      x < xDomain[0] ||
+      x > xDomain[1]
+
+    if (shouldSkipPoint) {
       continue
     }
 
@@ -91,23 +104,36 @@ export const bin = (
   }
 
   // Next, build up a tabular representation of each of these bins by group
+  const groupKeys = Object.keys(groupsByGroupKey)
   const statTable = {
-    columns: {xMin: [], xMax: [], yMin: [], yMax: []},
-    columnTypes: {
-      xMin: xColType,
-      xMax: xColType,
-      yMin: ColumnType.Numeric,
-      yMax: ColumnType.Numeric,
+    columns: {
+      xMin: {
+        data: [],
+        type: xColType,
+      },
+      xMax: {
+        data: [],
+        type: xColType,
+      },
+      yMin: {
+        data: [],
+        type: 'int',
+      },
+      yMax: {
+        data: [],
+        type: 'int',
+      },
     },
+    length: binCount * groupKeys.length,
   }
 
   // Include original columns used to group data in the resulting table
   for (const name of groupColNames) {
-    statTable.columns[name] = []
-    statTable.columnTypes[name] = table.columnTypes[name]
+    statTable.columns[name] = {
+      data: [],
+      type: table.columns[name].type,
+    }
   }
-
-  const groupKeys = Object.keys(groupsByGroupKey)
 
   for (let i = 0; i < groupKeys.length; i++) {
     const groupKey = groupKeys[i]
@@ -121,18 +147,18 @@ export const bin = (
           .reduce((sum, k) => sum + (bin.values[k] || 0), 0)
       }
 
-      statTable.columns.xMin.push(bin.min)
-      statTable.columns.xMax.push(bin.max)
-      statTable.columns.yMin.push(yMin)
-      statTable.columns.yMax.push(yMin + (bin.values[groupKey] || 0))
+      statTable.columns.xMin.data.push(bin.min)
+      statTable.columns.xMax.data.push(bin.max)
+      statTable.columns.yMin.data.push(yMin)
+      statTable.columns.yMax.data.push(yMin + (bin.values[groupKey] || 0))
 
       for (const [k, v] of Object.entries(groupsByGroupKey[groupKey])) {
-        statTable.columns[k].push(v)
+        statTable.columns[k].data.push(v)
       }
     }
   }
 
-  const mappings: any = {
+  const mappings: HistogramMappings = {
     xMin: 'xMin',
     xMax: 'xMax',
     yMin: 'yMin',
@@ -140,7 +166,7 @@ export const bin = (
     fill: groupColNames,
   }
 
-  return [statTable, mappings]
+  return [statTable as HistogramTable, mappings]
 }
 
 const createBins = (
@@ -186,7 +212,7 @@ const getGroup = (table: Table, groupColNames: string[], i: number) => {
   const result = {}
 
   for (const key of groupColNames) {
-    result[key] = table.columns[key][i]
+    result[key] = table.columns[key].data[i]
   }
 
   return result

@@ -336,11 +336,11 @@ paths:
               $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
-          description: a list of all labels for a telegraf config
+          description: "the label added to the telegraf config"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LabelsResponse"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -2136,7 +2136,7 @@ paths:
               $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
-          description: a list of all labels for a dashboard
+          description: the label added to the dashboard
           content:
             application/json:
               schema:
@@ -6228,7 +6228,7 @@ components:
           properties:
             x:
               $ref: '#/components/schemas/Axis'
-            y:
+            "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
               $ref: '#/components/schemas/Axis'
             y2:
               $ref: '#/components/schemas/Axis'
@@ -6460,7 +6460,7 @@ components:
         x:
           type: integer
           format: int32
-        y:
+        "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
           type: integer
           format: int32
         w:
@@ -6508,7 +6508,7 @@ components:
         x:
           type: integer
           format: int32
-        y:
+        "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
           type: integer
           format: int32
         w:

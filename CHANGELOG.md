@@ -1,4 +1,13 @@
-## v2.0.0-alpha.4 [unreleased]
+## v2.0.0-alpha.5 [unreleased]
+
+### Features
+1. [12096](https://github.com/influxdata/influxdb/pull/12096): Add labels to cloned tasks
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.4 [2019-02-21]
 
 ### Features
 1. [11954](https://github.com/influxdata/influxdb/pull/11954): Add the ability to run a task manually from tasks page
@@ -6,6 +15,8 @@
 1. [12009](https://github.com/influxdata/influxdb/pull/12009): Display the version information on the login page
 1. [12011](https://github.com/influxdata/influxdb/pull/12011): Add the ability to update a Variable's name and query.
 1. [12026](https://github.com/influxdata/influxdb/pull/12026): Add labels to cloned dashboard
+1. [12018](https://github.com/influxdata/influxdb/pull/12057): Add ability filter resources by label name
+1. [11973](https://github.com/influxdata/influxdb/pull/11973): Add ability to create or add labels to a resource from labels editor
 
 ### Bug Fixes
 1. [11997](https://github.com/influxdata/influxdb/pull/11997): Update the bucket retention policy to update the time in seconds

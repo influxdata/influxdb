@@ -7,22 +7,15 @@ import {
   Button,
   ComponentColor,
   ButtonType,
-  Columns,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {
-  Grid,
-  Form,
-  Input,
-  InputType,
-  ComponentSpacer,
-  Alignment,
-} from 'src/clockface'
+import {Form, Input, InputType, ComponentSpacer, Alignment} from 'src/clockface'
 import RandomLabelColorButton from 'src/configuration/components/RandomLabelColor'
 import {Label, LabelProperties} from 'src/types/v2/labels'
 
 // Constants
 import {HEX_CODE_CHAR_LENGTH} from 'src/configuration/constants/LabelColors'
+const MAX_CREATE_BUTTON_LENGTH = 24
 
 // Utils
 import {
@@ -72,46 +65,34 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
   public render() {
     const {isValid} = this.state
 
+    // TODO: Add className prop to ComponentSpacer so we don't need this wrapper div
+
     return (
       <div className="resource-label--form">
-        <Grid.Row>
-          <Grid.Column widthXS={Columns.Five}>
-            <Form.Element label="Color">
-              <ComponentSpacer stretchToFitWidth={true} align={Alignment.Left}>
-                <RandomLabelColorButton
-                  colorHex={this.colorHex}
-                  onClick={this.handleColorChange}
-                />
-                {this.customColorInput}
-              </ComponentSpacer>
-            </Form.Element>
-          </Grid.Column>
-          <Grid.Column widthXS={Columns.Five}>
-            <Form.Element label="Description">
-              <Input
-                type={InputType.Text}
-                placeholder="Add a optional description"
-                name="description"
-                value={this.description}
-                onChange={this.handleInputChange}
-              />
-            </Form.Element>
-          </Grid.Column>
-          <Grid.Column widthXS={Columns.Two}>
-            <Form.Element label="">
-              <Button
-                customClass="resource-label--create-button"
-                text="Create Label"
-                color={ComponentColor.Success}
-                type={ButtonType.Submit}
-                status={
-                  isValid ? ComponentStatus.Default : ComponentStatus.Disabled
-                }
-                onClick={this.handleSubmit}
-              />
-            </Form.Element>
-          </Grid.Column>
-        </Grid.Row>
+        <ComponentSpacer align={Alignment.Left}>
+          <RandomLabelColorButton
+            colorHex={this.colorHex}
+            onClick={this.handleColorChange}
+          />
+          {this.customColorInput}
+          <Input
+            type={InputType.Text}
+            placeholder="Add a optional description"
+            name="description"
+            value={this.description}
+            onChange={this.handleInputChange}
+          />
+          <Button
+            customClass="resource-label--create-button"
+            text={this.createButtonLabel}
+            color={ComponentColor.Success}
+            type={ButtonType.Submit}
+            status={
+              isValid ? ComponentStatus.Default : ComponentStatus.Disabled
+            }
+            onClick={this.handleSubmit}
+          />
+        </ComponentSpacer>
       </div>
     )
   }
@@ -155,6 +136,18 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
         properties: {...label.properties, ...update},
       },
     })
+  }
+
+  private get createButtonLabel(): string {
+    const {labelName} = this.props
+
+    let label = `Create "${labelName}"`
+
+    if (labelName.length > MAX_CREATE_BUTTON_LENGTH) {
+      label = `Create "${labelName.slice(0, MAX_CREATE_BUTTON_LENGTH)}..."`
+    }
+
+    return label
   }
 
   private get customColorInput(): JSX.Element {

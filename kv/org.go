@@ -8,6 +8,7 @@ import (
 
 	influxdb "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
+	"go.uber.org/zap"
 )
 
 var (
@@ -213,8 +214,24 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 // CreateOrganization creates a influxdb organization and sets b.ID.
 func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
 	return s.kv.Update(func(tx Tx) error {
-		return s.createOrganization(ctx, tx, o)
+		if err := s.createOrganization(ctx, tx, o); err != nil {
+			return err
+		}
+
+		// Attempt to add user as owner of organization, if that is not possible allow the
+		// organization to be created anyways.
+		if err := s.addOrgOwner(ctx, tx, o.ID); err != nil {
+			s.Logger.Info("failed to make user owner of organization", zap.Error(err))
+		}
+
+		return nil
 	})
+}
+
+// addOrgOwner attempts to create a user resource mapping for the user on the
+// authorizer found on context. If no authorizer is found on context if returns an error.
+func (s *Service) addOrgOwner(ctx context.Context, tx Tx, orgID influxdb.ID) error {
+	return s.addResourceOwner(ctx, tx, influxdb.OrgsResourceType, orgID)
 }
 
 func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Organization) error {
@@ -476,7 +493,7 @@ func (s *Service) GetOrganizationOperationLog(ctx context.Context, id influxdb.I
 		})
 	})
 
-	if err != nil {
+	if err != nil && err != errKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 

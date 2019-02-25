@@ -442,7 +442,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			store taskbackend.Store
 			err   error
 		)
-		store, err = taskbolt.New(m.boltClient.DB(), "tasks")
+		store, err = taskbolt.New(m.boltClient.DB(), "tasks", taskbolt.NoCatchUp)
 		if err != nil {
 			m.logger.Error("failed opening task bolt", zap.Error(err))
 			return err
@@ -535,7 +535,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		VariableService:                 variableSvc,
 		PasswordsService:                passwdsSvc,
 		OnboardingService:               onboardingSvc,
-		ProxyQueryService:               storageQueryService,
+		InfluxQLService:                 nil, // No InfluxQL support
+		FluxService:                     storageQueryService,
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,

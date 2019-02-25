@@ -8,6 +8,7 @@ import (
 
 	influxdb "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
+	"go.uber.org/zap"
 )
 
 var (
@@ -301,7 +302,15 @@ func (s *Service) CreateDashboard(ctx context.Context, d *influxdb.Dashboard) er
 		// TODO(desa): don't populate this here. use the first/last methods of the oplog to get meta fields.
 		d.Meta.CreatedAt = s.time()
 
-		return s.putDashboardWithMeta(ctx, tx, d)
+		if err := s.putDashboardWithMeta(ctx, tx, d); err != nil {
+			return err
+		}
+
+		if err := s.addDashboardOwner(ctx, tx, d.ID); err != nil {
+			s.Logger.Info("failed to make user owner of organization", zap.Error(err))
+		}
+
+		return nil
 	})
 	if err != nil {
 		return &influxdb.Error{
@@ -309,6 +318,12 @@ func (s *Service) CreateDashboard(ctx context.Context, d *influxdb.Dashboard) er
 		}
 	}
 	return nil
+}
+
+// addDashboardOwner attempts to create a user resource mapping for the user on the
+// authorizer found on context. If no authorizer is found on context if returns an error.
+func (s *Service) addDashboardOwner(ctx context.Context, tx Tx, orgID influxdb.ID) error {
+	return s.addResourceOwner(ctx, tx, influxdb.DashboardsResourceType, orgID)
 }
 
 func (s *Service) createCellView(ctx context.Context, tx Tx, dashID, cellID influxdb.ID, view *influxdb.View) error {
@@ -926,7 +941,7 @@ func (s *Service) GetDashboardOperationLog(ctx context.Context, id influxdb.ID, 
 		})
 	})
 
-	if err != nil {
+	if err != nil && err != errKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 

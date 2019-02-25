@@ -1,10 +1,10 @@
 import {Scale} from 'src/minard'
 import {range} from 'd3-array'
 
+import {HistogramTable} from 'src/minard'
+
 export const findHoveredRowIndices = (
-  xMinCol: number[],
-  xMaxCol: number[],
-  yMaxCol: number[],
+  table: HistogramTable,
   hoverX: number,
   hoverY: number,
   xScale: Scale,
@@ -14,6 +14,9 @@ export const findHoveredRowIndices = (
     return null
   }
 
+  const xMinCol = table.columns.xMin.data
+  const xMaxCol = table.columns.xMax.data
+  const yMaxCol = table.columns.yMax.data
   const dataX = xScale.invert(hoverX)
   const dataY = yScale.invert(hoverY)
 

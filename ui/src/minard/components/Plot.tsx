@@ -9,6 +9,8 @@ import {
   setTable,
   setControlledXDomain,
   setControlledYDomain,
+  setXAxisLabel,
+  setYAxisLabel,
 } from 'src/minard/utils/plotEnvActions'
 import {plotEnvReducer, INITIAL_PLOT_ENV} from 'src/minard/utils/plotEnvReducer'
 
@@ -29,6 +31,8 @@ export interface Props {
   axesStroke?: string
   tickFont?: string
   tickFill?: string
+  xAxisLabel?: string
+  yAxisLabel?: string
 
   // The x domain of the plot can be explicitly set. If this prop is passed,
   // then the component is operating in a "controlled" mode, where it always
@@ -53,6 +57,8 @@ export const Plot: SFC<Props> = ({
   axesStroke = '#31313d',
   tickFont = 'bold 10px Roboto',
   tickFill = '#8e91a1',
+  xAxisLabel = '',
+  yAxisLabel = '',
   xDomain = null,
   yDomain = null,
 }) => {
@@ -62,12 +68,16 @@ export const Plot: SFC<Props> = ({
     height,
     xDomain,
     yDomain,
+    xAxisLabel,
+    yAxisLabel,
     baseLayer: {...INITIAL_PLOT_ENV.baseLayer, table},
   })
 
   useMountedEffect(() => dispatch(setTable(table)), [table])
   useMountedEffect(() => dispatch(setControlledXDomain(xDomain)), [xDomain])
   useMountedEffect(() => dispatch(setControlledYDomain(yDomain)), [yDomain])
+  useMountedEffect(() => dispatch(setXAxisLabel(xAxisLabel)), [xAxisLabel])
+  useMountedEffect(() => dispatch(setYAxisLabel(yAxisLabel)), [yAxisLabel])
   useMountedEffect(() => dispatch(setDimensions(width, height)), [
     width,
     height,

@@ -59,7 +59,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
           onDismiss={this.props.onCloseModal}
         />
 
-        <Form>
+        <Form onSubmit={this.handleSubmit}>
           <OverlayBody>
             <div className="overlay-flux-editor--spacing">
               <Form.Element label="Name">
@@ -94,7 +94,6 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
               <Button
                 text="Create"
                 type={ButtonType.Submit}
-                onClick={this.handleSubmit}
                 color={ComponentColor.Primary}
               />
             </OverlayFooter>

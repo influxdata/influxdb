@@ -829,7 +829,7 @@ func newOrganizationLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry
 	}
 	return &operationLogResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/organizations/%s/log", id),
+			"self": fmt.Sprintf("/api/v2/orgs/%s/log", id),
 		},
 		Log: log,
 	}

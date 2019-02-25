@@ -1,6 +1,11 @@
 import React, {useRef, useLayoutEffect, SFC} from 'react'
 
-import {PlotEnv, TICK_PADDING_RIGHT, TICK_PADDING_TOP} from 'src/minard'
+import {
+  PlotEnv,
+  TICK_PADDING_RIGHT,
+  TICK_PADDING_TOP,
+  PLOT_PADDING,
+} from 'src/minard'
 import {clearCanvas} from 'src/minard/utils/clearCanvas'
 
 interface Props {
@@ -20,9 +25,13 @@ export const drawAxes = (
   const {
     width,
     height,
+    innerWidth,
+    innerHeight,
     margins,
     xTicks,
     yTicks,
+    xAxisLabel,
+    yAxisLabel,
     baseLayer: {
       scales: {x: xScale, y: yScale},
     },
@@ -76,6 +85,31 @@ export const drawAxes = (
     context.stroke()
 
     context.fillText(String(yTick), margins.left - TICK_PADDING_RIGHT, y)
+  }
+
+  // Draw the x axis label
+  if (xAxisLabel) {
+    context.textAlign = 'center'
+    context.textBaseline = 'bottom'
+    context.fillText(
+      xAxisLabel,
+      margins.left + innerWidth / 2,
+      height - PLOT_PADDING
+    )
+  }
+
+  // Draw the y axis label
+  if (yAxisLabel) {
+    const x = PLOT_PADDING
+    const y = margins.top + innerHeight / 2
+
+    context.save()
+    context.translate(x, y)
+    context.rotate(-Math.PI / 2)
+    context.textAlign = 'center'
+    context.textBaseline = 'top'
+    context.fillText(yAxisLabel, 0, 0)
+    context.restore()
   }
 }
 

@@ -451,7 +451,7 @@ func (s *Service) GetUserOperationLog(ctx context.Context, id influxdb.ID, opts 
 	log := []*influxdb.OperationLogEntry{}
 
 	err := s.kv.View(func(tx Tx) error {
-		key, err := encodeBucketOperationLogKey(id)
+		key, err := encodeUserOperationLogKey(id)
 		if err != nil {
 			return err
 		}
@@ -469,7 +469,7 @@ func (s *Service) GetUserOperationLog(ctx context.Context, id influxdb.ID, opts 
 		})
 	})
 
-	if err != nil {
+	if err != nil && err != errKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 

@@ -1,4 +1,4 @@
-import {Layer} from 'src/minard'
+import {HistogramLayer} from 'src/minard'
 import {getGroupKey} from 'src/minard/utils/getGroupKey'
 
 // Given a histogram `Layer` and the index of row in its table, this function
@@ -13,11 +13,11 @@ import {getGroupKey} from 'src/minard/utils/getGroupKey'
 //    key”) that the scale uses as a domain
 // 3. Lookup the scale and get the color via this representation
 export const getBarFill = (
-  {scales, aesthetics, table}: Layer,
+  {scales, mappings, table}: HistogramLayer,
   i: number
 ): string => {
   const fillScale = scales.fill
-  const values = aesthetics.fill.map(colKey => table.columns[colKey][i])
+  const values = mappings.fill.map(colKey => table.columns[colKey].data[i])
   const groupKey = getGroupKey(values)
   const fill = fillScale(groupKey)
 

@@ -10,10 +10,10 @@
   text-align: center;
   background-color: $g1-raven;
   border: $ix-border solid $c-pool;
-  padding: $ix-marg-b;
+  padding: 0 $ix-marg-b;
   border-radius: $ix-radius;
   z-index: 9999;
-  height: 410px;
+  height: 416px;
   
   .react-datepicker {
     font-family: $ix-text-font;
@@ -25,9 +25,16 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    margin: $ix-marg-b 0;
-
+    margin-top: $ix-marg-b;
+    
     .range-picker--date-picker {
+      margin: $ix-marg-a;
+
+      .react-datepicker-wrapper,
+      .react-datepicker__input-container {
+        width: 100%;
+      }
+
       .range-picker--popper-container {
         position: relative;
       }
@@ -44,6 +51,12 @@
           display: inline-flex;
           flex-direction: row;
 
+          .react-datepicker__month-container {
+            background-color: $g3-castle;
+            border-radius: 0 0 $ix-radius $ix-radius;
+            width: 260px;
+          }
+
           .react-datepicker__navigation {
             outline: none;
             cursor: pointer;
@@ -58,8 +71,7 @@
           }
           
           .range-picker--day {
-            color: $c-void;
-            font-weight: 400;
+            color: $g7-graphite;
 
             &:hover {
               background-color: $c-laser;
@@ -68,7 +80,7 @@
           }
 
           .range-picker--day-in-month {
-            color: $c-star;
+            color: $g14-chromium;
             
             &:hover {
               background-color: $c-laser;
@@ -86,6 +98,7 @@
           }
 
           .react-datepicker__header {
+            
             border-radius: 0;
             padding: 0;
             border: none;
@@ -93,6 +106,7 @@
 
             .react-datepicker__day-name {
               color: $c-rainforest;
+              font-weight: 700;
             }
             
             .react-datepicker__current-month {
@@ -138,8 +152,8 @@
 
               .react-datepicker__time-box {
                 width: 100%;
-                background-color: $g2-kevlar;
-                color: $g18-cloud;
+                background-color: $g3-castle;
+                color: $g14-chromium;
 
                 .react-datepicker__time-list {
                   font-size: $ix-text-base;

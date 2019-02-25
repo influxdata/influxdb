@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
@@ -46,6 +47,8 @@ type Store struct {
 	db     *bolt.DB
 	bucket []byte
 	idGen  platform.IDGenerator
+
+	minLatestCompleted int64
 }
 
 const basePath = "/tasks/v1/"
@@ -59,8 +62,14 @@ var (
 	runIDs       = []byte(basePath + "run_ids")
 )
 
+// Option is a optional configuration for the store.
+type Option func(*Store)
+
+// NoCatchUp allows you to skip any task that was supposed to run during down time.
+func NoCatchUp(st *Store) { st.minLatestCompleted = time.Now().Unix() }
+
 // New gives us a new Store based on "github.com/coreos/bbolt"
-func New(db *bolt.DB, rootBucket string) (*Store, error) {
+func New(db *bolt.DB, rootBucket string, opts ...Option) (*Store, error) {
 	if db.IsReadOnly() {
 		return nil, ErrDBReadOnly
 	}
@@ -87,7 +96,11 @@ func New(db *bolt.DB, rootBucket string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{db: db, bucket: bucket, idGen: snowflake.NewDefaultIDGenerator()}, nil
+	st := &Store{db: db, bucket: bucket, idGen: snowflake.NewDefaultIDGenerator(), minLatestCompleted: math.MinInt64}
+	for _, opt := range opts {
+		opt(st)
+	}
+	return st, nil
 }
 
 // CreateTask creates a task in the boltdb task store.
@@ -368,6 +381,12 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 				if err := stm.Unmarshal(b.Bucket(taskMetaPath).Get(encodedID)); err != nil {
 					return err
 				}
+
+				if stm.LatestCompleted < s.minLatestCompleted {
+					stm.LatestCompleted = s.minLatestCompleted
+					stm.AlignLatestCompleted()
+				}
+
 				tasks[i].Meta = stm
 			}
 		}
@@ -434,6 +453,11 @@ func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.
 		return nil, err
 	}
 
+	if stm.LatestCompleted < s.minLatestCompleted {
+		stm.LatestCompleted = s.minLatestCompleted
+		stm.AlignLatestCompleted()
+	}
+
 	return &stm, nil
 }
 
@@ -470,6 +494,11 @@ func (s *Store) FindTaskByIDWithMeta(ctx context.Context, id platform.ID) (*back
 	stm := backend.StoreTaskMeta{}
 	if err := stm.Unmarshal(stmBytes); err != nil {
 		return nil, nil, err
+	}
+
+	if stm.LatestCompleted < s.minLatestCompleted {
+		stm.LatestCompleted = s.minLatestCompleted
+		stm.AlignLatestCompleted()
 	}
 
 	return &backend.StoreTask{
@@ -537,6 +566,11 @@ func (s *Store) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 		err := stm.Unmarshal(stmBytes)
 		if err != nil {
 			return err
+		}
+
+		if stm.LatestCompleted < s.minLatestCompleted {
+			stm.LatestCompleted = s.minLatestCompleted
+			stm.AlignLatestCompleted()
 		}
 
 		rc, err = stm.CreateNextRun(now, func() (platform.ID, error) {

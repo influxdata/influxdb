@@ -305,6 +305,12 @@ export const timeMachineReducer = (
       return setViewProperties(state, {xColumn})
     }
 
+    case 'SET_X_AXIS_LABEL': {
+      const {xAxisLabel} = action.payload
+
+      return setViewProperties(state, {xAxisLabel})
+    }
+
     case 'SET_FILL_COLUMNS': {
       const {fillColumns} = action.payload
 

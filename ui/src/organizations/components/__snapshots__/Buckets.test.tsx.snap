@@ -96,6 +96,7 @@ Object {
                     <div
                       class="confirmation-button--tooltip-body"
                       data-test="confirmation-button--click-target"
+                      data-testid="confirmation-button"
                     >
                       Confirm
                     </div>
@@ -228,6 +229,7 @@ Object {
                     <div
                       class="confirmation-button--tooltip-body"
                       data-test="confirmation-button--click-target"
+                      data-testid="confirmation-button"
                     >
                       Confirm
                     </div>
@@ -417,6 +419,7 @@ Object {
                   <div
                     class="confirmation-button--tooltip-body"
                     data-test="confirmation-button--click-target"
+                    data-testid="confirmation-button"
                   >
                     Confirm
                   </div>
@@ -549,6 +552,7 @@ Object {
                   <div
                     class="confirmation-button--tooltip-body"
                     data-test="confirmation-button--click-target"
+                    data-testid="confirmation-button"
                   >
                     Confirm
                   </div>

@@ -44,7 +44,7 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
     const {task, onDelete} = this.props
 
     return (
-      <IndexList.Row disabled={!this.isTaskActive}>
+      <IndexList.Row disabled={!this.isTaskActive} testID="task-row">
         <IndexList.Cell>
           <ComponentSpacer
             stackChildren={Stack.Columns}

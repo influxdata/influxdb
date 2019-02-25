@@ -1,11 +1,15 @@
+import {Organization} from '@influxdata/influx'
+
 describe('Dashboards', () => {
-  let orgID: string = ''
   beforeEach(() => {
     cy.flush()
 
     cy.setupUser().then(({body}) => {
-      orgID = body.org.id
-      cy.signin(orgID)
+      cy.wrap(body.org).as('org')
+    })
+
+    cy.get<Organization>('@org').then(org => {
+      cy.signin(org.id)
     })
 
     cy.fixture('routes').then(({dashboards}) => {
@@ -40,8 +44,10 @@ describe('Dashboards', () => {
   })
 
   it('can delete a dashboard', () => {
-    cy.createDashboard(orgID)
-    cy.createDashboard(orgID)
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createDashboard(id)
+      cy.createDashboard(id)
+    })
 
     cy.get('.index-list--row').then(rows => {
       const numDashboards = rows.length
@@ -61,8 +67,10 @@ describe('Dashboards', () => {
   })
 
   it('can edit a dashboards name', () => {
-    cy.createDashboard(orgID).then(({body}) => {
-      cy.visit(`/dashboards/${body.id}`)
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createDashboard(id).then(({body}) => {
+        cy.visit(`/dashboards/${body.id}`)
+      })
     })
 
     const newName = 'new 🅱️ashboard'

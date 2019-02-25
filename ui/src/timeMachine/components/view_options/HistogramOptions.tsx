@@ -10,6 +10,7 @@ import {
   Form,
   Grid,
   AutoInput,
+  Input,
 } from 'src/clockface'
 import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
@@ -22,6 +23,7 @@ import {
   setHistogramPosition,
   setColors,
   setXDomain,
+  setXAxisLabel,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -47,6 +49,7 @@ interface DispatchProps {
   onSetPosition: typeof setHistogramPosition
   onSetColors: typeof setColors
   onSetXDomain: typeof setXDomain
+  onSetXAxisLabel: typeof setXAxisLabel
 }
 
 interface OwnProps {
@@ -56,6 +59,7 @@ interface OwnProps {
   binCount: number
   colors: Color[]
   xDomain: [number, number]
+  xAxisLabel: string
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -70,12 +74,14 @@ const HistogramOptions: SFC<Props> = props => {
     binCount,
     colors,
     xDomain,
+    xAxisLabel,
     onSetXColumn,
     onSetFillColumns,
     onSetPosition,
     onSetBinCount,
     onSetColors,
     onSetXDomain,
+    onSetXAxisLabel,
   } = props
 
   const xDropdownStatus = availableXColumns.length
@@ -122,6 +128,12 @@ const HistogramOptions: SFC<Props> = props => {
         </MultiSelectDropdown>
       </Form.Element>
       <h5 className="view-options--header">Options</h5>
+      <Form.Element label="X Axis Label">
+        <Input
+          value={xAxisLabel}
+          onChange={e => onSetXAxisLabel(e.target.value)}
+        />
+      </Form.Element>
       <Form.Element label="Color Scheme">
         <ColorSchemeDropdown value={colors} onChange={onSetColors} />
       </Form.Element>
@@ -172,6 +184,7 @@ const mdtp = {
   onSetPosition: setHistogramPosition,
   onSetColors: setColors,
   onSetXDomain: setXDomain,
+  onSetXAxisLabel: setXAxisLabel,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

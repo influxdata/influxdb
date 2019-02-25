@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 )
 
 var (
@@ -354,6 +355,33 @@ func (s *Service) deleteOrgDependentMappings(ctx context.Context, tx Tx, m *infl
 			return err
 		}
 		// TODO(desa): add support for all other resource types.
+	}
+
+	return nil
+}
+
+func (s *Service) addResourceOwner(ctx context.Context, tx Tx, rt influxdb.ResourceType, id influxdb.ID) error {
+	a, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		return &influxdb.Error{
+			Code: influxdb.EInternal,
+			Msg:  fmt.Sprintf("could not find authorizer on context when adding user to resource type %s", rt),
+		}
+	}
+
+	urm := &influxdb.UserResourceMapping{
+		ResourceID:   id,
+		ResourceType: rt,
+		UserID:       a.GetUserID(),
+		UserType:     influxdb.Owner,
+	}
+
+	if err := s.createUserResourceMapping(ctx, tx, urm); err != nil {
+		return &influxdb.Error{
+			Code: influxdb.EInternal,
+			Msg:  "could not create user resource mapping",
+			Err:  err,
+		}
 	}
 
 	return nil
