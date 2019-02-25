@@ -70,14 +70,12 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
         <IndexList.Cell>{task.latestCompleted}</IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
-            <FeatureFlag>
-              <Button
-                size={ComponentSize.ExtraSmall}
-                color={ComponentColor.Default}
-                text="View Runs"
-                onClick={this.handleViewRuns}
-              />
-            </FeatureFlag>
+            <Button
+              size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Default}
+              text="View Runs"
+              onClick={this.handleViewRuns}
+            />
             <FeatureFlag>
               <Button
                 size={ComponentSize.ExtraSmall}

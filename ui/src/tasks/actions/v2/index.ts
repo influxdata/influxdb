@@ -20,6 +20,7 @@ import {
   taskCloneSuccess,
   taskCloneFailed,
   taskRunSuccess,
+  taskGetFailed,
 } from 'src/shared/copy/v2/notifications'
 
 // Types
@@ -34,6 +35,7 @@ import {
   TaskOptions,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
+import {RemoteDataState} from '@influxdata/clockface'
 
 export type Action =
   | SetNewScript
@@ -50,6 +52,7 @@ export type Action =
   | SetAllTaskOptions
   | AddTaskLabels
   | RemoveTaskLabels
+  | SetRuns
 
 type GetStateFunc = () => AppState
 interface Task extends TaskAPI {
@@ -148,6 +151,14 @@ export interface RemoveTaskLabels {
   }
 }
 
+export interface SetRuns {
+  type: 'SET_RUNS'
+  payload: {
+    runs: Run[]
+    runStatus: RemoteDataState
+  }
+}
+
 export const setTaskOption = (taskOption: {
   key: TaskOptionKeys
   value: string
@@ -198,6 +209,11 @@ export const setShowInactive = (): SetShowInactive => ({
 export const setDropdownOrgID = (dropdownOrgID: string): SetDropdownOrgID => ({
   type: 'SET_DROPDOWN_ORG_ID',
   payload: {dropdownOrgID},
+})
+
+export const setRuns = (runs: Run[], runStatus: RemoteDataState): SetRuns => ({
+  type: 'SET_RUNS',
+  payload: {runs, runStatus},
 })
 
 const addTaskLabels = (taskID: string, labels: Label[]): AddTaskLabels => ({
@@ -468,9 +484,18 @@ export const getErrorMessage = (e: any) => {
   return message
 }
 
-export const getRuns = async (taskID: string): Promise<Run[]> => {
-  const runs = await client.tasks.getRunsByTaskID(taskID)
-  return runs
+export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
+  try {
+    dispatch(setRuns([], RemoteDataState.Loading))
+
+    const runs = await client.tasks.getRunsByTaskID(taskID)
+
+    dispatch(setRuns(runs, RemoteDataState.Done))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(taskGetFailed()))
+    dispatch(setRuns([], RemoteDataState.Error))
+  }
 }
 
 export const runTask = (taskID: string) => async dispatch => {

@@ -1,27 +1,41 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 
 // Types
-import {Run} from '@influxdata/influx'
 import {Page} from 'src/pageLayout'
 import TaskRunsList from 'src/tasks/components/TaskRunsList'
+import {AppState} from 'src/types/v2'
 
-// DummyData
-import {taskRuns} from 'src/tasks/dummyData'
+// Actions
+import {getRuns} from 'src/tasks/actions/v2'
+import {Run} from '@influxdata/influx'
+import {RemoteDataState} from 'src/types'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
-interface Props {
+interface OwnProps {
   params: {id: string}
-  runs: Run[]
 }
 
-const dummyData = taskRuns
+interface DispatchProps {
+  getRuns: typeof getRuns
+}
 
-class TaskRunsPage extends PureComponent<Props & WithRouterProps> {
+interface StateProps {
+  runs: Run[]
+  runStatus: RemoteDataState
+}
+
+type Props = OwnProps & DispatchProps & StateProps
+
+class TaskRunsPage extends PureComponent<Props> {
   public render() {
-    const {params} = this.props
+    const {params, runs} = this.props
     return (
-      <>
+      <SpinnerContainer
+        loading={this.props.runStatus}
+        spinnerComponent={<TechnoSpinner />}
+      >
         <Page titleTag="Runs">
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
@@ -31,13 +45,29 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps> {
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
-              <TaskRunsList taskID={params.id} runs={dummyData} />
+              <TaskRunsList taskID={params.id} runs={runs} />
             </div>
           </Page.Contents>
         </Page>
-      </>
+      </SpinnerContainer>
     )
+  }
+
+  public componentDidMount() {
+    this.props.getRuns(this.props.params.id)
   }
 }
 
-export default withRouter<Props>(TaskRunsPage)
+const mstp = (state: AppState): StateProps => {
+  const {
+    tasks: {runs, runStatus},
+  } = state
+  return {runs, runStatus}
+}
+
+const mdtp: DispatchProps = {getRuns: getRuns}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(TaskRunsPage)
