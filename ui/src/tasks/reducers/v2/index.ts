@@ -1,6 +1,6 @@
 import {Action} from 'src/tasks/actions/v2'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Task as TaskAPI, User, Organization} from '@influxdata/influx'
+import {Task as TaskAPI, User, Organization, Run} from '@influxdata/influx'
 
 interface Task extends TaskAPI {
   organization: Organization
@@ -16,6 +16,7 @@ export interface State {
   showInactive: boolean
   dropdownOrgID: string
   taskOptions: TaskOptions
+  runs: Run[]
 }
 
 export const defaultTaskOptions: TaskOptions = {
@@ -37,6 +38,7 @@ const defaultState: State = {
   showInactive: true,
   dropdownOrgID: null,
   taskOptions: defaultTaskOptions,
+  runs: [],
 }
 
 export default (state: State = defaultState, action: Action): State => {
@@ -124,6 +126,9 @@ export default (state: State = defaultState, action: Action): State => {
 
       return {...state, tasks: [...updatedTasks]}
     }
+    case 'SET_RUNS':
+      const {runs} = action.payload
+      return {...state, runs}
     default:
       return state
   }
