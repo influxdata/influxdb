@@ -10,6 +10,7 @@ import {
   getByInputName,
   getByTitle,
   createTask,
+  createVariable,
 } from './support/commands'
 
 declare global {
@@ -19,6 +20,7 @@ declare global {
       setupUser: typeof setupUser
       createSource: typeof createSource
       createTask: typeof createTask
+      createVariable: typeof createVariable
       createDashboard: typeof createDashboard
       createOrg: typeof createOrg
       flush: typeof flush

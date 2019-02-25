@@ -64,6 +64,28 @@ export const createTask = (
   })
 }
 
+export const createVariable = (
+  orgID?: string
+): Cypress.Chainable<Cypress.Response> => {
+  const argumentsObj = {
+    type: 'query',
+    values: {
+      language: 'flux',
+      query: `filter(fn: (r) => r._field == "cpu")`,
+    },
+  }
+
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/variables',
+    body: {
+      name: 'Little Variable',
+      orgID,
+      arguments: argumentsObj,
+    },
+  })
+}
+
 export const createSource = (
   orgID?: string
 ): Cypress.Chainable<Cypress.Response> => {
@@ -138,3 +160,6 @@ Cypress.Commands.add('flush', flush)
 
 // tasks
 Cypress.Commands.add('createTask', createTask)
+
+// variables
+Cypress.Commands.add('createVariable', createVariable)

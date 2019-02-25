@@ -1,3 +1,5 @@
+import {Organization} from '@influxdata/influx'
+
 describe('Variables', () => {
   beforeEach(() => {
     cy.flush()
@@ -25,6 +27,21 @@ describe('Variables', () => {
     cy.get('form')
       .contains('Create')
       .click()
+
+    cy.getByTestID('variable-row').should('have.length', 1)
+  })
+
+  it('can delete a variable', () => {
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createVariable(id)
+      cy.createVariable(id)
+    })
+
+    cy.getByTestID('variable-row').should('have.length', 2)
+
+    cy.getByTestID('confirmation-button')
+      .first()
+      .click({force: true})
 
     cy.getByTestID('variable-row').should('have.length', 1)
   })
