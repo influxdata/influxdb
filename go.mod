@@ -32,7 +32,7 @@ require (
 	github.com/editorconfig-checker/editorconfig-checker v0.0.0-20190219201458-ead62885d7c8
 	github.com/elazarl/go-bindata-assetfs v1.0.0
 	github.com/fatih/structs v1.1.0 // indirect
-	github.com/getkin/kin-openapi v0.1.1-0.20190103155524-1fa206970bc1
+	github.com/getkin/kin-openapi v0.1.1-0.20190303141616-e6aa6352832d
 	github.com/ghodss/yaml v1.0.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect

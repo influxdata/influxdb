@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/influxdata/influxdb/http/internal/swaggervalidator"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 // PlatformHandler is a collection of all the service handlers.
@@ -39,11 +41,23 @@ func NewPlatformHandler(b *APIBackend) *PlatformHandler {
 	assetHandler := NewAssetHandler()
 	assetHandler.Path = b.AssetsPath
 
-	return &PlatformHandler{
+	ph := &PlatformHandler{
 		AssetHandler: assetHandler,
 		DocsHandler:  Redoc("/api/v2/swagger.json"),
-		APIHandler:   h,
 	}
+
+	// TODO(mr): only one swagger loader instance should be exist to be shared between the swagger handler and the validator middleware.
+	sl := newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")))
+	sl.initialize()
+	sa, err := sl.asset(Asset("swagger.yml"))
+	if err != nil {
+		b.Logger.Info("Failed to load swagger.yml asset", zap.Error(err))
+		ph.APIHandler = h
+	} else {
+		ph.APIHandler = swaggervalidator.NewMiddleware(b.Logger, h, sa)
+	}
+
+	return ph
 }
 
 // ServeHTTP delegates a request to the appropriate subhandler.

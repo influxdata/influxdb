@@ -13,7 +13,7 @@ func TestValidSwagger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to read swagger specification: %v", err)
 	}
-	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromYAMLData(data)
+	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(data)
 	if err != nil {
 		t.Fatalf("unable to load swagger specification: %v", err)
 	}
