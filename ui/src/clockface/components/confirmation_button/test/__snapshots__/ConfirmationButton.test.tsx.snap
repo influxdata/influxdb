@@ -7,6 +7,7 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
   shape="none"
   size="sm"
   status="default"
+  testID="confirmation-button"
   text="I am a dangerous button!"
 >
   <ClickOutside
@@ -44,6 +45,7 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
         <div
           className="confirmation-button--tooltip-body"
           data-test="confirmation-button--click-target"
+          data-testid="confirmation-button"
           onClick={[Function]}
         >
           Click me if you dare

@@ -3,6 +3,7 @@ package backend
 import (
 	"errors"
 	"math"
+	"strings"
 	"time"
 
 	platform "github.com/influxdata/influxdb"
@@ -28,18 +29,32 @@ func NewStoreTaskMeta(req CreateTaskRequest, o options.Options) StoreTaskMeta {
 		stm.Status = string(DefaultTaskStatus)
 	}
 
-	if o.Every != 0 {
-		t := time.Unix(stm.LatestCompleted, 0).Truncate(o.Every).Unix()
+	stm.AlignLatestCompleted()
+
+	return stm
+}
+
+// AlignLatestCompleted alligns the latest completed to be on the min/hour/day
+func (stm *StoreTaskMeta) AlignLatestCompleted() {
+
+	if strings.HasPrefix(stm.EffectiveCron, "@every ") {
+		everyString := strings.TrimPrefix(stm.EffectiveCron, "@every ")
+		every, err := time.ParseDuration(everyString)
+		if err != nil {
+			// We cannot align a invalid time
+			return
+		}
+
+		t := time.Unix(stm.LatestCompleted, 0).Truncate(every).Unix()
 		if t == stm.LatestCompleted {
 			// For example, every 1m truncates to exactly on the minute.
 			// But the input request is schedule after, not "on or after".
 			// Add one interval.
-			t += int64(o.Every / time.Second)
+			t += int64(every / time.Second)
 		}
 		stm.LatestCompleted = t
 	}
 
-	return stm
 }
 
 // FinishRun removes the run matching runID from m's CurrentlyRunning slice,

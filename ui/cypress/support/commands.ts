@@ -1,4 +1,4 @@
-export const signin = (orgID: string): Cypress.Chainable<Response> => {
+export const signin = (orgID?: string): Cypress.Chainable<Response> => {
   return cy.fixture('user').then(user => {
     cy.request({
       method: 'POST',
@@ -10,9 +10,8 @@ export const signin = (orgID: string): Cypress.Chainable<Response> => {
   })
 }
 
-// createDashboard relies on an org fixture to be set
 export const createDashboard = (
-  orgID: string
+  orgID?: string
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -44,8 +43,29 @@ export const createBucket = (): Cypress.Chainable<Cypress.Response> => {
   })
 }
 
+export const createTask = (
+  orgID?: string
+): Cypress.Chainable<Cypress.Response> => {
+  const flux = `option task = {
+    name: "🦄ask",
+    every: 1d,
+    offset: 20m
+  }
+  from(bucket: "defbuck")
+        |> range(start: -2m)`
+
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/tasks',
+    body: {
+      flux,
+      orgID,
+    },
+  })
+}
+
 export const createSource = (
-  orgID: string
+  orgID?: string
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -115,3 +135,6 @@ Cypress.Commands.add('createSource', createSource)
 
 // general
 Cypress.Commands.add('flush', flush)
+
+// tasks
+Cypress.Commands.add('createTask', createTask)

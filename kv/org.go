@@ -493,7 +493,7 @@ func (s *Service) GetOrganizationOperationLog(ctx context.Context, id influxdb.I
 		})
 	})
 
-	if err != nil {
+	if err != nil && err != errKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 

@@ -3,8 +3,9 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {Run} from '@influxdata/influx'
-import {IndexList} from 'src/clockface'
+import {IndexList, EmptyState} from 'src/clockface'
 import TaskRunsRow from './TaskRunsRow'
+import {ComponentSize} from '@influxdata/clockface'
 
 interface Props {
   taskID: string
@@ -23,7 +24,17 @@ export default class TaskRunsList extends PureComponent<Props> {
           <IndexList.HeaderCell columnName="Schedule For" width="20%" />
           <IndexList.HeaderCell columnName="" width="10%" />
         </IndexList.Header>
-        <IndexList.Body emptyState={<></>} columnCount={6}>
+        <IndexList.Body
+          emptyState={
+            <EmptyState size={ComponentSize.Large}>
+              <EmptyState.Text
+                text={"Looks like this Task doesn't have any Runs"}
+                highlightWords={['Runs']}
+              />
+            </EmptyState>
+          }
+          columnCount={6}
+        >
           {this.listRuns}
         </IndexList.Body>
       </IndexList>

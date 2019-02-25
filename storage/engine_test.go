@@ -1,6 +1,7 @@
 package storage_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -359,7 +360,7 @@ func (e *Engine) Write1xPoints(pts []models.Point) error {
 	if err != nil {
 		return err
 	}
-	return e.Engine.WritePoints(points)
+	return e.Engine.WritePoints(context.TODO(), points)
 }
 
 // Write1xPointsWithOrgBucket writes 1.x points with the provided org and bucket id strings.
@@ -378,7 +379,7 @@ func (e *Engine) Write1xPointsWithOrgBucket(pts []models.Point, org, bucket stri
 	if err != nil {
 		return err
 	}
-	return e.Engine.WritePoints(points)
+	return e.Engine.WritePoints(context.TODO(), points)
 }
 
 // Close closes the engine and removes all temporary data.

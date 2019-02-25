@@ -172,7 +172,13 @@ func (ToOpSpec) Kind() flux.OperationKind {
 
 // BucketsAccessed returns the buckets accessed by the spec.
 func (o *ToOpSpec) BucketsAccessed() (readBuckets, writeBuckets []platform.BucketFilter) {
-	bf := platform.BucketFilter{Name: &o.Bucket, Organization: &o.Org}
+	bf := platform.BucketFilter{}
+	if o.Bucket != "" {
+		bf.Name = &o.Bucket
+	}
+	if o.Org != "" {
+		bf.Organization = &o.Org
+	}
 	if o.OrgID != "" {
 		id, err := platform.IDFromString(o.OrgID)
 		if err == nil {
@@ -579,7 +585,7 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 			}
 		}
 		points, err = tsdb.ExplodePoints(*orgID, *bucketID, points)
-		return d.PointsWriter.WritePoints(points)
+		return d.PointsWriter.WritePoints(context.TODO(), points)
 	})
 }
 

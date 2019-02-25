@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -122,22 +123,30 @@ func TestFromOperation_Marshaling(t *testing.T) {
 }
 
 func TestFromOpSpec_BucketsAccessed(t *testing.T) {
-	// TODO(adam) add this test back when BucketsAccessed is restored for the from function
-	// https://github.com/influxdata/flux/issues/114
-	t.Skip("https://github.com/influxdata/flux/issues/114")
 	bucketName := "my_bucket"
-	bucketID, _ := platform.IDFromString("deadbeef")
+	bucketIDString := "aaaabbbbccccdddd"
+	bucketID, err := platform.IDFromString(bucketIDString)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalidID := platform.InvalidID()
 	tests := []pquerytest.BucketAwareQueryTestCase{
 		{
 			Name:             "From with bucket",
-			Raw:              `from(bucket:"my_bucket")`,
+			Raw:              fmt.Sprintf(`from(bucket:"%s")`, bucketName),
 			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
 			WantWriteBuckets: &[]platform.BucketFilter{},
 		},
 		{
 			Name:             "From with bucketID",
-			Raw:              `from(bucketID:"deadbeef")`,
+			Raw:              fmt.Sprintf(`from(bucketID:"%s")`, bucketID),
 			WantReadBuckets:  &[]platform.BucketFilter{{ID: bucketID}},
+			WantWriteBuckets: &[]platform.BucketFilter{},
+		},
+		{
+			Name:             "From invalid bucketID",
+			Raw:              `from(bucketID:"invalid")`,
+			WantReadBuckets:  &[]platform.BucketFilter{{ID: &invalidID}},
 			WantWriteBuckets: &[]platform.BucketFilter{},
 		},
 	}

@@ -59,8 +59,12 @@ export default class TaskRunsRow extends PureComponent<Props, State> {
   }
 
   private dateTimeString(dt: Date): string {
-    const date = dt.toDateString()
-    const time = dt.toLocaleTimeString()
+    if (!dt) {
+      return ''
+    }
+    const newdate = new Date(dt)
+    const date = newdate.toDateString()
+    const time = newdate.toLocaleTimeString()
     const formatted = `${date} ${time}`
 
     return formatted

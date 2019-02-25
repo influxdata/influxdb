@@ -1,15 +1,13 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {InjectedRouter} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {Input, IconFont} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
-import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 
@@ -95,47 +93,37 @@ class OrgTasksPage extends PureComponent<Props, State> {
 
     return (
       <>
-        <Page titleTag="Tasks">
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter tasks..."
-            widthPixels={290}
-            value={searchTerm}
-            onChange={this.handleFilterChange}
-            onBlur={this.handleFilterBlur}
-          />
-          <TasksHeader
-            onCreateTask={this.handleCreateTask}
-            setSearchTerm={setSearchTerm}
-            setShowInactive={this.handleToggle}
-            showInactive={showInactive}
-            toggleOverlay={this.handleToggleImportOverlay}
-            showOrgDropdown={false}
-            showFilter={false}
-          />
-          <FilterList<Task>
-            searchTerm={searchTerm}
-            searchKeys={['name', 'labels[].name']}
-            list={this.filteredTasks}
-          >
-            {ts => (
-              <TasksList
-                searchTerm={searchTerm}
-                tasks={ts}
-                totalCount={this.totalTaskCount}
-                onActivate={this.handleActivate}
-                onDelete={this.handleDelete}
-                onCreate={this.handleCreateTask}
-                onClone={this.handleClone}
-                onSelect={this.handleSelectTask}
-                onAddTaskLabels={onAddTaskLabels}
-                onRemoveTaskLabels={onRemoveTaskLabels}
-                onUpdate={this.handleUpdateTask}
-                onRunTask={onRunTask}
-              />
-            )}
-          </FilterList>
-        </Page>
+        <TasksHeader
+          onCreateTask={this.handleCreateTask}
+          setSearchTerm={setSearchTerm}
+          setShowInactive={this.handleToggle}
+          showInactive={showInactive}
+          toggleOverlay={this.handleToggleImportOverlay}
+          showOrgDropdown={false}
+          isFullPage={false}
+        />
+        <FilterList<Task>
+          searchTerm={searchTerm}
+          searchKeys={['name', 'labels[].name']}
+          list={this.filteredTasks}
+        >
+          {ts => (
+            <TasksList
+              searchTerm={searchTerm}
+              tasks={ts}
+              totalCount={this.totalTaskCount}
+              onActivate={this.handleActivate}
+              onDelete={this.handleDelete}
+              onCreate={this.handleCreateTask}
+              onClone={this.handleClone}
+              onSelect={this.handleSelectTask}
+              onAddTaskLabels={onAddTaskLabels}
+              onRemoveTaskLabels={onRemoveTaskLabels}
+              onUpdate={this.handleUpdateTask}
+              onRunTask={onRunTask}
+            />
+          )}
+        </FilterList>
         {this.importOverlay}
       </>
     )
@@ -217,14 +205,6 @@ class OrgTasksPage extends PureComponent<Props, State> {
 
   private handleValidateTask = (): boolean => {
     return true
-  }
-
-  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.props.setSearchTerm(e.target.value)
-  }
-
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.props.setSearchTerm(e.target.value)
   }
 }
 

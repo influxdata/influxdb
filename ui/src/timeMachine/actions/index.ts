@@ -15,7 +15,7 @@ import {
 } from 'src/types/v2/dashboards'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {Color} from 'src/types/colors'
-import {Table, HistogramPosition, ColumnType} from 'src/minard'
+import {Table, HistogramPosition, isNumeric} from 'src/minard'
 
 export type Action =
   | QueryBuilderAction
@@ -61,6 +61,7 @@ export type Action =
   | SetHistogramPositionAction
   | TableLoadedAction
   | SetXDomainAction
+  | SetXAxisLabelAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -511,8 +512,8 @@ interface TableLoadedAction {
 }
 
 export const tableLoaded = (table: Table): TableLoadedAction => {
-  const availableXColumns = Object.entries(table.columnTypes)
-    .filter(([__, type]) => type === ColumnType.Numeric)
+  const availableXColumns = Object.entries(table.columns)
+    .filter(([__, {type}]) => isNumeric(type) && type !== 'time')
     .map(([name]) => name)
 
   const invalidGroupColumns = new Set(['_value', '_start', '_stop', '_time'])
@@ -538,4 +539,14 @@ interface SetXDomainAction {
 export const setXDomain = (xDomain: [number, number]): SetXDomainAction => ({
   type: 'SET_VIEW_X_DOMAIN',
   payload: {xDomain},
+})
+
+interface SetXAxisLabelAction {
+  type: 'SET_X_AXIS_LABEL'
+  payload: {xAxisLabel: string}
+}
+
+export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
+  type: 'SET_X_AXIS_LABEL',
+  payload: {xAxisLabel},
 })

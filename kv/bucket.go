@@ -699,7 +699,7 @@ func (s *Service) GetBucketOperationLog(ctx context.Context, id influxdb.ID, opt
 		})
 	})
 
-	if err != nil {
+	if err != nil && err != errKeyValueLogBoundsNotFound {
 		return nil, 0, err
 	}
 

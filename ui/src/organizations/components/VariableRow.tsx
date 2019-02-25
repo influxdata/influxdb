@@ -25,7 +25,7 @@ export default class VariableRow extends PureComponent<Props> {
     const {variable, onDeleteVariable} = this.props
 
     return (
-      <IndexList.Row>
+      <IndexList.Row testID="variable-row">
         <IndexList.Cell alignment={Alignment.Left}>
           <EditableName
             onUpdate={this.handleUpdateVariableName}

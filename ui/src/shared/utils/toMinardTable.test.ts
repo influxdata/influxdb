@@ -20,31 +20,42 @@ describe('toMinardTable', () => {
     const tables = parseResponse(CSV)
     const actual = toMinardTable(tables)
     const expected = {
-      schemaConflicts: [],
       table: {
-        columnTypes: {
-          _field: 'categorical',
-          _measurement: 'categorical',
-          _start: 'temporal',
-          _stop: 'temporal',
-          _time: 'temporal',
-          _value: 'numeric',
-          cpu: 'categorical',
-          host: 'categorical',
-          result: 'categorical',
-        },
         columns: {
-          _field: ['usage_guest', 'usage_guest', 'usage_guest', 'usage_guest'],
-          _measurement: ['cpu', 'cpu', 'cpu', 'cpu'],
-          _start: [1549064312524, 1549064312524, 1549064312524, 1549064312524],
-          _stop: [1549064342524, 1549064342524, 1549064342524, 1549064342524],
-          _time: [1549064313000, 1549064323000, 1549064313000, 1549064323000],
-          _value: [10, 20, 30, 40],
-          cpu: ['cpu-total', 'cpu-total', 'cpu0', 'cpu0'],
-          host: ['oox4k.local', 'oox4k.local', 'oox4k.local', 'oox4k.local'],
-          result: ['_result', '_result', '_result', '_result'],
+          result: {
+            data: ['_result', '_result', '_result', '_result'],
+            type: 'string',
+          },
+          _start: {
+            data: [1549064312524, 1549064312524, 1549064312524, 1549064312524],
+            type: 'time',
+          },
+          _stop: {
+            data: [1549064342524, 1549064342524, 1549064342524, 1549064342524],
+            type: 'time',
+          },
+          _time: {
+            data: [1549064313000, 1549064323000, 1549064313000, 1549064323000],
+            type: 'time',
+          },
+          _value: {data: [10, 20, 30, 40], type: 'float'},
+          _field: {
+            data: ['usage_guest', 'usage_guest', 'usage_guest', 'usage_guest'],
+            type: 'string',
+          },
+          _measurement: {data: ['cpu', 'cpu', 'cpu', 'cpu'], type: 'string'},
+          cpu: {
+            data: ['cpu-total', 'cpu-total', 'cpu0', 'cpu0'],
+            type: 'string',
+          },
+          host: {
+            data: ['oox4k.local', 'oox4k.local', 'oox4k.local', 'oox4k.local'],
+            type: 'string',
+          },
         },
+        length: 4,
       },
+      schemaConflicts: [],
     }
 
     expect(actual).toEqual(expected)
@@ -68,31 +79,42 @@ describe('toMinardTable', () => {
     const tables = parseResponse(CSV)
     const actual = toMinardTable(tables)
     const expected = {
-      schemaConflicts: ['_value'],
       table: {
-        columnTypes: {
-          _field: 'categorical',
-          _measurement: 'categorical',
-          _start: 'temporal',
-          _stop: 'temporal',
-          _time: 'temporal',
-          _value: 'numeric',
-          cpu: 'categorical',
-          host: 'categorical',
-          result: 'categorical',
-        },
         columns: {
-          _field: ['usage_guest', 'usage_guest', 'usage_guest', 'usage_guest'],
-          _measurement: ['cpu', 'cpu', 'cpu', 'cpu'],
-          _start: [1549064312524, 1549064312524, 1549064312524, 1549064312524],
-          _stop: [1549064342524, 1549064342524, 1549064342524, 1549064342524],
-          _time: [1549064313000, 1549064323000, 1549064313000, 1549064323000],
-          _value: [10, 20, undefined, undefined],
-          cpu: ['cpu-total', 'cpu-total', 'cpu0', 'cpu0'],
-          host: ['oox4k.local', 'oox4k.local', 'oox4k.local', 'oox4k.local'],
-          result: ['_result', '_result', '_result', '_result'],
+          result: {
+            data: ['_result', '_result', '_result', '_result'],
+            type: 'string',
+          },
+          _start: {
+            data: [1549064312524, 1549064312524, 1549064312524, 1549064312524],
+            type: 'time',
+          },
+          _stop: {
+            data: [1549064342524, 1549064342524, 1549064342524, 1549064342524],
+            type: 'time',
+          },
+          _time: {
+            data: [1549064313000, 1549064323000, 1549064313000, 1549064323000],
+            type: 'time',
+          },
+          _value: {data: [10, 20, undefined, undefined], type: 'float'},
+          _field: {
+            data: ['usage_guest', 'usage_guest', 'usage_guest', 'usage_guest'],
+            type: 'string',
+          },
+          _measurement: {data: ['cpu', 'cpu', 'cpu', 'cpu'], type: 'string'},
+          cpu: {
+            data: ['cpu-total', 'cpu-total', 'cpu0', 'cpu0'],
+            type: 'string',
+          },
+          host: {
+            data: ['oox4k.local', 'oox4k.local', 'oox4k.local', 'oox4k.local'],
+            type: 'string',
+          },
         },
+        length: 4,
       },
+      schemaConflicts: ['_value'],
     }
 
     expect(actual).toEqual(expected)
