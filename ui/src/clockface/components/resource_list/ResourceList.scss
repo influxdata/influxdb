@@ -147,9 +147,15 @@
 }
 
 .resource-list--context-menu {
+  opacity: 0;
+  transition: opacity 0.25s ease;
   position: absolute;
   top: $ix-marg-b;
-  right: $ix-marg-c;
+  right: $ix-marg-b;
+
+  .resource-list--card:hover & {
+    opacity: 1;
+  }
 }
 
 /*
