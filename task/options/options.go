@@ -31,7 +31,7 @@ const maxRetry = 10
 // Options are the task-related options that can be specified in a Flux script.
 type Options struct {
 	// Name is a non optional name designator for each task.
-	Name string `json:"options,omitempty"`
+	Name string `json:"name,omitempty"`
 
 	// Cron is a cron style time schedule that can be used in place of Every.
 	Cron string `json:"cron,omitempty"`
@@ -60,7 +60,12 @@ func (o *Options) Clear() {
 }
 
 func (o *Options) IsZero() bool {
-	return o.Name == "" && o.Cron == "" && o.Every == 0 && o.Offset == 0 && o.Concurrency == 0 && o.Retry == 0
+	return o.Name == "" &&
+		o.Cron == "" &&
+		o.Every == 0 &&
+		o.Offset == 0 &&
+		o.Concurrency == 0 &&
+		o.Retry == 0
 }
 
 // FromScript extracts Options from a Flux script.

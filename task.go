@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/influxdata/flux"
@@ -114,7 +115,7 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 	jo := struct {
 		Flux   *string `json:"flux,omitempty"`
 		Status *string `json:"status,omitempty"`
-		Name   string  `json:"options,omitempty"`
+		Name   string  `json:"name,omitempty"`
 
 		// Cron is a cron style time schedule that can be used in place of Every.
 		Cron string `json:"cron,omitempty"`
@@ -154,7 +155,7 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 	jo := struct {
 		Flux   *string `json:"flux,omitempty"`
 		Status *string `json:"status,omitempty"`
-		Name   string  `json:"options,omitempty"`
+		Name   string  `json:"name,omitempty"`
 
 		// Cron is a cron style time schedule that can be used in place of Every.
 		Cron string `json:"cron,omitempty"`
@@ -203,35 +204,89 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 	if ast.Check(parsedPKG) > 0 {
 		return ast.GetError(parsedPKG)
 	}
-	parsed := parsedPKG.Files[0] //TODO: remove this line when flux 0.14 is upgraded into platform
+	parsed := parsedPKG.Files[0]
 	if t.Options.Every != 0 && t.Options.Cron != "" {
 		return errors.New("cannot specify both every and cron")
 	}
-	// so we don't allocate if we are just changing the status
-	if t.Options.Name != "" || t.Options.Every != 0 || t.Options.Cron != "" || t.Options.Offset != 0 {
-		op := make(map[string]ast.Expression, 4)
+	op := make(map[string]ast.Expression, 4)
 
-		if t.Options.Name != "" {
-			op["name"] = &ast.StringLiteral{Value: t.Options.Name}
+	if t.Options.Name != "" {
+		op["name"] = &ast.StringLiteral{Value: t.Options.Name}
+	}
+	if t.Options.Every != 0 {
+		d := ast.Duration{Magnitude: int64(t.Options.Every), Unit: "ns"}
+		op["every"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
+	}
+	if t.Options.Cron != "" {
+		op["cron"] = &ast.StringLiteral{Value: t.Options.Cron}
+	}
+	if t.Options.Offset != 0 {
+		d := ast.Duration{Magnitude: int64(t.Options.Offset), Unit: "ns"}
+		op["offset"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
+	}
+	if len(op) > 0 {
+		editFunc := func(opt *ast.OptionStatement) (ast.Expression, error) {
+			a, ok := opt.Assignment.(*ast.VariableAssignment)
+			if !ok {
+				return nil, errors.New("option assignment must be variable assignment")
+			}
+			obj, ok := a.Init.(*ast.ObjectExpression)
+			if !ok {
+				return nil, fmt.Errorf("value is is %s, not an object expression", a.Init.Type())
+			}
+			// modify in the keys and values that already are in the ast
+			for _, p := range obj.Properties {
+				k := p.Key.Key()
+				switch k {
+				case "name":
+					if name, ok := op["name"]; ok && t.Options.Name != "" {
+						delete(op, "name")
+						p.Value = name
+					}
+				case "offset":
+					if offset, ok := op["offset"]; ok && t.Options.Offset != 0 {
+						delete(op, "offset")
+						p.Value = offset
+					}
+				case "every":
+					if every, ok := op["every"]; ok && t.Options.Every != 0 {
+						delete(op, "every")
+						p.Value = every
+					} else if cron, ok := op["cron"]; ok && t.Options.Cron != "" {
+						delete(op, "cron")
+						p.Value = cron
+						p.Key = &ast.Identifier{Name: "cron"}
+					}
+				case "cron":
+					if cron, ok := op["cron"]; ok && t.Options.Cron != "" {
+						delete(op, "cron")
+						p.Value = cron
+					} else if every, ok := op["every"]; ok && t.Options.Every != 0 {
+						delete(op, "every")
+						p.Key = &ast.Identifier{Name: "every"}
+						p.Value = every
+					}
+				}
+			}
+			// add in new keys and values to the ast
+			for k := range op {
+				obj.Properties = append(obj.Properties, &ast.Property{
+					Key:   &ast.Identifier{Name: k},
+					Value: op[k],
+				})
+			}
+			return nil, nil
 		}
-		if t.Options.Every != 0 {
-			d := ast.Duration{Magnitude: int64(t.Options.Every), Unit: "ns"}
-			op["every"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
-		}
-		if t.Options.Cron != "" {
-			op["cron"] = &ast.StringLiteral{Value: t.Options.Cron}
-		}
-		if t.Options.Offset != 0 {
-			d := ast.Duration{Magnitude: int64(t.Options.Offset), Unit: "ns"}
-			op["offset"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
-		}
-		ok, err := edit.Option(parsed, "task", edit.OptionObjectFn(op))
+
+		ok, err := edit.Option(parsed, "task", editFunc)
+
 		if err != nil {
 			return err
 		}
 		if !ok {
 			return errors.New("unable to edit option")
 		}
+
 		t.Options.Clear()
 		s := ast.Format(parsed)
 		t.Flux = &s
