@@ -3,11 +3,7 @@ import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 
 // Utils
 import {getActiveOrg} from 'src/organizations/selectors'
-import {
-  getActiveQuerySource,
-  getActiveQuery,
-  getActiveTimeMachine,
-} from 'src/timeMachine/selectors'
+import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {Dispatch} from 'redux-thunk'
@@ -204,7 +200,7 @@ export const loadBuckets = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const queryURL = getActiveQuerySource(getState()).links.query
+  const queryURL = getState().links.query.self
   const orgID = getActiveOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
@@ -249,7 +245,7 @@ export const loadTagSelector = (index: number) => async (
   }
 
   const tagPredicates = tags.slice(0, index)
-  const queryURL = getActiveQuerySource(getState()).links.query
+  const queryURL = getState().links.query.self
   const orgID = getActiveOrg(getState()).id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
@@ -301,10 +297,11 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const {buckets, tags} = getActiveQuery(getState()).builderConfig
+  const state = getState()
+  const {buckets, tags} = getActiveQuery(state).builderConfig
   const tagPredicates = tags.slice(0, index)
-  const queryURL = getActiveQuerySource(getState()).links.query
-  const orgID = getActiveOrg(getState()).id
+  const queryURL = state.links.query.self
+  const orgID = getActiveOrg(state).id
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 

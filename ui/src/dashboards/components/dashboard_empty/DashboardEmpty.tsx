@@ -35,6 +35,7 @@ class DashboardEmpty extends Component<Props> {
             icon={IconFont.AddCell}
             color={ComponentColor.Primary}
             onClick={onAddCell}
+            testID="add-cell--button"
           />
         </EmptyState>
       </div>

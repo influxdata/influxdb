@@ -6,11 +6,8 @@ import {connect} from 'react-redux'
 // Components
 import NavMenu from 'src/pageLayout/components/NavMenu'
 
-// Utils
-import {getSources} from 'src/sources/selectors'
-
 // Types
-import {Source, MeState, AppState} from 'src/types/v2'
+import {MeState, AppState} from 'src/types/v2'
 import {IconFont} from 'src/clockface'
 
 // Styles
@@ -19,7 +16,6 @@ import '../PageLayout.scss'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props extends WithRouterProps {
-  sources: Source[]
   isHidden: boolean
   me: MeState
 }
@@ -114,10 +110,9 @@ class SideNav extends PureComponent<Props> {
 
 const mstp = (state: AppState) => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const sources = getSources(state)
   const {me} = state
 
-  return {sources, isHidden, me}
+  return {isHidden, me}
 }
 
 export default connect(mstp)(withRouter(SideNav))
