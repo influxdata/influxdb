@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -38,6 +39,13 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 			FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 				org := &platform.Organization{}
 				if filter.Name != nil {
+					if *filter.Name == "non-existant-org" {
+						return nil, &platform.Error{
+							Err:  errors.New("org not found or unauthorized"),
+							Msg:  "org " + *filter.Name + " not found or unauthorized",
+							Code: platform.ENotFound,
+						}
+					}
 					org.Name = *filter.Name
 				}
 				if filter.ID != nil {
@@ -65,9 +73,10 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		fields fields
-		wants  wants
+		name      string
+		getParams string
+		fields    fields
+		wants     wants
 	}{
 		{
 			name: "get tasks",
@@ -173,11 +182,137 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 }`,
 			},
 		},
+		{
+			name:      "get tasks by org name",
+			getParams: "org=test2",
+			fields: fields{
+				taskService: &mock.TaskService{
+					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
+						tasks := []*platform.Task{
+							{
+								ID:              2,
+								Name:            "task2",
+								OrganizationID:  2,
+								Organization:    "test2",
+								AuthorizationID: 0x200,
+							},
+						}
+						return tasks, len(tasks), nil
+					},
+				},
+				labelService: &mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								Name: "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "self": "/api/v2/tasks"
+  },
+  "tasks": [
+    {
+      "links": {
+        "self": "/api/v2/tasks/0000000000000002",
+        "owners": "/api/v2/tasks/0000000000000002/owners",
+        "members": "/api/v2/tasks/0000000000000002/members",
+        "labels": "/api/v2/tasks/0000000000000002/labels",
+        "runs": "/api/v2/tasks/0000000000000002/runs",
+        "logs": "/api/v2/tasks/0000000000000002/logs"
+      },
+      "id": "0000000000000002",
+      "name": "task2",
+			"labels": [
+        {
+          "id": "fc3dc670a4be9b9a",
+          "name": "label",
+          "properties": {
+            "color": "fff000"
+          }
+        }
+      ],
+	  "orgID": "0000000000000002",
+	  "org": "test2",
+      "status": "",
+			"authorizationID": "0000000000000200",
+      "flux": ""
+    }
+  ]
+}`,
+			},
+		},
+		{
+			name:      "get tasks by org name bad",
+			getParams: "org=non-existant-org",
+			fields: fields{
+				taskService: &mock.TaskService{
+					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
+						tasks := []*platform.Task{
+							{
+								ID:              1,
+								Name:            "task1",
+								OrganizationID:  1,
+								Organization:    "test2",
+								AuthorizationID: 0x100,
+							},
+							{
+								ID:              2,
+								Name:            "task2",
+								OrganizationID:  2,
+								Organization:    "test2",
+								AuthorizationID: 0x200,
+							},
+						}
+						return tasks, len(tasks), nil
+					},
+				},
+				labelService: &mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								Name: "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `{
+"code": "invalid",
+"error": {
+"code": "not found",
+"error": "org not found or unauthorized",
+"message": "org non-existant-org not found or unauthorized"
+},
+"message": "failed to decode request"
+}`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest("GET", "http://any.url", nil)
+			r := httptest.NewRequest("GET", "http://any.url?"+tt.getParams, nil)
 			w := httptest.NewRecorder()
 
 			taskBackend := NewMockTaskBackend(t)

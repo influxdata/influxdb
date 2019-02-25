@@ -3790,6 +3790,11 @@ paths:
           name: org
           schema:
             type: string
+          description: filter tasks to a specific organization name
+        - in: query
+          name: orgID
+          schema:
+            type: string
           description: filter tasks to a specific organization ID
         - in: query
           name: limit
