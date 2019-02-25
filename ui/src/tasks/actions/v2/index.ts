@@ -20,6 +20,7 @@ import {
   taskCloneSuccess,
   taskCloneFailed,
   taskRunSuccess,
+  taskGetFailed,
 } from 'src/shared/copy/v2/notifications'
 
 // Types
@@ -34,6 +35,7 @@ import {
   TaskOptions,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
+import {RemoteDataState} from '@influxdata/clockface'
 
 export type Action =
   | SetNewScript
@@ -153,6 +155,7 @@ export interface SetRuns {
   type: 'SET_RUNS'
   payload: {
     runs: Run[]
+    runStatus: RemoteDataState
   }
 }
 
@@ -208,9 +211,9 @@ export const setDropdownOrgID = (dropdownOrgID: string): SetDropdownOrgID => ({
   payload: {dropdownOrgID},
 })
 
-export const setRuns = (runs: Run[]): SetRuns => ({
+export const setRuns = (runs: Run[], runStatus: RemoteDataState): SetRuns => ({
   type: 'SET_RUNS',
-  payload: {runs},
+  payload: {runs, runStatus},
 })
 
 const addTaskLabels = (taskID: string, labels: Label[]): AddTaskLabels => ({
@@ -483,11 +486,15 @@ export const getErrorMessage = (e: any) => {
 
 export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
   try {
+    dispatch(setRuns([], RemoteDataState.Loading))
+
     const runs = await client.tasks.getRunsByTaskID(taskID)
 
-    dispatch(setRuns(runs))
+    dispatch(setRuns(runs, RemoteDataState.Done))
   } catch (error) {
     console.error(error)
+    dispatch(notify(taskGetFailed()))
+    dispatch(setRuns([], RemoteDataState.Error))
   }
 }
 
