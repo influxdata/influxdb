@@ -23,6 +23,7 @@
   display: flex;
   align-items: center;
   padding-bottom: $ix-marg-c;
+  justify-content: flex-end;
 }
 
 .resource-list--sorter {
@@ -131,6 +132,18 @@
     color: $g15-platinum;
     border-color: $g7-graphite;
   }
+}
+
+.resource-list--card a.resource-list--owner {
+  color: $g11-sidewalk !important;
+}
+
+.resource-list--card:hover a.resource-list--owner {
+  color: $g15-platinum !important;
+}
+
+.resource-list--card:hover a.resource-list--owner:hover {
+  color: $c-laser !important;
 }
 
 .resource-list--context-menu {

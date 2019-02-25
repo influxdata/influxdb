@@ -27,25 +27,21 @@ interface Props {
 
 export default class ResourceListCard extends PureComponent<Props> {
   public render() {
-    const {description, labels, children, testID} = this.props
+    const {description, children, testID, labels} = this.props
 
     return (
       <div className="resource-list--card" data-test-id={testID}>
-        {this.nameAndLabels}
+        {this.nameAndMeta}
         {description()}
-        {this.meta}
+        {labels()}
         {children}
         {this.contextMenu}
       </div>
     )
   }
 
-  private get nameAndLabels(): JSX.Element {
-    const {name, labels} = this.props
-
-    if (!labels) {
-      return name()
-    }
+  private get nameAndMeta(): JSX.Element {
+    const {name} = this.props
 
     return (
       <ComponentSpacer
@@ -54,7 +50,7 @@ export default class ResourceListCard extends PureComponent<Props> {
         stretchToFitWidth={true}
       >
         {name()}
-        {labels()}
+        {this.meta}
       </ComponentSpacer>
     )
   }
@@ -82,7 +78,10 @@ export default class ResourceListCard extends PureComponent<Props> {
     if (owner) {
       return (
         <div className="resource-list--meta-item">
-          <Link to={`/organizations/${owner.id}/members_tab`}>
+          <Link
+            to={`/organizations/${owner.id}/members_tab`}
+            className="resource-list--owner"
+          >
             {owner.name}
           </Link>
         </div>

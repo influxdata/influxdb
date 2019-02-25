@@ -68,7 +68,6 @@ class ResourceDescription extends Component<Props, State> {
     return (
       <Input
         size={ComponentSize.ExtraSmall}
-        maxLength={90}
         autoFocus={true}
         spellCheck={false}
         placeholder={placeholder}
