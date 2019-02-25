@@ -71,10 +71,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	defer results.Release()
 
 	// Setup headers
-	stats, hasStats := results.(flux.Statisticser)
-	if hasStats {
-		w.Header().Set("Trailer", queryStatisticsTrailer)
-	}
+	w.Header().Set("Trailer", queryStatisticsTrailer)
 
 	// NOTE: We do not write out the headers here.
 	// It is possible that if the encoding step fails
@@ -102,15 +99,13 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if hasStats {
-		data, err := json.Marshal(stats.Statistics())
-		if err != nil {
-			h.Logger.Info("Failed to encode statistics", zap.Error(err))
-			return
-		}
-		// Write statisitcs trailer
-		w.Header().Set(queryStatisticsTrailer, string(data))
+	data, err := json.Marshal(results.Statistics())
+	if err != nil {
+		h.Logger.Info("Failed to encode statistics", zap.Error(err))
+		return
 	}
+	// Write statisitcs trailer
+	w.Header().Set(queryStatisticsTrailer, string(data))
 }
 
 // PrometheusCollectors satisifies the prom.PrometheusCollector interface.
