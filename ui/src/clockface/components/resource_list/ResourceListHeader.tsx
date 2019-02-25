@@ -18,7 +18,7 @@ export default class ResourceListHeader extends PureComponent<Props> {
     )
   }
 
-  private filter(): JSX.Element {
+  private get filter(): JSX.Element {
     const {filterComponent} = this.props
 
     if (filterComponent) {
