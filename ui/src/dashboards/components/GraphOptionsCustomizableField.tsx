@@ -166,7 +166,7 @@ export default class GraphOptionsCustomizableField extends Component<Props> {
             spellCheck={false}
             id="internalName"
             value={displayName}
-            data-test="custom-time-format"
+            data-testid="custom-time-format"
             onChange={this.handleFieldRename}
             placeholder={`Rename ${internalName}`}
             disabled={!visible}

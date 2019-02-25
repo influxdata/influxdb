@@ -44,7 +44,7 @@ export class Settings extends PureComponent<StateProps, State> {
                   <Form.Element label="Username">
                     <Input
                       value={me.name}
-                      dataTest="nameInput"
+                      testID="nameInput"
                       titleText="Username"
                       size={ComponentSize.Small}
                       status={ComponentStatus.Disabled}

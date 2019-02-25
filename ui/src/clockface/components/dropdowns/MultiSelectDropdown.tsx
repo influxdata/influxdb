@@ -183,7 +183,7 @@ class MultiSelectDropdown extends Component<Props, State> {
             autoHeight={true}
             maxHeight={maxMenuHeight}
           >
-            <div className="dropdown--menu" data-test="dropdown-menu">
+            <div className="dropdown--menu" data-testid="dropdown-menu">
               {React.Children.map(children, (child: JSX.Element) => {
                 if (this.childTypeIsValid(child)) {
                   if (child.type === DropdownItem) {

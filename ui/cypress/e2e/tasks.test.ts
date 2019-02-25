@@ -22,7 +22,7 @@ describe('Tasks', () => {
     cy.getByInputName('interval').type('1d')
     cy.getByInputName('offset').type('20m')
 
-    cy.getByDataTest('flux-editor').within(() => {
+    cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea').type(
         `from(bucket: "defbuck")
       |> range(start: -2m)`,
@@ -32,7 +32,7 @@ describe('Tasks', () => {
 
     cy.contains('Save').click()
 
-    cy.getByDataTest('task-row')
+    cy.getByTestID('task-row')
       .should('have.length', 1)
       .and('contain', taskName)
   })
@@ -43,13 +43,13 @@ describe('Tasks', () => {
       cy.createTask(id)
     })
 
-    cy.getByDataTest('task-row').should('have.length', 2)
+    cy.getByTestID('task-row').should('have.length', 2)
 
-    cy.getByDataTest('confirmation-button')
+    cy.getByTestID('confirmation-button')
       .first()
       .click({force: true})
 
-    cy.getByDataTest('task-row').should('have.length', 1)
+    cy.getByTestID('task-row').should('have.length', 1)
   })
 
   it('fails to create a task without a valid script', () => {
@@ -61,12 +61,12 @@ describe('Tasks', () => {
     cy.getByInputName('interval').type('1d')
     cy.getByInputName('offset').type('20m')
 
-    cy.getByDataTest('flux-editor').within(() => {
+    cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea').type('{}', {force: true})
     })
 
     cy.contains('Save').click()
 
-    cy.getByDataTest('notification-error').should('exist')
+    cy.getByTestID('notification-error').should('exist')
   })
 })

@@ -60,7 +60,7 @@ describe('MultiSelectDropdown', () => {
 
       button.simulate('click')
 
-      expect(wrapper.find('[data-test="dropdown-menu"]')).toHaveLength(1)
+      expect(wrapper.find('[data-testid="dropdown-menu"]')).toHaveLength(1)
     })
 
     it('matches snapshot', () => {

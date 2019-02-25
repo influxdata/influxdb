@@ -36,7 +36,7 @@ exports[`SaveAsButton rendering renders 1`] = `
           >
             <RadioButton
               active={true}
-              data-test="cell-radio-button"
+              data-testid="cell-radio-button"
               disabled={false}
               disabledTitleText="This option is disabled"
               onClick={[Function]}
@@ -47,7 +47,7 @@ exports[`SaveAsButton rendering renders 1`] = `
             </RadioButton>
             <RadioButton
               active={false}
-              data-test="task-radio-button"
+              data-testid="task-radio-button"
               disabled={false}
               disabledTitleText="This option is disabled"
               onClick={[Function]}

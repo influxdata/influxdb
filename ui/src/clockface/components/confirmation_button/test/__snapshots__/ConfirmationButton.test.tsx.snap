@@ -44,7 +44,6 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
       >
         <div
           className="confirmation-button--tooltip-body"
-          data-test="confirmation-button--click-target"
           data-testid="confirmation-button"
           onClick={[Function]}
         >

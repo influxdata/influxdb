@@ -52,7 +52,7 @@ const DropdownMenuItem: SFC<ItemProps> = ({
         highlight: index === highlightedItemIndex,
         active: item.text === selected,
       })}
-      data-test="dropdown-item"
+      data-testid="dropdown-item"
     >
       <a href="#" onClick={onSelection(item)} onMouseOver={onHighlight(index)}>
         {item.text}

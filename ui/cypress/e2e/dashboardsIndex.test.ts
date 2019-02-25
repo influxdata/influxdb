@@ -18,13 +18,13 @@ describe('Dashboards', () => {
   })
 
   it('can create a dashboard from empty state', () => {
-    cy.getByDataTest('empty-state')
+    cy.getByTestID('empty-state')
       .contains('Create')
       .click()
 
     cy.visit('/dashboards')
 
-    cy.getByDataTest('resource-card')
+    cy.getByTestID('resource-card')
       .its('length')
       .should('be.eq', 1)
   })
@@ -34,11 +34,11 @@ describe('Dashboards', () => {
       .contains('Create')
       .click()
 
-    cy.getByDataTest('dropdown--item New Dashboard').click()
+    cy.getByTestID('dropdown--item New Dashboard').click()
 
     cy.visit('/dashboards')
 
-    cy.getByDataTest('resource-card')
+    cy.getByTestID('resource-card')
       .its('length')
       .should('be.eq', 1)
   })
@@ -49,35 +49,35 @@ describe('Dashboards', () => {
       cy.createDashboard(id)
     })
 
-    cy.getByDataTest('resource-card')
+    cy.getByTestID('resource-card')
       .its('length')
       .should('eq', 2)
 
-    cy.getByDataTest('resource-card')
+    cy.getByTestID('resource-card')
       .first()
       .trigger('mouseover')
       .within(() => {
-        cy.getByDataTest('context-delete-menu').click()
+        cy.getByTestID('context-delete-menu').click()
 
-        cy.getByDataTest('context-delete-dashboard').click()
+        cy.getByTestID('context-delete-dashboard').click()
       })
 
-    cy.getByDataTest('resource-card')
+    cy.getByTestID('resource-card')
       .its('length')
       .should('eq', 1)
   })
 
-  it.only('can edit a dashboards name', () => {
+  it('can edit a dashboards name', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.createDashboard(id)
     })
 
     const newName = 'new 🅱️ashboard'
 
-    cy.getByDataTest('resource-card').within(() => {
-      cy.getByDataTest('dashboard-card--name').trigger('mouseover')
+    cy.getByTestID('resource-card').within(() => {
+      cy.getByTestID('dashboard-card--name').trigger('mouseover')
 
-      cy.getByDataTest('dashboard-card--name-button').click()
+      cy.getByTestID('dashboard-card--name-button').click()
 
       cy.get('.input-field')
         .type(newName)
@@ -86,6 +86,6 @@ describe('Dashboards', () => {
 
     cy.visit('/dashboards')
 
-    cy.getByDataTest('resource-card').should('contain', newName)
+    cy.getByTestID('resource-card').should('contain', newName)
   })
 })

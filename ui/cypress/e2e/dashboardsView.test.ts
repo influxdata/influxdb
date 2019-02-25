@@ -33,6 +33,6 @@ describe('Dashboard', () => {
 
     cy.visit('/dashboards')
 
-    cy.getByDataTest('resource-card').should('contain', newName)
+    cy.getByTestID('resource-card').should('contain', newName)
   })
 })

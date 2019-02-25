@@ -69,9 +69,9 @@ describe('IndexList', () => {
 
     const emptyDiv = wrapper
       .find('div')
-      .filterWhere(div => div.prop('data-test'))
+      .filterWhere(div => div.prop('data-testid'))
 
-    expect(emptyDiv.prop('data-test')).toBe('empty-state')
+    expect(emptyDiv.prop('data-testid')).toBe('empty-state')
   })
 
   it('matches snapshot when 0 rows exist', () => {

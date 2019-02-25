@@ -64,7 +64,7 @@ describe('DataLoaders.Components.CollectorsWizard.Configure.PluginConfigForm', (
       telegrafPlugin,
     })
 
-    const link = wrapper.find({'data-test': 'docs-link'})
+    const link = wrapper.find({'data-testid': 'docs-link'})
 
     expect(link.exists()).toBe(true)
     expect(link.prop('href')).toContain(telegrafPlugin.name)

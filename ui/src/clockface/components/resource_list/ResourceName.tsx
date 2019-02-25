@@ -97,7 +97,7 @@ class ResourceName extends Component<Props, State> {
             onKeyDown={this.handleKeyDown}
             customClass="resource-name--input"
             value={workingName}
-            dataTest={inputTestID}
+            testID={inputTestID}
           />
         </ClickOutside>
       )

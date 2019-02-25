@@ -27,7 +27,7 @@ interface Props {
   notify: (message: Notification) => void
   searchTerm: string
   showOwnerColumn: boolean
-  filterComponent: () => JSX.Element
+  filterComponent?: () => JSX.Element
 }
 
 @ErrorHandling

@@ -69,7 +69,7 @@ exports[`IndexList matches snapshot when 0 rows exist 1`] = `
           >
             <div
               className="index-list--empty-cell"
-              data-test="empty-state"
+              data-testid="empty-state"
             >
               <div>
                 Empty

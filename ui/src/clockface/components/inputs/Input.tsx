@@ -22,37 +22,43 @@ export enum AutoComplete {
   Off = 'off',
 }
 
-interface Props {
+interface PassedProps {
   id?: string
   min?: number
   max?: number
-  name?: string
-  value: string | number
-  placeholder?: string
-  autocomplete?: AutoComplete
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void
   onBlur?: (e?: ChangeEvent<HTMLInputElement>) => void
   onFocus?: (e?: ChangeEvent<HTMLInputElement>) => void
   onKeyPress?: (e: KeyboardEvent<HTMLInputElement>) => void
   onKeyUp?: (e: KeyboardEvent<HTMLInputElement>) => void
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
-  size?: ComponentSize
   icon?: IconFont
-  status?: ComponentStatus
-  autoFocus?: boolean
-  spellCheck?: boolean
-  type: InputType
   widthPixels?: number
-  titleText?: string
-  disabledTitleText?: string
   customClass?: string
   maxLength?: number
   tabIndex?: number
-  dataTest?: string
 }
 
+interface DefaultProps {
+  type?: InputType
+  name?: string
+  value: string | number
+  placeholder?: string
+  titleText?: string
+  autocomplete?: AutoComplete
+  disabledTitleText?: string
+  size?: ComponentSize
+  status?: ComponentStatus
+  autoFocus?: boolean
+  spellCheck?: boolean
+  testID?: string
+}
+
+type Props = PassedProps & DefaultProps
+
 class Input extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
+    type: InputType.Text,
     name: '',
     value: '',
     placeholder: '',
@@ -63,6 +69,7 @@ class Input extends Component<Props> {
     status: ComponentStatus.Default,
     autoFocus: false,
     spellCheck: false,
+    testID: 'input-field',
   }
 
   public render() {
@@ -85,7 +92,7 @@ class Input extends Component<Props> {
       maxLength,
       autocomplete,
       tabIndex,
-      dataTest,
+      testID,
     } = this.props
 
     return (
@@ -112,7 +119,7 @@ class Input extends Component<Props> {
           disabled={status === ComponentStatus.Disabled}
           maxLength={maxLength}
           tabIndex={tabIndex}
-          data-test={dataTest}
+          data-testid={testID}
         />
         {this.icon}
         {this.statusIndicator}
@@ -170,7 +177,7 @@ class Input extends Component<Props> {
           <span
             className={`input-status icon ${
               IconFont.AlertTriangle
-            } data-test="input-error"`}
+            } data-testid="input-error"`}
           />
           <div className="input-shadow" />
         </>
@@ -183,7 +190,7 @@ class Input extends Component<Props> {
           <span
             className={`input-status icon ${
               IconFont.Checkmark
-            } data-test="input-valid"`}
+            } data-testid="input-valid"`}
           />
           <div className="input-shadow" />
         </>

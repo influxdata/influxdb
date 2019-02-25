@@ -111,7 +111,6 @@ exports[`Account rendering renders! 1`] = `
                                 <Input
                                   autoFocus={false}
                                   autocomplete="off"
-                                  dataTest="nameInput"
                                   disabledTitleText="This input is disabled"
                                   name=""
                                   onChange={[Function]}
@@ -119,7 +118,9 @@ exports[`Account rendering renders! 1`] = `
                                   size="sm"
                                   spellCheck={false}
                                   status="disabled"
+                                  testID="nameInput"
                                   titleText="Username"
+                                  type="text"
                                   value="groot"
                                 >
                                   <div
@@ -134,13 +135,14 @@ exports[`Account rendering renders! 1`] = `
                                       autoComplete="off"
                                       autoFocus={false}
                                       className="input-field"
-                                      data-test="nameInput"
+                                      data-testid="nameInput"
                                       disabled={true}
                                       name=""
                                       onChange={[Function]}
                                       placeholder=""
                                       spellCheck={false}
                                       title="This input is disabled"
+                                      type="text"
                                       value="groot"
                                     />
                                     <div

@@ -22,17 +22,17 @@ describe('Buckets', () => {
   describe('from the org view', () => {
     it('can create a bucket', () => {
       const newBucket = '🅱️ucket'
-      cy.getByDataTest('table-row').should('have.length', 1)
+      cy.getByTestID('table-row').should('have.length', 1)
 
       cy.contains('Create').click()
-      cy.getByDataTest('overlay--container').within(() => {
+      cy.getByTestID('overlay--container').within(() => {
         cy.getByInputName('name').type(newBucket)
         cy.get('.button')
           .contains('Create')
           .click()
       })
 
-      cy.getByDataTest('table-row')
+      cy.getByTestID('table-row')
         .should('have.length', 2)
         .and('contain', newBucket)
     })
@@ -44,14 +44,14 @@ describe('Buckets', () => {
         cy.contains(name).click()
       })
 
-      cy.getByDataTest('retention-intervals').click()
+      cy.getByTestID('retention-intervals').click()
 
       cy.getByInputName('days').type('{uparrow}')
       cy.getByInputName('hours').type('{uparrow}')
       cy.getByInputName('minutes').type('{uparrow}')
       cy.getByInputName('seconds').type('{uparrow}')
 
-      cy.getByDataTest('overlay--container').within(() => {
+      cy.getByTestID('overlay--container').within(() => {
         cy.getByInputName('name')
           .clear()
           .type(newName)
@@ -59,7 +59,7 @@ describe('Buckets', () => {
         cy.contains('Save').click()
       })
 
-      cy.getByDataTest('table-row')
+      cy.getByTestID('table-row')
         .should('contain', '1 day')
         .and('contain', newName)
     })

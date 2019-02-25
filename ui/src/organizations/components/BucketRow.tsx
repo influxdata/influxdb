@@ -13,6 +13,7 @@ import {
   ButtonShape,
   ComponentSize,
   ComponentColor,
+  IconFont,
 } from '@influxdata/clockface'
 import {Bucket} from '@influxdata/influx'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
@@ -57,6 +58,7 @@ export default class BucketRow extends PureComponent<Props> {
           <IndexList.Cell alignment={Alignment.Right}>
             <Context align={Alignment.Center}>
               <Context.Menu
+                icon={IconFont.Plus}
                 text="Add Data"
                 shape={ButtonShape.Default}
                 color={ComponentColor.Primary}

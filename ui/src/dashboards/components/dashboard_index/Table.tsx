@@ -31,7 +31,7 @@ interface Props {
   onEditLabels: (dashboard: Dashboard) => void
   orgs: Organization[]
   showOwnerColumn: boolean
-  filterComponent: () => JSX.Element
+  filterComponent?: () => JSX.Element
 }
 
 interface DatedDashboard extends Dashboard {

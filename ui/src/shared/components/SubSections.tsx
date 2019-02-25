@@ -25,7 +25,7 @@ class SubSections extends Component<Props> {
 
     return (
       <div className="row subsection">
-        <div className="col-md-2 subsection--nav" data-test="subsectionNav">
+        <div className="col-md-2 subsection--nav" data-testid="subsectionNav">
           <div className="subsection--tabs">
             {sections.map(
               section =>
@@ -42,7 +42,7 @@ class SubSections extends Component<Props> {
         </div>
         <div
           className="col-md-10 subsection--content"
-          data-test="subsectionContent"
+          data-testid="subsectionContent"
         >
           {this.activeSectionComponent}
         </div>

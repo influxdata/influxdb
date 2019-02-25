@@ -52,7 +52,9 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
+                    testID="input-field"
                     titleText="Username"
+                    type="text"
                     value=""
                   />
                 </FormElement>
@@ -76,6 +78,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
+                    testID="input-field"
                     titleText="Password"
                     type="password"
                     value=""
@@ -101,6 +104,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
+                    testID="input-field"
                     titleText="Confirm Password"
                     type="password"
                     value=""
@@ -127,7 +131,9 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
+                    testID="input-field"
                     titleText="Initial Organization Name"
+                    type="text"
                     value=""
                   />
                 </FormElement>
@@ -152,7 +158,9 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
+                    testID="input-field"
                     titleText="Initial Bucket Name"
+                    type="text"
                     value=""
                   />
                 </FormElement>
