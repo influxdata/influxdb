@@ -188,7 +188,7 @@ func TestIndex_DropMeasurement(t *testing.T) {
 		}
 
 		// Obtain file set to perform lower level checks.
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,6 +208,8 @@ func TestIndex_DropMeasurement(t *testing.T) {
 func TestIndex_Open(t *testing.T) {
 	// Opening a fresh index should set the MANIFEST version to current version.
 	idx := NewIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
+	defer idx.Close()
+
 	t.Run("open new index", func(t *testing.T) {
 		if err := idx.Open(); err != nil {
 			t.Fatal(err)
@@ -216,9 +218,14 @@ func TestIndex_Open(t *testing.T) {
 		// Check version set appropriately.
 		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
 			partition := idx.PartitionAt(i)
-			if got, exp := partition.Manifest().Version, 1; got != exp {
+			fs, err := partition.FileSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, exp := partition.Manifest(fs).Version, 1; got != exp {
 				t.Fatalf("got index version %d, expected %d", got, exp)
 			}
+			fs.Release()
 		}
 	})
 
@@ -271,13 +278,19 @@ func TestIndex_Open(t *testing.T) {
 func TestIndex_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
 		idx := MustOpenIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
+		defer idx.Close()
 
 		// Check version set appropriately.
 		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
 			partition := idx.PartitionAt(i)
-			if got, exp := partition.Manifest().Version, tsi1.Version; got != exp {
+			fs, err := partition.FileSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, exp := partition.Manifest(fs).Version, tsi1.Version; got != exp {
 				t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 			}
+			fs.Release()
 		}
 	})
 }
@@ -432,10 +445,10 @@ func (idx Index) Open() error {
 // Close closes and removes the index directory.
 func (idx *Index) Close() error {
 	defer os.RemoveAll(idx.Path())
-	if err := idx.SeriesFile.Close(); err != nil {
+	if err := idx.Index.Close(); err != nil {
 		return err
 	}
-	return idx.Index.Close()
+	return idx.SeriesFile.Close()
 }
 
 // Reopen closes and opens the index.

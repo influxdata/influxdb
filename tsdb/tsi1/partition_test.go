@@ -24,8 +24,14 @@ func TestPartition_Open(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fs, err := p.FileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer fs.Release()
+
 		// Check version set appropriately.
-		if got, exp := p.Manifest().Version, 1; got != exp {
+		if got, exp := p.Manifest(fs).Version, 1; got != exp {
 			t.Fatalf("got index version %d, expected %d", got, exp)
 		}
 	})
@@ -78,7 +84,15 @@ func TestPartition_Manifest(t *testing.T) {
 		defer sfile.Close()
 
 		p := MustOpenPartition(sfile.SeriesFile)
-		if got, exp := p.Manifest().Version, tsi1.Version; got != exp {
+		defer p.Close()
+
+		fs, err := p.FileSet()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer fs.Release()
+
+		if got, exp := p.Manifest(fs).Version, tsi1.Version; got != exp {
 			t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 		}
 	})

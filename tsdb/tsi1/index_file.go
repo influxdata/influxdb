@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -45,11 +46,15 @@ var (
 
 // IndexFile represents a collection of measurement, tag, and series data.
 type IndexFile struct {
-	wg   sync.WaitGroup // ref count
 	data []byte
 
+	// Lifecycle tracking
+	res lifecycle.Resource
+
 	// Components
-	sfile *tsdb.SeriesFile
+	sfile    *tsdb.SeriesFile
+	sfileref *lifecycle.Reference
+
 	tblks map[string]*TagBlock // tag blocks by measurement name
 	mblk  MeasurementBlock
 
@@ -79,11 +84,11 @@ func NewIndexFile(sfile *tsdb.SeriesFile) *IndexFile {
 // bytes estimates the memory footprint of this IndexFile, in bytes.
 func (f *IndexFile) bytes() int {
 	var b int
-	f.wg.Add(1)
-	b += 16 // wg WaitGroup is 16 bytes
-	b += int(unsafe.Sizeof(f.data))
 	// Do not count f.data contents because it is mmap'd
+	b += int(unsafe.Sizeof(f.data))
+	b += int(unsafe.Sizeof(f.res))
 	b += int(unsafe.Sizeof(f.sfile))
+	b += int(unsafe.Sizeof(f.sfileref))
 	// Do not count SeriesFile because it belongs to the code that constructed this IndexFile.
 	b += int(unsafe.Sizeof(f.tblks))
 	for k, v := range f.tblks {
@@ -98,18 +103,24 @@ func (f *IndexFile) bytes() int {
 	b += 24 // mu RWMutex is 24 bytes
 	b += int(unsafe.Sizeof(f.compacting))
 	b += int(unsafe.Sizeof(f.path)) + len(f.path)
-	f.wg.Done()
+
 	return b
 }
 
 // Open memory maps the data file at the file's path.
-func (f *IndexFile) Open() error {
+func (f *IndexFile) Open() (err error) {
 	defer func() {
 		if err := recover(); err != nil {
 			err = fmt.Errorf("[Index file: %s] %v", f.path, err)
 			panic(err)
 		}
 	}()
+
+	// Try to acquire a reference to the series file.
+	f.sfileref, err = f.sfile.Acquire()
+	if err != nil {
+		return err
+	}
 
 	// Extract identifier from path name.
 	f.id, f.level = ParseFilename(f.Path())
@@ -119,13 +130,26 @@ func (f *IndexFile) Open() error {
 		return err
 	}
 
-	return f.UnmarshalBinary(data)
+	if err := f.UnmarshalBinary(data); err != nil {
+		f.Close()
+		return err
+	}
+
+	// The resource is now open
+	f.res.Open()
+
+	return nil
 }
 
 // Close unmaps the data file.
 func (f *IndexFile) Close() error {
-	// Wait until all references are released.
-	f.wg.Wait()
+	// Close the resource and wait for any references.
+	f.res.Close()
+
+	if f.sfileref != nil {
+		f.sfileref.Release()
+		f.sfileref = nil
+	}
 
 	f.sfile = nil
 	f.tblks = nil
@@ -145,11 +169,10 @@ func (f *IndexFile) SetPath(path string) { f.path = path }
 // Level returns the compaction level for the file.
 func (f *IndexFile) Level() int { return f.level }
 
-// Retain adds a reference count to the file.
-func (f *IndexFile) Retain() { f.wg.Add(1) }
-
-// Release removes a reference count from the file.
-func (f *IndexFile) Release() { f.wg.Done() }
+// Acquire adds a reference count to the file.
+func (f *IndexFile) Acquire() (*lifecycle.Reference, error) {
+	return f.res.Acquire()
+}
 
 // Size returns the size of the index file, in bytes.
 func (f *IndexFile) Size() int64 { return int64(len(f.data)) }
@@ -367,6 +390,7 @@ func (f *IndexFile) TagKeyIterator(name []byte) TagKeyIterator {
 	if blk == nil {
 		return nil
 	}
+
 	return blk.TagKeyIterator()
 }
 
