@@ -6,6 +6,7 @@ import ResourceListHeader from 'src/clockface/components/resource_list/ResourceL
 import ResourceListSorter from 'src/clockface/components/resource_list/ResourceListSorter'
 import ResourceListBody from 'src/clockface/components/resource_list/ResourceListBody'
 import ResourceCard from 'src/clockface/components/resource_list/ResourceCard'
+import ResourceName from 'src/clockface/components/resource_list/ResourceName'
 import ResourceDescription from 'src/clockface/components/resource_list/ResourceDescription'
 
 // Styles
@@ -20,6 +21,7 @@ export default class ResourceList extends PureComponent<Props> {
   public static Sorter = ResourceListSorter
   public static Body = ResourceListBody
   public static Card = ResourceCard
+  public static Name = ResourceName
   public static Description = ResourceDescription
 
   public render() {

@@ -151,3 +151,17 @@
   top: $ix-marg-b;
   right: $ix-marg-c;
 }
+
+/*
+  Depth Styling
+  ------------------------------------------------------------------------------
+*/
+
+.panel .resource-list--card,
+.tabs .resource-list--card {
+  background-color: $g4-onyx;
+
+  &:hover {
+    background-color: $g5-pepper;
+  }
+}
