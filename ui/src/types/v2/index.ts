@@ -26,13 +26,11 @@ import {Organization} from '@influxdata/influx'
 import {Links} from 'src/types/v2/links'
 import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'
-import {LogsState} from 'src/types/logs'
 import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {State as TaskState} from 'src/tasks/reducers/v2'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
-import {SourcesState} from 'src/sources/reducers'
 import {NoteEditorState} from 'src/dashboards/reducers/v2/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
@@ -43,10 +41,8 @@ export interface AppState {
   VERSION: string
   links: Links
   app: AppPresentationState
-  logs: LogsState
   ranges: RangeState
   views: ViewsState
-  sources: SourcesState
   dashboards: Dashboard[]
   notifications: Notification[]
   timeMachines: TimeMachinesState

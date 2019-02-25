@@ -16,27 +16,24 @@ import {
 import {
   editActiveQueryWithBuilder,
   editActiveQueryAsFlux,
-  editActiveQueryAsInfluxQL,
 } from 'src/timeMachine/actions'
 
 // Utils
-import {getActiveQuery, getActiveQuerySource} from 'src/timeMachine/selectors'
+import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Styles
 import 'src/timeMachine/components/QueriesSwitcher.scss'
 
 // Types
-import {AppState, QueryEditMode, Source} from 'src/types/v2'
+import {AppState, QueryEditMode, SourceType} from 'src/types/v2'
 
 interface StateProps {
   editMode: QueryEditMode
-  sourceType: Source.TypeEnum
 }
 
 interface DispatchProps {
   onEditWithBuilder: typeof editActiveQueryWithBuilder
   onEditAsFlux: typeof editActiveQueryAsFlux
-  onEditAsInfluxQL: typeof editActiveQueryAsInfluxQL
 }
 
 type Props = StateProps & DispatchProps
@@ -87,7 +84,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
   }
 
   private get button(): JSX.Element {
-    const {editMode, sourceType, onEditAsFlux, onEditAsInfluxQL} = this.props
+    const {editMode, onEditAsFlux} = this.props
 
     if (editMode !== QueryEditMode.Builder) {
       return (
@@ -95,16 +92,6 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
           text="Query Builder"
           titleText="Switch to Query Builder"
           onClick={this.handleShowOverlay}
-        />
-      )
-    }
-
-    if (sourceType === Source.TypeEnum.V1) {
-      return (
-        <Button
-          text="Script Editor"
-          titleText="Switch to Script Editor"
-          onClick={onEditAsInfluxQL}
         />
       )
     }
@@ -136,15 +123,12 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
 
 const mstp = (state: AppState) => {
   const editMode = getActiveQuery(state).editMode
-  const sourceType = getActiveQuerySource(state).type
-
-  return {editMode, sourceType}
+  return {editMode, sourceType: SourceType.V2}
 }
 
 const mdtp = {
   onEditWithBuilder: editActiveQueryWithBuilder,
   onEditAsFlux: editActiveQueryAsFlux,
-  onEditAsInfluxQL: editActiveQueryAsInfluxQL,
 }
 
 export default connect<StateProps, DispatchProps>(
