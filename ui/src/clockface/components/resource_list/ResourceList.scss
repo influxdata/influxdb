@@ -172,12 +172,20 @@
   flex-direction: column;
   align-items: flex-start;
   flex-wrap: nowrap;
+
+  > *:first-child {
+    margin-bottom: $ix-marg-a;
+  }
 }
 
 @media screen and (min-width: 767px) {
   .resource-list--name-meta {
     flex-direction: row;
     align-items: center;
+
+    > *:first-child {
+      margin-bottom: 0;
+    }
   }
 }
 

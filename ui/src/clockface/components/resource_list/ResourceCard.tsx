@@ -49,9 +49,9 @@ export default class ResourceListCard extends PureComponent<Props> {
   }
 
   private get meta(): JSX.Element {
-    const {updatedAt, owner, meta1} = this.props
+    const {updatedAt, owner, meta1, meta2} = this.props
 
-    if (!updatedAt && !owner && !meta1) {
+    if (!updatedAt && !owner && !meta1 && !meta2) {
       return null
     }
 
