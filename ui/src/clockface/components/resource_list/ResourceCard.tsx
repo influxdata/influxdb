@@ -6,9 +6,6 @@ import moment from 'moment'
 // Types
 import {Organization} from 'src/types/v2'
 
-// Components
-import {ComponentSpacer, Alignment, Stack} from '@influxdata/clockface'
-
 // Constants
 import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
 
@@ -44,14 +41,10 @@ export default class ResourceListCard extends PureComponent<Props> {
     const {name} = this.props
 
     return (
-      <ComponentSpacer
-        align={Alignment.Left}
-        stackChildren={Stack.Columns}
-        stretchToFitWidth={true}
-      >
+      <div className="resource-list--name-meta">
         {name()}
         {this.meta}
-      </ComponentSpacer>
+      </div>
     )
   }
 

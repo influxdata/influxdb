@@ -18,19 +18,20 @@ $resource-name-font-weight: 600;
 .resource-name > a {
   display: inline-block;
   white-space: nowrap;
-  line-height: $resource-name-font-size;
-  padding-right: 0;
+  line-height: $form-xs-height;
 }
 
 .resource-name {
   height: $form-xs-height;
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  margin-right: $ix-marg-a;
 }
 
 .input.resource-name--input {
   position: absolute;
-  top: -1px;
+  top: 0;
   left: 0;
   width: 100%;
 }

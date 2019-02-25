@@ -7,7 +7,6 @@
 
 .resource-description {
   width: 100%;
-  // min-height: $form-xs-height;
 }
 
 .resource-description--preview,
@@ -28,15 +27,11 @@
   display: inline-block;
   border-radius: $radius;
   position: relative;
-  // white-space: nowrap;
   overflow: hidden;
-  // text-overflow: ellipsis;
   @include no-user-select();
   color: $g13-mist;
   transition: color 0.25s ease, background-color 0.25s ease,
     border-color 0.25s ease;
-  // border: $ix-border solid transparent;
-  // min-height: $form-xs-height;
   line-height: $form-xs-font + $ix-border;
 
   .icon {

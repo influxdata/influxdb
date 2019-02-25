@@ -23,7 +23,16 @@
   display: flex;
   align-items: center;
   padding-bottom: $ix-marg-c;
-  justify-content: flex-end;
+  justify-content: space-between;
+}
+
+.resource-list--sorting {
+  display: flex;
+  align-items: center;
+}
+
+.resource-list--filter {
+  min-width: 10px;
 }
 
 .resource-list--sorter {
@@ -110,7 +119,7 @@
 }
 
 .resource-list--meta {
-  display: flex;
+  display: inline-flex;
   font-size: $form-xs-font;
   font-weight: 600;
   color: $g11-sidewalk;
@@ -155,6 +164,20 @@
 
   .resource-list--card:hover & {
     opacity: 1;
+  }
+}
+
+.resource-list--name-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+
+@media screen and (min-width: 767px) {
+  .resource-list--name-meta {
+    flex-direction: row;
+    align-items: center;
   }
 }
 
