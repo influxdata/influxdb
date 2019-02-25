@@ -36,3 +36,17 @@ describe('Dashboard', () => {
     cy.getByTestID('resource-card').should('contain', newName)
   })
 })
+
+describe('Cells', () => {
+  it('can create a cell', () => {
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createDashboard(id).then(({body}) => {
+        cy.visit(`/dashboards/${body.id}`)
+      })
+    })
+
+    cy.getByTestID('add-cell--button').click()
+    cy.getByTestID('save-cell--button').click()
+    cy.getByTestID('cell--view-empty').should('have.length', 1)
+  })
+})
