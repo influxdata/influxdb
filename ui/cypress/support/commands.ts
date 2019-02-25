@@ -51,7 +51,7 @@ export const createTask = (
     every: 1d,
     offset: 20m
   }
-  from(bucket: "default")
+  from(bucket: "defbuck")
         |> range(start: -2m)`
 
   return cy.request({

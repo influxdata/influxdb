@@ -24,7 +24,7 @@ describe('Tasks', () => {
 
     cy.getByDataTest('flux-editor').within(() => {
       cy.get('textarea').type(
-        `from(bucket: "default")
+        `from(bucket: "defbuck")
       |> range(start: -2m)`,
         {force: true}
       )
