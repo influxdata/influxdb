@@ -355,7 +355,7 @@ func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator,
 // The Engine expects all points to have been correctly validated by the caller.
 // WritePoints will however determine if there are any field type conflicts, and
 // return an appropriate error in that case.
-func (e *Engine) WritePoints(points []models.Point) error {
+func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 	collection, j := tsdb.NewSeriesCollection(points), 0
 	for iter := collection.Iterator(); iter.Next(); {
 		tags := iter.Tags()
