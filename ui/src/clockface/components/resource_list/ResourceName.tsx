@@ -133,8 +133,10 @@ class ResourceName extends Component<Props, State> {
 
   private get className(): string {
     const {name, noNameString} = this.props
+    const {isEditing} = this.state
 
     return classnames('resource-name', {
+      'resource-name--editing': isEditing,
       'untitled-name': name === noNameString,
     })
   }
