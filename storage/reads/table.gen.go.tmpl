@@ -1,12 +1,12 @@
 package reads
 
 import (
-	"github.com/influxdata/flux/arrow"
-	"github.com/influxdata/flux/memory"
 	"sync"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
@@ -51,15 +51,15 @@ func (t *{{.name}}Table) Close() {
 	t.mu.Unlock()
 }
 
-func (t *{{.name}}Table) Statistics() flux.Statistics {
+func (t *{{.name}}Table) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -227,12 +227,12 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *{{.name}}GroupTable) Statistics() flux.Statistics {
+func (t *{{.name}}GroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}

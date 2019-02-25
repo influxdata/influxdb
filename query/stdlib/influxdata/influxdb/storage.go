@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
 )
 
@@ -76,7 +77,7 @@ type source struct {
 	currentTime execute.Time
 	overflow    bool
 
-	stats flux.Statistics
+	stats cursors.CursorStats
 }
 
 func NewSource(id execute.DatasetID, r Reader, readSpec ReadSpec, bounds execute.Bounds, w execute.Window, currentTime execute.Time) execute.Source {
@@ -101,6 +102,13 @@ func (s *source) Run(ctx context.Context) {
 	}
 }
 
+func (s *source) Metadata() flux.Metadata {
+	return flux.Metadata{
+		"influxdb/scanned-bytes":  []interface{}{s.stats.ScannedBytes},
+		"influxdb/scanned-values": []interface{}{s.stats.ScannedValues},
+	}
+}
+
 func (s *source) run(ctx context.Context) error {
 	//TODO(nathanielc): Pass through context to actual network I/O.
 	for tables, mark, ok := s.next(ctx); ok; tables, mark, ok = s.next(ctx) {
@@ -120,7 +128,12 @@ func (s *source) run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		s.stats = s.stats.Add(tables.Statistics())
+
+		// Track the number of bytes and values scanned.
+		stats := tables.Statistics()
+		s.stats.ScannedValues += stats.ScannedValues
+		s.stats.ScannedBytes += stats.ScannedBytes
+
 		for _, t := range s.ts {
 			if err := t.UpdateWatermark(s.id, mark); err != nil {
 				return err
@@ -130,7 +143,7 @@ func (s *source) run(ctx context.Context) error {
 	return nil
 }
 
-func (s *source) next(ctx context.Context) (flux.TableIterator, execute.Time, bool) {
+func (s *source) next(ctx context.Context) (TableIterator, execute.Time, bool) {
 	if s.overflow {
 		return nil, 0, false
 	}
@@ -161,10 +174,6 @@ func (s *source) next(ctx context.Context) (flux.TableIterator, execute.Time, bo
 		return nil, 0, false
 	}
 	return bi, stop, true
-}
-
-func (s *source) Statistics() flux.Statistics {
-	return s.stats
 }
 
 type GroupMode int
@@ -228,6 +237,12 @@ type ReadSpec struct {
 }
 
 type Reader interface {
-	Read(ctx context.Context, rs ReadSpec, start, stop execute.Time) (flux.TableIterator, error)
+	Read(ctx context.Context, rs ReadSpec, start, stop execute.Time) (TableIterator, error)
 	Close()
+}
+
+// TableIterator is a table iterator that also keeps track of cursor statistics from the storage engine.
+type TableIterator interface {
+	flux.TableIterator
+	Statistics() cursors.CursorStats
 }
