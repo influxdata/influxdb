@@ -132,12 +132,16 @@ func TestSkip(t *testing.T) {
 		t.Fatalf("failed to finish run %v\n", err)
 	}
 
-	meta, err = s.FindTaskMetaByID(context.Background(), tskID)
+	tasks, err := s.ListTasks(context.Background(), backend.TaskSearchParams{})
 	if err != nil {
 		t.Fatalf("failed to pull meta %v\n", err)
 	}
 
-	if meta.LatestCompleted == latestCompleted {
+	if len(tasks) != 1 {
+		t.Fatal("task not found")
+	}
+
+	if tasks[0].Meta.LatestCompleted == latestCompleted {
 		t.Fatal("failed to run after an override")
 	}
 }
