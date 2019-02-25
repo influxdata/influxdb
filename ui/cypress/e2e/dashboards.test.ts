@@ -84,4 +84,18 @@ describe('Dashboards', () => {
 
     cy.get('.index-list--row').should('contain', newName)
   })
+
+  describe('Cells', () => {
+    it('can create a cell', () => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.createDashboard(id).then(({body}) => {
+          cy.visit(`/dashboards/${body.id}`)
+        })
+      })
+
+      cy.getByDataTest('add-cell--button').click()
+      cy.getByDataTest('save-cell--button').click()
+      cy.getByDataTest('cell--view-empty').should('have.length', 1)
+    })
+  })
 })

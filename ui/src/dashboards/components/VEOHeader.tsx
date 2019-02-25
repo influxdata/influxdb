@@ -57,6 +57,7 @@ class VEOHeader extends PureComponent<Props> {
               color={ComponentColor.Success}
               size={ComponentSize.Small}
               onClick={onSave}
+              testID="save-cell--button"
             />
           </Page.Header.Right>
         </Page.Header>

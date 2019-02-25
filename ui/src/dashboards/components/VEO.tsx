@@ -13,7 +13,7 @@ import {setName} from 'src/timeMachine/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {Source, AppState, DashboardQuery, View, NewView} from 'src/types/v2'
+import {AppState, DashboardQuery, View, NewView} from 'src/types/v2'
 
 // Styles
 import './VEO.scss'
@@ -28,7 +28,6 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  source: Source
   onHide: () => void
   onSave: (v: NewView | View) => Promise<void>
 }

@@ -69,7 +69,9 @@ class CellComponent extends Component<Props> {
             onCSVDownload={this.handleCSVDownload}
           />
         )}
-        <div className="cell--view">{this.view}</div>
+        <div className="cell--view" data-testid="cell--view-empty">
+          {this.view}
+        </div>
       </>
     )
   }

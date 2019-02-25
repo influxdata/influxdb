@@ -1,7 +1,6 @@
 import React from 'react'
 
 import {renderWithRedux} from 'src/mockState'
-import {source} from 'mocks/dummyData'
 import {waitForElement, fireEvent} from 'react-testing-library'
 
 import QueryBuilder from 'src/timeMachine/components/QueryBuilder'
@@ -11,12 +10,6 @@ jest.mock('src/timeMachine/apis/queryBuilder')
 const setInitialState = state => {
   return {
     ...state,
-    sources: {
-      activeSourceID: source.id,
-      sources: {
-        [source.id]: source,
-      },
-    },
     orgs: [
       {
         id: 'foo',

@@ -14,7 +14,7 @@ import {getActiveOrg} from 'src/organizations/selectors'
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/v2/dashboards'
-import {AppState, Source, Organization} from 'src/types/v2'
+import {AppState, Organization} from 'src/types/v2'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 
 export interface QueriesState {

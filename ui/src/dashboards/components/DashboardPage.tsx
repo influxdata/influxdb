@@ -37,7 +37,6 @@ import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 // Types
 import {
   Links,
-  Source,
   Dashboard,
   Cell,
   View,
@@ -56,7 +55,6 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 
 interface StateProps {
   links: Links
-  sources: Source[]
   zoomedTimeRange: TimeRange
   timeRange: TimeRange
   dashboard: Dashboard
@@ -85,7 +83,6 @@ interface DispatchProps {
 }
 
 interface PassedProps {
-  source: Source
   params: {
     dashboardID: string
   }
@@ -157,7 +154,6 @@ class DashboardPage extends Component<Props, State> {
 
   public render() {
     const {
-      source,
       timeRange,
       zoomedTimeRange,
       showTemplateControlBar,
@@ -207,11 +203,7 @@ class DashboardPage extends Component<Props, State> {
             />
           )}
           <OverlayTechnology visible={isShowingVEO}>
-            <VEO
-              source={source}
-              onHide={this.handleHideVEO}
-              onSave={this.handleSaveVEO}
-            />
+            <VEO onHide={this.handleHideVEO} onSave={this.handleSaveVEO} />
           </OverlayTechnology>
         </HoverTimeProvider>
         <NoteEditorContainer />
@@ -346,7 +338,6 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
       ephemeral: {inPresentationMode},
       persisted: {autoRefresh, showTemplateControlBar},
     },
-    sources,
     ranges,
     dashboards,
     views,
@@ -360,7 +351,6 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   return {
     links,
     views,
-    sources: Object.values(sources.sources),
     zoomedTimeRange: {lower: null, upper: null},
     timeRange,
     dashboard,
