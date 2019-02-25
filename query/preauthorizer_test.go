@@ -124,14 +124,16 @@ func TestPreAuthorizer_RequiredPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	pRead, err := platform.NewPermissionAtID(bFrom.ID, platform.ReadAction, platform.BucketsResourceType, o.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	pWrite, err := platform.NewPermissionAtID(bTo.ID, platform.WriteAction, platform.BucketsResourceType, o.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Log("WARNING: this test does not validate permissions on the 'from' bucket. Please update after https://github.com/influxdata/flux/issues/114.")
-
-	exp := []platform.Permission{*pWrite}
+	exp := []platform.Permission{*pRead, *pWrite}
 	if diff := cmp.Diff(exp, perms); diff != "" {
 		t.Fatalf("unexpected permissions: %s", diff)
 	}
