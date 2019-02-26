@@ -349,13 +349,15 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs platform.O
 			}
 			return nil, err
 		}
-		req.filter.Organization = &o.ID
-	} else if oid := qp.Get("orgID"); oid != "" {
+		req.filter.Organization = o.Name
+		req.filter.OrganizationID = &o.ID
+	}
+	if oid := qp.Get("orgID"); oid != "" {
 		orgID, err := platform.IDFromString(oid)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.Organization = orgID
+		req.filter.OrganizationID = orgID
 	}
 
 	if userID := qp.Get("user"); userID != "" {
@@ -1423,8 +1425,11 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	if filter.After != nil {
 		val.Add("after", filter.After.String())
 	}
-	if filter.Organization != nil {
-		val.Add("orgID", filter.Organization.String())
+	if filter.OrganizationID != nil {
+		val.Add("orgID", filter.OrganizationID.String())
+	}
+	if filter.Organization != "" {
+		val.Add("org", filter.Organization)
 	}
 	if filter.User != nil {
 		val.Add("user", filter.User.String())
