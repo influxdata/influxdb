@@ -90,7 +90,7 @@ class TimeMachine extends Component<Props, State> {
     }
   }
 
-  private handleResizerChange = resizerHandlePosition => {
+  private handleResizerChange = (resizerHandlePosition: number[]): void => {
     this.setState({resizerHandlePosition})
   }
 

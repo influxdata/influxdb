@@ -106,7 +106,9 @@ describe('timeMachinesReducer', () => {
     expect(nextTimeMachine.activeTab).toEqual(TimeMachineTab.Queries)
     expect(nextTimeMachine.activeQueryIndex).toEqual(0)
     expect(
-      _.map(nextTimeMachine.draftQueries, q => _.omit(q, ['hidden']))
+      _.map(nextTimeMachine.draftQueries, q =>
+        _.omit(q, ['hidden', 'manuallyEdited'])
+      )
     ).toEqual(view.properties.queries)
   })
 })
@@ -123,6 +125,7 @@ describe('timeMachineReducer', () => {
         editMode: QueryEditMode.Builder,
         builderConfig: {buckets: [], tags: [], functions: []},
         hidden: false,
+        manuallyEdited: false,
       }
 
       const queryB: DashboardQuery = {
@@ -135,8 +138,8 @@ describe('timeMachineReducer', () => {
 
       state.view.properties.queries = [queryA, queryB]
       state.draftQueries = [
-        {...queryA, text: 'baz', hidden: false},
-        {...queryB, text: 'buzz', hidden: false},
+        {...queryA, text: 'baz', hidden: false, manuallyEdited: false},
+        {...queryB, text: 'buzz', hidden: false, manuallyEdited: false},
       ]
 
       const actual = timeMachineReducer(state, submitScript()).view.properties
@@ -161,6 +164,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'bar',
@@ -169,6 +173,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
       ]
 
@@ -183,6 +188,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: '',
@@ -191,6 +197,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
       ])
     })
@@ -209,6 +216,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'bar',
@@ -217,6 +225,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
       ]
 
@@ -231,6 +240,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'bar',
@@ -239,6 +249,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
       ])
     })
@@ -257,6 +268,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'bar',
@@ -265,6 +277,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
       ]
 
@@ -279,6 +292,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'bar',
@@ -287,6 +301,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
       ])
     })
@@ -387,6 +402,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
       ]
 
@@ -401,6 +417,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: '',
@@ -413,6 +430,7 @@ describe('timeMachineReducer', () => {
             functions: [],
           },
           hidden: false,
+          manuallyEdited: false,
         },
       ])
     })
@@ -430,6 +448,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'b',
@@ -438,6 +457,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'c',
@@ -446,6 +466,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig: {buckets: [], tags: [], functions: []},
           hidden: false,
+          manuallyEdited: false,
         },
       ]
     })
@@ -492,6 +513,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig,
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'bar',
@@ -500,6 +522,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Builder,
           builderConfig,
           hidden: false,
+          manuallyEdited: false,
         },
       ]
 
@@ -516,6 +539,7 @@ describe('timeMachineReducer', () => {
           editMode: QueryEditMode.Advanced,
           builderConfig,
           hidden: false,
+          manuallyEdited: false,
         },
         {
           text: 'bar',
@@ -525,6 +549,7 @@ describe('timeMachineReducer', () => {
           name: 'test query',
           builderConfig,
           hidden: false,
+          manuallyEdited: false,
         },
       ])
     })
