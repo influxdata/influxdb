@@ -95,7 +95,7 @@ type RunResult interface {
 	IsRetryable() bool
 
 	// TODO(mr): add more detail here like number of points written, execution time, etc.
-	flux.Statisticser
+	Statistics() flux.Statistics
 }
 
 // Scheduler accepts tasks and handles their scheduling.
