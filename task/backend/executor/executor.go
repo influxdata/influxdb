@@ -166,7 +166,7 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 	}
 
 	// Is it okay to assume it.Err will be set if the query context is canceled?
-	p.finish(&runResult{err: it.Err()}, nil)
+	p.finish(&runResult{err: it.Err(), statistics: it.Statistics()}, nil)
 }
 
 func (p *syncRunPromise) cancelOnContextDone(wg *sync.WaitGroup) {
@@ -345,14 +345,16 @@ func (p *asyncRunPromise) finish(res *runResult, err error) {
 }
 
 type runResult struct {
-	err       error
-	retryable bool
+	err        error
+	retryable  bool
+	statistics flux.Statistics
 }
 
 var _ backend.RunResult = (*runResult)(nil)
 
-func (rr *runResult) Err() error        { return rr.err }
-func (rr *runResult) IsRetryable() bool { return rr.retryable }
+func (rr *runResult) Err() error                  { return rr.err }
+func (rr *runResult) IsRetryable() bool           { return rr.retryable }
+func (rr *runResult) Statistics() flux.Statistics { return rr.statistics }
 
 // exhaustResultIterators drains all the iterators from a flux query Result.
 func exhaustResultIterators(res flux.Result) error {

@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -9,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -93,6 +95,7 @@ type RunResult interface {
 	IsRetryable() bool
 
 	// TODO(mr): add more detail here like number of points written, execution time, etc.
+	flux.Statisticser
 }
 
 // Scheduler accepts tasks and handles their scheduling.
@@ -707,6 +710,18 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		atomic.StoreUint32(r.state, runnerIdle)
 		r.updateRunState(qr, RunFail, runLogger)
 		return
+	}
+	rlb := RunLogBase{
+		Task:            r.task,
+		RunID:           qr.RunID,
+		RunScheduledFor: qr.Now,
+		RequestedAt:     qr.RequestedAt,
+	}
+	stats := rr.Statistics()
+
+	b, err := json.Marshal(stats)
+	if err == nil {
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), string(b))
 	}
 	r.updateRunState(qr, RunSuccess, runLogger)
 	runLogger.Info("Execution succeeded")

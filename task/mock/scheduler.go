@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/flux"
 	"strings"
 	"sync"
 	"time"
@@ -452,6 +453,7 @@ func (p *RunPromise) Finish(r backend.RunResult, err error) {
 type RunResult struct {
 	err         error
 	isRetryable bool
+	stats       flux.Statistics
 }
 
 var _ backend.RunResult = (*RunResult)(nil)
@@ -466,4 +468,8 @@ func (rr *RunResult) Err() error {
 
 func (rr *RunResult) IsRetryable() bool {
 	return rr.isRetryable
+}
+
+func (rr *RunResult) Statistics() flux.Statistics {
+	return rr.stats
 }
