@@ -73,6 +73,7 @@ class OrganizationsIndex extends PureComponent<Props, State> {
                 icon={IconFont.Plus}
                 text="Create Organization"
                 titleText="Create a new Organization"
+                testID="create-org-button"
               />
             </Page.Header.Right>
           </Page.Header>

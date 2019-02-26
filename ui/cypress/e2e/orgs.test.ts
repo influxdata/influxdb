@@ -16,14 +16,13 @@ describe('Orgs', () => {
       .its('length')
       .should('be.eq', 1)
 
-    cy.get('.page-header--right > .button')
-      .contains('Create')
-      .click()
+    cy.getByTestID('create-org-button').click()
 
     const orgName = '🅱️organization'
-    cy.getByInputName('name').type(orgName)
 
-    cy.getByTitle('Create').click()
+    cy.getByTestID('create-org-name-input').type(orgName)
+
+    cy.getByTestID('create-org-submit-button').click()
 
     cy.get('.index-list--row')
       .should('contain', orgName)
