@@ -14,15 +14,21 @@ import {
   setTelegrafConfigDescription,
   setActiveTelegrafPlugin,
   setPluginConfiguration,
+  createOrUpdateTelegrafConfigAsync,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {
   incrementCurrentStepIndex,
   decrementCurrentStepIndex,
 } from 'src/dataLoaders/actions/steps'
+import {createDashboardsForPlugins as createDashboardsForPluginsAction} from 'src/protos/actions'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
 import {AppState} from 'src/types/v2/index'
 import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
+
+// Constants
+import {TelegrafConfigCreationSuccess} from 'src/shared/copy/notifications'
 
 interface DispatchProps {
   onSetTelegrafConfigName: typeof setTelegrafConfigName
@@ -31,12 +37,16 @@ interface DispatchProps {
   onSetPluginConfiguration: typeof setPluginConfiguration
   onIncrementStep: typeof incrementCurrentStepIndex
   onDecrementStep: typeof decrementCurrentStepIndex
+  notify: typeof notifyAction
+  onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
+  createDashboardsForPlugins: typeof createDashboardsForPluginsAction
 }
 
 interface StateProps {
   telegrafConfigName: string
   telegrafConfigDescription: string
   telegrafPlugins: TelegrafPlugin[]
+  telegrafConfigID: string
 }
 
 type Props = DispatchProps & StateProps
@@ -48,11 +58,10 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
       telegrafConfigDescription,
       telegrafPlugins,
       onDecrementStep,
-      onIncrementStep,
     } = this.props
 
     return (
-      <Form onSubmit={onIncrementStep} className="data-loading--form">
+      <Form onSubmit={this.handleFormSubmit} className="data-loading--form">
         <div className="data-loading--scroll-content">
           <div>
             <h3 className="wizard-step--title">Configure Plugins</h3>
@@ -106,6 +115,24 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
     )
   }
 
+  private handleFormSubmit = async () => {
+    const {
+      onSaveTelegrafConfig,
+      createDashboardsForPlugins,
+      telegrafConfigID,
+      notify,
+    } = this.props
+
+    await onSaveTelegrafConfig()
+    notify(TelegrafConfigCreationSuccess)
+
+    if (!telegrafConfigID) {
+      await createDashboardsForPlugins()
+    }
+
+    this.props.onIncrementStep()
+  }
+
   private get sideBarVisible() {
     const {telegrafPlugins} = this.props
 
@@ -142,6 +169,7 @@ const mstp = ({
       telegrafConfigName,
       telegrafConfigDescription,
       telegrafPlugins,
+      telegrafConfigID,
     },
   },
 }: AppState): StateProps => {
@@ -149,6 +177,7 @@ const mstp = ({
     telegrafConfigName,
     telegrafConfigDescription,
     telegrafPlugins,
+    telegrafConfigID,
   }
 }
 
@@ -159,6 +188,9 @@ const mdtp: DispatchProps = {
   onDecrementStep: decrementCurrentStepIndex,
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
   onSetPluginConfiguration: setPluginConfiguration,
+  onSaveTelegrafConfig: createOrUpdateTelegrafConfigAsync,
+  createDashboardsForPlugins: createDashboardsForPluginsAction,
+  notify: notifyAction,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

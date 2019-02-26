@@ -4,7 +4,6 @@ import _ from 'lodash'
 
 // Components
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
-import CreateOrUpdateConfig from 'src/dataLoaders/components/verifyStep/CreateOrUpdateConfig'
 import DataListening from 'src/dataLoaders/components/verifyStep/DataListening'
 
 // Decorator
@@ -24,19 +23,15 @@ interface Props {
 @ErrorHandling
 class DataStreaming extends PureComponent<Props> {
   public render() {
-    const {authToken, org, configID, bucket, notify} = this.props
+    const {authToken, configID, bucket, notify} = this.props
 
     return (
       <div className="streaming">
-        <CreateOrUpdateConfig org={org}>
-          {() => (
-            <TelegrafInstructions
-              notify={notify}
-              authToken={authToken}
-              configID={configID}
-            />
-          )}
-        </CreateOrUpdateConfig>
+        <TelegrafInstructions
+          notify={notify}
+          authToken={authToken}
+          configID={configID}
+        />
 
         <DataListening bucket={bucket} />
       </div>

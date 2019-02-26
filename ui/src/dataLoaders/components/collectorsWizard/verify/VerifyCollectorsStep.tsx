@@ -10,12 +10,6 @@ import FetchAuthToken from 'src/dataLoaders/components/verifyStep/FetchAuthToken
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
-// Actions
-import {
-  setActiveTelegrafPlugin,
-  setPluginConfiguration,
-} from 'src/dataLoaders/actions/dataLoaders'
-
 // Types
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import {Form} from 'src/clockface'
@@ -30,12 +24,7 @@ interface StateProps {
   org: string
 }
 
-interface DispatchProps {
-  onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
-  onSetPluginConfiguration: typeof setPluginConfiguration
-}
-
-export type Props = DispatchProps & StateProps & OwnProps
+export type Props = StateProps & OwnProps
 
 @ErrorHandling
 export class VerifyCollectorStep extends PureComponent<Props> {
@@ -97,12 +86,4 @@ const mstp = ({
   org,
 })
 
-const mdtp: DispatchProps = {
-  onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
-  onSetPluginConfiguration: setPluginConfiguration,
-}
-
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(VerifyCollectorStep)
+export default connect<StateProps, {}, OwnProps>(mstp)(VerifyCollectorStep)
