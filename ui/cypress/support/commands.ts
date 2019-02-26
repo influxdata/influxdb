@@ -1,11 +1,15 @@
-export const signin = (orgID?: string): Cypress.Chainable<Response> => {
-  return cy.fixture('user').then(user => {
-    cy.request({
-      method: 'POST',
-      url: '/api/v2/signin',
-      auth: {user: user.username, pass: user.password},
-    }).then(() => {
-      createSource(orgID)
+export const signin = (): Cypress.Chainable<Cypress.Response> => {
+  return cy.fixture('user').then(({username, password, org, bucket}) => {
+    return cy.setupUser().then(body => {
+      return cy
+        .request({
+          method: 'POST',
+          url: '/api/v2/signin',
+          auth: {user: username, pass: password},
+        })
+        .then(() => {
+          return cy.wrap(body)
+        })
     })
   })
 }
@@ -151,9 +155,6 @@ Cypress.Commands.add('createOrg', createOrg)
 
 // buckets
 Cypress.Commands.add('createBucket', createBucket)
-
-// sources
-Cypress.Commands.add('createSource', createSource)
 
 // general
 Cypress.Commands.add('flush', flush)
