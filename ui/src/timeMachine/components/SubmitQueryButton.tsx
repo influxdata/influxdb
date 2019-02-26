@@ -58,6 +58,7 @@ class SubmitQueryButton extends PureComponent<Props, State> {
         status={this.buttonStatus}
         onClick={this.handleClick}
         color={ComponentColor.Primary}
+        testID="time-machine-submit-button"
       />
     )
   }

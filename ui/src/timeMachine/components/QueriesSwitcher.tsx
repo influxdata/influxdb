@@ -92,6 +92,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
           text="Query Builder"
           titleText="Switch to Query Builder"
           onClick={this.handleShowOverlay}
+          testID="switch-to-query-builder"
         />
       )
     }
@@ -101,6 +102,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
         text="Script Editor"
         titleText="Switch to Script Editor"
         onClick={onEditAsFlux}
+        testID="switch-to-script-editor"
       />
     )
   }
