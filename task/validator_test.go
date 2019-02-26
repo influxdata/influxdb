@@ -257,7 +257,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 			auth: &influxdb.Authorization{Status: "active", Permissions: wrongOrgReadAllTaskPermissions},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				ts, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{
-					Organization: &orgID,
+					OrganizationID: &orgID,
 				})
 				if err == nil && len(ts) > 0 {
 					return errors.New("returned no error with a invalid auth")
@@ -270,7 +270,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadAllTaskPermissions},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{
-					Organization: &orgID,
+					OrganizationID: &orgID,
 				})
 				return err
 			},
@@ -280,7 +280,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadTaskPermissions},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{
-					Organization: &orgID,
+					OrganizationID: &orgID,
 				})
 				return err
 			},

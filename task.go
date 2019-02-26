@@ -297,10 +297,11 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 
 // TaskFilter represents a set of filters that restrict the returned results
 type TaskFilter struct {
-	After        *ID
-	Organization *ID
-	User         *ID
-	Limit        int
+	After          *ID
+	OrganizationID *ID
+	Organization   string
+	User           *ID
+	Limit          int
 }
 
 // RunFilter represents a set of filters that restrict the returned results
