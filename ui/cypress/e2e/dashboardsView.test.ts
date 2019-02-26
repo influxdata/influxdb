@@ -8,10 +8,6 @@ describe('Dashboard', () => {
       cy.wrap(body.org).as('org')
     })
 
-    cy.get<Organization>('@org').then(org => {
-      cy.signin(org.id)
-    })
-
     cy.fixture('routes').then(({dashboards}) => {
       cy.visit(dashboards)
     })

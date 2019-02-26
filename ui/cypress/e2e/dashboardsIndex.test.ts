@@ -8,16 +8,12 @@ describe('Dashboards', () => {
       cy.wrap(body.org).as('org')
     })
 
-    cy.get<Organization>('@org').then(org => {
-      cy.signin(org.id)
-    })
-
     cy.fixture('routes').then(({dashboards}) => {
       cy.visit(dashboards)
     })
   })
 
-  it('can create a dashboard from empty state', () => {
+  it.only('can create a dashboard from empty state', () => {
     cy.getByTestID('empty-state')
       .contains('Create')
       .click()
