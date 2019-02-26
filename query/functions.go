@@ -111,17 +111,16 @@ func (r *FloatTimeWeightedAverageReducer) AggregateFloat(p *FloatPoint) {
 	// If this is the first point, just save it
 	if r.prev.Nil {
 		r.prev = *p
-		if !r.opt.Interval.IsZero() {
-			// Record the end of the time interval.
-			// We do not care for whether the last number is inclusive or exclusive
-			// because we treat both the same for the involved math.
-			if r.opt.Ascending {
-				r.window.start, r.window.end = r.opt.Window(p.Time)
-			} else {
-				r.window.end, r.window.start = r.opt.Window(p.Time)
-			}
-			r.pointOffset = p.Time - r.window.start
+		// Record the end of the time interval.
+		// We do not care for whether the last number is inclusive or exclusive
+		// because we treat both the same for the involved math.
+		if r.opt.Ascending {
+			r.window.start, r.window.end = r.opt.Window(p.Time)
+		} else {
+			r.window.end, r.window.start = r.opt.Window(p.Time)
 		}
+		r.pointOffset = p.Time - r.window.start
+
 		return
 	}
 
@@ -177,21 +176,14 @@ func (r *FloatTimeWeightedAverageReducer) Close() error {
 	// Send off what we
 	// currently have as the final point.
 	if !r.prev.Nil && r.prev.Time >= r.window.start {
-		if r.opt.Interval.IsZero() {
-			if r.prev.Time == r.window.start {
-				r.ch <- FloatPoint{Time: r.window.start, Value: r.prev.Value}
-			} else {
-				elapsed := r.prev.Time - r.window.start
-				r.sum += r.prev.Value * float64(elapsed)
-				fpoint := FloatPoint{Time: r.window.start, Value: r.sum / float64(r.prev.Time-(r.window.start+r.pointOffset))}
-				r.ch <- fpoint
-			}
-		} else {
-			elapsed := float64(r.window.end - r.prev.Time)
-			r.sum += r.prev.Value * elapsed
-			fpoint := FloatPoint{Time: r.window.start, Value: r.sum / float64(r.window.end-(r.window.start+r.pointOffset))}
-			r.ch <- fpoint
-		}
+		// if r.opt.Interval.IsZero() {
+		// 	r.window.end = r.opt.EndTime + 1
+		// }
+		elapsed := float64(r.window.end - r.prev.Time)
+		r.sum += r.prev.Value * elapsed
+		fpoint := FloatPoint{Time: r.window.start, Value: r.sum / float64(r.window.end-(r.window.start+r.pointOffset))}
+		r.ch <- fpoint
+
 	}
 	close(r.ch)
 	return nil
