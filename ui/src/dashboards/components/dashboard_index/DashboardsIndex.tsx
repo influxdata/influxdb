@@ -282,10 +282,6 @@ class DashboardIndex extends PureComponent<Props, State> {
     )
   }
 
-  private handleStartEditingLabels = (dashboardLabelsEdit: Dashboard): void => {
-    this.setState({dashboardLabelsEdit, isEditingDashboardLabels: true})
-  }
-
   private handleStopEditingLabels = (): void => {
     this.setState({isEditingDashboardLabels: false})
   }

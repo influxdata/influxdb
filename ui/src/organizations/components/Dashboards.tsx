@@ -104,7 +104,14 @@ class Dashboards extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {dashboards, notify, links, handleUpdateDashboard, orgs} = this.props
+    const {
+      dashboards,
+      notify,
+      links,
+      handleUpdateDashboard,
+      orgs,
+      onRemoveDashboardLabels,
+    } = this.props
     const {searchTerm} = this.state
 
     return (
@@ -136,7 +143,7 @@ class Dashboards extends PureComponent<Props, State> {
           onCloneDashboard={this.handleCloneDashboard}
           onExportDashboard={this.handleExportDashboard}
           onUpdateDashboard={handleUpdateDashboard}
-          onEditLabels={this.handleStartEditingLabels}
+          onRemoveDashboardLabels={onRemoveDashboardLabels}
           notify={notify}
           searchTerm={searchTerm}
           showOwnerColumn={false}
@@ -272,10 +279,6 @@ class Dashboards extends PureComponent<Props, State> {
         />
       </OverlayTechnology>
     )
-  }
-
-  private handleStartEditingLabels = (dashboardLabelsEdit: Dashboard): void => {
-    this.setState({dashboardLabelsEdit, isEditingDashboardLabels: true})
   }
 
   private handleStopEditingLabels = (): void => {

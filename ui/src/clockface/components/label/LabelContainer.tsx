@@ -5,31 +5,30 @@ import _ from 'lodash'
 
 // Components
 import LabelTooltip from 'src/clockface/components/label/LabelTooltip'
+import {Button} from '@influxdata/clockface'
+
+// Types
+import {ButtonShape, IconFont, ComponentColor} from '@influxdata/clockface'
 
 // Styles
 import 'src/clockface/components/label/LabelContainer.scss'
 
-interface PassedProps {
-  renderEditButton: () => JSX.Element
+interface Props {
   children?: JSX.Element[]
   className?: string
-}
-
-interface DefaultProps {
   limitChildCount?: number
   resourceName?: string
+  onEdit?: () => void
 }
 
-type Props = PassedProps & DefaultProps
-
 class LabelContainer extends Component<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps: Partial<Props> = {
     limitChildCount: 999,
     resourceName: 'this resource',
   }
 
   public render() {
-    const {className, renderEditButton} = this.props
+    const {className} = this.props
 
     return (
       <div
@@ -40,7 +39,7 @@ class LabelContainer extends Component<Props> {
         <div className="label--container-margin">
           {this.children}
           {this.additionalChildrenIndicator}
-          {renderEditButton()}
+          {this.editButton}
         </div>
       </div>
     )
@@ -86,6 +85,28 @@ class LabelContainer extends Component<Props> {
         <div className="additional-labels">
           +{additionalCount} more
           <LabelTooltip labels={this.sortedChildren.slice(limitChildCount)} />
+        </div>
+      )
+    }
+  }
+
+  private get editButton(): JSX.Element {
+    const {onEdit, children, resourceName} = this.props
+
+    const titleText = React.Children.count(children)
+      ? `Edit Labels for ${resourceName}`
+      : `Add Labels to ${resourceName}`
+
+    if (onEdit) {
+      return (
+        <div className="label--edit-button">
+          <Button
+            color={ComponentColor.Primary}
+            titleText={titleText}
+            onClick={onEdit}
+            shape={ButtonShape.Square}
+            icon={IconFont.Plus}
+          />
         </div>
       )
     }
