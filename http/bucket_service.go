@@ -249,10 +249,12 @@ type bucketResponse struct {
 func newBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
 	res := &bucketResponse{
 		Links: map[string]string{
-			"self":   fmt.Sprintf("/api/v2/buckets/%s", b.ID),
-			"log":    fmt.Sprintf("/api/v2/buckets/%s/log", b.ID),
-			"labels": fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
-			"org":    fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
+			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
+			"log":     fmt.Sprintf("/api/v2/buckets/%s/log", b.ID),
+			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
+			"members": fmt.Sprintf("/api/v2/buckets/%s/members", b.ID),
+			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
+			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
 		},
 		bucket: *newBucket(b),
 		Labels: []influxdb.Label{},

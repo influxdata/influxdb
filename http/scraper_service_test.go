@@ -132,7 +132,9 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "links": {
 						    "bucket": "/api/v2/buckets/0000000000000212",
 						    "organization": "/api/v2/orgs/0000000000000211",
-						    "self": "/api/v2/scrapers/0000000000000111"
+						    "self": "/api/v2/scrapers/0000000000000111",
+						    "members": "/api/v2/scrapers/0000000000000111/members",
+						    "owners": "/api/v2/scrapers/0000000000000111/owners"
 						  }
 						},
 						{
@@ -147,7 +149,9 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "links": {
 						    "bucket": "/api/v2/buckets/0000000000000212",
 						    "organization": "/api/v2/orgs/0000000000000211",
-						    "self": "/api/v2/scrapers/0000000000000222"
+						    "self": "/api/v2/scrapers/0000000000000222",
+						    "members": "/api/v2/scrapers/0000000000000222/members",
+						    "owners": "/api/v2/scrapers/0000000000000222/owners"
 						  }
                         }
 					  ]
@@ -319,7 +323,9 @@ func TestService_handleGetScraperTarget(t *testing.T) {
                       "links": {
                         "bucket": "/api/v2/buckets/0000000000000212",
                         "organization": "/api/v2/orgs/0000000000000211",
-                        "self": "/api/v2/scrapers/%[1]s"
+                        "self": "/api/v2/scrapers/%[1]s",
+                        "members": "/api/v2/scrapers/%[1]s/members",
+                        "owners": "/api/v2/scrapers/%[1]s/owners"
                       }
                     }
                     `,
@@ -546,7 +552,9 @@ func TestService_handlePostScraperTarget(t *testing.T) {
                       "links": {
                         "bucket": "/api/v2/buckets/0000000000000212",
                         "organization": "/api/v2/orgs/0000000000000211",
-                        "self": "/api/v2/scrapers/%[1]s"
+                        "self": "/api/v2/scrapers/%[1]s",
+                        "members": "/api/v2/scrapers/%[1]s/members",
+                        "owners": "/api/v2/scrapers/%[1]s/owners"
                       }
                     }
                     `,
@@ -675,7 +683,9 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 		              "links":{
 		                "bucket": "/api/v2/buckets/0000000000000212",
 		                "organization": "/api/v2/orgs/0000000000000211",
-		                "self":"/api/v2/scrapers/%[1]s"
+		                "self":"/api/v2/scrapers/%[1]s",
+		                "members":"/api/v2/scrapers/%[1]s/members",
+		                "owners":"/api/v2/scrapers/%[1]s/owners"
 		              }
 		            }`,
 					targetOneIDString,

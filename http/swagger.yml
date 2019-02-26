@@ -5450,19 +5450,19 @@ components:
             self: "/api/v2/buckets/1"
             org: "/api/v2/orgs/2"
             write: "/api/v2/write?org=myorg"
+            members: "/api/v2/buckets/1/members"
+            owners: "/api/v2/buckets/1/owners"
           properties:
             self:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             org:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             write:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
+            members:
+              $ref: "#/components/schemas/Link"
+            owners:
+              $ref: "#/components/schemas/Link"
         id:
           readOnly: true
           type: string
@@ -5506,6 +5506,7 @@ components:
             $ref: "#/components/schemas/Bucket"
     Link:
       type: string
+      format: uri
       readOnly: true
       description: URI of resource.
     Links:
@@ -5573,6 +5574,7 @@ components:
           example:
             self: "/api/v2/orgs/1"
             members: "/api/v2/orgs/1/members"
+            owners: "/api/v2/orgs/1/owners"
             labels: "/api/v2/orgs/1/labels"
             secrets: "/api/v2/orgs/1/secrets"
             buckets: "/api/v2/buckets?org=myorg"
@@ -5580,33 +5582,21 @@ components:
             dashboards: "/api/v2/dashboards?org=myorg"
           properties:
             self:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             members:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
+            owners:
+              $ref: "#/components/schemas/Link"
             labels:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             secrets:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             buckets:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             tasks:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             dashboards:
-              readOnly: true
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
         id:
           readOnly: true
           type: string
@@ -6707,11 +6697,20 @@ components:
           properties:
             links:
               type: object
+              example:
+                self: "/api/v2/dashboards/1"
+                cells: "/api/v2/dashboards/1/cells"
+                owners: "/api/v2/dashboards/1/owners"
+                members: "/api/v2/dashboards/1/members"
               properties:
                 self:
-                  type: string
+                  $ref: "#/components/schemas/Link"
                 cells:
-                  type: string
+                  $ref: "#/components/schemas/Link"
+                members:
+                  $ref: "#/components/schemas/Link"
+                owners:
+                  $ref: "#/components/schemas/Link"
             id:
               readOnly: true
               type: string
@@ -6843,8 +6842,17 @@ components:
                 type: string
                 description: name of scraper target
             links:
-              readOnly: true
-              $ref: "#/components/schemas/Links"
+              example:
+                self: "/api/v2/scrapers/1"
+                owners: "/api/v2/scrapers/1/owners"
+                members: "/api/v2/scrapers/1/members"
+              properties:
+                self:
+                  $ref: "#/components/schemas/Link"
+                members:
+                  $ref: "#/components/schemas/Link"
+                owners:
+                  $ref: "#/components/schemas/Link"
     ScraperTargetResponses:
       type: object
       properties:
@@ -7467,11 +7475,20 @@ components:
               type: string
             links:
               type: object
+              example:
+                self: "/api/v2/telegrafs/1"
+                lables: "/api/v2/telegrafs/1/labels"
+                owners: "/api/v2/telegrafs/1/owners"
+                members: "/api/v2/telegrafs/1/members"
               properties:
                 self:
-                  type: string
+                  $ref: "#/components/schemas/Link"
                 labels:
-                  type: string
+                  $ref: "#/components/schemas/Link"
+                members:
+                  $ref: "#/components/schemas/Link"
+                owners:
+                  $ref: "#/components/schemas/Link"
             labels:
               $ref: "#/components/schemas/Labels"
     Telegrafs:
