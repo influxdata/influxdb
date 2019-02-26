@@ -4,7 +4,7 @@ describe('Orgs', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.setupUser().then(({ body }) => {
+    cy.setupUser().then(({body}) => {
       cy.signin(body.org.id)
     })
 
@@ -35,7 +35,7 @@ describe('Orgs', () => {
       cy.get('.index-list--row').then(rows => {
         const numOrgs = rows.length
 
-        cy.contains('Confirm').click({ force: true })
+        cy.contains('Confirm').click({force: true})
 
         cy.get('.index-list--row')
           .its('length')
@@ -45,7 +45,7 @@ describe('Orgs', () => {
   })
 
   it('can update an org name', () => {
-    cy.createOrg().then(({ body }) => {
+    cy.createOrg().then(({body}) => {
       const newName = 'new 🅱️organization'
       cy.visit(`${orgRoute}/${body.id}/member_tab`)
 
