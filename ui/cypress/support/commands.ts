@@ -1,9 +1,15 @@
-export const signin = (): Cypress.Chainable<Response> => {
-  return cy.fixture('user').then(user => {
-    cy.request({
-      method: 'POST',
-      url: '/api/v2/signin',
-      auth: {user: user.username, pass: user.password},
+export const signin = (): Cypress.Chainable<Cypress.Response> => {
+  return cy.fixture('user').then(({username, password, org, bucket}) => {
+    return cy.setupUser().then(body => {
+      return cy
+        .request({
+          method: 'POST',
+          url: '/api/v2/signin',
+          auth: {user: username, pass: password},
+        })
+        .then(() => {
+          return cy.wrap(body)
+        })
     })
   })
 }
@@ -102,16 +108,11 @@ export const createSource = (
 // TODO: have to go through setup because we cannot create a user w/ a password via the user API
 export const setupUser = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password, org, bucket}) => {
-    return cy
-      .request({
-        method: 'POST',
-        url: '/api/v2/setup',
-        body: {username, password, org, bucket},
-      })
-      .then(body => {
-        signin()
-        return cy.wrap(body)
-      })
+    return cy.request({
+      method: 'POST',
+      url: '/api/v2/setup',
+      body: {username, password, org, bucket},
+    })
   })
 }
 

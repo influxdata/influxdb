@@ -2,7 +2,7 @@ describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.setupUser()
+    cy.signin()
 
     cy.fixture('routes').then(({explorer}) => {
       cy.visit(explorer)

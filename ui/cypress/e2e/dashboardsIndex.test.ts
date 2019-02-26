@@ -4,7 +4,7 @@ describe('Dashboards', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.setupUser().then(({body}) => {
+    cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
     })
 
@@ -13,7 +13,7 @@ describe('Dashboards', () => {
     })
   })
 
-  it.only('can create a dashboard from empty state', () => {
+  it('can create a dashboard from empty state', () => {
     cy.getByTestID('empty-state')
       .contains('Create')
       .click()
