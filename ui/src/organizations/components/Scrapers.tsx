@@ -32,6 +32,7 @@ import {
   scraperUpdateSuccess,
   scraperUpdateFailed,
 } from 'src/shared/copy/v2/notifications'
+import FilterList from 'src/shared/components/Filter'
 
 interface Props {
   scrapers: ScraperTargetResponse[]
@@ -59,6 +60,7 @@ export default class Scrapers extends PureComponent<Props, State> {
 
   public render() {
     const {searchTerm} = this.state
+    const {scrapers} = this.props
 
     return (
       <>
@@ -74,12 +76,20 @@ export default class Scrapers extends PureComponent<Props, State> {
           />
           {this.createScraperButton}
         </Tabs.TabContentsHeader>
-        <ScraperList
-          scrapers={this.configurations}
-          emptyState={this.emptyState}
-          onDeleteScraper={this.handleDeleteScraper}
-          onUpdateScraper={this.handleUpdateScraper}
-        />
+        <FilterList<ScraperTargetResponse>
+          searchTerm={searchTerm}
+          searchKeys={['name', 'url']}
+          list={scrapers}
+        >
+          {sl => (
+            <ScraperList
+              scrapers={sl}
+              emptyState={this.emptyState}
+              onDeleteScraper={this.handleDeleteScraper}
+              onUpdateScraper={this.handleUpdateScraper}
+            />
+          )}
+        </FilterList>
         <DataLoadersWizard
           visible={this.isOverlayVisible}
           onCompleteSetup={this.handleDismissDataLoaders}
@@ -98,28 +108,6 @@ export default class Scrapers extends PureComponent<Props, State> {
       return []
     }
     return buckets
-  }
-
-  private get configurations(): ScraperTargetResponse[] {
-    const {scrapers} = this.props
-    const {searchTerm} = this.state
-
-    if (!scrapers || !scrapers) {
-      return []
-    }
-
-    return scrapers.filter(c => {
-      if (!searchTerm) {
-        return true
-      }
-      if (!c.bucket) {
-        return false
-      }
-
-      return String(c.bucket)
-        .toLocaleLowerCase()
-        .includes(searchTerm.toLocaleLowerCase())
-    })
   }
 
   private get isOverlayVisible(): boolean {
