@@ -7,7 +7,7 @@ import {IconFont, ComponentColor} from '@influxdata/clockface'
 import {ResourceList, Context} from 'src/clockface'
 import FeatureFlag from 'src/shared/components/FeatureFlag'
 import FetchLabels from 'src/shared/components/FetchLabels'
-import InlineLabelEditor from 'src/shared/components/inline_label_editor/InlineLabelEditor'
+import ResourceLabels from 'src/shared/components/inline_label_editor/ResourceLabels'
 
 // Types
 import {Dashboard, Organization} from 'src/types/v2'
@@ -123,7 +123,7 @@ export default class DashboardCard extends PureComponent<Props> {
     return (
       <FetchLabels>
         {labels => (
-          <InlineLabelEditor
+          <ResourceLabels
             labels={labels}
             selectedLabels={dashboard.labels}
             onRemoveLabel={this.handleRemoveLabels}

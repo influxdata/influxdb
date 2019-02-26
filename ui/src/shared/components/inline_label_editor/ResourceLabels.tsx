@@ -9,7 +9,7 @@ import {Label} from 'src/clockface'
 import {Label as LabelType} from 'src/types/v2/labels'
 
 // Styles
-import 'src/shared/components/inline_label_editor/InlineLabelEditor.scss'
+import 'src/shared/components/inline_label_editor/ResourceLabels.scss'
 
 interface Props {
   selectedLabels: LabelType[]
@@ -17,9 +17,9 @@ interface Props {
   onRemoveLabel: (label: LabelType) => void
 }
 
-export default class InlineLabelEditor extends Component<Props> {
+export default class ResourceLabels extends Component<Props> {
   public render() {
-    return <div className="inline-label-editor">{this.selectedLabels}</div>
+    return <div className="resource-labels">{this.selectedLabels}</div>
   }
 
   private get selectedLabels(): JSX.Element {
@@ -27,7 +27,7 @@ export default class InlineLabelEditor extends Component<Props> {
 
     if (selectedLabels.length) {
       return (
-        <div className="inline-label-editor--margin">
+        <div className="resource-labels--margin">
           {selectedLabels.map(label => (
             <Label
               id={label.id}
@@ -42,7 +42,7 @@ export default class InlineLabelEditor extends Component<Props> {
       )
     }
 
-    return <div className="inline-label-editor--empty">No labels</div>
+    return <div className="resource-labels--empty">No labels</div>
   }
 
   private handleDeleteLabel = (labelID: string): void => {

@@ -1,17 +1,17 @@
 @import 'src/style/modules';
 
 /*
-  Inline Label Editor
+  Resource Labels
   ------------------------------------------------------------------------------
 */
 
 $label-margin: $ix-border / 2;
 
-.inline-label-editor {
+.resource-labels {
   width: 100%;
 }
 
-.inline-label-editor--margin {
+.resource-labels--margin {
   width: calc(100% + #{$label-margin * 2});
   position: relative;
   left: $label-margin * -2;
@@ -24,7 +24,7 @@ $label-margin: $ix-border / 2;
   }
 }
 
-.inline-label-editor--empty {
+.resource-labels--empty {
   color: $g9-mountain;
   font-style: italic;
   font-size: $form-xs-font;
