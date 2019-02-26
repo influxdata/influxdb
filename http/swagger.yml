@@ -5619,8 +5619,6 @@ components:
           enum:
             - active
             - inactive
-        owners:
-          $ref: "#/components/schemas/Owners"
       required: [name]
     Organizations:
       type: object
@@ -5631,12 +5629,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Organization"
-    Owners:
-      properties:
-        users:
-          $ref: "#/components/schemas/Users"
-        organizations:
-          $ref: "#/components/schemas/Organizations"
     Run:
       properties:
         id:
