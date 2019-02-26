@@ -1,9 +1,9 @@
+@import 'src/style/modules';
+
 /*
   Label Container Styles
   ------------------------------------------------------------------------------
 */
-
-@import 'src/style/modules';
 
 $label-margin: 1px;
 $label-edit-button-diameter: 18px;
@@ -19,7 +19,7 @@ $label-edit-button-diameter: 18px;
   display: flex;
   flex-wrap: wrap;
   padding: $label-margin;
-  
+
   > .label {
     margin: $label-margin;
   }
@@ -88,80 +88,3 @@ $label-edit-button-diameter: 18px;
 .additional-labels:hover .label--tooltip-container {
   opacity: 1;
 }
-
-/*
-  Edit Labels on Resource
-  ------------------------------------------------------------------------------
-*/
-
-.label--edit-button {
-  width: $label-edit-button-diameter;
-  height: $label-edit-button-diameter;
-  margin: $label-margin;
-  position: relative;
-  transition: opacity 0.25s ease;
-
-  &:before,
-  &:after {
-    content: '';
-    pointer-events: none;
-    background-color: $g20-white;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%,-50%);
-    z-index: 3;
-    transition: width 0.25s ease;
-    height: $ix-border;
-    width: $label-edit-button-diameter - $ix-marg-b;
-    border-radius: $ix-border / 2;
-  }
-
-   &:after {
-     transform: translate(-50%,-50%) rotate(90deg);
-   }
-
-  > .button.button-sm {
-    position: absolute;
-    z-index: 2;
-    top: 50%;
-    left: 50%;
-    width: $label-edit-button-diameter;
-    height: $label-edit-button-diameter;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    color: transparent;
-    transition:
-      background-color 0.25s ease,
-      border-color 0.25s ease,
-      box-shadow 0.25s ease,
-      height 0.25s ease,
-      width 0.25s ease;
-
-    > .button-icon {
-      font-size: $form-sm-font;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%,-50%);
-    }
-  }
-
-  &:hover > .button.button-sm {
-    width: $form-sm-height - $ix-marg-a;
-    height: $form-sm-height - $ix-marg-a;
-  }
-
-  &:hover:before,
-  &:hover:after {
-    width: $form-sm-height - $ix-marg-c;
-  }
-}
-
-/* When used inside an index list, hide until row hover */
-  .index-list--row-cell .label--edit-button {
-    opacity: 0;
-  }
-  .index-list--row-cell:hover .label--edit-button {
-    opacity: 1;
-  }

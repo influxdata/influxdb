@@ -103,7 +103,14 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {dashboards, notify, links, handleUpdateDashboard, orgs} = this.props
+    const {
+      dashboards,
+      notify,
+      links,
+      handleUpdateDashboard,
+      orgs,
+      onRemoveDashboardLabels,
+    } = this.props
     const {searchTerm} = this.state
 
     return (
@@ -139,7 +146,7 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onCloneDashboard={this.handleCloneDashboard}
                 onExportDashboard={this.handleExportDashboard}
                 onUpdateDashboard={handleUpdateDashboard}
-                onEditLabels={this.handleStartEditingLabels}
+                onRemoveDashboardLabels={onRemoveDashboardLabels}
                 notify={notify}
                 searchTerm={searchTerm}
                 showOwnerColumn={true}

@@ -1,0 +1,33 @@
+@import 'src/style/modules';
+
+/*
+  Inline Label Editor
+  ------------------------------------------------------------------------------
+*/
+
+$label-margin: $ix-border / 2;
+
+.inline-label-editor {
+  width: 100%;
+}
+
+.inline-label-editor--margin {
+  width: calc(100% + #{$label-margin * 2});
+  position: relative;
+  left: $label-margin * -2;
+  display: flex;
+  flex-wrap: wrap;
+  padding: $label-margin;
+
+  > .label {
+    margin: $label-margin;
+  }
+}
+
+.inline-label-editor--empty {
+  color: $g9-mountain;
+  font-style: italic;
+  font-size: $form-xs-font;
+  font-weight: 500;
+  font-family: $ix-text-font;
+}

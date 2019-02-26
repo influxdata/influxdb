@@ -6,6 +6,7 @@ import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCa
 
 // Types
 import {Dashboard, Organization} from 'src/types/v2'
+import {Label} from 'src/types/v2/labels'
 
 interface Props {
   dashboards: Dashboard[]
@@ -13,9 +14,9 @@ interface Props {
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  onEditLabels: (dashboard: Dashboard) => void
   orgs: Organization[]
   showOwnerColumn: boolean
+  onRemoveLabels: (resourceID: string, labels: Label[]) => void
 }
 
 export default class DashboardCards extends PureComponent<Props> {
@@ -26,9 +27,9 @@ export default class DashboardCards extends PureComponent<Props> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
-      onEditLabels,
       orgs,
       showOwnerColumn,
+      onRemoveLabels,
     } = this.props
 
     return dashboards.map(d => (
@@ -39,9 +40,9 @@ export default class DashboardCards extends PureComponent<Props> {
         onCloneDashboard={onCloneDashboard}
         onDeleteDashboard={onDeleteDashboard}
         onUpdateDashboard={onUpdateDashboard}
-        onEditLabels={onEditLabels}
         orgs={orgs}
         showOwnerColumn={showOwnerColumn}
+        onRemoveLabels={onRemoveLabels}
       />
     ))
   }

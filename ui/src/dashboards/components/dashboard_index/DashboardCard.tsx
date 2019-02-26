@@ -1,13 +1,17 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
 
 // Components
 import {IconFont, ComponentColor} from '@influxdata/clockface'
-import {Label, ResourceList, Context} from 'src/clockface'
+import {ResourceList, Context} from 'src/clockface'
 import FeatureFlag from 'src/shared/components/FeatureFlag'
+import FetchLabels from 'src/shared/components/FetchLabels'
+import InlineLabelEditor from 'src/shared/components/inline_label_editor/InlineLabelEditor'
 
 // Types
 import {Dashboard, Organization} from 'src/types/v2'
+import {Label} from 'src/types/v2/labels'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
@@ -19,8 +23,8 @@ interface Props {
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  onEditLabels: (dashboard: Dashboard) => void
   showOwnerColumn: boolean
+  onRemoveLabels: (resourceID: string, labels: Label[]) => void
 }
 
 export default class DashboardCard extends PureComponent<Props> {
@@ -60,6 +64,12 @@ export default class DashboardCard extends PureComponent<Props> {
 
   private handleUpdateDashboard = (name: string) => {
     this.props.onUpdateDashboard({...this.props.dashboard, name})
+  }
+
+  private handleRemoveLabels = (label: Label): void => {
+    const {onRemoveLabels, dashboard} = this.props
+
+    onRemoveLabels(dashboard.id, [label])
   }
 
   private get contextMenu(): JSX.Element {
@@ -110,38 +120,17 @@ export default class DashboardCard extends PureComponent<Props> {
   private get labels(): JSX.Element {
     const {dashboard} = this.props
 
-    if (!dashboard.labels.length) {
-      return (
-        <Label.Container
-          limitChildCount={4}
-          onEdit={this.handleEditLabels}
-          resourceName="this Dashboard"
-        />
-      )
-    }
-
     return (
-      <Label.Container
-        limitChildCount={8}
-        onEdit={this.handleEditLabels}
-        resourceName="this Dashboard"
-      >
-        {dashboard.labels.map((label, index) => (
-          <Label
-            key={label.id || `label-${index}`}
-            id={label.id}
-            colorHex={label.properties.color}
-            name={label.name}
-            description={label.properties.description}
+      <FetchLabels>
+        {labels => (
+          <InlineLabelEditor
+            labels={labels}
+            selectedLabels={dashboard.labels}
+            onRemoveLabel={this.handleRemoveLabels}
           />
-        ))}
-      </Label.Container>
+        )}
+      </FetchLabels>
     )
-  }
-
-  private handleEditLabels = () => {
-    const {dashboard, onEditLabels} = this.props
-    onEditLabels(dashboard)
   }
 
   private get ownerOrg(): Organization {

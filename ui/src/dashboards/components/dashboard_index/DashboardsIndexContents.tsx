@@ -12,6 +12,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {Dashboard, Organization} from 'src/types/v2'
 import {Notification} from 'src/types/notifications'
+import {Label} from 'src/types/v2/labels'
 
 interface Props {
   dashboards: Dashboard[]
@@ -23,11 +24,11 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onDeleteDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  onEditLabels: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
   searchTerm: string
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
+  onRemoveDashboardLabels: (resourceID: string, labels: Label[]) => void
 }
 
 @ErrorHandling
@@ -41,12 +42,12 @@ export default class DashboardsIndexContents extends Component<Props> {
       defaultDashboardLink,
       onSetDefaultDashboard,
       onUpdateDashboard,
-      onEditLabels,
       searchTerm,
       orgs,
       showOwnerColumn,
       dashboards,
       filterComponent,
+      onRemoveDashboardLabels,
     } = this.props
 
     return (
@@ -68,9 +69,9 @@ export default class DashboardsIndexContents extends Component<Props> {
             defaultDashboardLink={defaultDashboardLink}
             onSetDefaultDashboard={onSetDefaultDashboard}
             onUpdateDashboard={onUpdateDashboard}
-            onEditLabels={onEditLabels}
             orgs={orgs}
             showOwnerColumn={showOwnerColumn}
+            onRemoveLabels={onRemoveDashboardLabels}
           />
         )}
       </FilterList>

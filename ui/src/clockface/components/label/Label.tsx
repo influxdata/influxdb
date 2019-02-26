@@ -23,7 +23,7 @@ export interface LabelType {
   onDelete?: (id: string) => void
 }
 
-interface LabelProps {
+interface DefaultProps {
   size?: ComponentSize
 }
 
@@ -31,11 +31,11 @@ interface State {
   isMouseOver: boolean
 }
 
-type Props = LabelType & LabelProps
+type Props = LabelType & DefaultProps
 
 @ErrorHandling
 class Label extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     size: ComponentSize.ExtraSmall,
   }
 

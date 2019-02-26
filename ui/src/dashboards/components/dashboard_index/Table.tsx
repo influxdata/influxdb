@@ -17,6 +17,7 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 // Types
 import {Sort} from 'src/clockface'
 import {Dashboard, Organization} from 'src/types/v2'
+import {Label} from 'src/types/v2/labels'
 
 interface Props {
   searchTerm: string
@@ -28,10 +29,10 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onSetDefaultDashboard: (dashboardLink: string) => void
-  onEditLabels: (dashboard: Dashboard) => void
   orgs: Organization[]
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
+  onRemoveLabels: (resourceID: string, labels: Label[]) => void
 }
 
 interface DatedDashboard extends Dashboard {
@@ -113,9 +114,9 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
-      onEditLabels,
       orgs,
       showOwnerColumn,
+      onRemoveLabels,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -134,9 +135,9 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onExportDashboard={onExportDashboard}
               onDeleteDashboard={onDeleteDashboard}
               onUpdateDashboard={onUpdateDashboard}
-              onEditLabels={onEditLabels}
               orgs={orgs}
               showOwnerColumn={showOwnerColumn}
+              onRemoveLabels={onRemoveLabels}
             />
           )}
         </SortingHat>
