@@ -81,3 +81,4 @@ man/*.1.gz
 
 # vendored files
 /vendor
+/gen
