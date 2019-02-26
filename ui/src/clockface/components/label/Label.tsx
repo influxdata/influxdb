@@ -63,7 +63,7 @@ class Label extends Component<Props, State> {
         style={this.style}
         title={this.title}
       >
-        <label>{name}</label>
+        <span className="label--name">{name}</span>
         {this.deleteButton}
       </div>
     )
@@ -103,12 +103,11 @@ class Label extends Component<Props, State> {
   }
 
   private get className(): string {
-    const {size, onClick, onDelete} = this.props
+    const {size, onClick} = this.props
 
     return classnames('label', {
       [`label--${size}`]: size,
       'label--clickable': onClick,
-      'label--deletable': onDelete,
     })
   }
 
@@ -131,7 +130,7 @@ class Label extends Component<Props, State> {
           className="label--delete"
           onClick={this.handleDelete}
           type="button"
-          title={`Click × to remove "${name}"`}
+          title={`Remove label "${name}"`}
         >
           <div
             className="label--delete-x"
