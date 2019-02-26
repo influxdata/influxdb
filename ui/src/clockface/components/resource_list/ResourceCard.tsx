@@ -15,8 +15,7 @@ interface PassedProps {
   updatedAt?: string
   owner?: Organization
   labels?: () => JSX.Element
-  meta1?: () => JSX.Element
-  meta2?: () => JSX.Element
+  metadata?: () => JSX.Element[]
   contextMenu?: () => JSX.Element
   children?: JSX.Element[] | JSX.Element
 }
@@ -47,29 +46,32 @@ export default class ResourceListCard extends PureComponent<Props> {
   }
 
   private get nameAndMeta(): JSX.Element {
-    const {name} = this.props
+    const {name, updatedAt, owner, metadata} = this.props
+
+    let metaInformation
+
+    if (!updatedAt && !owner && !metadata) {
+      metaInformation = null
+    } else {
+      const metaChildren = React.Children.map(metadata(), (m: JSX.Element) => {
+        if (m !== null && m !== undefined) {
+          return <div className="resource-list--meta-item">{m}</div>
+        }
+      })
+
+      metaInformation = (
+        <div className="resource-list--meta">
+          {this.ownerLink}
+          {this.updated}
+          {metaChildren}
+        </div>
+      )
+    }
 
     return (
       <div className="resource-list--name-meta">
         {name()}
-        {this.meta}
-      </div>
-    )
-  }
-
-  private get meta(): JSX.Element {
-    const {updatedAt, owner, meta1, meta2} = this.props
-
-    if (!updatedAt && !owner && !meta1 && !meta2) {
-      return null
-    }
-
-    return (
-      <div className="resource-list--meta">
-        {this.ownerLink}
-        {this.updated}
-        {this.meta1}
-        {this.meta2}
+        {metaInformation}
       </div>
     )
   }
@@ -103,22 +105,6 @@ export default class ResourceListCard extends PureComponent<Props> {
           {`Modified ${relativeTimestamp}`}
         </div>
       )
-    }
-  }
-
-  private get meta1(): JSX.Element {
-    const {meta1} = this.props
-
-    if (meta1) {
-      return <div className="resource-list--meta-item">{meta1()}</div>
-    }
-  }
-
-  private get meta2(): JSX.Element {
-    const {meta2} = this.props
-
-    if (meta2) {
-      return <div className="resource-list--meta-item">{meta2()}</div>
     }
   }
 
