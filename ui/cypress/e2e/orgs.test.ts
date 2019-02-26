@@ -5,7 +5,7 @@ describe('Orgs', () => {
     cy.flush()
 
     cy.setupUser().then(({body}) => {
-      cy.signin(body.org.id)
+      cy.signin()
     })
 
     cy.visit(orgRoute)
