@@ -35,9 +35,7 @@ describe('Dashboard', () => {
 
     cy.getByTestID('resource-card').should('contain', newName)
   })
-})
 
-describe('Cells', () => {
   it('can create a cell', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.createDashboard(id).then(({body}) => {
