@@ -2,24 +2,36 @@
 import React, {Component} from 'react'
 import classnames from 'classnames'
 
-interface Props {
+interface PassedProps {
   label: string
-  description?: string
   action: (value?: any) => void
   value?: any
   onCollapseMenu?: () => void
   disabled?: boolean
 }
 
+interface DefaultProps {
+  description?: string
+  testID?: string
+}
+
+type Props = PassedProps & DefaultProps
+
 class ContextMenuItem extends Component<Props> {
+  public static defaultProps: DefaultProps = {
+    description: null,
+    testID: 'context-menu-item',
+  }
+
   public render() {
-    const {label, disabled} = this.props
+    const {label, disabled, testID} = this.props
 
     return (
       <button
         className={this.className}
         onClick={this.handleClick}
         disabled={disabled}
+        data-testid={testID}
       >
         {label}
         {this.description}

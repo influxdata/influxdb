@@ -19,7 +19,9 @@ exports[`Account rendering renders! 1`] = `
         size="sm"
         spellCheck={false}
         status="default"
+        testID="input-field"
         titleText=""
+        type="text"
         value=""
         widthPixels={256}
       >
@@ -35,12 +37,14 @@ exports[`Account rendering renders! 1`] = `
             autoComplete="off"
             autoFocus={false}
             className="input-field"
+            data-testid="input-field"
             disabled={false}
             name=""
             onChange={[Function]}
             placeholder="Filter Tokens..."
             spellCheck={false}
             title=""
+            type="text"
             value=""
           />
           <span
@@ -244,6 +248,7 @@ exports[`Account rendering renders! 1`] = `
                 emptyState={
                   <EmptyState
                     size="lg"
+                    testID="empty-state"
                   >
                     <EmptyStateText
                       text="There are not any Tokens associated with this account. Contact your administrator"
@@ -306,7 +311,7 @@ exports[`Account rendering renders! 1`] = `
                               className="index-list--cell"
                             >
                               <a
-                                data-test="token-description-1"
+                                data-testid="token-description-1"
                                 href="#"
                                 onClick={[Function]}
                               >
@@ -426,7 +431,7 @@ exports[`Account rendering renders! 1`] = `
                               className="index-list--cell"
                             >
                               <a
-                                data-test="token-description-2"
+                                data-testid="token-description-2"
                                 href="#"
                                 onClick={[Function]}
                               >
@@ -506,7 +511,7 @@ exports[`Account rendering renders! 1`] = `
             >
               <div
                 className="overlay--dialog"
-                data-test="overlay-children"
+                data-testid="overlay-children"
               />
               <div
                 className="overlay--mask"

@@ -16,7 +16,7 @@ describe('Variables', () => {
     })
 
     cy.getByInputName('name').type('Little Variable')
-    cy.getByDataTest('flux-editor').within(() => {
+    cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea').type('filter(fn: (r) => r._field == "cpu")', {
         force: true,
       })
@@ -26,6 +26,6 @@ describe('Variables', () => {
       .contains('Create')
       .click()
 
-    cy.getByDataTest('variable-row').should('have.length', 1)
+    cy.getByTestID('variable-row').should('have.length', 1)
   })
 })

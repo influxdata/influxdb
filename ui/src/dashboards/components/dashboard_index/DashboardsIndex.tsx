@@ -114,10 +114,6 @@ class DashboardIndex extends PureComponent<Props, State> {
               <Page.Title title="Dashboards" />
             </Page.Header.Left>
             <Page.Header.Right>
-              <SearchWidget
-                placeholderText="Filter dashboards by name..."
-                onSearch={this.handleFilterDashboards}
-              />
               <AddResourceDropdown
                 onSelectNew={this.handleCreateDashboard}
                 onSelectImport={this.handleToggleImportOverlay}
@@ -128,6 +124,12 @@ class DashboardIndex extends PureComponent<Props, State> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-md-12">
               <DashboardsIndexContents
+                filterComponent={() => (
+                  <SearchWidget
+                    placeholderText="Filter dashboards by name..."
+                    onSearch={this.handleFilterDashboards}
+                  />
+                )}
                 orgs={orgs}
                 dashboards={dashboards}
                 onSetDefaultDashboard={this.handleSetDefaultDashboard}

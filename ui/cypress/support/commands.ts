@@ -98,7 +98,7 @@ export const flush = () => {
 }
 
 // DOM node getters
-export const getByDataTest = (dataTest: string): Cypress.Chainable => {
+export const getByTestID = (dataTest: string): Cypress.Chainable => {
   return cy.get(`[data-testid="${dataTest}"]`)
 }
 
@@ -111,7 +111,7 @@ export const getByTitle = (name: string): Cypress.Chainable => {
 }
 
 // getters
-Cypress.Commands.add('getByDataTest', getByDataTest)
+Cypress.Commands.add('getByTestID', getByTestID)
 Cypress.Commands.add('getByInputName', getByInputName)
 Cypress.Commands.add('getByTitle', getByTitle)
 

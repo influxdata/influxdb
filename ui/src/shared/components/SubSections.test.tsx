@@ -67,14 +67,14 @@ describe('SubSections', () => {
   describe('render', () => {
     it('renders the currently active tab', () => {
       const wrapper = setup()
-      const content = wrapper.dive().find({'data-test': 'subsectionContent'})
+      const content = wrapper.dive().find({'data-testid': 'subsectionContent'})
 
       expect(content.find(Guava).exists()).toBe(true)
     })
 
     it('only renders enabled tabs', () => {
       const wrapper = setup()
-      const nav = wrapper.dive().find({'data-test': 'subsectionNav'})
+      const nav = wrapper.dive().find({'data-testid': 'subsectionNav'})
 
       const tabs = nav.find(SubSectionsTab)
 

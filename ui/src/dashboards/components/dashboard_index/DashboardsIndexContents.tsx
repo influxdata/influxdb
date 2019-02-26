@@ -27,6 +27,7 @@ interface Props {
   notify: (message: Notification) => void
   searchTerm: string
   showOwnerColumn: boolean
+  filterComponent?: () => JSX.Element
 }
 
 @ErrorHandling
@@ -45,6 +46,7 @@ export default class DashboardsIndexContents extends Component<Props> {
       orgs,
       showOwnerColumn,
       dashboards,
+      filterComponent,
     } = this.props
 
     return (
@@ -56,6 +58,7 @@ export default class DashboardsIndexContents extends Component<Props> {
       >
         {filteredDashboards => (
           <Table
+            filterComponent={filterComponent}
             searchTerm={searchTerm}
             dashboards={filteredDashboards}
             onDeleteDashboard={onDeleteDashboard}

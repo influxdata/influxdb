@@ -7,21 +7,16 @@ import _ from 'lodash'
 import {
   Button,
   IconFont,
-  Alignment,
   ComponentSize,
   ComponentColor,
 } from '@influxdata/clockface'
-import {EmptyState, IndexList} from 'src/clockface'
-import TableRows from 'src/dashboards/components/dashboard_index/TableRows'
+import {EmptyState, ResourceList} from 'src/clockface'
+import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort} from 'src/clockface'
 import {Dashboard, Organization} from 'src/types/v2'
-
-// Constants
-const OWNER_COL_WIDTH = 17
-const NAME_COL_WIDTH = 63
 
 interface Props {
   searchTerm: string
@@ -36,6 +31,7 @@ interface Props {
   onEditLabels: (dashboard: Dashboard) => void
   orgs: Organization[]
   showOwnerColumn: boolean
+  filterComponent?: () => JSX.Element
 }
 
 interface DatedDashboard extends Dashboard {
@@ -59,36 +55,30 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   }
 
   public render() {
+    const {filterComponent} = this.props
     const {sortKey, sortDirection} = this.state
 
     return (
-      <IndexList>
-        <IndexList.Header>
-          <IndexList.HeaderCell
-            columnName={this.headerKeys[0]}
+      <ResourceList>
+        <ResourceList.Header filterComponent={filterComponent}>
+          <ResourceList.Sorter
+            name={this.headerKeys[0]}
             sortKey={this.headerKeys[0]}
             sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-            width={this.nameColWidth}
             onClick={this.handleClickColumn}
           />
-          {this.ownerColumnHeader}
-          <IndexList.HeaderCell
-            columnName={this.headerKeys[2]}
+          {this.ownerSorter}
+          <ResourceList.Sorter
+            name={this.headerKeys[2]}
             sortKey={this.headerKeys[2]}
             sort={sortKey === this.headerKeys[2] ? sortDirection : Sort.None}
-            width="11%"
             onClick={this.handleClickColumn}
           />
-          <IndexList.HeaderCell
-            columnName=""
-            width="10%"
-            alignment={Alignment.Right}
-          />
-        </IndexList.Header>
-        <IndexList.Body emptyState={this.emptyState} columnCount={5}>
-          {this.sortedRows}
-        </IndexList.Body>
-      </IndexList>
+        </ResourceList.Header>
+        <ResourceList.Body emptyState={this.emptyState}>
+          {this.sortedCards}
+        </ResourceList.Body>
+      </ResourceList>
     )
   }
 
@@ -96,38 +86,27 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
     return ['name', 'owner', 'modified', 'default']
   }
 
-  private get ownerColumnHeader(): JSX.Element {
+  private get ownerSorter(): JSX.Element {
     const {showOwnerColumn} = this.props
     const {sortKey, sortDirection} = this.state
 
     if (showOwnerColumn) {
       return (
-        <IndexList.HeaderCell
-          columnName={this.headerKeys[1]}
+        <ResourceList.Sorter
+          name={this.headerKeys[1]}
           sortKey={this.headerKeys[1]}
           sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-          width={`${OWNER_COL_WIDTH}%`}
           onClick={this.handleClickColumn}
         />
       )
     }
   }
 
-  private get nameColWidth(): string {
-    const {showOwnerColumn} = this.props
-
-    if (showOwnerColumn) {
-      return `${NAME_COL_WIDTH}%`
-    }
-
-    return `${NAME_COL_WIDTH + OWNER_COL_WIDTH}%`
-  }
-
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
     this.setState({sortKey, sortDirection: nextSort})
   }
 
-  private get sortedRows(): JSX.Element {
+  private get sortedCards(): JSX.Element {
     const {
       dashboards,
       onExportDashboard,
@@ -149,7 +128,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
           direction={sortDirection}
         >
           {ds => (
-            <TableRows
+            <DashboardCards
               dashboards={ds}
               onCloneDashboard={onCloneDashboard}
               onExportDashboard={onExportDashboard}

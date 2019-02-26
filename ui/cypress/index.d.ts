@@ -6,7 +6,7 @@ import {
   createOrg,
   createSource,
   flush,
-  getByDataTest,
+  getByTestID,
   getByInputName,
   getByTitle,
   createTask,
@@ -22,7 +22,7 @@ declare global {
       createDashboard: typeof createDashboard
       createOrg: typeof createOrg
       flush: typeof flush
-      getByDataTest: typeof getByDataTest
+      getByTestID: typeof getByTestID
       getByInputName: typeof getByInputName
       getByTitle: typeof getByTitle
     }

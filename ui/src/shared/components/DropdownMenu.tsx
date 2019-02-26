@@ -73,7 +73,7 @@ const DropdownMenu: SFC<Props> = ({
         [menuClass]: menuClass,
       })}
       style={{width: menuWidth}}
-      data-test="dropdown-ul"
+      data-testid="dropdown-ul"
     >
       <FancyScrollbar
         autoHide={false}

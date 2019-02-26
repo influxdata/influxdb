@@ -22,7 +22,7 @@ describe('The Login Page', () => {
     cy.getByInputName('password').type(user.password)
     cy.get('button[type=submit]').click()
 
-    cy.getByDataTest('nav').should('exist')
+    cy.getByTestID('nav').should('exist')
   })
 
   describe('login failure', () => {
@@ -30,14 +30,14 @@ describe('The Login Page', () => {
       cy.getByInputName('password').type(user.password)
       cy.get('button[type=submit]').click()
 
-      cy.getByDataTest('notification-error').should('exist')
+      cy.getByTestID('notification-error').should('exist')
     })
 
     it('if password is not present', () => {
       cy.getByInputName('username').type(user.username)
       cy.get('button[type=submit]').click()
 
-      cy.getByDataTest('notification-error').should('exist')
+      cy.getByTestID('notification-error').should('exist')
     })
 
     it('if username is incorrect', () => {
@@ -45,7 +45,7 @@ describe('The Login Page', () => {
       cy.getByInputName('password').type(user.password)
       cy.get('button[type=submit]').click()
 
-      cy.getByDataTest('notification-error').should('exist')
+      cy.getByTestID('notification-error').should('exist')
     })
 
     it('if password is incorrect', () => {
@@ -53,7 +53,7 @@ describe('The Login Page', () => {
       cy.getByInputName('password').type('not-a-password')
       cy.get('button[type=submit]').click()
 
-      cy.getByDataTest('notification-error').should('exist')
+      cy.getByTestID('notification-error').should('exist')
     })
   })
 })

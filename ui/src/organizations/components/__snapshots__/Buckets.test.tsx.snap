@@ -95,7 +95,6 @@ Object {
                   >
                     <div
                       class="confirmation-button--tooltip-body"
-                      data-test="confirmation-button--click-target"
                       data-testid="confirmation-button"
                     >
                       Confirm
@@ -118,11 +117,14 @@ Object {
                   >
                     <button
                       class="button button-xs button-primary context-menu--toggle context-menu--primary"
-                      data-testid="button"
+                      data-testid="context-menu"
                       tabindex="0"
                       title="Add Data"
                       type="button"
                     >
+                      <span
+                        class="button-icon icon plus"
+                      />
                       Add Data
                     </button>
                     <div
@@ -133,6 +135,7 @@ Object {
                       >
                         <button
                           class="context-menu--item"
+                          data-testid="context-menu-item"
                         >
                           Configure Telegraf Agent
                           <div
@@ -143,6 +146,7 @@ Object {
                         </button>
                         <button
                           class="context-menu--item"
+                          data-testid="context-menu-item"
                         >
                           Line Protocol
                           <div
@@ -153,6 +157,7 @@ Object {
                         </button>
                         <button
                           class="context-menu--item"
+                          data-testid="context-menu-item"
                         >
                           Scrape Metrics
                           <div
@@ -228,7 +233,6 @@ Object {
                   >
                     <div
                       class="confirmation-button--tooltip-body"
-                      data-test="confirmation-button--click-target"
                       data-testid="confirmation-button"
                     >
                       Confirm
@@ -251,11 +255,14 @@ Object {
                   >
                     <button
                       class="button button-xs button-primary context-menu--toggle context-menu--primary"
-                      data-testid="button"
+                      data-testid="context-menu"
                       tabindex="0"
                       title="Add Data"
                       type="button"
                     >
+                      <span
+                        class="button-icon icon plus"
+                      />
                       Add Data
                     </button>
                     <div
@@ -266,6 +273,7 @@ Object {
                       >
                         <button
                           class="context-menu--item"
+                          data-testid="context-menu-item"
                         >
                           Configure Telegraf Agent
                           <div
@@ -276,6 +284,7 @@ Object {
                         </button>
                         <button
                           class="context-menu--item"
+                          data-testid="context-menu-item"
                         >
                           Line Protocol
                           <div
@@ -286,6 +295,7 @@ Object {
                         </button>
                         <button
                           class="context-menu--item"
+                          data-testid="context-menu-item"
                         >
                           Scrape Metrics
                           <div
@@ -308,7 +318,7 @@ Object {
       >
         <div
           class="overlay--dialog"
-          data-test="overlay-children"
+          data-testid="overlay-children"
         />
         <div
           class="overlay--mask"
@@ -319,7 +329,7 @@ Object {
       >
         <div
           class="overlay--dialog"
-          data-test="overlay-children"
+          data-testid="overlay-children"
         />
         <div
           class="overlay--mask"
@@ -418,7 +428,6 @@ Object {
                 >
                   <div
                     class="confirmation-button--tooltip-body"
-                    data-test="confirmation-button--click-target"
                     data-testid="confirmation-button"
                   >
                     Confirm
@@ -441,11 +450,14 @@ Object {
                 >
                   <button
                     class="button button-xs button-primary context-menu--toggle context-menu--primary"
-                    data-testid="button"
+                    data-testid="context-menu"
                     tabindex="0"
                     title="Add Data"
                     type="button"
                   >
+                    <span
+                      class="button-icon icon plus"
+                    />
                     Add Data
                   </button>
                   <div
@@ -456,6 +468,7 @@ Object {
                     >
                       <button
                         class="context-menu--item"
+                        data-testid="context-menu-item"
                       >
                         Configure Telegraf Agent
                         <div
@@ -466,6 +479,7 @@ Object {
                       </button>
                       <button
                         class="context-menu--item"
+                        data-testid="context-menu-item"
                       >
                         Line Protocol
                         <div
@@ -476,6 +490,7 @@ Object {
                       </button>
                       <button
                         class="context-menu--item"
+                        data-testid="context-menu-item"
                       >
                         Scrape Metrics
                         <div
@@ -551,7 +566,6 @@ Object {
                 >
                   <div
                     class="confirmation-button--tooltip-body"
-                    data-test="confirmation-button--click-target"
                     data-testid="confirmation-button"
                   >
                     Confirm
@@ -574,11 +588,14 @@ Object {
                 >
                   <button
                     class="button button-xs button-primary context-menu--toggle context-menu--primary"
-                    data-testid="button"
+                    data-testid="context-menu"
                     tabindex="0"
                     title="Add Data"
                     type="button"
                   >
+                    <span
+                      class="button-icon icon plus"
+                    />
                     Add Data
                   </button>
                   <div
@@ -589,6 +606,7 @@ Object {
                     >
                       <button
                         class="context-menu--item"
+                        data-testid="context-menu-item"
                       >
                         Configure Telegraf Agent
                         <div
@@ -599,6 +617,7 @@ Object {
                       </button>
                       <button
                         class="context-menu--item"
+                        data-testid="context-menu-item"
                       >
                         Line Protocol
                         <div
@@ -609,6 +628,7 @@ Object {
                       </button>
                       <button
                         class="context-menu--item"
+                        data-testid="context-menu-item"
                       >
                         Scrape Metrics
                         <div
@@ -631,7 +651,7 @@ Object {
     >
       <div
         class="overlay--dialog"
-        data-test="overlay-children"
+        data-testid="overlay-children"
       />
       <div
         class="overlay--mask"
@@ -642,7 +662,7 @@ Object {
     >
       <div
         class="overlay--dialog"
-        data-test="overlay-children"
+        data-testid="overlay-children"
       />
       <div
         class="overlay--mask"

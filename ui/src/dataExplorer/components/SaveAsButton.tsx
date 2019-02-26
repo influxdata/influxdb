@@ -59,7 +59,7 @@ class SaveAsButton extends PureComponent<Props, State> {
                     active={saveAsOption === SaveAsOption.Dashboard}
                     value={SaveAsOption.Dashboard}
                     onClick={this.handleSetSaveAsOption}
-                    data-test="cell-radio-button"
+                    data-testid="cell-radio-button"
                   >
                     Dashboard Cell
                   </Radio.Button>
@@ -67,7 +67,7 @@ class SaveAsButton extends PureComponent<Props, State> {
                     active={saveAsOption === SaveAsOption.Task}
                     value={SaveAsOption.Task}
                     onClick={this.handleSetSaveAsOption}
-                    data-test="task-radio-button"
+                    data-testid="task-radio-button"
                   >
                     Task
                   </Radio.Button>

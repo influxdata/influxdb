@@ -14,26 +14,37 @@ import 'src/clockface/components/empty_state/EmptyState.scss'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
-  size?: ComponentSize
+interface PassedProps {
   children: JSX.Element | JSX.Element[]
 }
 
+interface DefaultProps {
+  size?: ComponentSize
+  testID?: string
+}
+
+type Props = PassedProps & DefaultProps
+
 @ErrorHandling
 class EmptyState extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     size: ComponentSize.Small,
+    testID: 'empty-state',
   }
 
   public static Text = EmptyStateText
   public static SubText = EmptyStateSubText
 
   public render() {
-    const {children, size} = this.props
+    const {children, size, testID} = this.props
 
     const className = `empty-state empty-state--${size}`
 
-    return <div className={className}>{children}</div>
+    return (
+      <div className={className} data-testid={testID}>
+        {children}
+      </div>
+    )
   }
 }
 

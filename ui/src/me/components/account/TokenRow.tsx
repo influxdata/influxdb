@@ -28,7 +28,7 @@ export default class TokenRow extends PureComponent<Props> {
           <a
             href="#"
             onClick={this.handleClickDescription}
-            data-test={`token-description-${id}`}
+            data-testid={`token-description-${id}`}
           >
             {description}
           </a>

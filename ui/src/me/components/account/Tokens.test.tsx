@@ -56,7 +56,7 @@ describe('Account', () => {
     describe('clicking the token description', () => {
       it('opens the ViewTokenModal', () => {
         const description = wrapper.find({
-          'data-test': `token-description-${1}`,
+          'data-testid': `token-description-${1}`,
         })
         description.simulate('click')
         wrapper.update()

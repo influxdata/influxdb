@@ -91,7 +91,6 @@ class ConfirmationButton extends Component<Props, State> {
           />
           <div className={this.tooltipClassName}>
             <div
-              data-test="confirmation-button--click-target"
               data-testid={testID}
               className="confirmation-button--tooltip-body"
               onClick={this.handleTooltipClick}

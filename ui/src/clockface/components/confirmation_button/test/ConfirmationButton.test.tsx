@@ -44,9 +44,7 @@ describe('ConfirmationButton', () => {
 
       wrapper.find(Button).simulate('click')
 
-      wrapper
-        .find({'data-test': 'confirmation-button--click-target'})
-        .simulate('click')
+      wrapper.find({'data-testid': 'confirmation-button'}).simulate('click')
 
       expect(onConfirm.mock.results[0].value).toBe(returnValue)
     })

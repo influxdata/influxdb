@@ -64,6 +64,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
                 value={org.name}
                 onChange={this.handleChangeInput}
                 status={nameInputStatus}
+                testID="create-org-name-input"
               />
             </Form.Element>
           </OverlayBody>
@@ -74,6 +75,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
               type={ButtonType.Submit}
               color={ComponentColor.Primary}
               status={this.submitButtonStatus}
+              testID="create-org-submit-button"
             />
           </OverlayFooter>
         </Form>

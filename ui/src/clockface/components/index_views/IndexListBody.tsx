@@ -23,7 +23,7 @@ class IndexListBody extends Component<Props> {
       <tbody className="index-list--empty">
         <tr className="index-list--empty-row">
           <td colSpan={columnCount}>
-            <div className="index-list--empty-cell" data-test="empty-state">
+            <div className="index-list--empty-cell" data-testid="empty-state">
               {emptyState}
             </div>
           </td>
