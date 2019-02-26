@@ -10,88 +10,11 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// SeriesElem represents a generic series element.
-type SeriesElem interface {
-	Name() []byte
-	Tags() models.Tags
-	Deleted() bool
-
-	// InfluxQL expression associated with series during filtering.
-	Expr() influxql.Expr
-}
-
-// SeriesIterator represents a iterator over a list of series.
-type SeriesIterator interface {
-	Close() error
-	Next() (SeriesElem, error)
-}
-
-// NewSeriesIteratorAdapter returns an adapter for converting series ids to series.
-func NewSeriesIteratorAdapter(sfile *SeriesFile, itr SeriesIDIterator) SeriesIterator {
-	return &seriesIteratorAdapter{
-		sfile: sfile,
-		itr:   itr,
-	}
-}
-
-type seriesIteratorAdapter struct {
-	sfile *SeriesFile
-	itr   SeriesIDIterator
-}
-
-func (itr *seriesIteratorAdapter) Close() error { return itr.itr.Close() }
-
-func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
-	for {
-		elem, err := itr.itr.Next()
-		if err != nil {
-			return nil, err
-		} else if elem.SeriesID.IsZero() {
-			return nil, nil
-		}
-
-		// Skip if this key has been tombstoned.
-		key := itr.sfile.SeriesKey(elem.SeriesID)
-		if len(key) == 0 {
-			continue
-		}
-
-		name, tags := ParseSeriesKey(key)
-		deleted := itr.sfile.IsDeleted(elem.SeriesID)
-
-		return &seriesElemAdapter{
-			name:    name,
-			tags:    tags,
-			deleted: deleted,
-			expr:    elem.Expr,
-		}, nil
-	}
-}
-
-type seriesElemAdapter struct {
-	name    []byte
-	tags    models.Tags
-	deleted bool
-	expr    influxql.Expr
-}
-
-func (e *seriesElemAdapter) Name() []byte        { return e.name }
-func (e *seriesElemAdapter) Tags() models.Tags   { return e.tags }
-func (e *seriesElemAdapter) Deleted() bool       { return e.deleted }
-func (e *seriesElemAdapter) Expr() influxql.Expr { return e.expr }
-
 // SeriesIDElem represents a single series and optional expression.
 type SeriesIDElem struct {
 	SeriesID SeriesID
 	Expr     influxql.Expr
 }
-
-// SeriesIDElems represents a list of series id elements.
-type SeriesIDElems []SeriesIDElem
-
-func (a SeriesIDElems) Len() int           { return len(a) }
-func (a SeriesIDElems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a SeriesIDElems) Less(i, j int) bool { return a[i].SeriesID.Less(a[j].SeriesID) }
 
 // SeriesIDIterator represents a iterator over a list of series ids.
 type SeriesIDIterator interface {
@@ -211,6 +134,7 @@ func (a SeriesIDIterators) Close() (err error) {
 type seriesQueryAdapterIterator struct {
 	once  sync.Once
 	sfile *SeriesFile
+	res   func()
 	itr   SeriesIDIterator
 	opt   query.IteratorOptions
 
@@ -221,6 +145,7 @@ type seriesQueryAdapterIterator struct {
 func NewSeriesQueryAdapterIterator(sfile *SeriesFile, itr SeriesIDIterator, opt query.IteratorOptions) query.Iterator {
 	return &seriesQueryAdapterIterator{
 		sfile: sfile,
+		res:   sfile.Retain(),
 		itr:   itr,
 		point: query.FloatPoint{
 			Aux: make([]interface{}, len(opt.Aux)),
@@ -233,11 +158,12 @@ func NewSeriesQueryAdapterIterator(sfile *SeriesFile, itr SeriesIDIterator, opt 
 func (itr *seriesQueryAdapterIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
 
 // Close closes the iterator.
-func (itr *seriesQueryAdapterIterator) Close() error {
+func (itr *seriesQueryAdapterIterator) Close() (err error) {
 	itr.once.Do(func() {
-		itr.itr.Close()
+		itr.res()
+		err = itr.itr.Close()
 	})
-	return nil
+	return err
 }
 
 // Next emits the next point in the iterator.
@@ -274,7 +200,9 @@ func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
 
 // filterUndeletedSeriesIDIterator returns all series which are not deleted.
 type filterUndeletedSeriesIDIterator struct {
+	once  sync.Once
 	sfile *SeriesFile
+	res   func()
 	itr   SeriesIDIterator
 }
 
@@ -283,11 +211,19 @@ func FilterUndeletedSeriesIDIterator(sfile *SeriesFile, itr SeriesIDIterator) Se
 	if itr == nil {
 		return nil
 	}
-	return &filterUndeletedSeriesIDIterator{sfile: sfile, itr: itr}
+	return &filterUndeletedSeriesIDIterator{
+		sfile: sfile,
+		res:   sfile.Retain(),
+		itr:   itr,
+	}
 }
 
-func (itr *filterUndeletedSeriesIDIterator) Close() error {
-	return itr.itr.Close()
+func (itr *filterUndeletedSeriesIDIterator) Close() (err error) {
+	itr.once.Do(func() {
+		itr.res()
+		err = itr.itr.Close()
+	})
+	return err
 }
 
 func (itr *filterUndeletedSeriesIDIterator) Next() (SeriesIDElem, error) {
