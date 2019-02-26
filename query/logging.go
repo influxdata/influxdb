@@ -42,12 +42,10 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 	}
 	// Check if this result iterator reports stats. We call this defer before cancel because
 	// the query needs to be finished before it will have valid statistics.
-	if s, ok := results.(flux.Statisticser); ok {
-		defer func() {
-			stats = s.Statistics()
-		}()
-	}
-	defer results.Release()
+	defer func() {
+		results.Release()
+		stats = results.Statistics()
+	}()
 
 	encoder := req.Dialect.Encoder()
 	n, err = encoder.Encode(w, results)

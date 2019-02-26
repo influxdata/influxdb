@@ -36,11 +36,8 @@ func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *Pr
 	defer results.Release()
 
 	// Setup headers
-	stats, hasStats := results.(flux.Statisticser)
-	if hasStats {
-		if w, ok := w.(http.ResponseWriter); ok {
-			w.Header().Set("Trailer", "Influx-Query-Statistics")
-		}
+	if w, ok := w.(http.ResponseWriter); ok {
+		w.Header().Set("Trailer", "Influx-Query-Statistics")
 	}
 
 	encoder := req.Dialect.Encoder()
@@ -50,10 +47,8 @@ func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *Pr
 	}
 
 	if w, ok := w.(http.ResponseWriter); ok {
-		if hasStats {
-			data, _ := json.Marshal(stats.Statistics())
-			w.Header().Set("Influx-Query-Statistics", string(data))
-		}
+		data, _ := json.Marshal(results.Statistics())
+		w.Header().Set("Influx-Query-Statistics", string(data))
 	}
 
 	return n, nil

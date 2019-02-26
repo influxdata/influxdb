@@ -211,7 +211,7 @@ func newTableNoPoints(
 
 func (t *tableNoPoints) Close() {}
 
-func (t *tableNoPoints) Statistics() flux.Statistics { return flux.Statistics{} }
+func (t *tableNoPoints) Statistics() cursors.CursorStats { return cursors.CursorStats{} }
 
 func (t *tableNoPoints) Do(f func(flux.ColReader) error) error {
 	if t.isCancelled() {
@@ -251,7 +251,7 @@ func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
 	return t.err
 }
 
-func (t *groupTableNoPoints) Statistics() flux.Statistics { return flux.Statistics{} }
+func (t *groupTableNoPoints) Statistics() cursors.CursorStats { return cursors.CursorStats{} }
 
 func (t *floatTable) toArrowBuffer(vs []float64) *array.Float64 {
 	return arrow.NewFloat(vs, &memory.Allocator{})

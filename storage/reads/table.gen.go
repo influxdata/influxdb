@@ -7,12 +7,12 @@
 package reads
 
 import (
-	"github.com/influxdata/flux/arrow"
-	"github.com/influxdata/flux/memory"
 	"sync"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
@@ -57,15 +57,15 @@ func (t *floatTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *floatTable) Statistics() flux.Statistics {
+func (t *floatTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -233,12 +233,12 @@ func (t *floatGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *floatGroupTable) Statistics() flux.Statistics {
+func (t *floatGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -283,15 +283,15 @@ func (t *integerTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *integerTable) Statistics() flux.Statistics {
+func (t *integerTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -459,12 +459,12 @@ func (t *integerGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *integerGroupTable) Statistics() flux.Statistics {
+func (t *integerGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -509,15 +509,15 @@ func (t *unsignedTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *unsignedTable) Statistics() flux.Statistics {
+func (t *unsignedTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -685,12 +685,12 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *unsignedGroupTable) Statistics() flux.Statistics {
+func (t *unsignedGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -735,15 +735,15 @@ func (t *stringTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *stringTable) Statistics() flux.Statistics {
+func (t *stringTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -911,12 +911,12 @@ func (t *stringGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *stringGroupTable) Statistics() flux.Statistics {
+func (t *stringGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -961,15 +961,15 @@ func (t *booleanTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *booleanTable) Statistics() flux.Statistics {
+func (t *booleanTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -1137,12 +1137,12 @@ func (t *booleanGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *booleanGroupTable) Statistics() flux.Statistics {
+func (t *booleanGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
