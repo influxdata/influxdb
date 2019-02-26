@@ -13,6 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/models"
+	"github.com/pkg/errors"
 )
 
 type Spec struct {
@@ -227,7 +228,10 @@ func (s *schemaToSpec) visit(node SchemaNode) bool {
 		s.push(mss)
 
 	case *Measurement:
-		var ms []MeasurementSpec
+		if len(n.Name) == 0 {
+			s.err = errors.New("missing measurement name")
+			return false
+		}
 
 		fields := s.pop().([]*FieldValuesSpec)
 		tagsSpec := s.pop().(*TagsSpec)
@@ -240,6 +244,12 @@ func (s *schemaToSpec) visit(node SchemaNode) bool {
 			tagsSpec.Sample = &s
 		}
 
+		if *tagsSpec.Sample <= 0.0 || *tagsSpec.Sample > 1.0 {
+			s.err = errors.New("invalid sample, must be 0 < sample ≤ 1.0")
+			return false
+		}
+
+		var ms []MeasurementSpec
 		for _, spec := range fields {
 			ms = append(ms, MeasurementSpec{
 				Name:            n.Name,
