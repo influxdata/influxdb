@@ -15,7 +15,7 @@ interface PassedProps {
   updatedAt?: string
   owner?: Organization
   labels?: () => JSX.Element
-  metadata?: () => JSX.Element[]
+  metaData?: () => JSX.Element[]
   contextMenu?: () => JSX.Element
   children?: JSX.Element[] | JSX.Element
 }
@@ -46,34 +46,45 @@ export default class ResourceListCard extends PureComponent<Props> {
   }
 
   private get nameAndMeta(): JSX.Element {
-    const {name, updatedAt, owner, metadata} = this.props
-
-    let metaInformation
-
-    if (!updatedAt && !owner && !metadata) {
-      metaInformation = null
-    } else {
-      const metaChildren = React.Children.map(metadata(), (m: JSX.Element) => {
-        if (m !== null && m !== undefined) {
-          return <div className="resource-list--meta-item">{m}</div>
-        }
-      })
-
-      metaInformation = (
-        <div className="resource-list--meta">
-          {this.ownerLink}
-          {this.updated}
-          {metaChildren}
-        </div>
-      )
-    }
+    const {name} = this.props
 
     return (
       <div className="resource-list--name-meta">
         {name()}
-        {metaInformation}
+        {this.formattedMetaData}
       </div>
     )
+  }
+
+  private get formattedMetaData(): JSX.Element {
+    const {updatedAt, owner, metaData} = this.props
+
+    if (!updatedAt && !owner && !metaData) {
+      return null
+    }
+
+    return (
+      <div className="resource-list--meta">
+        {this.ownerLink}
+        {this.updated}
+        {this.metaData}
+      </div>
+    )
+  }
+
+  private get updated(): JSX.Element {
+    const {updatedAt} = this.props
+
+    if (updatedAt) {
+      const relativeTimestamp = moment(updatedAt).fromNow()
+      const absoluteTimestamp = moment(updatedAt).format(UPDATED_AT_TIME_FORMAT)
+
+      return (
+        <div className="resource-list--meta-item" title={absoluteTimestamp}>
+          {`Modified ${relativeTimestamp}`}
+        </div>
+      )
+    }
   }
 
   private get ownerLink(): JSX.Element {
@@ -93,18 +104,15 @@ export default class ResourceListCard extends PureComponent<Props> {
     }
   }
 
-  private get updated(): JSX.Element {
-    const {updatedAt} = this.props
+  private get metaData(): JSX.Element[] {
+    const {metaData} = this.props
 
-    if (updatedAt) {
-      const relativeTimestamp = moment(updatedAt).fromNow()
-      const absoluteTimestamp = moment(updatedAt).format(UPDATED_AT_TIME_FORMAT)
-
-      return (
-        <div className="resource-list--meta-item" title={absoluteTimestamp}>
-          {`Modified ${relativeTimestamp}`}
-        </div>
-      )
+    if (metaData) {
+      return React.Children.map(metaData(), (m: JSX.Element) => {
+        if (m !== null && m !== undefined) {
+          return <div className="resource-list--meta-item">{m}</div>
+        }
+      })
     }
   }
 
