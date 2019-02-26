@@ -40,12 +40,12 @@ func TestOptionsEdit(t *testing.T) {
 	if err := tu.UpdateFlux(`option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("test zeroing", func(t *testing.T) {
+	t.Run("zeroing", func(t *testing.T) {
 		if tu.Options.Every != 0 {
 			t.Errorf("expected Every to be zeroed but it wasn't")
 		}
 	})
-	t.Run("test fmt string", func(t *testing.T) {
+	t.Run("fmt string", func(t *testing.T) {
 		t.Skip("This won't work until the flux formatter formats durations in a nicer way")
 		expected := `option task = {every: 10s, name: "foo"}
 from(bucket:"x")
@@ -54,7 +54,7 @@ from(bucket:"x")
 			t.Errorf("got the wrong task back, expected %s,\n got %s\n", expected, *tu.Flux)
 		}
 	})
-	t.Run("test replacement", func(t *testing.T) {
+	t.Run("replacement", func(t *testing.T) {
 		op, err := options.FromScript(*tu.Flux)
 		if err != nil {
 			t.Error(err)
@@ -64,13 +64,12 @@ from(bucket:"x")
 			t.Fail()
 		}
 	})
-	t.Run("test add new option", func(t *testing.T) {
+	t.Run("add new option", func(t *testing.T) {
 		tu := &platform.TaskUpdate{}
 		tu.Options.Offset = 30 * time.Second
 		if err := tu.UpdateFlux(`option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
 		}
-
 		op, err := options.FromScript(*tu.Flux)
 		if err != nil {
 			t.Error(err)
@@ -79,5 +78,38 @@ from(bucket:"x")
 			t.Fatalf("expected every to be 30s but was %s", op.Every)
 		}
 	})
-
+	t.Run("switching from every to cron", func(t *testing.T) {
+		tu := &platform.TaskUpdate{}
+		tu.Options.Cron = "* * * * *"
+		if err := tu.UpdateFlux(`option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
+			t.Fatal(err)
+		}
+		op, err := options.FromScript(*tu.Flux)
+		if err != nil {
+			t.Error(err)
+		}
+		if op.Every != 0 {
+			t.Fatalf("expected every to be 0 but was %s", op.Every)
+		}
+		if op.Cron != "* * * * *" {
+			t.Fatalf("expected Cron to be \"* * * * *\" but was %s", op.Cron)
+		}
+	})
+	t.Run("switching from cron to every", func(t *testing.T) {
+		tu := &platform.TaskUpdate{}
+		tu.Options.Every = 10 * time.Second
+		if err := tu.UpdateFlux(`option task = {cron: "* * * * *", name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
+			t.Fatal(err)
+		}
+		op, err := options.FromScript(*tu.Flux)
+		if err != nil {
+			t.Error(err)
+		}
+		if op.Every != 10*time.Second {
+			t.Fatalf("expected every to be 10s but was %s", op.Every)
+		}
+		if op.Cron != "" {
+			t.Fatalf("expected Cron to be \"\" but was %s", op.Cron)
+		}
+	})
 }
