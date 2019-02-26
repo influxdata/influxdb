@@ -93,37 +93,35 @@ type FloatTimeWeightedAverageReducer struct {
 		start int64
 		end   int64
 	}
+	ch  chan FloatPoint
 	opt IteratorOptions
-	it  FloatPrevIterator
 }
 
 // NewFloatTimeWeightedAverageReducer creates a new FloatTimeWeightedAverageReducer.
-func NewFloatTimeWeightedAverageReducer(opt IteratorOptions, it FloatPrevIterator) *FloatTimeWeightedAverageReducer {
+func NewFloatTimeWeightedAverageReducer(opt IteratorOptions) *FloatTimeWeightedAverageReducer {
 	return &FloatTimeWeightedAverageReducer{
 		prev: FloatPoint{Nil: true},
+		ch:   make(chan FloatPoint, 1),
 		opt:  opt,
-		it:   it,
 	}
 }
 
 // AggregateFloat aggregates a point into the reducer.
 func (r *FloatTimeWeightedAverageReducer) AggregateFloat(p *FloatPoint) {
-	r.count++
 	// If this is the first point, just save it
 	if r.prev.Nil {
 		r.prev = *p
-
-		r.window.start, r.window.end = r.opt.Window(p.Time)
-
-		r.pointOffset = p.Time - r.window.start
-
-		// calculate value at the beginning of current window if available
-		prevIntervalElement := r.it.Prev()
-		if prevIntervalElement != nil && prevIntervalElement.Time != r.prev.Time {
-			r.sum += prevIntervalElement.Value * float64(r.pointOffset)
-			r.pointOffset = 0
+		if !r.opt.Interval.IsZero() {
+			// Record the end of the time interval.
+			// We do not care for whether the last number is inclusive or exclusive
+			// because we treat both the same for the involved math.
+			if r.opt.Ascending {
+				r.window.start, r.window.end = r.opt.Window(p.Time)
+			} else {
+				r.window.end, r.window.start = r.opt.Window(p.Time)
+			}
+			r.pointOffset = p.Time - r.window.start
 		}
-
 		return
 	}
 
@@ -133,8 +131,28 @@ func (r *FloatTimeWeightedAverageReducer) AggregateFloat(p *FloatPoint) {
 	if r.prev.Time == p.Time {
 		r.prev = *p
 		return
+	} else if !r.opt.Interval.IsZero() && ((r.opt.Ascending && p.Time >= r.window.end) || (!r.opt.Ascending && p.Time <= r.window.end)) {
+		// If our previous time is not equal to the window, we need to
+		// interpolate the area at the end of this interval.
+		if r.prev.Time != r.window.end {
+			elapsed := float64(r.window.end - r.prev.Time)
+			r.sum += r.prev.Value * elapsed
+
+			r.prev.Time = r.window.end
+		}
+
+		// Emit the current point through the channel and then clear it.
+		r.ch <- FloatPoint{Time: r.window.start, Value: r.sum / float64(r.window.end-(r.window.start+r.pointOffset))}
+		if r.opt.Ascending {
+			r.window.start, r.window.end = r.opt.Window(p.Time)
+		} else {
+			r.window.end, r.window.start = r.opt.Window(p.Time)
+		}
+		r.pointOffset = 0
+		r.sum = 0.0
 	}
 
+	// Normal operation: update the sum using the trapezium rule
 	elapsed := float64(p.Time - r.prev.Time)
 	r.sum += r.prev.Value * elapsed
 	r.prev = *p
@@ -142,16 +160,41 @@ func (r *FloatTimeWeightedAverageReducer) AggregateFloat(p *FloatPoint) {
 
 // Emit emits the time weighted average of the aggregated points as a single point.
 func (r *FloatTimeWeightedAverageReducer) Emit() []FloatPoint {
-	if !r.prev.Nil && r.prev.Time < r.window.end {
-		// compute duration between last point and window end
-		r.sum += r.prev.Value * float64(r.window.end-r.prev.Time)
+	select {
+	case pt, ok := <-r.ch:
+		if !ok {
+			return nil
+		}
+		return []FloatPoint{pt}
+	default:
+		return nil
 	}
-	fpoint := FloatPoint{
-		Time:       ZeroTime,
-		Value:      r.sum / float64(r.window.end-(r.window.start+r.pointOffset)),
-		Aggregated: r.count,
+}
+
+// Close flushes any in progress points to ensure any remaining points are
+// emitted.
+func (r *FloatTimeWeightedAverageReducer) Close() error {
+	// Send off what we
+	// currently have as the final point.
+	if !r.prev.Nil && r.prev.Time >= r.window.start {
+		if r.opt.Interval.IsZero() {
+			if r.prev.Time == r.window.start {
+				r.ch <- FloatPoint{Time: r.window.start, Value: r.prev.Value}
+			} else {
+				elapsed := r.prev.Time - r.window.start
+				r.sum += r.prev.Value * float64(elapsed)
+				fpoint := FloatPoint{Time: r.window.start, Value: r.sum / float64(r.prev.Time-(r.window.start+r.pointOffset))}
+				r.ch <- fpoint
+			}
+		} else {
+			elapsed := float64(r.window.end - r.prev.Time)
+			r.sum += r.prev.Value * elapsed
+			fpoint := FloatPoint{Time: r.window.start, Value: r.sum / float64(r.window.end-(r.window.start+r.pointOffset))}
+			r.ch <- fpoint
+		}
 	}
-	return []FloatPoint{fpoint}
+	close(r.ch)
+	return nil
 }
 
 // IntegerTimeWeightedAverageReducer calculates the time weighted average of the aggregated points

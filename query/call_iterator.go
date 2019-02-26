@@ -510,19 +510,6 @@ func NewDistinctIterator(input Iterator, opt IteratorOptions) (Iterator, error) 
 	}
 }
 
-func newFloatReduceFloatWithPrevElementIterator(input FloatIterator, opt IteratorOptions, createFn func(it FloatPrevIterator) (FloatPointAggregator, FloatPointEmitter)) *floatReduceFloatIterator {
-	prevIt := newPrevElementFloatIterator(input)
-	it := newBufFloatIterator(prevIt)
-	return &floatReduceFloatIterator{
-		input: it,
-		create: func() (FloatPointAggregator, FloatPointEmitter) {
-			return createFn(prevIt)
-		},
-		dims: opt.GetDimensions(),
-		opt:  opt,
-	}
-}
-
 func newIntegerReduceFloatWithPrevElementIterator(input IntegerIterator, opt IteratorOptions, createFn func(it IntegerPrevIterator) (IntegerPointAggregator, FloatPointEmitter)) *integerReduceFloatIterator {
 	prevIt := newPrevElementIntegerIterator(input)
 	it := newBufIntegerIterator(prevIt)
@@ -553,11 +540,11 @@ func newUnsignedReduceFloatWithPrevElementIterator(input UnsignedIterator, opt I
 func newTimeWeightedAverageIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		createFn := func(it FloatPrevIterator) (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatTimeWeightedAverageReducer(opt, it)
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatTimeWeightedAverageReducer(opt)
 			return fn, fn
 		}
-		return newFloatReduceFloatWithPrevElementIterator(input, opt, createFn), nil
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
 		createFn := func(it IntegerPrevIterator) (IntegerPointAggregator, FloatPointEmitter) {
 			fn := NewIntegerTimeWeightedAverageReducer(opt, it)
