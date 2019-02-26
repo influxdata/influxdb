@@ -94,7 +94,7 @@ export default class ResourceListCard extends PureComponent<Props> {
       return (
         <div className="resource-list--meta-item">
           <Link
-            to={`/organizations/${owner.id}/members_tab`}
+            to={`/organizations/${owner.id}/members`}
             className="resource-list--owner"
           >
             {owner.name}

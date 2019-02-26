@@ -1,27 +1,25 @@
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import {AppState} from 'src/types/v2'
-import {ResourceOwner} from '@influxdata/influx'
 
 // Components
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
-import Members from 'src/organizations/components/Members'
-
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-import {Organization} from '@influxdata/influx'
-
-// Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
+import Members from 'src/organizations/components/Members'
 
+// APIs
 import {client} from 'src/utils/api'
+
+// Types
+import {ResourceOwner} from '@influxdata/influx'
+import {Organization} from '@influxdata/influx'
+import {AppState} from 'src/types/v2'
 
 interface RouterProps {
   params: {
@@ -59,11 +57,11 @@ class OrgMembersIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'members_tab'} orgID={org.id} />
+              <OrganizationNavigation tab={'members'} orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--members"
-                  url="members_tab"
+                  url="members"
                   title="Members"
                 >
                   <GetOrgResources<ResourceOwner>

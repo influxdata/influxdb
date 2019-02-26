@@ -1,4 +1,3 @@
-// Libraries
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
@@ -11,20 +10,30 @@ import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import Buckets from 'src/organizations/components/Buckets'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
+import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 
-// Actions
+//Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
 
-// Types
-import {Bucket, Organization} from '@influxdata/influx'
+// APIs
 import {client} from 'src/utils/api'
-import {AppState} from 'src/types/v2'
 
-const getBuckets = async (org: Organization) => {
-  return client.buckets.getAllByOrg(org.name)
+// Types
+import {Organization} from '@influxdata/influx'
+import {AppState} from 'src/types/v2'
+import {Task} from 'src/tasks/containers/TasksPage'
+
+const getTasks = async (org: Organization): Promise<Task[]> => {
+  const tasks = await client.tasks.getAllByOrg(org.name)
+  const mappedTasks = tasks.map(task => {
+    return {
+      ...task,
+      organization: org,
+    }
+  })
+  return mappedTasks
 }
 
 interface RouterProps {
@@ -44,13 +53,9 @@ interface StateProps {
 type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
 
 @ErrorHandling
-class OrgBucketsIndex extends Component<Props> {
-  constructor(props) {
-    super(props)
-  }
-
+class OrgTasksIndex extends Component<Props> {
   public render() {
-    const {org, notify} = this.props
+    const {org, router} = this.props
 
     return (
       <Page titleTag={org.name}>
@@ -58,27 +63,25 @@ class OrgBucketsIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'buckets'} orgID={org.id} />
+              <OrganizationNavigation tab={'tasks'} orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
-                  id="org-view-tab--buckets"
-                  url="buckets"
-                  title="Buckets"
+                  id="org-view-tab--tasks"
+                  url="tasks"
+                  title="Tasks"
                 >
-                  <GetOrgResources<Bucket>
-                    organization={org}
-                    fetcher={getBuckets}
-                  >
-                    {(buckets, loading, fetch) => (
+                  <GetOrgResources<Task> organization={org} fetcher={getTasks}>
+                    {(tasks, loading, fetch) => (
                       <SpinnerContainer
                         loading={loading}
                         spinnerComponent={<TechnoSpinner />}
                       >
-                        <Buckets
-                          buckets={buckets}
-                          org={org}
+                        <OrgTasksPage
+                          tasks={tasks}
+                          orgName={org.name}
+                          orgID={org.id}
                           onChange={fetch}
-                          notify={notify}
+                          router={router}
                         />
                       </SpinnerContainer>
                     )}
@@ -93,7 +96,7 @@ class OrgBucketsIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: WithRouterProps) => {
+const mstp = (state: AppState, props: Props) => {
   const {orgs} = state
   const org = orgs.find(o => o.id === props.params.orgID)
   return {
@@ -108,4 +111,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<{}>(OrgBucketsIndex))
+)(withRouter<{}>(OrgTasksIndex))

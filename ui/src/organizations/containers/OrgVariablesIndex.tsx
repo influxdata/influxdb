@@ -11,20 +11,22 @@ import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import Buckets from 'src/organizations/components/Buckets'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
+import Variables from 'src/organizations/components/Variables'
 
-// Actions
+// APIs
+import {client} from 'src/utils/api'
+
+//Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
 
 // Types
-import {Bucket, Organization} from '@influxdata/influx'
-import {client} from 'src/utils/api'
+import {Organization, Variable} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
 
-const getBuckets = async (org: Organization) => {
-  return client.buckets.getAllByOrg(org.name)
+const getVariables = async (org: Organization): Promise<Variable[]> => {
+  return await client.variables.getAllByOrg(org.name)
 }
 
 interface RouterProps {
@@ -44,11 +46,7 @@ interface StateProps {
 type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
 
 @ErrorHandling
-class OrgBucketsIndex extends Component<Props> {
-  constructor(props) {
-    super(props)
-  }
-
+class OrgVariablesIndex extends Component<Props> {
   public render() {
     const {org, notify} = this.props
 
@@ -58,30 +56,33 @@ class OrgBucketsIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'buckets'} orgID={org.id} />
+              <OrganizationNavigation tab={'variables'} orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
-                  id="org-view-tab--buckets"
-                  url="buckets"
-                  title="Buckets"
+                  id="org-view-tab--variables"
+                  url="variables"
+                  title="Variables"
                 >
-                  <GetOrgResources<Bucket>
+                  <GetOrgResources<Variable>
                     organization={org}
-                    fetcher={getBuckets}
+                    fetcher={getVariables}
                   >
-                    {(buckets, loading, fetch) => (
-                      <SpinnerContainer
-                        loading={loading}
-                        spinnerComponent={<TechnoSpinner />}
-                      >
-                        <Buckets
-                          buckets={buckets}
-                          org={org}
-                          onChange={fetch}
-                          notify={notify}
-                        />
-                      </SpinnerContainer>
-                    )}
+                    {(variables, loading, fetch) => {
+                      return (
+                        <SpinnerContainer
+                          loading={loading}
+                          spinnerComponent={<TechnoSpinner />}
+                        >
+                          <Variables
+                            onChange={fetch}
+                            variables={variables}
+                            orgName={org.name}
+                            orgID={org.id}
+                            notify={notify}
+                          />
+                        </SpinnerContainer>
+                      )
+                    }}
                   </GetOrgResources>
                 </TabbedPageSection>
               </Tabs.TabContents>
@@ -93,7 +94,7 @@ class OrgBucketsIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: WithRouterProps) => {
+const mstp = (state: AppState, props: Props) => {
   const {orgs} = state
   const org = orgs.find(o => o.id === props.params.orgID)
   return {
@@ -108,4 +109,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<{}>(OrgBucketsIndex))
+)(withRouter<{}>(OrgVariablesIndex))
