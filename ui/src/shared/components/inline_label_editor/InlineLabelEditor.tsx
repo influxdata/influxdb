@@ -12,7 +12,7 @@ import InlineLabelEditorMenu from 'src/shared/components/inline_label_editor/Inl
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
-import {ComponentSize} from 'src/clockface/types'
+import {IconFont} from 'src/clockface/types'
 import {Label} from 'src/types/v2/labels'
 
 // Styles
@@ -25,18 +25,12 @@ enum ArrowDirection {
   Down = 1,
 }
 
-interface PassedProps {
+interface Props {
   selectedLabels: Label[]
   labels: Label[]
   onAddLabel: (label: Label) => void
   onCreateLabel: (labelName: string) => void
 }
-
-interface DefaultProps {
-  inputSize?: ComponentSize
-}
-
-type Props = PassedProps & DefaultProps
 
 interface State {
   filterValue: string
@@ -46,11 +40,7 @@ interface State {
 }
 
 @ErrorHandling
-class LabelSelector extends Component<Props, State> {
-  public static defaultProps: DefaultProps = {
-    inputSize: ComponentSize.ExtraSmall,
-  }
-
+class InlineLabelEditor extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -69,29 +59,33 @@ class LabelSelector extends Component<Props, State> {
   }
 
   public render() {
-    const {inputSize} = this.props
     const {filterValue, isSuggesting} = this.state
 
     if (isSuggesting) {
       return (
-        <ClickOutside onClickOutside={this.handleStopSuggesting}>
-          <div className="inline-label-editor">
-            <Input
-              placeholder="Type to filter, press Enter to add a label"
-              value={filterValue}
-              onKeyDown={this.handleKeyDown}
-              onChange={this.handleInputChange}
-              size={inputSize}
-              autoFocus={true}
-            />
-            {this.suggestionMenu}
-          </div>
-        </ClickOutside>
+        <div className="inline-label-editor">
+          <InlineLabelToggle onClick={this.handleStopSuggesting} />
+          <ClickOutside onClickOutside={this.handleStopSuggesting}>
+            <div className="inline-label-editor--tooltip">
+              <h5 className="inline-label-editor--heading">Add Labels</h5>
+              <Input
+                icon={IconFont.Search}
+                placeholder="Filter labels..."
+                value={filterValue}
+                onKeyDown={this.handleKeyDown}
+                onChange={this.handleInputChange}
+                autoFocus={true}
+                onBlur={this.handleReFocusInput}
+              />
+              {this.suggestionMenu}
+            </div>
+          </ClickOutside>
+        </div>
       )
     }
 
     return (
-      <>
+      <div className="inline-label-editor">
         <InlineLabelToggle onClick={this.handleStartSuggesting} />
         {!this.props.selectedLabels.length && (
           <div
@@ -101,7 +95,7 @@ class LabelSelector extends Component<Props, State> {
             Add a label
           </div>
         )}
-      </>
+      </div>
     )
   }
 
@@ -230,7 +224,6 @@ class LabelSelector extends Component<Props, State> {
 
     switch (e.key) {
       case 'Escape':
-        e.currentTarget.blur()
         return this.handleStopSuggesting()
       case 'Enter':
         return this.handleAddLabel(highlightedID)
@@ -248,6 +241,10 @@ class LabelSelector extends Component<Props, State> {
     this.props.onAddLabel(newLabel)
     this.handleStopSuggesting()
   }
+
+  private handleReFocusInput = (e: ChangeEvent<HTMLInputElement>): void => {
+    e.target.focus()
+  }
 }
 
-export default LabelSelector
+export default InlineLabelEditor

@@ -1,37 +1,63 @@
 // Gradients
 @mixin gradient-v($startColor, $endColor) {
   background: $startColor;
-  background: -moz-linear-gradient(top,  $startColor 0%, $endColor 100%);
-  background: -webkit-linear-gradient(top,  $startColor 0%,$endColor 100%);
-  background: linear-gradient(to bottom,  $startColor 0%,$endColor 100%);
+  background: -moz-linear-gradient(top, $startColor 0%, $endColor 100%);
+  background: -webkit-linear-gradient(top, $startColor 0%, $endColor 100%);
+  background: linear-gradient(to bottom, $startColor 0%, $endColor 100%);
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=0 );
 }
 @mixin gradient-h($startColor, $endColor) {
   background: $startColor;
-  background: -moz-linear-gradient(left,  $startColor 0%, $endColor 100%);
-  background: -webkit-linear-gradient(left,  $startColor 0%,$endColor 100%);
-  background: linear-gradient(to right,  $startColor 0%,$endColor 100%);
+  background: -moz-linear-gradient(left, $startColor 0%, $endColor 100%);
+  background: -webkit-linear-gradient(left, $startColor 0%, $endColor 100%);
+  background: linear-gradient(to right, $startColor 0%, $endColor 100%);
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
 }
 @mixin gradient-diag-up($startColor, $endColor) {
   background: $startColor;
-  background: -moz-linear-gradient(45deg,  $startColor 0%, $endColor 100%);
-  background: -webkit-linear-gradient(45deg,  $startColor 0%,$endColor 100%);
-  background: linear-gradient(45deg,  $startColor 0%,$endColor 100%);
+  background: -moz-linear-gradient(45deg, $startColor 0%, $endColor 100%);
+  background: -webkit-linear-gradient(45deg, $startColor 0%, $endColor 100%);
+  background: linear-gradient(45deg, $startColor 0%, $endColor 100%);
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
 }
 @mixin gradient-diag-down($startColor, $endColor) {
   background: $startColor;
-  background: -moz-linear-gradient(135deg,  $startColor 0%, $endColor 100%) !important;
-  background: -webkit-linear-gradient(135deg,  $startColor 0%,$endColor 100%) !important;
-  background: linear-gradient(135deg,  $startColor 0%,$endColor 100%) !important;
+  background: -moz-linear-gradient(
+    135deg,
+    $startColor 0%,
+    $endColor 100%
+  ) !important;
+  background: -webkit-linear-gradient(
+    135deg,
+    $startColor 0%,
+    $endColor 100%
+  ) !important;
+  background: linear-gradient(
+    135deg,
+    $startColor 0%,
+    $endColor 100%
+  ) !important;
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 ) !important;
 }
 @mixin gradient-r($startColor, $endColor) {
   background: $startColor;
-  background: -moz-radial-gradient(center, ellipse cover,  $startColor 0%, $endColor 100%);
-  background: -webkit-radial-gradient(center, ellipse cover,  $startColor 0%,$endColor 100%);
-  background: radial-gradient(ellipse at center,  $startColor 0%,$endColor 100%);
+  background: -moz-radial-gradient(
+    center,
+    ellipse cover,
+    $startColor 0%,
+    $endColor 100%
+  );
+  background: -webkit-radial-gradient(
+    center,
+    ellipse cover,
+    $startColor 0%,
+    $endColor 100%
+  );
+  background: radial-gradient(
+    ellipse at center,
+    $startColor 0%,
+    $endColor 100%
+  );
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
 }
 
@@ -103,7 +129,6 @@ $scrollbar-offset: 3px;
   }
 }
 
-
 // Block user select
 @mixin no-user-select() {
   user-select: none !important;
@@ -111,22 +136,25 @@ $scrollbar-offset: 3px;
   -webkit-user-select: none !important;
   -ms-user-select: none !important;
   -o-user-select: none !important;
-  &, &:hover {
+  &,
+  &:hover {
     cursor: default;
   }
 }
+
 %no-user-select {
   user-select: none !important;
   -moz-user-select: none !important;
   -webkit-user-select: none !important;
   -ms-user-select: none !important;
   -o-user-select: none !important;
-  &, &:hover {
+  &,
+  &:hover {
     cursor: default;
   }
 }
 
 // Shadows
 %drop-shadow {
-  box-shadow: 0 0 10px 2px $g2-kevlar;
+  box-shadow: 0 0 8px 2px fade-out($g0-obsidian, 0.6);
 }

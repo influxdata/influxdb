@@ -3,6 +3,8 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 
 // Components
+import {EmptyState} from 'src/clockface'
+import {ComponentSize} from '@influxdata/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import InlineLabelEditorMenuItem from 'src/shared/components/inline_label_editor/InlineLabelEditorMenuItem'
 
@@ -29,8 +31,8 @@ class InlineLabelEditorMenu extends Component<Props> {
       <div className="inline-label-editor--menu-container">
         <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={250}>
           <div className="inline-label-editor--menu">
-            {this.menuItems}
             {this.createNewLabelButton}
+            {this.menuItems}
           </div>
         </FancyScrollbar>
       </div>
@@ -43,6 +45,7 @@ class InlineLabelEditorMenu extends Component<Props> {
       onItemClick,
       onItemHighlight,
       highlightItemID,
+      allLabelsUsed,
     } = this.props
 
     if (filteredLabels.length) {
@@ -58,6 +61,14 @@ class InlineLabelEditorMenu extends Component<Props> {
           onHighlight={onItemHighlight}
         />
       ))
+    }
+
+    if (allLabelsUsed) {
+      return (
+        <EmptyState size={ComponentSize.Small}>
+          <EmptyState.Text text="This resource uses all available labels" />
+        </EmptyState>
+      )
     }
   }
 
@@ -83,7 +94,11 @@ class InlineLabelEditorMenu extends Component<Props> {
       return null
     }
 
-    return <div>{`Create new label "${filterValue}"`}</div>
+    return (
+      <div className="inline-label-editor--menu-item inline-label-editor--create-new">
+        Create new label "<strong>{`${filterValue}`}</strong>"
+      </div>
+    )
   }
 }
 

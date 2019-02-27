@@ -5,37 +5,59 @@
   ------------------------------------------------------------------------------
 */
 
-.inline-label-editor {
-  width: 240px;
-  height: 18px;
-  position: relative;
-  margin-left: 2px;
+$inline-label-editor--tooltip: 12px;
 
-  > .input {
-    position: relative;
-    top: -2px;
-    z-index: 1000;
+.inline-label-editor {
+  min-height: 18px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inline-label-editor--tooltip {
+  position: absolute;
+  top: calc(100% + #{$inline-label-editor--tooltip});
+  left: 9px;
+  transform: translateX(-50%);
+  width: 320px;
+  background-color: $g5-pepper;
+  padding: $ix-marg-c;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: $radius;
+  @extend %drop-shadow;
+  z-index: 1000;
+
+  &:after {
+    content: '';
+    border: $inline-label-editor--tooltip solid transparent;
+    border-bottom-color: $g5-pepper;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -100%);
   }
 }
 
+.inline-label-editor--heading {
+  margin-top: 0;
+  user-select: none;
+  text-align: center;
+  color: $g13-mist;
+  margin-bottom: $ix-marg-c;
+}
+
 .inline-label-editor--menu-container {
-  overflow: hidden;
-  z-index: 999;
-  width: 100%;
-  position: absolute;
-  top: 20px;
-  left: 0;
-  @include gradient-h($g2-kevlar, $g4-onyx);
+  background-color: $g3-castle;
+  height: 250px;
   border-radius: $radius;
-  box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.7);
+  overflow: hidden;
+  margin-top: $ix-marg-a;
 }
 
 .inline-label-editor--menu-container .fancy-scroll--track-h {
   display: none;
-}
-
-.inline-label-editor--menu-container .fancy-scroll--track-v {
-  z-index: 2;
 }
 
 .inline-label-editor--menu {
@@ -46,32 +68,39 @@
 }
 
 .inline-label-editor--menu-item {
-  z-index: 1;
-  position: relative;
   display: flex;
   align-items: flex-start;
   padding: $ix-marg-a $ix-marg-b;
+  transition: background-color 0.25s ease;
 
-  &:after {
-    content: '';
-    z-index: -1;
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    @include gradient-h($g5-pepper, $g7-graphite);
-    opacity: 0;
-    transition: opacity 0.25s ease;
-  }
-
-  &.active:after {
-    opacity: 1;
+  &.active {
+    background-color: $g6-smoke;
   }
 
   &.active,
   &:hover {
     cursor: pointer;
+  }
+}
+
+.inline-label-editor--create-new {
+  min-height: 26px;
+  font-size: 13px;
+  font-weight: 500;
+  color: $g11-sidewalk;
+  transition: background-color 0.25s ease, color 0.25s ease;
+
+  strong {
+    font-weight: 900;
+    color: $g15-platinum;
+  }
+
+  &.active {
+    color: $g15-platinum;
+
+    strong {
+      color: $g18-cloud;
+    }
   }
 }
 
