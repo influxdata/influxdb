@@ -35,6 +35,7 @@ import {NoteEditorState} from 'src/dashboards/reducers/v2/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
 import {ProtosState} from 'src/protos/reducers'
+import {VariablesState} from 'src/variables/reducers'
 import {Label} from 'src/types/v2/labels'
 
 export interface AppState {
@@ -55,6 +56,7 @@ export interface AppState {
   noteEditor: NoteEditorState
   dataLoading: DataLoadingState
   protos: ProtosState
+  variables: VariablesState
 }
 
 export type GetState = () => AppState
