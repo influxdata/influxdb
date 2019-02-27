@@ -2,16 +2,18 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-// Types
+// Components
 import {Page} from 'src/pageLayout'
 import TaskRunsList from 'src/tasks/components/TaskRunsList'
+
+// Types
 import {AppState} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
+import {Run} from '@influxdata/influx'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Actions
 import {getRuns} from 'src/tasks/actions/v2'
-import {Run} from '@influxdata/influx'
-import {RemoteDataState} from 'src/types'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   params: {id: string}

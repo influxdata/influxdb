@@ -3,7 +3,7 @@ import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {Task as TaskAPI, Organization, Run} from '@influxdata/influx'
+import {Task as TaskAPI, Organization, Run, LogEvent} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -53,6 +53,7 @@ export type Action =
   | AddTaskLabels
   | RemoveTaskLabels
   | SetRuns
+  | SetLogs
 
 type GetStateFunc = () => AppState
 interface Task extends TaskAPI {
@@ -159,6 +160,13 @@ export interface SetRuns {
   }
 }
 
+export interface SetLogs {
+  type: 'SET_LOGS'
+  payload: {
+    logs: LogEvent[]
+  }
+}
+
 export const setTaskOption = (taskOption: {
   key: TaskOptionKeys
   value: string
@@ -214,6 +222,11 @@ export const setDropdownOrgID = (dropdownOrgID: string): SetDropdownOrgID => ({
 export const setRuns = (runs: Run[], runStatus: RemoteDataState): SetRuns => ({
   type: 'SET_RUNS',
   payload: {runs, runStatus},
+})
+
+export const setLogs = (logs: LogEvent[]): SetLogs => ({
+  type: 'SET_LOGS',
+  payload: {logs},
 })
 
 const addTaskLabels = (taskID: string, labels: Label[]): AddTaskLabels => ({
@@ -493,7 +506,7 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
     dispatch(setRuns(runs, RemoteDataState.Done))
   } catch (error) {
     console.error(error)
-    dispatch(notify(taskGetFailed()))
+    dispatch(notify(taskGetFailed(error.response.data.message)))
     dispatch(setRuns([], RemoteDataState.Error))
   }
 }
@@ -504,5 +517,18 @@ export const runTask = (taskID: string) => async dispatch => {
     dispatch(notify(taskRunSuccess()))
   } catch (e) {
     console.error(e)
+  }
+}
+
+export const getLogs = (taskID: string, runID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    const logs = await client.tasks.getLogEventsByRunID(taskID, runID)
+    console.log(logs)
+    dispatch(setLogs(logs))
+  } catch (e) {
+    console.error(e)
+    dispatch(setLogs([]))
   }
 }
