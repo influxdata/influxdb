@@ -1,7 +1,8 @@
-import _ from 'lodash'
-
+// Utils
 import Deferred from 'src/utils/Deferred'
 
+// Types
+import {File} from 'src/types/ast'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 
 const CHECK_LIMIT_INTERVAL = 200
@@ -20,7 +21,8 @@ interface XHRError extends Error {
 export const executeQuery = (
   url: string,
   orgID: string,
-  query: string
+  query: string,
+  extern?: File
 ): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
   // We're using `XMLHttpRequest` directly here rather than through `axios` so
   // that we can poll the response size as it comes back. If the response size
@@ -124,11 +126,11 @@ export const executeQuery = (
   xhr.onerror = reject
 
   const dialect = {annotations: ['group', 'datatype', 'default']}
-  const body = JSON.stringify({query, dialect, type: 'flux'})
+  const body = extern ? {query, dialect, extern} : {query, dialect}
 
   xhr.open('POST', `${url}?orgID=${encodeURIComponent(orgID)}`)
   xhr.setRequestHeader('Content-Type', 'application/json')
-  xhr.send(body)
+  xhr.send(JSON.stringify(body))
 
   return {
     promise: deferred.promise,
