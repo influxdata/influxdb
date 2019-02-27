@@ -34,16 +34,20 @@ describe('DataExplorer', () => {
     })
   })
 
-  describe('empty visualization states', () => {
-    it('shows an error if a query is syntactically invalid', () => {
-      cy.getByTestID('switch-to-script-editor').click()
+  describe('visualizations', () => {
+    describe('empty states', () => {
+      it('shows an error if a query is syntactically invalid', () => {
+        cy.getByTestID('switch-to-script-editor').click()
 
-      cy.getByTestID('time-machine--bottom').within(() => {
-        cy.get('textarea').type('from(', {force: true})
-        cy.getByTestID('time-machine-submit-button').click()
+        cy.getByTestID('time-machine--bottom').within(() => {
+          cy.get('textarea').type('from(', {force: true})
+          cy.getByTestID('time-machine-submit-button').click()
+        })
+
+        cy.getByTestID('empty-graph-message').within(() => {
+          cy.contains('Error').should('exist')
+        })
       })
-
-      cy.getByTestID('empty-graph-message error').should('exist')
     })
   })
 })

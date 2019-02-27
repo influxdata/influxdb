@@ -2,9 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import EmptyGraphMessage, {
-  GraphMessageType,
-} from 'src/shared/components/EmptyGraphMessage'
+import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import Markdown from 'src/shared/components/views/Markdown'
 
 // Constants
@@ -35,12 +33,7 @@ export default class EmptyQueryView extends PureComponent<Props> {
     } = this.props
 
     if (loading === RemoteDataState.NotStarted) {
-      return (
-        <EmptyGraphMessage
-          message={emptyGraphCopy}
-          type={GraphMessageType.RemoteDataState}
-        />
-      )
+      return <EmptyGraphMessage message={emptyGraphCopy} />
     }
 
     if (!queries.length) {
@@ -48,12 +41,7 @@ export default class EmptyQueryView extends PureComponent<Props> {
     }
 
     if (error) {
-      return (
-        <EmptyGraphMessage
-          message={`Error: ${error.message}`}
-          type={GraphMessageType.Error}
-        />
-      )
+      return <EmptyGraphMessage message={`Error: ${error.message}`} />
     }
 
     const hasNoResults = tables.every(d => !d.data.length)
@@ -62,12 +50,7 @@ export default class EmptyQueryView extends PureComponent<Props> {
       (isInitialFetch || hasNoResults) &&
       loading === RemoteDataState.Loading
     ) {
-      return (
-        <EmptyGraphMessage
-          message="Loading..."
-          type={GraphMessageType.RemoteDataState}
-        />
-      )
+      return <EmptyGraphMessage message="Loading..." />
     }
 
     if (hasNoResults && fallbackNote) {
@@ -75,12 +58,7 @@ export default class EmptyQueryView extends PureComponent<Props> {
     }
 
     if (hasNoResults) {
-      return (
-        <EmptyGraphMessage
-          message="No Results"
-          type={GraphMessageType.NoData}
-        />
-      )
+      return <EmptyGraphMessage message="No Results" />
     }
 
     return this.props.children
