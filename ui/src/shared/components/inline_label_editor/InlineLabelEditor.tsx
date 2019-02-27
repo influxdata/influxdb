@@ -120,7 +120,6 @@ class LabelSelector extends Component<Props, State> {
     const label = labels.find(label => label.id === labelID)
 
     onAddLabel(label)
-    this.handleStopSuggesting()
   }
 
   private handleItemHighlight = (highlightedID: string): void => {

@@ -17,7 +17,6 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 // Types
 import {Sort} from 'src/clockface'
 import {Dashboard, Organization} from 'src/types/v2'
-import {Label} from 'src/types/v2/labels'
 
 interface Props {
   searchTerm: string
@@ -32,8 +31,6 @@ interface Props {
   orgs: Organization[]
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
-  onRemoveLabels: (resourceID: string, labels: Label[]) => void
-  onAddLabels: (resourceID: string, labels: Label[]) => void
 }
 
 interface DatedDashboard extends Dashboard {
@@ -117,8 +114,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onUpdateDashboard,
       orgs,
       showOwnerColumn,
-      onRemoveLabels,
-      onAddLabels,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -139,8 +134,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onUpdateDashboard={onUpdateDashboard}
               orgs={orgs}
               showOwnerColumn={showOwnerColumn}
-              onRemoveLabels={onRemoveLabels}
-              onAddLabels={onAddLabels}
             />
           )}
         </SortingHat>

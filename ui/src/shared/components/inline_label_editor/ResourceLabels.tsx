@@ -30,6 +30,7 @@ export default class ResourceLabels extends Component<Props> {
     if (selectedLabels.length) {
       return (
         <div className="resource-labels--margin">
+          {this.inlineLabelEditor}
           {selectedLabels.map(label => (
             <Label
               id={label.id}
@@ -40,7 +41,6 @@ export default class ResourceLabels extends Component<Props> {
               onDelete={this.handleDeleteLabel}
             />
           ))}
-          {this.inlineLabelEditor}
         </div>
       )
     }

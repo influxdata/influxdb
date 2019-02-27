@@ -8,11 +8,9 @@ import {get} from 'lodash'
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import {OverlayTechnology} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 import ExportOverlay from 'src/shared/components/ExportOverlay'
-import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -26,8 +24,6 @@ import {
   importDashboardAsync,
   deleteDashboardAsync,
   updateDashboardAsync,
-  addDashboardLabelsAsync,
-  removeDashboardLabelsAsync,
 } from 'src/dashboards/actions/v2'
 import {setDefaultDashboard} from 'src/shared/actions/links'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/v2/ranges'
@@ -55,8 +51,6 @@ interface DispatchProps {
   handleUpdateDashboard: typeof updateDashboardAsync
   notify: (message: Notification) => void
   retainRangesDashTimeV1: (dashboardIDs: string[]) => void
-  onAddDashboardLabels: typeof addDashboardLabelsAsync
-  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
 }
 
 interface StateProps {
@@ -76,7 +70,6 @@ interface State {
   isImportingDashboard: boolean
   isExportingDashboard: boolean
   exportDashboard: Dashboard
-  isEditingDashboardLabels: boolean
   dashboardLabelsEdit: Dashboard
 }
 
@@ -90,7 +83,6 @@ class DashboardIndex extends PureComponent<Props, State> {
       isImportingDashboard: false,
       isExportingDashboard: false,
       exportDashboard: null,
-      isEditingDashboardLabels: false,
       dashboardLabelsEdit: null,
     }
   }
@@ -103,15 +95,7 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      dashboards,
-      notify,
-      links,
-      handleUpdateDashboard,
-      orgs,
-      onRemoveDashboardLabels,
-      onAddDashboardLabels,
-    } = this.props
+    const {dashboards, notify, links, handleUpdateDashboard, orgs} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -147,8 +131,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onCloneDashboard={this.handleCloneDashboard}
                 onExportDashboard={this.handleExportDashboard}
                 onUpdateDashboard={handleUpdateDashboard}
-                onRemoveDashboardLabels={onRemoveDashboardLabels}
-                onAddDashboardLabels={onAddDashboardLabels}
                 notify={notify}
                 searchTerm={searchTerm}
                 showOwnerColumn={true}
@@ -158,7 +140,6 @@ class DashboardIndex extends PureComponent<Props, State> {
         </Page>
         {this.importOverlay}
         {this.exportOverlay}
-        {this.labelEditorOverlay}
       </>
     )
   }
@@ -284,28 +265,8 @@ class DashboardIndex extends PureComponent<Props, State> {
     )
   }
 
-  private handleStopEditingLabels = (): void => {
-    this.setState({isEditingDashboardLabels: false})
-  }
-
   private handleValidateDashboard = (): boolean => {
     return true
-  }
-
-  private get labelEditorOverlay(): JSX.Element {
-    const {onAddDashboardLabels, onRemoveDashboardLabels} = this.props
-    const {isEditingDashboardLabels, dashboardLabelsEdit} = this.state
-
-    return (
-      <OverlayTechnology visible={isEditingDashboardLabels}>
-        <EditLabelsOverlay<Dashboard>
-          resource={dashboardLabelsEdit}
-          onDismissOverlay={this.handleStopEditingLabels}
-          onAddLabels={onAddDashboardLabels}
-          onRemoveLabels={onRemoveDashboardLabels}
-        />
-      </OverlayTechnology>
-    )
   }
 }
 
@@ -327,8 +288,6 @@ const mdtp: DispatchProps = {
   handleImportDashboard: importDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
-  onAddDashboardLabels: addDashboardLabelsAsync,
-  onRemoveDashboardLabels: removeDashboardLabelsAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

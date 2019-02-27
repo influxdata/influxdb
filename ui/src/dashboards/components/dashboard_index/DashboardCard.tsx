@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -9,6 +10,12 @@ import FeatureFlag from 'src/shared/components/FeatureFlag'
 import FetchLabels from 'src/shared/components/FetchLabels'
 import ResourceLabels from 'src/shared/components/inline_label_editor/ResourceLabels'
 
+// Actions
+import {
+  addDashboardLabelsAsync,
+  removeDashboardLabelsAsync,
+} from 'src/dashboards/actions/v2'
+
 // Types
 import {Dashboard, Organization} from 'src/types/v2'
 import {Label} from 'src/types/v2/labels'
@@ -16,7 +23,12 @@ import {Label} from 'src/types/v2/labels'
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 
-interface Props {
+interface DispatchProps {
+  onAddDashboardLabels: typeof addDashboardLabelsAsync
+  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
+}
+
+interface PassedProps {
   dashboard: Dashboard
   orgs: Organization[]
   onDeleteDashboard: (dashboard: Dashboard) => void
@@ -24,11 +36,11 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   showOwnerColumn: boolean
-  onRemoveLabels: (resourceID: string, labels: Label[]) => void
-  onAddLabels: (resourceID: string, labels: Label[]) => void
 }
 
-export default class DashboardCard extends PureComponent<Props> {
+type Props = DispatchProps & PassedProps
+
+class DashboardCard extends PureComponent<Props> {
   public render() {
     const {dashboard} = this.props
     const {id} = dashboard
@@ -113,15 +125,15 @@ export default class DashboardCard extends PureComponent<Props> {
   }
 
   private handleRemoveLabel = (label: Label): void => {
-    const {onRemoveLabels, dashboard} = this.props
+    const {onRemoveDashboardLabels, dashboard} = this.props
 
-    onRemoveLabels(dashboard.id, [label])
+    onRemoveDashboardLabels(dashboard.id, [label])
   }
 
   private handleAddLabel = (label: Label): void => {
-    const {onAddLabels, dashboard} = this.props
+    const {onAddDashboardLabels, dashboard} = this.props
 
-    onAddLabels(dashboard.id, [label])
+    onAddDashboardLabels(dashboard.id, [label])
   }
 
   private get labels(): JSX.Element {
@@ -153,3 +165,13 @@ export default class DashboardCard extends PureComponent<Props> {
     onUpdateDashboard(dashboard)
   }
 }
+
+const mdtp: DispatchProps = {
+  onAddDashboardLabels: addDashboardLabelsAsync,
+  onRemoveDashboardLabels: removeDashboardLabelsAsync,
+}
+
+export default connect<{}, DispatchProps, PassedProps>(
+  null,
+  mdtp
+)(DashboardCard)
