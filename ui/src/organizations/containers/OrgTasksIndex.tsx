@@ -58,40 +58,46 @@ class OrgTasksIndex extends Component<Props> {
     const {org, router} = this.props
 
     return (
-      <Page titleTag={org.name}>
-        <OrgHeader orgID={org.id} />
-        <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-12">
-            <Tabs>
-              <OrganizationNavigation tab={'tasks'} orgID={org.id} />
-              <Tabs.TabContents>
-                <TabbedPageSection
-                  id="org-view-tab--tasks"
-                  url="tasks"
-                  title="Tasks"
-                >
-                  <GetOrgResources<Task> organization={org} fetcher={getTasks}>
-                    {(tasks, loading, fetch) => (
-                      <SpinnerContainer
-                        loading={loading}
-                        spinnerComponent={<TechnoSpinner />}
-                      >
-                        <OrgTasksPage
-                          tasks={tasks}
-                          orgName={org.name}
-                          orgID={org.id}
-                          onChange={fetch}
-                          router={router}
-                        />
-                      </SpinnerContainer>
-                    )}
-                  </GetOrgResources>
-                </TabbedPageSection>
-              </Tabs.TabContents>
-            </Tabs>
-          </div>
-        </Page.Contents>
-      </Page>
+      <>
+        <Page titleTag={org.name}>
+          <OrgHeader orgID={org.id} />
+          <Page.Contents fullWidth={false} scrollable={true}>
+            <div className="col-xs-12">
+              <Tabs>
+                <OrganizationNavigation tab={'tasks'} orgID={org.id} />
+                <Tabs.TabContents>
+                  <TabbedPageSection
+                    id="org-view-tab--tasks"
+                    url="tasks"
+                    title="Tasks"
+                  >
+                    <GetOrgResources<Task>
+                      organization={org}
+                      fetcher={getTasks}
+                    >
+                      {(tasks, loading, fetch) => (
+                        <SpinnerContainer
+                          loading={loading}
+                          spinnerComponent={<TechnoSpinner />}
+                        >
+                          <OrgTasksPage
+                            tasks={tasks}
+                            orgName={org.name}
+                            orgID={org.id}
+                            onChange={fetch}
+                            router={router}
+                          />
+                        </SpinnerContainer>
+                      )}
+                    </GetOrgResources>
+                  </TabbedPageSection>
+                </Tabs.TabContents>
+              </Tabs>
+            </div>
+          </Page.Contents>
+        </Page>
+        {this.props.children}
+      </>
     )
   }
 }

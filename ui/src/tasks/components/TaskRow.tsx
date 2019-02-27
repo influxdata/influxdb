@@ -17,9 +17,6 @@ import {
 } from '@influxdata/clockface'
 import {Task as TaskAPI, Organization} from '@influxdata/influx'
 
-// Utils
-import {downloadTextFile} from 'src/shared/utils/download'
-
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
 import {IconFont} from 'src/clockface/types/index'
@@ -155,8 +152,8 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleExport = () => {
-    const {task} = this.props
-    downloadTextFile(task.flux, `${task.name}.flux`)
+    const {router, task} = this.props
+    router.push(`tasks/${task.id}/export`)
   }
 
   private handleClone = () => {
