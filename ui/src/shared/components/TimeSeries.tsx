@@ -4,11 +4,13 @@ import {isEqual, flatten} from 'lodash'
 import {connect} from 'react-redux'
 
 // API
-import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
+import {
+  executeQueryWithVars,
+  ExecuteFluxQueryResult,
+} from 'src/shared/apis/query'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
-import {renderQuery} from 'src/shared/utils/renderQuery'
 import {getActiveOrg} from 'src/organizations/selectors'
 
 // Types
@@ -16,6 +18,7 @@ import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/v2/dashboards'
 import {AppState, Organization} from 'src/types/v2'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {VariableAssignment} from 'src/types/ast'
 
 export interface QueriesState {
   tables: FluxTable[]
@@ -33,7 +36,7 @@ interface StateProps {
 
 interface OwnProps {
   queries: DashboardQuery[]
-  variables?: {[key: string]: string}
+  variables?: VariableAssignment[]
   submitToken: number
   implicitSubmit?: boolean
   inView?: boolean
@@ -96,7 +99,8 @@ class TimeSeries extends Component<Props, State> {
   }
 
   private reload = async () => {
-    const {inView, variables, activeOrg, queries} = this.props
+    const {inView, queries, queryLink, variables} = this.props
+    const orgID = this.props.activeOrg.id
 
     if (!inView) {
       return
@@ -121,8 +125,8 @@ class TimeSeries extends Component<Props, State> {
       this.pendingResults.forEach(({cancel}) => cancel())
 
       // Issue new queries
-      this.pendingResults = queries.map(q =>
-        this.executeRenderedQuery(q, variables, activeOrg.id)
+      this.pendingResults = queries.map(({text}) =>
+        executeQueryWithVars(queryLink, orgID, text, variables)
       )
 
       // Wait for new queries to complete
@@ -148,39 +152,6 @@ class TimeSeries extends Component<Props, State> {
         loading: RemoteDataState.Error,
       })
     }
-  }
-
-  private executeRenderedQuery = (
-    {text}: DashboardQuery,
-    variables: {[key: string]: string},
-    orgID: string
-  ): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
-    let isCancelled = false
-    let cancelExecution
-
-    const cancel = () => {
-      isCancelled = true
-
-      if (cancelExecution) {
-        cancelExecution()
-      }
-    }
-
-    const promise = renderQuery(text, variables).then(renderedQuery => {
-      if (isCancelled) {
-        return Promise.reject(new CancellationError())
-      }
-
-      const {queryLink} = this.props
-
-      const pendingResult = executeQuery(queryLink, orgID, renderedQuery)
-
-      cancelExecution = pendingResult.cancel
-
-      return pendingResult.promise
-    })
-
-    return {promise, cancel}
   }
 
   private shouldReload(prevProps: Props) {

@@ -9,7 +9,7 @@ import QueryViewSwitcher from 'src/shared/components/QueryViewSwitcher'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
-import {timeRangeVariables} from 'src/shared/utils/timeRangeVariables'
+import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 
 // Types
 import {TimeRange} from 'src/types'
@@ -66,7 +66,7 @@ class RefreshingView extends PureComponent<Props, State> {
         submitToken={submitToken}
         queries={this.queries}
         key={manualRefresh}
-        variables={{...timeRangeVariables(timeRange)}}
+        variables={getTimeRangeVars(timeRange)}
       >
         {({tables, loading, error, isInitialFetch}) => {
           return (

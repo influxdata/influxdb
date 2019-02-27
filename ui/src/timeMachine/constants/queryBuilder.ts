@@ -1,4 +1,4 @@
-import {WINDOW_PERIOD} from 'src/shared/constants'
+import {WINDOW_PERIOD} from 'src/variables/constants'
 
 export interface QueryFn {
   name: string
