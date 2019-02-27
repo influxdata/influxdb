@@ -6,7 +6,7 @@ interface Props {
 
 const EmptyGraphMessage: SFC<Props> = ({message}) => {
   return (
-    <div className="cell--view-empty">
+    <div className="cell--view-empty" data-testid="empty-graph-message">
       <h4>{message}</h4>
     </div>
   )
