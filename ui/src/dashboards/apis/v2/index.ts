@@ -12,6 +12,7 @@ import {Label} from 'src/types/v2/labels'
 
 import {Cell as CellAPI} from '@influxdata/influx'
 import {client} from 'src/utils/api'
+import {dashboard} from 'src/dashboards/resources'
 
 export const addDashboardIDToCells = (
   cells: CellAPI[],
@@ -109,6 +110,18 @@ export const addDashboardLabels = async (
   )
 
   return addedLabels as Label[]
+}
+
+export const createDashboardLabel = async (
+  dashboardID: string,
+  label: Label
+): Promise<Label> => {
+  const createdLabel = await client.labels.create(label.name, label.properties)
+
+  return (await client.dashboards.createLabel(
+    dashboardID,
+    createdLabel.id
+  )) as Label
 }
 
 export const removeDashboardLabels = async (
