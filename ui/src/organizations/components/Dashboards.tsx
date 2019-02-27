@@ -112,11 +112,13 @@ class Dashboards extends PureComponent<Props, State> {
         <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
-            placeholder="Filter tasks..."
+            placeholder="Filter dashboards..."
             widthPixels={290}
             value={searchTerm}
             onChange={this.handleFilterChange}
             onBlur={this.handleFilterBlur}
+            testID={`dashboards--filter-field ${searchTerm}`}
+            customClass="filter-dashboards"
           />
           <Button
             color={ComponentColor.Primary}
@@ -140,6 +142,7 @@ class Dashboards extends PureComponent<Props, State> {
           notify={notify}
           searchTerm={searchTerm}
           showOwnerColumn={false}
+          onFilterChange={this.handleFilterUpdate}
         />
         {this.renderImportOverlay}
         {this.renderLabelEditorOverlay}
@@ -155,6 +158,9 @@ class Dashboards extends PureComponent<Props, State> {
     this.setState({searchTerm: e.target.value})
   }
 
+  private handleFilterUpdate = (searchTerm: string): void => {
+    this.setState({searchTerm})
+  }
   private handleSetDefaultDashboard = async (
     defaultDashboardLink: string
   ): Promise<void> => {

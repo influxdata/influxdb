@@ -31,18 +31,21 @@ exports[`MemberList rendering renders 1`] = `
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       >
         John
       </IndexListRowCell>
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       >
         owner
       </IndexListRowCell>
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       />
     </IndexListRow>
     <IndexListRow
@@ -53,18 +56,21 @@ exports[`MemberList rendering renders 1`] = `
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       >
         Jane
       </IndexListRowCell>
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       >
         owner
       </IndexListRowCell>
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       />
     </IndexListRow>
     <IndexListRow
@@ -75,18 +81,21 @@ exports[`MemberList rendering renders 1`] = `
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       >
         Smith
       </IndexListRowCell>
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       >
         owner
       </IndexListRowCell>
       <IndexListRowCell
         alignment="left"
         revealOnHover={false}
+        testID="table-cell"
       />
     </IndexListRow>
   </IndexListBody>

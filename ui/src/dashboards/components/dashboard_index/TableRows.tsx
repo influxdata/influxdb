@@ -14,6 +14,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onEditLabels: (dashboard: Dashboard) => void
+  onFilterChange: (searchTerm: string) => void
   orgs: Organization[]
   showOwnerColumn: boolean
 }
@@ -29,6 +30,7 @@ export default class DashboardsIndexTableRows extends PureComponent<Props> {
       onEditLabels,
       orgs,
       showOwnerColumn,
+      onFilterChange,
     } = this.props
 
     return dashboards.map(d => (
@@ -42,6 +44,7 @@ export default class DashboardsIndexTableRows extends PureComponent<Props> {
         onEditLabels={onEditLabels}
         orgs={orgs}
         showOwnerColumn={showOwnerColumn}
+        onFilterChange={onFilterChange}
       />
     ))
   }

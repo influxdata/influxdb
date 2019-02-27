@@ -62,6 +62,7 @@ class Label extends Component<Props, State> {
         onMouseLeave={this.handleMouseLeave}
         style={this.style}
         title={this.title}
+        data-testid={`label--pill ${name}`}
       >
         <label>{name}</label>
         {this.deleteButton}

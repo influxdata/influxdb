@@ -84,4 +84,96 @@ describe('Dashboards', () => {
 
     cy.getByTestID('resource-card').should('contain', newName)
   })
+
+  describe('labeling', () => {
+    it('can click to filter dashboard labels', () => {
+      const newLabelName = 'click-me'
+
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.createDashboard(id).then(({body}) => {
+          cy.createLabel('dashboards', body.id, newLabelName)
+        })
+
+        cy.createDashboard(id).then(({body}) => {
+          cy.createLabel('dashboards', body.id, 'bar')
+        })
+      })
+
+      cy.visit('/dashboards')
+
+      cy.getByTestID('resource-card').should('have.length', 2)
+
+      cy.getByTestID(`label--pill ${newLabelName}`).click()
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+    })
+  })
+
+  describe('searching', () => {
+    it('can search dashboards by labels', () => {
+      const widgetSearch = 'searchME'
+
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.createDashboard(id).then(({body}) => {
+          cy.createLabel('dashboards', body.id, widgetSearch)
+        })
+
+        cy.createDashboard(id).then(({body}) => {
+          cy.createLabel('dashboards', body.id, 'bar')
+        })
+      })
+
+      cy.visit('/dashboards')
+
+      cy.getByTestID('resource-card').should('have.length', 2)
+
+      cy.getByTestID('search-widget').type(widgetSearch)
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+
+      cy.getByTestID('resource-card')
+        .first()
+        .get('.label')
+        .should('contain', widgetSearch)
+    })
+
+    it('can search by clicking label', () => {
+      const clicked = 'click-me'
+
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.createDashboard(id).then(({body}) => {
+          cy.createLabel('dashboards', body.id, clicked)
+        })
+
+        cy.createDashboard(id).then(({body}) => {
+          cy.createLabel('dashboards', body.id, 'bar')
+        })
+      })
+
+      cy.visit('/dashboards')
+
+      cy.getByTestID('resource-card').should('have.length', 2)
+
+      cy.getByTestID(`label--pill ${clicked}`).click()
+
+      cy.getByTestID('search-widget').should('have.value', clicked)
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+    })
+
+    it('can search by dashboard name', () => {
+      const searchName = 'beepBoop'
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.createDashboard(id, searchName)
+        cy.createDashboard(id)
+      })
+
+      cy.visit('/dashboards')
+
+      cy.getByTestID('search-widget').type('bEE')
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+      cy.getByTestID('dashboard-card--name').contains('span', searchName)
+    })
+  })
 })

@@ -8,6 +8,7 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
   <IndexListRowCell
     alignment="left"
     revealOnHover={false}
+    testID="table-cell"
   >
     <Component
       align="right"
@@ -25,12 +26,14 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
         limitChildCount={4}
         onEdit={[Function]}
         resourceName="this resource"
+        testID="labels-con"
       />
     </Component>
   </IndexListRowCell>
   <IndexListRowCell
     alignment="left"
     revealOnHover={false}
+    testID="table-cell"
   >
     <a
       href=""
@@ -42,6 +45,7 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
   <IndexListRowCell
     alignment="left"
     revealOnHover={false}
+    testID="table-cell"
   >
     <t
       active={true}
@@ -56,16 +60,19 @@ exports[`Tasks.Components.TaskRow renders 1`] = `
   <IndexListRowCell
     alignment="left"
     revealOnHover={false}
+    testID="table-cell"
   >
     2 0 * * *
   </IndexListRowCell>
   <IndexListRowCell
     alignment="left"
     revealOnHover={false}
+    testID="table-cell"
   />
   <IndexListRowCell
     alignment="right"
     revealOnHover={true}
+    testID="table-cell"
   >
     <Component
       align="right"

@@ -81,6 +81,7 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
             name="description"
             value={this.description}
             onChange={this.handleInputChange}
+            customClass="resource-label--description"
           />
           <Button
             customClass="resource-label--create-button"
@@ -91,6 +92,7 @@ export default class ResourceLabelForm extends PureComponent<Props, State> {
               isValid ? ComponentStatus.Default : ComponentStatus.Disabled
             }
             onClick={this.handleSubmit}
+            testID="resource-label--form-submit"
           />
         </ComponentSpacer>
       </div>

@@ -15,13 +15,14 @@ export const signin = (): Cypress.Chainable<Cypress.Response> => {
 }
 
 export const createDashboard = (
-  orgID?: string
+  orgID?: string,
+  name: string = 'test dashboard'
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
     url: '/api/v2/dashboards',
     body: {
-      name: 'test dashboard',
+      name,
       orgID,
     },
   })
@@ -48,10 +49,11 @@ export const createBucket = (): Cypress.Chainable<Cypress.Response> => {
 }
 
 export const createTask = (
-  orgID?: string
+  orgID?: string,
+  name: string = '🦄ask'
 ): Cypress.Chainable<Cypress.Response> => {
   const flux = `option task = {
-    name: "🦄ask",
+    name: "${name}",
     every: 1d,
     offset: 20m
   }
@@ -87,6 +89,40 @@ export const createVariable = (
       orgID,
       arguments: argumentsObj,
     },
+  })
+}
+
+export const createLabel = (
+  resource: string,
+  resourceID: string,
+  name?: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy
+    .request({
+      method: 'POST',
+      url: '/api/v2/labels',
+      body: {
+        name,
+        properties: {
+          description: `test ${name}`,
+          color: '#ff00ff',
+        },
+      },
+    })
+    .then(({body}) => {
+      return addResourceLabel(resource, resourceID, body.label.id)
+    })
+}
+
+export const addResourceLabel = (
+  resource: string,
+  resourceID: string,
+  labelID: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'POST',
+    url: `/api/v2/${resource}/${resourceID}/labels`,
+    body: {labelID},
   })
 }
 
@@ -164,3 +200,6 @@ Cypress.Commands.add('createTask', createTask)
 
 // variables
 Cypress.Commands.add('createVariable', createVariable)
+
+// Labels
+Cypress.Commands.add('createLabel', createLabel)

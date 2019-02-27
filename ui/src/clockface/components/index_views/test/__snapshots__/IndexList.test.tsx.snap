@@ -155,12 +155,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   Apple
                 </div>
@@ -169,12 +171,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   500
                 </div>
@@ -193,12 +197,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   Pear
                 </div>
@@ -207,12 +213,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   1000
                 </div>
@@ -231,12 +239,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   Banana
                 </div>
@@ -245,12 +255,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   100
                 </div>

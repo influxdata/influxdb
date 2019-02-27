@@ -12,6 +12,7 @@ interface Props {
   children: any
   alignment?: Alignment
   revealOnHover?: boolean
+  testID?: string
 }
 
 @ErrorHandling
@@ -19,14 +20,17 @@ class IndexListRowCell extends Component<Props> {
   public static defaultProps: Partial<Props> = {
     alignment: Alignment.Left,
     revealOnHover: false,
+    testID: 'table-cell',
   }
 
   public render() {
-    const {children} = this.props
+    const {children, testID} = this.props
 
     return (
       <td className={this.className}>
-        <div className="index-list--cell">{children}</div>
+        <div className="index-list--cell" data-testid={testID}>
+          {children}
+        </div>
       </td>
     )
   }

@@ -101,6 +101,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
           toggleOverlay={this.handleToggleImportOverlay}
           showOrgDropdown={false}
           isFullPage={false}
+          searchTerm={searchTerm}
         />
         <FilterList<Task>
           searchTerm={searchTerm}
@@ -121,6 +122,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
               onRemoveTaskLabels={onRemoveTaskLabels}
               onUpdate={this.handleUpdateTask}
               onRunTask={onRunTask}
+              onFilterChange={setSearchTerm}
             />
           )}
         </FilterList>
