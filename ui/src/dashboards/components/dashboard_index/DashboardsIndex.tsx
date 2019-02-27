@@ -126,7 +126,7 @@ class DashboardIndex extends PureComponent<Props, State> {
               <DashboardsIndexContents
                 filterComponent={() => (
                   <SearchWidget
-                    placeholderText="Filter dashboards by name..."
+                    placeholderText="Filter dashboards..."
                     onSearch={this.handleFilterDashboards}
                     searchTerm={searchTerm}
                   />

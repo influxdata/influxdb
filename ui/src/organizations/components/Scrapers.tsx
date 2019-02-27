@@ -67,7 +67,7 @@ export default class Scrapers extends PureComponent<Props, State> {
         <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
-            placeholder="Filter scrapers by bucket..."
+            placeholder="Filter scrapers..."
             widthPixels={290}
             value={searchTerm}
             type={InputType.Text}
