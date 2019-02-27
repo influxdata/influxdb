@@ -70,7 +70,7 @@ describe('Tasks', () => {
   })
 
   describe('labeling', () => {
-    it.only('can click to filter tasks by labels', () => {
+    it('can click to filter tasks by labels', () => {
       const newLabelName = 'click-me'
 
       cy.get<Organization>('@org').then(({id}) => {
