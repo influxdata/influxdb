@@ -510,32 +510,6 @@ func NewDistinctIterator(input Iterator, opt IteratorOptions) (Iterator, error) 
 	}
 }
 
-func newIntegerReduceFloatWithPrevElementIterator(input IntegerIterator, opt IteratorOptions, createFn func(it IntegerPrevIterator) (IntegerPointAggregator, FloatPointEmitter)) *integerReduceFloatIterator {
-	prevIt := newPrevElementIntegerIterator(input)
-	it := newBufIntegerIterator(prevIt)
-	return &integerReduceFloatIterator{
-		input: it,
-		create: func() (IntegerPointAggregator, FloatPointEmitter) {
-			return createFn(prevIt)
-		},
-		dims: opt.GetDimensions(),
-		opt:  opt,
-	}
-}
-
-func newUnsignedReduceFloatWithPrevElementIterator(input UnsignedIterator, opt IteratorOptions, createFn func(it UnsignedPrevIterator) (UnsignedPointAggregator, FloatPointEmitter)) *unsignedReduceFloatIterator {
-	prevIt := newPrevElementUnsignedIterator(input)
-	it := newBufUnsignedIterator(prevIt)
-	return &unsignedReduceFloatIterator{
-		input: it,
-		create: func() (UnsignedPointAggregator, FloatPointEmitter) {
-			return createFn(prevIt)
-		},
-		dims: opt.GetDimensions(),
-		opt:  opt,
-	}
-}
-
 // newTimeWeightedAverageIterator returns an iterator for operating on a time_weighted_average() call.
 func newTimeWeightedAverageIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
@@ -546,19 +520,19 @@ func newTimeWeightedAverageIterator(input Iterator, opt IteratorOptions) (Iterat
 		}
 		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
-		createFn := func(it IntegerPrevIterator) (IntegerPointAggregator, FloatPointEmitter) {
-			fn := NewIntegerTimeWeightedAverageReducer(opt, it)
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewIntegerTimeWeightedAverageReducer(opt)
 			return fn, fn
 		}
-		return newIntegerReduceFloatWithPrevElementIterator(input, opt, createFn), nil
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
 	case UnsignedIterator:
-		createFn := func(it UnsignedPrevIterator) (UnsignedPointAggregator, FloatPointEmitter) {
-			fn := NewUnsignedTimeWeightedAverageReducer(opt, it)
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewUnsignedTimeWeightedAverageReducer(opt)
 			return fn, fn
 		}
-		return newUnsignedReduceFloatWithPrevElementIterator(input, opt, createFn), nil
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
 	default:
-		return nil, fmt.Errorf("unsupported mean iterator type: %T", input)
+		return nil, fmt.Errorf("unsupported time weighted average iterator type: %T", input)
 	}
 }
 
