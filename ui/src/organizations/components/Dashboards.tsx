@@ -104,15 +104,7 @@ class Dashboards extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      dashboards,
-      notify,
-      links,
-      handleUpdateDashboard,
-      orgs,
-      onRemoveDashboardLabels,
-      onAddDashboardLabels,
-    } = this.props
+    const {dashboards, notify, links, handleUpdateDashboard, orgs} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -146,8 +138,6 @@ class Dashboards extends PureComponent<Props, State> {
           onCloneDashboard={this.handleCloneDashboard}
           onExportDashboard={this.handleExportDashboard}
           onUpdateDashboard={handleUpdateDashboard}
-          onRemoveDashboardLabels={onRemoveDashboardLabels}
-          onAddDashboardLabels={onAddDashboardLabels}
           notify={notify}
           searchTerm={searchTerm}
           showOwnerColumn={false}

@@ -21,7 +21,7 @@ interface Props {
   onItemClick: (labelID: string) => void
   onItemHighlight: (labelID: string) => void
   allLabelsUsed: boolean
-  onCreateLabel: (label: Label) => Promise<void>
+  onStartCreatingLabel: () => void
 }
 
 @ErrorHandling
@@ -73,7 +73,7 @@ class InlineLabelEditorMenu extends Component<Props> {
   }
 
   private get createNewLabelButton(): JSX.Element {
-    const {filterValue, filteredLabels} = this.props
+    const {filterValue, filteredLabels, onStartCreatingLabel} = this.props
 
     if (!filterValue) {
       return null
@@ -95,7 +95,10 @@ class InlineLabelEditorMenu extends Component<Props> {
     }
 
     return (
-      <div className="inline-label-editor--menu-item inline-label-editor--create-new">
+      <div
+        className="inline-label-editor--menu-item inline-label-editor--create-new"
+        onClick={onStartCreatingLabel}
+      >
         Create new label "<strong>{`${filterValue}`}</strong>"
       </div>
     )

@@ -24,6 +24,9 @@ import {Label} from 'src/types/v2/labels'
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 interface DispatchProps {
   onAddDashboardLabels: typeof addDashboardLabelsAsync
   onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
@@ -43,6 +46,7 @@ interface PassedProps {
 
 type Props = DispatchProps & PassedProps
 
+@ErrorHandling
 class DashboardCard extends PureComponent<Props> {
   public render() {
     const {dashboard} = this.props

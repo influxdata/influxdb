@@ -10,10 +10,14 @@ import {Input} from 'src/clockface'
 import InlineLabelToggle from 'src/shared/components/inline_label_editor/InlineLabelToggle'
 import InlineLabelEditorMenu from 'src/shared/components/inline_label_editor/InlineLabelEditorMenu'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
+import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 
 // Types
 import {IconFont} from 'src/clockface/types'
 import {Label} from 'src/types/v2/labels'
+
+// Utils
+import {validateLabelName} from 'src/configuration/utils/labels'
 
 // Styles
 import 'src/shared/components/inline_label_editor/InlineLabelEditor.scss'
@@ -23,6 +27,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 enum ArrowDirection {
   Up = -1,
   Down = 1,
+}
+
+enum OverlayState {
+  Visible = 'visible',
+  Hidden = 'hidden',
 }
 
 interface Props {
@@ -37,6 +46,7 @@ interface State {
   filteredLabels: Label[]
   isSuggesting: boolean
   highlightedID: string
+  isCreatingLabel: OverlayState
 }
 
 @ErrorHandling
@@ -55,6 +65,7 @@ class InlineLabelEditor extends Component<Props, State> {
       filterValue: '',
       filteredLabels: initialFilteredLabels,
       isSuggesting: false,
+      isCreatingLabel: OverlayState.Hidden,
     }
   }
 
@@ -63,39 +74,45 @@ class InlineLabelEditor extends Component<Props, State> {
 
     if (isSuggesting) {
       return (
-        <div className="inline-label-editor">
-          <InlineLabelToggle onClick={this.handleStopSuggesting} />
-          <ClickOutside onClickOutside={this.handleStopSuggesting}>
-            <div className="inline-label-editor--tooltip">
-              <h5 className="inline-label-editor--heading">Add Labels</h5>
-              <Input
-                icon={IconFont.Search}
-                placeholder="Filter labels..."
-                value={filterValue}
-                onKeyDown={this.handleKeyDown}
-                onChange={this.handleInputChange}
-                autoFocus={true}
-                onBlur={this.handleReFocusInput}
-              />
-              {this.suggestionMenu}
-            </div>
-          </ClickOutside>
-        </div>
+        <>
+          <div className="inline-label-editor">
+            <InlineLabelToggle onClick={this.handleStopSuggesting} />
+            <ClickOutside onClickOutside={this.handleStopSuggesting}>
+              <div className="inline-label-editor--tooltip">
+                <h5 className="inline-label-editor--heading">Add Labels</h5>
+                <Input
+                  icon={IconFont.Search}
+                  placeholder="Filter labels..."
+                  value={filterValue}
+                  onKeyDown={this.handleKeyDown}
+                  onChange={this.handleInputChange}
+                  autoFocus={true}
+                  onBlur={this.handleReFocusInput}
+                />
+                {this.suggestionMenu}
+              </div>
+            </ClickOutside>
+          </div>
+          {this.createLabelOverlay}
+        </>
       )
     }
 
     return (
-      <div className="inline-label-editor">
-        <InlineLabelToggle onClick={this.handleStartSuggesting} />
-        {!this.props.selectedLabels.length && (
-          <div
-            className="label label--xs label--colorless"
-            onClick={this.handleStartSuggesting}
-          >
-            Add a label
-          </div>
-        )}
-      </div>
+      <>
+        <div className="inline-label-editor">
+          <InlineLabelToggle onClick={this.handleStartSuggesting} />
+          {!this.props.selectedLabels.length && (
+            <div
+              className="label label--xs label--colorless"
+              onClick={this.handleStartSuggesting}
+            >
+              Add a label
+            </div>
+          )}
+        </div>
+        {this.createLabelOverlay}
+      </>
     )
   }
 
@@ -114,7 +131,7 @@ class InlineLabelEditor extends Component<Props, State> {
           highlightItemID={highlightedID}
           onItemClick={this.handleAddLabel}
           onItemHighlight={this.handleItemHighlight}
-          onCreateLabel={this.handleCreateLabel}
+          onStartCreatingLabel={this.handleStartCreatingLabel}
         />
       )
     }
@@ -151,7 +168,7 @@ class InlineLabelEditor extends Component<Props, State> {
   private handleStopSuggesting = () => {
     const {labels: filteredLabels} = this.props
 
-    this.setState({isSuggesting: false, filterValue: '', filteredLabels})
+    this.setState({isSuggesting: false, filteredLabels})
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -239,11 +256,40 @@ class InlineLabelEditor extends Component<Props, State> {
   private handleCreateLabel = async (label: Label) => {
     const newLabel = await client.labels.create(label.name, label.properties)
     this.props.onAddLabel(newLabel)
-    this.handleStopSuggesting()
   }
 
   private handleReFocusInput = (e: ChangeEvent<HTMLInputElement>): void => {
     e.target.focus()
+  }
+
+  private handleStartCreatingLabel = (): void => {
+    this.setState({isCreatingLabel: OverlayState.Visible})
+    this.handleStopSuggesting()
+  }
+
+  private handleStopCreatingLabel = (): void => {
+    this.setState({isCreatingLabel: OverlayState.Hidden})
+  }
+
+  private handleEnsureUniqueLabelName = (name: string): string | null => {
+    const {labels} = this.props
+    const labelNames = labels.map(label => label.name)
+
+    return validateLabelName(labelNames, name)
+  }
+
+  private get createLabelOverlay(): JSX.Element {
+    const {isCreatingLabel, filterValue} = this.state
+
+    return (
+      <CreateLabelOverlay
+        isVisible={isCreatingLabel === OverlayState.Visible}
+        onDismiss={this.handleStopCreatingLabel}
+        overrideDefaultName={filterValue}
+        onCreateLabel={this.handleCreateLabel}
+        onNameValidation={this.handleEnsureUniqueLabelName}
+      />
+    )
   }
 }
 

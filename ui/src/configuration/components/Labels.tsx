@@ -132,13 +132,9 @@ class Labels extends PureComponent<Props, State> {
     this.setState({searchTerm: e.target.value})
   }
 
-  private handleCreateLabel = async (labelType: LabelType) => {
+  private handleCreateLabel = async (label: Label) => {
     try {
-      const newLabel = await client.labels.create(
-        labelType.name,
-        this.labelProperties(labelType)
-      )
-      const labelTypes = [...this.state.labelTypes, this.labelType(newLabel)]
+      const labelTypes = [...this.state.labelTypes, this.labelType(label)]
       this.setState({labelTypes})
     } catch (error) {
       console.error(error)
@@ -168,7 +164,10 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleNameValidation = (name: string): string | null => {
-    return validateLabelName(this.state.labelTypes, name)
+    const {labelTypes} = this.state
+    const labelNames = labelTypes.map(label => label.name)
+
+    return validateLabelName(labelNames, name)
   }
 
   private labelTypes(labels: Label[]): LabelType[] {

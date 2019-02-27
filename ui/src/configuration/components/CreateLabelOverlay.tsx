@@ -15,6 +15,7 @@ import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Types
 import {LabelType} from 'src/clockface'
+import {Label as LabelAPI} from 'src/types/v2/labels'
 
 // Constants
 import {generateEmptyLabel} from 'src/configuration/constants/LabelColors'
@@ -25,7 +26,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   isVisible: boolean
   onDismiss: () => void
-  onCreateLabel: (label: LabelType) => void
+  onCreateLabel: (label: LabelAPI) => void
   onNameValidation: (name: string) => string | null
   overrideDefaultName?: string
 }
@@ -37,9 +38,20 @@ interface State {
 
 @ErrorHandling
 class CreateLabelOverlay extends Component<Props, State> {
-  public state: State = {
-    label: generateEmptyLabel(this.props.overrideDefaultName),
-    useCustomColorHex: false,
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      label: generateEmptyLabel(this.props.overrideDefaultName),
+      useCustomColorHex: false,
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.overrideDefaultName !== this.props.overrideDefaultName) {
+      const label = {...this.state.label, name: this.props.overrideDefaultName}
+      this.setState({label})
+    }
   }
 
   public render() {
@@ -85,11 +97,24 @@ class CreateLabelOverlay extends Component<Props, State> {
     const {onCreateLabel, onDismiss} = this.props
 
     try {
-      onCreateLabel(this.state.label)
+      onCreateLabel(this.handleConstructLabel())
       // clear form on successful submit
       this.resetForm()
     } finally {
       onDismiss()
+    }
+  }
+
+  private handleConstructLabel = (): LabelAPI => {
+    const {label} = this.state
+
+    return {
+      name: label.name,
+      id: label.id,
+      properties: {
+        color: label.colorHex,
+        description: label.description,
+      },
     }
   }
 

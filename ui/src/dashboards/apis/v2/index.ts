@@ -12,7 +12,6 @@ import {Label} from 'src/types/v2/labels'
 
 import {Cell as CellAPI} from '@influxdata/influx'
 import {client} from 'src/utils/api'
-import {dashboard} from 'src/dashboards/resources'
 
 export const addDashboardIDToCells = (
   cells: CellAPI[],

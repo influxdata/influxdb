@@ -12,6 +12,9 @@ import {Label as LabelType} from 'src/types/v2/labels'
 // Styles
 import 'src/shared/components/inline_label_editor/ResourceLabels.scss'
 
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 interface Props {
   selectedLabels: LabelType[]
   labels: LabelType[]
@@ -20,6 +23,7 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
+@ErrorHandling
 export default class ResourceLabels extends Component<Props> {
   public render() {
     return <div className="resource-labels">{this.selectedLabels}</div>
