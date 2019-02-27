@@ -123,6 +123,8 @@ jobs:
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
+      - store_test_results:
+         path: junit-test.xml
       - run: make vet
       - run: make checkfmt
       - run: make checktidy

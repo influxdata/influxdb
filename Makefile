@@ -108,7 +108,7 @@ test-js: node_modules
 	make -C ui test
 
 test-go:
-	$(GO_TEST) ./...
+	GO_TEST=env GOTRACEBACK=all GO111MODULE=on gotestsum --junitfile junit-test.xml
 
 test-integration: GO_TAGS=integration
 test-integration:
