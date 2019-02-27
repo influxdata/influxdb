@@ -88,6 +88,7 @@ class EditLabelsOverlay<T> extends PureComponent<Props<T>, State> {
                       text="Save Changes"
                       onClick={this.handleSaveLabels}
                       status={this.buttonStatus}
+                      customClass="resource-labels--save-edits"
                     />
                   </Form.Footer>
                 </Grid.Column>

@@ -17,6 +17,7 @@ interface Props {
   labels: LabelType[]
   onRemoveLabel: (label: LabelType) => void
   onAddLabel: (label: LabelType) => void
+  onFilterChange: (searchTerm: string) => void
 }
 
 export default class ResourceLabels extends Component<Props> {
@@ -39,6 +40,7 @@ export default class ResourceLabels extends Component<Props> {
               colorHex={label.properties.color}
               description={label.properties.description}
               onDelete={this.handleDeleteLabel}
+              onClick={this.handleLabelClick}
             />
           ))}
         </div>
@@ -48,6 +50,14 @@ export default class ResourceLabels extends Component<Props> {
     return (
       <div className="resource-labels--empty">{this.inlineLabelEditor}</div>
     )
+  }
+
+  private handleLabelClick = (labelID: string): void => {
+    const {onFilterChange, labels} = this.props
+
+    const labelName = labels.find(l => l.id === labelID).name
+
+    onFilterChange(labelName)
   }
 
   private handleDeleteLabel = (labelID: string): void => {

@@ -28,6 +28,7 @@ interface Props {
   onUpdate: (telegraf: Telegraf) => void
   onOpenInstructions: (telegrafID: string) => void
   onOpenTelegrafConfig: (telegrafID: string, telegrafName: string) => void
+  onFilterChange: (searchTerm: string) => void
 }
 
 export default class CollectorRow extends PureComponent<Props> {

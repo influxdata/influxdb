@@ -12,6 +12,7 @@ interface Props {
   onSearch: (searchTerm: string) => void
   widthPixels?: number
   placeholderText?: string
+  searchTerm: string
 }
 
 interface State {
@@ -23,12 +24,19 @@ class SearchWidget extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
     widthPixels: 210,
     placeholderText: 'Search...',
+    searchTerm: '',
+  }
+
+  public componentDidUpdate(prevProps: Props) {
+    if (this.props.searchTerm !== prevProps.searchTerm) {
+      this.setState({searchTerm: this.props.searchTerm})
+    }
   }
 
   constructor(props: Props) {
     super(props)
     this.state = {
-      searchTerm: '',
+      searchTerm: this.props.searchTerm,
     }
   }
 
@@ -48,6 +56,7 @@ class SearchWidget extends Component<Props, State> {
         value={searchTerm}
         onChange={this.handleChange}
         onBlur={this.handleBlur}
+        testID={`search-widget`}
       />
     )
   }

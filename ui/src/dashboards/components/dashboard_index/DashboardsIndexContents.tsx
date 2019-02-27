@@ -23,6 +23,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onDeleteDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
+  onFilterChange: (searchTerm: string) => void
   notify: (message: Notification) => void
   searchTerm: string
   showOwnerColumn: boolean
@@ -45,6 +46,7 @@ export default class DashboardsIndexContents extends Component<Props> {
       showOwnerColumn,
       dashboards,
       filterComponent,
+      onFilterChange,
     } = this.props
 
     return (
@@ -68,6 +70,7 @@ export default class DashboardsIndexContents extends Component<Props> {
             onUpdateDashboard={onUpdateDashboard}
             orgs={orgs}
             showOwnerColumn={showOwnerColumn}
+            onFilterChange={onFilterChange}
           />
         )}
       </FilterList>

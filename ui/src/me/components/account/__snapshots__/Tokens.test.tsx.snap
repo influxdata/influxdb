@@ -303,12 +303,14 @@ exports[`Account rendering renders! 1`] = `
                         <IndexListRowCell
                           alignment="left"
                           revealOnHover={false}
+                          testID="table-cell"
                         >
                           <td
                             className="index-list--row-cell index-list--align-left"
                           >
                             <div
                               className="index-list--cell"
+                              data-testid="table-cell"
                             >
                               <a
                                 data-testid="token-description-1"
@@ -323,12 +325,14 @@ exports[`Account rendering renders! 1`] = `
                         <IndexListRowCell
                           alignment="left"
                           revealOnHover={false}
+                          testID="table-cell"
                         >
                           <td
                             className="index-list--row-cell index-list--align-left"
                           >
                             <div
                               className="index-list--cell"
+                              data-testid="table-cell"
                             >
                               active
                             </div>
@@ -337,12 +341,14 @@ exports[`Account rendering renders! 1`] = `
                         <IndexListRowCell
                           alignment="right"
                           revealOnHover={true}
+                          testID="table-cell"
                         >
                           <td
                             className="index-list--row-cell index-list--show-hover index-list--align-right"
                           >
                             <div
                               className="index-list--cell"
+                              data-testid="table-cell"
                             >
                               <ComponentSpacer
                                 align="right"
@@ -423,12 +429,14 @@ exports[`Account rendering renders! 1`] = `
                         <IndexListRowCell
                           alignment="left"
                           revealOnHover={false}
+                          testID="table-cell"
                         >
                           <td
                             className="index-list--row-cell index-list--align-left"
                           >
                             <div
                               className="index-list--cell"
+                              data-testid="table-cell"
                             >
                               <a
                                 data-testid="token-description-2"
@@ -443,12 +451,14 @@ exports[`Account rendering renders! 1`] = `
                         <IndexListRowCell
                           alignment="left"
                           revealOnHover={false}
+                          testID="table-cell"
                         >
                           <td
                             className="index-list--row-cell index-list--align-left"
                           >
                             <div
                               className="index-list--cell"
+                              data-testid="table-cell"
                             >
                               active
                             </div>
@@ -457,12 +467,14 @@ exports[`Account rendering renders! 1`] = `
                         <IndexListRowCell
                           alignment="right"
                           revealOnHover={true}
+                          testID="table-cell"
                         >
                           <td
                             className="index-list--row-cell index-list--show-hover index-list--align-right"
                           >
                             <div
                               className="index-list--cell"
+                              data-testid="table-cell"
                             >
                               <ComponentSpacer
                                 align="right"

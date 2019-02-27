@@ -33,6 +33,7 @@ interface Props {
   onCreate: () => void
   onSelect: (task: Task) => void
   onClone: (task: Task) => void
+  onFilterChange: (searchTerm: string) => void
   totalCount: number
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onAddTaskLabels: typeof addTaskLabelsAsync
@@ -143,6 +144,7 @@ export default class TasksList extends PureComponent<Props, State> {
       onClone,
       onUpdate,
       onRunTask,
+      onFilterChange,
     } = this.props
     const taskrows = (
       <>
@@ -157,6 +159,7 @@ export default class TasksList extends PureComponent<Props, State> {
             onEditLabels={this.handleStartEditingLabels}
             onUpdate={onUpdate}
             onRunTask={onRunTask}
+            onFilterChange={onFilterChange}
           />
         ))}
       </>

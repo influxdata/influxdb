@@ -51,9 +51,22 @@ func (p pAdapter) FindTaskByID(ctx context.Context, id platform.ID) (*platform.T
 
 func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
 	params := backend.TaskSearchParams{PageSize: filter.Limit}
-	if filter.Organization != nil {
-		params.Org = *filter.Organization
+	org := platform.Organization{
+		Name: filter.Organization,
 	}
+	if filter.OrganizationID != nil {
+		org.ID = *filter.OrganizationID
+	}
+	if filter.Organization != "" {
+		if filter.Organization == "non-existant-org" {
+			fmt.Println("here??")
+		}
+		err := p.populateOrg(ctx, &org)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	params.Org = org.ID
 	if filter.User != nil {
 		ownedTasks, _, err := p.urm.FindUserResourceMappings(
 			ctx,
@@ -417,6 +430,7 @@ func (p *pAdapter) populateOrg(ctx context.Context, org *platform.Organization) 
 		org.Name = o.Name
 	} else {
 		o, err := p.orgSvc.FindOrganization(ctx, platform.OrganizationFilter{Name: &org.Name})
+		fmt.Println(o, err, "BLARG")
 		if err != nil {
 			return err
 		}

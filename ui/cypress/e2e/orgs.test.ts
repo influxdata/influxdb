@@ -4,9 +4,7 @@ describe('Orgs', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.setupUser().then(({body}) => {
-      cy.signin(body.org.id)
-    })
+    cy.signin()
 
     cy.visit(orgRoute)
   })
@@ -31,16 +29,16 @@ describe('Orgs', () => {
   })
 
   it('can delete an org', () => {
-    cy.createOrg()
+    cy.createOrg().then(() => {
+      cy.get('.index-list--row').then(rows => {
+        const numOrgs = rows.length
 
-    cy.get('.index-list--row').then(rows => {
-      const numOrgs = rows.length
+        cy.contains('Confirm').click({force: true})
 
-      cy.contains('Confirm').click({force: true})
-
-      cy.get('.index-list--row')
-        .its('length')
-        .should('eq', numOrgs - 1)
+        cy.get('.index-list--row')
+          .its('length')
+          .should('eq', numOrgs - 1)
+      })
     })
   })
 

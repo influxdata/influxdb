@@ -2,6 +2,7 @@
 
 ### Features
 1. [12096](https://github.com/influxdata/influxdb/pull/12096): Add labels to cloned tasks
+1. [12111](https://github.com/influxdata/influxdb/pull/12111): Add ability to filter resources by clicking a label
 
 ### Bug Fixes
 

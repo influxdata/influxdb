@@ -44,6 +44,7 @@ Object {
             >
               <div
                 class="index-list--cell"
+                data-testid="table-cell"
               >
                 <div
                   class="editable-name"
@@ -70,6 +71,7 @@ Object {
             >
               <div
                 class="index-list--cell"
+                data-testid="table-cell"
               />
             </td>
             <td
@@ -77,6 +79,7 @@ Object {
             >
               <div
                 class="index-list--cell"
+                data-testid="table-cell"
               >
                 <div
                   class="confirmation-button"
@@ -108,6 +111,7 @@ Object {
             >
               <div
                 class="index-list--cell"
+                data-testid="table-cell"
               >
                 <div
                   class="context-menu"
@@ -182,6 +186,7 @@ Object {
             >
               <div
                 class="index-list--cell"
+                data-testid="table-cell"
               >
                 <div
                   class="editable-name"
@@ -208,6 +213,7 @@ Object {
             >
               <div
                 class="index-list--cell"
+                data-testid="table-cell"
               />
             </td>
             <td
@@ -215,6 +221,7 @@ Object {
             >
               <div
                 class="index-list--cell"
+                data-testid="table-cell"
               >
                 <div
                   class="confirmation-button"
@@ -246,6 +253,7 @@ Object {
             >
               <div
                 class="index-list--cell"
+                data-testid="table-cell"
               >
                 <div
                   class="context-menu"
@@ -377,6 +385,7 @@ Object {
           >
             <div
               class="index-list--cell"
+              data-testid="table-cell"
             >
               <div
                 class="editable-name"
@@ -403,6 +412,7 @@ Object {
           >
             <div
               class="index-list--cell"
+              data-testid="table-cell"
             />
           </td>
           <td
@@ -410,6 +420,7 @@ Object {
           >
             <div
               class="index-list--cell"
+              data-testid="table-cell"
             >
               <div
                 class="confirmation-button"
@@ -441,6 +452,7 @@ Object {
           >
             <div
               class="index-list--cell"
+              data-testid="table-cell"
             >
               <div
                 class="context-menu"
@@ -515,6 +527,7 @@ Object {
           >
             <div
               class="index-list--cell"
+              data-testid="table-cell"
             >
               <div
                 class="editable-name"
@@ -541,6 +554,7 @@ Object {
           >
             <div
               class="index-list--cell"
+              data-testid="table-cell"
             />
           </td>
           <td
@@ -548,6 +562,7 @@ Object {
           >
             <div
               class="index-list--cell"
+              data-testid="table-cell"
             >
               <div
                 class="confirmation-button"
@@ -579,6 +594,7 @@ Object {
           >
             <div
               class="index-list--cell"
+              data-testid="table-cell"
             >
               <div
                 class="context-menu"

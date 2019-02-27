@@ -9,6 +9,7 @@ import TasksList from 'src/tasks/components/TasksList'
 import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
+import FilterList from 'src/shared/components/Filter'
 
 // Actions
 import {
@@ -110,22 +111,32 @@ class TasksPage extends PureComponent<Props, State> {
             setShowInactive={setShowInactive}
             showInactive={showInactive}
             toggleOverlay={this.handleToggleImportOverlay}
+            searchTerm={searchTerm}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
-              <TasksList
+              <FilterList<Task>
+                list={this.filteredTasks}
                 searchTerm={searchTerm}
-                tasks={this.filteredTasks}
-                totalCount={this.totalTaskCount}
-                onActivate={this.handleActivate}
-                onDelete={this.handleDelete}
-                onCreate={this.handleCreateTask}
-                onClone={this.handleClone}
-                onSelect={this.props.selectTask}
-                onAddTaskLabels={onAddTaskLabels}
-                onRemoveTaskLabels={onRemoveTaskLabels}
-                onRunTask={onRunTask}
-              />
+                searchKeys={['name', 'labels[].name']}
+              >
+                {ts => (
+                  <TasksList
+                    searchTerm={searchTerm}
+                    tasks={ts}
+                    totalCount={this.totalTaskCount}
+                    onActivate={this.handleActivate}
+                    onDelete={this.handleDelete}
+                    onCreate={this.handleCreateTask}
+                    onClone={this.handleClone}
+                    onSelect={this.props.selectTask}
+                    onAddTaskLabels={onAddTaskLabels}
+                    onRemoveTaskLabels={onRemoveTaskLabels}
+                    onRunTask={onRunTask}
+                    onFilterChange={setSearchTerm}
+                  />
+                )}
+              </FilterList>
               {this.hiddenTaskAlert}
             </div>
           </Page.Contents>
@@ -182,11 +193,8 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private get filteredTasks(): Task[] {
-    const {tasks, searchTerm, showInactive, dropdownOrgID} = this.props
+    const {tasks, showInactive, dropdownOrgID} = this.props
     const matchingTasks = tasks.filter(t => {
-      const searchTermFilter = t.name
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase())
       let activeFilter = true
       if (!showInactive) {
         activeFilter = t.status === TaskAPI.StatusEnum.Active
@@ -195,7 +203,7 @@ class TasksPage extends PureComponent<Props, State> {
       if (dropdownOrgID && dropdownOrgID !== allOrganizationsID) {
         orgIDFilter = t.orgID === dropdownOrgID
       }
-      return searchTermFilter && activeFilter && orgIDFilter
+      return activeFilter && orgIDFilter
     })
 
     return matchingTasks

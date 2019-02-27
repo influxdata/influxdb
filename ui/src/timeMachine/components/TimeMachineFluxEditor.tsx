@@ -10,7 +10,11 @@ import VariablesToolbar from 'src/timeMachine/components/variableToolbar/Variabl
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
 
 // Actions
-import {setActiveQueryText, submitScript} from 'src/timeMachine/actions'
+import {
+  setActiveQueryText,
+  submitScript,
+  setActiveQueryEdited,
+} from 'src/timeMachine/actions'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
@@ -31,6 +35,7 @@ interface StateProps {
 interface DispatchProps {
   onSetActiveQueryText: typeof setActiveQueryText
   onSubmitScript: typeof submitScript
+  onSetActiveQueryEdited: typeof setActiveQueryEdited
 }
 
 interface State {
@@ -40,7 +45,7 @@ interface State {
 type Props = StateProps & DispatchProps
 
 class TimeMachineFluxEditor extends PureComponent<Props, State> {
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
 
     this.state = {
@@ -48,8 +53,16 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
     }
   }
 
+  public componentDidMount() {
+    this.props.onSetActiveQueryEdited(false)
+  }
+
+  public componentWillUnmount() {
+    this.props.onSetActiveQueryEdited(false)
+  }
+
   public render() {
-    const {activeQueryText, onSetActiveQueryText, onSubmitScript} = this.props
+    const {activeQueryText, onSubmitScript} = this.props
 
     const divisions = [
       {
@@ -59,7 +72,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           <FluxEditor
             script={activeQueryText}
             status={{type: '', text: ''}}
-            onChangeScript={onSetActiveQueryText}
+            onChangeScript={this.handleChangeScript}
             onSubmitScript={onSubmitScript}
             suggestions={[]}
           />
@@ -97,6 +110,13 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
     )
   }
 
+  private handleChangeScript = (script: string) => {
+    const {onSetActiveQueryText} = this.props
+    onSetActiveQueryText(script)
+
+    this.props.onSetActiveQueryEdited(true)
+  }
+
   private get rightDivision(): JSX.Element {
     const {displayFluxFunctions} = this.state
 
@@ -125,6 +145,7 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onSetActiveQueryText: setActiveQueryText,
   onSubmitScript: submitScript,
+  onSetActiveQueryEdited: setActiveQueryEdited,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

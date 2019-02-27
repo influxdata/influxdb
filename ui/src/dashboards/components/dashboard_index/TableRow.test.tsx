@@ -18,6 +18,7 @@ const setup = (override = {}) => {
     onExportDashboard: jest.fn(),
     onUpdateDashboard: jest.fn(),
     onEditLabels: jest.fn(),
+    onFilterChange: jest.fn(),
     showOwnerColumn: true,
     ...override,
   }

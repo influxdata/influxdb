@@ -98,6 +98,7 @@ export default class Buckets extends PureComponent<Props, State> {
               emptyState={this.emptyState}
               onUpdateBucket={this.handleUpdateBucket}
               onDeleteBucket={this.handleDeleteBucket}
+              onFilterChange={this.handleFilterUpdate}
             />
           )}
         </FilterList>
@@ -162,7 +163,11 @@ export default class Buckets extends PureComponent<Props, State> {
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+    this.handleFilterUpdate(e.target.value)
+  }
+
+  private handleFilterUpdate = (searchTerm: string): void => {
+    this.setState({searchTerm})
   }
 
   private prettyBuckets(buckets: Bucket[]): PrettyBucket[] {

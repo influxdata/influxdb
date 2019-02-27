@@ -28,6 +28,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onSetDefaultDashboard: (dashboardLink: string) => void
+  onFilterChange: (searchTerm: string) => void
   orgs: Organization[]
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
@@ -114,6 +115,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onUpdateDashboard,
       orgs,
       showOwnerColumn,
+      onFilterChange,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -134,6 +136,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onUpdateDashboard={onUpdateDashboard}
               orgs={orgs}
               showOwnerColumn={showOwnerColumn}
+              onFilterChange={onFilterChange}
             />
           )}
         </SortingHat>

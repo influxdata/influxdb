@@ -39,6 +39,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onEditLabels: (dashboard: Dashboard) => void
+  onFilterChange: (searchTerm: string) => void
   showOwnerColumn: boolean
 }
 
@@ -53,7 +54,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
         disabled={false}
         testID={`dashboard-index--row ${id}`}
       >
-        <IndexList.Cell>
+        <IndexList.Cell testID="dashboard-index--cell">
           <ComponentSpacer
             stackChildren={Stack.Rows}
             align={Alignment.Left}
@@ -158,10 +159,17 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
             colorHex={label.properties.color}
             name={label.name}
             description={label.properties.description}
+            onClick={this.handleLabelClick}
           />
         ))}
       </Label.Container>
     )
+  }
+
+  private handleLabelClick = (id: string) => {
+    const label = this.props.dashboard.labels.find(l => l.id === id)
+
+    this.props.onFilterChange(label.name)
   }
 
   private get lastModifiedCell(): JSX.Element {

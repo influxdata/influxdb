@@ -69,6 +69,7 @@ export interface DashboardQuery {
 
 export interface DashboardDraftQuery extends DashboardQuery {
   hidden: boolean
+  manuallyEdited: boolean
 }
 export interface Legend {
   type?: string

@@ -349,13 +349,15 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs platform.O
 			}
 			return nil, err
 		}
-		req.filter.Organization = &o.ID
-	} else if oid := qp.Get("orgID"); oid != "" {
+		req.filter.Organization = o.Name
+		req.filter.OrganizationID = &o.ID
+	}
+	if oid := qp.Get("orgID"); oid != "" {
 		orgID, err := platform.IDFromString(oid)
 		if err != nil {
 			return nil, err
 		}
-		req.filter.Organization = orgID
+		req.filter.OrganizationID = orgID
 	}
 
 	if userID := qp.Get("user"); userID != "" {
@@ -572,6 +574,10 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 		return nil, err
 	}
 
+	if err := tc.Validate(); err != nil {
+		return nil, err
+	}
+
 	return &postTaskRequest{
 		TaskCreate: tc,
 	}, nil
@@ -708,6 +714,10 @@ func decodeUpdateTaskRequest(ctx context.Context, r *http.Request) (*updateTaskR
 
 	var upd platform.TaskUpdate
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
+		return nil, err
+	}
+
+	if err := upd.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -1423,8 +1433,11 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	if filter.After != nil {
 		val.Add("after", filter.After.String())
 	}
-	if filter.Organization != nil {
-		val.Add("orgID", filter.Organization.String())
+	if filter.OrganizationID != nil {
+		val.Add("orgID", filter.OrganizationID.String())
+	}
+	if filter.Organization != "" {
+		val.Add("org", filter.Organization)
 	}
 	if filter.User != nil {
 		val.Add("user", filter.User.String())

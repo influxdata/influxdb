@@ -11,6 +11,7 @@ import {
   getByTitle,
   createTask,
   createVariable,
+  createLabel,
 } from './support/commands'
 
 declare global {
@@ -27,6 +28,7 @@ declare global {
       getByTestID: typeof getByTestID
       getByInputName: typeof getByInputName
       getByTitle: typeof getByTitle
+      createLabel: typeof createLabel
     }
   }
 }

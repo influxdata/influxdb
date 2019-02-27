@@ -38,6 +38,7 @@ interface PassedProps {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   showOwnerColumn: boolean
+  onFilterChange: (searchTerm: string) => void
 }
 
 type Props = DispatchProps & PassedProps
@@ -139,7 +140,7 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private get labels(): JSX.Element {
-    const {dashboard} = this.props
+    const {dashboard, onFilterChange} = this.props
 
     return (
       <FetchLabels>
@@ -149,6 +150,7 @@ class DashboardCard extends PureComponent<Props> {
             selectedLabels={dashboard.labels}
             onRemoveLabel={this.handleRemoveLabel}
             onAddLabel={this.handleAddLabel}
+            onFilterChange={onFilterChange}
           />
         )}
       </FetchLabels>
