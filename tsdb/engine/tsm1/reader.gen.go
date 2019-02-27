@@ -90,31 +90,15 @@ func (t *TSMReader) ReadBooleanArrayBlockAt(entry *IndexEntry, vals *tsdb.Boolea
 	return err
 }
 
-// blockAccessor abstracts a method of accessing blocks from a
-// TSM file.
+// blockaccessor abstracts a method of accessing blocks from a
+// TSM file through the accessor.
 type blockAccessor interface {
 	init() (*indirectIndex, error)
-	read(key []byte, timestamp int64) ([]Value, error)
-	readAll(key []byte) ([]Value, error)
-	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
-	readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error)
-	readFloatArrayBlock(entry *IndexEntry, values *tsdb.FloatArray) error
-	readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error)
-	readIntegerArrayBlock(entry *IndexEntry, values *tsdb.IntegerArray) error
-	readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error)
-	readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.UnsignedArray) error
-	readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
-	readStringArrayBlock(entry *IndexEntry, values *tsdb.StringArray) error
-	readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
-	readBooleanArrayBlock(entry *IndexEntry, values *tsdb.BooleanArray) error
-	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
-	rename(path string) error
-	path() string
-	close() error
+	read(int64, int64) []byte
 	free() error
 }
 
-func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error) {
+func (m *accessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -133,7 +117,7 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values *[]FloatValue) (
 	return a, nil
 }
 
-func (m *mmapAccessor) readFloatArrayBlock(entry *IndexEntry, values *tsdb.FloatArray) error {
+func (m *accessor) readFloatArrayBlock(entry *IndexEntry, values *tsdb.FloatArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -148,7 +132,7 @@ func (m *mmapAccessor) readFloatArrayBlock(entry *IndexEntry, values *tsdb.Float
 	return err
 }
 
-func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error) {
+func (m *accessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -167,7 +151,7 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values *[]IntegerValu
 	return a, nil
 }
 
-func (m *mmapAccessor) readIntegerArrayBlock(entry *IndexEntry, values *tsdb.IntegerArray) error {
+func (m *accessor) readIntegerArrayBlock(entry *IndexEntry, values *tsdb.IntegerArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -182,7 +166,7 @@ func (m *mmapAccessor) readIntegerArrayBlock(entry *IndexEntry, values *tsdb.Int
 	return err
 }
 
-func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error) {
+func (m *accessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -201,7 +185,7 @@ func (m *mmapAccessor) readUnsignedBlock(entry *IndexEntry, values *[]UnsignedVa
 	return a, nil
 }
 
-func (m *mmapAccessor) readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.UnsignedArray) error {
+func (m *accessor) readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.UnsignedArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -216,7 +200,7 @@ func (m *mmapAccessor) readUnsignedArrayBlock(entry *IndexEntry, values *tsdb.Un
 	return err
 }
 
-func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error) {
+func (m *accessor) readStringBlock(entry *IndexEntry, values *[]StringValue) ([]StringValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -235,7 +219,7 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values *[]StringValue)
 	return a, nil
 }
 
-func (m *mmapAccessor) readStringArrayBlock(entry *IndexEntry, values *tsdb.StringArray) error {
+func (m *accessor) readStringArrayBlock(entry *IndexEntry, values *tsdb.StringArray) error {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -250,7 +234,7 @@ func (m *mmapAccessor) readStringArrayBlock(entry *IndexEntry, values *tsdb.Stri
 	return err
 }
 
-func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error) {
+func (m *accessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error) {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -269,7 +253,7 @@ func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values *[]BooleanValu
 	return a, nil
 }
 
-func (m *mmapAccessor) readBooleanArrayBlock(entry *IndexEntry, values *tsdb.BooleanArray) error {
+func (m *accessor) readBooleanArrayBlock(entry *IndexEntry, values *tsdb.BooleanArray) error {
 	m.incAccess()
 
 	m.mu.RLock()

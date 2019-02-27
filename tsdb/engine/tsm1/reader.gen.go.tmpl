@@ -22,26 +22,16 @@ func (t *TSMReader) Read{{.Name}}ArrayBlockAt(entry *IndexEntry, vals *tsdb.{{.N
 }
 {{end}}
 
-// blockAccessor abstracts a method of accessing blocks from a
-// TSM file.
+// blockaccessor abstracts a method of accessing blocks from a
+// TSM file through the accessor.
 type blockAccessor interface {
 	init() (*indirectIndex, error)
-	read(key []byte, timestamp int64) ([]Value, error)
-	readAll(key []byte) ([]Value, error)
-	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
-{{- range .}}
-	read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}Value) ([]{{.Name}}Value, error)
-	read{{.Name}}ArrayBlock(entry *IndexEntry, values *tsdb.{{.Name}}Array) error
-{{- end}}
-	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
-	rename(path string) error
-	path() string
-	close() error
+	read(int64, int64) []byte
 	free() error
 }
 
 {{range .}}
-func (m *mmapAccessor) read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
+func (m *accessor) read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
 	m.incAccess()
 
 	m.mu.RLock()
@@ -60,7 +50,7 @@ func (m *mmapAccessor) read{{.Name}}Block(entry *IndexEntry, values *[]{{.Name}}
 	return a, nil
 }
 
-func (m *mmapAccessor) read{{.Name}}ArrayBlock(entry *IndexEntry, values *tsdb.{{.Name}}Array) error {
+func (m *accessor) read{{.Name}}ArrayBlock(entry *IndexEntry, values *tsdb.{{.Name}}Array) error {
 	m.incAccess()
 
 	m.mu.RLock()
