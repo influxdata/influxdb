@@ -74,7 +74,7 @@ export default class Buckets extends PureComponent<Props, State> {
         <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
-            placeholder="Filter Buckets..."
+            placeholder="Filter buckets..."
             widthPixels={290}
             value={searchTerm}
             onChange={this.handleFilterChange}

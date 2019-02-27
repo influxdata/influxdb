@@ -185,3 +185,23 @@ export const scraperUpdateFailed = (scraperName: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to update scraper: "${scraperName}"`,
 })
+
+export const telegrafUpdateSuccess = (telegrafName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Telegraf "${telegrafName}" was updated successfully`,
+})
+
+export const telegrafUpdateFailed = (telegrafName: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update telegraf: "${telegrafName}"`,
+})
+
+export const telegrafDeleteSuccess = (telegrafName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Telegraf "${telegrafName}" was deleted successfully`,
+})
+
+export const telegrafDeleteFailed = (telegrafName: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete telegraf: "${telegrafName}"`,
+})

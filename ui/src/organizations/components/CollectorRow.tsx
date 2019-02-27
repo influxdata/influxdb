@@ -24,7 +24,7 @@ import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 interface Props {
   collector: Telegraf
   bucket: string
-  onDelete: (telegrafID: string) => void
+  onDelete: (telegraf: Telegraf) => void
   onUpdate: (telegraf: Telegraf) => void
   onOpenInstructions: (telegrafID: string) => void
   onOpenTelegrafConfig: (telegrafID: string, telegrafName: string) => void
@@ -99,7 +99,7 @@ export default class CollectorRow extends PureComponent<Props> {
   }
 
   private handleDeleteConfig = (): void => {
-    this.props.onDelete(this.props.collector.id)
+    this.props.onDelete(this.props.collector)
   }
 
   private handleOpenInstructions = (): void => {
