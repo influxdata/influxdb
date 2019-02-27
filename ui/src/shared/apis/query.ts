@@ -1,9 +1,12 @@
 // Utils
 import Deferred from 'src/utils/Deferred'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
+import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
 // Types
 import {File} from 'src/types/ast'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {VariableAssignment} from 'src/types/ast'
 
 const CHECK_LIMIT_INTERVAL = 200
 const MAX_ROWS = 50000
@@ -140,4 +143,54 @@ export const executeQuery = (
       deferred.reject(new CancellationError())
     },
   }
+}
+
+/*
+  Execute a Flux query that uses external variables.
+
+  The external variables will be supplied to the query via the `extern`
+  parameter.
+
+  The query may be using the `windowPeriod` variable, which cannot be supplied
+  directly but must be derived from the query. To derive the `windowPeriod`
+  variable, we:
+
+  - Fetch the AST for the query
+  - Analyse the AST to find the duration of the query, if possible
+  - Use the duration of the query to compute the value of `windowPeriod`
+
+  This function will handle supplying the `windowPeriod` variable, if it is
+  used in the query.
+*/
+export const executeQueryWithVars = (
+  url: string,
+  orgID: string,
+  query: string,
+  variables?: VariableAssignment[]
+): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
+  let isCancelled = false
+  let cancelExecution
+
+  const cancel = () => {
+    isCancelled = true
+
+    if (cancelExecution) {
+      cancelExecution()
+    }
+  }
+
+  const promise = getWindowVars(query, variables).then(windowVars => {
+    if (isCancelled) {
+      return Promise.reject(new CancellationError())
+    }
+
+    const extern = buildVarsOption([...variables, ...windowVars])
+    const pendingResult = executeQuery(url, orgID, query, extern)
+
+    cancelExecution = pendingResult.cancel
+
+    return pendingResult.promise
+  })
+
+  return {promise, cancel}
 }

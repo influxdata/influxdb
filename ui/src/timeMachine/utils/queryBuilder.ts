@@ -2,9 +2,10 @@ import {BuilderConfig} from 'src/types/v2'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {
   TIME_RANGE_START,
-  WINDOW_PERIOD,
   TIME_RANGE_STOP,
-} from 'src/shared/constants'
+  WINDOW_PERIOD,
+  OPTION_NAME,
+} from 'src/variables/constants'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, tags} = builderConfig
@@ -39,7 +40,7 @@ function buildQueryHelper(
   const fnCall = fn ? formatFunctionCall(fn) : ''
 
   const query = `from(bucket: "${bucket}")
-  |> range(start: ${TIME_RANGE_START}, stop: ${TIME_RANGE_STOP})${tagFilterCall}${fnCall}`
+  |> range(start: ${OPTION_NAME}.${TIME_RANGE_START}, stop: ${OPTION_NAME}.${TIME_RANGE_STOP})${tagFilterCall}${fnCall}`
 
   return query
 }
@@ -51,7 +52,7 @@ export function formatFunctionCall(fn: BuilderConfig['functions'][0]) {
 
   if (fnSpec && fnSpec.aggregate) {
     fnCall = `
-  |> window(period: ${WINDOW_PERIOD})
+  |> window(period: ${OPTION_NAME}.${WINDOW_PERIOD})
   ${fnSpec.flux}
   |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
   |> yield(name: "${fn.name}")`
