@@ -38,12 +38,19 @@ export const createOrg = (): Cypress.Chainable<Cypress.Response> => {
   })
 }
 
-export const createBucket = (): Cypress.Chainable<Cypress.Response> => {
+export const createBucket = (
+  orgID?: string,
+  organization?: string,
+  bucketName?: string
+): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
     url: '/api/v2/buckets',
     body: {
-      name: 'test org',
+      name: bucketName,
+      orgID,
+      organization,
+      retentionRules: [],
     },
   })
 }
