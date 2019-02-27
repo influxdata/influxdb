@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/platform/pkg/data/gen"
 )
 
 type SeriesGenerator interface {
@@ -70,7 +69,7 @@ type cache struct {
 
 type seriesGenerator struct {
 	name  []byte
-	tags  gen.TagsSequence
+	tags  TagsSequence
 	field []byte
 	vg    TimeValuesSequence
 	n     int64
