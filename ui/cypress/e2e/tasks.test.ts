@@ -4,8 +4,7 @@ describe('Tasks', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.setupUser().then(({body}) => {
-      cy.signin(body.org.id)
+    cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
     })
 

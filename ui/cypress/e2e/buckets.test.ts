@@ -4,15 +4,12 @@ describe('Buckets', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.setupUser().then(({body}) => {
+    cy.signin().then(({body}) => {
       const {
         org: {id},
         bucket,
       } = body
       cy.wrap(bucket).as('bucket')
-
-      cy.signin(id)
-
       cy.fixture('routes').then(({orgs}) => {
         cy.visit(`${orgs}/${id}/buckets_tab`)
       })
