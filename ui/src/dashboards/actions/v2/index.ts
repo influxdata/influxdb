@@ -40,7 +40,7 @@ import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {CreateCell} from '@influxdata/influx'
 import {Dashboard, NewView, Cell} from 'src/types/v2'
-import {Label} from '@influxdata/influx'
+import {Label} from 'src/types/v2/labels'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',

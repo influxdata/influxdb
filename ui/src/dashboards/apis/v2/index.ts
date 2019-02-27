@@ -8,7 +8,7 @@ import {incrementCloneName} from 'src/utils/naming'
 // Types
 
 import {Cell, NewCell, Dashboard, View} from 'src/types/v2'
-import {Label} from '@influxdata/influx'
+import {Label} from 'src/types/v2/labels'
 
 import {Cell as CellAPI} from '@influxdata/influx'
 import {client} from 'src/utils/api'
@@ -108,7 +108,7 @@ export const addDashboardLabels = async (
     })
   )
 
-  return addedLabels
+  return addedLabels as Label[]
 }
 
 export const removeDashboardLabels = async (
