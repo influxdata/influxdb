@@ -4,6 +4,7 @@ import _ from 'lodash'
 
 // Components
 import {Label} from 'src/clockface'
+import InlineLabelEditor from 'src/shared/components/inline_label_editor/InlineLabelEditor'
 
 // Types
 import {Label as LabelType} from 'src/types/v2/labels'
@@ -15,6 +16,7 @@ interface Props {
   selectedLabels: LabelType[]
   labels: LabelType[]
   onRemoveLabel: (label: LabelType) => void
+  onAddLabel: (label: LabelType) => void
 }
 
 export default class ResourceLabels extends Component<Props> {
@@ -38,11 +40,17 @@ export default class ResourceLabels extends Component<Props> {
               onDelete={this.handleDeleteLabel}
             />
           ))}
+          {this.inlineLabelEditor}
         </div>
       )
     }
 
-    return <div className="resource-labels--empty">No labels</div>
+    return (
+      <div className="resource-labels--empty">
+        <span>No labels</span>
+        {this.inlineLabelEditor}
+      </div>
+    )
   }
 
   private handleDeleteLabel = (labelID: string): void => {
@@ -50,5 +58,22 @@ export default class ResourceLabels extends Component<Props> {
     const label = selectedLabels.find(label => label.id === labelID)
 
     onRemoveLabel(label)
+  }
+
+  private get inlineLabelEditor(): JSX.Element {
+    const {selectedLabels, labels, onAddLabel} = this.props
+
+    return (
+      <InlineLabelEditor
+        labels={labels}
+        selectedLabels={selectedLabels}
+        onAddLabel={onAddLabel}
+        onCreateLabel={this.handleCreateLabel}
+      />
+    )
+  }
+
+  private handleCreateLabel = (name: string): void => {
+    console.log(name)
   }
 }

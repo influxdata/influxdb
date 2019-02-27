@@ -1,0 +1,119 @@
+@import 'src/style/modules';
+
+/*
+  Inline Label Editor
+  ------------------------------------------------------------------------------
+*/
+
+.inline-label-editor {
+  width: 240px;
+  height: 18px;
+  position: relative;
+  margin-left: 2px;
+
+  > .input {
+    position: relative;
+    top: -2px;
+    z-index: 1000;
+  }
+}
+
+.inline-label-editor--menu-container {
+  overflow: hidden;
+  z-index: 999;
+  width: 100%;
+  position: absolute;
+  top: 20px;
+  left: 0;
+  @include gradient-h($g2-kevlar, $g4-onyx);
+  border-radius: $radius;
+  box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.7);
+}
+
+.inline-label-editor--menu-container .fancy-scroll--track-h {
+  display: none;
+}
+
+.inline-label-editor--menu-container .fancy-scroll--track-v {
+  z-index: 2;
+}
+
+.inline-label-editor--menu {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.inline-label-editor--menu-item {
+  z-index: 1;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  padding: $ix-marg-a $ix-marg-b;
+
+  &:after {
+    content: '';
+    z-index: -1;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    @include gradient-h($g5-pepper, $g7-graphite);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  &.active:after {
+    opacity: 1;
+  }
+
+  &.active,
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.inline-label-editor--empty {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 500;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: $g9-mountain;
+  font-style: italic;
+  min-height: 30px;
+  line-height: 30px;
+
+  &:first-child {
+    margin-bottom: $ix-marg-b - ($ix-border / 2);
+  }
+}
+
+.inline-label-editor--selection {
+  display: flex;
+  flex-wrap: nowrap;
+  margin-bottom: $ix-marg-c;
+}
+
+.inline-label-editor--remove-all {
+  margin-top: $ix-marg-b;
+  margin-left: $ix-marg-b;
+}
+
+.inline-label-editor--selected,
+.inline-label-editor--none-selected {
+  flex: 1 0 0;
+  margin-top: $ix-marg-b;
+}
+
+.inline-label-editor--none-selected {
+  font-size: 13px;
+  color: $g10-wolf;
+  font-weight: 500;
+  font-style: italic;
+  user-select: none;
+}

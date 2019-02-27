@@ -10,19 +10,18 @@ import {
 } from '@influxdata/clockface'
 
 // Styles
-import 'src/clockface/components/label/LabelEditButton.scss'
+import 'src/shared/components/inline_label_editor/InlineLabelToggle.scss'
 
 interface Props {
   onClick: () => void
-  resourceName: string
 }
 
-const LabelEditButton: SFC<Props> = ({onClick, resourceName}) => {
+const InlineLabelToggle: SFC<Props> = ({onClick}) => {
   return (
-    <div className="label--edit-button">
+    <div className="inline-label-toggle">
       <Button
         color={ComponentColor.Primary}
-        titleText={`Add labels to ${resourceName}`}
+        titleText="Add labels"
         onClick={onClick}
         shape={ButtonShape.Square}
         icon={IconFont.Plus}
@@ -31,4 +30,4 @@ const LabelEditButton: SFC<Props> = ({onClick, resourceName}) => {
   )
 }
 
-export default LabelEditButton
+export default InlineLabelToggle

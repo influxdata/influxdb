@@ -17,6 +17,7 @@ interface Props {
   orgs: Organization[]
   showOwnerColumn: boolean
   onRemoveLabels: (resourceID: string, labels: Label[]) => void
+  onAddLabels: (resourceID: string, labels: Label[]) => void
 }
 
 export default class DashboardCards extends PureComponent<Props> {
@@ -30,6 +31,7 @@ export default class DashboardCards extends PureComponent<Props> {
       orgs,
       showOwnerColumn,
       onRemoveLabels,
+      onAddLabels,
     } = this.props
 
     return dashboards.map(d => (
@@ -43,6 +45,7 @@ export default class DashboardCards extends PureComponent<Props> {
         orgs={orgs}
         showOwnerColumn={showOwnerColumn}
         onRemoveLabels={onRemoveLabels}
+        onAddLabels={onAddLabels}
       />
     ))
   }

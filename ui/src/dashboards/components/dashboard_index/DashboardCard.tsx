@@ -25,6 +25,7 @@ interface Props {
   onUpdateDashboard: (dashboard: Dashboard) => void
   showOwnerColumn: boolean
   onRemoveLabels: (resourceID: string, labels: Label[]) => void
+  onAddLabels: (resourceID: string, labels: Label[]) => void
 }
 
 export default class DashboardCard extends PureComponent<Props> {
@@ -64,12 +65,6 @@ export default class DashboardCard extends PureComponent<Props> {
 
   private handleUpdateDashboard = (name: string) => {
     this.props.onUpdateDashboard({...this.props.dashboard, name})
-  }
-
-  private handleRemoveLabels = (label: Label): void => {
-    const {onRemoveLabels, dashboard} = this.props
-
-    onRemoveLabels(dashboard.id, [label])
   }
 
   private get contextMenu(): JSX.Element {
@@ -117,6 +112,18 @@ export default class DashboardCard extends PureComponent<Props> {
     )
   }
 
+  private handleRemoveLabel = (label: Label): void => {
+    const {onRemoveLabels, dashboard} = this.props
+
+    onRemoveLabels(dashboard.id, [label])
+  }
+
+  private handleAddLabel = (label: Label): void => {
+    const {onAddLabels, dashboard} = this.props
+
+    onAddLabels(dashboard.id, [label])
+  }
+
   private get labels(): JSX.Element {
     const {dashboard} = this.props
 
@@ -126,7 +133,8 @@ export default class DashboardCard extends PureComponent<Props> {
           <ResourceLabels
             labels={labels}
             selectedLabels={dashboard.labels}
-            onRemoveLabel={this.handleRemoveLabels}
+            onRemoveLabel={this.handleRemoveLabel}
+            onAddLabel={this.handleAddLabel}
           />
         )}
       </FetchLabels>

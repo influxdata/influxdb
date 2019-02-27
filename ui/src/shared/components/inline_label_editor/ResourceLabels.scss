@@ -25,9 +25,16 @@ $label-margin: $ix-border / 2;
 }
 
 .resource-labels--empty {
-  color: $g9-mountain;
-  font-style: italic;
-  font-size: $form-xs-font;
-  font-weight: 500;
-  font-family: $ix-text-font;
+  height: 18px;
+  display: flex;
+  align-items: center;
+
+  > span {
+    color: $g9-mountain;
+    font-style: italic;
+    font-size: $form-xs-font;
+    font-weight: 500;
+    font-family: $ix-text-font;
+    margin-right: $ix-marg-b;
+  }
 }

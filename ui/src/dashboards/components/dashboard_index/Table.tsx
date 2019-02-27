@@ -33,6 +33,7 @@ interface Props {
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
   onRemoveLabels: (resourceID: string, labels: Label[]) => void
+  onAddLabels: (resourceID: string, labels: Label[]) => void
 }
 
 interface DatedDashboard extends Dashboard {
@@ -117,6 +118,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       orgs,
       showOwnerColumn,
       onRemoveLabels,
+      onAddLabels,
     } = this.props
 
     const {sortKey, sortDirection} = this.state
@@ -138,6 +140,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               orgs={orgs}
               showOwnerColumn={showOwnerColumn}
               onRemoveLabels={onRemoveLabels}
+              onAddLabels={onAddLabels}
             />
           )}
         </SortingHat>

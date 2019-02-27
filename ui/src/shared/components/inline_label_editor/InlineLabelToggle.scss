@@ -1,14 +1,14 @@
 @import 'src/style/modules';
 
 /*
-  Label Edit Button
+  Inline Label Editor Toggle Button
   ------------------------------------------------------------------------------
 */
 
 $label-margin: 1px;
 $label-edit-button-diameter: 18px; // Should be the same as the height of labels
 
-.label--edit-button {
+.inline-label-toggle {
   width: $label-edit-button-diameter;
   height: $label-edit-button-diameter;
   margin: $label-margin;

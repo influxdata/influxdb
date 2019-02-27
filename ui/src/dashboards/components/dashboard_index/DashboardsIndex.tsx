@@ -110,6 +110,7 @@ class DashboardIndex extends PureComponent<Props, State> {
       handleUpdateDashboard,
       orgs,
       onRemoveDashboardLabels,
+      onAddDashboardLabels,
     } = this.props
     const {searchTerm} = this.state
 
@@ -147,6 +148,7 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onExportDashboard={this.handleExportDashboard}
                 onUpdateDashboard={handleUpdateDashboard}
                 onRemoveDashboardLabels={onRemoveDashboardLabels}
+                onAddDashboardLabels={onAddDashboardLabels}
                 notify={notify}
                 searchTerm={searchTerm}
                 showOwnerColumn={true}

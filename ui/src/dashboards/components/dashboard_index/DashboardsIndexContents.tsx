@@ -29,6 +29,7 @@ interface Props {
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
   onRemoveDashboardLabels: (resourceID: string, labels: Label[]) => void
+  onAddDashboardLabels: (resourceID: string, labels: Label[]) => void
 }
 
 @ErrorHandling
@@ -48,6 +49,7 @@ export default class DashboardsIndexContents extends Component<Props> {
       dashboards,
       filterComponent,
       onRemoveDashboardLabels,
+      onAddDashboardLabels,
     } = this.props
 
     return (
@@ -72,6 +74,7 @@ export default class DashboardsIndexContents extends Component<Props> {
             orgs={orgs}
             showOwnerColumn={showOwnerColumn}
             onRemoveLabels={onRemoveDashboardLabels}
+            onAddLabels={onAddDashboardLabels}
           />
         )}
       </FilterList>
