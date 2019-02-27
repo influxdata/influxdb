@@ -46,10 +46,7 @@ export default class ResourceLabels extends Component<Props> {
     }
 
     return (
-      <div className="resource-labels--empty">
-        <span>No labels</span>
-        {this.inlineLabelEditor}
-      </div>
+      <div className="resource-labels--empty">{this.inlineLabelEditor}</div>
     )
   }
 

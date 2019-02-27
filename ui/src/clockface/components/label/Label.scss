@@ -103,3 +103,14 @@
 .label--lg {
   @include labelSizeModifier($form-lg-font, $form-lg-padding, $form-lg-height);
 }
+
+.label--colorless {
+  font-weight: 600;
+  font-style: italic;
+
+  &,
+  &:hover {
+    background-color: $g5-pepper;
+    color: $g13-mist;
+  }
+}

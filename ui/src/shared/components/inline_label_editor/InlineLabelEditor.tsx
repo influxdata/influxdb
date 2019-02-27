@@ -90,7 +90,19 @@ class LabelSelector extends Component<Props, State> {
       )
     }
 
-    return <InlineLabelToggle onClick={this.handleStartSuggesting} />
+    return (
+      <>
+        <InlineLabelToggle onClick={this.handleStartSuggesting} />
+        {!this.props.selectedLabels.length && (
+          <div
+            className="label label--xs label--colorless"
+            onClick={this.handleStartSuggesting}
+          >
+            Add a label
+          </div>
+        )}
+      </>
+    )
   }
 
   private get suggestionMenu(): JSX.Element {
