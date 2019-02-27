@@ -1,6 +1,7 @@
 import {HistogramPosition} from 'src/minard'
 import {Color} from 'src/types/colors'
-import {Label} from '@influxdata/influx'
+import {Label} from 'src/types/v2/labels'
+
 import {
   Dashboard as DashboardAPI,
   View as ViewAPI,
