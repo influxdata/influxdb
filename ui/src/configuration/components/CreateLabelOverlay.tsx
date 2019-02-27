@@ -17,7 +17,7 @@ import {validateHexCode} from 'src/configuration/utils/labels'
 import {LabelType} from 'src/clockface'
 
 // Constants
-import {EMPTY_LABEL} from 'src/configuration/constants/LabelColors'
+import {generateEmptyLabel} from 'src/configuration/constants/LabelColors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -27,6 +27,7 @@ interface Props {
   onDismiss: () => void
   onCreateLabel: (label: LabelType) => void
   onNameValidation: (name: string) => string | null
+  overrideDefaultName?: string
 }
 
 interface State {
@@ -37,7 +38,7 @@ interface State {
 @ErrorHandling
 class CreateLabelOverlay extends Component<Props, State> {
   public state: State = {
-    label: EMPTY_LABEL,
+    label: generateEmptyLabel(this.props.overrideDefaultName),
     useCustomColorHex: false,
   }
 
@@ -94,7 +95,7 @@ class CreateLabelOverlay extends Component<Props, State> {
 
   private resetForm() {
     this.setState({
-      label: EMPTY_LABEL,
+      label: generateEmptyLabel(),
       useCustomColorHex: false,
     })
   }

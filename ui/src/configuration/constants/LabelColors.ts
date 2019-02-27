@@ -6,12 +6,12 @@ export const HEX_CODE_CHAR_LENGTH = 7
 
 export const DEFAULT_LABEL_COLOR_HEX = '#326BBA'
 
-export const EMPTY_LABEL: LabelType = {
+export const generateEmptyLabel = (initialName?: string): LabelType => ({
   id: 'newLabel',
-  name: '',
+  name: initialName || '',
   description: '',
   colorHex: DEFAULT_LABEL_COLOR_HEX,
-}
+})
 
 export const CUSTOM_LABEL: LabelColor = {
   id: 'custom',
