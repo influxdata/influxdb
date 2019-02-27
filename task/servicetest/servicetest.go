@@ -171,7 +171,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	found["FindTaskByID"] = f
 
-	fs, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &cr.OrgID})
+	fs, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{OrganizationID: &cr.OrgID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -842,7 +842,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			}
 
 			// Get all the tasks.
-			tasks, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &cr.OrgID})
+			tasks, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{OrganizationID: &cr.OrgID})
 			if err != nil {
 				t.Errorf("error finding tasks: %v", err)
 				return
@@ -900,7 +900,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			}
 
 			// Get all the tasks.
-			tasks, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{Organization: &cr.OrgID})
+			tasks, _, err := sys.ts.FindTasks(sys.Ctx, platform.TaskFilter{OrganizationID: &cr.OrgID})
 			if err != nil {
 				t.Errorf("error finding tasks: %v", err)
 				return
