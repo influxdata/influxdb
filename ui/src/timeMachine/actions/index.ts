@@ -25,6 +25,7 @@ export type Action =
   | SetTimeRangeAction
   | SetTypeAction
   | SetActiveQueryText
+  | SetActiveQueryEdited
   | SubmitScriptAction
   | SetIsViewingRawDataAction
   | SetGeomAction
@@ -119,6 +120,18 @@ interface SetTypeAction {
 export const setType = (type: ViewType): SetTypeAction => ({
   type: 'SET_VIEW_TYPE',
   payload: {type},
+})
+
+interface SetActiveQueryEdited {
+  type: 'SET_ACTIVE_QUERY_EDITED'
+  payload: {manuallyEdited: boolean}
+}
+
+export const setActiveQueryEdited = (
+  manuallyEdited: boolean
+): SetActiveQueryEdited => ({
+  type: 'SET_ACTIVE_QUERY_EDITED',
+  payload: {manuallyEdited},
 })
 
 interface SetActiveQueryText {

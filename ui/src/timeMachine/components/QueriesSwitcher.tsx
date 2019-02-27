@@ -29,6 +29,7 @@ import {AppState, QueryEditMode, SourceType} from 'src/types/v2'
 
 interface StateProps {
   editMode: QueryEditMode
+  manuallyEdited: boolean
 }
 
 interface DispatchProps {
@@ -108,6 +109,11 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
   }
 
   private handleShowOverlay = (): void => {
+    if (!this.props.manuallyEdited) {
+      this.props.onEditWithBuilder()
+      return
+    }
+
     this.setState({isOverlayVisible: true})
   }
 
@@ -124,8 +130,8 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState) => {
-  const editMode = getActiveQuery(state).editMode
-  return {editMode, sourceType: SourceType.V2}
+  const {editMode, manuallyEdited} = getActiveQuery(state)
+  return {editMode, sourceType: SourceType.V2, manuallyEdited}
 }
 
 const mdtp = {
