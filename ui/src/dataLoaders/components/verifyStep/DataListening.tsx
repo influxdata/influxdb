@@ -21,7 +21,6 @@ import ConnectionInformation, {
 
 // Types
 import {AppState, Organization} from 'src/types/v2'
-import {InfluxLanguage} from 'src/types/v2/dashboards'
 
 interface OwnProps {
   bucket: string
@@ -130,12 +129,8 @@ class DataListening extends PureComponent<Props, State> {
     let timePassed
 
     try {
-      const response = await executeQuery(
-        '/api/v2/query',
-        activeOrg.id,
-        script,
-        InfluxLanguage.Flux
-      ).promise
+      const response = await executeQuery('/api/v2/query', activeOrg.id, script)
+        .promise
       rowCount = response.rowCount
       timePassed = Number(new Date()) - this.startTime
     } catch (err) {

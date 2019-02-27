@@ -10,24 +10,15 @@ import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
 // Constants
 import {DEFAULT_DURATION_MS, WINDOW_PERIOD} from 'src/shared/constants'
 
-// Types
-import {InfluxLanguage} from 'src/types/v2/dashboards'
-
 const DESIRED_POINTS_PER_GRAPH = 360
 const FALLBACK_WINDOW_PERIOD = 15000
 
 export async function renderQuery(
   query: string,
-  type: InfluxLanguage,
   variables: {[name: string]: string}
 ): Promise<string> {
-  if (type === InfluxLanguage.InfluxQL) {
-    // We don't support template variables / variables in InfluxQL yet, so this is
-    // a no-op
-    return query
-  }
-
   const {imports, body} = await extractImports(query)
+
   let variableDeclarations = formatVariables(variables, query)
 
   if (query.includes(WINDOW_PERIOD)) {

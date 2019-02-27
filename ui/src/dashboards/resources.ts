@@ -14,9 +14,6 @@ import {
   TableOptions,
   FieldOption,
   DecimalPlaces,
-  DashboardQuery,
-  InfluxLanguage,
-  QueryEditMode,
 } from 'src/types/v2/dashboards'
 import {Cell, Dashboard} from 'src/types/v2'
 
@@ -130,19 +127,6 @@ export const queryConfig: QueryConfig = {
   rawText: null,
   range: null,
   shifts: null,
-}
-
-export const query: DashboardQuery = {
-  text:
-    'SELECT mean("usage_idle") AS "mean_usage_idle", mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
-  type: InfluxLanguage.InfluxQL,
-  sourceID: '',
-  editMode: QueryEditMode.Builder,
-  builderConfig: {
-    buckets: [],
-    tags: [],
-    functions: [],
-  },
 }
 
 export const axes: Axes = {
