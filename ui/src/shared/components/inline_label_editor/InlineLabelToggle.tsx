@@ -20,7 +20,7 @@ const InlineLabelToggle: SFC<Props> = ({onClick}) => {
   return (
     <div className="inline-label-toggle">
       <Button
-        color={ComponentColor.Primary}
+        color={ComponentColor.Secondary}
         titleText="Add labels"
         onClick={onClick}
         shape={ButtonShape.Square}
