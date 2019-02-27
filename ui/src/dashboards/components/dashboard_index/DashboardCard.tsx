@@ -14,6 +14,7 @@ import ResourceLabels from 'src/shared/components/inline_label_editor/ResourceLa
 import {
   addDashboardLabelsAsync,
   removeDashboardLabelsAsync,
+  createDashboardLabelAsync,
 } from 'src/dashboards/actions/v2'
 
 // Types
@@ -26,6 +27,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 interface DispatchProps {
   onAddDashboardLabels: typeof addDashboardLabelsAsync
   onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
+  onCreateDashboardLabel: typeof createDashboardLabelAsync
 }
 
 interface PassedProps {
@@ -169,6 +171,7 @@ class DashboardCard extends PureComponent<Props> {
 const mdtp: DispatchProps = {
   onAddDashboardLabels: addDashboardLabelsAsync,
   onRemoveDashboardLabels: removeDashboardLabelsAsync,
+  onCreateDashboardLabel: createDashboardLabelAsync,
 }
 
 export default connect<{}, DispatchProps, PassedProps>(

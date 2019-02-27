@@ -13,6 +13,7 @@ import {
   addCell as addCellAJAX,
   deleteCell as deleteCellAJAX,
   addDashboardLabels as addDashboardLabelsAJAX,
+  createDashboardLabel as createDashboardLabelAJAX,
   removeDashboardLabels as removeDashboardLabelsAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis/v2'
@@ -361,6 +362,20 @@ export const addDashboardLabelsAsync = (
     const newLabels = await addDashboardLabelsAJAX(dashboardID, labels)
 
     dispatch(addDashboardLabels(dashboardID, newLabels))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.addDashboardLabelFailed()))
+  }
+}
+
+export const createDashboardLabelAsync = (
+  dashboardID: string,
+  label: Label
+) => async (dispatch: Dispatch<Action>) => {
+  try {
+    const newLabel = await createDashboardLabelAJAX(dashboardID, label)
+
+    dispatch(addDashboardLabels(dashboardID, [newLabel]))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.addDashboardLabelFailed()))
