@@ -89,10 +89,10 @@ export const taskRunSuccess = (): Notification => ({
   message: 'Task ran successfully',
 })
 
-export const taskGetFailed = (): Notification => ({
+export const taskGetFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   duration: FIVE_SECONDS,
-  message: 'Failed to get runs',
+  message: `Failed to get runs: ${error}`,
 })
 
 export const getTelegrafConfigFailed = (): Notification => ({

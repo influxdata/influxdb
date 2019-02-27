@@ -1,25 +1,39 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
-import {Run} from '@influxdata/influx'
 import {IndexList, OverlayTechnology} from 'src/clockface'
-import {Button} from '@influxdata/clockface'
-import RunLogsOverlay from './RunLogsOverlay'
+import RunLogsOverlay from 'src/tasks/components/RunLogsList'
+
+// Actions
+import {getLogs} from 'src/tasks/actions/v2'
 
 // Types
-import {ComponentSize, ComponentColor} from '@influxdata/clockface'
+import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
+import {Run, LogEvent} from '@influxdata/influx'
+import {AppState} from 'src/types/v2'
 
-interface Props {
+interface OwnProps {
   taskID: string
   run: Run
 }
+
+interface DispatchProps {
+  getLogs: typeof getLogs
+}
+
+interface StateProps {
+  logs: LogEvent[]
+}
+
+type Props = OwnProps & DispatchProps & StateProps
 
 interface State {
   isImportOverlayVisible: boolean
 }
 
-export default class TaskRunsRow extends PureComponent<Props, State> {
+class TaskRunsRow extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -70,22 +84,38 @@ export default class TaskRunsRow extends PureComponent<Props, State> {
     return formatted
   }
 
-  private handleToggleOverlay = () => {
+  private handleToggleOverlay = async () => {
+    const {taskID, run, getLogs} = this.props
+    await getLogs(taskID, run.id)
+
     this.setState({isImportOverlayVisible: !this.state.isImportOverlayVisible})
   }
 
   private get renderLogOverlay(): JSX.Element {
     const {isImportOverlayVisible} = this.state
-    const {taskID, run} = this.props
+    const {logs} = this.props
 
     return (
       <OverlayTechnology visible={isImportOverlayVisible}>
         <RunLogsOverlay
           onDismissOverlay={this.handleToggleOverlay}
-          taskID={taskID}
-          runID={run.id}
+          logs={logs}
         />
       </OverlayTechnology>
     )
   }
 }
+
+const mstp = (state: AppState): StateProps => {
+  const {
+    tasks: {logs},
+  } = state
+  return {logs}
+}
+
+const mdtp: DispatchProps = {getLogs: getLogs}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(TaskRunsRow)
