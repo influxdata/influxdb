@@ -1179,7 +1179,7 @@ type FormatFileNameFunc func(generation, sequence int) string
 
 // DefaultFormatFileName is the default implementation to format TSM filenames.
 func DefaultFormatFileName(generation, sequence int) string {
-	return fmt.Sprintf("%09d-%09d", generation, sequence)
+	return fmt.Sprintf("%015d-%09d", generation, sequence)
 }
 
 // ParseFileNameFunc is executed when parsing a TSM filename into generation & sequence.
@@ -1200,7 +1200,7 @@ func DefaultParseFileName(name string) (int, int, error) {
 		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
 	}
 
-	generation, err := strconv.ParseUint(id[:idx], 10, 32)
+	generation, err := strconv.ParseUint(id[:idx], 10, 64)
 	if err != nil {
 		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
 	}
