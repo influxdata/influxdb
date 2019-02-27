@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Apis
-import {executeQuery} from 'src/shared/apis/v2/query'
+import {executeQuery} from 'src/shared/apis/query'
 import {getActiveOrg} from 'src/organizations/selectors'
 
 // Components

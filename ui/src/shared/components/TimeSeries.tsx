@@ -4,7 +4,7 @@ import {isEqual, flatten} from 'lodash'
 import {connect} from 'react-redux'
 
 // API
-import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
+import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'

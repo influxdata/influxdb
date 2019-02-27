@@ -2,7 +2,7 @@
 import {get} from 'lodash'
 
 // APIs
-import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
+import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
