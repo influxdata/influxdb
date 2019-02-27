@@ -599,13 +599,23 @@ export const invalidZoomedTimeRangeValueInURLQuery = (): Notification => ({
   message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
 })
 
-export const addVariableFailed = (): Notification => ({
+export const getVariablesFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to fetch variables',
+})
+
+export const getVariableFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to fetch variable',
+})
+
+export const createVariableFailed = (): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Failed to create variable.`,
 })
 
-export const addVariableSuccess = (name: string): Notification => ({
+export const createVariableSuccess = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'cube',
   message: `Successfully created new variable ${name}.`,

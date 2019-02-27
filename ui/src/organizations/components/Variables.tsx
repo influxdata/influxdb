@@ -1,40 +1,49 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
+
+// Utils
+import {getVariablesForOrg} from 'src/variables/selectors'
+import {
+  getVariables,
+  createVariable,
+  updateVariable,
+  deleteVariable,
+} from 'src/variables/actions'
 
 // Components
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CreateVariableOverlay from 'src/organizations/components/CreateVariableOverlay'
-import {Button, ComponentSize} from '@influxdata/clockface'
+import {Button, ComponentSize, TechnoSpinner} from '@influxdata/clockface'
 import VariableList from 'src/organizations/components/VariableList'
 import {Input, OverlayTechnology, EmptyState} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
-// Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
-
 // Types
 import {ComponentColor, IconFont} from '@influxdata/clockface'
-import {OverlayState} from 'src/types'
-import {client} from 'src/utils/api'
-import {Variable} from '@influxdata/influx'
-import {
-  addVariableFailed,
-  deleteVariableFailed,
-  addVariableSuccess,
-  deleteVariableSuccess,
-  updateVariableFailed,
-  updateVariableSuccess,
-} from 'src/shared/copy/notifications'
+import {OverlayState, RemoteDataState} from 'src/types'
+import {AppState} from 'src/types/v2'
+import {Variable, Organization} from '@influxdata/influx'
 
-interface Props {
-  onChange: () => void
+interface StateProps {
   variables: Variable[]
-  orgName: string
-  orgID: string
-  notify: NotificationsActions.PublishNotificationActionCreator
+  variablesStatus: RemoteDataState
 }
+
+interface DispatchProps {
+  onGetVariables: typeof getVariables
+  onCreateVariable: typeof createVariable
+  onUpdateVariable: typeof updateVariable
+  onDeleteVariable: typeof deleteVariable
+}
+
+interface OwnProps {
+  org: Organization
+}
+
+type Props = StateProps & DispatchProps & OwnProps
 
 interface State {
   searchTerm: string
@@ -42,47 +51,28 @@ interface State {
   importOverlayState: OverlayState
 }
 
-export default class Variables extends PureComponent<Props, State> {
-  private get emptyState(): JSX.Element {
-    const {orgName} = this.props
-    const {searchTerm} = this.state
-
-    if (_.isEmpty(searchTerm)) {
-      return (
-        <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text
-            text={`${orgName} does not own any Variables , why not create one?`}
-            highlightWords={['Variables']}
-          />
-          <Button
-            size={ComponentSize.Medium}
-            text="Create Variable"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={this.handleOpenCreateOverlay}
-          />
-        </EmptyState>
-      )
-    }
-
-    return (
-      <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="No Variables match your query" />
-      </EmptyState>
-    )
+class Variables extends PureComponent<Props, State> {
+  public state: State = {
+    searchTerm: '',
+    createOverlayState: OverlayState.Closed,
+    importOverlayState: OverlayState.Closed,
   }
-  constructor(props: Props) {
-    super(props)
-    this.state = {
-      searchTerm: '',
-      createOverlayState: OverlayState.Closed,
-      importOverlayState: OverlayState.Closed,
+
+  public componentDidMount() {
+    const {variablesStatus, onGetVariables} = this.props
+
+    if (variablesStatus === RemoteDataState.NotStarted) {
+      onGetVariables()
     }
   }
 
   public render() {
-    const {variables, orgID} = this.props
+    const {variables, variablesStatus, org} = this.props
     const {searchTerm, createOverlayState} = this.state
+
+    if (variablesStatus !== RemoteDataState.Done) {
+      return <TechnoSpinner />
+    }
 
     return (
       <>
@@ -119,10 +109,41 @@ export default class Variables extends PureComponent<Props, State> {
           <CreateVariableOverlay
             onCreateVariable={this.handleCreateVariable}
             onCloseModal={this.handleCloseCreateOverlay}
-            orgID={orgID}
+            orgID={org.id}
           />
         </OverlayTechnology>
       </>
+    )
+  }
+
+  private get emptyState(): JSX.Element {
+    const {org} = this.props
+    const {searchTerm} = this.state
+
+    if (!searchTerm) {
+      return (
+        <EmptyState size={ComponentSize.Large}>
+          <EmptyState.Text
+            text={`${
+              org.name
+            } does not own any Variables , why not create one?`}
+            highlightWords={['Variables']}
+          />
+          <Button
+            size={ComponentSize.Medium}
+            text="Create Variable"
+            icon={IconFont.Plus}
+            color={ComponentColor.Primary}
+            onClick={this.handleOpenCreateOverlay}
+          />
+        </EmptyState>
+      )
+    }
+
+    return (
+      <EmptyState size={ComponentSize.Large}>
+        <EmptyState.Text text="No Variables match your query" />
+      </EmptyState>
     )
   }
 
@@ -143,48 +164,43 @@ export default class Variables extends PureComponent<Props, State> {
     this.setState({createOverlayState: OverlayState.Closed})
   }
 
-  private handleCreateVariable = async (variable: Variable): Promise<void> => {
-    const {notify, onChange} = this.props
+  private handleCreateVariable = (variable: Variable): void => {
+    // TODO(chnn): Remove this handler in favor of connecting child components
+    // directly to Redux, and the same for `handleUpdateVariable` and
+    // `handleDeleteVariable`
+    const {onCreateVariable} = this.props
 
-    try {
-      await client.variables.create(variable)
-      notify(addVariableSuccess(variable.name))
-    } catch (error) {
-      notify(addVariableFailed())
-    }
-
-    onChange()
-    this.handleCloseCreateOverlay()
+    onCreateVariable(variable)
   }
 
-  private handleDeleteVariable = async (variable: Variable): Promise<void> => {
-    const {notify, onChange} = this.props
+  private handleUpdateVariable = (variable: Partial<Variable>): void => {
+    const {onUpdateVariable} = this.props
 
-    try {
-      await client.variables.delete(variable.id)
-      notify(deleteVariableSuccess(variable.name))
-    } catch (error) {
-      notify(deleteVariableFailed())
-    }
-
-    onChange()
+    onUpdateVariable(variable.id, variable)
   }
 
-  private handleUpdateVariable = async (
-    variable: Partial<Variable>
-  ): Promise<void> => {
-    const {notify, onChange} = this.props
+  private handleDeleteVariable = (variable: Variable): void => {
+    const {onDeleteVariable} = this.props
 
-    try {
-      const updatedVariable = await client.variables.update(
-        variable.id,
-        variable
-      )
-      notify(updateVariableSuccess(updatedVariable.name))
-    } catch (error) {
-      notify(updateVariableFailed())
-    }
-
-    onChange()
+    onDeleteVariable(variable.id)
   }
 }
+
+const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+  const variables = getVariablesForOrg(state, ownProps.org.id)
+  const {status: variablesStatus} = state.variables
+
+  return {variables, variablesStatus}
+}
+
+const mdtp = {
+  onGetVariables: getVariables,
+  onCreateVariable: createVariable,
+  onUpdateVariable: updateVariable,
+  onDeleteVariable: deleteVariable,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(Variables)
