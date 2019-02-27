@@ -6,7 +6,7 @@ import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
-import {InfluxLanguage, BuilderConfig} from 'src/types/v2'
+import {BuilderConfig} from 'src/types/v2'
 import {WrappedCancelablePromise} from 'src/types/promises'
 
 export const SEARCH_DURATION = '30d'
@@ -19,7 +19,7 @@ export function findBuckets(url: string, orgID: string): CancelableQuery {
   |> sort(columns: ["name"])
   |> limit(n: ${LIMIT})`
 
-  const {promise, cancel} = executeQuery(url, orgID, query, InfluxLanguage.Flux)
+  const {promise, cancel} = executeQuery(url, orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, 'name')),
@@ -50,7 +50,7 @@ v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, start: -${SEARCH_DURAT
   |> sort()
   |> limit(n: ${LIMIT})`
 
-  const {promise, cancel} = executeQuery(url, orgID, query, InfluxLanguage.Flux)
+  const {promise, cancel} = executeQuery(url, orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, '_value')),
@@ -75,7 +75,7 @@ v1.tagValues(bucket: "${bucket}", tag: "${key}", predicate: ${tagFilters}, start
   |> limit(n: ${LIMIT})
   |> sort()`
 
-  const {promise, cancel} = executeQuery(url, orgID, query, InfluxLanguage.Flux)
+  const {promise, cancel} = executeQuery(url, orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, '_value')),

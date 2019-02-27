@@ -20,7 +20,7 @@ import {renderQuery} from 'src/shared/utils/renderQuery'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, Organization, InfluxLanguage, TimeRange} from 'src/types/v2'
+import {AppState, Organization, TimeRange} from 'src/types/v2'
 import {
   TaskSchedule,
   TaskOptions,
@@ -106,11 +106,7 @@ class SaveAsTaskForm extends PureComponent<Props> {
   private handleSubmit = async () => {
     const {saveNewScript, newScript, taskOptions, timeRange} = this.props
 
-    const script = await renderQuery(
-      newScript,
-      InfluxLanguage.Flux,
-      timeRangeVariables(timeRange)
-    )
+    const script = await renderQuery(newScript, timeRangeVariables(timeRange))
 
     saveNewScript(script, taskOptions)
   }

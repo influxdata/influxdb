@@ -151,7 +151,7 @@ class TimeSeries extends Component<Props, State> {
   }
 
   private executeRenderedQuery = (
-    {text, type}: DashboardQuery,
+    {text}: DashboardQuery,
     variables: {[key: string]: string},
     orgID: string
   ): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
@@ -166,14 +166,14 @@ class TimeSeries extends Component<Props, State> {
       }
     }
 
-    const promise = renderQuery(text, type, variables).then(renderedQuery => {
+    const promise = renderQuery(text, variables).then(renderedQuery => {
       if (isCancelled) {
         return Promise.reject(new CancellationError())
       }
 
       const {queryLink} = this.props
 
-      const pendingResult = executeQuery(queryLink, orgID, renderedQuery, type)
+      const pendingResult = executeQuery(queryLink, orgID, renderedQuery)
 
       cancelExecution = pendingResult.cancel
 
