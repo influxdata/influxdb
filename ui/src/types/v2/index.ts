@@ -20,7 +20,7 @@ import {
 } from 'src/types/v2/dashboards'
 
 import {Source} from '@influxdata/influx'
-import {Task} from 'src/types/v2/tasks'
+import {Task, TaskStatus} from 'src/types/v2/tasks'
 import {Member} from 'src/types/v2/members'
 import {Organization} from '@influxdata/influx'
 import {Links} from 'src/types/v2/links'
@@ -85,6 +85,7 @@ export {
   DashboardSwitcherLinks,
   Organization,
   Task,
+  TaskStatus,
   MeState,
   InfluxLanguage,
   Label,
