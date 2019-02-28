@@ -130,7 +130,7 @@ class OrgTaskPage extends PureComponent<
     this.props.saveNewScript(
       newScript,
       taskOptions,
-      `organizations/${params.orgID}/tasks_tab/`
+      `/organizations/${params.orgID}/tasks_tab/`
     )
   }
 

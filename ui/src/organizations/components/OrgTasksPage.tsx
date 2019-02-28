@@ -138,7 +138,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
   private handleSelectTask = (task: Task) => {
     const {selectTask, orgID} = this.props
 
-    selectTask(task, `organizations/${orgID}/tasks_tab/${task.id}`)
+    selectTask(task, `/organizations/${orgID}/tasks_tab/${task.id}`)
   }
 
   private get filteredTasks() {
