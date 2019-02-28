@@ -48,7 +48,7 @@ type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
 @ErrorHandling
 class OrgVariablesIndex extends Component<Props> {
   public render() {
-    const {org, notify} = this.props
+    const {org} = this.props
 
     return (
       <Page titleTag={org.name}>
@@ -67,19 +67,13 @@ class OrgVariablesIndex extends Component<Props> {
                     organization={org}
                     fetcher={getVariables}
                   >
-                    {(variables, loading, fetch) => {
+                    {(_, loading) => {
                       return (
                         <SpinnerContainer
                           loading={loading}
                           spinnerComponent={<TechnoSpinner />}
                         >
-                          <Variables
-                            onChange={fetch}
-                            variables={variables}
-                            orgName={org.name}
-                            orgID={org.id}
-                            notify={notify}
-                          />
+                          <Variables org={org} />
                         </SpinnerContainer>
                       )
                     }}

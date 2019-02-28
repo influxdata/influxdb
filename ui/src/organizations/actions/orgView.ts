@@ -22,7 +22,7 @@ export const populateTasks = (tasks: Task[]): PopulateTasks => ({
 export const getTasks = (org: Organization) => async dispatch => {
   const tasks = await client.tasks.getAllByOrg(org.name)
   const organization = await client.organizations.get(org.id)
-  const tasksWithOrg = tasks.map(t => ({...t, organization}))
+  const tasksWithOrg = tasks.map(t => ({...t, organization})) as Task[]
 
   dispatch(populateTasks(tasksWithOrg))
 }
