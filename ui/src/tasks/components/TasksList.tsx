@@ -11,12 +11,7 @@ import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
-import {Task as TaskAPI, User, Organization} from '@influxdata/influx'
-
-interface Task extends TaskAPI {
-  organization: Organization
-  owner?: User
-}
+import {Task} from 'src/types/v2'
 
 import {Sort} from 'src/clockface'
 import {

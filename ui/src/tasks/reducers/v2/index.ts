@@ -1,19 +1,9 @@
 import {Action} from 'src/tasks/actions/v2'
+import {Task} from 'src/types/v2'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {
-  Task as TaskAPI,
-  User,
-  Organization,
-  Run,
-  LogEvent,
-} from '@influxdata/influx'
+import {Run, LogEvent} from '@influxdata/influx'
 import {RemoteDataState} from '@influxdata/clockface'
 
-interface Task extends TaskAPI {
-  organization: Organization
-  owner?: User
-  offset?: string
-}
 export interface State {
   newScript: string
   currentScript: string
