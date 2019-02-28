@@ -45,9 +45,6 @@ describe('DataExplorer', () => {
     })
 
     it.only('can use the function selector to build a query', () => {
-      // remove new lines and spaces
-      const strip = (s: string) => s.replace(/(\r\n|\n|\r| +)/g, '')
-
       cy.getByTestID('functions-toolbar-tab').click()
 
       cy.get<$CM>('.CodeMirror').then($cm => {
@@ -59,30 +56,28 @@ describe('DataExplorer', () => {
       cy.getByTestID('flux-function from').click()
 
       cy.get<Doc>('@script').then(doc => {
-        const actual = doc.getValue().trim()
-        const expected = strip(FROM.example)
+        const actual = doc.getValue()
+        const expected = FROM.example
 
-        expect(strip(actual)).to.eq(expected)
+        cy.shouldBeKindaEq(actual, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function range').click()
 
       cy.get<Doc>('@script').then(doc => {
-        const actual = strip(doc.getValue())
-        const expected = strip(`${FROM.example}|>${RANGE.example}`)
+        const actual = doc.getValue()
+        const expected = `${FROM.example}|>${RANGE.example}`
 
-        expect(actual).to.eq(expected)
+        cy.shouldBeKindaEq(actual, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function mean').click()
 
       cy.get<Doc>('@script').then(doc => {
-        const actual = strip(doc.getValue())
-        const expected = strip(
-          `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
-        )
+        const actual = doc.getValue()
+        const expected = `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
 
-        expect(actual).to.eq(expected)
+        cy.shouldBeKindaEq(actual, expected).should('be.true')
       })
     })
   })

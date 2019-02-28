@@ -199,8 +199,22 @@ export const getByTitle = (name: string): Cypress.Chainable => {
   return cy.get(`[title=${name}]`)
 }
 
-// TODO: Add helper here to strip whitespace two string and
-// assert they are equal
+// custom assertions
+export const shouldBeKindaEq = (s1: string, s2: string): Cypress.Chainable => {
+  // remove new lines and spaces
+  const strip = (s: string) => s.replace(/(\r\n|\n|\r| +)/g, '')
+  const strip1 = strip(s1)
+  const strip2 = strip(s2)
+
+  cy.log('comparing strings: ')
+  cy.log(strip1)
+  cy.log(strip2)
+
+  cy.wrap(strip1 === strip2)
+}
+
+// assertions
+Cypress.Commands.add('shouldBeKindaEq', shouldBeKindaEq)
 
 // getters
 Cypress.Commands.add('getByTestID', getByTestID)
