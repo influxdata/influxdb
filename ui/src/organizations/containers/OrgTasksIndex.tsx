@@ -10,30 +10,17 @@ import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import GetOrgResources from 'src/organizations/components/GetOrgResources'
 import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 
 //Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
-
-// APIs
-import {client} from 'src/utils/api'
+import {getTasks as getTasksAction} from 'src/organizations/actions/orgView'
 
 // Types
 import {Organization} from '@influxdata/influx'
 import {AppState, Task} from 'src/types/v2'
-
-const getTasks = async (org: Organization): Promise<Task[]> => {
-  const tasks = await client.tasks.getAllByOrg(org.name)
-  const mappedTasks = tasks.map(task => {
-    return {
-      ...task,
-      organization: org,
-    }
-  })
-  return mappedTasks
-}
+import {RemoteDataState} from 'src/types'
 
 interface RouterProps {
   params: {
@@ -43,18 +30,38 @@ interface RouterProps {
 
 interface DispatchProps {
   notify: NotificationsActions.PublishNotificationActionCreator
+  getTasks: typeof getTasksAction
 }
 
 interface StateProps {
   org: Organization
+  tasks: Task[]
 }
 
 type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
 
+interface State {
+  loadingState: RemoteDataState
+}
+
 @ErrorHandling
-class OrgTasksIndex extends Component<Props> {
+class OrgTasksIndex extends Component<Props, State> {
+  public state = {
+    loadingState: RemoteDataState.NotStarted,
+  }
+
+  public componentDidMount = async () => {
+    this.setState({loadingState: RemoteDataState.Loading})
+
+    const {getTasks, org} = this.props
+
+    const tasks = await getTasks(org)
+    console.log(tasks)
+    this.setState({loadingState: RemoteDataState.Done})
+  }
+
   public render() {
-    const {org, router} = this.props
+    const {org} = this.props
 
     return (
       <>
@@ -70,25 +77,7 @@ class OrgTasksIndex extends Component<Props> {
                     url="tasks"
                     title="Tasks"
                   >
-                    <GetOrgResources<Task>
-                      organization={org}
-                      fetcher={getTasks}
-                    >
-                      {(tasks, loading, fetch) => (
-                        <SpinnerContainer
-                          loading={loading}
-                          spinnerComponent={<TechnoSpinner />}
-                        >
-                          <OrgTasksPage
-                            tasks={tasks}
-                            orgName={org.name}
-                            orgID={org.id}
-                            onChange={fetch}
-                            router={router}
-                          />
-                        </SpinnerContainer>
-                      )}
-                    </GetOrgResources>
+                    {this.tasksPage}
                   </TabbedPageSection>
                 </Tabs.TabContents>
               </Tabs>
@@ -99,18 +88,50 @@ class OrgTasksIndex extends Component<Props> {
       </>
     )
   }
+
+  private get tasksPage() {
+    const {org, tasks, router} = this.props
+    const {loadingState} = this.state
+    return (
+      <SpinnerContainer
+        loading={loadingState}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        <OrgTasksPage
+          tasks={tasks}
+          orgName={org.name}
+          orgID={org.id}
+          onChange={this.updateTasks}
+          router={router}
+        />
+      </SpinnerContainer>
+    )
+  }
+
+  private updateTasks() {
+    const {getTasks, org} = this.props
+
+    getTasks(org)
+  }
 }
 
-const mstp = (state: AppState, props: Props) => {
-  const {orgs} = state
+const mstp = (state: AppState, props: Props): StateProps => {
+  const {
+    orgs,
+    orgView: {tasks},
+  } = state
+
   const org = orgs.find(o => o.id === props.params.orgID)
+
   return {
     org,
+    tasks,
   }
 }
 
 const mdtp: DispatchProps = {
   notify: notifyActions.notify,
+  getTasks: getTasksAction,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
