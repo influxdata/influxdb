@@ -52,8 +52,8 @@ class OrgTasksIndex extends Component<Props, State> {
 
     const {getTasks, org} = this.props
 
-    const tasks = await getTasks(org)
-    console.log(tasks)
+    await getTasks(org)
+
     this.setState({loadingState: RemoteDataState.Done})
   }
 
