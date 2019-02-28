@@ -1,3 +1,5 @@
+import {Organization, Bucket} from '@influxdata/influx'
+
 describe('Scrapers', () => {
   beforeEach(() => {
     cy.flush()
@@ -5,7 +7,11 @@ describe('Scrapers', () => {
     cy.signin().then(({body}) => {
       const {
         org: {id},
+        bucket,
       } = body
+      cy.wrap(body.org).as('org')
+      cy.wrap(bucket).as('bucket')
+
       cy.fixture('routes').then(({orgs}) => {
         cy.visit(`${orgs}/${id}/scrapers_tab`)
       })
@@ -35,6 +41,26 @@ describe('Scrapers', () => {
       cy.getByTestID('table-row')
         .should('have.length', 1)
         .and('contain', newScraper)
+    })
+
+    it('can update scrapers name', () => {
+      const newScraperName = 'This is new name'
+
+      const scraperName = 'New Scraper'
+      const url = 'http://google.com'
+      const type = 'Prometheus'
+
+      cy.get<Organization>('@org').then(({id}) => {
+        let orgID = id
+        cy.get<Bucket>('@bucket').then(({id}) => {
+          cy.createScraper(scraperName, url, type, orgID, id)
+        })
+      })
+
+      cy.getByTestID('table-cell').within(() => {
+        cy.getByTestID('editable-name').click()
+        cy.getByTestID('input-field').type(`${newScraperName}{enter}`)
+      })
     })
   })
 })

@@ -58,6 +58,7 @@ Object {
                   </a>
                   <div
                     class="editable-name--toggle"
+                    data-testid="editable-name"
                   >
                     <span
                       class="icon pencil"
@@ -200,6 +201,7 @@ Object {
                   </a>
                   <div
                     class="editable-name--toggle"
+                    data-testid="editable-name"
                   >
                     <span
                       class="icon pencil"
@@ -399,6 +401,7 @@ Object {
                 </a>
                 <div
                   class="editable-name--toggle"
+                  data-testid="editable-name"
                 >
                   <span
                     class="icon pencil"
@@ -541,6 +544,7 @@ Object {
                 </a>
                 <div
                   class="editable-name--toggle"
+                  data-testid="editable-name"
                 >
                   <span
                     class="icon pencil"
