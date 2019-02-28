@@ -55,6 +55,10 @@ describe('DataExplorer', () => {
           cy.contains('Error').should('exist')
         })
       })
+
+      it('show an empty state for tag keys when the bucket is empty', () => {
+        cy.getByTestID('empty-tag-keys').should('exist')
+      })
     })
   })
 })
