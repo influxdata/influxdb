@@ -13,6 +13,7 @@ import {
   createVariable,
   createLabel,
   createBucket,
+  createScraper,
 } from './support/commands'
 
 declare global {
@@ -31,6 +32,7 @@ declare global {
       getByTitle: typeof getByTitle
       createLabel: typeof createLabel
       createBucket: typeof createBucket
+      createScraper: typeof createScraper
     }
   }
 }
