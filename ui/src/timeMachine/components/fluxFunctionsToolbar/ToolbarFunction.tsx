@@ -10,6 +10,7 @@ import {FluxToolbarFunction} from 'src/types/shared'
 interface Props {
   func: FluxToolbarFunction
   onClickFunction: (name: string, example: string) => void
+  testID?: string
 }
 
 interface State {
@@ -18,11 +19,14 @@ interface State {
 }
 
 class ToolbarFunction extends PureComponent<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    testID: 'toolbar-function',
+  }
   public state: State = {isActive: false, hoverPosition: undefined}
   private functionRef = createRef<HTMLDivElement>()
 
   public render() {
-    const {func} = this.props
+    const {func, testID} = this.props
 
     return (
       <div
@@ -30,6 +34,7 @@ class ToolbarFunction extends PureComponent<Props, State> {
         ref={this.functionRef}
         onMouseEnter={this.handleHover}
         onMouseLeave={this.handleStopHover}
+        data-testid={testID}
       >
         {this.tooltip}
         <dd onClick={this.handleClickFunction}>
