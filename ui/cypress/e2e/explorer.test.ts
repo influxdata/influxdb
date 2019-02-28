@@ -50,4 +50,11 @@ describe('DataExplorer', () => {
       })
     })
   })
+
+  it('can filter aggregation functions by name from script editor mode', () => {
+    cy.getByTestID('switch-to-script-editor').click()
+
+    cy.get('.input-field').type('covariance')
+    cy.getByTestID('toolbar-function').should('have.length', 1)
+  })
 })
