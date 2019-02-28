@@ -25,7 +25,7 @@ interface Props {
   resourceName: string
 }
 
-export default class ImportDashboardOverlay extends PureComponent<Props> {
+export default class ExportOverlay extends PureComponent<Props> {
   public render() {
     const {isVisible, resourceName, onDismissOverlay, resource} = this.props
     const options = {
