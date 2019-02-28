@@ -31,6 +31,7 @@ type TSMReader struct {
 	refsWG sync.WaitGroup
 
 	madviseWillNeed bool // Hint to the kernel with MADV_WILLNEED.
+	useSeek bool         // Use seekAccessor instead of mmapAccessor
 	mu              sync.RWMutex
 
 	// accessor provides access and decoding of blocks for the reader.
@@ -217,6 +218,12 @@ var WithMadviseWillNeed = func(willNeed bool) tsmReaderOption {
 	}
 }
 
+var WithUseSeek = func(useSeek bool) tsmReaderOption {
+	return func(r *TSMReader) {
+		r.useSeek = useSeek
+	}
+}
+
 // NewTSMReader returns a new TSMReader from the given file.
 func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 	t := &TSMReader{}
@@ -233,6 +240,7 @@ func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 	t.accessor = accessor{
 		f:            f,
 		mmapWillNeed: t.madviseWillNeed,
+		useSeek: t.useSeek,
 	}
 
 	index, err := t.accessor.init()
@@ -1356,6 +1364,7 @@ type accessor struct {
 	freeCount   uint64 // Counter to determine whether the accessor can free its resources
 
 	mmapWillNeed bool // If true then mmap advise value MADV_WILLNEED will be provided the kernel for b.
+	useSeek bool // If true, use seekAccessor instead of mmapAccessor
 
 	mu sync.RWMutex
 	b  blockAccessor
