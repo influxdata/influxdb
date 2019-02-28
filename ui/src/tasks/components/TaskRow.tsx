@@ -150,7 +150,9 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
 
   private handleExport = () => {
     const {router, task} = this.props
-    router.push(`tasks/${task.id}/export`)
+    router.push(
+      `/organizations/${task.organization.id}/tasks/${task.id}/export`
+    )
   }
 
   private handleClone = () => {
