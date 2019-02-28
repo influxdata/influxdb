@@ -32,7 +32,7 @@
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty --skipLibCheck",
     "tsc:watch": "tsc -p ./tsconfig.json --noEmit --pretty -w",
     "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",
-    "e2e": "cypress open"
+    "cy": "cypress open"
   },
   "jest": {
     "setupFilesAfterEnv": [
