@@ -15,15 +15,12 @@ import {
   ComponentSize,
   ComponentColor,
 } from '@influxdata/clockface'
-import {Task as TaskAPI, Organization} from '@influxdata/influx'
+import {Task as TaskAPI} from '@influxdata/influx'
+import {Task} from 'src/types/v2'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
 import {IconFont} from 'src/clockface/types/index'
-
-interface Task extends TaskAPI {
-  organization: Organization
-}
 
 interface Props {
   task: Task

@@ -22,8 +22,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
-import {Task} from 'src/tasks/containers/TasksPage'
+import {AppState, Task} from 'src/types/v2'
 
 const getTasks = async (org: Organization): Promise<Task[]> => {
   const tasks = await client.tasks.getAllByOrg(org.name)

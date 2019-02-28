@@ -5,7 +5,6 @@ export interface Task extends Exclude<TaskAPI, 'labels'> {
   labels: Label[]
   organization: Organization
   owner?: User
-  offset?: string
 }
 
 export const TaskStatus = TaskAPI.StatusEnum
