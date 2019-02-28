@@ -15,18 +15,12 @@ import {
   ComponentSize,
   ComponentColor,
 } from '@influxdata/clockface'
-import {Task as TaskAPI, Organization} from '@influxdata/influx'
-
-// Utils
-import {downloadTextFile} from 'src/shared/utils/download'
+import {Task as TaskAPI} from '@influxdata/influx'
+import {Task} from 'src/types/v2'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
 import {IconFont} from 'src/clockface/types/index'
-
-interface Task extends TaskAPI {
-  organization: Organization
-}
 
 interface Props {
   task: Task
@@ -155,8 +149,10 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleExport = () => {
-    const {task} = this.props
-    downloadTextFile(task.flux, `${task.name}.flux`)
+    const {router, task} = this.props
+    router.push(
+      `/organizations/${task.organization.id}/tasks/${task.id}/export`
+    )
   }
 
   private handleClone = () => {

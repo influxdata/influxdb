@@ -1,5 +1,5 @@
 import {Organization} from '@influxdata/influx'
-import {ActionTypes, Actions} from 'src/organizations/actions'
+import {ActionTypes, Actions} from 'src/organizations/actions/orgs'
 
 const defaultState = []
 

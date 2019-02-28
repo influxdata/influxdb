@@ -67,7 +67,7 @@ class GettingStarted extends PureComponent<StateProps> {
 
     const firstOrgID = orgs[0].id
 
-    return `/organizations/${firstOrgID}/telegrafs_tab`
+    return `/organizations/${firstOrgID}/telegrafs`
   }
 }
 

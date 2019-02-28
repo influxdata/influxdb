@@ -5,25 +5,23 @@ import {connect} from 'react-redux'
 import {AppState} from 'src/types/v2'
 
 // Components
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import Collectors from 'src/organizations/components/Collectors'
-
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-import {Bucket, Organization, Telegraf} from '@influxdata/influx'
-import {client} from 'src/utils/api'
-
-// Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
+// Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
+
+// Types
+import {Bucket, Organization, Telegraf} from '@influxdata/influx'
+import {client} from 'src/utils/api'
 
 const getBuckets = async (org: Organization) => {
   return client.buckets.getAllByOrg(org.name)
@@ -63,11 +61,11 @@ class OrgTelegrafsIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'telegrafs_tab'} orgID={org.id} />
+              <OrganizationNavigation tab={'telegrafs'} orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--telegrafs"
-                  url="telegrafs_tab"
+                  url="telegrafs"
                   title="Telegraf"
                 >
                   <GetOrgResources<Telegraf>
