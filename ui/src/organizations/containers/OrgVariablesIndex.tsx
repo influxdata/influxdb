@@ -9,25 +9,16 @@ import OrganizationNavigation from 'src/organizations/components/OrganizationNav
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import GetOrgResources from 'src/organizations/components/GetOrgResources'
 import Variables from 'src/organizations/components/Variables'
-
-// APIs
-import {client} from 'src/utils/api'
 
 //Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
 
 // Types
-import {Organization, Variable} from '@influxdata/influx'
+import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
-
-const getVariables = async (org: Organization): Promise<Variable[]> => {
-  return await client.variables.getAllByOrg(org.name)
-}
 
 interface RouterProps {
   params: {
@@ -63,21 +54,7 @@ class OrgVariablesIndex extends Component<Props> {
                   url="variables"
                   title="Variables"
                 >
-                  <GetOrgResources<Variable>
-                    organization={org}
-                    fetcher={getVariables}
-                  >
-                    {(_, loading) => {
-                      return (
-                        <SpinnerContainer
-                          loading={loading}
-                          spinnerComponent={<TechnoSpinner />}
-                        >
-                          <Variables org={org} />
-                        </SpinnerContainer>
-                      )
-                    }}
-                  </GetOrgResources>
+                  <Variables org={org} />
                 </TabbedPageSection>
               </Tabs.TabContents>
             </Tabs>
