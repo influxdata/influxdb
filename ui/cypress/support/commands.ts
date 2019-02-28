@@ -199,6 +199,9 @@ export const getByTitle = (name: string): Cypress.Chainable => {
   return cy.get(`[title=${name}]`)
 }
 
+// TODO: Add helper here to strip whitespace two string and
+// assert they are equal
+
 // getters
 Cypress.Commands.add('getByTestID', getByTestID)
 Cypress.Commands.add('getByInputName', getByInputName)

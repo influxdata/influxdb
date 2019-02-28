@@ -37,7 +37,10 @@ class ToolbarFunction extends PureComponent<Props, State> {
         data-testid={testID}
       >
         {this.tooltip}
-        <dd onClick={this.handleClickFunction}>
+        <dd
+          onClick={this.handleClickFunction}
+          data-testid={`flux-function ${func.name}`}
+        >
           {func.name} {this.helperText}
         </dd>
       </div>
