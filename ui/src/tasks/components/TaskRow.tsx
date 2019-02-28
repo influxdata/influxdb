@@ -166,7 +166,7 @@ export class TaskRow extends PureComponent<Props & WithRouterProps> {
 
   private handleOrgClick = () => {
     const {router, task} = this.props
-    router.push(`/organizations/${task.organization.id}/members_tab`)
+    router.push(`/organizations/${task.organization.id}`)
   }
 
   private get labels(): JSX.Element {
