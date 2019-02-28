@@ -13,8 +13,6 @@ import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSecti
 import OrgTasksPage from 'src/organizations/components/OrgTasksPage'
 
 //Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
-import * as notifyActions from 'src/shared/actions/notifications'
 import {getTasks as getTasksAction} from 'src/organizations/actions/orgView'
 
 // Types
@@ -29,7 +27,6 @@ interface RouterProps {
 }
 
 interface DispatchProps {
-  notify: NotificationsActions.PublishNotificationActionCreator
   getTasks: typeof getTasksAction
 }
 
@@ -130,7 +127,6 @@ const mstp = (state: AppState, props: Props): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  notify: notifyActions.notify,
   getTasks: getTasksAction,
 }
 

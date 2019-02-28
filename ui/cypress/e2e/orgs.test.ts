@@ -45,7 +45,7 @@ describe('Orgs', () => {
   it('can update an org name', () => {
     cy.createOrg().then(({body}) => {
       const newName = 'new 🅱️organization'
-      cy.visit(`${orgRoute}/${body.id}/member_tab`)
+      cy.visit(`${orgRoute}/${body.id}/members`)
 
       cy.get('.renamable-page-title--title').click()
       cy.get('.input-field')

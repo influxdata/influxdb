@@ -13,7 +13,7 @@ describe('Scrapers', () => {
       cy.wrap(bucket).as('bucket')
 
       cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/scrapers_tab`)
+        cy.visit(`${orgs}/${id}/scrapers`)
       })
     })
   })
