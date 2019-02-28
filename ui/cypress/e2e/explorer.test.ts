@@ -59,7 +59,7 @@ describe('DataExplorer', () => {
         const actual = doc.getValue()
         const expected = FROM.example
 
-        cy.shouldBeKindaEq(actual, expected).should('be.true')
+        cy.kindaEq(actual, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function range').click()
@@ -68,7 +68,7 @@ describe('DataExplorer', () => {
         const actual = doc.getValue()
         const expected = `${FROM.example}|>${RANGE.example}`
 
-        cy.shouldBeKindaEq(actual, expected).should('be.true')
+        cy.kindaEq(actual, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function mean').click()
@@ -77,7 +77,7 @@ describe('DataExplorer', () => {
         const actual = doc.getValue()
         const expected = `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
 
-        cy.shouldBeKindaEq(actual, expected).should('be.true')
+        cy.kindaEq(actual, expected).should('be.true')
       })
     })
   })

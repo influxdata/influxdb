@@ -200,7 +200,7 @@ export const getByTitle = (name: string): Cypress.Chainable => {
 }
 
 // custom assertions
-export const shouldBeKindaEq = (s1: string, s2: string): Cypress.Chainable => {
+export const kindaEq = (s1: string, s2: string): Cypress.Chainable => {
   // remove new lines and spaces
   const strip = (s: string) => s.replace(/(\r\n|\n|\r| +)/g, '')
   const strip1 = strip(s1)
@@ -210,11 +210,11 @@ export const shouldBeKindaEq = (s1: string, s2: string): Cypress.Chainable => {
   cy.log(strip1)
   cy.log(strip2)
 
-  cy.wrap(strip1 === strip2)
+  return cy.wrap(strip1 === strip2)
 }
 
 // assertions
-Cypress.Commands.add('shouldBeKindaEq', shouldBeKindaEq)
+Cypress.Commands.add('kindaEq', kindaEq)
 
 // getters
 Cypress.Commands.add('getByTestID', getByTestID)
