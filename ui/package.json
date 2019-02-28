@@ -24,7 +24,7 @@
     "test:update": "jest --updateSnapshot",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch --verbose false",
     "test:junit": "cypress run --reporter junit --reporter-options 'mochaFile=junit-results/my-test-output.xml'",
-    "lint": "npm run tsc && npm run eslint && npm run prettier && npm run tsc:cypress",
+    "lint": "npm run tsc && npm run eslint && npm run prettier",
     "eslint": "eslint '{src,cypress}**/*.{ts,tsx}'",
     "eslint:fix": "eslint --fix '{src,cypress}**/*.{ts,tsx}'",
     "prettier": "prettier --check '{src,cypress}/**/*.{ts,tsx}'",
