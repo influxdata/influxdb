@@ -189,7 +189,7 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 
 				id, name := shards[i].ID, shards[i].Path
 				log := cmd.Logger.With(logger.Database(dbName), logger.RetentionPolicy(rpName), logger.Shard(id))
-				errC <- IndexShard(sfile, filepath.Join(dataDir, name), filepath.Join(walDir, name), cmd.maxLogFileSize, cmd.maxCacheSize, cmd.batchSize, log, cmd.Verbose)
+				errC <- IndexShard(sfile, filepath.Join(dataDir, "index"), filepath.Join(dataDir, name), filepath.Join(walDir, name), cmd.maxLogFileSize, cmd.maxCacheSize, cmd.batchSize, log, cmd.Verbose)
 			}
 		}()
 	}
@@ -203,11 +203,10 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 	return nil
 }
 
-func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize int64, maxCacheSize uint64, batchSize int, log *zap.Logger, verboseLogging bool) error {
+func IndexShard(sfile *tsdb.SeriesFile, indexPath, dataDir, walDir string, maxLogFileSize int64, maxCacheSize uint64, batchSize int, log *zap.Logger, verboseLogging bool) error {
 	log.Info("Rebuilding shard")
 
 	// Check if shard already has a TSI index.
-	indexPath := filepath.Join(dataDir, "index")
 	log.Info("Checking index path", zap.String("path", indexPath))
 	if _, err := os.Stat(indexPath); !os.IsNotExist(err) {
 		log.Info("tsi1 index already exists, skipping", zap.String("path", indexPath))
