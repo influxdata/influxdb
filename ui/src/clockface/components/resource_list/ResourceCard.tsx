@@ -18,6 +18,7 @@ interface PassedProps {
   metaData?: () => JSX.Element[]
   contextMenu?: () => JSX.Element
   children?: JSX.Element[] | JSX.Element
+  disabled?: boolean
 }
 
 interface DefaultProps {
@@ -32,13 +33,13 @@ export default class ResourceListCard extends PureComponent<Props> {
   }
 
   public render() {
-    const {description, children, testID, labels} = this.props
+    const {children, testID} = this.props
 
     return (
       <div className="resource-list--card" data-testid={testID}>
         {this.nameAndMeta}
-        {description()}
-        {labels()}
+        {this.description}
+        {this.labels}
         {children}
         {this.contextMenu}
       </div>
@@ -54,6 +55,22 @@ export default class ResourceListCard extends PureComponent<Props> {
         {this.formattedMetaData}
       </div>
     )
+  }
+
+  private get description(): JSX.Element {
+    const {description} = this.props
+
+    if (description) {
+      return description()
+    }
+  }
+
+  private get labels(): JSX.Element {
+    const {labels} = this.props
+
+    if (labels) {
+      return labels()
+    }
   }
 
   private get formattedMetaData(): JSX.Element {
