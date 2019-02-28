@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
@@ -47,13 +47,13 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         contextMenu={() => this.contextMenu}
         name={() => (
           <ResourceList.Name
-            onUpdate={this.handleUpdateTask}
+            onEditName={this.handleNameClick}
+            onUpdate={this.handleRenameTask}
             name={task.name}
-            hrefValue={`/tasks/${task.id}`}
             noNameString={DEFAULT_TASK_NAME}
-            parentTestID="dashboard-card--name"
-            buttonTestID="dashboard-card--name-button"
-            inputTestID="dashboard-card--input"
+            parentTestID="task-card--name"
+            buttonTestID="task-card--name-button"
+            inputTestID="task-card--input"
           />
         )}
         metaData={() => [
@@ -105,20 +105,20 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
+  private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+
+    this.props.onSelect(this.props.task)
+  }
+
   private handleViewRuns = () => {
     const {router, task} = this.props
     router.push(`tasks/${task.id}/runs`)
   }
 
-  private handleUpdateTask = (name: string) => {
+  private handleRenameTask = (name: string) => {
     const {onUpdate, task} = this.props
     onUpdate({...task, name})
-  }
-
-  private handleClick = e => {
-    e.preventDefault()
-
-    this.props.onSelect(this.props.task)
   }
 
   private handleExport = () => {

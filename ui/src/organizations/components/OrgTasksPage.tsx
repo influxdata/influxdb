@@ -10,6 +10,7 @@ import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 
 // Actions
 import {
@@ -94,13 +95,12 @@ class OrgTasksPage extends PureComponent<Props, State> {
       <>
         <TasksHeader
           onCreateTask={this.handleCreateTask}
-          setSearchTerm={setSearchTerm}
           setShowInactive={this.handleToggle}
           showInactive={showInactive}
           toggleOverlay={this.handleToggleImportOverlay}
           showOrgDropdown={false}
           isFullPage={false}
-          searchTerm={searchTerm}
+          filterComponent={() => this.filterComponent}
         />
         <FilterList<Task>
           searchTerm={searchTerm}
@@ -127,6 +127,18 @@ class OrgTasksPage extends PureComponent<Props, State> {
         </FilterList>
         {this.importOverlay}
       </>
+    )
+  }
+
+  private get filterComponent(): JSX.Element {
+    const {setSearchTerm, searchTerm} = this.props
+
+    return (
+      <SearchWidget
+        placeholderText="Filter tasks..."
+        onSearch={setSearchTerm}
+        searchTerm={searchTerm}
+      />
     )
   }
 
