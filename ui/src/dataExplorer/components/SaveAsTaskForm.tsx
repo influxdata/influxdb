@@ -15,9 +15,10 @@ import {
 } from 'src/tasks/actions/v2'
 
 // Utils
-// import {timeRangeVariables} from 'src/shared/utils/timeRangeVariables'
-// import {renderQuery} from 'src/shared/utils/renderQuery'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
+import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
 
 // Types
 import {AppState, Organization, TimeRange} from 'src/types/v2'
@@ -106,7 +107,27 @@ class SaveAsTaskForm extends PureComponent<Props> {
   private handleSubmit = async () => {
     const {saveNewScript, newScript, taskOptions, timeRange} = this.props
 
-    const script = await renderQuery(newScript, timeRangeVariables(timeRange))
+    // When a task runs, it does not have access to variables that we typically
+    // inject into the script via the front end. So any variables that are used
+    // in the script need to be embedded in the script text itself before
+    // saving it as a task
+    //
+    // TODO(chnn): Embed user-defined variables in the script as well
+    const timeRangeVars = getTimeRangeVars(timeRange)
+    const windowPeriodVars = await getWindowVars(newScript, timeRangeVars)
+
+    // Don't embed variables that are not used in the script
+    const vars = [...timeRangeVars, ...windowPeriodVars].filter(assignment =>
+      newScript.includes(assignment.id.name)
+    )
+
+    let script: string
+
+    if (vars.length) {
+      script = `${formatVarsOption(vars)}\n\n${newScript}`
+    } else {
+      script = newScript
+    }
 
     saveNewScript(script, taskOptions)
   }
