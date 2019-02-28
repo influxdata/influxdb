@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-// import {Button, SlideToggle, ComponentSpacer} from '@influxdata/clockface'
+import {SlideToggle, ComponentSize} from '@influxdata/clockface'
 import {ResourceList, Label, Context} from 'src/clockface'
 import FeatureFlag from 'src/shared/components/FeatureFlag'
 
@@ -60,12 +60,14 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
           <>Last completed at {task.latestCompleted}</>,
           <>{`Scheduled to run ${this.schedule}`}</>,
         ]}
+        toggle={() => (
+          <SlideToggle
+            active={this.isTaskActive}
+            size={ComponentSize.ExtraSmall}
+            onChange={this.changeToggle}
+          />
+        )}
       />
-      //     <SlideToggle
-      //       active={this.isTaskActive}
-      //       size={ComponentSize.ExtraSmall}
-      //       onChange={this.changeToggle}
-      //     />
     )
   }
 
