@@ -48,9 +48,11 @@ describe('Orgs', () => {
       cy.visit(`${orgRoute}/${body.id}/members`)
 
       cy.get('.renamable-page-title--title').click()
-      cy.get('.input-field')
-        .type(newName)
-        .type('{enter}')
+      cy.getByTestID('page-header').within(() => {
+        cy.getByTestID('input-field')
+          .type(newName)
+          .type('{enter}')
+      })
 
       cy.visit('/organizations')
 
