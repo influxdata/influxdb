@@ -23,13 +23,13 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
         shape="none"
         size="sm"
         status="default"
-        testID="button"
+        testID="delete-button"
         text="I am a dangerous button!"
         type="button"
       >
         <button
           className="button button-sm button-danger active"
-          data-testid="button"
+          data-testid="delete-button"
           disabled={false}
           onClick={[Function]}
           tabIndex={0}

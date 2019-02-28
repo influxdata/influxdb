@@ -87,7 +87,7 @@ Object {
                 >
                   <button
                     class="button button-xs button-danger"
-                    data-testid="button"
+                    data-testid="delete-button"
                     tabindex="0"
                     title="Delete"
                     type="button"
@@ -230,7 +230,7 @@ Object {
                 >
                   <button
                     class="button button-xs button-danger"
-                    data-testid="button"
+                    data-testid="delete-button"
                     tabindex="0"
                     title="Delete"
                     type="button"
@@ -430,7 +430,7 @@ Object {
               >
                 <button
                   class="button button-xs button-danger"
-                  data-testid="button"
+                  data-testid="delete-button"
                   tabindex="0"
                   title="Delete"
                   type="button"
@@ -573,7 +573,7 @@ Object {
               >
                 <button
                   class="button button-xs button-danger"
-                  data-testid="button"
+                  data-testid="delete-button"
                   tabindex="0"
                   title="Delete"
                   type="button"

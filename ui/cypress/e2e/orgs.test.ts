@@ -29,17 +29,28 @@ describe('Orgs', () => {
   })
 
   it('can delete an org', () => {
-    cy.createOrg().then(() => {
-      cy.get('.index-list--row').then(rows => {
-        const numOrgs = rows.length
-
-        cy.contains('Confirm').click({force: true})
-
-        cy.get('.index-list--row')
+    cy.createOrg()
+      .then(() => {
+        cy.getByTestID('table-row')
           .its('length')
-          .should('eq', numOrgs - 1)
+          .should('eq', 2)
+
+        cy.getByTestID('table-row')
+          .last()
+          .trigger('mouseover')
+          .within(() => {
+            cy.getByTestID('delete-button')
+              .trigger('mouseover')
+              .click()
+
+            cy.getByTestID('confirmation-button').click()
+          })
       })
-    })
+      .then(() => {
+        cy.getByTestID('table-row')
+          .its('length')
+          .should('eq', 1)
+      })
   })
 
   it('can update an org name', () => {
