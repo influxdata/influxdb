@@ -2,7 +2,7 @@ import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import OrgExportOverlay from 'src/organizations/components/OrgExportOverlay'
+import ExportOverlay from 'src/shared/components/ExportOverlay'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -34,7 +34,7 @@ class OrgTaskExportOverlay extends PureComponent<Props, State> {
       return null
     }
     return (
-      <OrgExportOverlay
+      <ExportOverlay
         resourceName="Task"
         resource={task}
         onDismissOverlay={this.onDismiss}
