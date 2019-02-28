@@ -3,7 +3,7 @@ import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {Task as TaskAPI, Organization, Run, LogEvent} from '@influxdata/influx'
+import {Run, LogEvent} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -24,7 +24,7 @@ import {
 } from 'src/shared/copy/v2/notifications'
 
 // Types
-import {AppState, Label} from 'src/types/v2'
+import {AppState, Label, Task} from 'src/types/v2'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -56,9 +56,6 @@ export type Action =
   | SetLogs
 
 type GetStateFunc = () => AppState
-interface Task extends TaskAPI {
-  organization: Organization
-}
 
 export interface SetAllTaskOptions {
   type: 'SET_ALL_TASK_OPTIONS'
@@ -297,7 +294,7 @@ export const populateTasks = () => async (
     const {orgs} = getState()
 
     const user = await client.users.me()
-    const tasks = await client.tasks.getAllByUser(user)
+    const tasks = (await client.tasks.getAllByUser(user)) as Task[]
 
     const mappedTasks = tasks.map(task => {
       const org = orgs.find(org => org.id === task.orgID)
@@ -323,7 +320,7 @@ export const selectTaskByID = (id: string, route?: string) => async (
   try {
     const {orgs} = getState()
 
-    const task = await client.tasks.get(id)
+    const task = (await client.tasks.get(id)) as Task
     const org = orgs.find(org => org.id === task.orgID)
 
     return dispatch(setCurrentTask({...task, organization: org}))
@@ -365,7 +362,7 @@ export const updateScript = (route?: string) => async (
       tasks: {currentScript: script, currentTask: task, taskOptions},
     } = getState()
 
-    const updatedTask: Partial<TaskAPI> & {name: string; flux: string} = {
+    const updatedTask: Partial<Task> & {name: string; flux: string} = {
       flux: script,
       name: taskOptions.name,
       offset: taskOptions.offset,

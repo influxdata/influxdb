@@ -29,7 +29,7 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Task} from 'src/tasks/containers/TasksPage'
+import {Task} from 'src/types/v2'
 
 const getScrapers = async (): Promise<ScraperTargetResponse[]> => {
   return await client.scrapers.getAll()
@@ -47,7 +47,7 @@ const getTasks = async (org: Organization): Promise<Task[]> => {
       organization: org,
     }
   })
-  return mappedTasks
+  return mappedTasks as Task[]
 }
 
 interface StateProps {

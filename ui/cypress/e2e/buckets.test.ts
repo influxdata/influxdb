@@ -1,4 +1,4 @@
-import {Bucket} from '@influxdata/influx'
+import {Bucket, Organization} from '@influxdata/influx'
 
 describe('Buckets', () => {
   beforeEach(() => {
@@ -6,9 +6,10 @@ describe('Buckets', () => {
 
     cy.signin().then(({body}) => {
       const {
-        org: {id},
+        org: {id, name},
         bucket,
       } = body
+      cy.wrap(body.org).as('org')
       cy.wrap(bucket).as('bucket')
       cy.fixture('routes').then(({orgs}) => {
         cy.visit(`${orgs}/${id}/buckets_tab`)
@@ -59,6 +60,21 @@ describe('Buckets', () => {
       cy.getByTestID('table-row')
         .should('contain', '1 day')
         .and('contain', newName)
+    })
+
+    it('can delete a bucket', () => {
+      cy.get<Organization>('@org').then(({id, name}) => {
+        cy.createBucket(id, name, 'newbucket1')
+        cy.createBucket(id, name, 'newbucket2')
+      })
+
+      cy.getByTestID('table-row').should('have.length', 3)
+
+      cy.getByTestID('confirmation-button')
+        .last()
+        .click({force: true})
+
+      cy.getByTestID('table-row').should('have.length', 2)
     })
   })
 })

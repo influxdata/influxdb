@@ -12,6 +12,7 @@ import {
   createTask,
   createVariable,
   createLabel,
+  createBucket,
 } from './support/commands'
 
 declare global {
@@ -29,6 +30,7 @@ declare global {
       getByInputName: typeof getByInputName
       getByTitle: typeof getByTitle
       createLabel: typeof createLabel
+      createBucket: typeof createBucket
     }
   }
 }

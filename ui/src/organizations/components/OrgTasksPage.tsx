@@ -26,9 +26,8 @@ import {
 } from 'src/tasks/actions/v2'
 
 // Types
-import {Task as TaskAPI, Organization} from '@influxdata/influx'
-import {Task} from 'src/tasks/containers/TasksPage'
-import {AppState} from 'src/types/v2'
+import {Organization} from '@influxdata/influx'
+import {AppState, Task, TaskStatus} from 'src/types/v2'
 import {client} from 'src/utils/api'
 
 interface PassedInProps {
@@ -149,7 +148,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
     }
     const mappedTasks = tasks.filter(t => {
       if (!showInactive) {
-        return t.status === TaskAPI.StatusEnum.Active
+        return t.status === TaskStatus.Active
       }
     })
 

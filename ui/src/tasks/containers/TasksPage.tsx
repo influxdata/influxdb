@@ -31,14 +31,8 @@ import {
 import {allOrganizationsID} from 'src/tasks/constants'
 
 // Types
-import {Task as TaskAPI, User, Organization} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
-
-export interface Task extends TaskAPI {
-  organization: Organization
-  owner?: User
-  offset?: string
-}
+import {Organization} from '@influxdata/influx'
+import {AppState, Task, TaskStatus} from 'src/types/v2'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -197,7 +191,7 @@ class TasksPage extends PureComponent<Props, State> {
     const matchingTasks = tasks.filter(t => {
       let activeFilter = true
       if (!showInactive) {
-        activeFilter = t.status === TaskAPI.StatusEnum.Active
+        activeFilter = t.status === TaskStatus.Active
       }
       let orgIDFilter = true
       if (dropdownOrgID && dropdownOrgID !== allOrganizationsID) {
@@ -216,9 +210,8 @@ class TasksPage extends PureComponent<Props, State> {
   private get hiddenTaskAlert(): JSX.Element {
     const {showInactive, tasks} = this.props
 
-    const hiddenCount = tasks.filter(
-      t => t.status === TaskAPI.StatusEnum.Inactive
-    ).length
+    const hiddenCount = tasks.filter(t => t.status === TaskStatus.Inactive)
+      .length
 
     const allTasksAreHidden = hiddenCount === tasks.length
 
