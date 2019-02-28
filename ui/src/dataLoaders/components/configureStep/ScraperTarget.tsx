@@ -42,6 +42,7 @@ export class ScraperTarget extends PureComponent<Props> {
               <Input
                 type={InputType.Text}
                 value={name}
+                name="name"
                 onChange={this.handleChangeName}
                 titleText="Name"
                 size={ComponentSize.Medium}
@@ -65,6 +66,7 @@ export class ScraperTarget extends PureComponent<Props> {
               <Input
                 type={InputType.Text}
                 value={url}
+                name="url"
                 onChange={this.handleChangeURL}
                 titleText="Target URL"
                 size={ComponentSize.Medium}
