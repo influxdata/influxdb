@@ -6582,53 +6582,48 @@ components:
           items:
             $ref: "#/components/schemas/Proto"
     Dashboard:
-      properties:
-        links:
-          type: object
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/CreateDashboardRequest"
+        - type: object
           properties:
-            self:
+            links:
+              type: object
+              properties:
+                self:
+                  type: string
+                cells:
+                  type: string
+            id:
+              readOnly: true
               type: string
+            meta:
+              type: object
+              properties:
+                createdAt:
+                  type: string
+                  format: date
+                updatedAt:
+                  type: string
+                  format: date
             cells:
-              type: string
-        id:
-          readOnly: true
-          type: string
-        orgID:
-          type: string
-          description: id of the organization that owns the dashboard
-        name:
-          type: string
-          description: user-facing name of the dashboard
-        description:
-          type: string
-          description: user-facing description of the dashboard
-        meta:
-          type: object
-          properties:
-            createdAt:
-              type: string
-              format: date
-            updatedAt:
-              type: string
-              format: date
-        cells:
-            $ref: "#/components/schemas/Cells"
-        labels:
-            $ref: "#/components/schemas/Labels"
-    CreateDashboardRequest:
-      properties:
-        orgID:
-          type: string
-          description: id of the organization that owns the dashboard
-        name:
-          type: string
-          description: user-facing name of the dashboard
-        description:
-          type: string
-          description: user-facing description of the dashboard
-      required:
-        - orgID
-        - name
+                $ref: "#/components/schemas/Cells"
+            labels:
+                $ref: "#/components/schemas/Labels"
+      CreateDashboardRequest:
+        properties:
+          orgID:
+            type: string
+            description: id of the organization that owns the dashboard
+          name:
+            type: string
+            description: user-facing name of the dashboard
+          description:
+            type: string
+            description: user-facing description of the dashboard
+        required:
+          - orgID
+          - name
     Dashboards:
       type: object
       properties:
