@@ -230,7 +230,7 @@ func newDashboardCellsResponse(dashboardID platform.ID, cs []*platform.Cell) das
 }
 
 type viewLinks struct {
-	Self   string `json:"self"`
+	Self string `json:"self"`
 }
 
 type dashboardCellViewResponse struct {

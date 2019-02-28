@@ -1268,11 +1268,6 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 			t.Fatalf("failed to populate dashboard")
 		}
 	}
-	for _, b := range f.Views {
-		if err := svc.PutView(ctx, b); err != nil {
-			t.Fatalf("failed to populate views")
-		}
-	}
 
 	dashboardBackend := NewMockDashboardBackend()
 	dashboardBackend.DashboardService = svc
