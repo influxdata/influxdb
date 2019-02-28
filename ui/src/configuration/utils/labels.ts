@@ -1,6 +1,5 @@
 import _ from 'lodash'
 
-import {LabelType} from 'src/clockface'
 import {
   HEX_CODE_CHAR_LENGTH,
   PRESET_LABEL_COLORS,
@@ -9,22 +8,17 @@ import {
 export const randomPresetColor = () =>
   _.sample(PRESET_LABEL_COLORS.slice(1)).colorHex
 
-export const validateLabelName = (
-  labels: LabelType[],
-  name: string,
-  labelID: string = null
-) => {
+export const validateLabelUniqueness = (labelNames: string[], name: string) => {
   if (name.trim() === '') {
     return 'Label name is required'
   }
 
-  const lowerName = name.toLowerCase()
-  const isUnique = !labels.find(
-    l => l.name.toLowerCase() === lowerName && l.id !== labelID
+  const isNameUnique = !labelNames.find(
+    labelName => labelName.toLowerCase() === name.toLowerCase()
   )
 
-  if (!isUnique) {
-    return 'Label name must be unique'
+  if (!isNameUnique) {
+    return 'There is already a label with that name'
   }
 
   return null

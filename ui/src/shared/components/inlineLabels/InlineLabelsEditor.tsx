@@ -19,7 +19,7 @@ import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 import {Label} from 'src/types/v2/labels'
 
 // Utils
-import {validateLabelName} from 'src/configuration/utils/labels'
+import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Styles
 import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss'
@@ -222,9 +222,9 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private handleEnsureUniqueLabelName = (name: string): string | null => {
     const {labels} = this.props
-    const labelNames = labels.map(label => label.name)
+    const names = labels.map(label => label.name)
 
-    return validateLabelName(labelNames, name)
+    return validateLabelUniqueness(names, name)
   }
 }
 

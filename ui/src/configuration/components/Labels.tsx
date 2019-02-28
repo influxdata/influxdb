@@ -22,7 +22,7 @@ import {client} from 'src/utils/api'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Utils
-import {validateLabelName} from 'src/configuration/utils/labels'
+import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Constants
 import {
@@ -168,7 +168,9 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleNameValidation = (name: string): string | null => {
-    return validateLabelName(this.state.labelTypes, name)
+    const names = this.state.labelTypes.map(label => label.name)
+
+    return validateLabelUniqueness(names, name)
   }
 
   private labelTypes(labels: Label[]): LabelType[] {
