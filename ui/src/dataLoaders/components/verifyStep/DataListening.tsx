@@ -71,7 +71,7 @@ class DataListening extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <div className="wizard-step--body-streaming" data-testID="streaming">
+      <div className="wizard-step--body-streaming" data-testid="streaming">
         {this.connectionInfo}
         {this.listenButton}
       </div>
