@@ -62,5 +62,27 @@ describe('Scrapers', () => {
         cy.getByTestID('input-field').type(`${newScraperName}{enter}`)
       })
     })
+
+    it('can delete a scraper', () => {
+      const scraperName = 'New Scraper'
+      const url = 'http://google.com'
+      const type = 'Prometheus'
+
+      cy.get<Organization>('@org').then(({id}) => {
+        let orgID = id
+        cy.get<Bucket>('@bucket').then(({id}) => {
+          cy.createScraper(scraperName, url, type, orgID, id)
+          cy.createScraper(scraperName, url, type, orgID, id)
+        })
+      })
+
+      cy.getByTestID('table-row').should('have.length', 2)
+
+      cy.getByTestID('confirmation-button')
+        .last()
+        .click({force: true})
+
+      cy.getByTestID('table-row').should('have.length', 1)
+    })
   })
 })
