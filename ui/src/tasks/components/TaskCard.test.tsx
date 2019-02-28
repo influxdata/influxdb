@@ -1,20 +1,19 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {render} from 'react-testing-library'
 
 // Components
-import {TaskRow} from 'src/tasks/components/TaskRow'
-
-// Types
-import {Label} from 'src/clockface'
+import {TaskCard} from 'src/tasks/components/TaskCard'
 
 // Constants
 import {tasks, withRouterProps} from 'mocks/dummyData'
 
+const task = tasks[1] // The 2nd task mock has labels on it
+
 const setup = (override = {}) => {
   const props = {
     ...withRouterProps,
-    task: tasks[0],
+    task,
     onActivate: jest.fn(),
     onDelete: jest.fn(),
     onClone: jest.fn(),
@@ -25,27 +24,17 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  const wrapper = shallow(<TaskRow {...props} />)
-
-  return {wrapper}
+  return render(<TaskCard {...props} />)
 }
 
-describe('Tasks.Components.TaskRow', () => {
-  it('renders', () => {
-    const {wrapper} = setup()
-    expect(wrapper.exists()).toBe(true)
-    expect(wrapper).toMatchSnapshot()
-  })
-
-  describe('if task has labels', () => {
+describe('Tasks.Components.TaskCard', () => {
+  describe.only('if task has labels', () => {
     it('renders with labels', () => {
-      const {wrapper} = setup({task: tasks[1]})
+      const {getAllByTestId} = setup()
 
-      const labelContainer = wrapper.find(Label.Container)
-      const labels = wrapper.find(Label)
+      const labels = getAllByTestId(/label--pill/)
 
-      expect(labelContainer.exists()).toBe(true)
-      expect(labels.length).toBe(tasks[1].labels.length)
+      expect(labels.length).toEqual(task.labels.length)
     })
   })
 })
