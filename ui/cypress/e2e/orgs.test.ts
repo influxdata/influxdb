@@ -30,15 +30,9 @@ describe('Orgs', () => {
 
   it('can delete an org', () => {
     cy.createOrg().then(() => {
-      cy.get('.index-list--row').then(rows => {
-        const numOrgs = rows.length
-
-        cy.contains('Confirm').click({force: true})
-
-        cy.get('.index-list--row')
-          .its('length')
-          .should('eq', numOrgs - 1)
-      })
+      cy.get('.index-list--row').should('have.length', 2)
+      cy.contains('Confirm').click({force: true})
+      cy.get('.index-list--row').should('have.length', 1)
     })
   })
 

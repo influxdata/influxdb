@@ -44,40 +44,40 @@ describe('DataExplorer', () => {
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
     })
 
-    it.only('can use the function selector to build a query', () => {
+    it('can use the function selector to build a query', () => {
       cy.getByTestID('functions-toolbar-tab').click()
 
       cy.get<$CM>('.CodeMirror').then($cm => {
         const cm = $cm[0].CodeMirror
-        cy.wrap(cm.doc).as('script')
+        cy.wrap(cm.doc).as('flux')
         expect(cm.doc.getValue()).to.eq('')
       })
 
       cy.getByTestID('flux-function from').click()
 
-      cy.get<Doc>('@script').then(doc => {
+      cy.get<Doc>('@flux').then(doc => {
         const actual = doc.getValue()
         const expected = FROM.example
 
-        cy.kindaEq(actual, expected).should('be.true')
+        cy.fluxEqual(actual, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function range').click()
 
-      cy.get<Doc>('@script').then(doc => {
+      cy.get<Doc>('@flux').then(doc => {
         const actual = doc.getValue()
         const expected = `${FROM.example}|>${RANGE.example}`
 
-        cy.kindaEq(actual, expected).should('be.true')
+        cy.fluxEqual(actual, expected).should('be.true')
       })
 
       cy.getByTestID('flux-function mean').click()
 
-      cy.get<Doc>('@script').then(doc => {
+      cy.get<Doc>('@flux').then(doc => {
         const actual = doc.getValue()
         const expected = `${FROM.example}|>${RANGE.example}|>${MEAN.example}`
 
-        cy.kindaEq(actual, expected).should('be.true')
+        cy.fluxEqual(actual, expected).should('be.true')
       })
     })
   })

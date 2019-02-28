@@ -200,7 +200,10 @@ export const getByTitle = (name: string): Cypress.Chainable => {
 }
 
 // custom assertions
-export const kindaEq = (s1: string, s2: string): Cypress.Chainable => {
+
+// fluxEqual strips flux scripts of whitespace and newlines to make the
+// strings easier to match by the human eye during testing
+export const fluxEqual = (s1: string, s2: string): Cypress.Chainable => {
   // remove new lines and spaces
   const strip = (s: string) => s.replace(/(\r\n|\n|\r| +)/g, '')
   const strip1 = strip(s1)
@@ -214,7 +217,7 @@ export const kindaEq = (s1: string, s2: string): Cypress.Chainable => {
 }
 
 // assertions
-Cypress.Commands.add('kindaEq', kindaEq)
+Cypress.Commands.add('fluxEqual', fluxEqual)
 
 // getters
 Cypress.Commands.add('getByTestID', getByTestID)
