@@ -23,7 +23,6 @@ import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
 import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
 import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
-import OrganizationView from 'src/organizations/containers/OrganizationView'
 import OrgTaskPage from 'src/organizations/components/OrgTaskPage'
 import OrgTaskEditPage from 'src/organizations/components/OrgTaskEditPage'
 import OrgBucketIndex from 'src/organizations/containers/OrgBucketsIndex'
@@ -39,6 +38,10 @@ import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
 import OrgDashboardsIndex from 'src/organizations/containers/OrgDashboardsIndex'
 import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
 import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
+import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
+import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
+import OrgTasksIndex from 'src/organizations/containers/OrgTasksIndex'
+import OrgTaskExportOverlay from 'src/organizations/components/OrgTaskExportOverlay'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -105,31 +108,35 @@ class Root extends PureComponent {
                         <Route path="organizations">
                           <IndexRoute component={OrganizationsIndex} />
                           <Route path=":orgID">
+                            <Route path="tasks/new" component={OrgTaskPage} />
                             <Route
-                              path="tasks_tab/new"
-                              component={OrgTaskPage}
-                            />
-                            <Route
-                              path="tasks_tab/:id"
+                              path="tasks/:id"
                               component={OrgTaskEditPage}
                             />
+                            <Route path="buckets" component={OrgBucketIndex} />
                             <Route
-                              path="buckets_tab"
-                              component={OrgBucketIndex}
-                            />
-                            <Route
-                              path="dashboards_tab"
+                              path="dashboards"
                               component={OrgDashboardsIndex}
                             />
+                            <Route path="members" component={OrgMembersIndex} />
                             <Route
-                              path="members_tab"
-                              component={OrgMembersIndex}
-                            />
-                            <Route
-                              path="telegrafs_tab"
+                              path="telegrafs"
                               component={OrgTelegrafsIndex}
                             />
-                            <Route path=":tab" component={OrganizationView} />
+                            <Route
+                              path="variables"
+                              component={OrgVariablesIndex}
+                            />
+                            <Route
+                              path="scrapers"
+                              component={OrgScrapersIndex}
+                            />
+                            <Route path="tasks" component={OrgTasksIndex}>
+                              <Route
+                                path=":id/export"
+                                component={OrgTaskExportOverlay}
+                              />
+                            </Route>
                           </Route>
                         </Route>
                         <Route path="tasks">
