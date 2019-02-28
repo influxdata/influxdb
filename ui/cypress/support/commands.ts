@@ -150,8 +150,8 @@ export const createSource = (
 
 export const createScraper = (
   scraperName?: string,
-  type?: string,
   url?: string,
+  type?: string,
   orgID?: string,
   bucketID?: string
 ): Cypress.Chainable<Cypress.Response> => {
