@@ -86,6 +86,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
                   <Input
                     type={InputType.Text}
                     value={telegrafConfigName}
+                    name="name"
                     onChange={this.handleNameInput}
                     titleText="Telegraf Configuration Name"
                     size={ComponentSize.Medium}
@@ -96,6 +97,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
                   <Input
                     type={InputType.Text}
                     value={telegrafConfigDescription}
+                    name="description"
                     onChange={this.handleDescriptionInput}
                     titleText="Telegraf Configuration Description"
                     size={ComponentSize.Medium}
