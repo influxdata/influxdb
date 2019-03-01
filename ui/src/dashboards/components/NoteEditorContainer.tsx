@@ -60,7 +60,7 @@ class NoteEditorContainer extends PureComponent<Props, State> {
     return (
       <div className="note-editor-container">
         <OverlayTechnology visible={overlayVisible}>
-          <OverlayContainer>
+          <OverlayContainer maxWidth={900}>
             <OverlayHeading title={this.overlayTitle} onDismiss={onHide} />
             <OverlayBody>
               <NoteEditor />
