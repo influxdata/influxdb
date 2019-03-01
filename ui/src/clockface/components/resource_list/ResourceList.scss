@@ -93,21 +93,10 @@
   ------------------------------------------------------------------------------
 */
 
-.resource-list--card {
-  position: relative;
-  color: $g13-mist;
-  background-color: $g3-castle;
-  border-radius: $radius;
-  padding: $ix-marg-b $ix-marg-c;
-  margin-bottom: $ix-border;
-  transition: background-color 0.25s ease, color 0.25s ease;
+.resource-list--card,
+.resource-list--card-contents {
   display: flex;
   flex-direction: column;
-
-  &:hover {
-    color: $g16-pearl;
-    background-color: $g4-onyx;
-  }
 
   > * {
     margin-bottom: $ix-border;
@@ -116,6 +105,34 @@
       margin-bottom: 0;
     }
   }
+}
+
+.resource-list--card {
+  position: relative;
+  color: $g13-mist;
+  background-color: $g3-castle;
+  border-radius: $radius;
+  padding: $ix-marg-b $ix-marg-c;
+  margin-bottom: $ix-border;
+  transition: background-color 0.25s ease, color 0.25s ease;
+
+  &:hover {
+    color: $g16-pearl;
+    background-color: $g4-onyx;
+  }
+
+  &.resource-list--card__toggleable {
+    flex-direction: row;
+    align-items: stretch;
+  }
+}
+
+.resource-list--card-contents {
+  flex: 1 0 0;
+}
+
+.resource-list--toggle {
+  padding-right: $ix-marg-c;
 }
 
 .resource-list--meta {
@@ -190,6 +207,25 @@
 }
 
 /*
+  Disabled Card
+  ------------------------------------------------------------------------------
+*/
+
+.resource-list--card.resource-list--card__disabled {
+  background-color: rgba($g3-castle, 0.5);
+  color: $g9-mountain;
+  font-style: italic;
+
+  .resource-list--meta {
+    color: $g9-mountain;
+  }
+
+  &:hover .resource-list--meta {
+    color: $g12-forge;
+  }
+}
+
+/*
   Depth Styling
   ------------------------------------------------------------------------------
 */
@@ -201,4 +237,9 @@
   &:hover {
     background-color: $g5-pepper;
   }
+}
+
+.panel .resource-list--card.resource-list--card__disabled,
+.tabs .resource-list--card.resource-list--card__disabled {
+  background-color: rgba($g4-onyx, 0.5);
 }

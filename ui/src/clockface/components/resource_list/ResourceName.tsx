@@ -25,6 +25,7 @@ interface DefaultProps {
   buttonTestID?: string
   inputTestID?: string
   hrefValue?: string
+  onClick?: () => void
 }
 
 type Props = PassedProps & DefaultProps

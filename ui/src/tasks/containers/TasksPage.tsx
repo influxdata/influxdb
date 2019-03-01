@@ -10,11 +10,13 @@ import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 import FilterList from 'src/shared/components/Filter'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 
 // Actions
 import {
   populateTasks,
   updateTaskStatus,
+  updateTaskName,
   deleteTask,
   selectTask,
   cloneTask,
@@ -41,6 +43,7 @@ interface PassedInProps {
 interface ConnectedDispatchProps {
   populateTasks: typeof populateTasks
   updateTaskStatus: typeof updateTaskStatus
+  updateTaskName: typeof updateTaskName
   deleteTask: typeof deleteTask
   cloneTask: typeof cloneTask
   selectTask: typeof selectTask
@@ -88,6 +91,7 @@ class TasksPage extends PureComponent<Props, State> {
   public render(): JSX.Element {
     const {
       setSearchTerm,
+      updateTaskName,
       searchTerm,
       setShowInactive,
       showInactive,
@@ -101,11 +105,10 @@ class TasksPage extends PureComponent<Props, State> {
         <Page titleTag="Tasks">
           <TasksHeader
             onCreateTask={this.handleCreateTask}
-            setSearchTerm={setSearchTerm}
             setShowInactive={setShowInactive}
             showInactive={showInactive}
             toggleOverlay={this.handleToggleImportOverlay}
-            searchTerm={searchTerm}
+            filterComponent={() => this.search}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
@@ -128,6 +131,8 @@ class TasksPage extends PureComponent<Props, State> {
                     onRemoveTaskLabels={onRemoveTaskLabels}
                     onRunTask={onRunTask}
                     onFilterChange={setSearchTerm}
+                    filterComponent={() => this.search}
+                    onUpdate={updateTaskName}
                   />
                 )}
               </FilterList>
@@ -165,6 +170,18 @@ class TasksPage extends PureComponent<Props, State> {
 
   private handleToggleImportOverlay = (): void => {
     this.setState({isImporting: !this.state.isImporting})
+  }
+
+  private get search(): JSX.Element {
+    const {setSearchTerm, searchTerm} = this.props
+
+    return (
+      <SearchWidget
+        placeholderText="Filter tasks..."
+        onSearch={setSearchTerm}
+        searchTerm={searchTerm}
+      />
+    )
   }
 
   private get importOverlay(): JSX.Element {
@@ -246,6 +263,7 @@ const mstp = ({
 const mdtp: ConnectedDispatchProps = {
   populateTasks,
   updateTaskStatus,
+  updateTaskName,
   deleteTask,
   selectTask,
   cloneTask,

@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 import moment from 'moment'
+import classnames from 'classnames'
 
 // Types
 import {Organization} from 'src/types/v2'
@@ -11,17 +12,19 @@ import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
 
 interface PassedProps {
   name: () => JSX.Element
-  description?: () => JSX.Element
   updatedAt?: string
   owner?: Organization
-  labels?: () => JSX.Element
-  metaData?: () => JSX.Element[]
-  contextMenu?: () => JSX.Element
   children?: JSX.Element[] | JSX.Element
+  disabled?: boolean
 }
 
 interface DefaultProps {
   testID?: string
+  description?: () => JSX.Element
+  labels?: () => JSX.Element
+  metaData?: () => JSX.Element[]
+  contextMenu?: () => JSX.Element
+  toggle?: () => JSX.Element
 }
 
 type Props = PassedProps & DefaultProps
@@ -29,13 +32,34 @@ type Props = PassedProps & DefaultProps
 export default class ResourceListCard extends PureComponent<Props> {
   public static defaultProps: DefaultProps = {
     testID: 'resource-card',
+    description: () => null,
+    labels: () => null,
+    metaData: () => null,
+    contextMenu: () => null,
+    toggle: () => null,
   }
 
   public render() {
-    const {description, children, testID, labels} = this.props
+    const {description, labels, children, testID, toggle} = this.props
+
+    if (toggle()) {
+      return (
+        <div className={this.className} data-testid={testID}>
+          {this.toggle}
+          <div className="resource-list--card-contents">
+            {this.nameAndMeta}
+            {description()}
+            {labels()}
+            {children}
+          </div>
+          {this.contextMenu}
+        </div>
+      )
+    }
 
     return (
-      <div className="resource-list--card" data-testid={testID}>
+      <div className={this.className} data-testid={testID}>
+        {this.toggle}
         {this.nameAndMeta}
         {description()}
         {labels()}
@@ -43,6 +67,24 @@ export default class ResourceListCard extends PureComponent<Props> {
         {this.contextMenu}
       </div>
     )
+  }
+
+  private get className(): string {
+    const {disabled, toggle} = this.props
+    return classnames('resource-list--card', {
+      'resource-list--card__disabled': disabled,
+      'resource-list--card__toggleable': toggle() !== null,
+    })
+  }
+
+  private get toggle(): JSX.Element {
+    const {toggle} = this.props
+
+    if (toggle() === null) {
+      return
+    }
+
+    return <div className="resource-list--toggle">{toggle()}</div>
   }
 
   private get nameAndMeta(): JSX.Element {
@@ -107,7 +149,7 @@ export default class ResourceListCard extends PureComponent<Props> {
   private get metaData(): JSX.Element[] {
     const {metaData} = this.props
 
-    if (metaData) {
+    if (metaData()) {
       return React.Children.map(metaData(), (m: JSX.Element) => {
         if (m !== null && m !== undefined) {
           return <div className="resource-list--meta-item">{m}</div>
@@ -119,7 +161,7 @@ export default class ResourceListCard extends PureComponent<Props> {
   private get contextMenu(): JSX.Element {
     const {contextMenu} = this.props
 
-    if (contextMenu) {
+    if (contextMenu()) {
       return <div className="resource-list--context-menu">{contextMenu()}</div>
     }
   }

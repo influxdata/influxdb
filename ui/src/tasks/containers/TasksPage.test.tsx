@@ -35,7 +35,7 @@ describe('TasksPage', () => {
   it('renders', () => {
     const {getAllByTestId} = setup({showInactive: true, tasks})
 
-    expect(getAllByTestId('task-row')).toHaveLength(tasks.length)
+    expect(getAllByTestId('task-card')).toHaveLength(tasks.length)
   })
 
   describe('active filtering', () => {
@@ -60,7 +60,7 @@ describe('TasksPage', () => {
         tasks: [inactiveTask, activeTask],
       })
 
-      expect(getAllByTestId('task-row')).toHaveLength(2)
+      expect(getAllByTestId('task-card')).toHaveLength(2)
     })
 
     it('filters active on click', () => {
@@ -70,12 +70,12 @@ describe('TasksPage', () => {
         tasks: [inactiveTask, activeTask],
       })
 
-      expect(getAllByTestId('task-row')).toHaveLength(2)
+      expect(getAllByTestId('task-card')).toHaveLength(2)
 
       const filterActiveToggle = getByTestId('slide-toggle')
       fireEvent.click(filterActiveToggle)
 
-      expect(getAllByTestId('task-row')).toHaveLength(1)
+      expect(getAllByTestId('task-card')).toHaveLength(1)
     })
 
     // Todo translate to e2e
@@ -103,17 +103,17 @@ describe('TasksPage', () => {
         ],
       })
 
-      expect(getAllByTestId('task-row')).toHaveLength(3)
+      expect(getAllByTestId('task-card')).toHaveLength(3)
 
       const filterActiveToggle = getByTestId('slide-toggle')
       fireEvent.click(filterActiveToggle)
 
-      expect(getAllByTestId('task-row')).toHaveLength(2)
+      expect(getAllByTestId('task-card')).toHaveLength(2)
 
       const labelPill = getByText(labelName)
       fireEvent.click(labelPill)
 
-      expect(getAllByTestId('task-row')).toHaveLength(1)
+      expect(getAllByTestId('task-card')).toHaveLength(1)
     })
   })
 })
