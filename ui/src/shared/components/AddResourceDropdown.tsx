@@ -55,9 +55,9 @@ export default class AddResourceDropdown extends PureComponent<Props> {
     const {onSelectNew, onSelectImport} = this.props
     switch (selection) {
       case this.newOption:
-        onSelectNew()
+        return onSelectNew()
       case this.importOption:
-        onSelectImport()
+        return onSelectImport()
     }
   }
 }
