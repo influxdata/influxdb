@@ -259,8 +259,38 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: just update an option.
 	newStatus = string(backend.TaskActive)
-	newFlux = fmt.Sprintf(scriptDifferentName, 98)
+	newFlux = "import \"http\"\n\noption task = {\n\tname: \"task-changed #98\",\n\tcron: \"* * * * *\",\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> http.to(url: \"http://example.com\")"
 	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Flux != newFlux {
+		diff := cmp.Diff(f.Flux, newFlux)
+		t.Fatalf("flux unexpected updated: %s", diff)
+	}
+	if f.Status != newStatus {
+		t.Fatalf("expected task status to be active, got %q", f.Status)
+	}
+
+	// Update task: switch to every.
+	newStatus = string(backend.TaskActive)
+	newFlux = "import \"http\"\n\noption task = {\n\tname: \"task-changed #98\",\n\tevery: 30000000000ns,\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> http.to(url: \"http://example.com\")"
+	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Options: options.Options{Every: 30 * time.Second}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Flux != newFlux {
+		diff := cmp.Diff(f.Flux, newFlux)
+		t.Fatalf("flux unexpected updated: %s", diff)
+	}
+	if f.Status != newStatus {
+		t.Fatalf("expected task status to be active, got %q", f.Status)
+	}
+
+	// Update task: just cron.
+	newStatus = string(backend.TaskActive)
+	newFlux = fmt.Sprintf(scriptDifferentName, 98)
+	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Options: options.Options{Cron: "* * * * *"}})
 	if err != nil {
 		t.Fatal(err)
 	}
