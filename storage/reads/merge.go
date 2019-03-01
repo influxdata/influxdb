@@ -47,6 +47,7 @@ func (r *mergedResultSet) Next() bool {
 			return true
 		}
 		err := top.Err()
+		stats := top.Stats()
 		top.Close()
 		heap.Pop(&r.heap)
 		if err != nil {
@@ -54,7 +55,7 @@ func (r *mergedResultSet) Next() bool {
 			r.Close()
 		}
 
-		r.stats.Add(top.Stats())
+		r.stats.Add(stats)
 
 		return len(r.heap.items) > 0
 	}
