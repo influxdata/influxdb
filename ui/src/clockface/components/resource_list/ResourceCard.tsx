@@ -42,7 +42,7 @@ export default class ResourceListCard extends PureComponent<Props> {
   public render() {
     const {description, labels, children, testID, toggle} = this.props
 
-    if (toggle) {
+    if (toggle()) {
       return (
         <div className={this.className} data-testid={testID}>
           {this.toggle}
