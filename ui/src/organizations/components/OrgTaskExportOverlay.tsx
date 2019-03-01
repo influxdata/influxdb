@@ -24,7 +24,7 @@ class OrgTaskExportOverlay extends PureComponent<Props, State> {
     } = this.props
 
     const task = await client.tasks.get(id)
-    console.log(task)
+
     this.setState({task})
   }
 
