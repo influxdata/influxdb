@@ -131,3 +131,14 @@ func madvise(b []byte, advice int) error {
 	// Not implemented
 	return nil
 }
+// Fadvise, not supported on Windows
+func fadviseWillNeed(fd uintptr, l int64) error {
+	return nil
+}
+
+func fadviseDontNeed(fd uintptr, l int64) error {
+	return nil
+}
+func fadvise(fd uintptr, l int64, advice int) (err error) {
+	return nil
+}

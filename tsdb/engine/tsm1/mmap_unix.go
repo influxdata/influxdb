@@ -41,3 +41,15 @@ func madviseDontNeed(b []byte) error {
 func madvise(b []byte, advice int) (err error) {
 	return unix.Madvise(b, advice)
 }
+
+// Fadvise
+func fadviseWillNeed(fd uintptr, l int64) error {
+	return fadvise(fd, l, unix.FADV_WILLNEED)
+}
+
+func fadviseDontNeed(fd uintptr, l int64) error {
+	return fadvise(fd, l, unix.FADV_DONTNEED)
+}
+func fadvise(fd uintptr, l int64, advice int) (err error) {
+	return unix.Fadvise(int(fd), 0, l, advice)
+}

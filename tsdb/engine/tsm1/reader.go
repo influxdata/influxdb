@@ -1357,6 +1357,48 @@ func (m *mmapAccessor) advise(need bool) error {
 	}
 }
 
+type seekAccessor struct {
+	f *os.File
+	l int
+}
+
+func NewSeekAccessor(f *os.File) (*seekAccessor, error) {
+
+	t := &seekAccessor{}
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	t.f = f
+	// TSM files are immutable so their size won't change
+	t.l = int(stat.Size())
+	return t, nil
+}
+
+func (m *seekAccessor) length() int {
+	return m.l
+}
+
+func (m *seekAccessor) read(start int64, stop int64) []byte {
+
+	b := make([]byte, stop - start)
+	n,_ := m.f.ReadAt(b, start)
+	// Slice the byte array in case we read fewer bytes than desired
+	return b[0:n]
+}
+
+func (m *seekAccessor) free() error {
+	return nil
+}
+
+func (m *seekAccessor) advise(need bool) error {
+	if (need) {
+		return fadviseWillNeed(m.f.Fd(), int64(m.l))
+	} else {
+		return fadviseDontNeed(m.f.Fd(), int64(m.l))
+	}
+}
+
 // Access is mmap based block accessor.  It access blocks through an
 // MMAP or seek/read file interface, depending on the type of blockAccessor
 type accessor struct {
@@ -1382,7 +1424,13 @@ func (m *accessor) init() (*indirectIndex, error) {
 	}
 
 	var err error
-	if m.b, err = NewMMapAccessor(m.f); err != nil {
+	if (m.useSeek) {
+		m.b, err = NewSeekAccessor(m.f)
+	} else {
+		m.b, err = NewMMapAccessor(m.f)
+	}
+
+	if err != nil {
 		return nil, err
 	}
 
