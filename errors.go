@@ -9,6 +9,7 @@ import (
 
 // Some error code constant, ideally we want define common platform codes here
 // projects on use platform's error, should have their own central place like this.
+// Any time this set of constants changes, you must also update the swagger for Error.properties.code.enum.
 const (
 	EInternal            = "internal error"
 	ENotFound            = "not found"
