@@ -5710,7 +5710,7 @@ components:
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
         offset:
-          description: Duration to delay after the schedule, before executing the task; parsed from flux.
+          description: Duration to delay after the schedule, before executing the task; parsed from flux, if set to zero it will remove this option and use 0 as the default.
           type: string
         latestCompleted:
           description: Timestamp of latest scheduled, completed run, RFC3339.

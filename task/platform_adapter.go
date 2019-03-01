@@ -179,7 +179,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 	if opts.Every != 0 {
 		task.Every = opts.Every.String()
 	}
-	if opts.Offset != 0 {
+	if opts.Offset != nil && *opts.Offset != 0 {
 		task.Offset = opts.Offset.String()
 	}
 
@@ -432,7 +432,7 @@ func (p *pAdapter) toPlatformTask(ctx context.Context, t backend.StoreTask, m *b
 	if opts.Every != 0 {
 		pt.Every = opts.Every.String()
 	}
-	if opts.Offset != 0 {
+	if opts.Offset != nil && *opts.Offset != 0 {
 		pt.Offset = opts.Offset.String()
 	}
 	if m != nil {

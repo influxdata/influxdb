@@ -18,6 +18,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/pkg/pointer"
 	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
@@ -58,6 +59,11 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 		t.Run("Task CRUD", func(t *testing.T) {
 			t.Parallel()
 			testTaskCRUD(t, sys)
+		})
+
+		t.Run("Task Update Options Full", func(t *testing.T) {
+			t.Parallel()
+			testTaskOptionsUpdateFull(t, sys)
 		})
 
 		t.Run("Task Runs", func(t *testing.T) {
@@ -337,6 +343,56 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Task should not be returned.
 	if _, err := sys.ts.FindTaskByID(sys.Ctx, origID); err != backend.ErrTaskNotFound {
 		t.Fatalf("expected %v, got %v", backend.ErrTaskNotFound, err)
+	}
+}
+
+//Create a new task with a Cron and Offset option
+//Update the task to remove the Offset option, and change Cron to Every
+//Retrieve the task again to ensure the options are now Every, without Cron or Offset
+func testTaskOptionsUpdateFull(t *testing.T, sys *System) {
+
+	script := `import "http"
+
+option task = {
+	name: "task-Options-Update",
+	cron: "* * * * *",
+	concurrency: 100,
+	offset: 10s,
+}
+
+from(bucket: "b")
+	|> http.to(url: "http://example.com")`
+
+	expectedFlux := `import "http"
+
+option task = {name: "task-Options-Update", every: 10000000000ns, concurrency: 100}
+
+from(bucket: "b")
+	|> http.to(url: "http://example.com")`
+
+	cr := creds(t, sys)
+
+	ct := platform.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           script,
+		Token:          cr.Token,
+	}
+	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+	task, err := sys.ts.CreateTask(authorizedCtx, ct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := sys.ts.UpdateTask(authorizedCtx, task.ID, platform.TaskUpdate{Options: options.Options{Offset: pointer.Duration(0), Every: 10 * time.Second}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	savedTask, err := sys.ts.FindTaskByID(sys.Ctx, f.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if savedTask.Flux != expectedFlux {
+		diff := cmp.Diff(savedTask.Flux, expectedFlux)
+		t.Fatalf("flux unexpected updated: %s", diff)
 	}
 }
 

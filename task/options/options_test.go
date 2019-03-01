@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/pkg/pointer"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/options"
 )
@@ -22,14 +23,14 @@ func scriptGenerator(opt options.Options, body string) string {
 	if opt.Every != 0 {
 		taskData = fmt.Sprintf("%s  every: %s,\n", taskData, opt.Every.String())
 	}
-	if opt.Offset != 0 {
+	if opt.Offset != nil && *opt.Offset != 0 {
 		taskData = fmt.Sprintf("%s  offset: %s,\n", taskData, opt.Offset.String())
 	}
-	if opt.Concurrency != 0 {
-		taskData = fmt.Sprintf("%s  concurrency: %d,\n", taskData, opt.Concurrency)
+	if opt.Concurrency != nil && *opt.Concurrency != 0 {
+		taskData = fmt.Sprintf("%s  concurrency: %d,\n", taskData, *opt.Concurrency)
 	}
-	if opt.Retry != 0 {
-		taskData = fmt.Sprintf("%s  retry: %d,\n", taskData, opt.Retry)
+	if opt.Retry != nil && *opt.Retry != 0 {
+		taskData = fmt.Sprintf("%s  retry: %d,\n", taskData, *opt.Retry)
 	}
 	if body == "" {
 		body = `from(bucket: "test")
@@ -49,16 +50,16 @@ func TestFromScript(t *testing.T) {
 		exp       options.Options
 		shouldErr bool
 	}{
-		{script: scriptGenerator(options.Options{Name: "name", Cron: "* * * * *", Concurrency: 2, Retry: 3, Offset: -time.Minute}, ""), exp: options.Options{Name: "name", Cron: "* * * * *", Concurrency: 2, Retry: 3, Offset: -time.Minute}},
-		{script: scriptGenerator(options.Options{Name: "name", Every: 5 * time.Second}, ""), exp: options.Options{Name: "name", Every: 5 * time.Second, Concurrency: 1, Retry: 1}},
-		{script: scriptGenerator(options.Options{Name: "name", Cron: "* * * * *"}, ""), exp: options.Options{Name: "name", Cron: "* * * * *", Concurrency: 1, Retry: 1}},
-		{script: scriptGenerator(options.Options{Name: "name", Every: time.Hour, Cron: "* * * * *"}, ""), shouldErr: true},
-		{script: scriptGenerator(options.Options{Name: "name", Concurrency: 1000, Every: time.Hour}, ""), shouldErr: true},
-		{script: "option task = {\n  name: \"name\",\n  concurrency: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
-		{script: "option task = {\n  name: \"name\",\n  concurrency: 1,\n  every: 1,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
-		{script: scriptGenerator(options.Options{Name: "name", Retry: 20, Every: time.Hour}, ""), shouldErr: true},
-		{script: "option task = {\n  name: \"name\",\n  retry: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
-		{script: scriptGenerator(options.Options{Name: "name"}, ""), shouldErr: true},
+		{script: scriptGenerator(options.Options{Name: "name0", Cron: "* * * * *", Concurrency: pointer.Int64(2), Retry: pointer.Int64(3), Offset: pointer.Duration(-time.Minute)}, ""), exp: options.Options{Name: "name0", Cron: "* * * * *", Concurrency: pointer.Int64(2), Retry: pointer.Int64(3), Offset: pointer.Duration(-time.Minute)}},
+		{script: scriptGenerator(options.Options{Name: "name1", Every: 5 * time.Second}, ""), exp: options.Options{Name: "name1", Every: 5 * time.Second, Concurrency: pointer.Int64(1), Retry: pointer.Int64(1)}},
+		{script: scriptGenerator(options.Options{Name: "name2", Cron: "* * * * *"}, ""), exp: options.Options{Name: "name2", Cron: "* * * * *", Concurrency: pointer.Int64(1), Retry: pointer.Int64(1)}},
+		{script: scriptGenerator(options.Options{Name: "name3", Every: time.Hour, Cron: "* * * * *"}, ""), shouldErr: true},
+		{script: scriptGenerator(options.Options{Name: "name4", Concurrency: pointer.Int64(1000), Every: time.Hour}, ""), shouldErr: true},
+		{script: "option task = {\n  name: \"name5\",\n  concurrency: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: "option task = {\n  name: \"name6\",\n  concurrency: 1,\n  every: 1,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: scriptGenerator(options.Options{Name: "name7", Retry: pointer.Int64(20), Every: time.Hour}, ""), shouldErr: true},
+		{script: "option task = {\n  name: \"name8\",\n  retry: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
+		{script: scriptGenerator(options.Options{Name: "name9"}, ""), shouldErr: true},
 		{script: scriptGenerator(options.Options{}, ""), shouldErr: true},
 	} {
 		o, err := options.FromScript(c.script)
@@ -78,7 +79,7 @@ func TestFromScript(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	good := options.Options{Name: "x", Cron: "* * * * *", Concurrency: 1, Retry: 1}
+	good := options.Options{Name: "x", Cron: "* * * * *", Concurrency: pointer.Int64(1), Retry: pointer.Int64(1)}
 	if err := good.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -116,31 +117,31 @@ func TestValidate(t *testing.T) {
 	}
 
 	*bad = good
-	bad.Offset = 1500 * time.Millisecond
+	bad.Offset = pointer.Duration(1500 * time.Millisecond)
 	if err := bad.Validate(); err == nil {
 		t.Error("expected error for sub-second delay resolution")
 	}
 
 	*bad = good
-	bad.Concurrency = 0
+	bad.Concurrency = pointer.Int64(0)
 	if err := bad.Validate(); err == nil {
 		t.Error("expected error for 0 concurrency")
 	}
 
 	*bad = good
-	bad.Concurrency = math.MaxInt64
+	bad.Concurrency = pointer.Int64(math.MaxInt64)
 	if err := bad.Validate(); err == nil {
 		t.Error("expected error for concurrency too large")
 	}
 
 	*bad = good
-	bad.Retry = 0
+	bad.Retry = pointer.Int64(0)
 	if err := bad.Validate(); err == nil {
 		t.Error("expected error for 0 retry")
 	}
 
 	*bad = good
-	bad.Retry = math.MaxInt64
+	bad.Retry = pointer.Int64(math.MaxInt64)
 	if err := bad.Validate(); err == nil {
 		t.Error("expected error for retry too large")
 	}
