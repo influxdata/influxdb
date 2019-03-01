@@ -52,6 +52,8 @@ func (c *{{.name}}CursorStreamReader) readFrame() {
 	}
 }
 
-func (c *{{.name}}CursorStreamReader) Stats() cursors.CursorStats { return cursors.CursorStats{} }
+func (c *{{.name}}CursorStreamReader) Stats() cursors.CursorStats {
+	return c.fr.stats.Stats()
+}
 
 {{end}}
