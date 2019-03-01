@@ -358,6 +358,7 @@ RETRY:
 	}
 
 	r.p = 0
+	r.buf = nil
 	res, err := r.s.Recv()
 	if err == nil {
 		if res != nil {
