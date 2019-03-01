@@ -36,7 +36,7 @@ describe('Tasks', () => {
       .and('contain', taskName)
   })
 
-  it.skip('can delete a task', () => {
+  it('can delete a task', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.createTask(id)
       cy.createTask(id)
@@ -70,7 +70,7 @@ describe('Tasks', () => {
     cy.getByTestID('task-card--slide-toggle').should('not.have.class', 'active')
   })
 
-  it.only('can edit a tasks name', () => {
+  it('can edit a tasks name', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.createTask(id)
     })
