@@ -272,6 +272,27 @@ series: _m=cpu,tag0=val1
 		},
 
 		{
+			name: "last frame empty",
+			stream: newStreamReader(
+				response(
+					seriesF(Float, "cpu,tag0=val0"),
+					floatF(floatS{
+						0: 1.0,
+						1: 2.0,
+						2: 3.0,
+					}),
+				),
+				response(),
+			),
+			exp: `series: _m=cpu,tag0=val0
+  cursor:Float
+                     0 |               1.00
+                     1 |               2.00
+                     2 |               3.00
+`,
+		},
+
+		{
 			name: "ErrUnexpectedEOF",
 			stream: newStreamReader(
 				response(
