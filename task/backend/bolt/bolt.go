@@ -173,7 +173,6 @@ func (s *Store) CreateTask(ctx context.Context, req backend.CreateTaskRequest) (
 
 func (s *Store) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (backend.UpdateTaskResult, error) {
 	var res backend.UpdateTaskResult
-	fmt.Println("here1")
 	op, err := backend.StoreValidator.UpdateArgs(req)
 	if err != nil {
 		return res, err
