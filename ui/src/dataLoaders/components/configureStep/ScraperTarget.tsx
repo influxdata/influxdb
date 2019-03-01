@@ -7,7 +7,6 @@ import {
   Input,
   Columns,
   Grid,
-  ComponentSize,
   InputType,
   ComponentStatus,
 } from 'src/clockface'
@@ -34,7 +33,7 @@ export class ScraperTarget extends PureComponent<Props> {
     return (
       <Grid>
         <Grid.Row>
-          <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.Two}>
+          <Grid.Column widthSM={Columns.Six}>
             <Form.Element
               label="Name"
               errorMessage={this.nameEmpty && 'Target name is empty'}
@@ -45,11 +44,12 @@ export class ScraperTarget extends PureComponent<Props> {
                 name="name"
                 onChange={this.handleChangeName}
                 titleText="Name"
-                size={ComponentSize.Medium}
                 autoFocus={true}
                 status={this.nameStatus}
               />
             </Form.Element>
+          </Grid.Column>
+          <Grid.Column widthSM={Columns.Six}>
             <Form.Element label="Bucket">
               <BucketDropdown
                 selected={bucket}
@@ -58,7 +58,7 @@ export class ScraperTarget extends PureComponent<Props> {
               />
             </Form.Element>
           </Grid.Column>
-          <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.Two}>
+          <Grid.Column widthSM={Columns.Twelve}>
             <Form.Element
               label="Target URL"
               errorMessage={this.urlEmpty && 'Target URL is empty'}
@@ -69,7 +69,6 @@ export class ScraperTarget extends PureComponent<Props> {
                 name="url"
                 onChange={this.handleChangeURL}
                 titleText="Target URL"
-                size={ComponentSize.Medium}
                 status={this.urlStatus}
               />
             </Form.Element>
