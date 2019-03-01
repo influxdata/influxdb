@@ -85,6 +85,28 @@ describe('DataExplorer', () => {
       cy.get('.input-field').type('covariance')
       cy.getByTestID('toolbar-function').should('have.length', 1)
     })
+
+    it('shows the empty state when the query returns no results', () => {
+      cy.getByTestID('time-machine--bottom').within(() => {
+        cy.get('textarea').type(
+          `from(bucket: "defbuck")
+  |> range(start: timeRangeStart, stop: timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "no exist")`,
+          {force: true}
+        )
+        cy.getByTestID('time-machine-submit-button').click()
+      })
+
+      cy.getByTestID('empty-graph-message').within(() => {
+        cy.contains('No Results').should('exist')
+      })
+    })
+  })
+
+  describe('query builder', () => {
+    it('show an empty state for tag keys when the bucket is empty', () => {
+      cy.getByTestID('empty-tag-keys').should('exist')
+    })
   })
 
   describe('visualizations', () => {
@@ -100,10 +122,6 @@ describe('DataExplorer', () => {
         cy.getByTestID('empty-graph-message').within(() => {
           cy.contains('Error').should('exist')
         })
-      })
-
-      it('show an empty state for tag keys when the bucket is empty', () => {
-        cy.getByTestID('empty-tag-keys').should('exist')
       })
     })
   })
