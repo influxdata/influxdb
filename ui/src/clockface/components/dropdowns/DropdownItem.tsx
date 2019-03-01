@@ -14,7 +14,7 @@ interface Props {
   selected?: boolean
   checkbox?: boolean
   onClick?: (value: any) => void
-  testid?: string
+  testID?: string
 }
 
 @ErrorHandling
