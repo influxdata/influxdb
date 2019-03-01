@@ -36,7 +36,7 @@ describe('Tasks', () => {
       .and('contain', taskName)
   })
 
-  it('can delete a task', () => {
+  it.skip('can delete a task', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.createTask(id)
       cy.createTask(id)
