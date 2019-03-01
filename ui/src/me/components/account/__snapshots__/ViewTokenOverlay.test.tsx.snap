@@ -66,15 +66,17 @@ exports[`Account rendering renders! 1`] = `
         <div
           className="overlay--body"
         >
-          <CopyText
+          <CodeSnippet
             copyText="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
+            label="Code Snippet"
           >
             <div
-              className="script-snippet--container"
+              className="code-snippet"
             >
               <FancyScrollbar
                 autoHeight={true}
                 autoHide={false}
+                className="code-snippet--scroll"
                 hideTracksWhenNotNeeded={true}
                 maxHeight={400}
                 setScrollTop={[Function]}
@@ -87,7 +89,7 @@ exports[`Account rendering renders! 1`] = `
                   autoHide={false}
                   autoHideDuration={250}
                   autoHideTimeout={1000}
-                  className="fancy-scroll--container"
+                  className="fancy-scroll--container code-snippet--scroll"
                   hideTracksWhenNotNeeded={true}
                   onScroll={[Function]}
                   style={Object {}}
@@ -98,7 +100,7 @@ exports[`Account rendering renders! 1`] = `
                   universal={false}
                 >
                   <div
-                    className="fancy-scroll--container"
+                    className="fancy-scroll--container code-snippet--scroll"
                     style={
                       Object {
                         "height": "auto",
@@ -129,9 +131,15 @@ exports[`Account rendering renders! 1`] = `
                         }
                       }
                     >
-                      <p>
-                        ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==
-                      </p>
+                      <div
+                        className="code-snippet--text"
+                      >
+                        <pre>
+                          <code>
+                            ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA==
+                          </code>
+                        </pre>
+                      </div>
                     </div>
                     <div
                       className="fancy-scroll--track-h"
@@ -192,38 +200,46 @@ exports[`Account rendering renders! 1`] = `
                   </div>
                 </Scrollbars>
               </FancyScrollbar>
-              <CopyToClipboard
-                onCopy={[Function]}
-                text="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
+              <div
+                className="code-snippet--footer"
               >
-                <t
-                  active={false}
-                  color="default"
-                  customClass="copy-button"
-                  onClick={[Function]}
-                  shape="none"
-                  size="sm"
-                  status="default"
-                  testID="button"
-                  text="Copy"
-                  titleText="copy to clipboard"
-                  type="button"
+                <CopyToClipboard
+                  onCopy={[Function]}
+                  text="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
                 >
-                  <button
-                    className="button button-sm button-default copy-button"
-                    data-testid="button"
-                    disabled={false}
+                  <t
+                    active={false}
+                    color="secondary"
                     onClick={[Function]}
-                    tabIndex={0}
-                    title="copy to clipboard"
+                    shape="none"
+                    size="xs"
+                    status="default"
+                    testID="button"
+                    text="Copy to Clipboard"
+                    titleText="Copy to Clipboard"
                     type="button"
                   >
-                    Copy
-                  </button>
-                </t>
-              </CopyToClipboard>
+                    <button
+                      className="button button-xs button-secondary"
+                      data-testid="button"
+                      disabled={false}
+                      onClick={[Function]}
+                      tabIndex={0}
+                      title="Copy to Clipboard"
+                      type="button"
+                    >
+                      Copy to Clipboard
+                    </button>
+                  </t>
+                </CopyToClipboard>
+                <label
+                  className="code-snippet--label"
+                >
+                  Code Snippet
+                </label>
+              </div>
             </div>
-          </CopyText>
+          </CodeSnippet>
           <PermissionsWidget
             heightPixels={500}
             mode="read"
