@@ -229,7 +229,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 		}
 		c := lang.ASTCompiler{
 			AST: pkg,
-			Now: now,
+			Now: now(),
 		}
 		if r.Extern != nil {
 			c.PrependFile(r.Extern)
@@ -238,7 +238,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	} else if r.AST != nil {
 		c := lang.ASTCompiler{
 			AST: r.AST,
-			Now: now,
+			Now: now(),
 		}
 		if r.Extern != nil {
 			c.PrependFile(r.Extern)

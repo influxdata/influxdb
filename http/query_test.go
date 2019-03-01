@@ -22,19 +22,6 @@ import (
 	_ "github.com/influxdata/influxdb/query/builtin"
 )
 
-var compareASTCompiler = func(x, y lang.ASTCompiler) bool {
-	if x.Now == nil && y.Now != nil {
-		return false
-	}
-	if x.Now != nil && y.Now == nil {
-		return false
-	}
-	if x.Now != nil && y.Now != nil && !x.Now().Equal(y.Now()) {
-		return false
-	}
-	return cmp.Equal(x.AST, y.AST, cmpopts.IgnoreTypes(ast.BaseNode{}))
-}
-
 var cmpOptions = cmp.Options{
 	cmpopts.IgnoreTypes(ast.BaseNode{}),
 	cmpopts.IgnoreUnexported(query.ProxyRequest{}),
@@ -267,7 +254,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 								},
 							},
 						},
-						Now: func() time.Time { return time.Unix(1, 1) },
+						Now: time.Unix(1,1),
 					},
 				},
 				Dialect: &csv.Dialect{
@@ -294,7 +281,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 				Request: query.Request{
 					Compiler: lang.ASTCompiler{
 						AST: &ast.Package{},
-						Now: func() time.Time { return time.Unix(1, 1) },
+						Now: time.Unix(1,1),
 					},
 				},
 				Dialect: &csv.Dialect{
@@ -344,7 +331,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 								},
 							},
 						},
-						Now: func() time.Time { return time.Unix(1, 1) },
+						Now: time.Unix(1,1),
 					},
 				},
 				Dialect: &csv.Dialect{
@@ -385,7 +372,6 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 			},
 		},
 	}
-	cmpOptions := append(cmpOptions, cmp.Comparer(compareASTCompiler))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := QueryRequest{
