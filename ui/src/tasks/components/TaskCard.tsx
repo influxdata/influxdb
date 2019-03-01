@@ -24,7 +24,7 @@ interface Props {
   onClone: (task: Task) => void
   onEditLabels: (task: Task) => void
   onRunTask: (taskID: string) => void
-  onUpdate?: (task: Task) => void
+  onUpdate: (task: Task) => void
   onFilterChange: (searchTerm: string) => void
 }
 
@@ -34,7 +34,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
     return (
       <ResourceList.Card
-        testID="task-row"
+        testID="task-card"
         disabled={!this.isTaskActive}
         labels={() => this.labels}
         owner={task.organization}
@@ -59,6 +59,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
             active={this.isTaskActive}
             size={ComponentSize.ExtraSmall}
             onChange={this.changeToggle}
+            testID="task-card--slide-toggle"
           />
         )}
       />
