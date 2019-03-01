@@ -28,29 +28,43 @@ describe('Orgs', () => {
       .should('be.eq', 2)
   })
 
-  it('can delete an org', () => {
-    cy.createOrg().then(() => {
-      cy.get('.index-list--row').then(rows => {
-        const numOrgs = rows.length
-
-        cy.contains('Confirm').click({force: true})
-
-        cy.get('.index-list--row')
+  //TODO: skipping delete an org because it is flaky but needs fixing: https://github.com/influxdata/influxdb/issues/12283
+  it.skip('can delete an org', () => {
+    cy.createOrg()
+      .then(() => {
+        cy.getByTestID('table-row')
           .its('length')
-          .should('eq', numOrgs - 1)
+          .should('eq', 2)
+
+        cy.getByTestID('table-row')
+          .last()
+          .trigger('mouseover')
+          .within(() => {
+            cy.getByTestID('delete-button')
+              .trigger('mouseover')
+              .click()
+
+            cy.getByTestID('confirmation-button').click()
+          })
       })
-    })
+      .then(() => {
+        cy.getByTestID('table-row')
+          .its('length')
+          .should('eq', 1)
+      })
   })
 
   it('can update an org name', () => {
     cy.createOrg().then(({body}) => {
       const newName = 'new 🅱️organization'
-      cy.visit(`${orgRoute}/${body.id}/member_tab`)
+      cy.visit(`${orgRoute}/${body.id}/members`)
 
       cy.get('.renamable-page-title--title').click()
-      cy.get('.input-field')
-        .type(newName)
-        .type('{enter}')
+      cy.getByTestID('page-header').within(() => {
+        cy.getByTestID('input-field')
+          .type(newName)
+          .type('{enter}')
+      })
 
       cy.visit('/organizations')
 

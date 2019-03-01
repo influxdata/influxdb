@@ -7,7 +7,7 @@ import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
 
-import {updateOrg} from 'src/organizations/actions'
+import {updateOrg} from 'src/organizations/actions/orgs'
 
 interface OwnProps {
   orgID: string

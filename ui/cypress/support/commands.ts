@@ -148,6 +148,44 @@ export const createSource = (
   })
 }
 
+export const createScraper = (
+  scraperName?: string,
+  url?: string,
+  type?: string,
+  orgID?: string,
+  bucketID?: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/scrapers',
+    body: {
+      name: scraperName,
+      type,
+      url,
+      orgID,
+      bucketID,
+    },
+  })
+}
+
+export const createTelegraf = (
+  name?: string,
+  description?: string,
+  organizationID?: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/telegrafs',
+    body: {
+      name,
+      description,
+      agent: {collectionInterval: 10000},
+      plugins: [],
+      organizationID,
+    },
+  })
+}
+
 // TODO: have to go through setup because we cannot create a user w/ a password via the user API
 export const setupUser = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password, org, bucket}) => {
@@ -179,6 +217,26 @@ export const getByTitle = (name: string): Cypress.Chainable => {
   return cy.get(`[title=${name}]`)
 }
 
+// custom assertions
+
+// fluxEqual strips flux scripts of whitespace and newlines to make the
+// strings easier to match by the human eye during testing
+export const fluxEqual = (s1: string, s2: string): Cypress.Chainable => {
+  // remove new lines and spaces
+  const strip = (s: string) => s.replace(/(\r\n|\n|\r| +)/g, '')
+  const strip1 = strip(s1)
+  const strip2 = strip(s2)
+
+  cy.log('comparing strings: ')
+  cy.log(strip1)
+  cy.log(strip2)
+
+  return cy.wrap(strip1 === strip2)
+}
+
+// assertions
+Cypress.Commands.add('fluxEqual', fluxEqual)
+
 // getters
 Cypress.Commands.add('getByTestID', getByTestID)
 Cypress.Commands.add('getByInputName', getByInputName)
@@ -198,6 +256,12 @@ Cypress.Commands.add('createOrg', createOrg)
 
 // buckets
 Cypress.Commands.add('createBucket', createBucket)
+
+// scrapers
+Cypress.Commands.add('createScraper', createScraper)
+
+// telegrafs
+Cypress.Commands.add('createTelegraf', createTelegraf)
 
 // general
 Cypress.Commands.add('flush', flush)

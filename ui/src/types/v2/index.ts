@@ -37,6 +37,7 @@ import {OnboardingState} from 'src/onboarding/reducers'
 import {ProtosState} from 'src/protos/reducers'
 import {VariablesState} from 'src/variables/reducers'
 import {Label} from 'src/types/v2/labels'
+import {OrgViewState} from 'src/organizations/reducers/orgView'
 
 export interface AppState {
   VERSION: string
@@ -51,6 +52,7 @@ export interface AppState {
   tasks: TaskState
   timeRange: TimeRange
   orgs: Organization[]
+  orgView: OrgViewState
   me: MeState
   onboarding: OnboardingState
   noteEditor: NoteEditorState

@@ -17,7 +17,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Organization} from 'src/types/v2'
-import {deleteOrg} from 'src/organizations/actions'
+import {deleteOrg} from 'src/organizations/actions/orgs'
 
 interface Props {
   orgs: Organization[]
@@ -48,7 +48,7 @@ class OrganizationsPageContents extends Component<Props> {
     return orgs.map(o => (
       <IndexList.Row key={o.id}>
         <IndexList.Cell>
-          <Link to={`/organizations/${o.id}/members_tab`}>{o.name}</Link>
+          <Link to={`/organizations/${o.id}/members`}>{o.name}</Link>
         </IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
           <ConfirmationButton

@@ -24,7 +24,7 @@
     "test:update": "jest --updateSnapshot",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch --verbose false",
     "test:junit": "cypress run --reporter junit --reporter-options 'mochaFile=junit-results/my-test-output.xml'",
-    "lint": "npm run tsc && npm run eslint && npm run prettier && npm run tsc:cypress",
+    "lint": "npm run tsc && npm run eslint && npm run prettier",
     "eslint": "eslint '{src,cypress}**/*.{ts,tsx}'",
     "eslint:fix": "eslint --fix '{src,cypress}**/*.{ts,tsx}'",
     "prettier": "prettier --check '{src,cypress}/**/*.{ts,tsx}'",
@@ -32,7 +32,7 @@
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty --skipLibCheck",
     "tsc:watch": "tsc -p ./tsconfig.json --noEmit --pretty -w",
     "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",
-    "e2e": "cypress open"
+    "cy": "cypress open"
   },
   "jest": {
     "setupFilesAfterEnv": [

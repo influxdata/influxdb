@@ -22,6 +22,7 @@ interface PassedProps {
 
 interface DefaultProps {
   hrefValue?: string
+  testID?: string
 }
 
 type Props = PassedProps & DefaultProps
@@ -35,6 +36,7 @@ interface State {
 class EditableName extends Component<Props, State> {
   public static defaultProps: DefaultProps = {
     hrefValue: '#',
+    testID: 'editable-name',
   }
 
   constructor(props: Props) {
@@ -47,7 +49,7 @@ class EditableName extends Component<Props, State> {
   }
 
   public render() {
-    const {name, onEditName, hrefValue, noNameString} = this.props
+    const {name, onEditName, hrefValue, noNameString, testID} = this.props
 
     return (
       <div className={this.className}>
@@ -57,6 +59,7 @@ class EditableName extends Component<Props, State> {
         <div
           className="editable-name--toggle"
           onClick={this.handleStartEditing}
+          data-testid={testID}
         >
           <span className="icon pencil" />
         </div>

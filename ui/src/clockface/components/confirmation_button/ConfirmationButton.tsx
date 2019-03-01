@@ -88,6 +88,7 @@ class ConfirmationButton extends Component<Props, State> {
             onClick={this.handleButtonClick}
             icon={icon}
             type={ButtonType.Button}
+            testID="delete-button"
           />
           <div className={this.tooltipClassName}>
             <div

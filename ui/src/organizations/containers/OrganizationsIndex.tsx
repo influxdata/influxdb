@@ -13,7 +13,7 @@ import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import {OverlayTechnology} from 'src/clockface'
 
 // Actions
-import {createOrg, deleteOrg} from 'src/organizations/actions'
+import {createOrg, deleteOrg} from 'src/organizations/actions/orgs'
 
 // Types
 import {Organization, Links} from 'src/types/v2'

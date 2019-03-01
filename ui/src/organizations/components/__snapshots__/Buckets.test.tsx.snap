@@ -58,6 +58,7 @@ Object {
                   </a>
                   <div
                     class="editable-name--toggle"
+                    data-testid="editable-name"
                   >
                     <span
                       class="icon pencil"
@@ -86,7 +87,7 @@ Object {
                 >
                   <button
                     class="button button-xs button-danger"
-                    data-testid="button"
+                    data-testid="delete-button"
                     tabindex="0"
                     title="Delete"
                     type="button"
@@ -200,6 +201,7 @@ Object {
                   </a>
                   <div
                     class="editable-name--toggle"
+                    data-testid="editable-name"
                   >
                     <span
                       class="icon pencil"
@@ -228,7 +230,7 @@ Object {
                 >
                   <button
                     class="button button-xs button-danger"
-                    data-testid="button"
+                    data-testid="delete-button"
                     tabindex="0"
                     title="Delete"
                     type="button"
@@ -399,6 +401,7 @@ Object {
                 </a>
                 <div
                   class="editable-name--toggle"
+                  data-testid="editable-name"
                 >
                   <span
                     class="icon pencil"
@@ -427,7 +430,7 @@ Object {
               >
                 <button
                   class="button button-xs button-danger"
-                  data-testid="button"
+                  data-testid="delete-button"
                   tabindex="0"
                   title="Delete"
                   type="button"
@@ -541,6 +544,7 @@ Object {
                 </a>
                 <div
                   class="editable-name--toggle"
+                  data-testid="editable-name"
                 >
                   <span
                     class="icon pencil"
@@ -569,7 +573,7 @@ Object {
               >
                 <button
                   class="button button-xs button-danger"
-                  data-testid="button"
+                  data-testid="delete-button"
                   tabindex="0"
                   title="Delete"
                   type="button"

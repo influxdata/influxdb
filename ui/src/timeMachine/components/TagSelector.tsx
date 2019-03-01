@@ -101,7 +101,9 @@ class TagSelector extends PureComponent<Props> {
       return (
         <>
           <div className="tag-selector--top">{this.removeButton}</div>
-          <div className="tag-selector--empty">No more tag keys found</div>
+          <div className="tag-selector--empty" data-testid="empty-tag-keys">
+            No more tag keys found
+          </div>
         </>
       )
     }

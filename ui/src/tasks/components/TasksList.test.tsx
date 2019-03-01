@@ -6,7 +6,7 @@ import {shallow} from 'enzyme'
 import TasksList from 'src/tasks/components/TasksList'
 
 // Types
-import {Task} from 'src/types/v2/tasks'
+import {Task} from 'src/types/v2'
 
 // Constants
 import {tasks} from 'mocks/dummyData'

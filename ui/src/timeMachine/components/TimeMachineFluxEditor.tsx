@@ -49,7 +49,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      displayFluxFunctions: false,
+      displayFluxFunctions: true,
     }
   }
 
@@ -85,13 +85,14 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
               <div className="toolbar-tab-container">
                 <ToolbarTab
                   onSetActive={this.hideFluxFunctions}
-                  name={'Variables'}
+                  name="Variables"
                   active={!this.state.displayFluxFunctions}
                 />
                 <ToolbarTab
                   onSetActive={this.showFluxFunctions}
-                  name={'Functions'}
+                  name="Functions"
                   active={this.state.displayFluxFunctions}
+                  testID="functions-toolbar-tab"
                 />
               </div>
               {this.rightDivision}
