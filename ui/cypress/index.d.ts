@@ -15,6 +15,7 @@ import {
   createBucket,
   createScraper,
   fluxEqual,
+  createTelegraf,
 } from './support/commands'
 
 declare global {
@@ -35,6 +36,7 @@ declare global {
       createBucket: typeof createBucket
       createScraper: typeof createScraper
       fluxEqual: typeof fluxEqual
+      createTelegraf: typeof createTelegraf
     }
   }
 }

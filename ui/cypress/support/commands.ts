@@ -168,6 +168,24 @@ export const createScraper = (
   })
 }
 
+export const createTelegraf = (
+  name?: string,
+  description?: string,
+  organizationID?: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/telegrafs',
+    body: {
+      name,
+      description,
+      agent: {collectionInterval: 10000},
+      plugins: [],
+      organizationID,
+    },
+  })
+}
+
 // TODO: have to go through setup because we cannot create a user w/ a password via the user API
 export const setupUser = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password, org, bucket}) => {
@@ -241,6 +259,9 @@ Cypress.Commands.add('createBucket', createBucket)
 
 // scrapers
 Cypress.Commands.add('createScraper', createScraper)
+
+// telegrafs
+Cypress.Commands.add('createTelegraf', createTelegraf)
 
 // general
 Cypress.Commands.add('flush', flush)
