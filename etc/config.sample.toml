@@ -115,6 +115,11 @@
   # It might help users who have slow disks in some cases.
   # tsm-use-madv-willneed = false
 
+  # If true, then the TSM file will accessed via seek/read operations instead of
+  # mmap.  This is required on 32 bit systems with TSM files that have aggregate
+  # size larger than the process memory limit (around typically 2 or 3 GB).
+  # tsm-use-seek = false
+
   # Settings for the inmem index
 
   # The maximum series allowed per database before writes are dropped.  This limit can prevent
