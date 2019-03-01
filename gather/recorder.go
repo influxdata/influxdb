@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/influxdata/influxdb/tsdb"
-
 	"github.com/influxdata/influxdb/nats"
 	"github.com/influxdata/influxdb/storage"
 	"go.uber.org/zap"
@@ -19,10 +17,6 @@ type PointWriter struct {
 // Record the metrics and write using storage.PointWriter interface.
 func (s PointWriter) Record(collected MetricsCollection) error {
 	ps, err := collected.MetricsSlice.Points()
-	if err != nil {
-		return err
-	}
-	ps, err = tsdb.ExplodePoints(collected.OrgID, collected.BucketID, ps)
 	if err != nil {
 		return err
 	}

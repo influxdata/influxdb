@@ -33,6 +33,12 @@ func EncodeName(org, bucket platform.ID) [16]byte {
 	return nameBytes
 }
 
+// EncodeNameString converts org/bucket pairs to the tsdb internal serialization
+func EncodeNameString(org, bucket platform.ID) string {
+	name := EncodeName(org, bucket)
+	return string(name[:])
+}
+
 // ExplodePoints creates a list of points that only contains one field per point. It also
 // moves the measurement to a tag, and changes the measurement to be the provided argument.
 func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Point, error) {
