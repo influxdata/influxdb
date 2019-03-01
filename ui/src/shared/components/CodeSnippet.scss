@@ -22,6 +22,17 @@
   font-weight: 600;
   font-family: $code-font;
   padding: $ix-marg-a $ix-marg-c;
+
+  pre {
+    display: inline-block;
+    white-space: pre-wrap;
+  }
+
+  pre,
+  code {
+    word-wrap: break-word;
+    word-break: break-all;
+  }
 }
 
 .code-snippet--footer {
