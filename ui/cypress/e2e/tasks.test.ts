@@ -53,6 +53,8 @@ describe('Tasks', () => {
         cy.getByTestID('context-delete-task').click()
       })
 
+    cy.wait(500)
+
     cy.getByTestID('task-card').should('have.length', 1)
   })
 
