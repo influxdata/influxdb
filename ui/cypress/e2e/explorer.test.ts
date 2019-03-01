@@ -85,6 +85,12 @@ describe('DataExplorer', () => {
       cy.get('.input-field').type('covariance')
       cy.getByTestID('toolbar-function').should('have.length', 1)
     })
+
+    it('can add a second query tab', () => {
+      cy.get('.query-tab').should('have.length', 1)
+      cy.get('.time-machine-queries--new').click()
+      cy.get('.query-tab').should('have.length', 2)
+    })
   })
 
   describe('visualizations', () => {
