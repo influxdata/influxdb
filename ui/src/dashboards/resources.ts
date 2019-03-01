@@ -25,6 +25,7 @@ import {Color} from 'src/types/colors'
 export const dashboard: Dashboard = {
   id: '1',
   name: 'd1',
+  orgID: '',
   cells: [
     {
       x: 1,

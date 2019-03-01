@@ -72,12 +72,14 @@ export type EmptyDefaultDashboard = Pick<
 export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: '0',
   name: '',
+  orgID: '',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
 
 export const DashboardTemplate: EmptyDefaultDashboard = {
   id: '0',
   name: 'Create a New Dashboard',
+  orgID: '',
   cells: [],
 }
 

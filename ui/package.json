@@ -24,7 +24,7 @@
     "test:update": "jest --updateSnapshot",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch --verbose false",
     "test:junit": "cypress run --reporter junit --reporter-options 'mochaFile=junit-results/my-test-output.xml'",
-    "lint": "npm run tsc && npm run eslint && npm run prettier",
+    "lint": "npm run tsc --skipLibCheck && npm run eslint && npm run prettier",
     "eslint": "eslint '{src,cypress}**/*.{ts,tsx}'",
     "eslint:fix": "eslint --fix '{src,cypress}**/*.{ts,tsx}'",
     "prettier": "prettier --check '{src,cypress}/**/*.{ts,tsx}'",
@@ -137,7 +137,7 @@
   },
   "dependencies": {
     "@influxdata/clockface": "0.0.5",
-    "@influxdata/influx": "0.2.19",
+    "@influxdata/influx": "0.2.21",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",

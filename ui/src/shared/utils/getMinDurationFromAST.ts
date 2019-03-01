@@ -4,7 +4,6 @@ import {get, isObject, isArray} from 'lodash'
 // Types
 import {
   Node,
-  Package,
   CallExpression,
   Property,
   Expression,
@@ -13,6 +12,8 @@ import {
   DateTimeLiteral,
   DurationLiteral,
 } from 'src/types/ast'
+
+import {Package} from '@influxdata/influx'
 
 export function getMinDurationFromAST(ast: Package): number {
   // We can't take the minimum of durations of each range individually, since
