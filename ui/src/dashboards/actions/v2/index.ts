@@ -209,11 +209,9 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
     const dashboards = await getDashboardsAJAX()
 
     dispatch(loadDashboards(dashboards))
-    dispatch(notify(copy.dashboardImported(name)))
+    dispatch(notify(copy.dashboardImported()))
   } catch (error) {
-    dispatch(
-      notify(copy.dashboardImportFailed('', 'Could not upload dashboard'))
-    )
+    dispatch(notify(copy.dashboardImportFailed('Could not upload dashboard')))
     console.error(error)
   }
 }

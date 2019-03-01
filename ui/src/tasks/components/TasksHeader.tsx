@@ -14,7 +14,7 @@ interface Props {
   onCreateTask: () => void
   setShowInactive: () => void
   showInactive: boolean
-  toggleOverlay: () => void
+  onImportTask: () => void
   showOrgDropdown?: boolean
   isFullPage?: boolean
   filterComponent: () => JSX.Element
@@ -34,7 +34,7 @@ export default class TasksHeader extends PureComponent<Props> {
       onCreateTask,
       setShowInactive,
       showInactive,
-      toggleOverlay,
+      onImportTask,
       isFullPage,
       filterComponent,
     } = this.props
@@ -55,7 +55,7 @@ export default class TasksHeader extends PureComponent<Props> {
             {this.orgDropDown}
             <AddResourceDropdown
               onSelectNew={onCreateTask}
-              onSelectImport={toggleOverlay}
+              onSelectImport={onImportTask}
               resourceName="Task"
             />
           </Page.Header.Right>
@@ -76,7 +76,7 @@ export default class TasksHeader extends PureComponent<Props> {
           />
           <AddResourceDropdown
             onSelectNew={onCreateTask}
-            onSelectImport={toggleOverlay}
+            onSelectImport={onImportTask}
             resourceName="Task"
           />
         </ComponentSpacer>

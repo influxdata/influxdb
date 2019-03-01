@@ -54,7 +54,8 @@ describe('Orgs', () => {
       })
   })
 
-  it('can update an org name', () => {
+  //TODO: skipping update an org name because it is flaky but needs fixing: https://github.com/influxdata/influxdb/issues/12311
+  it.skip('can update an org name', () => {
     cy.createOrg().then(({body}) => {
       const newName = 'new 🅱️organization'
       cy.visit(`${orgRoute}/${body.id}/members`)
