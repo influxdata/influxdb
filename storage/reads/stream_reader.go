@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+	"google.golang.org/grpc/metadata"
 )
 
 var (
@@ -24,6 +26,58 @@ type StreamReader interface {
 	Recv() (*datatypes.ReadResponse, error)
 }
 
+// statistics is the interface which wraps the Stats method.
+type statistics interface {
+	Stats() cursors.CursorStats
+}
+
+var zeroStatistics statistics = &emptyStatistics{}
+
+type emptyStatistics struct{}
+
+func (*emptyStatistics) Stats() cursors.CursorStats {
+	return cursors.CursorStats{}
+}
+
+// StorageReadClient adapts a Storage_ReadClient to implement cursors.Statistics
+// and read the statistics from the gRPC trailer.
+type StorageReadClient struct {
+	c       datatypes.Storage_ReadClient
+	trailer metadata.MD
+}
+
+// NewStorageReadClient returns a new StorageReadClient which implements
+// StreamReader and reads the gRPC trailer to return CursorStats.
+func NewStorageReadClient(c datatypes.Storage_ReadClient) *StorageReadClient {
+	return &StorageReadClient{c: c}
+}
+
+func (rc *StorageReadClient) Recv() (res *datatypes.ReadResponse, err error) {
+	res, err = rc.c.Recv()
+	if err != nil {
+		rc.trailer = rc.c.Trailer()
+	}
+	return res, err
+}
+
+func (rc *StorageReadClient) Stats() (stats cursors.CursorStats) {
+	for _, s := range rc.trailer.Get("scanned-bytes") {
+		v, err := strconv.Atoi(s)
+		if err != nil {
+			continue
+		}
+		stats.ScannedBytes += v
+	}
+	for _, s := range rc.trailer.Get("scanned-values") {
+		v, err := strconv.Atoi(s)
+		if err != nil {
+			continue
+		}
+		stats.ScannedValues += v
+	}
+	return stats
+}
+
 type ResultSetStreamReader struct {
 	fr  frameReader
 	cur cursorReaders
@@ -34,14 +88,17 @@ type ResultSetStreamReader struct {
 
 func NewResultSetStreamReader(stream StreamReader) *ResultSetStreamReader {
 	r := &ResultSetStreamReader{fr: frameReader{s: stream, state: stateReadSeries}}
+	r.fr.init()
 	r.cur.setFrameReader(&r.fr)
 	return r
 }
 
-func (r *ResultSetStreamReader) Err() error                 { return r.fr.err }
-func (r *ResultSetStreamReader) Close()                     { r.fr.state = stateDone }
-func (r *ResultSetStreamReader) Cursor() cursors.Cursor     { return r.cur.cursor() }
-func (r *ResultSetStreamReader) Stats() cursors.CursorStats { return cursors.CursorStats{} }
+func (r *ResultSetStreamReader) Err() error             { return r.fr.err }
+func (r *ResultSetStreamReader) Close()                 { r.fr.state = stateDone }
+func (r *ResultSetStreamReader) Cursor() cursors.Cursor { return r.cur.cursor() }
+func (r *ResultSetStreamReader) Stats() cursors.CursorStats {
+	return r.fr.stats.Stats()
+}
 
 func (r *ResultSetStreamReader) Next() bool {
 	if r.fr.state == stateReadSeries {
@@ -103,6 +160,7 @@ type GroupResultSetStreamReader struct {
 
 func NewGroupResultSetStreamReader(stream StreamReader) *GroupResultSetStreamReader {
 	r := &GroupResultSetStreamReader{fr: frameReader{s: stream, state: stateReadGroup}}
+	r.fr.init()
 	r.gc.fr = &r.fr
 	r.gc.cur.setFrameReader(&r.fr)
 	return r
@@ -182,7 +240,9 @@ func (gc *groupCursorStreamReader) Tags() models.Tags          { return gc.tags 
 func (gc *groupCursorStreamReader) Keys() [][]byte             { return gc.tagKeys }
 func (gc *groupCursorStreamReader) PartitionKeyVals() [][]byte { return gc.partitionKeyVals }
 func (gc *groupCursorStreamReader) Cursor() cursors.Cursor     { return gc.cur.cursor() }
-func (gc *groupCursorStreamReader) Stats() cursors.CursorStats { return cursors.CursorStats{} }
+func (gc *groupCursorStreamReader) Stats() cursors.CursorStats {
+	return gc.fr.stats.Stats()
+}
 
 func (gc *groupCursorStreamReader) Next() bool {
 	if gc.fr.state == stateReadSeries {
@@ -264,10 +324,19 @@ const (
 
 type frameReader struct {
 	s     StreamReader
+	stats statistics
 	state readState
 	buf   []datatypes.ReadResponse_Frame
 	p     int
 	err   error
+}
+
+func (r *frameReader) init() {
+	if stats, ok := r.s.(statistics); ok {
+		r.stats = stats
+	} else {
+		r.stats = zeroStatistics
+	}
 }
 
 func (r *frameReader) peekFrame() *datatypes.ReadResponse_Frame {
