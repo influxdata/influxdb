@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {InjectedRouter} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
@@ -28,9 +29,15 @@ import {
   removeTaskLabelsAsync,
   runTask,
 } from 'src/tasks/actions/v2'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
 import {allOrganizationsID} from 'src/tasks/constants'
+import {
+  taskImportFailed,
+  taskImportSuccess,
+  cantImportInvalidResource,
+} from 'src/shared/copy/v2/notifications'
 
 // Types
 import {Organization} from '@influxdata/influx'
@@ -54,6 +61,7 @@ interface ConnectedDispatchProps {
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onRunTask: typeof runTask
+  notify: typeof notifyAction
 }
 
 interface ConnectedStateProps {
@@ -186,21 +194,31 @@ class TasksPage extends PureComponent<Props, State> {
 
   private get importOverlay(): JSX.Element {
     const {isImporting} = this.state
-    const {importTask} = this.props
 
     return (
       <ImportOverlay
         isVisible={isImporting}
         resourceName="Task"
         onDismissOverlay={this.handleToggleImportOverlay}
-        onImport={importTask}
-        isResourceValid={this.handleValidateTask}
+        onSubmit={this.importTask}
       />
     )
   }
 
-  private handleValidateTask = (): boolean => {
-    return true
+  private importTask = (importString: string): void => {
+    const {notify, importTask} = this.props
+    try {
+      const resource = JSON.parse(importString)
+      if (_.isEmpty(resource)) {
+        notify(cantImportInvalidResource('Task'))
+        return
+      }
+      importTask(resource)
+      this.handleToggleImportOverlay()
+      notify(taskImportSuccess())
+    } catch (error) {
+      notify(taskImportFailed(error))
+    }
   }
 
   private get filteredTasks(): Task[] {
@@ -261,6 +279,7 @@ const mstp = ({
 }
 
 const mdtp: ConnectedDispatchProps = {
+  notify: notifyAction,
   populateTasks,
   updateTaskStatus,
   updateTaskName,

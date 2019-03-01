@@ -13,31 +13,22 @@ import {
 } from 'src/clockface'
 import {Button, ComponentColor} from '@influxdata/clockface'
 
-// Constants
-import {importSucceeded, importFailed} from 'src/shared/copy/notifications'
-
 // Styles
 import 'src/shared/components/ImportOverlay.scss'
 
 // Types
-import {Notification} from 'src/types/notifications'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 
 enum ImportOption {
   Upload = 'upload',
   Paste = 'paste',
-  // Url = 'url',
 }
 
 interface Props {
-  isVisible: boolean
   onDismissOverlay: () => void
   resourceName: string
-  isResourceValid: (resource: any) => boolean
-  onImport: (resource: any) => void
-  notify: (message: Notification) => void
-  successNotification?: Notification
-  failureNotification?: Notification
+  onSubmit: (importString: string) => void
+  isVisible?: boolean
 }
 
 interface State {
@@ -47,9 +38,9 @@ interface State {
 
 export default class ImportOverlay extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
-    successNotification: importSucceeded(),
-    failureNotification: importFailed(),
+    isVisible: true,
   }
+
   public state: State = {
     selectedImportOption: ImportOption.Upload,
     importContent: '',
@@ -126,40 +117,19 @@ export default class ImportOverlay extends PureComponent<Props, State> {
       return (
         <Button
           text={`Import JSON as ${resourceName}`}
-          onClick={this.handleImport}
+          onClick={this.submit}
           color={ComponentColor.Primary}
         />
       )
     }
   }
 
-  private handleImport = (): void => {
-    const {
-      notify,
-      onImport,
-      onDismissOverlay,
-      successNotification,
-      failureNotification,
-    } = this.props
+  private submit = () => {
     const {importContent} = this.state
+    const {onSubmit} = this.props
 
-    try {
-      const resource = JSON.parse(importContent)
-
-      if (_.isEmpty(resource)) {
-        // TODO maybe notify empty???
-        notify(failureNotification)
-        return
-      }
-
-      onImport(resource)
-      onDismissOverlay()
-      notify(successNotification)
-    } catch (error) {
-      notify(failureNotification)
-    }
+    onSubmit(importContent)
   }
-
   private clearImportContent = () => {
     this.handleSetImportContent('')
   }
