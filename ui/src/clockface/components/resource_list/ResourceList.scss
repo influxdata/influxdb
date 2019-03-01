@@ -238,3 +238,8 @@
     background-color: $g5-pepper;
   }
 }
+
+.panel .resource-list--card.resource-list--card__disabled,
+.tabs .resource-list--card.resource-list--card__disabled {
+  background-color: rgba($g4-onyx, 0.5);
+}
