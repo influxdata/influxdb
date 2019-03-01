@@ -119,6 +119,30 @@ describe('DataExplorer', () => {
       cy.getByTestID('dropdown--item defbuck').should('exist')
       cy.getByTestID('dropdown--item newBucket').should('exist')
     })
+
+    it('can delete a second query', () => {
+      cy.get('.time-machine-queries--new').click()
+      cy.get('.query-tab').should('have.length', 2)
+      cy.get('.query-tab--close')
+        .first()
+        .click()
+      cy.get('.query-tab').should('have.length', 1)
+    })
+
+    it('can remove a second query using tab context menu', () => {
+      cy.get('.query-tab').trigger('contextmenu')
+      cy.getByTestID('right-click--remove-tab').should('have.class', 'disabled')
+
+      cy.get('.time-machine-queries--new').click()
+      cy.get('.query-tab').should('have.length', 2)
+
+      cy.get('.query-tab')
+        .first()
+        .trigger('contextmenu')
+      cy.getByTestID('right-click--remove-tab').click()
+
+      cy.get('.query-tab').should('have.length', 1)
+    })
   })
 
   describe('visualizations', () => {
