@@ -1683,7 +1683,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Dashboard"
+                $ref: "#/components/schemas/CreateDashboardRequest"
       responses:
         '201':
           description: Added dashboard
@@ -6581,18 +6581,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Proto"
-    Dashboard:
+    CreateDashboardRequest:
       properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-            cells:
-              type: string
-        id:
-          readOnly: true
-          type: string
         orgID:
           type: string
           description: id of the organization that owns the dashboard
@@ -6602,19 +6592,38 @@ components:
         description:
           type: string
           description: user-facing description of the dashboard
-        meta:
-          type: object
+      required:
+        - orgID
+        - name
+    Dashboard:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/CreateDashboardRequest"
+        - type: object
           properties:
-            createdAt:
+            links:
+              type: object
+              properties:
+                self:
+                  type: string
+                cells:
+                  type: string
+            id:
+              readOnly: true
               type: string
-              format: date
-            updatedAt:
-              type: string
-              format: date
-        cells:
-            $ref: "#/components/schemas/Cells"
-        labels:
-            $ref: "#/components/schemas/Labels"
+            meta:
+              type: object
+              properties:
+                createdAt:
+                  type: string
+                  format: date
+                updatedAt:
+                  type: string
+                  format: date
+            cells:
+                $ref: "#/components/schemas/Cells"
+            labels:
+                $ref: "#/components/schemas/Labels"
     Dashboards:
       type: object
       properties:
