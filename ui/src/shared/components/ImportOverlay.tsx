@@ -129,6 +129,7 @@ export default class ImportOverlay extends PureComponent<Props, State> {
     const {onSubmit} = this.props
 
     onSubmit(importContent)
+    this.clearImportContent()
   }
   private clearImportContent = () => {
     this.handleSetImportContent('')

@@ -115,8 +115,8 @@ class TasksPage extends PureComponent<Props, State> {
             onCreateTask={this.handleCreateTask}
             setShowInactive={setShowInactive}
             showInactive={showInactive}
-            toggleOverlay={this.handleToggleImportOverlay}
             filterComponent={() => this.search}
+            onImportTask={this.handleToggleImportOverlay}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
