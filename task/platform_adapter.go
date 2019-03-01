@@ -45,7 +45,6 @@ func (p pAdapter) FindTaskByID(ctx context.Context, id platform.ID) (*platform.T
 	if t == nil {
 		return nil, nil
 	}
-
 	return p.toPlatformTask(ctx, *t, m)
 }
 
@@ -210,7 +209,6 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 	if err != nil {
 		return nil, err
 	}
-
 	res, err := p.s.UpdateTask(ctx, req)
 	if err != nil {
 		return nil, err
@@ -218,7 +216,6 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 	if res.NewTask.Script == "" {
 		return nil, errors.New("script not defined in the store")
 	}
-
 	return p.FindTaskByID(ctx, id)
 }
 
