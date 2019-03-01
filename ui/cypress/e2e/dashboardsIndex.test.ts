@@ -39,7 +39,7 @@ describe('Dashboards', () => {
       .should('be.eq', 1)
   })
 
-  it('can delete a dashboard', () => {
+  it.skip('can delete a dashboard', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.createDashboard(id)
       cy.createDashboard(id)
