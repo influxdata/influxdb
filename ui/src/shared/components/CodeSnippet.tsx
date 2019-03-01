@@ -17,30 +17,54 @@ import {
   copyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 
-export interface Props {
+// Styles
+import 'src/shared/components/CodeSnippet.scss'
+
+export interface PassedProps {
   copyText: string
   notify: NotificationAction
 }
 
+interface DefaultProps {
+  label?: string
+}
+
+type Props = PassedProps & DefaultProps
+
 @ErrorHandling
-class CopyText extends PureComponent<Props> {
+class CodeSnippet extends PureComponent<Props> {
+  public static defaultProps: DefaultProps = {
+    label: 'Code Snippet',
+  }
+
   public render() {
-    const {copyText} = this.props
+    const {copyText, label} = this.props
     return (
-      <div className="script-snippet--container">
-        <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={400}>
-          <p>{copyText}</p>
+      <div className="code-snippet">
+        <FancyScrollbar
+          autoHide={false}
+          autoHeight={true}
+          maxHeight={400}
+          className="code-snippet--scroll"
+        >
+          <div className="code-snippet--text">
+            <pre>
+              <code>{copyText}</code>
+            </pre>
+          </div>
         </FancyScrollbar>
-        <CopyToClipboard text={copyText} onCopy={this.handleCopyAttempt}>
-          <Button
-            customClass="copy-button"
-            size={ComponentSize.Small}
-            color={ComponentColor.Default}
-            titleText="copy to clipboard"
-            text="Copy"
-            onClick={this.handleClickCopy}
-          />
-        </CopyToClipboard>
+        <div className="code-snippet--footer">
+          <CopyToClipboard text={copyText} onCopy={this.handleCopyAttempt}>
+            <Button
+              size={ComponentSize.ExtraSmall}
+              color={ComponentColor.Secondary}
+              titleText="Copy to Clipboard"
+              text="Copy to Clipboard"
+              onClick={this.handleClickCopy}
+            />
+          </CopyToClipboard>
+          <label className="code-snippet--label">{label}</label>
+        </div>
       </div>
     )
   }
@@ -67,4 +91,4 @@ class CopyText extends PureComponent<Props> {
   }
 }
 
-export default CopyText
+export default CodeSnippet
