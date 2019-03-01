@@ -6581,6 +6581,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Proto"
+    CreateDashboardRequest:
+      properties:
+        orgID:
+          type: string
+          description: id of the organization that owns the dashboard
+        name:
+          type: string
+          description: user-facing name of the dashboard
+        description:
+          type: string
+          description: user-facing description of the dashboard
+      required:
+        - orgID
+        - name
     Dashboard:
       type: object
       allOf:
@@ -6610,20 +6624,6 @@ components:
                 $ref: "#/components/schemas/Cells"
             labels:
                 $ref: "#/components/schemas/Labels"
-      CreateDashboardRequest:
-        properties:
-          orgID:
-            type: string
-            description: id of the organization that owns the dashboard
-          name:
-            type: string
-            description: user-facing name of the dashboard
-          description:
-            type: string
-            description: user-facing description of the dashboard
-        required:
-          - orgID
-          - name
     Dashboards:
       type: object
       properties:
