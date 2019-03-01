@@ -20,7 +20,16 @@ var (
 	// ErrPartitionKeyOrder means the partition keys for a
 	// GroupResultSetStreamReader were incorrectly ordered.
 	ErrPartitionKeyOrder = errors.New("invalid partition key order")
+
+	// ErrStreamNoData means the StreamReader repeatedly returned no data
+	// when calling Recv
+	ErrStreamNoData = errors.New("peekFrame: no data")
 )
+
+// peekFrameRetries specifies the number of times peekFrame will
+// retry before returning ErrStreamNoData when StreamReader.Recv
+// returns an empty result.
+const peekFrameRetries = 2
 
 type StreamReader interface {
 	Recv() (*datatypes.ReadResponse, error)
@@ -340,6 +349,9 @@ func (r *frameReader) init() {
 }
 
 func (r *frameReader) peekFrame() *datatypes.ReadResponse_Frame {
+	retries := peekFrameRetries
+
+RETRY:
 	if r.p < len(r.buf) {
 		f := &r.buf[r.p]
 		return f
@@ -350,12 +362,13 @@ func (r *frameReader) peekFrame() *datatypes.ReadResponse_Frame {
 	if err == nil {
 		if res != nil {
 			r.buf = res.Frames
-			if r.p < len(r.buf) {
-				f := &r.buf[r.p]
-				return f
-			}
 		}
-		r.setErr(io.ErrUnexpectedEOF)
+		if retries > 0 {
+			retries--
+			goto RETRY
+		}
+
+		r.setErr(ErrStreamNoData)
 	} else if err == io.EOF {
 		r.state = stateDone
 	} else {
