@@ -7,9 +7,12 @@
 ### Bug Fixes
 
 1. [12302](https://github.com/influxdata/influxdb/pull/12302): Prevent clipping of code snippets in Firefox
+
 ### UI Improvements
 
 1. [12302](https://github.com/influxdata/influxdb/pull/12302): Make code snippet copy functionality easier to use
+1. [12304](https://github.com/influxdata/influxdb/pull/12304): Always show live preview in Note Cell editor
+
 ## v2.0.0-alpha.4 [2019-02-21]
 
 ### Features
