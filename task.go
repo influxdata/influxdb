@@ -214,8 +214,8 @@ func (t TaskUpdate) Validate() error {
 // UpdateFlux updates the TaskUpdate to go from updating options to updating a flux string, that now has those updated options in it
 // It zeros the options in the TaskUpdate.
 func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
-	if t.Flux != nil {
-		return nil
+	if t.Flux != nil && *t.Flux != "" {
+		oldFlux = *t.Flux
 	}
 	parsedPKG := parser.ParseSource(oldFlux)
 	if ast.Check(parsedPKG) > 0 {
@@ -307,7 +307,6 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 		t.Options.Clear()
 		s := ast.Format(parsed)
 		t.Flux = &s
-		return nil
 	}
 	return nil
 }

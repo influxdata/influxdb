@@ -20,7 +20,7 @@ import {
 } from 'src/types/v2/dashboards'
 
 import {Source} from '@influxdata/influx'
-import {Task} from 'src/types/v2/tasks'
+import {Task, TaskStatus} from 'src/types/v2/tasks'
 import {Member} from 'src/types/v2/members'
 import {Organization} from '@influxdata/influx'
 import {Links} from 'src/types/v2/links'
@@ -35,7 +35,9 @@ import {NoteEditorState} from 'src/dashboards/reducers/v2/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
 import {ProtosState} from 'src/protos/reducers'
+import {VariablesState} from 'src/variables/reducers'
 import {Label} from 'src/types/v2/labels'
+import {OrgViewState} from 'src/organizations/reducers/orgView'
 
 export interface AppState {
   VERSION: string
@@ -50,11 +52,13 @@ export interface AppState {
   tasks: TaskState
   timeRange: TimeRange
   orgs: Organization[]
+  orgView: OrgViewState
   me: MeState
   onboarding: OnboardingState
   noteEditor: NoteEditorState
   dataLoading: DataLoadingState
   protos: ProtosState
+  variables: VariablesState
 }
 
 export type GetState = () => AppState
@@ -83,6 +87,7 @@ export {
   DashboardSwitcherLinks,
   Organization,
   Task,
+  TaskStatus,
   MeState,
   InfluxLanguage,
   Label,

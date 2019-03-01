@@ -13,7 +13,7 @@ import {getDeep} from 'src/utils/wrappers'
 interface Props {
   collectors: Telegraf[]
   emptyState: JSX.Element
-  onDelete: (telegrafID: string) => void
+  onDelete: (telegraf: Telegraf) => void
   onUpdate: (telegraf: Telegraf) => void
   onOpenInstructions: (telegrafID: string) => void
   onOpenTelegrafConfig: (telegrafID: string, telegrafName: string) => void

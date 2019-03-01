@@ -45,10 +45,7 @@ interface State {
   importContent: string
 }
 
-export default class ImportDashboardOverlay extends PureComponent<
-  Props,
-  State
-> {
+export default class ImportOverlay extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     successNotification: importSucceeded(),
     failureNotification: importFailed(),

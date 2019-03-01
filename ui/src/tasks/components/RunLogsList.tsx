@@ -1,18 +1,20 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
+//Components
 import Container from 'src/clockface/components/overlays/OverlayContainer'
 import Heading from 'src/clockface/components/overlays/OverlayHeading'
 import Body from 'src/clockface/components/overlays/OverlayBody'
-
-// DummyData
-import {runLogs} from 'src/tasks/dummyData'
+import RunLogRow from 'src/tasks/components/RunLogRow'
 import {IndexList} from 'src/clockface'
+
+// Types
+import {LogEvent} from '@influxdata/influx'
 
 interface Props {
   onDismissOverlay: () => void
-  taskID: string
-  runID: string
+  logs: LogEvent[]
 }
 
 class RunLogsOverlay extends PureComponent<Props> {
@@ -42,22 +44,9 @@ class RunLogsOverlay extends PureComponent<Props> {
   }
 
   public get listLogs(): JSX.Element[] {
-    const logs = runLogs.events.map(rl => (
-      <IndexList.Row key={rl.message}>
-        <IndexList.Cell>{this.dateTimeString(rl.time)}</IndexList.Cell>
-        <IndexList.Cell>{rl.message}</IndexList.Cell>
-      </IndexList.Row>
-    ))
+    const logs = this.props.logs.map(rl => <RunLogRow log={rl} />)
 
     return logs
-  }
-
-  private dateTimeString(dt: Date): string {
-    const date = dt.toDateString()
-    const time = dt.toLocaleTimeString()
-    const formatted = `${date} ${time}`
-
-    return formatted
   }
 }
 

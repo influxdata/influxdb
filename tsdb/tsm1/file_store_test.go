@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -2818,10 +2819,10 @@ func TestFileStore_Observer(t *testing.T) {
 
 	// Check that we observed finishes correctly
 	check(finishes,
-		"000000001-000000001.tsm",
-		"000000002-000000001.tsm",
-		"000000003-000000001.tsm",
-		"000000002-000000001.tombstone.tmp",
+		"000000000000001-000000001.tsm",
+		"000000000000002-000000001.tsm",
+		"000000000000003-000000001.tsm",
+		"000000000000002-000000001.tombstone.tmp",
 	)
 	check(unlinks)
 	unlinks, finishes = nil, nil
@@ -2834,9 +2835,9 @@ func TestFileStore_Observer(t *testing.T) {
 	// Check that we observed unlinks correctly
 	check(finishes)
 	check(unlinks,
-		"000000002-000000001.tsm",
-		"000000002-000000001.tombstone",
-		"000000003-000000001.tsm",
+		"000000000000002-000000001.tsm",
+		"000000000000002-000000001.tombstone",
+		"000000000000003-000000001.tsm",
 	)
 	unlinks, finishes = nil, nil
 
@@ -2849,8 +2850,8 @@ func TestFileStore_Observer(t *testing.T) {
 	}
 
 	check(finishes,
-		"000000001-000000001.tombstone.tmp",
-		"000000001-000000001.tombstone.tmp",
+		"000000000000001-000000001.tombstone.tmp",
+		"000000000000001-000000001.tombstone.tmp",
 	)
 	check(unlinks)
 	unlinks, finishes = nil, nil
@@ -2980,5 +2981,104 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		fsResult = fs.Stats()
+	}
+}
+
+func TestDefaultFormatFileName(t *testing.T) {
+	testCases := []struct {
+		generation       int
+		sequence         int
+		expectedFilename string
+	}{{
+		generation:       0,
+		sequence:         0,
+		expectedFilename: "000000000000000-000000000",
+	}, {
+		generation:       12345,
+		sequence:         98765,
+		expectedFilename: "000000000012345-000098765",
+	}, {
+		generation:       123,
+		sequence:         123456789,
+		expectedFilename: "000000000000123-123456789",
+	}, {
+		generation:       123,
+		sequence:         999999999,
+		expectedFilename: "000000000000123-999999999",
+	}, {
+		generation:       int(math.Pow(1000, 5)) - 1,
+		sequence:         123,
+		expectedFilename: "999999999999999-000000123",
+	}}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("%d,%d", testCase.generation, testCase.sequence), func(t *testing.T) {
+			gotFilename := tsm1.DefaultFormatFileName(testCase.generation, testCase.sequence)
+			if gotFilename != testCase.expectedFilename {
+				t.Errorf("input %d,%d expected '%s' got '%s'",
+					testCase.generation, testCase.sequence, testCase.expectedFilename, gotFilename)
+			}
+		})
+	}
+}
+
+func TestDefaultParseFileName(t *testing.T) {
+	testCases := []struct {
+		filename           string
+		expectedGeneration int
+		expectedSequence   int
+		expectError        bool
+	}{{
+		filename:           "0-0.tsm",
+		expectedGeneration: 0,
+		expectedSequence:   0,
+		expectError:        true,
+	}, {
+		filename:           "00000000000000a-00000000a.tsm",
+		expectError:        true,
+	}, {
+		filename:           "000000000000000-000000000.tsm",
+		expectedGeneration: 0,
+		expectedSequence:   0,
+		expectError:        false,
+	}, {
+		filename:           "000000000000001-000000002.tsm",
+		expectedGeneration: 1,
+		expectedSequence:   2,
+		expectError:        false,
+	}, {
+		filename:           "000000000000123-999999999.tsm",
+		expectedGeneration: 123,
+		expectedSequence:   999999999,
+		expectError:        false,
+	}, {
+		filename:           "123-999999999.tsm",
+		expectedGeneration: 123,
+		expectedSequence:   999999999,
+		expectError:        false,
+	}, {
+		filename:           "999999999999999-000000123.tsm",
+		expectedGeneration: int(math.Pow(1000, 5)) - 1,
+		expectedSequence:   123,
+		expectError:        false,
+	}}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.filename, func(t *testing.T) {
+			generation, sequence, err := tsm1.DefaultParseFileName(testCase.filename)
+			if err != nil {
+				if !testCase.expectError {
+					t.Errorf("did not expected error '%v'", err)
+				}
+				return
+			}
+
+			if testCase.expectedGeneration != generation || testCase.expectedSequence != sequence {
+				t.Errorf("input '%s' expected %d,%d got %d,%d",
+					testCase.filename,
+					testCase.expectedGeneration, testCase.expectedSequence,
+					generation, sequence)
+			}
+		})
 	}
 }

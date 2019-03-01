@@ -1,13 +1,11 @@
-import {Action} from 'src/tasks/actions/v2'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Task as TaskAPI, User, Organization, Run} from '@influxdata/influx'
-import {RemoteDataState} from '@influxdata/clockface'
+import {Run, LogEvent} from '@influxdata/influx'
 
-interface Task extends TaskAPI {
-  organization: Organization
-  owner?: User
-  offset?: string
-}
+//Types
+import {Action} from 'src/tasks/actions/v2'
+import {RemoteDataState} from '@influxdata/clockface'
+import {Task} from 'src/types/v2'
+
 export interface State {
   newScript: string
   currentScript: string
@@ -19,6 +17,7 @@ export interface State {
   taskOptions: TaskOptions
   runs: Run[]
   runStatus: RemoteDataState
+  logs: LogEvent[]
 }
 
 export const defaultTaskOptions: TaskOptions = {
@@ -42,6 +41,7 @@ const defaultState: State = {
   taskOptions: defaultTaskOptions,
   runs: [],
   runStatus: RemoteDataState.NotStarted,
+  logs: [],
 }
 
 export default (state: State = defaultState, action: Action): State => {
@@ -132,6 +132,9 @@ export default (state: State = defaultState, action: Action): State => {
     case 'SET_RUNS':
       const {runs, runStatus} = action.payload
       return {...state, runs, runStatus}
+    case 'SET_LOGS':
+      const {logs} = action.payload
+      return {...state, logs}
     default:
       return state
   }

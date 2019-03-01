@@ -100,7 +100,7 @@ export default class TasksHeader extends PureComponent<Props> {
 
     return (
       <SearchWidget
-        placeholderText="Filter tasks by name..."
+        placeholderText="Filter tasks..."
         onSearch={setSearchTerm}
         searchTerm={searchTerm}
       />

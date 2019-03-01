@@ -23,14 +23,13 @@ import {
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {Links} from 'src/types/v2/links'
+import {Task, Links} from 'src/types/v2'
 import {State as TasksState} from 'src/tasks/reducers/v2'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {Task} from 'src/tasks/containers/TasksPage'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -66,7 +65,7 @@ class OrgTaskEditPage extends PureComponent<
     const {
       params: {id, orgID},
     } = this.props
-    await this.props.selectTaskByID(id, `organizations/${orgID}/tasks_tab/`)
+    await this.props.selectTaskByID(id, `/organizations/${orgID}/tasks/`)
 
     const {currentTask} = this.props
 
@@ -135,7 +134,7 @@ class OrgTaskEditPage extends PureComponent<
   private handleSave = () => {
     const {params} = this.props
 
-    this.props.updateScript(`organizations/${params.orgID}/tasks_tab/`)
+    this.props.updateScript(`/organizations/${params.orgID}/tasks/`)
   }
 
   private handleCancel = () => {

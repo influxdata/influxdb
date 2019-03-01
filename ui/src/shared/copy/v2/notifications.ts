@@ -89,10 +89,10 @@ export const taskRunSuccess = (): Notification => ({
   message: 'Task ran successfully',
 })
 
-export const taskGetFailed = (): Notification => ({
+export const taskGetFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   duration: FIVE_SECONDS,
-  message: 'Failed to get runs',
+  message: `Failed to get runs: ${error}`,
 })
 
 export const getTelegrafConfigFailed = (): Notification => ({
@@ -184,4 +184,24 @@ export const scraperUpdateSuccess = (scraperName: string): Notification => ({
 export const scraperUpdateFailed = (scraperName: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to update scraper: "${scraperName}"`,
+})
+
+export const telegrafUpdateSuccess = (telegrafName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Telegraf "${telegrafName}" was updated successfully`,
+})
+
+export const telegrafUpdateFailed = (telegrafName: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update telegraf: "${telegrafName}"`,
+})
+
+export const telegrafDeleteSuccess = (telegrafName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Telegraf "${telegrafName}" was deleted successfully`,
+})
+
+export const telegrafDeleteFailed = (telegrafName: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete telegraf: "${telegrafName}"`,
 })

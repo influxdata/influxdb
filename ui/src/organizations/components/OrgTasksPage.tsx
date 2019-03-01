@@ -26,9 +26,8 @@ import {
 } from 'src/tasks/actions/v2'
 
 // Types
-import {Task as TaskAPI, Organization} from '@influxdata/influx'
-import {Task} from 'src/tasks/containers/TasksPage'
-import {AppState} from 'src/types/v2'
+import {Organization} from '@influxdata/influx'
+import {AppState, Task, TaskStatus} from 'src/types/v2'
 import {client} from 'src/utils/api'
 
 interface PassedInProps {
@@ -139,7 +138,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
   private handleSelectTask = (task: Task) => {
     const {selectTask, orgID} = this.props
 
-    selectTask(task, `organizations/${orgID}/tasks_tab/${task.id}`)
+    selectTask(task, `/organizations/${orgID}/tasks/${task.id}`)
   }
 
   private get filteredTasks() {
@@ -149,7 +148,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
     }
     const mappedTasks = tasks.filter(t => {
       if (!showInactive) {
-        return t.status === TaskAPI.StatusEnum.Active
+        return t.status === TaskStatus.Active
       }
     })
 
@@ -184,7 +183,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
   private handleCreateTask = () => {
     const {router, orgID} = this.props
 
-    router.push(`/organizations/${orgID}/tasks_tab/new`)
+    router.push(`/organizations/${orgID}/tasks/new`)
   }
 
   private handleToggleImportOverlay = (): void => {

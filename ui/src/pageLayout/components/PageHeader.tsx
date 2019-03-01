@@ -34,7 +34,7 @@ class PageHeader extends Component<Props> {
     }
 
     return (
-      <div className={this.className}>
+      <div className={this.className} data-testid="page-header">
         <div className="page-header--container">{this.children}</div>
       </div>
     )

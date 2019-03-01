@@ -25,7 +25,7 @@ import {
 } from '@influxdata/clockface'
 
 interface Props {
-  onCreateVariable: (variable: Variable) => Promise<void>
+  onCreateVariable: (variable: Variable) => void
   onCloseModal: () => void
   orgID: string
 }

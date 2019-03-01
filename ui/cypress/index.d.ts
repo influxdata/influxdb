@@ -12,6 +12,10 @@ import {
   createTask,
   createVariable,
   createLabel,
+  createBucket,
+  createScraper,
+  fluxEqual,
+  createTelegraf,
 } from './support/commands'
 
 declare global {
@@ -29,6 +33,10 @@ declare global {
       getByInputName: typeof getByInputName
       getByTitle: typeof getByTitle
       createLabel: typeof createLabel
+      createBucket: typeof createBucket
+      createScraper: typeof createScraper
+      fluxEqual: typeof fluxEqual
+      createTelegraf: typeof createTelegraf
     }
   }
 }

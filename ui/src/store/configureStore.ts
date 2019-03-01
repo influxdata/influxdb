@@ -17,10 +17,12 @@ import dashboardsReducer from 'src/dashboards/reducers/v2/dashboards'
 import viewsReducer from 'src/dashboards/reducers/v2/views'
 import {timeMachinesReducer} from 'src/timeMachine/reducers'
 import orgsReducer from 'src/organizations/reducers/orgs'
+import orgViewReducer from 'src/organizations/reducers/orgView'
 import onboardingReducer from 'src/onboarding/reducers'
 import noteEditorReducer from 'src/dashboards/reducers/v2/notes'
 import dataLoadingReducer from 'src/dataLoaders/reducers'
 import protosReducer from 'src/protos/reducers'
+import {variablesReducer} from 'src/variables/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -37,11 +39,13 @@ export const rootReducer = combineReducers<ReducerState>({
   views: viewsReducer,
   tasks: tasksReducer,
   orgs: orgsReducer,
+  orgView: orgViewReducer,
   me: meReducer,
   onboarding: onboardingReducer,
   noteEditor: noteEditorReducer,
   dataLoading: dataLoadingReducer,
   protos: protosReducer,
+  variables: variablesReducer,
   VERSION: () => '',
 })
 

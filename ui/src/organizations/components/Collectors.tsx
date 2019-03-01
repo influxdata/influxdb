@@ -39,6 +39,12 @@ import {
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {
+  telegrafUpdateSuccess,
+  telegrafUpdateFailed,
+  telegrafDeleteSuccess,
+  telegrafDeleteFailed,
+} from 'src/shared/copy/v2/notifications'
 
 interface OwnProps {
   collectors: Telegraf[]
@@ -89,7 +95,7 @@ export class Collectors extends PureComponent<Props, State> {
         <Tabs.TabContentsHeader>
           <Input
             icon={IconFont.Search}
-            placeholder="Filter telegraf configs by bucket..."
+            placeholder="Filter telegraf configs..."
             widthPixels={290}
             value={searchTerm}
             type={InputType.Text}
@@ -248,14 +254,28 @@ export class Collectors extends PureComponent<Props, State> {
     )
   }
 
-  private handleDeleteTelegraf = async (telegrafID: string) => {
-    await client.telegrafConfigs.delete(telegrafID)
-    this.props.onChange()
+  private handleDeleteTelegraf = async (telegraf: Telegraf) => {
+    const {onChange, notify} = this.props
+    try {
+      await client.telegrafConfigs.delete(telegraf.id)
+      onChange()
+      notify(telegrafDeleteSuccess(telegraf.name))
+    } catch (e) {
+      console.error(e)
+      notify(telegrafDeleteFailed(telegraf.name))
+    }
   }
 
   private handleUpdateTelegraf = async (telegraf: Telegraf) => {
-    await client.telegrafConfigs.update(telegraf.id, telegraf)
-    this.props.onChange()
+    const {onChange, notify} = this.props
+    try {
+      await client.telegrafConfigs.update(telegraf.id, telegraf)
+      onChange()
+      notify(telegrafUpdateSuccess(telegraf.name))
+    } catch (e) {
+      console.error(e)
+      notify(telegrafUpdateFailed(telegraf.name))
+    }
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
