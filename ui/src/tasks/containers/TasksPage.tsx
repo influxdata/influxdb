@@ -16,6 +16,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {
   populateTasks,
   updateTaskStatus,
+  updateTaskName,
   deleteTask,
   selectTask,
   cloneTask,
@@ -42,6 +43,7 @@ interface PassedInProps {
 interface ConnectedDispatchProps {
   populateTasks: typeof populateTasks
   updateTaskStatus: typeof updateTaskStatus
+  updateTaskName: typeof updateTaskName
   deleteTask: typeof deleteTask
   cloneTask: typeof cloneTask
   selectTask: typeof selectTask
@@ -89,6 +91,7 @@ class TasksPage extends PureComponent<Props, State> {
   public render(): JSX.Element {
     const {
       setSearchTerm,
+      updateTaskName,
       searchTerm,
       setShowInactive,
       showInactive,
@@ -129,6 +132,7 @@ class TasksPage extends PureComponent<Props, State> {
                     onRunTask={onRunTask}
                     onFilterChange={setSearchTerm}
                     filterComponent={() => this.search}
+                    onUpdate={updateTaskName}
                   />
                 )}
               </FilterList>
@@ -259,6 +263,7 @@ const mstp = ({
 const mdtp: ConnectedDispatchProps = {
   populateTasks,
   updateTaskStatus,
+  updateTaskName,
   deleteTask,
   selectTask,
   cloneTask,

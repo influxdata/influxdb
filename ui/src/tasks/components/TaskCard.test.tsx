@@ -21,6 +21,7 @@ const setup = (override = {}) => {
     onEditLabels: jest.fn(),
     onRunTask: jest.fn(),
     onFilterChange: jest.fn(),
+    onUpdate: jest.fn(),
     ...override,
   }
 

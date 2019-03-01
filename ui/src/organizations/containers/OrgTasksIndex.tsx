@@ -105,7 +105,7 @@ class OrgTasksIndex extends Component<Props, State> {
     )
   }
 
-  private updateTasks() {
+  private updateTasks = () => {
     const {getTasks, org} = this.props
 
     getTasks(org)

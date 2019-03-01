@@ -33,7 +33,7 @@ interface Props {
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRunTask: typeof runTask
-  onUpdate?: (task: Task) => void
+  onUpdate: (task: Task) => void
   filterComponent?: () => JSX.Element
 }
 

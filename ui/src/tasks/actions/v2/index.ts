@@ -260,6 +260,19 @@ export const updateTaskStatus = (task: Task) => async dispatch => {
   }
 }
 
+export const updateTaskName = (task: Task) => async dispatch => {
+  try {
+    await client.tasks.update(task.id, task)
+
+    dispatch(populateTasks())
+    dispatch(notify(taskUpdateSuccess()))
+  } catch (e) {
+    console.error(e)
+    const message = getErrorMessage(e)
+    dispatch(notify(taskUpdateFailed(message)))
+  }
+}
+
 export const deleteTask = (task: Task) => async dispatch => {
   try {
     await client.tasks.delete(task.id)
