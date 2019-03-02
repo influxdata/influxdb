@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"math"
 	"sync"
 	"time"
@@ -123,12 +124,10 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	// Initialize WAL
 	e.wal = wal.NewWAL(c.GetWALPath(path))
 	e.wal.WithFsyncDelay(time.Duration(c.WAL.FsyncDelay))
-	e.wal.EnableTraceLogging(c.TraceLoggingEnabled)
 	e.wal.SetEnabled(c.WAL.Enabled)
 
 	// Initialise Engine
 	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine,
-		tsm1.WithTraceLogging(c.TraceLoggingEnabled),
 		tsm1.WithSnapshotter(e))
 
 	// Apply options.
@@ -181,7 +180,7 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 
 // Open opens the store and all underlying resources. It returns an error if
 // any of the underlying systems fail to open.
-func (e *Engine) Open() (err error) {
+func (e *Engine) Open(ctx context.Context) (err error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -189,12 +188,15 @@ func (e *Engine) Open() (err error) {
 		return nil // Already open
 	}
 
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Engine.Open")
+	defer span.Finish()
+
 	// Open the services in order and clean up if any fail.
 	var oh openHelper
-	oh.Open(e.sfile)
-	oh.Open(e.index)
-	oh.Open(e.wal)
-	oh.Open(e.engine)
+	oh.Open(ctx, e.sfile)
+	oh.Open(ctx, e.index)
+	oh.Open(ctx, e.wal)
+	oh.Open(ctx, e.engine)
 	if err := oh.Done(); err != nil {
 		return err
 	}
@@ -447,7 +449,10 @@ func (e *Engine) writePointsLocked(collection *tsdb.SeriesCollection, values map
 
 // AcquireSegments closes the current WAL segment, gets the set of all the currently closed
 // segments, and calls the callback. It does all of this under the lock on the engine.
-func (e *Engine) AcquireSegments(fn func(segs []string) error) error {
+func (e *Engine) AcquireSegments(ctx context.Context, fn func(segs []string) error) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Engine.AcquireSegments")
+	defer span.Finish()
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -465,7 +470,7 @@ func (e *Engine) AcquireSegments(fn func(segs []string) error) error {
 
 // CommitSegments calls the callback and if that does not return an error, removes the segment
 // files from the WAL. It does all of this under the lock on the engine.
-func (e *Engine) CommitSegments(segs []string, fn func() error) error {
+func (e *Engine) CommitSegments(ctx context.Context, segs []string, fn func() error) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -473,7 +478,7 @@ func (e *Engine) CommitSegments(segs []string, fn func() error) error {
 		return err
 	}
 
-	return e.wal.Remove(segs)
+	return e.wal.Remove(ctx, segs)
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.

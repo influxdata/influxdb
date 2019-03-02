@@ -14,7 +14,9 @@ package tsm1
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"io"
 	"math"
 	"os"
@@ -808,7 +810,10 @@ func (c *Compactor) EnableCompactions() {
 }
 
 // WriteSnapshot writes a Cache snapshot to one or more new TSM files.
-func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
+func (c *Compactor) WriteSnapshot(ctx context.Context, cache *Cache) ([]string, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Compactor.WriteSnapshot")
+	defer span.Finish()
+
 	c.mu.RLock()
 	enabled := c.snapshotsEnabled
 	intC := c.snapshotsInterrupt

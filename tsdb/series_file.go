@@ -2,9 +2,11 @@ package tsdb
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"os"
 	"path/filepath"
 	"sort"
@@ -82,13 +84,16 @@ func (f *SeriesFile) DisableMetrics() {
 }
 
 // Open memory maps the data file at the file's path.
-func (f *SeriesFile) Open() error {
+func (f *SeriesFile) Open(ctx context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if f.res.Opened() {
 		return errors.New("series file already opened")
 	}
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "SeriesFile.Open")
+	defer span.Finish()
 
 	_, logEnd := logger.NewOperation(f.Logger, "Opening Series File", "series_file_open", zap.String("path", f.path))
 	defer logEnd()

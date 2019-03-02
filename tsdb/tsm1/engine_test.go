@@ -1,6 +1,7 @@
 package tsm1_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -112,7 +113,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 		tsm1.WithCompactionPlanner(newMockPlanner()))
 
 	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 	defer e.Close()
@@ -123,7 +124,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 
 	// Writing a snapshot should not fail when the snapshot is empty
 	// even if snapshots are disabled.
-	if err := e.WriteSnapshot(); err != nil {
+	if err := e.WriteSnapshot(context.Background()); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 }
@@ -139,7 +140,7 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
 	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 	defer e.Close()
@@ -317,7 +318,7 @@ func NewEngine() (*Engine, error) {
 	// Setup series file.
 	sfile := tsdb.NewSeriesFile(filepath.Join(root, "_series"))
 	sfile.Logger = logger.New(os.Stdout)
-	if err = sfile.Open(); err != nil {
+	if err = sfile.Open(context.Background()); err != nil {
 		return nil, err
 	}
 
@@ -344,7 +345,7 @@ func MustOpenEngine() *Engine {
 		panic(err)
 	}
 
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return e
@@ -385,7 +386,7 @@ func (e *Engine) Reopen() error {
 
 	// Re-open series file. Must create a new series file using the same data.
 	e.sfile = tsdb.NewSeriesFile(e.sfile.Path())
-	if err := e.sfile.Open(); err != nil {
+	if err := e.sfile.Open(context.Background()); err != nil {
 		return err
 	}
 
@@ -398,7 +399,7 @@ func (e *Engine) Reopen() error {
 		tsm1.WithCompactionPlanner(newMockPlanner()))
 
 	// Reopen engine
-	if err := e.Engine.Open(); err != nil {
+	if err := e.Engine.Open(context.Background()); err != nil {
 		return err
 	}
 
@@ -454,14 +455,14 @@ func (e *Engine) MustAddSeries(name string, tags map[string]string) {
 
 // MustWriteSnapshot forces a snapshot of the engine. Panic on error.
 func (e *Engine) MustWriteSnapshot() {
-	if err := e.WriteSnapshot(); err != nil {
+	if err := e.WriteSnapshot(context.Background()); err != nil {
 		panic(err)
 	}
 }
 
 func MustOpenIndex(path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile) *tsi1.Index {
 	idx := tsi1.NewIndex(sfile, tsi1.NewConfig(), tsi1.WithPath(path))
-	if err := idx.Open(); err != nil {
+	if err := idx.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return idx
@@ -484,7 +485,7 @@ func NewSeriesFile() *SeriesFile {
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
 func MustOpenSeriesFile() *SeriesFile {
 	f := NewSeriesFile()
-	if err := f.Open(); err != nil {
+	if err := f.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return f

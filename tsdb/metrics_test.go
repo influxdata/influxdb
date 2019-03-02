@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -155,7 +156,7 @@ func TestMetrics_Disabled(t *testing.T) {
 	// Step 1. make a series file with metrics and some labels
 	sfile := NewSeriesFile(path)
 	sfile.SetDefaultMetricLabels(prometheus.Labels{"foo": "bar"})
-	if err := sfile.Open(); err != nil {
+	if err := sfile.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err := sfile.Close(); err != nil {
@@ -165,7 +166,7 @@ func TestMetrics_Disabled(t *testing.T) {
 	// Step 2. open the series file again, but disable metrics
 	sfile = NewSeriesFile(path)
 	sfile.DisableMetrics()
-	if err := sfile.Open(); err != nil {
+	if err := sfile.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer sfile.Close()

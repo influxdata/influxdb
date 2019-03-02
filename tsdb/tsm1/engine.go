@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -71,13 +72,6 @@ const (
 // an Engine.
 type EngineOption func(i *Engine)
 
-// WithTraceLogging sets if trace logging is enabled for the engine.
-func WithTraceLogging(logging bool) EngineOption {
-	return func(e *Engine) {
-		e.FileStore.enableTraceLogging(logging)
-	}
-}
-
 // WithCompactionPlanner sets the compaction planner for the engine.
 func WithCompactionPlanner(planner CompactionPlanner) EngineOption {
 	return func(e *Engine) {
@@ -90,14 +84,14 @@ func WithCompactionPlanner(planner CompactionPlanner) EngineOption {
 // it can be removed one day. The weird interface is due to the weird inversion of locking
 // that has to happen.
 type Snapshotter interface {
-	AcquireSegments(func(segments []string) error) error
-	CommitSegments(segments []string, fn func() error) error
+	AcquireSegments(context.Context, func(segments []string) error) error
+	CommitSegments(ctx context.Context, segments []string, fn func() error) error
 }
 
 type noSnapshotter struct{}
 
-func (noSnapshotter) AcquireSegments(fn func([]string) error) error    { return fn(nil) }
-func (noSnapshotter) CommitSegments(_ []string, fn func() error) error { return fn() }
+func (noSnapshotter) AcquireSegments(_ context.Context, fn func([]string) error) error    { return fn(nil) }
+func (noSnapshotter) CommitSegments(_ context.Context, _ []string, fn func() error) error { return fn() }
 
 // WithSnapshotter sets the callbacks for the engine to use when creating snapshots.
 func WithSnapshotter(snapshotter Snapshotter) EngineOption {
@@ -132,8 +126,6 @@ type Engine struct {
 	sfile        *tsdb.SeriesFile
 	sfileref     *lifecycle.Reference
 	logger       *zap.Logger // Logger to be used for important messages
-	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
-	traceLogging bool
 
 	Cache          *Cache
 	Compactor      *Compactor
@@ -204,11 +196,10 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 
 	logger := zap.NewNop()
 	e := &Engine{
-		path:        path,
-		index:       idx,
-		sfile:       idx.SeriesFile(),
-		logger:      logger,
-		traceLogger: logger,
+		path:   path,
+		index:  idx,
+		sfile:  idx.SeriesFile(),
+		logger: logger,
 
 		Cache: cache,
 
@@ -431,9 +422,9 @@ func (e *Engine) disableSnapshotCompactions() {
 // ScheduleFullCompaction will force the engine to fully compact all data stored.
 // This will cancel and running compactions and snapshot any data in the cache to
 // TSM files.  This is an expensive operation.
-func (e *Engine) ScheduleFullCompaction() error {
+func (e *Engine) ScheduleFullCompaction(ctx context.Context) error {
 	// Snapshot any data in the cache
-	if err := e.WriteSnapshot(); err != nil {
+	if err := e.WriteSnapshot(ctx); err != nil {
 		return err
 	}
 
@@ -503,7 +494,10 @@ func (e *Engine) initTrackers() {
 }
 
 // Open opens and initializes the engine.
-func (e *Engine) Open() (err error) {
+func (e *Engine) Open(ctx context.Context) (err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Engine.Open")
+	defer span.Finish()
+
 	defer func() {
 		if err != nil {
 			e.Close()
@@ -530,7 +524,7 @@ func (e *Engine) Open() (err error) {
 		return err
 	}
 
-	if err := e.FileStore.Open(); err != nil {
+	if err := e.FileStore.Open(ctx); err != nil {
 		return err
 	}
 
@@ -575,10 +569,6 @@ func (e *Engine) Close() error {
 // WithLogger sets the logger for the engine.
 func (e *Engine) WithLogger(log *zap.Logger) {
 	e.logger = log.With(zap.String("engine", "tsm1"))
-
-	if e.traceLogging {
-		e.traceLogger = e.logger
-	}
 
 	e.FileStore.WithLogger(e.logger)
 }
@@ -778,7 +768,10 @@ func (t *compactionTracker) SetOptimiseQueue(length uint64) { t.SetQueue(4, leng
 func (t *compactionTracker) SetFullQueue(length uint64) { t.SetQueue(5, length) }
 
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
-func (e *Engine) WriteSnapshot() error {
+func (e *Engine) WriteSnapshot(ctx context.Context) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Engine.WriteSnapshot")
+	defer span.Finish()
+
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
 
@@ -797,7 +790,7 @@ func (e *Engine) WriteSnapshot() error {
 		snapshot *Cache
 		segments []string
 	)
-	if err := e.snapshotter.AcquireSegments(func(segs []string) (err error) {
+	if err := e.snapshotter.AcquireSegments(ctx, func(segs []string) (err error) {
 		segments = segs
 
 		e.mu.Lock()
@@ -816,17 +809,13 @@ func (e *Engine) WriteSnapshot() error {
 	// The snapshotted cache may have duplicate points and unsorted data.  We need to deduplicate
 	// it before writing the snapshot.  This can be very expensive so it's done while we are not
 	// holding the engine write lock.
-	dedup := time.Now()
 	snapshot.Deduplicate()
-	e.traceLogger.Info("Snapshot for path deduplicated",
-		zap.String("path", e.path),
-		zap.Duration("duration", time.Since(dedup)))
 
-	return e.writeSnapshotAndCommit(log, snapshot, segments)
+	return e.writeSnapshotAndCommit(ctx, log, snapshot, segments)
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.
-func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache, segments []string) (err error) {
+func (e *Engine) writeSnapshotAndCommit(ctx context.Context, log *zap.Logger, snapshot *Cache, segments []string) (err error) {
 	defer func() {
 		if err != nil {
 			e.Cache.ClearSnapshot(false)
@@ -834,13 +823,13 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, snapshot *Cache, segmen
 	}()
 
 	// write the new snapshot files
-	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
+	newFiles, err := e.Compactor.WriteSnapshot(ctx, snapshot)
 	if err != nil {
 		log.Info("Error writing snapshot from compactor", zap.Error(err))
 		return err
 	}
 
-	return e.snapshotter.CommitSegments(segments, func() error {
+	return e.snapshotter.CommitSegments(ctx, segments, func() error {
 		e.mu.RLock()
 		defer e.mu.RUnlock()
 
@@ -870,15 +859,20 @@ func (e *Engine) compactCache() {
 			return
 
 		case <-t.C:
+
 			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(time.Now()) {
+				span, ctx := opentracing.StartSpanFromContext(context.Background(), "Engine.compactCache <-t.C")
+				span.LogKV("path", e.path)
+
 				start := time.Now()
-				e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
-				err := e.WriteSnapshot()
+				err := e.WriteSnapshot(ctx)
 				if err != nil && err != errCompactionsDisabled {
 					e.logger.Info("Error writing snapshot", zap.Error(err))
 				}
 				e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
+
+				span.Finish()
 			}
 		}
 	}

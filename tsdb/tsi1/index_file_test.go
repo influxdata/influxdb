@@ -2,6 +2,7 @@ package tsi1_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -55,7 +56,7 @@ func TestGenerateIndexFile(t *testing.T) {
 func TestGenerateIndexFile_Uvarint(t *testing.T) {
 	// Load previously generated series file.
 	sfile := tsdb.NewSeriesFile("testdata/uvarint/_series")
-	if err := sfile.Open(); err != nil {
+	if err := sfile.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer sfile.Close()

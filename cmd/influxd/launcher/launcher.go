@@ -271,6 +271,9 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 }
 
 func (m *Launcher) run(ctx context.Context) (err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Launcher.run")
+	defer span.Finish()
+
 	m.running = true
 	ctx, m.cancel = context.WithCancel(ctx)
 
@@ -416,7 +419,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.engine = storage.NewEngine(m.enginePath, storage.NewConfig(), storage.WithRetentionEnforcer(bucketSvc))
 		m.engine.WithLogger(m.logger)
 
-		if err := m.engine.Open(); err != nil {
+		if err := m.engine.Open(ctx); err != nil {
 			m.logger.Error("failed to open engine", zap.Error(err))
 			return err
 		}

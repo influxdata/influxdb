@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"math"
 	"os"
@@ -194,9 +195,7 @@ type FileStore struct {
 	tsmMMAPWillNeed bool          // If true then the kernel will be advised MMAP_WILLNEED for TSM files.
 	openLimiter     limiter.Fixed // limit the number of concurrent opening TSM files.
 
-	logger       *zap.Logger // Logger to be used for important messages
-	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
-	traceLogging bool
+	logger *zap.Logger // Logger to be used for important messages
 
 	tracker *fileTracker
 	purger  *purger
@@ -240,7 +239,6 @@ func NewFileStore(dir string) *FileStore {
 		dir:          dir,
 		lastModified: time.Time{},
 		logger:       logger,
-		traceLogger:  logger,
 		openLimiter:  limiter.NewFixed(runtime.GOMAXPROCS(0)),
 		purger: &purger{
 			files:  map[string]TSMFile{},
@@ -270,22 +268,10 @@ func (f *FileStore) ParseFileName(path string) (int, int, error) {
 	return f.parseFileName(path)
 }
 
-// enableTraceLogging must be called before the FileStore is opened.
-func (f *FileStore) enableTraceLogging(enabled bool) {
-	f.traceLogging = enabled
-	if enabled {
-		f.traceLogger = f.logger
-	}
-}
-
 // WithLogger sets the logger on the file store.
 func (f *FileStore) WithLogger(log *zap.Logger) {
 	f.logger = log.With(zap.String("service", "filestore"))
 	f.purger.logger = f.logger
-
-	if f.traceLogging {
-		f.traceLogger = f.logger
-	}
 }
 
 // FileStoreStatistics keeps statistics about the file store.
@@ -518,7 +504,7 @@ func (f *FileStore) DeleteRange(keys [][]byte, min, max int64) error {
 }
 
 // Open loads all the TSM files in the configured directory.
-func (f *FileStore) Open() error {
+func (f *FileStore) Open(ctx context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -530,6 +516,9 @@ func (f *FileStore) Open() error {
 	if f.openLimiter == nil {
 		return errors.New("cannot open FileStore without an OpenLimiter (is EngineOptions.OpenLimiter set?)")
 	}
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "FileStore.Open")
+	defer span.Finish()
 
 	// find the current max ID for temp directories
 	tmpfiles, err := ioutil.ReadDir(f.dir)
@@ -1114,8 +1103,11 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
-func (f *FileStore) CreateSnapshot() (string, error) {
-	f.traceLogger.Info("Creating snapshot", zap.String("dir", f.dir))
+func (f *FileStore) CreateSnapshot(ctx context.Context) (string, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "FileStore.CreateSnapshot")
+	defer span.Finish()
+
+	span.LogKV("dir", f.dir)
 
 	f.mu.Lock()
 	// create a copy of the files slice and ensure they aren't closed out from

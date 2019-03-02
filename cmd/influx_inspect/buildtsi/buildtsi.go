@@ -2,6 +2,7 @@
 package buildtsi
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -119,7 +120,7 @@ func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 
 	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, storage.DefaultSeriesFileDirectoryName))
 	sfile.Logger = cmd.Logger
-	if err := sfile.Open(); err != nil {
+	if err := sfile.Open(context.Background()); err != nil {
 		return err
 	}
 	defer sfile.Close()
@@ -237,7 +238,7 @@ func IndexShard(sfile *tsdb.SeriesFile, indexPath, dataDir, walDir string, maxLo
 	tsiIndex.WithLogger(log)
 
 	log.Info("Opening tsi index in temporary location", zap.String("path", tmpPath))
-	if err := tsiIndex.Open(); err != nil {
+	if err := tsiIndex.Open(context.Background()); err != nil {
 		return err
 	}
 	defer tsiIndex.Close()
