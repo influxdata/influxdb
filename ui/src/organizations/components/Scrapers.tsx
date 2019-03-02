@@ -21,7 +21,7 @@ import {
   Tabs,
   OverlayTechnology,
 } from 'src/clockface'
-import CreateScraperOverlay from 'src/dataLoaders/components/CreateScraperOverlay'
+import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -105,8 +105,8 @@ class Scrapers extends PureComponent<Props, State> {
         <OverlayTechnology visible={this.isOverlayVisible}>
           <CreateScraperOverlay
             buckets={this.buckets}
-            onDismiss={this.handleDismissOverlay}
             onCreate={this.handleCreateScraper}
+            onDismiss={this.handleDismissOverlay}
           />
         </OverlayTechnology>
       </>
