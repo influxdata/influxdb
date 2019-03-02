@@ -99,7 +99,7 @@ export class ScraperTarget extends PureComponent<Props> {
     }
 
     const isURLValid =
-      _.startsWith('http://', url) || _.startsWith('https://', url)
+      _.startsWith(url, 'http://') || _.startsWith(url, 'https://')
 
     if (!isURLValid) {
       return 'Target URL must begin with "http://"'
