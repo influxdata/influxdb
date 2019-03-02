@@ -46,6 +46,7 @@ import (
 	pzap "github.com/influxdata/influxdb/zap"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -58,6 +59,8 @@ const (
 
 	// LogTracing enables tracing via zap logs
 	LogTracing = "log"
+	// JaegerTracing enables tracing via the Jaeger client library
+	JaegerTracing = "jaeger"
 )
 
 // Launcher represents the main program execution.
@@ -94,8 +97,9 @@ type Launcher struct {
 	scheduler *taskbackend.TickScheduler
 	taskStore taskbackend.Store
 
-	logger *zap.Logger
-	reg    *prom.Registry
+	jaegerTracerCloser io.Closer
+	logger             *zap.Logger
+	reg                *prom.Registry
 
 	// BuildInfo contains commit, version and such of influxdb.
 	BuildInfo platform.BuildInfo
@@ -179,6 +183,12 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	}
 
 	m.wg.Wait()
+
+	if m.jaegerTracerCloser != nil {
+		if err := m.jaegerTracerCloser.Close(); err != nil {
+			m.logger.Warn("failed to closer Jaeger tracer", zap.Error(err))
+		}
+	}
 
 	m.logger.Sync()
 }
@@ -305,6 +315,21 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		tracer.Logger = m.logger
 		tracer.IDGenerator = snowflake.NewIDGenerator()
 		opentracing.SetGlobalTracer(tracer)
+
+	case JaegerTracing:
+		m.logger.Info("tracing via Jaeger")
+		cfg, err := jaegerconfig.FromEnv()
+		if err != nil {
+			m.logger.Warn("failed to get Jaeger client config from environment variables", zap.Error(err))
+			break
+		}
+		tracer, closer, err := cfg.NewTracer()
+		if err != nil {
+			m.logger.Warn("failed to instantiate Jaeger tracer", zap.Error(err))
+			break
+		}
+		opentracing.SetGlobalTracer(tracer)
+		m.jaegerTracerCloser = closer
 	}
 
 	m.boltClient = bolt.NewClient()
