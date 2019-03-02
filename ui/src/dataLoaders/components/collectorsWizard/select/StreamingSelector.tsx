@@ -30,7 +30,7 @@ import {Bucket} from '@influxdata/influx'
 
 export interface Props {
   buckets: Bucket[]
-  bucket: string
+  selectedBucketName: string
   pluginBundles: BundleName[]
   telegrafPlugins: TelegrafPlugin[]
   onTogglePluginBundle: (telegrafPlugin: string, isSelected: boolean) => void
@@ -68,7 +68,7 @@ class StreamingSelector extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {bucket, buckets} = this.props
+    const {buckets} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -77,7 +77,7 @@ class StreamingSelector extends PureComponent<Props, State> {
           <Grid.Column widthSM={Columns.Five}>
             <FormElement label="Bucket">
               <BucketDropdown
-                selected={bucket}
+                selectedBucketID={this.selectedBucketID}
                 buckets={buckets}
                 onSelectBucket={this.handleSelectBucket}
               />
@@ -115,6 +115,12 @@ class StreamingSelector extends PureComponent<Props, State> {
         {this.emptyState}
       </div>
     )
+  }
+
+  private get selectedBucketID(): string {
+    const {buckets, selectedBucketName} = this.props
+
+    return buckets.find(b => b.name === selectedBucketName).id
   }
 
   private handleSelectBucket = (bucket: Bucket) => {

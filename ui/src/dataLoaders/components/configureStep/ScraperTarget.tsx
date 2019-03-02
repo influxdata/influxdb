@@ -29,7 +29,7 @@ export class ScraperTarget extends PureComponent<Props> {
   }
 
   public render() {
-    const {onSelectBucket, url, name, bucket, buckets} = this.props
+    const {onSelectBucket, url, name, buckets} = this.props
     return (
       <Grid>
         <Grid.Row>
@@ -52,7 +52,7 @@ export class ScraperTarget extends PureComponent<Props> {
           <Grid.Column widthSM={Columns.Six}>
             <Form.Element label="Bucket">
               <BucketDropdown
-                selected={bucket}
+                selectedBucketID={this.selectedBucketID}
                 buckets={buckets}
                 onSelectBucket={onSelectBucket}
               />
@@ -76,6 +76,12 @@ export class ScraperTarget extends PureComponent<Props> {
         </Grid.Row>
       </Grid>
     )
+  }
+
+  private get selectedBucketID(): string {
+    const {buckets, bucket} = this.props
+
+    return buckets.find(b => b.name === bucket).id
   }
 
   private get urlStatus(): ComponentStatus {
