@@ -9,7 +9,6 @@ import FilterList from 'src/shared/components/Filter'
 import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import ImportOverlay from 'src/shared/components/ImportOverlay'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 
 // Actions
@@ -97,7 +96,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
           onCreateTask={this.handleCreateTask}
           setShowInactive={this.handleToggle}
           showInactive={showInactive}
-          toggleOverlay={this.handleToggleImportOverlay}
+          onImportTask={this.handleImportTask}
           showOrgDropdown={false}
           isFullPage={false}
           filterComponent={() => this.filterComponent}
@@ -125,7 +124,6 @@ class OrgTasksPage extends PureComponent<Props, State> {
             />
           )}
         </FilterList>
-        {this.importOverlay}
       </>
     )
   }
@@ -198,26 +196,10 @@ class OrgTasksPage extends PureComponent<Props, State> {
     router.push(`/organizations/${orgID}/tasks/new`)
   }
 
-  private handleToggleImportOverlay = (): void => {
-    this.setState({isImporting: !this.state.isImporting})
-  }
+  private handleImportTask = (): void => {
+    const {router, orgID} = this.props
 
-  private get importOverlay(): JSX.Element {
-    const {isImporting} = this.state
-    const {importTask} = this.props
-    return (
-      <ImportOverlay
-        isVisible={isImporting}
-        resourceName="Task"
-        onDismissOverlay={this.handleToggleImportOverlay}
-        onImport={importTask}
-        isResourceValid={this.handleValidateTask}
-      />
-    )
-  }
-
-  private handleValidateTask = (): boolean => {
-    return true
+    router.push(`/organizations/${orgID}/tasks/import`)
   }
 }
 

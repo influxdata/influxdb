@@ -29,7 +29,7 @@ describe('Variables', () => {
     cy.getByTestID('variable-row').should('have.length', 1)
   })
 
-  it('can delete a variable', () => {
+  it.skip('can delete a variable', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.createVariable(id)
       cy.createVariable(id)

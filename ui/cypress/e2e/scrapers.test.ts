@@ -63,7 +63,7 @@ describe('Scrapers', () => {
       })
     })
 
-    it('can delete a scraper', () => {
+    it.skip('can delete a scraper', () => {
       const scraperName = 'New Scraper'
       const url = 'http://google.com'
       const type = 'Prometheus'

@@ -515,19 +515,15 @@ export const dashboardSetDefaultFailed = (name: string) => ({
   message: `Failed to set ${name} to default dashboard.`,
 })
 
-export const dashboardImported = (name: string): Notification => ({
+export const dashboardImported = (): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  message: `Dashboard ${name} imported successfully.`,
+  message: `Dashboard imported successfully.`,
 })
 
-export const dashboardImportFailed = (
-  fileName: string,
-  errorMessage: string
-): Notification => ({
+export const dashboardImportFailed = (errorMessage: string): Notification => ({
   ...defaultErrorNotification,
-  duration: INFINITE,
-  message: `Failed to import Dashboard from file ${fileName}: ${errorMessage}.`,
+  message: `Failed to import Dashboard: ${errorMessage}.`,
 })
 
 export const dashboardDeleteFailed = (

@@ -18,6 +18,12 @@ import (
 	"github.com/influxdata/influxdb/pkg/escape"
 )
 
+// Values used to store the field key and measurement name as tags.
+const (
+	FieldKeyTagKey    = "_f"
+	MeasurementTagKey = "_m"
+)
+
 type escapeSet struct {
 	k   [1]byte
 	esc [2]byte
@@ -276,13 +282,13 @@ const (
 // ParsePoints returns a slice of Points from a text representation of a point
 // with each point separated by newlines.  If any points fail to parse, a non-nil error
 // will be returned in addition to the points that parsed successfully.
-func ParsePoints(buf []byte) ([]Point, error) {
-	return ParsePointsWithPrecision(buf, time.Now().UTC(), "n")
+func ParsePoints(buf, mm []byte) ([]Point, error) {
+	return ParsePointsWithPrecision(buf, mm, time.Now().UTC(), "n")
 }
 
 // ParsePointsString is identical to ParsePoints but accepts a string.
-func ParsePointsString(buf string) ([]Point, error) {
-	return ParsePoints([]byte(buf))
+func ParsePointsString(buf, mm string) ([]Point, error) {
+	return ParsePoints([]byte(buf), []byte(mm))
 }
 
 // ParseKey returns the measurement name and tags from a point.
@@ -347,7 +353,7 @@ func ValidPrecision(precision string) bool {
 //
 // NOTE: to minimize heap allocations, the returned Points will refer to subslices of buf.
 // This can have the unintended effect preventing buf from being garbage collected.
-func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
+func ParsePointsWithPrecision(buf []byte, mm []byte, defaultTime time.Time, precision string) (_ []Point, err error) {
 	points := make([]Point, 0, bytes.Count(buf, []byte{'\n'})+1)
 	var (
 		pos    int
@@ -379,13 +385,10 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 			block = block[:len(block)-1]
 		}
 
-		pt, err := parsePoint(block[start:], defaultTime, precision)
+		points, err = parsePointsAppend(points, block[start:], mm, defaultTime, precision)
 		if err != nil {
 			failed = append(failed, fmt.Sprintf("unable to parse '%s': %v", string(block[start:]), err))
-		} else {
-			points = append(points, pt)
 		}
-
 	}
 	if len(failed) > 0 {
 		return points, fmt.Errorf("%s", strings.Join(failed, "\n"))
@@ -394,61 +397,52 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 
 }
 
-func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, error) {
+func parsePointsAppend(points []Point, buf []byte, mm []byte, defaultTime time.Time, precision string) ([]Point, error) {
 	// scan the first block which is measurement[,tag1=value1,tag2=value=2...]
 	pos, key, err := scanKey(buf, 0)
 	if err != nil {
-		return nil, err
+		return points, err
 	}
 
 	// measurement name is required
 	if len(key) == 0 {
-		return nil, fmt.Errorf("missing measurement")
+		return points, fmt.Errorf("missing measurement")
 	}
 
 	if len(key) > MaxKeyLength {
-		return nil, fmt.Errorf("max key length exceeded: %v > %v", len(key), MaxKeyLength)
+		return points, fmt.Errorf("max key length exceeded: %v > %v", len(key), MaxKeyLength)
+	}
+
+	// Since the measurement is converted to a tag and measurements & tags have
+	// different escaping rules, we need to check if the measurement needs escaping.
+	_, i, _ := scanMeasurement(key, 0)
+	keyMeasurement := key[:i-1]
+	if bytes.IndexByte(keyMeasurement, '=') != -1 {
+		escapedKeyMeasurement := bytes.Replace(keyMeasurement, []byte("="), []byte(`\=`), -1)
+
+		newKey := make([]byte, len(escapedKeyMeasurement)+(len(key)-len(keyMeasurement)))
+		copy(newKey, escapedKeyMeasurement)
+		copy(newKey[len(escapedKeyMeasurement):], key[len(keyMeasurement):])
+		key = newKey
 	}
 
 	// scan the second block is which is field1=value1[,field2=value2,...]
+	// at least one field is required
 	pos, fields, err := scanFields(buf, pos)
 	if err != nil {
-		return nil, err
-	}
-
-	// at least one field is required
-	if len(fields) == 0 {
-		return nil, fmt.Errorf("missing fields")
-	}
-
-	var maxKeyErr error
-	err = walkFields(fields, func(k, v []byte) bool {
-		if sz := seriesKeySize(key, k); sz > MaxKeyLength {
-			maxKeyErr = fmt.Errorf("max key length exceeded: %v > %v", sz, MaxKeyLength)
-			return false
-		}
-		return true
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if maxKeyErr != nil {
-		return nil, maxKeyErr
+		return points, err
+	} else if len(fields) == 0 {
+		return points, fmt.Errorf("missing fields")
 	}
 
 	// scan the last block which is an optional integer timestamp
 	pos, ts, err := scanTime(buf, pos)
 	if err != nil {
-		return nil, err
+		return points, err
 	}
 
-	pt := &point{
-		key:    key,
-		fields: fields,
-		ts:     ts,
-	}
+	// Build point with timestamp only.
+	pt := point{ts: ts}
 
 	if len(ts) == 0 {
 		pt.time = defaultTime
@@ -456,23 +450,67 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 	} else {
 		ts, err := parseIntBytes(ts, 10, 64)
 		if err != nil {
-			return nil, err
+			return points, err
 		}
 		pt.time, err = SafeCalcTime(ts, precision)
 		if err != nil {
-			return nil, err
+			return points, err
 		}
 
 		// Determine if there are illegal non-whitespace characters after the
 		// timestamp block.
 		for pos < len(buf) {
 			if buf[pos] != ' ' {
-				return nil, ErrInvalidPoint
+				return points, ErrInvalidPoint
 			}
 			pos++
 		}
 	}
-	return pt, nil
+
+	// Loop over fields and split points while validating field.
+	var maxKeyErr error
+	if err := walkFields(fields, func(k, v, fieldBuf []byte) bool {
+		// Build new key with measurement & field as keys.
+		newKey := newV2Key(key, mm, k)
+
+		if sz := seriesKeySizeV2(key, mm, k); sz > MaxKeyLength {
+			maxKeyErr = fmt.Errorf("max key length exceeded: %v > %v", sz, MaxKeyLength)
+			return false
+		}
+
+		other := pt
+		other.key = newKey
+		other.fields = fieldBuf
+		points = append(points, &other)
+
+		return true
+	}); err != nil {
+		return points, err
+	} else if maxKeyErr != nil {
+		return points, maxKeyErr
+	}
+
+	return points, nil
+}
+
+// newV2Key returns a new key by converting the old measurement & field into keys.
+func newV2Key(oldKey, mm, field []byte) []byte {
+	newKey := make([]byte, len(mm)+1+len(MeasurementTagKey)+1+len(oldKey)+1+len(FieldKeyTagKey)+1+len(field))
+	buf := newKey
+
+	copy(buf, mm)
+	buf = buf[len(mm):]
+	buf[0], buf = ',', buf[1:]
+
+	buf[0], buf[1], buf[2], buf = '_', 'f', '=', buf[3:]
+	copy(buf, field)
+	buf = buf[len(field):]
+	buf[0], buf = ',', buf[1:]
+
+	buf[0], buf[1], buf[2], buf = '_', 'm', '=', buf[3:]
+	copy(buf, oldKey)
+
+	return newKey
 }
 
 // GetPrecisionMultiplier will return a multiplier for the precision specified.
@@ -1401,7 +1439,7 @@ func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte
 
 	key := MakeKey([]byte(measurement), tags)
 	for field := range fields {
-		sz := seriesKeySize(key, []byte(field))
+		sz := seriesKeySizeV1(key, []byte(field))
 		if sz > MaxKeyLength {
 			return nil, fmt.Errorf("max key length exceeded: %v > %v", sz, MaxKeyLength)
 		}
@@ -1410,10 +1448,12 @@ func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte
 	return key, nil
 }
 
-func seriesKeySize(key, field []byte) int {
-	// 4 is the length of the tsm1.fieldKeySeparator constant.  It's inlined here to avoid a circular
-	// dependency.
-	return len(key) + 4 + len(field)
+func seriesKeySizeV1(key, field []byte) int {
+	return len(key) + len("#!~#") + len(field)
+}
+
+func seriesKeySizeV2(key, mm, field []byte) int {
+	return len(mm) + len(",_f=") + len(field) + len(",_m=") + len(key) + len("#!~#") + len(field)
 }
 
 // NewPointFromBytes returns a new Point from a marshalled Point.
@@ -1582,10 +1622,12 @@ func walkTags(buf []byte, fn func(key, value []byte) bool) {
 
 // walkFields walks each field key and value via fn.  If fn returns false, the iteration
 // is stopped.  The values are the raw byte slices and not the converted types.
-func walkFields(buf []byte, fn func(key, value []byte) bool) error {
+func walkFields(buf []byte, fn func(key, value, data []byte) bool) error {
 	var i int
 	var key, val []byte
 	for len(buf) > 0 {
+		data := buf
+
 		i, key = scanTo(buf, 0, '=')
 		if i > len(buf)-2 {
 			return fmt.Errorf("invalid value: field-key=%s", key)
@@ -1593,7 +1635,7 @@ func walkFields(buf []byte, fn func(key, value []byte) bool) error {
 		buf = buf[i+1:]
 		i, val = scanFieldValue(buf, 0)
 		buf = buf[i:]
-		if !fn(key, val) {
+		if !fn(key, val, data[:len(data)-len(buf)]) {
 			break
 		}
 

@@ -150,7 +150,7 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 		t.Fatal("nothing written to cache, so should not compact")
 	}
 
-	if err := e.WritePointsString("m,k=v f=3i"); err != nil {
+	if err := e.WritePointsString("mm", "m,k=v f=3i"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,7 +234,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 		e := MustOpenEngine()
 		pp := make([]models.Point, 0, sz)
 		for i := 0; i < sz; i++ {
-			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i), "mm")
 			pp = append(pp, p)
 		}
 
@@ -259,7 +259,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 		cpus := runtime.GOMAXPROCS(0)
 		pp := make([]models.Point, 0, sz*cpus)
 		for i := 0; i < sz*cpus; i++ {
-			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i))
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i), "mm")
 			pp = append(pp, p)
 		}
 
@@ -420,8 +420,8 @@ func (e *Engine) AddSeries(name string, tags map[string]string) error {
 
 // WritePointsString calls WritePointsString on the underlying engine, but also
 // adds the associated series to the index.
-func (e *Engine) WritePointsString(ptstr ...string) error {
-	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"))
+func (e *Engine) WritePointsString(mm string, ptstr ...string) error {
+	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"), mm)
 	if err != nil {
 		return err
 	}
@@ -494,8 +494,8 @@ func (f *SeriesFile) Close() {
 }
 
 // MustParsePointsString parses points from a string. Panic on error.
-func MustParsePointsString(buf string) []models.Point {
-	a, err := models.ParsePointsString(buf)
+func MustParsePointsString(buf, mm string) []models.Point {
+	a, err := models.ParsePointsString(buf, mm)
 	if err != nil {
 		panic(err)
 	}
@@ -503,7 +503,7 @@ func MustParsePointsString(buf string) []models.Point {
 }
 
 // MustParsePointString parses the first point from a string. Panic on error.
-func MustParsePointString(buf string) models.Point { return MustParsePointsString(buf)[0] }
+func MustParsePointString(buf, mm string) models.Point { return MustParsePointsString(buf, mm)[0] }
 
 type mockPlanner struct{}
 

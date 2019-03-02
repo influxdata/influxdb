@@ -10,14 +10,14 @@ import (
 
 func TestEngine_DeleteBucket(t *testing.T) {
 	// Create a few points.
-	p1 := MustParsePointString("cpu,host=0 value=1.1 6")
-	p2 := MustParsePointString("cpu,host=A value=1.2 2")
-	p3 := MustParsePointString("cpu,host=A value=1.3 3")
-	p4 := MustParsePointString("cpu,host=B value=1.3 4")
-	p5 := MustParsePointString("cpu,host=B value=1.3 5")
-	p6 := MustParsePointString("cpu,host=C value=1.3 1")
-	p7 := MustParsePointString("mem,host=C value=1.3 1")
-	p8 := MustParsePointString("disk,host=C value=1.3 1")
+	p1 := MustParsePointString("cpu,host=0 value=1.1 6", "mm0")
+	p2 := MustParsePointString("cpu,host=A value=1.2 2", "mm0")
+	p3 := MustParsePointString("cpu,host=A value=1.3 3", "mm0")
+	p4 := MustParsePointString("cpu,host=B value=1.3 4", "mm0")
+	p5 := MustParsePointString("cpu,host=B value=1.3 5", "mm0")
+	p6 := MustParsePointString("cpu,host=C value=1.3 1", "mm0")
+	p7 := MustParsePointString("mem,host=C value=1.3 1", "mm1")
+	p8 := MustParsePointString("disk,host=C value=1.3 1", "mm2")
 
 	e, err := NewEngine()
 	if err != nil {
@@ -44,7 +44,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}
 
-	if err := e.DeleteBucketRange([]byte("cpu"), 0, 3); err != nil {
+	if err := e.DeleteBucketRange([]byte("mm0"), 0, 3); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -54,17 +54,17 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	}
 
 	exp := map[string]byte{
-		"cpu,host=0#!~#value":  0,
-		"cpu,host=B#!~#value":  0,
-		"disk,host=C#!~#value": 0,
-		"mem,host=C#!~#value":  0,
+		"mm0,_f=value,_m=cpu,host=0#!~#value":  0,
+		"mm0,_f=value,_m=cpu,host=B#!~#value":  0,
+		"mm1,_f=value,_m=mem,host=C#!~#value":  0,
+		"mm2,_f=value,_m=disk,host=C#!~#value": 0,
 	}
 	if !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("unexpected series in file store: %v != %v", keys, exp)
 	}
 
 	// Check that the series still exists in the index
-	iter, err := e.index.MeasurementSeriesIDIterator([]byte("cpu"))
+	iter, err := e.index.MeasurementSeriesIDIterator([]byte("mm0"))
 	if err != nil {
 		t.Fatalf("iterator error: %v", err)
 	}
@@ -80,17 +80,17 @@ func TestEngine_DeleteBucket(t *testing.T) {
 
 	// Lookup series.
 	name, tags := e.sfile.Series(elem.SeriesID)
-	if got, exp := name, []byte("cpu"); !bytes.Equal(got, exp) {
+	if got, exp := name, []byte("mm0"); !bytes.Equal(got, exp) {
 		t.Fatalf("series mismatch: got %s, exp %s", got, exp)
 	}
 
-	if !tags.Equal(models.NewTags(map[string]string{"host": "0"})) && !tags.Equal(models.NewTags(map[string]string{"host": "B"})) {
+	if !tags.Equal(models.NewTags(map[string]string{"_f": "value", "_m": "cpu", "host": "0"})) && !tags.Equal(models.NewTags(map[string]string{"host": "B"})) {
 		t.Fatalf(`series mismatch: got %s, exp either "host=0" or "host=B"`, tags)
 	}
 	iter.Close()
 
 	// Deleting remaining series should remove them from the series.
-	if err := e.DeleteBucketRange([]byte("cpu"), 0, 9); err != nil {
+	if err := e.DeleteBucketRange([]byte("mm0"), 0, 9); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -100,14 +100,14 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	}
 
 	exp = map[string]byte{
-		"disk,host=C#!~#value": 0,
-		"mem,host=C#!~#value":  0,
+		"mm1,_f=value,_m=mem,host=C#!~#value":  0,
+		"mm2,_f=value,_m=disk,host=C#!~#value": 0,
 	}
 	if !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("unexpected series in file store: %v != %v", keys, exp)
 	}
 
-	if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
+	if iter, err = e.index.MeasurementSeriesIDIterator([]byte("mm0")); err != nil {
 		t.Fatalf("iterator error: %v", err)
 	}
 	if iter == nil {

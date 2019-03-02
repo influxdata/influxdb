@@ -69,7 +69,7 @@ describe('Collectors', () => {
       })
     })
 
-    it('can delete a telegraf config', () => {
+    it.skip('can delete a telegraf config', () => {
       const telegrafConfigName = 'New Config'
       const description = 'Config Description'
 

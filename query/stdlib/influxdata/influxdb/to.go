@@ -579,16 +579,32 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 				measurementStats[measurementName].Update(mstats)
 			}
 
-			pt, err := models.NewPoint(measurementName, tags, fields, pointTime)
-			if err != nil {
-				return err
+			name := tsdb.EncodeNameString(*orgID, *bucketID)
+
+			fieldNames := make([]string, 0, len(fields))
+			for k := range fields {
+				fieldNames = append(fieldNames, k)
 			}
-			points = append(points, pt)
+			sort.Strings(fieldNames)
+
+			for _, k := range fieldNames {
+				v := fields[k]
+				pointTags := append(models.Tags{
+					{Key: []byte("_f"), Value: []byte(k)},
+					{Key: []byte("_m"), Value: []byte(measurementName)},
+				}, tags...)
+
+				pt, err := models.NewPoint(name, pointTags, models.Fields{k: v}, pointTime)
+				if err != nil {
+					return err
+				}
+				points = append(points, pt)
+			}
+
 			if err := execute.AppendRecord(i, er, builder); err != nil {
 				return err
 			}
 		}
-		points, err = tsdb.ExplodePoints(*orgID, *bucketID, points)
 		return d.PointsWriter.WritePoints(context.TODO(), points)
 	})
 }

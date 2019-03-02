@@ -42,6 +42,7 @@ import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
 import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
 import OrgTasksIndex from 'src/organizations/containers/OrgTasksIndex'
 import OrgTaskExportOverlay from 'src/organizations/components/OrgTaskExportOverlay'
+import OrgTaskImportOverlay from 'src/organizations/components/OrgTaskImportOverlay'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -108,11 +109,6 @@ class Root extends PureComponent {
                         <Route path="organizations">
                           <IndexRoute component={OrganizationsIndex} />
                           <Route path=":orgID">
-                            <Route path="tasks/new" component={OrgTaskPage} />
-                            <Route
-                              path="tasks/:id"
-                              component={OrgTaskEditPage}
-                            />
                             <Route path="buckets" component={OrgBucketIndex} />
                             <Route
                               path="dashboards"
@@ -133,10 +129,19 @@ class Root extends PureComponent {
                             />
                             <Route path="tasks" component={OrgTasksIndex}>
                               <Route
+                                path="import"
+                                component={OrgTaskImportOverlay}
+                              />
+                              <Route
                                 path=":id/export"
                                 component={OrgTaskExportOverlay}
                               />
                             </Route>
+                            <Route path="tasks/new" component={OrgTaskPage} />
+                            <Route
+                              path="tasks/:id"
+                              component={OrgTaskEditPage}
+                            />
                           </Route>
                         </Route>
                         <Route path="tasks">
