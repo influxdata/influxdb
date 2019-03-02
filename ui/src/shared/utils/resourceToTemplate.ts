@@ -7,7 +7,38 @@ export enum TemplateType {
   Task = 'task',
 }
 
-const blankTemplate = {meta: {version: '0.1.0'}, data: [], included: []}
+interface KeyValuePairs {
+  [key: string]: any
+}
+
+export interface Template {
+  meta: TemplateMeta
+  data: TemplateData[]
+  included?: TemplateIncluded[]
+}
+
+interface TemplateMeta extends KeyValuePairs {
+  name: string
+}
+
+interface TemplateData {
+  type: TemplateType
+  attributes: KeyValuePairs
+  relationships?: {[key in TemplateType]?: {data: RelationshipDataItem[]}}
+}
+
+export interface RelationshipDataItem {
+  type: TemplateType
+  id: string
+}
+
+interface TemplateIncluded {
+  type: TemplateType
+  id: string
+  attributes: KeyValuePairs
+}
+
+const blankTemplate = {meta: {version: '0.1.0'}, data: [{}], included: []}
 
 const blankTaskTemplate = {
   ...blankTemplate,
@@ -24,10 +55,10 @@ const blankTaskTemplate = {
       },
     ],
   },
-  data: [...blankTemplate.data, {type: TemplateType.Task}],
+  data: [{...blankTemplate.data[0], type: TemplateType.Task}],
 }
 
-const labelToRelationship = (l: Label) => {
+const labelToRelationship = (l: Label): RelationshipDataItem => {
   return {type: TemplateType.Label, id: l.id}
 }
 
@@ -35,6 +66,7 @@ const labelToIncluded = (l: Label) => {
   return {
     type: TemplateType.Label,
     id: l.id,
+
     attributes: {
       name: l.name,
       properties: l.properties,
@@ -45,7 +77,7 @@ const labelToIncluded = (l: Label) => {
 export const taskToTemplate = (
   task: Task,
   baseTemplate = blankTaskTemplate
-) => {
+): Template => {
   const taskName = _.get(task, 'name', '')
   const templateName = `${taskName}-Template`
 
@@ -68,13 +100,15 @@ export const taskToTemplate = (
       name: templateName,
       description: `template created from task: ${taskName}`,
     },
-    data: {
-      ...baseTemplate.data,
-      attributes: taskAttributes,
-      relationships: {
-        [TemplateType.Label]: {data: relationshipsLabels},
+    data: [
+      {
+        ...baseTemplate.data[0],
+        attributes: taskAttributes,
+        relationships: {
+          [TemplateType.Label]: {data: relationshipsLabels},
+        },
       },
-    },
+    ],
     included: [...baseTemplate.included, ...includedLabels],
   }
 
