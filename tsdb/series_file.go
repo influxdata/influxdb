@@ -92,7 +92,7 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 		return errors.New("series file already opened")
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "SeriesFile.Open")
+	span, _ := opentracing.StartSpanFromContext(ctx, "SeriesFile.Open")
 	defer span.Finish()
 
 	_, logEnd := logger.NewOperation(f.Logger, "Opening Series File", "series_file_open", zap.String("path", f.path))

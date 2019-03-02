@@ -3034,8 +3034,8 @@ func TestDefaultParseFileName(t *testing.T) {
 		expectedSequence:   0,
 		expectError:        true,
 	}, {
-		filename:           "00000000000000a-00000000a.tsm",
-		expectError:        true,
+		filename:    "00000000000000a-00000000a.tsm",
+		expectError: true,
 	}, {
 		filename:           "000000000000000-000000000.tsm",
 		expectedGeneration: 0,

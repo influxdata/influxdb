@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	DefaultRetentionInterval   = 1 * time.Hour
-	DefaultValidateKeys        = false
+	DefaultRetentionInterval = 1 * time.Hour
+	DefaultValidateKeys      = false
 
 	DefaultSeriesFileDirectoryName = "_series"
 	DefaultIndexDirectoryName      = "index"

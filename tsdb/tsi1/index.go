@@ -217,7 +217,7 @@ func (i *Index) Open(ctx context.Context) error {
 		return errors.New("index already open")
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Index.Open")
+	span, _ := opentracing.StartSpanFromContext(ctx, "Index.Open")
 	defer span.Finish()
 
 	// Ensure root exists.

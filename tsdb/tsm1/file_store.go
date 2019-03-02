@@ -517,7 +517,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 		return errors.New("cannot open FileStore without an OpenLimiter (is EngineOptions.OpenLimiter set?)")
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FileStore.Open")
+	span, _ := opentracing.StartSpanFromContext(ctx, "FileStore.Open")
 	defer span.Finish()
 
 	// find the current max ID for temp directories
@@ -1104,7 +1104,7 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
 func (f *FileStore) CreateSnapshot(ctx context.Context) (string, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FileStore.CreateSnapshot")
+	span, _ := opentracing.StartSpanFromContext(ctx, "FileStore.CreateSnapshot")
 	defer span.Finish()
 
 	span.LogKV("dir", f.dir)

@@ -450,7 +450,7 @@ func (e *Engine) writePointsLocked(collection *tsdb.SeriesCollection, values map
 // AcquireSegments closes the current WAL segment, gets the set of all the currently closed
 // segments, and calls the callback. It does all of this under the lock on the engine.
 func (e *Engine) AcquireSegments(ctx context.Context, fn func(segs []string) error) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Engine.AcquireSegments")
+	span, _ := opentracing.StartSpanFromContext(ctx, "Engine.AcquireSegments")
 	defer span.Finish()
 
 	e.mu.Lock()

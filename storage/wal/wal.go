@@ -170,7 +170,7 @@ func (l *WAL) Open(ctx context.Context) error {
 		return nil
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "WAL.Open")
+	span, _ := opentracing.StartSpanFromContext(ctx, "WAL.Open")
 	defer span.Finish()
 
 	span.LogKV("segment_size", l.SegmentSize,
@@ -370,7 +370,8 @@ func (l *WAL) Remove(ctx context.Context, files []string) error {
 		return nil
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "WAL.Remove")
+	span, _ := opentracing.StartSpanFromContext(ctx, "WAL.Remove")
+	defer span.Finish()
 
 	l.mu.Lock()
 	defer l.mu.Unlock()

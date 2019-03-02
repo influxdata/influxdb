@@ -122,10 +122,10 @@ type Engine struct {
 	snapDone chan struct{}   // channel to signal snapshot compactions to stop
 	snapWG   *sync.WaitGroup // waitgroup for running snapshot compactions
 
-	path         string
-	sfile        *tsdb.SeriesFile
-	sfileref     *lifecycle.Reference
-	logger       *zap.Logger // Logger to be used for important messages
+	path     string
+	sfile    *tsdb.SeriesFile
+	sfileref *lifecycle.Reference
+	logger   *zap.Logger // Logger to be used for important messages
 
 	Cache          *Cache
 	Compactor      *Compactor

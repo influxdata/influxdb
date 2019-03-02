@@ -216,8 +216,8 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 			{
 				DestP:   &m.tracingType,
 				Flag:    "tracing-type",
-				Default: LogTracing,
-				Desc:    fmt.Sprintf("supported tracing types are %s", LogTracing),
+				Default: "",
+				Desc:    fmt.Sprintf("supported tracing types are %s, %s", LogTracing, JaegerTracing),
 			},
 			{
 				DestP:   &m.httpBindAddress,
