@@ -1,4 +1,5 @@
 import {Doc} from 'codemirror'
+import {Organization} from '@influxdata/influx'
 import {FROM, RANGE, MEAN} from '../../src/shared/constants/fluxFunctions'
 
 interface HTMLElementCM extends HTMLElement {
@@ -13,7 +14,9 @@ describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.signin()
+    cy.signin().then(({body}) => {
+      cy.wrap(body.org).as('org')
+    })
 
     cy.fixture('routes').then(({explorer}) => {
       cy.visit(explorer)
@@ -104,8 +107,19 @@ describe('DataExplorer', () => {
   })
 
   describe('query builder', () => {
-    it('show an empty state for tag keys when the bucket is empty', () => {
+    it('shows an empty state for tag keys when the bucket is empty', () => {
       cy.getByTestID('empty-tag-keys').should('exist')
+    })
+
+    it('shows the correct number of buckets in the buckets dropdown', () => {
+      cy.get<Organization>('@org').then(({id, name}) => {
+        cy.createBucket(id, name, 'newBucket')
+      })
+
+      cy.getByTestID('buckets--button').click()
+
+      cy.getByTestID('dropdown--item defbuck').should('exist')
+      cy.getByTestID('dropdown--item newBucket').should('exist')
     })
   })
 
