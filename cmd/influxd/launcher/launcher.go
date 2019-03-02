@@ -44,7 +44,7 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -55,6 +55,9 @@ const (
 	BoltStore = "bolt"
 	// MemoryStore stores all REST resources in memory (useful for testing).
 	MemoryStore = "memory"
+
+	// LogTracing enables tracing via zap logs
+	LogTracing = "log"
 )
 
 // Launcher represents the main program execution.
@@ -68,6 +71,7 @@ type Launcher struct {
 	testing    bool
 
 	logLevel          string
+	tracingType       string
 	reportingDisabled bool
 
 	httpBindAddress string
@@ -200,6 +204,12 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Desc:    "supported log levels are debug, info, and error",
 			},
 			{
+				DestP:   &m.tracingType,
+				Flag:    "tracing-type",
+				Default: LogTracing,
+				Desc:    fmt.Sprintf("supported tracing types are %s", LogTracing),
+			},
+			{
 				DestP:   &m.httpBindAddress,
 				Flag:    "http-bind-address",
 				Default: ":9999",
@@ -285,11 +295,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		zap.String("build_date", m.BuildInfo.Date),
 	)
 
-	// set tracing
-	tracer := new(pzap.Tracer)
-	tracer.Logger = m.logger
-	tracer.IDGenerator = snowflake.NewIDGenerator()
-	opentracing.SetGlobalTracer(tracer)
+	switch m.tracingType {
+	case LogTracing:
+		m.logger.Info("tracing via zap logging")
+		tracer := new(pzap.Tracer)
+		tracer.Logger = m.logger
+		tracer.IDGenerator = snowflake.NewIDGenerator()
+		opentracing.SetGlobalTracer(tracer)
+	}
 
 	m.boltClient = bolt.NewClient()
 	m.boltClient.Path = m.boltPath
