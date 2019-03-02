@@ -4,12 +4,15 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import ExportOverlay from 'src/shared/components/ExportOverlay'
 
+// Utils
+import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
+
 // APIs
 import {client} from 'src/utils/api'
-import {Task} from '@influxdata/influx'
+import {Task} from 'src/types/v2'
 
 interface State {
-  task: Task
+  taskTemplate: Record<string, any>
 }
 
 interface Props extends WithRouterProps {
@@ -17,26 +20,28 @@ interface Props extends WithRouterProps {
 }
 
 class OrgTaskExportOverlay extends PureComponent<Props, State> {
-  public state = {task: null}
+  public state = {taskTemplate: null}
+
   public async componentDidMount() {
     const {
       params: {id},
     } = this.props
 
-    const task = await client.tasks.get(id)
+    const task = (await client.tasks.get(id)) as Task
+    const taskTemplate = taskToTemplate(task)
 
-    this.setState({task})
+    this.setState({taskTemplate})
   }
 
   public render() {
-    const {task} = this.state
-    if (!task) {
+    const {taskTemplate} = this.state
+    if (!taskTemplate) {
       return null
     }
     return (
       <ExportOverlay
         resourceName="Task"
-        resource={task}
+        resource={taskTemplate}
         onDismissOverlay={this.onDismiss}
       />
     )
