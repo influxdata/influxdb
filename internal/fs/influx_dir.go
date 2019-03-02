@@ -3,7 +3,6 @@ package fs
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 )
@@ -12,10 +11,7 @@ import (
 func InfluxDir() (string, error) {
 	var dir string
 	// By default, store meta and data files in current users home directory
-	u, err := user.Current()
-	if err == nil {
-		dir = u.HomeDir
-	} else if home := os.Getenv("HOME"); home != "" {
+	if home, err := os.UserHomeDir(); err == nil {
 		dir = home
 	} else {
 		wd, err := os.Getwd()

@@ -43,7 +43,7 @@ We have nightly and weekly versioned Docker images, Debian packages, RPM package
 
 ## Building From Source
 
-This project requires Go 1.11 and Go module support.
+This project requires Go 1.12 and Go module support.
 
 Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
 
