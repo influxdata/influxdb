@@ -34,10 +34,11 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 	ob := EncodeName(org, bucket)
 	name := string(ob[:])
 
-	tags := make(models.Tags, 2)
+	tags := make(models.Tags, 1)
 	for _, pt := range points {
-		tags = tags[:2]
-		tags[1] = models.NewTag(models.MeasurementTagKeyBytes, pt.Name())
+		tags = tags[:1] // reset buffer for next point.
+
+		tags[0] = models.NewTag(models.MeasurementTagKeyBytes, pt.Name())
 		pt.ForEachTag(func(k, v []byte) bool {
 			tags = append(tags, models.NewTag(k, v))
 			return true
@@ -45,8 +46,10 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 
 		t := pt.Time()
 		itr := pt.FieldIterator()
+		tags = append(tags, models.Tag{}) // Make room for
+
 		for itr.Next() {
-			tags[0] = models.NewTag(models.FieldKeyTagKeyBytes, itr.FieldKey())
+			tags[len(tags)-1] = models.NewTag(models.FieldKeyTagKeyBytes, itr.FieldKey())
 
 			var err error
 			field := make(models.Fields, 1)
