@@ -41,5 +41,20 @@ export const labelsReducer = (
 
         return
       }
+
+      case 'EDIT_LABEL': {
+        const {label} = action.payload
+        const list = draftState.list
+
+        draftState.list = list.map(l => {
+          if (l.id === label.id) {
+            return label
+          }
+
+          return l
+        })
+
+        return
+      }
     }
   })

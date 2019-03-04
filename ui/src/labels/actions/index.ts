@@ -11,7 +11,7 @@ import {Dispatch} from 'redux-thunk'
 import {notify} from 'src/shared/actions/notifications'
 import {getLabelsFailed, createLabelFailed} from 'src/shared/copy/notifications'
 
-export type Action = SetLabels | AddLabel
+export type Action = SetLabels | AddLabel | EditLabel
 
 interface SetLabels {
   type: 'SET_LABELS'
@@ -38,6 +38,16 @@ interface AddLabel {
 
 export const addLabel = (label: Label): AddLabel => ({
   type: 'ADD_LABEL',
+  payload: {label},
+})
+
+interface EditLabel {
+  type: 'EDIT_LABEL'
+  payload: {label}
+}
+
+export const editLabel = (label: Label): EditLabel => ({
+  type: 'EDIT_LABEL',
   payload: {label},
 })
 
