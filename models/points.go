@@ -18,6 +18,19 @@ import (
 	"github.com/influxdata/influxdb/pkg/escape"
 )
 
+// Values used to store the field key and measurement name as special internal
+// tags.
+const (
+	FieldKeyTagKey    = "\xff"
+	MeasurementTagKey = "\x00"
+)
+
+// Predefined byte representations of special tag keys.
+var (
+	FieldKeyTagKeyBytes    = []byte(FieldKeyTagKey)
+	MeasurementTagKeyBytes = []byte(MeasurementTagKey)
+)
+
 type escapeSet struct {
 	k   [1]byte
 	esc [2]byte

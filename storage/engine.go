@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxdb/tsdb/value"
 	"github.com/influxdata/influxql"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -363,7 +364,7 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 	for iter := collection.Iterator(); iter.Next(); {
 		tags := iter.Tags()
 
-		if tags.Len() > 0 && bytes.Equal(tags[0].Key, tsdb.FieldKeyTagKeyBytes) && bytes.Equal(tags[0].Value, timeBytes) {
+		if tags.Len() > 0 && bytes.Equal(tags[0].Key, models.FieldKeyTagKeyBytes) && bytes.Equal(tags[0].Value, timeBytes) {
 			// Field key "time" is invalid
 			if collection.Reason == "" {
 				collection.Reason = fmt.Sprintf("invalid field key: input field %q is invalid", timeBytes)

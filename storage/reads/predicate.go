@@ -8,8 +8,8 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"
 )
@@ -261,14 +261,14 @@ func toStoragePredicateHelper(n semantic.Expression, objectName string) (*dataty
 			return &datatypes.Node{
 				NodeType: datatypes.NodeTypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
-					TagRefValue: tsdb.FieldKeyTagKey,
+					TagRefValue: models.FieldKeyTagKey,
 				},
 			}, nil
 		case measurementKey:
 			return &datatypes.Node{
 				NodeType: datatypes.NodeTypeTagRef,
 				Value: &datatypes.Node_TagRefValue{
-					TagRefValue: tsdb.MeasurementTagKey,
+					TagRefValue: models.MeasurementTagKey,
 				},
 			}, nil
 		case valueKey:

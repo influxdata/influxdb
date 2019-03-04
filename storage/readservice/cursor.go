@@ -94,6 +94,7 @@ func copyTags(dst, src models.Tags) models.Tags {
 	return dst
 }
 
+// Next emits a series row containing a series key and possible predicate on that series.
 func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 	if c.eof {
 		return nil
@@ -114,7 +115,7 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 	//TODO(edd): check this.
 	c.row.SeriesTags = copyTags(c.row.SeriesTags, sr.Tags)
 	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
-	c.row.Field = string(c.row.Tags.Get(tsdb.FieldKeyTagKeyBytes))
+	c.row.Field = string(c.row.Tags.Get(models.FieldKeyTagKeyBytes))
 
 	normalizeTags(c.row.Tags)
 

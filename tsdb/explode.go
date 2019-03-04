@@ -7,17 +7,6 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
-// Values used to store the field key and measurement name as tags.
-const (
-	FieldKeyTagKey    = "_f"
-	MeasurementTagKey = "_m"
-)
-
-var (
-	FieldKeyTagKeyBytes    = []byte(FieldKeyTagKey)
-	MeasurementTagKeyBytes = []byte(MeasurementTagKey)
-)
-
 // DecodeName converts tsdb internal serialization back to organization and bucket IDs.
 func DecodeName(name [16]byte) (org, bucket platform.ID) {
 	org = platform.ID(binary.BigEndian.Uint64(name[0:8]))
@@ -48,7 +37,7 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 	tags := make(models.Tags, 2)
 	for _, pt := range points {
 		tags = tags[:2]
-		tags[1] = models.NewTag(MeasurementTagKeyBytes, pt.Name())
+		tags[1] = models.NewTag(models.MeasurementTagKeyBytes, pt.Name())
 		pt.ForEachTag(func(k, v []byte) bool {
 			tags = append(tags, models.NewTag(k, v))
 			return true
@@ -57,7 +46,7 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 		t := pt.Time()
 		itr := pt.FieldIterator()
 		for itr.Next() {
-			tags[0] = models.NewTag(FieldKeyTagKeyBytes, itr.FieldKey())
+			tags[0] = models.NewTag(models.FieldKeyTagKeyBytes, itr.FieldKey())
 
 			var err error
 			field := make(models.Fields, 1)
