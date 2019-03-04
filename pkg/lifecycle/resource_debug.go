@@ -1,8 +1,7 @@
-// +build debug_ref
-
 package lifecycle
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,12 +12,18 @@ import (
 	"syscall"
 )
 
+var resourceDebugEnabled = os.Getenv("INFLUXDB_EXP_RESOURCE_DEBUG") != ""
+
 // When in debug mode, we associate each reference an id and with that id the
 // stack trace that created it. We can't directly refer to the reference here
 // because we also associate a finalizer to print to stderr if a reference is
 // leaked, including where it came from if possible.
 
 func init() {
+	if !resourceDebugEnabled {
+		return
+	}
+
 	// This goroutine will dump all live references and where they were created
 	// when SIGUSR2 is sent to the process.
 	go func() {
@@ -40,6 +45,10 @@ func init() {
 // resourceClosed returns an error stating that some resource is closed with the
 // stack trace of the caller embedded.
 func resourceClosed() error {
+	if !resourceDebugEnabled {
+		return errors.New("resource closed")
+	}
+
 	var buf [4096]byte
 	return fmt.Errorf("resource closed:\n%s", buf[:runtime.Stack(buf[:], false)])
 }
@@ -57,6 +66,10 @@ var live = &liveReferences{
 
 // finishId informs the liveReferences that the id is no longer in use.
 func (l *liveReferences) untrack(r *Reference) {
+	if !resourceDebugEnabled {
+		return
+	}
+
 	l.mu.Lock()
 	delete(l.live, r.id)
 	runtime.SetFinalizer(r, nil)
@@ -66,6 +79,10 @@ func (l *liveReferences) untrack(r *Reference) {
 // withFinalizer associates a finalizer with the Reference that will cause it
 // to print a leak message if it is not closed before it is garbage collected.
 func (l *liveReferences) track(r *Reference) *Reference {
+	if !resourceDebugEnabled {
+		return r
+	}
+
 	var buf [32]uintptr
 	pcs := append([]uintptr(nil), buf[:runtime.Callers(3, buf[:])]...)
 
@@ -85,6 +102,10 @@ func (l *liveReferences) track(r *Reference) *Reference {
 // leaked prints a loud message on stderr that the Reference was leaked and
 // what was responsible for calling it.
 func (l *liveReferences) leaked(r *Reference) {
+	if !resourceDebugEnabled {
+		return
+	}
+
 	l.mu.Lock()
 	pcs, ok := l.live[r.id]
 	l.mu.Unlock()
