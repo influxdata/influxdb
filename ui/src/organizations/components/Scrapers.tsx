@@ -12,9 +12,11 @@ import {
   ComponentColor,
   IconFont,
   ComponentSize,
+  ComponentStatus,
 } from '@influxdata/clockface'
 import {EmptyState, Input, InputType, Tabs} from 'src/clockface'
 import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
+import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -75,6 +77,7 @@ class Scrapers extends PureComponent<Props, State> {
           />
           {this.createScraperButton}
         </Tabs.TabContentsHeader>
+        <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
         <FilterList<ScraperTargetResponse>
           searchTerm={searchTerm}
           searchKeys={['name', 'url']}
@@ -89,22 +92,35 @@ class Scrapers extends PureComponent<Props, State> {
             />
           )}
         </FilterList>
-        <CreateScraperOverlay
-          visible={this.isOverlayVisible}
-          buckets={this.buckets}
-          onDismiss={this.handleDismissOverlay}
-        />
+        {this.createScraperOverlay}
       </>
     )
   }
 
-  private get buckets(): Bucket[] {
+  private get hasNoBuckets(): boolean {
     const {buckets} = this.props
 
     if (!buckets || !buckets.length) {
-      return []
+      return true
     }
-    return buckets
+
+    return false
+  }
+
+  private get createScraperOverlay(): JSX.Element {
+    const {buckets} = this.props
+
+    if (this.hasNoBuckets) {
+      return
+    }
+
+    return (
+      <CreateScraperOverlay
+        visible={this.isOverlayVisible}
+        buckets={buckets}
+        onDismiss={this.handleDismissOverlay}
+      />
+    )
   }
 
   private get isOverlayVisible(): boolean {
@@ -121,12 +137,22 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private get createScraperButton(): JSX.Element {
+    let status = ComponentStatus.Default
+    let titleText = 'Create a new Scraper'
+
+    if (this.hasNoBuckets) {
+      status = ComponentStatus.Disabled
+      titleText = 'You need at least 1 bucket in order to create a scraper'
+    }
+
     return (
       <Button
         text="Create Scraper"
         icon={IconFont.Plus}
         color={ComponentColor.Primary}
         onClick={this.handleShowOverlay}
+        status={status}
+        titleText={titleText}
       />
     )
   }

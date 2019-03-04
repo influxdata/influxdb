@@ -48,14 +48,18 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
+    const bucketID =
+      this.props.overrideBucketIDSelection || this.props.buckets[0].id
+
+    const orgID = this.props.buckets.find(b => b.id === bucketID).organizationID
+
     this.state = {
       scraper: {
         name: 'My Cool Scraper',
         type: ScraperTargetRequest.TypeEnum.Prometheus,
         url: 'http://localhost:9999/metrics',
-        orgID: this.props.buckets[0].organizationID,
-        bucketID:
-          this.props.overrideBucketIDSelection || this.props.buckets[0].id,
+        orgID,
+        bucketID,
       },
     }
   }
@@ -66,9 +70,14 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
       this.props.visible === true &&
       this.props.overrideBucketIDSelection
     ) {
+      const bucketID = this.props.overrideBucketIDSelection
+      const orgID = this.props.buckets.find(b => b.id === bucketID)
+        .organizationID
+
       const scraper = {
         ...this.state.scraper,
-        bucketID: this.props.overrideBucketIDSelection,
+        bucketID,
+        orgID,
       }
       this.setState({scraper})
     }
@@ -76,7 +85,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
 
   public render() {
     const {scraper} = this.state
-    const {onDismiss, buckets, visible} = this.props
+    const {onDismiss, visible, buckets} = this.props
 
     return (
       <OverlayTechnology visible={visible}>

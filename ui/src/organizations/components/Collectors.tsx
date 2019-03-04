@@ -14,11 +14,12 @@ import {
   IconFont,
   ComponentSize,
   Columns,
+  ComponentStatus,
 } from '@influxdata/clockface'
 import {EmptyState, Grid, Input, InputType, Tabs} from 'src/clockface'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
-
+import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
 // APIS
 import {client} from 'src/utils/api'
 
@@ -87,7 +88,7 @@ export class Collectors extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {collectors, buckets} = this.props
+    const {collectors} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -107,6 +108,10 @@ export class Collectors extends PureComponent<Props, State> {
         <Grid>
           <Grid.Row>
             <Grid.Column widthSM={Columns.Twelve}>
+              <NoBucketsWarning
+                visible={this.hasNoBuckets}
+                resourceName="Telegraf Configurations"
+              />
               <FilterList<Telegraf>
                 searchTerm={searchTerm}
                 searchKeys={['plugins.0.config.bucket', 'labels[].name']}
@@ -135,12 +140,7 @@ export class Collectors extends PureComponent<Props, State> {
             </Grid.Column>
           </Grid.Row>
         </Grid>
-        <CollectorsWizard
-          visible={this.isDataLoaderVisible}
-          onCompleteSetup={this.handleDismissDataLoaders}
-          startingStep={0}
-          buckets={buckets}
-        />
+        {this.collectorsWizard}
         <TelegrafInstructionsOverlay
           visible={this.isInstructionsVisible}
           collector={this.selectedCollector}
@@ -151,6 +151,33 @@ export class Collectors extends PureComponent<Props, State> {
           onDismiss={this.handleCloseTelegrafConfig}
         />
       </>
+    )
+  }
+
+  private get hasNoBuckets(): boolean {
+    const {buckets} = this.props
+
+    if (!buckets || !buckets.length) {
+      return true
+    }
+
+    return false
+  }
+
+  private get collectorsWizard(): JSX.Element {
+    const {buckets} = this.props
+
+    if (this.hasNoBuckets) {
+      return
+    }
+
+    return (
+      <CollectorsWizard
+        visible={this.isDataLoaderVisible}
+        onCompleteSetup={this.handleDismissDataLoaders}
+        startingStep={0}
+        buckets={buckets}
+      />
     )
   }
 
@@ -203,12 +230,23 @@ export class Collectors extends PureComponent<Props, State> {
   }
 
   private get createButton(): JSX.Element {
+    let status = ComponentStatus.Default
+    let titleText = 'Create a new Telegraf Configuration'
+
+    if (this.hasNoBuckets) {
+      status = ComponentStatus.Disabled
+      titleText =
+        'You need at least 1 bucket in order to create a Telegraf Configuration'
+    }
+
     return (
       <Button
         text="Create Configuration"
         icon={IconFont.Plus}
         color={ComponentColor.Primary}
         onClick={this.handleAddCollector}
+        status={status}
+        titleText={titleText}
       />
     )
   }
