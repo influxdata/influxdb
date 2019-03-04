@@ -28,7 +28,7 @@ const setup = (override = {}) => {
 describe('DataLoading.Components.DataLoaderSwitcher', () => {
   describe('if type is empty', () => {
     it('renders empty div', () => {
-      const {wrapper} = setup()
+      const {wrapper} = setup({type: DataLoaderType.Empty})
 
       const emptyDiv = wrapper.find({'data-testid': 'data-loader-empty'})
 
@@ -39,7 +39,7 @@ describe('DataLoading.Components.DataLoaderSwitcher', () => {
 
   describe('if type is scraping', () => {
     it('renders create scraper overlay', () => {
-      const {wrapper} = setup()
+      const {wrapper} = setup({type: DataLoaderType.Scraping})
 
       const overlay = wrapper.find(CreateScraperOverlay)
 
