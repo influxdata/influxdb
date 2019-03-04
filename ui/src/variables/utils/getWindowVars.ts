@@ -60,7 +60,14 @@ export const getWindowVars = async (
 const getAST = async (query: string): Promise<Package> => {
   try {
     const resp = await client.queries.ast(query)
-    return resp
+
+    // TODO: update client Package and remove map
+    return {
+      type: 'Package',
+      path: resp.path,
+      files: resp.files,
+      package: resp._package || '',
+    }
   } catch (e) {
     const message = get(e, 'response.data.error')
 

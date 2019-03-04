@@ -63,7 +63,7 @@ export type EmptyDefaultDashboard = Pick<
   Dashboard,
   Exclude<
     keyof Dashboard,
-    'templates' | 'links' | 'organization' | 'cells' | 'labels'
+    'templates' | 'links' | 'organization' | 'cells' | 'labels' | 'orgID'
   >
 > & {
   cells: NewDefaultCell[]
