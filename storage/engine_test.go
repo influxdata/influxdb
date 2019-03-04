@@ -90,6 +90,35 @@ func TestEngine_TimeTag(t *testing.T) {
 	}
 }
 
+func TestEngine_InvalidTag(t *testing.T) {
+	engine := NewDefaultEngine()
+	defer engine.Close()
+	engine.MustOpen()
+
+	pt := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"\xf2": "cpu"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
+		fmt.Println(pt.String())
+		t.Fatal("expected error: got nil")
+	}
+
+	pt = models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"foo": "bar", string([]byte{0, 255, 188, 233}): "value"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	if err := engine.Write1xPoints([]models.Point{pt}); err == nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestWrite_TimeField(t *testing.T) {
 	engine := NewDefaultEngine()
 	defer engine.Close()

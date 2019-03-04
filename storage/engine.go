@@ -357,40 +357,63 @@ func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator,
 // WritePoints writes the provided points to the engine.
 //
 // The Engine expects all points to have been correctly validated by the caller.
-// WritePoints will however determine if there are any field type conflicts, and
-// return an appropriate error in that case.
+// However, WritePoints will determine if any tag key-pairs are missing, or if
+// there are any field type conflicts.
+//
+// Appropriate errors are returned in those cases.
 func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 	collection, j := tsdb.NewSeriesCollection(points), 0
+
+	// dropPoint should be called whenever there is reason to drop a point from
+	// the batch.
+	dropPoint := func(key []byte, reason string) {
+		if collection.Reason == "" {
+			collection.Reason = reason
+		}
+		collection.Dropped++
+		collection.DroppedKeys = append(collection.DroppedKeys, key)
+	}
+
 	for iter := collection.Iterator(); iter.Next(); {
 		tags := iter.Tags()
 
-		if tags.Len() > 0 && bytes.Equal(tags[0].Key, models.FieldKeyTagKeyBytes) && bytes.Equal(tags[0].Value, timeBytes) {
-			// Field key "time" is invalid
-			if collection.Reason == "" {
-				collection.Reason = fmt.Sprintf("invalid field key: input field %q is invalid", timeBytes)
-			}
-			collection.Dropped++
-			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
+		// Not enough tags present.
+		if tags.Len() < 2 {
+			dropPoint(iter.Key(), fmt.Sprintf("missing required tags: parsed tags: %q", tags))
+			continue
+		}
+
+		// First tag key is not measurement tag.
+		if !bytes.Equal(tags[0].Key, models.MeasurementTagKeyBytes) {
+			fmt.Println(tags[0].Key)
+			dropPoint(iter.Key(), fmt.Sprintf("missing required measurement tag as first tag, got: %q", tags[0].Key))
+			continue
+		}
+
+		fkey, fval := tags[len(tags)-1].Key, tags[len(tags)-1].Value
+
+		// Last tag key is not field tag.
+		if !bytes.Equal(fkey, models.FieldKeyTagKeyBytes) {
+			dropPoint(iter.Key(), fmt.Sprintf("missing required field key tag as last tag, got: %q", tags[0].Key))
+			continue
+		}
+
+		// The value representing the underlying field key is invalid if it's "time".
+		if bytes.Equal(fval, timeBytes) {
+			dropPoint(iter.Key(), fmt.Sprintf("invalid field key: input field %q is invalid", timeBytes))
 			continue
 		}
 
 		// Filter out any tags with key equal to "time": they are invalid.
 		if tags.Get(timeBytes) != nil {
-			if collection.Reason == "" {
-				collection.Reason = fmt.Sprintf("invalid tag key: input tag %q on measurement %q is invalid", timeBytes, iter.Name())
-			}
-			collection.Dropped++
-			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
+			dropPoint(iter.Key(), fmt.Sprintf("invalid tag key: input tag %q on measurement %q is invalid", timeBytes, iter.Name()))
 			continue
 		}
 
-		// Drop any series with invalid unicode characters in the key.
-		if e.config.ValidateKeys && !models.ValidTagTokens(tags) {
-			if collection.Reason == "" {
-				collection.Reason = fmt.Sprintf("key contains invalid unicode: %q", iter.Key())
-			}
-			collection.Dropped++
-			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
+		// Drop any point with invalid unicode characters in any of the tag keys or values.
+		// This will also cover validating the value used to represent the field key.
+		if !models.ValidTagTokens(tags) {
+			dropPoint(iter.Key(), fmt.Sprintf("key contains invalid unicode: %q", iter.Key()))
 			continue
 		}
 
