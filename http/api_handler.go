@@ -30,6 +30,7 @@ type APIHandler struct {
 	QueryHandler         *FluxHandler
 	ProtoHandler         *ProtoHandler
 	WriteHandler         *WriteHandler
+	DocumentHandler      *DocumentHandler
 	SetupHandler         *SetupHandler
 	SessionHandler       *SessionHandler
 	SwaggerHandler       http.HandlerFunc
@@ -72,6 +73,7 @@ type APIBackend struct {
 	ProtoService                    influxdb.ProtoService
 	OrgLookupService                authorizer.OrganizationService
 	ViewService                     influxdb.ViewService
+	DocumentService                 influxdb.DocumentService
 }
 
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
@@ -80,6 +82,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	internalURM := b.UserResourceMappingService
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
+
+	documentBackend := NewDocumentBackend(b)
+	h.DocumentHandler = NewDocumentHandler(documentBackend)
 
 	sessionBackend := NewSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
@@ -284,6 +289,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/protos") {
 		h.ProtoHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/documents") {
+		h.DocumentHandler.ServeHTTP(w, r)
 		return
 	}
 

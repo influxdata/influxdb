@@ -2,12 +2,15 @@ package influxdb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 )
 
 var (
 	// ErrInvalidUserType notes that the provided UserType is invalid
 	ErrInvalidUserType = errors.New("unknown user type")
+	// ErrInvalidMappingType notes that the provided MappingType is invalid
+	ErrInvalidMappingType = errors.New("unknown mapping type")
 	// ErrUserIDRequired notes that the ID was not provided
 	ErrUserIDRequired = errors.New("user id is required")
 	// ErrResourceIDRequired notes that the provided ID was not provided
@@ -36,6 +39,55 @@ func (ut UserType) Valid() (err error) {
 	return err
 }
 
+type MappingType uint8
+
+const (
+	UserMappingType = 0
+	OrgMappingType  = 1
+)
+
+func (mt MappingType) Valid() error {
+	switch mt {
+	case UserMappingType, OrgMappingType:
+		return nil
+	}
+
+	return ErrInvalidMappingType
+}
+
+func (mt MappingType) String() string {
+	switch mt {
+	case UserMappingType:
+		return "user"
+	case OrgMappingType:
+		return "org"
+	}
+
+	return "unknown"
+}
+
+func (mt MappingType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(mt.String())
+}
+
+func (mt *MappingType) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	switch s {
+	case "user":
+		*mt = UserMappingType
+		return nil
+	case "org":
+		*mt = OrgMappingType
+		return nil
+	}
+
+	return ErrInvalidMappingType
+}
+
 // UserResourceMappingService maps the relationships between users and resources.
 type UserResourceMappingService interface {
 	// FindUserResourceMappings returns a list of UserResourceMappings that match filter and the total count of matching mappings.
@@ -52,6 +104,7 @@ type UserResourceMappingService interface {
 type UserResourceMapping struct {
 	UserID       ID           `json:"userID"`
 	UserType     UserType     `json:"userType"`
+	MappingType  MappingType  `json:"mappingType"`
 	ResourceType ResourceType `json:"resourceType"`
 	ResourceID   ID           `json:"resourceID"`
 }
@@ -67,6 +120,10 @@ func (m UserResourceMapping) Validate() error {
 	}
 
 	if err := m.UserType.Valid(); err != nil {
+		return err
+	}
+
+	if err := m.MappingType.Valid(); err != nil {
 		return err
 	}
 

@@ -48,6 +48,10 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
+		if err := s.initializeDocuments(ctx, tx); err != nil {
+			return err
+		}
+
 		if err := s.initializeBuckets(ctx, tx); err != nil {
 			return err
 		}

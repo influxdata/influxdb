@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
 	"path"
+
+	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
@@ -164,6 +165,9 @@ func newGetMembersHandler(b MemberBackend) http.HandlerFunc {
 
 		users := make([]*platform.User, 0, len(mappings))
 		for _, m := range mappings {
+			if m.MappingType == platform.OrgMappingType {
+				continue
+			}
 			user, err := b.UserService.FindUserByID(ctx, m.UserID)
 			if err != nil {
 				EncodeError(ctx, err, w)
