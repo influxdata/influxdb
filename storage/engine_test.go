@@ -132,7 +132,7 @@ func TestEngine_WriteAddNewField(t *testing.T) {
 
 	err := engine.Write1xPoints([]models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	pt = models.MustNewPoint(
@@ -144,7 +144,7 @@ func TestEngine_WriteAddNewField(t *testing.T) {
 
 	err = engine.Write1xPoints([]models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	if got, exp := engine.SeriesCardinality(), int64(2); got != exp {
@@ -166,7 +166,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 
 	err := engine.Write1xPoints([]models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	pt = models.MustNewPoint(
@@ -179,7 +179,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	// Same org, different bucket.
 	err = engine.Write1xPointsWithOrgBucket([]models.Point{pt}, "3131313131313131", "8888888888888888")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	if got, exp := engine.SeriesCardinality(), int64(3); got != exp {
@@ -230,7 +230,7 @@ func TestEngineClose_RemoveIndex(t *testing.T) {
 
 	err := engine.Write1xPoints([]models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 
 	if got, exp := engine.SeriesCardinality(), int64(1); got != exp {
@@ -263,6 +263,30 @@ func TestEngine_WALDisabled(t *testing.T) {
 
 	if err := engine.Write1xPoints([]models.Point{pt}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestEngine_WriteConflictingBatch(t *testing.T) {
+	engine := NewDefaultEngine()
+	defer engine.Close()
+	engine.MustOpen()
+
+	pt1 := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+	pt2 := models.MustNewPoint(
+		"cpu",
+		models.NewTags(map[string]string{"host": "server"}),
+		map[string]interface{}{"value": 2},
+		time.Unix(1, 2),
+	)
+
+	err := engine.Write1xPoints([]models.Point{pt1, pt2})
+	if _, ok := err.(tsdb.PartialWriteError); !ok {
+		t.Fatal("expected partial write error. got:", err)
 	}
 }
 
