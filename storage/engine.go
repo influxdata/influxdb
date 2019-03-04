@@ -385,7 +385,7 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 		}
 
 		// Drop any series with invalid unicode characters in the key.
-		if e.config.ValidateKeys && !models.ValidKeyTokens(string(iter.Name()), tags) {
+		if e.config.ValidateKeys && !models.ValidTagTokens(tags) {
 			if collection.Reason == "" {
 				collection.Reason = fmt.Sprintf("key contains invalid unicode: %q", iter.Key())
 			}
