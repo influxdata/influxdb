@@ -9,7 +9,11 @@ import {Dispatch} from 'redux-thunk'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
-import {getLabelsFailed, createLabelFailed} from 'src/shared/copy/notifications'
+import {
+  getLabelsFailed,
+  createLabelFailed,
+  updateLabelFailed,
+} from 'src/shared/copy/notifications'
 
 export type Action = SetLabels | AddLabel | EditLabel
 
@@ -76,5 +80,18 @@ export const createLabel = (
   } catch (e) {
     console.log(e)
     dispatch(notify(createLabelFailed()))
+  }
+}
+
+export const updateLabel = (id: string, properties: LabelProperties) => async (
+  dispatch: Dispatch<Action>
+) => {
+  try {
+    const label = await client.labels.update(id, properties)
+
+    dispatch(editLabel(label))
+  } catch (e) {
+    console.log(e)
+    dispatch(notify(updateLabelFailed()))
   }
 }

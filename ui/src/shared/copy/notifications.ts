@@ -801,3 +801,8 @@ export const createLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to create label',
 })
+
+export const updateLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to update label',
+})

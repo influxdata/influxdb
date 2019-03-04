@@ -20,17 +20,13 @@ import {client} from 'src/utils/api'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {createLabel} from 'src/labels/actions'
+import {createLabel, updateLabel} from 'src/labels/actions'
 
 // Utils
 import {validateLabelName} from 'src/configuration/utils/labels'
 
 // Constants
-import {
-  labelDeleteFailed,
-  labelCreateFailed,
-  labelUpdateFailed,
-} from 'src/shared/copy/v2/notifications'
+import {labelDeleteFailed} from 'src/shared/copy/v2/notifications'
 
 // Types
 import {LabelType} from 'src/clockface'
@@ -57,6 +53,7 @@ interface State {
 interface DispatchProps {
   notify: typeof notifyAction
   createLabel: typeof createLabel
+  updateLabel: typeof updateLabel
 }
 
 type Props = DispatchProps & StateProps
@@ -134,29 +131,12 @@ class Labels extends PureComponent<Props, State> {
     this.setState({searchTerm: e.target.value})
   }
 
-  private handleCreateLabel = async (labelType: LabelType) => {
+  private handleCreateLabel = (labelType: LabelType) => {
     this.props.createLabel(labelType.name, this.labelProperties(labelType))
   }
 
-  private handleUpdateLabel = async (labelType: LabelType) => {
-    try {
-      const label = await client.labels.update(
-        labelType.id,
-        this.labelProperties(labelType)
-      )
-
-      const labelTypes = this.state.labelTypes.map(l => {
-        if (l.id === labelType.id) {
-          return this.labelType(label)
-        }
-
-        return l
-      })
-
-      this.setState({labelTypes})
-    } catch (error) {
-      this.props.notify(labelUpdateFailed())
-    }
+  private handleUpdateLabel = (labelType: LabelType) => {
+    this.props.updateLabel(labelType.id, this.labelProperties(labelType))
   }
 
   private handleNameValidation = (name: string): string | null => {
@@ -236,6 +216,7 @@ const mstp = ({labels}: AppState): StateProps => {
 const mdtp: DispatchProps = {
   notify: notifyAction,
   createLabel: createLabel,
+  updateLabel: updateLabel,
 }
 
 export default connect(
