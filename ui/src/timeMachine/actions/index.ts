@@ -25,7 +25,6 @@ export type Action =
   | SetTimeRangeAction
   | SetTypeAction
   | SetActiveQueryText
-  | SetActiveQueryEdited
   | SubmitScriptAction
   | SetIsViewingRawDataAction
   | SetGeomAction
@@ -50,7 +49,6 @@ export type Action =
   | RemoveQueryAction
   | ToggleQueryAction
   | EditActiveQueryAsFluxAction
-  | EditActiveQueryAsInfluxQLAction
   | EditActiveQueryWithBuilderAction
   | UpdateActiveQueryNameAction
   | SetFieldOptionsAction
@@ -120,18 +118,6 @@ interface SetTypeAction {
 export const setType = (type: ViewType): SetTypeAction => ({
   type: 'SET_VIEW_TYPE',
   payload: {type},
-})
-
-interface SetActiveQueryEdited {
-  type: 'SET_ACTIVE_QUERY_EDITED'
-  payload: {manuallyEdited: boolean}
-}
-
-export const setActiveQueryEdited = (
-  manuallyEdited: boolean
-): SetActiveQueryEdited => ({
-  type: 'SET_ACTIVE_QUERY_EDITED',
-  payload: {manuallyEdited},
 })
 
 interface SetActiveQueryText {
@@ -344,14 +330,6 @@ interface EditActiveQueryAsFluxAction {
 
 export const editActiveQueryAsFlux = (): EditActiveQueryAsFluxAction => ({
   type: 'EDIT_ACTIVE_QUERY_AS_FLUX',
-})
-
-interface EditActiveQueryAsInfluxQLAction {
-  type: 'EDIT_ACTIVE_QUERY_AS_INFLUXQL'
-}
-
-export const editActiveQueryAsInfluxQL = (): EditActiveQueryAsInfluxQLAction => ({
-  type: 'EDIT_ACTIVE_QUERY_AS_INFLUXQL',
 })
 
 interface SetActiveQueryIndexAction {

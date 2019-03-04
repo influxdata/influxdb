@@ -43,11 +43,6 @@ export interface Axes {
   y2?: Axis
 }
 
-export enum InfluxLanguage {
-  InfluxQL = 'influxql',
-  Flux = 'flux',
-}
-
 export enum QueryEditMode {
   Builder = 'builder',
   Advanced = 'advanced',
@@ -61,17 +56,15 @@ export interface BuilderConfig {
 
 export interface DashboardQuery {
   text: string
-  type: InfluxLanguage
   editMode: QueryEditMode
   builderConfig: BuilderConfig
-  sourceID: string // Which source to use when running the query; may be empty, which means “use the dynamic source”
-  name?: string
+  name: string
 }
 
 export interface DashboardDraftQuery extends DashboardQuery {
   hidden: boolean
-  manuallyEdited: boolean
 }
+
 export interface Legend {
   type?: string
   orientation?: string
@@ -124,7 +117,6 @@ export type ViewProperties =
   | GaugeView
   | MarkdownView
   | EmptyView
-  | LogViewerView
   | HistogramView
 
 export type QueryViewProperties = Extract<
@@ -241,24 +233,6 @@ export interface MarkdownView {
   type: ViewType.Markdown
   shape: ViewShape.ChronografV2
   note: string
-}
-
-export interface LogViewerView {
-  type: ViewType.LogViewer
-  shape: ViewShape.ChronografV2
-  columns: LogViewerColumn[]
-}
-
-export interface LogViewerColumn {
-  name: string
-  position: number
-  settings: LogViewerColumnSetting[]
-}
-
-export interface LogViewerColumnSetting {
-  type: string
-  value: string
-  name?: string
 }
 
 export enum ViewShape {

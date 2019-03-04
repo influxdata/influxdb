@@ -15,7 +15,6 @@ import {
   QueryEditMode,
   BuilderConfig,
   DashboardQuery,
-  InfluxLanguage,
   Dashboard,
 } from 'src/types/v2/dashboards'
 
@@ -89,6 +88,5 @@ export {
   Task,
   TaskStatus,
   MeState,
-  InfluxLanguage,
   Label,
 }
