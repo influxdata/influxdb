@@ -8,7 +8,7 @@ import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/Collec
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 
 // Types
-import {Substep, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import {Bucket} from '@influxdata/influx'
 
 interface Props {
@@ -16,14 +16,18 @@ interface Props {
   onCompleteSetup: () => void
   visible: boolean
   buckets: Bucket[]
-  startingType?: DataLoaderType
-  startingStep?: number
-  startingSubstep?: Substep
+  overrideBucketIDSelection?: string
 }
 
 class DataLoaderSwitcher extends PureComponent<Props> {
   public render() {
-    const {buckets, type, visible, onCompleteSetup} = this.props
+    const {
+      buckets,
+      type,
+      visible,
+      onCompleteSetup,
+      overrideBucketIDSelection,
+    } = this.props
 
     switch (type) {
       case DataLoaderType.Empty:
@@ -34,6 +38,7 @@ class DataLoaderSwitcher extends PureComponent<Props> {
             visible={visible}
             buckets={buckets}
             onDismiss={onCompleteSetup}
+            overrideBucketIDSelection={overrideBucketIDSelection}
           />
         )
       case DataLoaderType.Streaming:

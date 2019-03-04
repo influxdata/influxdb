@@ -30,6 +30,7 @@ interface OwnProps {
   visible: boolean
   buckets: Bucket[]
   onDismiss: () => void
+  overrideBucketIDSelection?: string
 }
 
 interface DispatchProps {
@@ -53,8 +54,23 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
         type: ScraperTargetRequest.TypeEnum.Prometheus,
         url: 'http://localhost:9999/metrics',
         orgID: this.props.buckets[0].organizationID,
-        bucketID: this.props.buckets[0].id,
+        bucketID:
+          this.props.overrideBucketIDSelection || this.props.buckets[0].id,
       },
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    if (
+      prevProps.visible === false &&
+      this.props.visible === true &&
+      this.props.overrideBucketIDSelection
+    ) {
+      const scraper = {
+        ...this.state.scraper,
+        bucketID: this.props.overrideBucketIDSelection,
+      }
+      this.setState({scraper})
     }
   }
 
@@ -143,7 +159,7 @@ const mdtp: DispatchProps = {
   onCreateScraper: createScraper,
 }
 
-export default connect<null, DispatchProps, OwnProps>(
+export default connect<{}, DispatchProps, OwnProps>(
   null,
   mdtp
 )(CreateScraperOverlay)
