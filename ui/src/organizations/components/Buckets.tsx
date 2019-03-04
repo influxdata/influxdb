@@ -196,7 +196,7 @@ export default class Buckets extends PureComponent<Props, State> {
 
     if (_.isEmpty(searchTerm)) {
       return (
-        <EmptyState size={ComponentSize.Medium}>
+        <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text
             text={`${org.name} does not own any Buckets , why not create one?`}
             highlightWords={['Buckets']}
@@ -212,7 +212,7 @@ export default class Buckets extends PureComponent<Props, State> {
     }
 
     return (
-      <EmptyState size={ComponentSize.Medium}>
+      <EmptyState size={ComponentSize.Large}>
         <EmptyState.Text text="No Buckets match your query" />
       </EmptyState>
     )

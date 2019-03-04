@@ -12,6 +12,8 @@
 
 1. [12302](https://github.com/influxdata/influxdb/pull/12302): Make code snippet copy functionality easier to use
 1. [12304](https://github.com/influxdata/influxdb/pull/12304): Always show live preview in Note Cell editor
+1. [12317](https://github.com/influxdata/influxdb/pull/12317): Redesign Create Scraper workflow
+1. [12317](https://github.com/influxdata/influxdb/pull/12317): Show warning in Telegrafs and Scrapers lists when user has no buckets
 
 ## v2.0.0-alpha.4 [2019-02-21]
 

@@ -10,14 +10,18 @@ import {Input} from 'src/clockface'
 // Constants
 import {PLUGIN_BUNDLE_OPTIONS} from 'src/dataLoaders/constants/pluginConfigs'
 
+// Mocks
+import {buckets} from 'mocks/dummyData'
+
 const setup = (override = {}) => {
+  const selectedBucketName = buckets[0].name
+
   const props = {
     telegrafPlugins: [],
     pluginBundles: [],
     onTogglePluginBundle: jest.fn(),
-    buckets: [],
-    bucket: '',
-    selectedBucket: '',
+    buckets,
+    selectedBucketName,
     onSelectBucket: jest.fn(),
     ...override,
   }

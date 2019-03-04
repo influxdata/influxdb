@@ -3,12 +3,12 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
+import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 
 // Types
-import {Substep, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import {Bucket} from '@influxdata/influx'
 
 interface Props {
@@ -16,9 +16,7 @@ interface Props {
   onCompleteSetup: () => void
   visible: boolean
   buckets: Bucket[]
-  startingType?: DataLoaderType
-  startingStep?: number
-  startingSubstep?: Substep
+  overrideBucketIDSelection?: string
 }
 
 class DataLoaderSwitcher extends PureComponent<Props> {
@@ -28,22 +26,19 @@ class DataLoaderSwitcher extends PureComponent<Props> {
       type,
       visible,
       onCompleteSetup,
-      startingStep,
-      startingSubstep,
-      startingType,
+      overrideBucketIDSelection,
     } = this.props
 
     switch (type) {
-      case DataLoaderType.Scraping:
       case DataLoaderType.Empty:
+        return <div data-testid="data-loader-empty" />
+      case DataLoaderType.Scraping:
         return (
-          <DataLoadersWizard
+          <CreateScraperOverlay
             visible={visible}
-            onCompleteSetup={onCompleteSetup}
             buckets={buckets}
-            startingStep={startingStep}
-            startingSubstep={startingSubstep}
-            startingType={startingType}
+            onDismiss={onCompleteSetup}
+            overrideBucketIDSelection={overrideBucketIDSelection}
           />
         )
       case DataLoaderType.Streaming:

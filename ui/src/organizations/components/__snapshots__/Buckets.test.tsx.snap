@@ -335,16 +335,8 @@ Object {
         />
       </div>
       <div
-        class="overlay-tech"
-      >
-        <div
-          class="overlay--dialog"
-          data-testid="overlay-children"
-        />
-        <div
-          class="overlay--mask"
-        />
-      </div>
+        data-testid="data-loader-empty"
+      />
     </div>
   </body>,
   "container": <div>
@@ -678,16 +670,8 @@ Object {
       />
     </div>
     <div
-      class="overlay-tech"
-    >
-      <div
-        class="overlay--dialog"
-        data-testid="overlay-children"
-      />
-      <div
-        class="overlay--mask"
-      />
-    </div>
+      data-testid="data-loader-empty"
+    />
   </div>,
   "debug": [Function],
   "getAllByAltText": [Function],
