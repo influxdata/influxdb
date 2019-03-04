@@ -128,8 +128,8 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateDashboard = (name: string) => {
-    this.props.onUpdateDashboard({...this.props.dashboard, name})
+  private handleUpdateDashboard = async (name: string) => {
+    await this.props.onUpdateDashboard({...this.props.dashboard, name})
   }
 
   private get labels(): JSX.Element {

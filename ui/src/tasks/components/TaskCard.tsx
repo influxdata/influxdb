@@ -111,9 +111,9 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     router.push(`tasks/${task.id}/runs`)
   }
 
-  private handleRenameTask = (name: string) => {
+  private handleRenameTask = async (name: string) => {
     const {onUpdate, task} = this.props
-    onUpdate({...task, name})
+    await onUpdate({...task, name})
   }
 
   private handleExport = () => {

@@ -79,10 +79,10 @@ export default class CollectorRow extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateName = (name: string) => {
+  private handleUpdateName = async (name: string) => {
     const {onUpdate, collector} = this.props
 
-    onUpdate({...collector, name})
+    await onUpdate({...collector, name})
   }
 
   private handleUpdateDescription = (description: string) => {
