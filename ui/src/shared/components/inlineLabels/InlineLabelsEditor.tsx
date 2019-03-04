@@ -16,7 +16,7 @@ import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPo
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 
 // Types
-import {Label} from 'src/types/v2/labels'
+import {Label} from '@influxdata/influx'
 
 // Utils
 import {validateLabelUniqueness} from 'src/configuration/utils/labels'

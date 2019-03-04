@@ -7,7 +7,7 @@ import {Label} from 'src/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {Label as LabelType} from 'src/types/v2/labels'
+import {Label as LabelType} from '@influxdata/influx'
 
 // Styles
 import 'src/shared/components/inlineLabels/InlineLabels.scss'

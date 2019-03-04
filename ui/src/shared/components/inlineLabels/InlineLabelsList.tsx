@@ -12,7 +12,7 @@ import InlineLabelsListItem from 'src/shared/components/inlineLabels/InlineLabel
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Label} from 'src/types/v2/labels'
+import {Label} from '@influxdata/influx'
 
 interface Props {
   searchTerm: string

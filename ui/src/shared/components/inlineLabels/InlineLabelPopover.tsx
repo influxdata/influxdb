@@ -9,7 +9,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
 import {IconFont} from 'src/clockface/types'
-import {Label} from 'src/types/v2/labels'
+import {Label} from '@influxdata/influx'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
