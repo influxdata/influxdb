@@ -43,6 +43,7 @@ describe('Tasks', () => {
       cy.server()
       cy.route('GET', 'api/v2/tasks?user=*').as('getTasks')
       cy.route('DELETE', 'api/v2/tasks/*').as('deleteTask')
+
       cy.get<Organization>('@org').then(({id}) => {
         cy.createTask(id)
         cy.createTask(id)

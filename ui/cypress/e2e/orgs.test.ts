@@ -32,9 +32,14 @@ describe('Orgs', () => {
   for (let i = 1; i <= 200; i++) {
     it('can delete an org', () => {
       cy.server()
+      cy.route('GET', 'api/v2/orgs').as('getOrgs')
       cy.route('DELETE', 'api/v2/orgs/*').as('deleteOrg')
 
       cy.createOrg().then(() => {
+        cy.visit(orgRoute)
+
+        cy.wait('@getOrgs')
+
         cy.getByTestID('table-row').should('have.length', 2)
 
         cy.getByTestID('table-row')
