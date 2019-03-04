@@ -1,4 +1,4 @@
-import {WINDOW_PERIOD} from 'src/variables/constants'
+import {WINDOW_PERIOD, OPTION_NAME} from 'src/variables/constants'
 
 export interface QueryFn {
   name: string
@@ -14,7 +14,7 @@ export const FUNCTIONS: QueryFn[] = [
   {name: 'sum', flux: '|> sum()', aggregate: true},
   {
     name: 'derivative',
-    flux: `|> derivative(unit: ${WINDOW_PERIOD}, nonNegative: false)`,
+    flux: `|> derivative(unit: ${OPTION_NAME}.${WINDOW_PERIOD}, nonNegative: false)`,
     aggregate: false,
   },
   {name: 'distinct', flux: '|> distinct()', aggregate: false},
