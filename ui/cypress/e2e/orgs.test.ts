@@ -9,7 +9,7 @@ describe('Orgs', () => {
     cy.visit(orgRoute)
   })
 
-  it('can create an org', () => {
+  it.skip('can create an org', () => {
     cy.get('.index-list--row')
       .its('length')
       .should('be.eq', 1)
@@ -29,12 +29,10 @@ describe('Orgs', () => {
   })
 
   //TODO: skipping delete an org because it is flaky but needs fixing: https://github.com/influxdata/influxdb/issues/12283
-  it.skip('can delete an org', () => {
-    cy.createOrg()
-      .then(() => {
-        cy.getByTestID('table-row')
-          .its('length')
-          .should('eq', 2)
+  for (let i = 1; i <= 100; i++) {
+    it('can delete an org', () => {
+      cy.createOrg().then(() => {
+        cy.getByTestID('table-row').should('have.length', 2)
 
         cy.getByTestID('table-row')
           .last()
@@ -46,13 +44,11 @@ describe('Orgs', () => {
 
             cy.getByTestID('confirmation-button').click()
           })
+
+        cy.getByTestID('table-row').should('have.length', 1)
       })
-      .then(() => {
-        cy.getByTestID('table-row')
-          .its('length')
-          .should('eq', 1)
-      })
-  })
+    })
+  }
 
   //TODO: skipping update an org name because it is flaky but needs fixing: https://github.com/influxdata/influxdb/issues/12311
   it.skip('can update an org name', () => {
