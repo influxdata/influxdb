@@ -44,7 +44,7 @@ export const labelsReducer = (
 
       case 'EDIT_LABEL': {
         const {label} = action.payload
-        const list = draftState.list
+        const {list} = draftState
 
         draftState.list = list.map(l => {
           if (l.id === label.id) {
@@ -52,6 +52,17 @@ export const labelsReducer = (
           }
 
           return l
+        })
+
+        return
+      }
+
+      case 'REMOVE_LABEL': {
+        const {id} = action.payload
+        const {list} = draftState
+
+        draftState.list = list.filter(l => {
+          l.id !== id
         })
 
         return

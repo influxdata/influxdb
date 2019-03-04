@@ -806,3 +806,8 @@ export const updateLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to update label',
 })
+
+export const deleteLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to delete label',
+})

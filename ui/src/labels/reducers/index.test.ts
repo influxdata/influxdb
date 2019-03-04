@@ -2,7 +2,7 @@
 import {labelsReducer} from 'src/labels/reducers'
 
 // Actions
-import {setLabels, addLabel, editLabel} from 'src/labels/actions'
+import {setLabels, addLabel, editLabel, removeLabel} from 'src/labels/actions'
 import {RemoteDataState} from 'src/types'
 
 // Mock Label
@@ -39,6 +39,16 @@ describe('labels reducer', () => {
 
     const expected = {status, list: [updatedLabel]}
     const actual = labelsReducer(state, editLabel(updatedLabel))
+
+    expect(actual).toEqual(expected)
+  })
+
+  it('can remove a label', () => {
+    const list = [dummyLabel]
+    const state = {status, list}
+
+    const expected = {status, list: []}
+    const actual = labelsReducer(state, removeLabel(dummyLabel.id))
 
     expect(actual).toEqual(expected)
   })

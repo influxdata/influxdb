@@ -13,9 +13,10 @@ import {
   getLabelsFailed,
   createLabelFailed,
   updateLabelFailed,
+  deleteLabelFailed,
 } from 'src/shared/copy/notifications'
 
-export type Action = SetLabels | AddLabel | EditLabel
+export type Action = SetLabels | AddLabel | EditLabel | RemoveLabel
 
 interface SetLabels {
   type: 'SET_LABELS'
@@ -53,6 +54,16 @@ interface EditLabel {
 export const editLabel = (label: Label): EditLabel => ({
   type: 'EDIT_LABEL',
   payload: {label},
+})
+
+interface RemoveLabel {
+  type: 'REMOVE_LABEL'
+  payload: {id}
+}
+
+export const removeLabel = (id: string): RemoveLabel => ({
+  type: 'REMOVE_LABEL',
+  payload: {id},
 })
 
 export const getLabels = () => async (dispatch: Dispatch<Action>) => {
@@ -93,5 +104,18 @@ export const updateLabel = (id: string, properties: LabelProperties) => async (
   } catch (e) {
     console.log(e)
     dispatch(notify(updateLabelFailed()))
+  }
+}
+
+export const deleteLabel = (id: string) => async (
+  dispatch: Dispatch<Action>
+) => {
+  try {
+    await client.labels.delete(id)
+
+    dispatch(removeLabel(id))
+  } catch (e) {
+    console.log(e)
+    dispatch(notify(deleteLabelFailed()))
   }
 }
