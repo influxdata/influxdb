@@ -40,11 +40,16 @@ describe('Tasks', () => {
 
   for (let i = 0; i <= 100; i++) {
     it('can delete a task', () => {
+      cy.server()
+      cy.route('GET', 'api/v2/tasks?user=*').as('getTasks')
+      cy.route('DELETE', 'api/v2/tasks/*').as('deleteTask')
       cy.get<Organization>('@org').then(({id}) => {
         cy.createTask(id)
         cy.createTask(id)
 
         cy.visit('/tasks')
+
+        cy.wait('@getTasks')
 
         cy.getByTestID('task-card').should('have.length', 2)
 
@@ -55,6 +60,8 @@ describe('Tasks', () => {
             cy.getByTestID('context-delete-menu').click()
             cy.getByTestID('context-delete-task').click()
           })
+
+        cy.wait('@deleteTask')
 
         cy.getByTestID('task-card').should('have.length', 1)
       })
