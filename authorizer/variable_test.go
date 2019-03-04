@@ -123,7 +123,7 @@ func TestVariableService_FindVariables(t *testing.T) {
 		permission influxdb.Permission
 	}
 	type wants struct {
-		err    error
+		err       error
 		variables []*influxdb.Variable
 	}
 
@@ -359,7 +359,7 @@ func TestVariableService_ReplaceVariable(t *testing.T) {
 		VariableService influxdb.VariableService
 	}
 	type args struct {
-		variable       influxdb.Variable
+		variable    influxdb.Variable
 		permissions []influxdb.Permission
 	}
 	type wants struct {

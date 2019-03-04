@@ -1,6 +1,7 @@
 package tsi1_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -436,10 +437,10 @@ func MustOpenIndex(partitionN uint64, c tsi1.Config) *Index {
 
 // Open opens the underlying tsi1.Index and tsdb.SeriesFile
 func (idx Index) Open() error {
-	if err := idx.SeriesFile.Open(); err != nil {
+	if err := idx.SeriesFile.Open(context.Background()); err != nil {
 		return err
 	}
-	return idx.Index.Open()
+	return idx.Index.Open(context.Background())
 }
 
 // Close closes and removes the index directory.

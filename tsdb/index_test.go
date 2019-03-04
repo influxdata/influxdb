@@ -2,6 +2,7 @@ package tsdb_test
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -86,7 +87,7 @@ func MustNewIndex(c tsi1.Config) *Index {
 	}
 
 	sfile := tsdb.NewSeriesFile(seriesPath)
-	if err := sfile.Open(); err != nil {
+	if err := sfile.Open(context.Background()); err != nil {
 		panic(err)
 	}
 
@@ -115,7 +116,7 @@ func MustOpenNewIndex(c tsi1.Config) *Index {
 
 // MustOpen opens the underlying index or panics.
 func (i *Index) MustOpen() {
-	if err := i.Index.Open(); err != nil {
+	if err := i.Index.Open(context.Background()); err != nil {
 		panic(err)
 	}
 }
@@ -131,13 +132,13 @@ func (i *Index) Reopen() error {
 	}
 
 	i.sfile = tsdb.NewSeriesFile(i.sfile.Path())
-	if err := i.sfile.Open(); err != nil {
+	if err := i.sfile.Open(context.Background()); err != nil {
 		return err
 	}
 
 	i.Index = tsi1.NewIndex(i.SeriesFile(), i.config,
 		tsi1.WithPath(filepath.Join(i.rootPath, "index")))
-	return i.Index.Open()
+	return i.Index.Open(context.Background())
 }
 
 // Close closes the index cleanly and removes all on-disk data.

@@ -254,7 +254,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 								},
 							},
 						},
-						Now: time.Unix(1,1),
+						Now: time.Unix(1, 1),
 					},
 				},
 				Dialect: &csv.Dialect{
@@ -281,7 +281,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 				Request: query.Request{
 					Compiler: lang.ASTCompiler{
 						AST: &ast.Package{},
-						Now: time.Unix(1,1),
+						Now: time.Unix(1, 1),
 					},
 				},
 				Dialect: &csv.Dialect{
@@ -331,7 +331,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 								},
 							},
 						},
-						Now: time.Unix(1,1),
+						Now: time.Unix(1, 1),
 					},
 				},
 				Dialect: &csv.Dialect{

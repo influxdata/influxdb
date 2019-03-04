@@ -2,6 +2,7 @@ package tsm1_test
 
 import (
 	"bytes"
+	"context"
 	"reflect"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer e.Close()
@@ -32,7 +33,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	if err := e.WriteSnapshot(); err != nil {
+	if err := e.WriteSnapshot(context.Background()); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 

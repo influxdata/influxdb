@@ -1,13 +1,14 @@
 package storage
 
 import (
+	"context"
 	"io"
 )
 
 // opener is something that can be opened and closed.
 type opener interface {
-	Open() error
-	io.Closer
+	Open(context.Context) error
+	io.Closer // TODO consider a closer-with-context instead
 }
 
 // openHelper is a helper to abstract the pattern of opening multiple things,
@@ -20,11 +21,11 @@ type openHelper struct {
 
 // Open attempts to open the opener. If an error has happened already
 // then no calls are made to the opener.
-func (o *openHelper) Open(op opener) {
+func (o *openHelper) Open(ctx context.Context, op opener) {
 	if o.err != nil {
 		return
 	}
-	o.err = op.Open()
+	o.err = op.Open(ctx)
 	if o.err == nil {
 		o.opened = append(o.opened, op)
 	}

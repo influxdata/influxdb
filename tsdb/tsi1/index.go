@@ -2,8 +2,10 @@ package tsi1
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -207,13 +209,16 @@ func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
 }
 
 // Open opens the index.
-func (i *Index) Open() error {
+func (i *Index) Open(ctx context.Context) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
 	if i.res.Opened() {
 		return errors.New("index already open")
 	}
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "Index.Open")
+	defer span.Finish()
 
 	// Ensure root exists.
 	if err := os.MkdirAll(i.path, 0777); err != nil {
