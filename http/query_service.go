@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
+	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,6 +21,7 @@ const (
 	queryStatisticsTrailer = "Influx-Query-Statistics"
 )
 
+// QueryHandler is a low-level query service handler.
 type QueryHandler struct {
 	*httprouter.Router
 
@@ -114,6 +116,7 @@ func (h *QueryHandler) PrometheusCollectors() []prometheus.Collector {
 	return nil
 }
 
+// QueryService is a basic client to interact with the QueryHandler.
 type QueryService struct {
 	Addr               string
 	Token              string
@@ -131,7 +134,6 @@ func (s *QueryService) Ping(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	SetToken(s.Token, hreq)
 	hreq = hreq.WithContext(ctx)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
@@ -158,7 +160,16 @@ func (s *QueryService) Query(ctx context.Context, req *query.Request) (flux.Resu
 	if err != nil {
 		return nil, err
 	}
-	SetToken(s.Token, hreq)
+
+	token := s.Token
+	if token == "" {
+		token, err = icontext.GetToken(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	SetToken(token, hreq)
 	hreq = hreq.WithContext(ctx)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
