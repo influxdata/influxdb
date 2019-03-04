@@ -1,16 +1,25 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 
-// APIs
-import {client} from 'src/utils/api'
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/organizations/actions/orgView'
 
-interface Props extends WithRouterProps {
+interface DispatchProps {
+  notify: typeof notifyAction
+  createTaskFromTemplate: typeof createTaskFromTemplateAction
+}
+
+interface OwnProps extends WithRouterProps {
   params: {orgID: string}
 }
+
+type Props = DispatchProps & OwnProps
 
 class OrgTaskImportOverlay extends PureComponent<Props> {
   public render() {
@@ -35,24 +44,31 @@ class OrgTaskImportOverlay extends PureComponent<Props> {
   }
 
   private handleImportTask = async (importString: string): Promise<void> => {
-    // const {
-    //   params: {orgID},
-    // } = this.props
+    const {
+      params: {orgID},
+    } = this.props
+    const {createTaskFromTemplate} = this.props
 
     try {
       const template = JSON.parse(importString)
-
-      // convertTemplateToTask
-      console.log(template)
 
       if (_.isEmpty(template)) {
         this.onDismiss()
       }
 
-      client.tasks.create('org', template.script) // this should be the create with orgID.
+      createTaskFromTemplate(template, orgID)
+
       this.onDismiss()
     } catch (error) {}
   }
 }
 
-export default withRouter(OrgTaskImportOverlay)
+const mdtp: DispatchProps = {
+  notify: notifyAction,
+  createTaskFromTemplate: createTaskFromTemplateAction,
+}
+
+export default connect<null, DispatchProps, Props>(
+  null,
+  mdtp
+)(withRouter(OrgTaskImportOverlay))
