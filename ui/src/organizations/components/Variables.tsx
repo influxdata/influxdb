@@ -95,6 +95,7 @@ class Variables extends PureComponent<Props, State> {
           searchTerm={searchTerm}
           searchKeys={['name']}
           list={variables}
+          sortByKey="name"
         >
           {variables => (
             <VariableList

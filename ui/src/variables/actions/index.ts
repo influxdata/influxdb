@@ -9,6 +9,7 @@ import {
   createVariableFailed,
   updateVariableFailed,
   deleteVariableFailed,
+  createVariableSuccess,
 } from 'src/shared/copy/notifications'
 
 // Types
@@ -101,6 +102,7 @@ export const createVariable = (variable: Variable) => async (
     dispatch(
       setVariable(createdVariable.id, RemoteDataState.Done, createdVariable)
     )
+    dispatch(notify(createVariableSuccess(variable.name)))
   } catch (e) {
     console.log(e)
     dispatch(notify(createVariableFailed()))

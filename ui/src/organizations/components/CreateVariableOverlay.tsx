@@ -104,7 +104,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
   }
 
   private handleSubmit = (): void => {
-    const {onCreateVariable, orgID} = this.props
+    const {onCreateVariable, orgID, onCloseModal} = this.props
 
     onCreateVariable({
       name: this.state.name,
@@ -114,6 +114,8 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
         values: {query: this.state.script, language: 'flux'},
       },
     })
+
+    onCloseModal()
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
