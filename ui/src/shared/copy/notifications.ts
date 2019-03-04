@@ -796,3 +796,8 @@ export const getLabelsFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to fetch labels',
 })
+
+export const createLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create label',
+})

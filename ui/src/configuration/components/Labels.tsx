@@ -20,6 +20,7 @@ import {client} from 'src/utils/api'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {createLabel} from 'src/labels/actions'
 
 // Utils
 import {validateLabelName} from 'src/configuration/utils/labels'
@@ -55,6 +56,7 @@ interface State {
 
 interface DispatchProps {
   notify: typeof notifyAction
+  createLabel: typeof createLabel
 }
 
 type Props = DispatchProps & StateProps
@@ -67,12 +69,12 @@ class Labels extends PureComponent<Props, State> {
     this.state = {
       searchTerm: '',
       isOverlayVisible: false,
-      labelTypes: this.labelTypes(this.props.labels),
+      labelTypes: this.labelTypes,
     }
   }
 
   public render() {
-    const {searchTerm, isOverlayVisible, labelTypes} = this.state
+    const {searchTerm, isOverlayVisible} = this.state
 
     return (
       <>
@@ -94,7 +96,7 @@ class Labels extends PureComponent<Props, State> {
           />
         </TabbedPageHeader>
         <FilterList<LabelType>
-          list={labelTypes}
+          list={this.labelTypes}
           searchKeys={['name', 'description']}
           searchTerm={searchTerm}
         >
@@ -133,17 +135,7 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleCreateLabel = async (labelType: LabelType) => {
-    try {
-      const newLabel = await client.labels.create(
-        labelType.name,
-        this.labelProperties(labelType)
-      )
-      const labelTypes = [...this.state.labelTypes, this.labelType(newLabel)]
-      this.setState({labelTypes})
-    } catch (error) {
-      console.error(error)
-      this.props.notify(labelCreateFailed())
-    }
+    this.props.createLabel(labelType.name, this.labelProperties(labelType))
   }
 
   private handleUpdateLabel = async (labelType: LabelType) => {
@@ -171,8 +163,8 @@ class Labels extends PureComponent<Props, State> {
     return validateLabelName(this.state.labelTypes, name)
   }
 
-  private labelTypes(labels: Label[]): LabelType[] {
-    return labels.map(this.labelType)
+  private get labelTypes(): LabelType[] {
+    return this.props.labels.map(this.labelType)
   }
 
   private labelType = (label: Label): LabelType => {
@@ -243,6 +235,7 @@ const mstp = ({labels}: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
+  createLabel: createLabel,
 }
 
 export default connect(

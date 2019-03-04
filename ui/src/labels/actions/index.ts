@@ -4,11 +4,12 @@ import {client} from 'src/utils/api'
 // Types
 import {RemoteDataState} from 'src/types'
 import {Label} from 'src/types/v2'
+import {LabelProperties} from 'src/types/v2/labels'
 import {Dispatch} from 'redux-thunk'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
-import {getLabelsFailed} from 'src/shared/copy/notifications'
+import {getLabelsFailed, createLabelFailed} from 'src/shared/copy/notifications'
 
 export type Action = SetLabels | AddLabel
 
@@ -51,5 +52,19 @@ export const getLabels = () => async (dispatch: Dispatch<Action>) => {
     console.log(e)
     dispatch(setLabels(RemoteDataState.Error))
     dispatch(notify(getLabelsFailed()))
+  }
+}
+
+export const createLabel = (
+  name: string,
+  properties: LabelProperties
+) => async (dispatch: Dispatch<Action>) => {
+  try {
+    const createdLabel = await client.labels.create(name, properties)
+
+    dispatch(addLabel(createdLabel))
+  } catch (e) {
+    console.log(e)
+    dispatch(notify(createLabelFailed()))
   }
 }
