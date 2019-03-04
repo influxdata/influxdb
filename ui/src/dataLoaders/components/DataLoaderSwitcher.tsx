@@ -27,7 +27,7 @@ class DataLoaderSwitcher extends PureComponent<Props> {
 
     switch (type) {
       case DataLoaderType.Empty:
-        return <div />
+        return <div data-testid="data-loader-empty" />
       case DataLoaderType.Scraping:
         return (
           <CreateScraperOverlay
