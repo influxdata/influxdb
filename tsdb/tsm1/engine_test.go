@@ -115,6 +115,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
+	defer e.Close()
 
 	// Make sure Snapshots are disabled.
 	e.SetCompactionsEnabled(false)
@@ -355,6 +356,11 @@ func (e *Engine) Close() error {
 }
 
 func (e *Engine) close(cleanup bool) error {
+	err := e.Engine.Close()
+	if err != nil {
+		return err
+	}
+
 	if e.index != nil {
 		e.index.Close()
 	}
@@ -363,12 +369,11 @@ func (e *Engine) close(cleanup bool) error {
 		e.sfile.Close()
 	}
 
-	defer func() {
-		if cleanup {
-			os.RemoveAll(e.root)
-		}
-	}()
-	return e.Engine.Close()
+	if cleanup {
+		os.RemoveAll(e.root)
+	}
+
+	return nil
 }
 
 // Reopen closes and reopens the engine.

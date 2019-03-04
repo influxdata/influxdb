@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -45,20 +46,22 @@ const indexFileBufferSize = 1 << 17 // 128K
 
 // LogFile represents an on-disk write-ahead log file.
 type LogFile struct {
-	mu         sync.RWMutex
-	wg         sync.WaitGroup // ref count
-	id         int            // file sequence identifier
-	data       []byte         // mmap
-	file       *os.File       // writer
-	w          *bufio.Writer  // buffered writer
-	bufferSize int            // The size of the buffer used by the buffered writer
-	nosync     bool           // Disables buffer flushing and file syncing. Useful for offline tooling.
-	buf        []byte         // marshaling buffer
+	mu  sync.RWMutex
+	res lifecycle.Resource
+
+	id         int           // file sequence identifier
+	data       []byte        // mmap
+	file       *os.File      // writer
+	w          *bufio.Writer // buffered writer
+	bufferSize int           // The size of the buffer used by the buffered writer
+	nosync     bool          // Disables buffer flushing and file syncing. Useful for offline tooling.
+	buf        []byte        // marshaling buffer
 	keyBuf     []byte
 
-	sfile   *tsdb.SeriesFile // series lookup
-	size    int64            // tracks current file size
-	modTime time.Time        // tracks last time write occurred
+	sfile    *tsdb.SeriesFile // series lookup
+	sfileref *lifecycle.Reference
+	size     int64     // tracks current file size
+	modTime  time.Time // tracks last time write occurred
 
 	// In-memory series existence/tombstone sets.
 	seriesIDSet, tombstoneSeriesIDSet *tsdb.SeriesIDSet
@@ -90,19 +93,26 @@ func NewLogFile(sfile *tsdb.SeriesFile, path string) *LogFile {
 func (f *LogFile) bytes() int {
 	var b int
 	b += 24 // mu RWMutex is 24 bytes
-	b += 16 // wg WaitGroup is 16 bytes
+	b += int(unsafe.Sizeof(f.res))
 	b += int(unsafe.Sizeof(f.id))
-	// Do not include f.data because it is mmap'd
+	// Do not count f.data contents because it is mmap'd
+	b += int(unsafe.Sizeof(f.data))
+	b += int(unsafe.Sizeof(f.file))
+	b += int(unsafe.Sizeof(f.w))
+	b += int(unsafe.Sizeof(f.bufferSize))
+	b += int(unsafe.Sizeof(f.nosync))
 	// TODO(jacobmarble): Uncomment when we are using go >= 1.10.0
-	//b += int(unsafe.Sizeof(f.w)) + f.w.Size()
+	//b += f.w.Size()
 	b += int(unsafe.Sizeof(f.buf)) + len(f.buf)
 	b += int(unsafe.Sizeof(f.keyBuf)) + len(f.keyBuf)
-	// Do not count SeriesFile because it belongs to the code that constructed this Index.
+	b += int(unsafe.Sizeof(f.sfile))
+	b += int(unsafe.Sizeof(f.sfileref))
 	b += int(unsafe.Sizeof(f.size))
 	b += int(unsafe.Sizeof(f.modTime))
 	b += int(unsafe.Sizeof(f.seriesIDSet)) + f.seriesIDSet.Bytes()
 	b += int(unsafe.Sizeof(f.tombstoneSeriesIDSet)) + f.tombstoneSeriesIDSet.Bytes()
 	b += int(unsafe.Sizeof(f.mms)) + f.mms.bytes()
+	b += int(unsafe.Sizeof(f.stats))
 	b += int(unsafe.Sizeof(f.path)) + len(f.path)
 	return b
 }
@@ -116,7 +126,13 @@ func (f *LogFile) Open() error {
 	return nil
 }
 
-func (f *LogFile) open() error {
+func (f *LogFile) open() (err error) {
+	// Attempt to acquire a reference to the series file.
+	f.sfileref, err = f.sfile.Acquire()
+	if err != nil {
+		return err
+	}
+
 	f.id, _ = ParseFilename(f.path)
 
 	// Open file for appending.
@@ -136,6 +152,7 @@ func (f *LogFile) open() error {
 	if err != nil {
 		return err
 	} else if fi.Size() == 0 {
+		f.res.Open()
 		return nil
 	}
 	f.size = fi.Size()
@@ -170,13 +187,25 @@ func (f *LogFile) open() error {
 	// Move to the end of the file.
 	f.size = n
 	_, err = file.Seek(n, io.SeekStart)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// The resource is now open.
+	f.res.Open()
+
+	return nil
 }
 
 // Close shuts down the file handle and mmap.
 func (f *LogFile) Close() error {
 	// Wait until the file has no more references.
-	f.wg.Wait()
+	f.res.Close()
+
+	if f.sfileref != nil {
+		f.sfileref.Release()
+		f.sfileref = nil
+	}
 
 	if f.w != nil {
 		f.w.Flush()
@@ -230,11 +259,10 @@ func (f *LogFile) Level() int { return 0 }
 // Filter returns the bloom filter for the file.
 func (f *LogFile) Filter() *bloom.Filter { return nil }
 
-// Retain adds a reference count to the file.
-func (f *LogFile) Retain() { f.wg.Add(1) }
-
-// Release removes a reference count from the file.
-func (f *LogFile) Release() { f.wg.Done() }
+// Acquire adds a reference count to the file.
+func (f *LogFile) Acquire() (*lifecycle.Reference, error) {
+	return f.res.Acquire()
+}
 
 // Stat returns size and last modification time of the file.
 func (f *LogFile) Stat() (int64, time.Time) {
@@ -423,6 +451,7 @@ func (f *LogFile) TagValueIterator(name, key []byte) TagValueIterator {
 	if !ok {
 		return nil
 	}
+
 	return tk.TagValueIterator()
 }
 

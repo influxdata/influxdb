@@ -27,7 +27,7 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -57,7 +57,7 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +96,7 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -161,7 +161,7 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,7 +195,7 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -236,7 +236,7 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	idx.Run(t, func(t *testing.T) {
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +266,7 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 
 	// Verify additional series.
 	idx.Run(t, func(t *testing.T) {
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}

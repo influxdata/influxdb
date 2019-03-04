@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
@@ -109,7 +110,8 @@ func WithSnapshotter(snapshotter Snapshotter) EngineOption {
 type Engine struct {
 	mu sync.RWMutex
 
-	index *tsi1.Index
+	index    *tsi1.Index
+	indexref *lifecycle.Reference
 
 	// The following group of fields is used to track the state of level compactions within the
 	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
@@ -128,6 +130,7 @@ type Engine struct {
 
 	path         string
 	sfile        *tsdb.SeriesFile
+	sfileref     *lifecycle.Reference
 	logger       *zap.Logger // Logger to be used for important messages
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
@@ -500,7 +503,23 @@ func (e *Engine) initTrackers() {
 }
 
 // Open opens and initializes the engine.
-func (e *Engine) Open() error {
+func (e *Engine) Open() (err error) {
+	defer func() {
+		if err != nil {
+			e.Close()
+		}
+	}()
+
+	e.indexref, err = e.index.Acquire()
+	if err != nil {
+		return err
+	}
+
+	e.sfileref, err = e.sfile.Acquire()
+	if err != nil {
+		return err
+	}
+
 	e.initTrackers()
 
 	if err := os.MkdirAll(e.path, 0777); err != nil {
@@ -531,10 +550,23 @@ func (e *Engine) Close() error {
 	// Lock now and close everything else down.
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.done = nil // Ensures that the channel will not be closed again.
+
+	// Ensures that the channel will not be closed again.
+	e.done = nil
 
 	if err := e.FileStore.Close(); err != nil {
 		return err
+	}
+
+	// Release our references.
+	if e.sfileref != nil {
+		e.sfileref.Release()
+		e.sfileref = nil
+	}
+
+	if e.indexref != nil {
+		e.indexref.Release()
+		e.indexref = nil
 	}
 
 	return nil

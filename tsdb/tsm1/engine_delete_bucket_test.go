@@ -23,9 +23,6 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// mock the planner so compactions don't run during the test
-	e.CompactionPlan = &mockPlanner{}
 	if err := e.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -110,15 +107,13 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
 		t.Fatalf("iterator error: %v", err)
 	}
-	if iter == nil {
-		return
-	}
-
-	defer iter.Close()
-	if elem, err = iter.Next(); err != nil {
-		t.Fatal(err)
-	}
-	if !elem.SeriesID.IsZero() {
-		t.Fatalf("got an undeleted series id, but series should be dropped from index")
+	if iter != nil {
+		defer iter.Close()
+		if elem, err = iter.Next(); err != nil {
+			t.Fatal(err)
+		}
+		if !elem.SeriesID.IsZero() {
+			t.Fatalf("got an undeleted series id, but series should be dropped from index")
+		}
 	}
 }
