@@ -99,7 +99,8 @@ class TimeSeries extends Component<Props, State> {
   }
 
   private reload = async () => {
-    const {inView, queries, queryLink, variables} = this.props
+    const {inView, queryLink, variables} = this.props
+    const queries = this.props.queries.filter(({text}) => !!text.trim())
     const orgID = this.props.activeOrg.id
 
     if (!inView) {
