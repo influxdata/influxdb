@@ -669,16 +669,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/increase',
   },
   {
-    name: 'influxFieldsAsCols',
-    args: [],
-    desc:
-      'A special application of the `pivot()` function that automatically aligns fields within each input table that have the same timestamp.',
-    example: 'influxFieldsAsCols()',
-    category: 'Transformations',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/influxfieldsascols',
-  },
-  {
     name: 'integral',
     args: [
       {
