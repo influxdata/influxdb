@@ -1,7 +1,6 @@
 // Libraries
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
-import {connect} from 'react-redux'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -14,18 +13,11 @@ import {
   IconFont,
   ComponentSize,
 } from '@influxdata/clockface'
-import {
-  EmptyState,
-  Input,
-  InputType,
-  Tabs,
-  OverlayTechnology,
-} from 'src/clockface'
+import {EmptyState, Input, InputType, Tabs} from 'src/clockface'
 import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
-import {createScraper} from 'src/organizations/actions/orgView'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -41,7 +33,7 @@ import {
 } from 'src/shared/copy/v2/notifications'
 import FilterList from 'src/shared/components/Filter'
 
-interface OwnProps {
+interface Props {
   scrapers: ScraperTargetResponse[]
   onChange: () => void
   orgName: string
@@ -49,11 +41,6 @@ interface OwnProps {
   notify: NotificationsActions.PublishNotificationActionCreator
 }
 
-interface DispatchProps {
-  createScraper: typeof createScraper
-}
-
-type Props = OwnProps & DispatchProps
 interface State {
   overlayState: OverlayState
   searchTerm: string
@@ -102,13 +89,11 @@ class Scrapers extends PureComponent<Props, State> {
             />
           )}
         </FilterList>
-        <OverlayTechnology visible={this.isOverlayVisible}>
-          <CreateScraperOverlay
-            buckets={this.buckets}
-            onCreate={this.handleCreateScraper}
-            onDismiss={this.handleDismissOverlay}
-          />
-        </OverlayTechnology>
+        <CreateScraperOverlay
+          visible={this.isOverlayVisible}
+          buckets={this.buckets}
+          onDismiss={this.handleDismissOverlay}
+        />
       </>
     )
   }
@@ -144,10 +129,6 @@ class Scrapers extends PureComponent<Props, State> {
         onClick={this.handleShowOverlay}
       />
     )
-  }
-
-  private handleCreateScraper = (scraper: ScraperTargetResponse): void => {
-    this.props.createScraper(scraper)
   }
 
   private get emptyState(): JSX.Element {
@@ -206,11 +187,4 @@ class Scrapers extends PureComponent<Props, State> {
   }
 }
 
-const mdtp = {
-  createScraper: createScraper,
-}
-
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(Scrapers)
+export default Scrapers

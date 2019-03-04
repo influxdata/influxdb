@@ -17,7 +17,7 @@ const setup = (override = {}) => {
     onTogglePluginBundle: jest.fn(),
     buckets: [],
     bucket: '',
-    selectedBucket: '',
+    selectedBucketName: '',
     onSelectBucket: jest.fn(),
     ...override,
   }

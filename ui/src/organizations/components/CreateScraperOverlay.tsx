@@ -11,11 +11,13 @@ import {
   OverlayHeading,
   OverlayBody,
   OverlayFooter,
+  OverlayTechnology,
 } from 'src/clockface'
 import CreateScraperForm from 'src/organizations/components/CreateScraperForm'
 
 // Actions
 import {notify as notifyAction, notify} from 'src/shared/actions/notifications'
+import {createScraper} from 'src/organizations/actions/orgView'
 
 // Types
 import {Bucket, ScraperTargetRequest} from '@influxdata/influx'
@@ -25,13 +27,14 @@ import {
 } from 'src/shared/copy/v2/notifications'
 
 interface OwnProps {
+  visible: boolean
   buckets: Bucket[]
-  onCreate: (scraper: ScraperTargetRequest) => void
   onDismiss: () => void
 }
 
 interface DispatchProps {
   notify: typeof notifyAction
+  onCreateScraper: typeof createScraper
 }
 
 type Props = OwnProps & DispatchProps
@@ -57,37 +60,39 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
 
   public render() {
     const {scraper} = this.state
-    const {onDismiss, buckets} = this.props
+    const {onDismiss, buckets, visible} = this.props
 
     return (
-      <OverlayContainer maxWidth={600}>
-        <OverlayHeading title="Create Scraper" onDismiss={onDismiss} />
-        <Form onSubmit={this.handleSubmit}>
-          <OverlayBody>
-            <h5 className="wizard-step--sub-title">
-              Scrapers collect data from multiple targets at regular intervals
-              and to write to a bucket
-            </h5>
-            <CreateScraperForm
-              buckets={buckets}
-              url={scraper.url}
-              name={scraper.name}
-              selectedBucketID={scraper.bucketID}
-              onInputChange={this.handleInputChange}
-              onSelectBucket={this.handleSelectBucket}
-            />
-          </OverlayBody>
-          <OverlayFooter>
-            <Button text="Cancel" onClick={onDismiss} />
-            <Button
-              status={this.submitButtonStatus}
-              text="Create"
-              onClick={this.handleSubmit}
-              color={ComponentColor.Success}
-            />
-          </OverlayFooter>
-        </Form>
-      </OverlayContainer>
+      <OverlayTechnology visible={visible}>
+        <OverlayContainer maxWidth={600}>
+          <OverlayHeading title="Create Scraper" onDismiss={onDismiss} />
+          <Form onSubmit={this.handleSubmit}>
+            <OverlayBody>
+              <h5 className="wizard-step--sub-title">
+                Scrapers collect data from multiple targets at regular intervals
+                and to write to a bucket
+              </h5>
+              <CreateScraperForm
+                buckets={buckets}
+                url={scraper.url}
+                name={scraper.name}
+                selectedBucketID={scraper.bucketID}
+                onInputChange={this.handleInputChange}
+                onSelectBucket={this.handleSelectBucket}
+              />
+            </OverlayBody>
+            <OverlayFooter>
+              <Button text="Cancel" onClick={onDismiss} />
+              <Button
+                status={this.submitButtonStatus}
+                text="Create"
+                onClick={this.handleSubmit}
+                color={ComponentColor.Success}
+              />
+            </OverlayFooter>
+          </Form>
+        </OverlayContainer>
+      </OverlayTechnology>
     )
   }
 
@@ -120,10 +125,10 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
 
   private handleSubmit = async () => {
     try {
-      const {onCreate, onDismiss, notify} = this.props
+      const {onCreateScraper, onDismiss, notify} = this.props
       const {scraper} = this.state
 
-      await onCreate(scraper)
+      await onCreateScraper(scraper)
       onDismiss()
       notify(scraperCreateSuccess())
     } catch (e) {
@@ -135,6 +140,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
 
 const mdtp: DispatchProps = {
   notify: notifyAction,
+  onCreateScraper: createScraper,
 }
 
 export default connect<null, DispatchProps, OwnProps>(
