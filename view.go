@@ -478,8 +478,6 @@ func (v LogViewProperties) GetType() string            { return v.Type }
 // DashboardQuery represents a query used in a dashboard cell
 type DashboardQuery struct {
 	Text          string        `json:"text"`
-	Type          string        `json:"type"`
-	SourceID      string        `json:"sourceID"`
 	EditMode      string        `json:"editMode"` // Either "builder" or "advanced"
 	Name          string        `json:"name"`     // Term or phrase that refers to the query
 	BuilderConfig BuilderConfig `json:"builderConfig"`
