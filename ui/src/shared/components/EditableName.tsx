@@ -1,10 +1,14 @@
 // Libraries
 import React, {Component, KeyboardEvent, ChangeEvent, MouseEvent} from 'react'
 import classnames from 'classnames'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Components
 import {Input, ComponentSize} from 'src/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
+
+// Types
+import {RemoteDataState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -22,6 +26,7 @@ interface PassedProps {
 
 interface DefaultProps {
   hrefValue?: string
+  testID?: string
 }
 
 type Props = PassedProps & DefaultProps
@@ -29,12 +34,14 @@ type Props = PassedProps & DefaultProps
 interface State {
   isEditing: boolean
   workingName: string
+  loading: RemoteDataState
 }
 
 @ErrorHandling
 class EditableName extends Component<Props, State> {
   public static defaultProps: DefaultProps = {
     hrefValue: '#',
+    testID: 'editable-name',
   }
 
   constructor(props: Props) {
@@ -43,20 +50,27 @@ class EditableName extends Component<Props, State> {
     this.state = {
       isEditing: false,
       workingName: props.name,
+      loading: RemoteDataState.Done,
     }
   }
 
   public render() {
-    const {name, onEditName, hrefValue, noNameString} = this.props
+    const {name, onEditName, hrefValue, noNameString, testID} = this.props
 
     return (
       <div className={this.className}>
-        <a href={hrefValue} onClick={onEditName}>
-          <span>{name || noNameString}</span>
-        </a>
+        <SpinnerContainer
+          loading={this.state.loading}
+          spinnerComponent={<TechnoSpinner diameterPixels={20} />}
+        >
+          <a href={hrefValue} onClick={onEditName}>
+            <span>{name || noNameString}</span>
+          </a>
+        </SpinnerContainer>
         <div
           className="editable-name--toggle"
           onClick={this.handleStartEditing}
+          data-testid={testID}
         >
           <span className="icon pencil" />
         </div>
@@ -67,9 +81,9 @@ class EditableName extends Component<Props, State> {
 
   private get input(): JSX.Element {
     const {placeholder} = this.props
-    const {workingName, isEditing} = this.state
+    const {workingName, isEditing, loading} = this.state
 
-    if (isEditing) {
+    if (isEditing && loading !== RemoteDataState.Loading) {
       return (
         <ClickOutside onClickOutside={this.handleStopEditing}>
           <Input
@@ -97,9 +111,9 @@ class EditableName extends Component<Props, State> {
     const {workingName} = this.state
     const {onUpdate} = this.props
 
+    this.setState({loading: RemoteDataState.Loading})
     await onUpdate(workingName)
-
-    this.setState({isEditing: false})
+    this.setState({loading: RemoteDataState.Done, isEditing: false})
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -118,8 +132,9 @@ class EditableName extends Component<Props, State> {
         this.setState({isEditing: false, workingName: name})
         return
       }
+      this.setState({loading: RemoteDataState.Loading})
       await onUpdate(workingName)
-      this.setState({isEditing: false})
+      this.setState({isEditing: false, loading: RemoteDataState.Done})
     }
 
     if (e.key === 'Escape') {

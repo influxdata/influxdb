@@ -2363,7 +2363,7 @@ func TestFileStore_Open(t *testing.T) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2394,7 +2394,7 @@ func TestFileStore_Remove(t *testing.T) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2443,7 +2443,7 @@ func TestFileStore_Replace(t *testing.T) {
 	os.Rename(files[2], replacement)
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2529,7 +2529,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2543,7 +2543,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 	}
 
 	fs2 := tsm1.NewFileStore(dir)
-	if err := fs2.Open(); err != nil {
+	if err := fs2.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs2.Close()
@@ -2641,7 +2641,7 @@ func TestFileStore_Stats(t *testing.T) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		fatal(t, "opening file store", err)
 	}
 	defer fs.Close()
@@ -2723,7 +2723,7 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 		t.Fatalf("unexpected error delete range: %v", err)
 	}
 
-	s, e := fs.CreateSnapshot()
+	s, e := fs.CreateSnapshot(context.Background())
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -2972,7 +2972,7 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 		fs.WithLogger(logger.New(os.Stderr))
 	}
 
-	if err := fs.Open(); err != nil {
+	if err := fs.Open(context.Background()); err != nil {
 		b.Fatalf("opening file store %v", err)
 	}
 	defer fs.Close()
@@ -3034,8 +3034,8 @@ func TestDefaultParseFileName(t *testing.T) {
 		expectedSequence:   0,
 		expectError:        true,
 	}, {
-		filename:           "00000000000000a-00000000a.tsm",
-		expectError:        true,
+		filename:    "00000000000000a-00000000a.tsm",
+		expectError: true,
 	}, {
 		filename:           "000000000000000-000000000.tsm",
 		expectedGeneration: 0,

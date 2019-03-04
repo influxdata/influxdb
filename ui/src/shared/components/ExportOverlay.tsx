@@ -19,13 +19,17 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import 'src/shared/components/ExportOverlay.scss'
 
 interface Props {
-  isVisible: boolean
   onDismissOverlay: () => void
   resource: object
   resourceName: string
+  isVisible?: boolean
 }
 
-export default class ImportDashboardOverlay extends PureComponent<Props> {
+export default class ExportOverlay extends PureComponent<Props> {
+  public static defaultProps: Partial<Props> = {
+    isVisible: true,
+  }
+
   public render() {
     const {isVisible, resourceName, onDismissOverlay, resource} = this.props
     const options = {

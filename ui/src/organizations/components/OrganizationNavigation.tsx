@@ -25,44 +25,44 @@ class OrganizationNavigation extends PureComponent<Props> {
         <Tabs.Tab
           title={'Members'}
           id={'members'}
-          url={`${route}/members_tab`}
-          active={'members_tab' === tab}
+          url={`${route}/members`}
+          active={'members' === tab}
         />
         <Tabs.Tab
           title={'Buckets'}
           id={'buckets'}
-          url={`${route}/buckets_tab`}
-          active={'buckets_tab' === tab}
+          url={`${route}/buckets`}
+          active={'buckets' === tab}
         />
         <Tabs.Tab
           title={'Dashboards'}
           id={'dashboards'}
-          url={`${route}/dashboards_tab`}
-          active={'dashboards_tab' === tab}
+          url={`${route}/dashboards`}
+          active={'dashboards' === tab}
         />
         <Tabs.Tab
           title={'Tasks'}
           id={'tasks'}
-          url={`${route}/tasks_tab`}
-          active={'tasks_tab' === tab}
+          url={`${route}/tasks`}
+          active={'tasks' === tab}
         />
         <Tabs.Tab
           title={'Telegraf'}
           id={'telegrafs'}
-          url={`${route}/telegrafs_tab`}
-          active={'telegrafs_tab' === tab}
+          url={`${route}/telegrafs`}
+          active={'telegrafs' === tab}
         />
         <Tabs.Tab
           title={'Scrapers'}
           id={'scrapers'}
-          url={`${route}/scrapers_tab`}
-          active={'scrapers_tab' === tab}
+          url={`${route}/scrapers`}
+          active={'scrapers' === tab}
         />
         <Tabs.Tab
           title={'Variables'}
           id={'variables'}
-          url={`${route}/variables_tab`}
-          active={'variables_tab' === tab}
+          url={`${route}/variables`}
+          active={'variables' === tab}
         />
       </Tabs.Nav>
     )

@@ -79,7 +79,7 @@ func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWrit
 	engine := storage.NewEngine(rootDir, storage.NewConfig())
 	engine.WithLogger(logger)
 
-	if err := engine.Open(); err != nil {
+	if err := engine.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 

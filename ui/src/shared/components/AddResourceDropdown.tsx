@@ -32,13 +32,14 @@ export default class AddResourceDropdown extends PureComponent<Props> {
   }
 
   private get optionItems(): JSX.Element[] {
+    const importOption = this.importOption
+    const newOption = this.newOption
     return [
-      <Dropdown.Item
-        id={this.newOption}
-        key={this.newOption}
-        value={this.newOption}
-      >
-        {this.newOption}
+      <Dropdown.Item id={newOption} key={newOption} value={newOption}>
+        {newOption}
+      </Dropdown.Item>,
+      <Dropdown.Item id={importOption} key={importOption} value={importOption}>
+        {importOption}
       </Dropdown.Item>,
     ]
   }
@@ -53,11 +54,12 @@ export default class AddResourceDropdown extends PureComponent<Props> {
 
   private handleSelect = (selection: string): void => {
     const {onSelectNew, onSelectImport} = this.props
-    switch (selection) {
-      case this.newOption:
-        onSelectNew()
-      case this.importOption:
-        onSelectImport()
+
+    if (selection === this.newOption) {
+      onSelectNew()
+    }
+    if (selection === this.importOption) {
+      onSelectImport()
     }
   }
 }

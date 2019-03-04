@@ -2,28 +2,26 @@
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import {AppState} from 'src/types/v2'
 
 // Components
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
-
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-import {Bucket, Organization} from '@influxdata/influx'
-import {client} from 'src/utils/api'
-
-// Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Buckets from 'src/organizations/components/Buckets'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
+// Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
+
+// Types
+import {Bucket, Organization} from '@influxdata/influx'
+import {client} from 'src/utils/api'
+import {AppState} from 'src/types/v2'
 
 const getBuckets = async (org: Organization) => {
   return client.buckets.getAllByOrg(org.name)
@@ -60,11 +58,11 @@ class OrgBucketsIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'buckets_tab'} orgID={org.id} />
+              <OrganizationNavigation tab={'buckets'} orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--buckets"
-                  url="buckets_tab"
+                  url="buckets"
                   title="Buckets"
                 >
                   <GetOrgResources<Bucket>

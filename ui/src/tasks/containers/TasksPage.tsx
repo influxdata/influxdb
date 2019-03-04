@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {InjectedRouter} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
@@ -10,11 +11,13 @@ import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 import FilterList from 'src/shared/components/Filter'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 
 // Actions
 import {
   populateTasks,
   updateTaskStatus,
+  updateTaskName,
   deleteTask,
   selectTask,
   cloneTask,
@@ -26,9 +29,15 @@ import {
   removeTaskLabelsAsync,
   runTask,
 } from 'src/tasks/actions/v2'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
 import {allOrganizationsID} from 'src/tasks/constants'
+import {
+  taskImportFailed,
+  taskImportSuccess,
+  cantImportInvalidResource,
+} from 'src/shared/copy/v2/notifications'
 
 // Types
 import {Organization} from '@influxdata/influx'
@@ -41,6 +50,7 @@ interface PassedInProps {
 interface ConnectedDispatchProps {
   populateTasks: typeof populateTasks
   updateTaskStatus: typeof updateTaskStatus
+  updateTaskName: typeof updateTaskName
   deleteTask: typeof deleteTask
   cloneTask: typeof cloneTask
   selectTask: typeof selectTask
@@ -51,6 +61,7 @@ interface ConnectedDispatchProps {
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onRunTask: typeof runTask
+  notify: typeof notifyAction
 }
 
 interface ConnectedStateProps {
@@ -88,6 +99,7 @@ class TasksPage extends PureComponent<Props, State> {
   public render(): JSX.Element {
     const {
       setSearchTerm,
+      updateTaskName,
       searchTerm,
       setShowInactive,
       showInactive,
@@ -101,11 +113,10 @@ class TasksPage extends PureComponent<Props, State> {
         <Page titleTag="Tasks">
           <TasksHeader
             onCreateTask={this.handleCreateTask}
-            setSearchTerm={setSearchTerm}
             setShowInactive={setShowInactive}
             showInactive={showInactive}
-            toggleOverlay={this.handleToggleImportOverlay}
-            searchTerm={searchTerm}
+            filterComponent={() => this.search}
+            onImportTask={this.handleToggleImportOverlay}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
@@ -128,6 +139,8 @@ class TasksPage extends PureComponent<Props, State> {
                     onRemoveTaskLabels={onRemoveTaskLabels}
                     onRunTask={onRunTask}
                     onFilterChange={setSearchTerm}
+                    filterComponent={() => this.search}
+                    onUpdate={updateTaskName}
                   />
                 )}
               </FilterList>
@@ -167,23 +180,45 @@ class TasksPage extends PureComponent<Props, State> {
     this.setState({isImporting: !this.state.isImporting})
   }
 
+  private get search(): JSX.Element {
+    const {setSearchTerm, searchTerm} = this.props
+
+    return (
+      <SearchWidget
+        placeholderText="Filter tasks..."
+        onSearch={setSearchTerm}
+        searchTerm={searchTerm}
+      />
+    )
+  }
+
   private get importOverlay(): JSX.Element {
     const {isImporting} = this.state
-    const {importTask} = this.props
 
     return (
       <ImportOverlay
         isVisible={isImporting}
         resourceName="Task"
         onDismissOverlay={this.handleToggleImportOverlay}
-        onImport={importTask}
-        isResourceValid={this.handleValidateTask}
+        onSubmit={this.importTask}
       />
     )
   }
 
-  private handleValidateTask = (): boolean => {
-    return true
+  private importTask = (importString: string): void => {
+    const {notify, importTask} = this.props
+    try {
+      const resource = JSON.parse(importString)
+      if (_.isEmpty(resource)) {
+        notify(cantImportInvalidResource('Task'))
+        return
+      }
+      importTask(resource)
+      this.handleToggleImportOverlay()
+      notify(taskImportSuccess())
+    } catch (error) {
+      notify(taskImportFailed(error))
+    }
   }
 
   private get filteredTasks(): Task[] {
@@ -244,8 +279,10 @@ const mstp = ({
 }
 
 const mdtp: ConnectedDispatchProps = {
+  notify: notifyAction,
   populateTasks,
   updateTaskStatus,
+  updateTaskName,
   deleteTask,
   selectTask,
   cloneTask,

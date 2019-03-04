@@ -128,8 +128,8 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateDashboard = (name: string) => {
-    this.props.onUpdateDashboard({...this.props.dashboard, name})
+  private handleUpdateDashboard = async (name: string) => {
+    await this.props.onUpdateDashboard({...this.props.dashboard, name})
   }
 
   private get labels(): JSX.Element {
@@ -197,7 +197,7 @@ export default class DashboardsIndexTableRow extends PureComponent<Props> {
     const ownerOrg = orgs.find(o => o.id === dashboard.orgID)
 
     return (
-      <Link to={`/organizations/${dashboard.orgID}/members_tab`}>
+      <Link to={`/organizations/${dashboard.orgID}/members`}>
         {ownerOrg.name}
       </Link>
     )

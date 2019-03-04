@@ -50,10 +50,10 @@ export default class VariableRow extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateVariableName = (name: string) => {
+  private handleUpdateVariableName = async (name: string) => {
     const {onUpdateVariableName, variable} = this.props
 
-    onUpdateVariableName({id: variable.id, name})
+    await onUpdateVariableName({id: variable.id, name})
   }
 
   private handleEditVariable = (): void => {

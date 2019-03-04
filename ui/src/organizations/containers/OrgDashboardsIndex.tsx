@@ -1,28 +1,29 @@
+// Libraries
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import {AppState, Dashboard} from 'src/types/v2'
 
 // Components
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
-
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-import {Organization} from '@influxdata/influx'
-import {getDashboards} from 'src/organizations/apis'
-
-// Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
+import Dashboards from 'src/organizations/components/Dashboards'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
+//Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
-import Dashboards from 'src/organizations/components/Dashboards'
+
+// APIs
+import {getDashboards} from 'src/organizations/apis'
+
+// Types
+import {Organization} from '@influxdata/influx'
+import {AppState, Dashboard} from 'src/types/v2'
 
 interface RouterProps {
   params: {
@@ -55,11 +56,11 @@ class OrgDashboardsIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'dashboards_tab'} orgID={org.id} />
+              <OrganizationNavigation tab={'dashboards'} orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--dashboards"
-                  url="dashboards_tab"
+                  url="dashboards"
                   title="Dashboards"
                 >
                   <GetOrgResources<Dashboard>

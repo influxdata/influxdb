@@ -20,6 +20,7 @@ require (
 	github.com/bouk/httprouter v0.0.0-20160817010721-ee8b3818a7f5
 	github.com/cenkalti/backoff v2.1.1+incompatible // indirect
 	github.com/cespare/xxhash v1.1.0
+	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/containerd/continuity v0.0.0-20181203112020-004b46473808 // indirect
 	github.com/coreos/bbolt v1.3.1-coreos.6
 	github.com/davecgh/go-spew v1.1.1
@@ -62,7 +63,7 @@ require (
 	github.com/hashicorp/vault v0.11.5
 	github.com/hashicorp/vault-plugin-secrets-kv v0.0.0-20181106190520-2236f141171e // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
-	github.com/influxdata/flux v0.21.0
+	github.com/influxdata/flux v0.21.2
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jefferai/jsonx v0.0.0-20160721235117-9cc31c3135ee // indirect
@@ -110,6 +111,9 @@ require (
 	github.com/testcontainers/testcontainers-go v0.0.0-20190108154635-47c0da630f72
 	github.com/tinylib/msgp v1.1.0 // indirect
 	github.com/tylerb/graceful v1.2.15
+	github.com/uber-go/atomic v1.3.2 // indirect
+	github.com/uber/jaeger-client-go v2.15.0+incompatible
+	github.com/uber/jaeger-lib v1.5.0+incompatible // indirect
 	github.com/willf/bitset v1.1.9 // indirect
 	github.com/yudai/gojsondiff v1.0.0
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect

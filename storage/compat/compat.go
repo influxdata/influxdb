@@ -27,7 +27,6 @@ type Config struct {
 	CompactThroughput              toml.Size     `toml:"compact-throughput"`
 	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
 	MaxConcurrentCompactions       int           `toml:"max-concurrent-compactions"`
-	TraceLoggingEnabled            bool          `toml:"trace-logging-enabled"`
 	TSMWillNeed                    bool          `toml:"tsm-use-madv-willneed"`
 }
 
@@ -43,7 +42,6 @@ func NewConfig() Config {
 		CompactThroughput:              toml.Size(tsm1.DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(tsm1.DefaultCompactThroughputBurst),
 		MaxConcurrentCompactions:       tsm1.DefaultCompactMaxConcurrent,
-		TraceLoggingEnabled:            storage.DefaultTraceLoggingEnabled,
 		TSMWillNeed:                    tsm1.DefaultMADVWillNeed,
 	}
 }
@@ -52,7 +50,6 @@ func NewConfig() Config {
 // of the Dir key so that it can be passed through appropriately to the storage engine constructor.
 func Convert(oldConfig Config) (string, storage.Config) {
 	newConfig := storage.NewConfig()
-	newConfig.TraceLoggingEnabled = oldConfig.TraceLoggingEnabled
 	newConfig.ValidateKeys = oldConfig.ValidateKeys
 	newConfig.Engine.MADVWillNeed = oldConfig.TSMWillNeed
 	newConfig.Engine.Cache.MaxMemorySize = oldConfig.CacheMaxMemorySize

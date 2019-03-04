@@ -12,7 +12,7 @@ describe('Buckets', () => {
       cy.wrap(body.org).as('org')
       cy.wrap(bucket).as('bucket')
       cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/buckets_tab`)
+        cy.visit(`${orgs}/${id}/buckets`)
       })
     })
   })
@@ -62,7 +62,7 @@ describe('Buckets', () => {
         .and('contain', newName)
     })
 
-    it('can delete a bucket', () => {
+    it.skip('can delete a bucket', () => {
       cy.get<Organization>('@org').then(({id, name}) => {
         cy.createBucket(id, name, 'newbucket1')
         cy.createBucket(id, name, 'newbucket2')

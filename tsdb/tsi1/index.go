@@ -2,8 +2,10 @@ package tsi1
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
@@ -100,7 +103,7 @@ var DisableMetrics = func() IndexOption {
 type Index struct {
 	mu         sync.RWMutex
 	partitions []*Partition
-	opened     bool
+	res        lifecycle.Resource
 
 	defaultLabels prometheus.Labels
 
@@ -169,7 +172,7 @@ func (i *Index) Bytes() int {
 	for _, p := range i.partitions {
 		b += int(unsafe.Sizeof(p)) + p.bytes()
 	}
-	b += int(unsafe.Sizeof(i.opened))
+	b += int(unsafe.Sizeof(i.res))
 	b += int(unsafe.Sizeof(i.path)) + len(i.path)
 	b += int(unsafe.Sizeof(i.disableCompactions))
 	b += int(unsafe.Sizeof(i.maxLogFileSize))
@@ -206,13 +209,16 @@ func (i *Index) SeriesIDSet() *tsdb.SeriesIDSet {
 }
 
 // Open opens the index.
-func (i *Index) Open() error {
+func (i *Index) Open(ctx context.Context) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	if i.opened {
+	if i.res.Opened() {
 		return errors.New("index already open")
 	}
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "Index.Open")
+	defer span.Finish()
 
 	// Ensure root exists.
 	if err := os.MkdirAll(i.path, 0777); err != nil {
@@ -275,17 +281,32 @@ func (i *Index) Open() error {
 		}(k)
 	}
 
-	// Check for error
+	// Check for error. Be sure to read from every partition so that we can
+	// clean up appropriately in the case of errors.
+	var err error
 	for i := 0; i < partitionN; i++ {
-		if err := <-errC; err != nil {
-			return err
+		if perr := <-errC; err == nil {
+			err = perr
 		}
+	}
+	if err != nil {
+		for _, p := range i.partitions {
+			p.Close()
+		}
+		return err
 	}
 
 	// Mark opened.
-	i.opened = true
+	i.res.Open()
 	i.logger.Info("Index opened", zap.Int("partitions", partitionN))
+
 	return nil
+}
+
+// Acquire returns a reference to the index that causes it to be unable to be
+// closed until the reference is released.
+func (i *Index) Acquire() (*lifecycle.Reference, error) {
+	return i.res.Acquire()
 }
 
 // Compact requests a compaction of partitions.
@@ -322,14 +343,16 @@ func (i *Index) Close() error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
+	// Wait for any references to the index before closing
+	// the partitions.
+	i.res.Close()
+
 	for _, p := range i.partitions {
 		if err := p.Close(); err != nil {
 			return err
 		}
 	}
 
-	// Mark index as closed.
-	i.opened = false
 	return nil
 }
 
@@ -516,16 +539,12 @@ func (i *Index) MeasurementSeriesByExprIterator(name []byte, expr influxql.Expr)
 // series file.
 func (i *Index) measurementSeriesByExprIterator(name []byte, expr influxql.Expr) (tsdb.SeriesIDIterator, error) {
 	// Return all series for the measurement if there are no tag expressions.
-
-	release := i.sfile.Retain()
-	defer release()
-
 	if expr == nil {
 		itr, err := i.measurementSeriesIDIterator(name)
 		if err != nil {
 			return nil, err
 		}
-		return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr), nil
+		return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
 	}
 
 	itr, err := i.seriesByExprIterator(name, expr)
@@ -533,7 +552,7 @@ func (i *Index) measurementSeriesByExprIterator(name []byte, expr influxql.Expr)
 		return nil, err
 	}
 
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr), nil
+	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // MeasurementSeriesIDIterator returns an iterator over all non-tombstoned series
@@ -543,10 +562,7 @@ func (i *Index) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator,
 	if err != nil {
 		return nil, err
 	}
-
-	release := i.sfile.Retain()
-	defer release()
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr), nil
+	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // measurementSeriesIDIterator returns an iterator over all series in a measurement.
@@ -866,8 +882,13 @@ func (i *Index) HasTagValue(name, key, value []byte) (bool, error) {
 func (i *Index) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
 	a := make([]tsdb.TagKeyIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
-		itr := p.TagKeyIterator(name)
-		if itr != nil {
+		itr, err := p.TagKeyIterator(name)
+		if err != nil {
+			for _, itr := range a {
+				itr.Close()
+			}
+			return nil, err
+		} else if itr != nil {
 			a = append(a, itr)
 		}
 	}
@@ -878,8 +899,13 @@ func (i *Index) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
 func (i *Index) TagValueIterator(name, key []byte) (tsdb.TagValueIterator, error) {
 	a := make([]tsdb.TagValueIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
-		itr := p.TagValueIterator(name, key)
-		if itr != nil {
+		itr, err := p.TagValueIterator(name, key)
+		if err != nil {
+			for _, itr := range a {
+				itr.Close()
+			}
+			return nil, err
+		} else if itr != nil {
 			a = append(a, itr)
 		}
 	}
@@ -888,38 +914,38 @@ func (i *Index) TagValueIterator(name, key []byte) (tsdb.TagValueIterator, error
 
 // TagKeySeriesIDIterator returns a series iterator for all values across a single key.
 func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
-	release := i.sfile.Retain()
-	defer release()
-
 	itr, err := i.tagKeySeriesIDIterator(name, key)
 	if err != nil {
 		return nil, err
 	}
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr), nil
+	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // tagKeySeriesIDIterator returns a series iterator for all values across a single key.
 func (i *Index) tagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
 	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
-		itr := p.TagKeySeriesIDIterator(name, key)
-		if itr != nil {
+		itr, err := p.TagKeySeriesIDIterator(name, key)
+		if err != nil {
+			for _, itr := range a {
+				itr.Close()
+			}
+			return nil, err
+		} else if itr != nil {
 			a = append(a, itr)
 		}
 	}
+
 	return tsdb.MergeSeriesIDIterators(a...), nil
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
-	release := i.sfile.Retain()
-	defer release()
-
 	itr, err := i.tagValueSeriesIDIterator(name, key, value)
 	if err != nil {
 		return nil, err
 	}
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr), nil
+	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // tagValueSeriesIDIterator returns a series iterator for a single tag value.
@@ -956,9 +982,6 @@ func (i *Index) tagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 }
 
 func (i *Index) TagSets(name []byte, opt query.IteratorOptions) ([]*query.TagSet, error) {
-	release := i.sfile.Retain()
-	defer release()
-
 	itr, err := i.MeasurementSeriesByExprIterator(name, opt.Condition)
 	if err != nil {
 		return nil, err
@@ -1108,7 +1131,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 
 // DiskSizeBytes returns the size of the index on disk.
 func (i *Index) DiskSizeBytes() int64 {
-	fs, err := i.RetainFileSet()
+	fs, err := i.FileSet()
 	if err != nil {
 		i.logger.Warn("Index is closing down")
 		return 0
@@ -1130,22 +1153,36 @@ func (i *Index) TagKeyCardinality(name, key []byte) int {
 	return 0
 }
 
-// RetainFileSet returns the set of all files across all partitions.
-// This is only needed when all files need to be retained for an operation.
-func (i *Index) RetainFileSet() (*FileSet, error) {
+// FileSet returns the set of all files across all partitions. It must be released.
+func (i *Index) FileSet() (*FileSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	fs, _ := NewFileSet(nil, i.sfile, nil)
+	// Keep track of all of the file sets returned from the partitions temporarily.
+	// Keeping them alive keeps all of their underlying files alive. We release
+	// whatever we have when we return.
+	fss := make([]*FileSet, 0, len(i.partitions))
+	defer func() {
+		for _, fs := range fss {
+			fs.Release()
+		}
+	}()
+
+	// Collect the set of files from each partition.
+	var files []File
 	for _, p := range i.partitions {
-		pfs, err := p.RetainFileSet()
+		fs, err := p.FileSet()
 		if err != nil {
-			fs.Close()
 			return nil, err
 		}
-		fs.files = append(fs.files, pfs.files...)
+		fss = append(fss, fs)
+		files = append(files, fs.files...)
 	}
-	return fs, nil
+
+	// Construct a new file set from the set of files. This acquires references to
+	// each of the files, so we can release all of the file sets returned from the
+	// partitions, which happens automatically during the defer.
+	return NewFileSet(i.sfile, files)
 }
 
 // SetFieldName is a no-op on this index.
@@ -1377,14 +1414,11 @@ func (i *Index) seriesByBinaryExprVarRefIterator(name, key []byte, value *influx
 // MatchTagValueSeriesIDIterator returns a series iterator for tags which match value.
 // If matches is false, returns iterators which do not match value.
 func (i *Index) MatchTagValueSeriesIDIterator(name, key []byte, value *regexp.Regexp, matches bool) (tsdb.SeriesIDIterator, error) {
-	release := i.sfile.Retain()
-	defer release()
-
 	itr, err := i.matchTagValueSeriesIDIterator(name, key, value, matches)
 	if err != nil {
 		return nil, err
 	}
-	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr), nil
+	return tsdb.FilterUndeletedSeriesIDIterator(i.sfile, itr)
 }
 
 // matchTagValueSeriesIDIterator returns a series iterator for tags which match

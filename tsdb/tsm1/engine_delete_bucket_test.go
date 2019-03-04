@@ -2,6 +2,7 @@ package tsm1_test
 
 import (
 	"bytes"
+	"context"
 	"reflect"
 	"testing"
 
@@ -23,10 +24,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// mock the planner so compactions don't run during the test
-	e.CompactionPlan = &mockPlanner{}
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer e.Close()
@@ -35,7 +33,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	if err := e.WriteSnapshot(); err != nil {
+	if err := e.WriteSnapshot(context.Background()); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
@@ -110,15 +108,13 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	if iter, err = e.index.MeasurementSeriesIDIterator([]byte("cpu")); err != nil {
 		t.Fatalf("iterator error: %v", err)
 	}
-	if iter == nil {
-		return
-	}
-
-	defer iter.Close()
-	if elem, err = iter.Next(); err != nil {
-		t.Fatal(err)
-	}
-	if !elem.SeriesID.IsZero() {
-		t.Fatalf("got an undeleted series id, but series should be dropped from index")
+	if iter != nil {
+		defer iter.Close()
+		if elem, err = iter.Next(); err != nil {
+			t.Fatal(err)
+		}
+		if !elem.SeriesID.IsZero() {
+			t.Fatalf("got an undeleted series id, but series should be dropped from index")
+		}
 	}
 }

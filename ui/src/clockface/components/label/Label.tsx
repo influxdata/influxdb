@@ -25,6 +25,7 @@ export interface LabelType {
 
 interface LabelProps {
   size?: ComponentSize
+  testID?: string
 }
 
 interface State {
@@ -37,6 +38,7 @@ type Props = LabelType & LabelProps
 class Label extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
     size: ComponentSize.ExtraSmall,
+    testID: 'label--pill',
   }
 
   public static Container = LabelContainer
@@ -50,7 +52,7 @@ class Label extends Component<Props, State> {
   }
 
   public render() {
-    const {name} = this.props
+    const {name, testID} = this.props
 
     this.validateColorHex()
 
@@ -62,7 +64,7 @@ class Label extends Component<Props, State> {
         onMouseLeave={this.handleMouseLeave}
         style={this.style}
         title={this.title}
-        data-testid={`label--pill ${name}`}
+        data-testid={`${testID} ${name}`}
       >
         <label>{name}</label>
         {this.deleteButton}

@@ -20,7 +20,7 @@ import {
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {createOrg} from 'src/organizations/actions'
+import {createOrg} from 'src/organizations/actions/orgs'
 
 interface Props {
   link: string
