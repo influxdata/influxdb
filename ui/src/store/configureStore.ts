@@ -23,6 +23,7 @@ import noteEditorReducer from 'src/dashboards/reducers/v2/notes'
 import dataLoadingReducer from 'src/dataLoaders/reducers'
 import protosReducer from 'src/protos/reducers'
 import {variablesReducer} from 'src/variables/reducers'
+import {labelsReducer} from 'src/labels/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -46,6 +47,7 @@ export const rootReducer = combineReducers<ReducerState>({
   dataLoading: dataLoadingReducer,
   protos: protosReducer,
   variables: variablesReducer,
+  labels: labelsReducer,
   VERSION: () => '',
 })
 

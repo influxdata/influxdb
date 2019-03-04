@@ -49,14 +49,7 @@ class ConfigurationPage extends Component<Props> {
                 title="Labels"
               >
                 <GetLabels>
-                  {(labels, loading) => (
-                    <SpinnerContainer
-                      loading={loading}
-                      spinnerComponent={<TechnoSpinner />}
-                    >
-                      <Labels labels={labels} />
-                    </SpinnerContainer>
-                  )}
+                  <Labels />
                 </GetLabels>
               </TabbedPageSection>
               <TabbedPageSection

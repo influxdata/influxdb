@@ -33,7 +33,7 @@ import {
 
 // Types
 import {LabelType} from 'src/clockface'
-import {Label} from 'src/types/v2'
+import {Label, AppState} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -43,7 +43,7 @@ interface LabelProperties {
   description: string
 }
 
-interface PassedProps {
+interface StateProps {
   labels: Label[]
 }
 
@@ -57,7 +57,7 @@ interface DispatchProps {
   notify: typeof notifyAction
 }
 
-type Props = DispatchProps & PassedProps
+type Props = DispatchProps & StateProps
 
 @ErrorHandling
 class Labels extends PureComponent<Props, State> {
@@ -235,11 +235,17 @@ class Labels extends PureComponent<Props, State> {
   }
 }
 
+const mstp = ({labels}: AppState): StateProps => {
+  return {
+    labels: labels.list,
+  }
+}
+
 const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
 export default connect(
-  null,
+  mstp,
   mdtp
 )(Labels)

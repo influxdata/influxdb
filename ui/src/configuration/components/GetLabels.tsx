@@ -1,40 +1,57 @@
 // Libraries
-import {PureComponent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
 
-// APIs
-import {client} from 'src/utils/api'
+// Actions
+import {getLabels} from 'src/labels/actions'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Label} from 'src/types/v2'
+import {AppState} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {TechnoSpinner} from '@influxdata/clockface'
 
-interface Props {
-  children: (labels: Label[], loading: RemoteDataState) => JSX.Element
+interface StateProps {
+  status: RemoteDataState
 }
 
-interface State {
-  labels: Label[]
-  loading: RemoteDataState
+interface DispatchProps {
+  getLabels: typeof getLabels
 }
+
+type Props = StateProps & DispatchProps
 
 @ErrorHandling
-export default class GetLabels extends PureComponent<Props, State> {
-  public state: State = {labels: null, loading: RemoteDataState.NotStarted}
-
+class GetLabels extends PureComponent<Props, StateProps> {
   public async componentDidMount() {
-    const labels = await client.labels.getAll()
-    this.setState({
-      labels: _.orderBy(labels, ['name']),
-      loading: RemoteDataState.Done,
-    })
+    await this.props.getLabels()
   }
 
   public render() {
-    const {labels, loading} = this.state
-    return this.props.children(labels, loading)
+    const {status, children} = this.props
+
+    if (status != RemoteDataState.Done) {
+      return <TechnoSpinner />
+    }
+
+    return children
   }
 }
+
+const mstp = ({labels}: AppState): StateProps => {
+  return {
+    status: labels.status,
+  }
+}
+
+const mdtp = {
+  getLabels: getLabels,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(GetLabels)
