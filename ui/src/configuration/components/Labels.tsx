@@ -15,18 +15,12 @@ import {EmptyState, Input, InputType} from 'src/clockface'
 import LabelList from 'src/configuration/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
-// API
-import {client} from 'src/utils/api'
-
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {createLabel, updateLabel} from 'src/labels/actions'
+import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
 
 // Utils
 import {validateLabelName} from 'src/configuration/utils/labels'
-
-// Constants
-import {labelDeleteFailed} from 'src/shared/copy/v2/notifications'
 
 // Types
 import {LabelType} from 'src/clockface'
@@ -47,13 +41,13 @@ interface StateProps {
 interface State {
   searchTerm: string
   isOverlayVisible: boolean
-  labelTypes: LabelType[]
 }
 
 interface DispatchProps {
   notify: typeof notifyAction
   createLabel: typeof createLabel
   updateLabel: typeof updateLabel
+  deleteLabel: typeof deleteLabel
 }
 
 type Props = DispatchProps & StateProps
@@ -66,7 +60,6 @@ class Labels extends PureComponent<Props, State> {
     this.state = {
       searchTerm: '',
       isOverlayVisible: false,
-      labelTypes: this.labelTypes,
     }
   }
 
@@ -139,8 +132,12 @@ class Labels extends PureComponent<Props, State> {
     this.props.updateLabel(labelType.id, this.labelProperties(labelType))
   }
 
+  private handleDelete = async (id: string) => {
+    this.props.deleteLabel(id)
+  }
+
   private handleNameValidation = (name: string): string | null => {
-    return validateLabelName(this.state.labelTypes, name)
+    return validateLabelName(this.labelTypes, name)
   }
 
   private get labelTypes(): LabelType[] {
@@ -156,19 +153,6 @@ class Labels extends PureComponent<Props, State> {
       description: properties.description,
       colorHex: properties.color,
       onDelete: this.handleDelete,
-    }
-  }
-
-  private handleDelete = async (id: string) => {
-    const labelType = this.state.labelTypes.find(label => label.id === id)
-
-    try {
-      await client.labels.delete(labelType.id)
-      const labelTypes = this.state.labelTypes.filter(l => l.id !== id)
-
-      this.setState({labelTypes})
-    } catch (error) {
-      this.props.notify(labelDeleteFailed())
     }
   }
 
@@ -217,6 +201,7 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
   createLabel: createLabel,
   updateLabel: updateLabel,
+  deleteLabel: deleteLabel,
 }
 
 export default connect(

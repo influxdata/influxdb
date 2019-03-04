@@ -60,11 +60,13 @@ export const labelsReducer = (
       case 'REMOVE_LABEL': {
         const {id} = action.payload
         const {list} = draftState
-
-        draftState.list = list.filter(l => {
-          l.id !== id
+        const deleted = list.filter(l => {
+          return l.id !== id
         })
 
+        console.log(deleted)
+
+        draftState.list = deleted
         return
       }
     }
