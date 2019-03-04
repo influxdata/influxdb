@@ -87,8 +87,8 @@ export default class BucketRow extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateBucketName = (value: string) => {
-    this.props.onUpdateBucket({...this.props.bucket, name: value})
+  private handleUpdateBucketName = async (value: string) => {
+    await this.props.onUpdateBucket({...this.props.bucket, name: value})
   }
 
   private handleEditBucket = (): void => {

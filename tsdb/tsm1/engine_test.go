@@ -115,6 +115,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
+	defer e.Close()
 
 	// Make sure Snapshots are disabled.
 	e.SetCompactionsEnabled(false)
@@ -150,7 +151,7 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 		t.Fatal("nothing written to cache, so should not compact")
 	}
 
-	if err := e.WritePointsString("mm", "m,k=v f=3i"); err != nil {
+	if err := e.WritePointsString("m,k=v f=3i"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,7 +235,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 		e := MustOpenEngine()
 		pp := make([]models.Point, 0, sz)
 		for i := 0; i < sz; i++ {
-			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i), "mm")
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
 			pp = append(pp, p)
 		}
 
@@ -259,7 +260,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 		cpus := runtime.GOMAXPROCS(0)
 		pp := make([]models.Point, 0, sz*cpus)
 		for i := 0; i < sz*cpus; i++ {
-			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i), "mm")
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i))
 			pp = append(pp, p)
 		}
 
@@ -355,6 +356,11 @@ func (e *Engine) Close() error {
 }
 
 func (e *Engine) close(cleanup bool) error {
+	err := e.Engine.Close()
+	if err != nil {
+		return err
+	}
+
 	if e.index != nil {
 		e.index.Close()
 	}
@@ -363,12 +369,11 @@ func (e *Engine) close(cleanup bool) error {
 		e.sfile.Close()
 	}
 
-	defer func() {
-		if cleanup {
-			os.RemoveAll(e.root)
-		}
-	}()
-	return e.Engine.Close()
+	if cleanup {
+		os.RemoveAll(e.root)
+	}
+
+	return nil
 }
 
 // Reopen closes and reopens the engine.
@@ -420,8 +425,8 @@ func (e *Engine) AddSeries(name string, tags map[string]string) error {
 
 // WritePointsString calls WritePointsString on the underlying engine, but also
 // adds the associated series to the index.
-func (e *Engine) WritePointsString(mm string, ptstr ...string) error {
-	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"), mm)
+func (e *Engine) WritePointsString(ptstr ...string) error {
+	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"))
 	if err != nil {
 		return err
 	}
@@ -494,8 +499,8 @@ func (f *SeriesFile) Close() {
 }
 
 // MustParsePointsString parses points from a string. Panic on error.
-func MustParsePointsString(buf, mm string) []models.Point {
-	a, err := models.ParsePointsString(buf, mm)
+func MustParsePointsString(buf string) []models.Point {
+	a, err := models.ParsePointsString(buf)
 	if err != nil {
 		panic(err)
 	}
@@ -503,7 +508,7 @@ func MustParsePointsString(buf, mm string) []models.Point {
 }
 
 // MustParsePointString parses the first point from a string. Panic on error.
-func MustParsePointString(buf, mm string) models.Point { return MustParsePointsString(buf, mm)[0] }
+func MustParsePointString(buf string) models.Point { return MustParsePointsString(buf)[0] }
 
 type mockPlanner struct{}
 

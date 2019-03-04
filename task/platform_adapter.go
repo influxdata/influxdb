@@ -57,9 +57,6 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 		org.ID = *filter.OrganizationID
 	}
 	if filter.Organization != "" {
-		if filter.Organization == "non-existant-org" {
-			fmt.Println("here??")
-		}
 		err := p.populateOrg(ctx, &org)
 		if err != nil {
 			return nil, 0, err
@@ -79,10 +76,15 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 			return nil, 0, err
 		}
 
-		var tasks []*platform.Task
+		tasks := make([]*platform.Task, 0, len(ownedTasks))
 		for _, ownedTask := range ownedTasks {
 			storeTask, meta, err := p.s.FindTaskByIDWithMeta(ctx, ownedTask.ResourceID)
 			if err != nil {
+				// It's possible we had an entry in the list a moment ago and it's since been deleted.
+				if err == backend.ErrTaskNotFound {
+					// If so, just move on.
+					continue
+				}
 				return nil, 0, err
 			}
 			task, err := p.toPlatformTask(ctx, *storeTask, meta)
@@ -91,8 +93,8 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 			}
 
 			tasks = append(tasks, task)
-
 		}
+
 		return tasks, len(tasks), nil
 	}
 
@@ -427,7 +429,6 @@ func (p *pAdapter) populateOrg(ctx context.Context, org *platform.Organization) 
 		org.Name = o.Name
 	} else {
 		o, err := p.orgSvc.FindOrganization(ctx, platform.OrganizationFilter{Name: &org.Name})
-		fmt.Println(o, err, "BLARG")
 		if err != nil {
 			return err
 		}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
@@ -29,14 +30,16 @@ type SeriesCursorRequest struct {
 
 // seriesCursor is an implementation of SeriesCursor over an tsi1.Index.
 type seriesCursor struct {
-	index *tsi1.Index
-	sfile *tsdb.SeriesFile
-	name  [influxdb.IDLength]byte
-	keys  [][]byte
-	ofs   int
-	row   SeriesCursorRow
-	cond  influxql.Expr
-	init  bool
+	index    *tsi1.Index
+	indexref *lifecycle.Reference
+	sfile    *tsdb.SeriesFile
+	sfileref *lifecycle.Reference
+	name     [influxdb.IDLength]byte
+	keys     [][]byte
+	ofs      int
+	row      SeriesCursorRow
+	cond     influxql.Expr
+	init     bool
 }
 
 type SeriesCursorRow struct {
@@ -63,16 +66,30 @@ func newSeriesCursor(req SeriesCursorRequest, index *tsi1.Index, sfile *tsdb.Ser
 		}
 	}
 
+	indexref, err := index.Acquire()
+	if err != nil {
+		return nil, err
+	}
+	sfileref, err := sfile.Acquire()
+	if err != nil {
+		indexref.Release()
+		return nil, err
+	}
+
 	return &seriesCursor{
-		index: index,
-		sfile: sfile,
-		name:  req.Name,
-		cond:  cond,
+		index:    index,
+		indexref: indexref,
+		sfile:    sfile,
+		sfileref: sfileref,
+		name:     req.Name,
+		cond:     cond,
 	}, nil
 }
 
-// Close closes the iterator.
+// Close closes the iterator. Safe to call multiple times.
 func (cur *seriesCursor) Close() error {
+	cur.sfileref.Release()
+	cur.indexref.Release()
 	return nil
 }
 

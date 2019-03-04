@@ -22,6 +22,7 @@ func TestCreateIndexFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer f.Close()
 
 	if e := f.TagValueElem([]byte("cpu"), []byte("region"), []byte("west")); e == nil {
 		t.Fatal("expected element")
@@ -40,6 +41,7 @@ func TestGenerateIndexFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer f.Close()
 
 	// Verify that tag/value series can be fetched.
 	if e := f.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); e == nil {
@@ -85,6 +87,7 @@ func TestIndexFile_MeasurementHasSeries_Tombstoned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer f.Close()
 
 	// Simulate all series are tombstoned
 	ss := tsdb.NewSeriesIDSet()
@@ -131,6 +134,7 @@ func CreateIndexFile(sfile *tsdb.SeriesFile, series []Series) (*tsi1.IndexFile, 
 	if err != nil {
 		return nil, err
 	}
+	defer lf.Close()
 
 	// Write index file to buffer.
 	var buf bytes.Buffer
@@ -154,6 +158,7 @@ func GenerateIndexFile(sfile *tsdb.SeriesFile, measurementN, tagN, valueN int) (
 	if err != nil {
 		return nil, err
 	}
+	defer lf.Close()
 
 	// Compact log file to buffer.
 	var buf bytes.Buffer

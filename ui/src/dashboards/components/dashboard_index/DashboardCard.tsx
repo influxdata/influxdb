@@ -59,8 +59,8 @@ export default class DashboardCard extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateDashboard = (name: string) => {
-    this.props.onUpdateDashboard({...this.props.dashboard, name})
+  private handleUpdateDashboard = async (name: string) => {
+    await this.props.onUpdateDashboard({...this.props.dashboard, name})
   }
 
   private get contextMenu(): JSX.Element {

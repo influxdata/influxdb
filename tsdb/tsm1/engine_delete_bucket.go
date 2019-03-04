@@ -20,17 +20,15 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 	// WAL that was deleted from the index, or worse. This needs to happen at a higher
 	// layer.
 
+	// TODO(jeff): ensure the engine is not closed while we're running this. At least
+	// now we know that the series file or index won't be closed out from underneath
+	// of us.
+
 	// Ensure that the index does not compact away the measurement or series we're
 	// going to delete before we're done with them.
 	e.index.DisableCompactions()
 	defer e.index.EnableCompactions()
 	e.index.Wait()
-
-	fs, err := e.index.RetainFileSet()
-	if err != nil {
-		return err
-	}
-	defer fs.Release()
 
 	// Disable and abort running compactions so that tombstones added existing tsm
 	// files don't get removed. This would cause deleted measurements/series to
@@ -43,7 +41,6 @@ func (e *Engine) DeleteBucketRange(name []byte, min, max int64) error {
 
 	e.sfile.DisableCompactions()
 	defer e.sfile.EnableCompactions()
-	e.sfile.Wait()
 
 	// TODO(jeff): are the query language values still a thing?
 	// Min and max time in the engine are slightly different from the query language values.
