@@ -74,8 +74,8 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 
 	// Query server to ensure write persists.
 	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
-	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
-		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v` + "\r\n\r\n"
+	exp := `,result,table,_start,_stop,_time,_value,_measurement,k,_field` + "\r\n" +
+		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,m,v,f` + "\r\n\r\n"
 
 	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
 	if err != nil {
@@ -112,8 +112,8 @@ func TestLauncher_BucketDelete(t *testing.T) {
 
 	// Query server to ensure write persists.
 	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
-	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,k` + "\r\n" +
-		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,f,m,v` + "\r\n\r\n"
+	exp := `,result,table,_start,_stop,_time,_value,_measurement,k,_field` + "\r\n" +
+		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,m,v,f` + "\r\n\r\n"
 
 	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
 	if err != nil {

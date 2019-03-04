@@ -1,7 +1,9 @@
 package readservice
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
@@ -12,6 +14,16 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	opentracing "github.com/opentracing/opentracing-go"
+)
+
+const (
+	fieldKey       = "_field"
+	measurementKey = "_measurement"
+)
+
+var (
+	fieldKeyBytes       = []byte(fieldKey)
+	measurementKeyBytes = []byte(measurementKey)
 )
 
 type indexSeriesCursor struct {
@@ -117,7 +129,20 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
 	c.row.Field = string(c.row.Tags.Get(models.FieldKeyTagKeyBytes))
 
-	normalizeTags(c.row.Tags)
+	// Normalise the special tag keys to the emitted format.
+	if len(c.row.Tags) < 2 {
+		// Invariant broken.
+		c.err = fmt.Errorf("attempted to emit key with only tags: %s", c.row.Tags)
+		return &c.row
+	}
+
+	for i := 0; i < len(c.row.Tags); i++ {
+		if bytes.Equal(c.row.Tags[i].Key, tsdb.MeasurementInternalTagKeyBytes) {
+			c.row.Tags[i].Key = measurementKeyBytes
+		} else if bytes.Equal(c.row.Tags[i].Key, tsdb.FieldKeyInternalTagKeyBytes) {
+			c.row.Tags[i].Key = fieldKeyBytes
+		}
+	}
 
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond
