@@ -38,7 +38,7 @@ describe('Tasks', () => {
     })
   })
 
-  for (let i = 1; i <= 1000; i++) {
+  for (let i = 1; i <= 200; i++) {
     it('can delete a task', () => {
       cy.get<Organization>('@org').then(({id}) => {
         cy.createTask(id)

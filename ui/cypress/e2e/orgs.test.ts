@@ -29,9 +29,12 @@ describe('Orgs', () => {
   })
 
   //TODO: skipping delete an org because it is flaky but needs fixing: https://github.com/influxdata/influxdb/issues/12283
-  for (let i = 1; i <= 1000; i++) {
+  for (let i = 1; i <= 200; i++) {
     it('can delete an org', () => {
-      cy.createOrg().then(() => {
+      cy.server()
+      cy.route('DELETE', 'api/v2/orgs/*').as('deleteOrg')
+
+      cy.createOrg().then(({body}) => {
         cy.getByTestID('table-row').should('have.length', 2)
 
         cy.getByTestID('table-row')
@@ -44,6 +47,8 @@ describe('Orgs', () => {
 
             cy.getByTestID('confirmation-button').click()
           })
+
+        cy.wait('@deleteOrg')
 
         cy.getByTestID('table-row').should('have.length', 1)
       })
