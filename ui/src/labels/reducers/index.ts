@@ -1,0 +1,37 @@
+// Libraries
+import {produce} from 'immer'
+
+// Types
+import {RemoteDataState} from 'src/types'
+import {Action} from 'src/labels/actions'
+import {Label} from 'src/types/v2'
+
+const initialState = (): LabelsState => ({
+  status: RemoteDataState.NotStarted,
+  list: [],
+})
+
+export interface LabelsState {
+  status: RemoteDataState
+  list: Label[]
+}
+
+export const labelsReducer = (
+  state: LabelsState = initialState(),
+  action: Action
+): LabelsState =>
+  produce(state, draftState => {
+    switch (action.type) {
+      case 'SET_LABELS': {
+        const {status, list} = action.payload
+
+        draftState.status = status
+
+        if (list) {
+          draftState.list = list
+        }
+
+        return
+      }
+    }
+  })
