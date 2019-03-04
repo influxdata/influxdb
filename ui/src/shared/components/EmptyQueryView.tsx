@@ -32,16 +32,22 @@ export default class EmptyQueryView extends PureComponent<Props> {
       fallbackNote,
     } = this.props
 
-    if (loading === RemoteDataState.NotStarted) {
-      return <EmptyGraphMessage message={emptyGraphCopy} />
-    }
-
-    if (!queries.length) {
-      return <EmptyGraphMessage message={emptyGraphCopy} />
+    if (loading === RemoteDataState.NotStarted || !queries.length) {
+      return (
+        <EmptyGraphMessage
+          message={emptyGraphCopy}
+          testID="empty-graph--no-queries"
+        />
+      )
     }
 
     if (error) {
-      return <EmptyGraphMessage message={`Error: ${error.message}`} />
+      return (
+        <EmptyGraphMessage
+          message={`Error: ${error.message}`}
+          testID="empty-graph--error"
+        />
+      )
     }
 
     const hasNoResults = tables.every(d => !d.data.length)
@@ -58,7 +64,12 @@ export default class EmptyQueryView extends PureComponent<Props> {
     }
 
     if (hasNoResults) {
-      return <EmptyGraphMessage message="No Results" />
+      return (
+        <EmptyGraphMessage
+          message="No Results"
+          testID="empty-graph--no-results"
+        />
+      )
     }
 
     return this.props.children

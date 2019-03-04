@@ -100,9 +100,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('time-machine-submit-button').click()
       })
 
-      cy.getByTestID('empty-graph-message').within(() => {
-        cy.contains('No Results').should('exist')
-      })
+      cy.getByTestID('empty-graph--no-results').should('exist')
     })
   })
 
@@ -125,6 +123,10 @@ describe('DataExplorer', () => {
 
   describe('visualizations', () => {
     describe('empty states', () => {
+      it('shows a message if no queries have been created', () => {
+        cy.getByTestID('empty-graph--no-queries').should('exist')
+      })
+
       it('shows an error if a query is syntactically invalid', () => {
         cy.getByTestID('switch-to-script-editor').click()
 
@@ -133,9 +135,7 @@ describe('DataExplorer', () => {
           cy.getByTestID('time-machine-submit-button').click()
         })
 
-        cy.getByTestID('empty-graph-message').within(() => {
-          cy.contains('Error').should('exist')
-        })
+        cy.getByTestID('empty-graph--error').should('exist')
       })
     })
   })
