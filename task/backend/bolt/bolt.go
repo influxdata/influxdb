@@ -197,7 +197,7 @@ func (s *Store) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (
 		}
 		var newScript string
 		if !req.Options.IsZero() || req.Script != "" {
-			if err = req.UpdateFlux(req.Script); err != nil {
+			if err = req.UpdateFlux(res.OldScript); err != nil {
 				return err
 			}
 			newScript = req.Script
