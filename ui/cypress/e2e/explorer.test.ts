@@ -93,7 +93,7 @@ describe('DataExplorer', () => {
       cy.getByTestID('time-machine--bottom').within(() => {
         cy.get('textarea').type(
           `from(bucket: "defbuck")
-  |> range(start: timeRangeStart, stop: timeRangeStop)
+  |> range(start: -10s)
   |> filter(fn: (r) => r._measurement == "no exist")`,
           {force: true}
         )
