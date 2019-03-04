@@ -33,5 +33,13 @@ export const labelsReducer = (
 
         return
       }
+
+      case 'ADD_LABEL': {
+        const {label} = action.payload
+
+        draftState.list.push(label)
+
+        return
+      }
     }
   })

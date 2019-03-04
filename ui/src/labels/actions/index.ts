@@ -10,7 +10,7 @@ import {Dispatch} from 'redux-thunk'
 import {notify} from 'src/shared/actions/notifications'
 import {getLabelsFailed} from 'src/shared/copy/notifications'
 
-export type Action = SetLabels
+export type Action = SetLabels | AddLabel
 
 interface SetLabels {
   type: 'SET_LABELS'
@@ -26,6 +26,18 @@ export const setLabels = (
 ): SetLabels => ({
   type: 'SET_LABELS',
   payload: {status, list},
+})
+
+interface AddLabel {
+  type: 'ADD_LABEL'
+  payload: {
+    label: Label
+  }
+}
+
+export const addLabel = (label: Label): AddLabel => ({
+  type: 'ADD_LABEL',
+  payload: {label},
 })
 
 export const getLabels = () => async (dispatch: Dispatch<Action>) => {
