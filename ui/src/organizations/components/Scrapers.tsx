@@ -75,7 +75,7 @@ class Scrapers extends PureComponent<Props, State> {
             onChange={this.handleFilterChange}
             onBlur={this.handleFilterBlur}
           />
-          {this.createScraperButton}
+          {this.createScraperButton('create-scraper-button-header')}
         </Tabs.TabContentsHeader>
         <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
         <FilterList<ScraperTargetResponse>
@@ -136,7 +136,7 @@ class Scrapers extends PureComponent<Props, State> {
     this.props.onChange()
   }
 
-  private get createScraperButton(): JSX.Element {
+  private createScraperButton = (testID: string): JSX.Element => {
     let status = ComponentStatus.Default
     let titleText = 'Create a new Scraper'
 
@@ -153,6 +153,7 @@ class Scrapers extends PureComponent<Props, State> {
         onClick={this.handleShowOverlay}
         status={status}
         titleText={titleText}
+        testID={testID}
       />
     )
   }
@@ -168,7 +169,7 @@ class Scrapers extends PureComponent<Props, State> {
             text={`${orgName} does not own any Scrapers , why not create one?`}
             highlightWords={['Scrapers']}
           />
-          {this.createScraperButton}
+          {this.createScraperButton('create-scraper-button-empty')}
         </EmptyState>
       )
     }

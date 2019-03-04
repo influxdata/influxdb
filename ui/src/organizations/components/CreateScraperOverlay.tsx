@@ -107,12 +107,17 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
               />
             </OverlayBody>
             <OverlayFooter>
-              <Button text="Cancel" onClick={onDismiss} />
+              <Button
+                text="Cancel"
+                onClick={onDismiss}
+                testID="create-scraper--cancel"
+              />
               <Button
                 status={this.submitButtonStatus}
                 text="Create"
                 onClick={this.handleSubmit}
                 color={ComponentColor.Success}
+                testID="create-scraper--submit"
               />
             </OverlayFooter>
           </Form>
