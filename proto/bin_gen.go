@@ -84,7 +84,7 @@ func systemJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "system.json", size: 30129, mode: os.FileMode(420), modTime: time.Unix(1548273842, 0)}
+	info := bindataFileInfo{name: "system.json", size: 30129, mode: os.FileMode(420), modTime: time.Unix(1548960115, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0xab, 0x8a, 0xdc, 0xca, 0xfb, 0x78, 0xd6, 0x6c, 0xf1, 0xd6, 0x9a, 0x91, 0xd2, 0xf8, 0x27, 0xee, 0x75, 0x30, 0xe3, 0x31, 0xa9, 0x6f, 0x2d, 0x68, 0xef, 0xf0, 0x8, 0xd6, 0x41, 0x81, 0x83, 0x87}}
 	return a, nil
 }
@@ -224,7 +224,7 @@ type bintree struct {
 }
 
 var _bintree = &bintree{nil, map[string]*bintree{
-	"system.json": {systemJson, map[string]*bintree{}},
+	"system.json": &bintree{systemJson, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory.
@@ -269,5 +269,4 @@ func _filePath(dir, name string) string {
 	canonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(canonicalName, "/")...)...)
 }
-
 //lint:file-ignore ST1005 Ignore error strings should not be capitalized
