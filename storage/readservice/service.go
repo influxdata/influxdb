@@ -13,10 +13,8 @@ import (
 // NewProxyQueryService returns a proxy query service based on the given queryController
 // suitable for the storage read service.
 func NewProxyQueryService(queryController *pcontrol.Controller) query.ProxyQueryService {
-	return query.ProxyQueryServiceBridge{
-		QueryService: query.QueryServiceBridge{
-			AsyncQueryService: queryController,
-		},
+	return query.ProxyQueryServiceAsyncBridge{
+		AsyncQueryService: queryController,
 	}
 }
 

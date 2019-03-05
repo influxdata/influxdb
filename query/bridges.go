@@ -2,11 +2,10 @@ package query
 
 import (
 	"context"
-	"encoding/json"
 	"io"
-	"net/http"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -23,35 +22,76 @@ func (b QueryServiceBridge) Query(ctx context.Context, req *Request) (flux.Resul
 	return flux.NewResultIteratorFromQuery(query), nil
 }
 
-// ProxyQueryServiceBridge implements ProxyQueryService while consuming a QueryService interface.
-type ProxyQueryServiceBridge struct {
-	QueryService QueryService
+// QueryServiceProxyBridge implements QueryService while consuming a ProxyQueryService interface.
+type QueryServiceProxyBridge struct {
+	ProxyQueryService ProxyQueryService
 }
 
-func (b ProxyQueryServiceBridge) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (int64, error) {
-	results, err := b.QueryService.Query(ctx, &req.Request)
-	if err != nil {
-		return 0, err
+func (b QueryServiceProxyBridge) Query(ctx context.Context, req *Request) (flux.ResultIterator, error) {
+	d := csv.Dialect{ResultEncoderConfig: csv.DefaultEncoderConfig()}
+	preq := &ProxyRequest{
+		Request: *req,
+		Dialect: d,
 	}
+
+	r, w := io.Pipe()
+	statsChan := make(chan flux.Statistics, 1)
+
+	go func() {
+		var stats flux.Statistics
+		var err error
+		defer func() {
+			_ = w.CloseWithError(err)
+			statsChan <- stats
+		}()
+		stats, err = b.ProxyQueryService.Query(ctx, w, preq)
+	}()
+
+	dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
+	ri, err := dec.Decode(r)
+	return asyncStatsResultIterator{
+		ResultIterator: ri,
+		statsChan:      statsChan,
+	}, err
+}
+
+type asyncStatsResultIterator struct {
+	flux.ResultIterator
+	statsChan chan flux.Statistics
+	stats     flux.Statistics
+}
+
+func (i asyncStatsResultIterator) Release() {
+	i.ResultIterator.Release()
+	i.stats = <-i.statsChan
+}
+
+func (i asyncStatsResultIterator) Statistics() flux.Statistics {
+	return i.stats
+}
+
+// ProxyQueryServiceAsyncBridge implements ProxyQueryService while consuming an AsyncQueryService
+type ProxyQueryServiceAsyncBridge struct {
+	AsyncQueryService AsyncQueryService
+}
+
+func (b ProxyQueryServiceAsyncBridge) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (flux.Statistics, error) {
+	q, err := b.AsyncQueryService.Query(ctx, &req.Request)
+	if err != nil {
+		return flux.Statistics{}, err
+	}
+
+	results := flux.NewResultIteratorFromQuery(q)
 	defer results.Release()
 
-	// Setup headers
-	if w, ok := w.(http.ResponseWriter); ok {
-		w.Header().Set("Trailer", "Influx-Query-Statistics")
-	}
-
 	encoder := req.Dialect.Encoder()
-	n, err := encoder.Encode(w, results)
+	_, err = encoder.Encode(w, results)
 	if err != nil {
-		return n, err
+		return flux.Statistics{}, err
 	}
 
-	if w, ok := w.(http.ResponseWriter); ok {
-		data, _ := json.Marshal(results.Statistics())
-		w.Header().Set("Influx-Query-Statistics", string(data))
-	}
-
-	return n, nil
+	stats := results.Statistics()
+	return stats, nil
 }
 
 // REPLQuerier implements the repl.Querier interface while consuming a QueryService

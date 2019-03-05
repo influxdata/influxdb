@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
@@ -22,29 +23,29 @@ type SourceProxyQueryService struct {
 	platform.SourceFields
 }
 
-func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 	switch req.Request.Compiler.CompilerType() {
 	case influxql.CompilerType:
 		return s.queryInfluxQL(ctx, w, req)
 	case lang.FluxCompilerType:
 		return s.queryFlux(ctx, w, req)
 	}
-	return 0, fmt.Errorf("compiler type not supported")
+	return flux.Statistics{}, fmt.Errorf("compiler type not supported")
 }
 
-func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 	u, err := newURL(s.Addr, "/api/v2/query")
 	if err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(req); err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
 
 	hreq, err := http.NewRequest("POST", u.String(), &body)
 	if err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
 	hreq.Header.Set("Authorization", fmt.Sprintf("Token %s", s.Token))
 	hreq.Header.Set("Content-Type", "application/json")
@@ -53,25 +54,36 @@ func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, re
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
 	defer resp.Body.Close()
 	if err := CheckError(resp); err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
-	return io.Copy(w, resp.Body)
+
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		return flux.Statistics{}, err
+	}
+
+	data := []byte(resp.Trailer.Get("Influx-Query-Statistics"))
+	var stats flux.Statistics
+	if err := json.Unmarshal(data, &stats); err != nil {
+		return stats, err
+	}
+	return stats, nil
 }
 
-func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 	compiler, ok := req.Request.Compiler.(*influxql.Compiler)
 
 	if !ok {
-		return 0, fmt.Errorf("compiler is not of type 'influxql'")
+		return flux.Statistics{}, fmt.Errorf("compiler is not of type 'influxql'")
 	}
 
 	u, err := newURL(s.Addr, "/query")
 	if err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
 
 	body := url.Values{}
@@ -81,7 +93,7 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 	body.Add("rp", compiler.RP)
 	hreq, err := http.NewRequest("POST", u.String(), strings.NewReader(body.Encode()))
 	if err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
 	hreq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	hreq.Header.Set("Authorization", fmt.Sprintf("Token %s", s.Token))
@@ -90,12 +102,23 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
-		return 0, err
+		return flux.Statistics{}, err
 	}
-	return io.Copy(w, resp.Body)
+
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		return flux.Statistics{}, err
+	}
+
+	data := []byte(resp.Trailer.Get(QueryStatsTrailer))
+	var stats flux.Statistics
+	if err := json.Unmarshal(data, &stats); err != nil {
+		return stats, err
+	}
+	return stats, nil
 }
