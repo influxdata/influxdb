@@ -435,4 +435,4 @@ export const MIN_SIZE = 0
 export const VERSION = process.env.npm_package_version
 export const GIT_SHA = process.env.GIT_SHA
 
-export const CLOUD = !!process.env.CLOUD ? process.env.CLOUD === 'true' : false
+export const CLOUD = process.env.CLOUD && process.env.CLOUD === 'true'
