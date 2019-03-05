@@ -327,7 +327,7 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
     name: TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2,
     type: TelegrafPluginOutputInfluxDBV2.TypeEnum.Output,
     config: {
-      urls: ['http://127.0.0.1:9999'],
+      urls: [`${window.location.origin}`],
       token: '$INFLUX_TOKEN',
       organization: org,
       bucket,
