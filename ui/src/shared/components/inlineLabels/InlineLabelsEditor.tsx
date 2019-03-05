@@ -2,9 +2,6 @@
 import React, {Component, ChangeEvent} from 'react'
 import _ from 'lodash'
 
-// APIs
-import {client} from 'src/utils/api'
-
 // Components
 import {
   Button,
@@ -31,7 +28,7 @@ interface Props {
   selectedLabels: Label[]
   labels: Label[]
   onAddLabel: (label: Label) => void
-  onCreateLabel: (labelName: string) => void
+  onCreateLabel: (label: Label) => Promise<Label>
 }
 
 interface State {
@@ -203,8 +200,9 @@ class InlineLabelsEditor extends Component<Props, State> {
   }
 
   private handleCreateLabel = async (label: Label) => {
-    const newLabel = await client.labels.create(label.name, label.properties)
-    this.props.onAddLabel(newLabel)
+    const {onCreateLabel, onAddLabel} = this.props
+    const newLabel = await onCreateLabel(label)
+    onAddLabel(newLabel)
   }
 
   private handleStartCreatingLabel = (): void => {

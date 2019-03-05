@@ -9,7 +9,7 @@ import FeatureFlag from 'src/shared/components/FeatureFlag'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
-import {createLabel} from 'src/labels/actions'
+import {createLabelAJAX} from 'src/labels/api'
 import {
   addDashboardLabelsAsync,
   removeDashboardLabelsAsync,
@@ -30,7 +30,6 @@ interface PassedProps {
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  onEditLabels: (dashboard: Dashboard) => void
   showOwnerColumn: boolean
   onFilterChange: (searchTerm: string) => void
 }
@@ -40,7 +39,6 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  createLabel: typeof createLabel
   onAddDashboardLabels: typeof addDashboardLabelsAsync
   onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
 }
@@ -167,8 +165,17 @@ class DashboardCard extends PureComponent<Props> {
     onRemoveDashboardLabels(dashboard.id, [label])
   }
 
-  private handleCreateLabel = (label: Label): void => {
-    console.log(label)
+  private handleCreateLabel = async (label: Label): Promise<Label> => {
+    try {
+      const newLabel = await createLabelAJAX(label)
+      console.log(`created new label with name "${newLabel.name}"`)
+      // notify success
+      return newLabel
+    } catch (err) {
+      console.log(err)
+      // notify of fail
+      throw err
+    }
   }
 }
 
@@ -181,7 +188,6 @@ const mstp = ({labels}: AppState): StateProps => {
 const mdtp: DispatchProps = {
   onAddDashboardLabels: addDashboardLabelsAsync,
   onRemoveDashboardLabels: removeDashboardLabelsAsync,
-  createLabel: createLabel,
 }
 
 export default connect<StateProps, DispatchProps, PassedProps>(

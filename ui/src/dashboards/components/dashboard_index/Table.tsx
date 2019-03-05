@@ -28,7 +28,6 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onSetDefaultDashboard: (dashboardLink: string) => void
-  onEditLabels: (dashboard: Dashboard) => void
   onFilterChange: (searchTerm: string) => void
   orgs: Organization[]
   showOwnerColumn: boolean
@@ -114,7 +113,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
-      onEditLabels,
       orgs,
       showOwnerColumn,
       onFilterChange,
@@ -136,7 +134,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onExportDashboard={onExportDashboard}
               onDeleteDashboard={onDeleteDashboard}
               onUpdateDashboard={onUpdateDashboard}
-              onEditLabels={onEditLabels}
               orgs={orgs}
               showOwnerColumn={showOwnerColumn}
               onFilterChange={onFilterChange}

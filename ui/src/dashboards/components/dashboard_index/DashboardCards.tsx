@@ -13,7 +13,6 @@ interface Props {
   onCloneDashboard: (dashboard: Dashboard) => void
   onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  onEditLabels: (dashboard: Dashboard) => void
   orgs: Organization[]
   showOwnerColumn: boolean
   onFilterChange: (searchTerm: string) => void
@@ -27,7 +26,6 @@ export default class DashboardCards extends PureComponent<Props> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
-      onEditLabels,
       orgs,
       showOwnerColumn,
       onFilterChange,
@@ -41,7 +39,6 @@ export default class DashboardCards extends PureComponent<Props> {
         onCloneDashboard={onCloneDashboard}
         onDeleteDashboard={onDeleteDashboard}
         onUpdateDashboard={onUpdateDashboard}
-        onEditLabels={onEditLabels}
         orgs={orgs}
         showOwnerColumn={showOwnerColumn}
         onFilterChange={onFilterChange}
