@@ -57,6 +57,10 @@ type Log struct {
 	Message string `json:"message"`
 }
 
+func (l Log) String() string {
+	return l.Time + ": " + l.Message
+}
+
 // TaskService represents a service for managing one-off and recurring tasks.
 type TaskService interface {
 	// FindTaskByID returns a single task
