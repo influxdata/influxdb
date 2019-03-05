@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/influxql"
-	"github.com/opentracing/opentracing-go"
 )
 
 type SourceProxyQueryService struct {
