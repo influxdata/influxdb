@@ -81,11 +81,7 @@ class InlineLabelsList extends Component<Props> {
 
     const searchTermHasExactMatch = filteredLabels.reduce(
       (acc: boolean, current: Label) => {
-        if (acc === true || current.name === searchTerm) {
-          return true
-        }
-
-        return false
+        return acc === true || current.name === searchTerm
       },
       false
     )
