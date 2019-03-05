@@ -34,13 +34,13 @@ export const bucketsReducer = (
         return
       }
 
-      // case 'ADD_BUCKET': {
-      //   const {bucket} = action.payload
+      case 'ADD_BUCKET': {
+        const {bucket} = action.payload
 
-      //   draftState.list.push(bucket)
+        draftState.list.push(bucket)
 
-      //   return
-      // }
+        return
+      }
 
       // case 'EDIT_BUCKET': {
       //   const {bucket} = action.payload

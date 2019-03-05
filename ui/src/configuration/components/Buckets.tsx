@@ -7,7 +7,7 @@ import {connect} from 'react-redux'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/configuration/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
-import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'
+import CreateBucketOverlay from 'src/configuration/components/CreateBucketOverlay'
 
 import {
   ComponentSize,
@@ -17,6 +17,9 @@ import {
 } from '@influxdata/clockface'
 import {Input, OverlayTechnology, EmptyState, Tabs} from 'src/clockface'
 
+// Actions
+import {createBucket} from 'src/buckets/actions'
+
 // Utils
 import {ruleToString} from 'src/utils/formatting'
 
@@ -24,10 +27,15 @@ import {ruleToString} from 'src/utils/formatting'
 import {OverlayState} from 'src/types'
 import {AppState} from 'src/types/v2'
 
-import {Bucket, BucketRetentionRules} from '@influxdata/influx'
+import {Bucket, BucketRetentionRules, Organization} from '@influxdata/influx'
 
 interface StateProps {
+  orgs: Organization[]
   buckets: Bucket[]
+}
+
+interface DispatchProps {
+  createBucket: typeof createBucket
 }
 
 interface State {
@@ -36,12 +44,14 @@ interface State {
   overlayState: OverlayState
 }
 
+type Props = DispatchProps & StateProps
+
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
-class Buckets extends PureComponent<StateProps, State> {
-  constructor(props: StateProps) {
+class Buckets extends PureComponent<Props, State> {
+  constructor(props) {
     super(props)
 
     this.state = {
@@ -52,8 +62,8 @@ class Buckets extends PureComponent<StateProps, State> {
   }
 
   public render() {
-    const {buckets} = this.props
-    const {searchTerm} = this.state
+    const {buckets, orgs} = this.props
+    const {searchTerm, overlayState} = this.state
 
     return (
       <>
@@ -88,13 +98,13 @@ class Buckets extends PureComponent<StateProps, State> {
             />
           )}
         </FilterList>
-        {/*<OverlayTechnology visible={overlayState === OverlayState.Open}>
+        <OverlayTechnology visible={overlayState === OverlayState.Open}>
           <CreateBucketOverlay
-            org={org}
+            orgs={orgs}
             onCloseModal={this.handleCloseModal}
             onCreateBucket={this.handleCreateBucket}
           />
-          </OverlayTechnology>*/}
+        </OverlayTechnology>
       </>
     )
   }
@@ -124,16 +134,10 @@ class Buckets extends PureComponent<StateProps, State> {
   }
 
   private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
-    // const {onChange, notify} = this.props
-    // try {
-    //   await client.buckets.create(bucket)
-    //   onChange()
-    //   this.handleCloseModal()
-    //   notify(bucketCreateSuccess())
-    // } catch (e) {
-    //   console.error(e)
-    //   notify(bucketCreateFailed())
-    // }
+    try {
+      await this.props.createBucket(bucket)
+      this.handleCloseModal()
+    } catch (e) {}
   }
 
   private handleOpenModal = (): void => {
@@ -204,13 +208,18 @@ class Buckets extends PureComponent<StateProps, State> {
   }
 }
 
-const mstp = ({buckets}: AppState): StateProps => {
+const mstp = ({buckets, orgs}: AppState): StateProps => {
   return {
     buckets: buckets.list,
+    orgs,
   }
+}
+
+const mdtp = {
+  createBucket,
 }
 
 export default connect<StateProps>(
   mstp,
-  null
+  mdtp
 )(Buckets)

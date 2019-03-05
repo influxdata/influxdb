@@ -1,16 +1,30 @@
+// Libraries
+import {get} from 'lodash'
+
 // API
 import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Bucket} from 'src/types/v2'
+import {Bucket} from '@influxdata/influx'
 import {Dispatch} from 'redux-thunk'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
-import {getBucketsFailed} from 'src/shared/copy/notifications'
+import {
+  getBucketsFailed,
+  createBucketFailed,
+} from 'src/shared/copy/notifications'
+// import {
+//   bucketDeleteSuccess,
+//   bucketDeleteFailed,
+//   bucketCreateFailed,
+//   bucketCreateSuccess,
+//   bucketUpdateFailed,
+//   bucketUpdateSuccess,
+// } from 'src/shared/copy/v2/notifications'
 
-export type Action = SetBuckets
+export type Action = SetBuckets | AddBucket
 
 interface SetBuckets {
   type: 'SET_BUCKETS'
@@ -28,6 +42,18 @@ export const setBuckets = (
   payload: {status, list},
 })
 
+interface AddBucket {
+  type: 'ADD_BUCKET'
+  payload: {
+    bucket: Bucket
+  }
+}
+
+export const addBucket = (bucket: Bucket): AddBucket => ({
+  type: 'ADD_BUCKET',
+  payload: {bucket},
+})
+
 export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
   try {
     dispatch(setBuckets(RemoteDataState.Loading))
@@ -42,18 +68,19 @@ export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
   }
 }
 
-// interface AddLabel {
-//   type: 'ADD_LABEL'
-//   payload: {
-//     label: Label
-//   }
-// }
-//
-// export const addLabel = (label: Label): AddLabel => ({
-//   type: 'ADD_LABEL',
-//   payload: {label},
-// })
-//
+export const createBucket = (bucket: Bucket) => async (
+  dispatch: Dispatch<Action>
+) => {
+  try {
+    const createdBucket = await client.buckets.create(bucket)
+    dispatch(addBucket(createdBucket))
+  } catch (e) {
+    console.log(e)
+    dispatch(notify(createBucketFailed()))
+    throw e
+  }
+}
+
 // interface EditLabel {
 //   type: 'EDIT_LABEL'
 //   payload: {label}
@@ -74,19 +101,6 @@ export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
 //   payload: {id},
 // })
 
-// export const createLabel = (
-//   name: string,
-//   properties: LabelProperties
-// ) => async (dispatch: Dispatch<Action>) => {
-//   try {
-//     const createdLabel = await client.labels.create(name, properties)
-//
-//     dispatch(addLabel(createdLabel))
-//   } catch (e) {
-//     console.log(e)
-//     dispatch(notify(createLabelFailed()))
-//   }
-// }
 //
 // export const updateLabel = (id: string, properties: LabelProperties) => async (
 //   dispatch: Dispatch<Action>
