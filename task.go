@@ -48,11 +48,18 @@ type Run struct {
 	StartedAt    string `json:"startedAt,omitempty"`
 	FinishedAt   string `json:"finishedAt,omitempty"`
 	RequestedAt  string `json:"requestedAt,omitempty"`
-	Log          Log    `json:"log"`
+	Log          []Log  `json:"log"`
 }
 
 // Log represents a link to a log resource
-type Log string
+type Log struct {
+	Time    string `json:"time"`
+	Message string `json:"message"`
+}
+
+func (l Log) String() string {
+	return l.Time + ": " + l.Message
+}
 
 // TaskService represents a service for managing one-off and recurring tasks.
 type TaskService interface {

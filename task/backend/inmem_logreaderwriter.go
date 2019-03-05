@@ -3,7 +3,6 @@ package backend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -67,17 +66,14 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, rlb RunLogBase, wh
 func (r *runReaderWriter) AddRunLog(ctx context.Context, rlb RunLogBase, when time.Time, log string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	log = fmt.Sprintf("%s: %s", when.Format(time.RFC3339Nano), log)
+	pLog := platform.Log{Time: when.Format(time.RFC3339Nano), Message: log}
 	ridStr := rlb.RunID.String()
 	existingRun, ok := r.byRunID[ridStr]
 	if !ok {
 		return ErrRunNotFound
 	}
-	sep := ""
-	if existingRun.Log != "" {
-		sep = "\n"
-	}
-	existingRun.Log = platform.Log(string(existingRun.Log) + sep + log)
+
+	existingRun.Log = append(existingRun.Log, pLog)
 	return nil
 }
 
@@ -149,13 +145,13 @@ func (r *runReaderWriter) ListLogs(ctx context.Context, orgID platform.ID, logFi
 			return nil, ErrRunNotFound
 		}
 		// TODO(mr): validate that task ID matches, if task is also set. Needs test.
-		return []platform.Log{run.Log}, nil
+		return run.Log, nil
 	}
 
 	var logs []platform.Log
 	ot := orgtask{o: orgID, t: logFilter.Task}
 	for _, run := range r.byOrgTask[ot] {
-		logs = append(logs, run.Log)
+		logs = append(logs, run.Log...)
 	}
 
 	if len(logs) == 0 {
