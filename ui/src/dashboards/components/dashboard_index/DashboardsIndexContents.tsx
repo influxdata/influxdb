@@ -5,6 +5,7 @@ import _ from 'lodash'
 // Components
 import Table from 'src/dashboards/components/dashboard_index/Table'
 import FilterList from 'src/shared/components/Filter'
+import GetLabels from 'src/configuration/components/GetLabels'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -52,31 +53,33 @@ export default class DashboardsIndexContents extends Component<Props> {
     } = this.props
 
     return (
-      <FilterList<Dashboard>
-        list={dashboards}
-        searchTerm={searchTerm}
-        searchKeys={['name', 'labels[].name']}
-        sortByKey="name"
-      >
-        {filteredDashboards => (
-          <Table
-            filterComponent={filterComponent}
-            searchTerm={searchTerm}
-            dashboards={filteredDashboards}
-            onDeleteDashboard={onDeleteDashboard}
-            onCreateDashboard={onCreateDashboard}
-            onCloneDashboard={onCloneDashboard}
-            onExportDashboard={onExportDashboard}
-            defaultDashboardLink={defaultDashboardLink}
-            onSetDefaultDashboard={onSetDefaultDashboard}
-            onUpdateDashboard={onUpdateDashboard}
-            onEditLabels={onEditLabels}
-            orgs={orgs}
-            showOwnerColumn={showOwnerColumn}
-            onFilterChange={onFilterChange}
-          />
-        )}
-      </FilterList>
+      <GetLabels>
+        <FilterList<Dashboard>
+          list={dashboards}
+          searchTerm={searchTerm}
+          searchKeys={['name', 'labels[].name']}
+          sortByKey="name"
+        >
+          {filteredDashboards => (
+            <Table
+              filterComponent={filterComponent}
+              searchTerm={searchTerm}
+              dashboards={filteredDashboards}
+              onDeleteDashboard={onDeleteDashboard}
+              onCreateDashboard={onCreateDashboard}
+              onCloneDashboard={onCloneDashboard}
+              onExportDashboard={onExportDashboard}
+              defaultDashboardLink={defaultDashboardLink}
+              onSetDefaultDashboard={onSetDefaultDashboard}
+              onUpdateDashboard={onUpdateDashboard}
+              onEditLabels={onEditLabels}
+              orgs={orgs}
+              showOwnerColumn={showOwnerColumn}
+              onFilterChange={onFilterChange}
+            />
+          )}
+        </FilterList>
+      </GetLabels>
     )
   }
 }
