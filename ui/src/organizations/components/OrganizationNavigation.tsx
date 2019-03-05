@@ -7,6 +7,7 @@ import {Tabs} from 'src/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
 
 interface Props {
   tab: string
@@ -52,12 +53,15 @@ class OrganizationNavigation extends PureComponent<Props> {
           url={`${route}/telegrafs`}
           active={'telegrafs' === tab}
         />
-        <Tabs.Tab
-          title={'Scrapers'}
-          id={'scrapers'}
-          url={`${route}/scrapers`}
-          active={'scrapers' === tab}
-        />
+        <CloudFeatureFlag>
+          <Tabs.Tab
+            title={'Scrapers'}
+            id={'scrapers'}
+            url={`${route}/scrapers`}
+            active={'scrapers' === tab}
+          />
+        </CloudFeatureFlag>
+
         <Tabs.Tab
           title={'Variables'}
           id={'variables'}
