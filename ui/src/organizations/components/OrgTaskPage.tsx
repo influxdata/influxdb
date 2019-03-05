@@ -19,7 +19,14 @@ import {
   clearTask,
   cancel,
 } from 'src/tasks/actions/v2'
-// types
+
+// Utils
+import {
+  taskOptionsToFluxScript,
+  addDestinationToFluxScript,
+} from 'src/utils/taskOptionsToFluxScript'
+
+// Types
 import {Links} from 'src/types/v2/links'
 import {Organization} from 'src/types/v2'
 import {
@@ -125,13 +132,29 @@ class OrgTaskPage extends PureComponent<
   }
 
   private handleSave = () => {
-    const {params, newScript, taskOptions} = this.props
+    const {newScript, taskOptions} = this.props
 
-    this.props.saveNewScript(
-      newScript,
-      taskOptions,
-      `/organizations/${params.orgID}/tasks/`
-    )
+    const taskOption: string = taskOptionsToFluxScript(taskOptions)
+    const script: string = addDestinationToFluxScript(newScript, taskOptions)
+    const preamble = `${taskOption}`
+
+    console.log('preamble', preamble)
+    console.log('script', script)
+    this.props.saveNewScript(script, preamble, this.orgName, this.route)
+  }
+
+  private get route(): string {
+    const {params} = this.props
+
+    return `/organizations/${params.orgID}/tasks/`
+  }
+
+  private get orgName(): string {
+    const {params, orgs} = this.props
+
+    const org = orgs.find(o => o.id === params.orgID)
+
+    return org.name
   }
 
   private handleCancel = () => {

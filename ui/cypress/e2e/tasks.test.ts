@@ -1,4 +1,4 @@
-import {Organization} from '@influxdata/influx'
+import {Organization, Bucket} from '@influxdata/influx'
 
 describe('Tasks', () => {
   beforeEach(() => {
@@ -6,6 +6,7 @@ describe('Tasks', () => {
 
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
+      cy.wrap(body.bucket).as('bucket')
     })
 
     cy.visit('/tasks')
@@ -21,19 +22,20 @@ describe('Tasks', () => {
     cy.getByInputName('interval').type('1d')
     cy.getByInputName('offset').type('20m')
 
-    cy.getByTestID('flux-editor').within(() => {
-      cy.get('textarea').type(
-        `from(bucket: "defbuck")
-      |> range(start: -2m)`,
-        {force: true}
-      )
+    cy.get<Bucket>('@bucket').then(({name}) => {
+      cy.getByTestID('flux-editor').within(() => {
+        cy.get('textarea').type(
+          `import "influxdata/influxdb/v1"\nv1.tagValues(bucket: "${name}", tag: "_field")\nfrom(bucket: "${name}")\n|> range(start: -2m)`,
+          {force: true}
+        )
+      })
+
+      cy.contains('Save').click()
+
+      cy.getByTestID('task-card')
+        .should('have.length', 1)
+        .and('contain', taskName)
     })
-
-    cy.contains('Save').click()
-
-    cy.getByTestID('task-card')
-      .should('have.length', 1)
-      .and('contain', taskName)
   })
 
   it.skip('can delete a task', () => {

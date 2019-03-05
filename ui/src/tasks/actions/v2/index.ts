@@ -28,13 +28,10 @@ import {AppState, Label, Task} from 'src/types/v2'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
-import {
-  taskOptionsToFluxScript,
-  addDestinationToFluxScript,
-  TaskOptionKeys,
-  TaskOptions,
-  TaskSchedule,
-} from 'src/utils/taskOptionsToFluxScript'
+import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
+import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+
+// Types
 import {RemoteDataState} from '@influxdata/clockface'
 
 export type Action =
@@ -401,27 +398,14 @@ export const updateScript = (route?: string) => async (
 
 export const saveNewScript = (
   script: string,
-  taskOptions: TaskOptions,
+  preamble: string,
+  orgName: string,
   route?: string
-) => async (dispatch, getState: GetStateFunc): Promise<void> => {
+) => async (dispatch): Promise<void> => {
   try {
-    const {orgs} = await getState()
+    const fluxScript = await insertPreambleInScript(script, preamble)
 
-    const fluxTaskOptions = taskOptionsToFluxScript(taskOptions)
-    const scriptWithOptions = addDestinationToFluxScript(
-      `${fluxTaskOptions}\n\n${script}`,
-      taskOptions
-    )
-
-    let org = orgs.find(org => {
-      return org.id === taskOptions.orgID
-    })
-
-    if (!org) {
-      org = orgs[0]
-    }
-
-    await client.tasks.create(org.name, scriptWithOptions)
+    await client.tasks.create(orgName, fluxScript)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
