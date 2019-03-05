@@ -207,7 +207,7 @@ const mdtp = {
   deleteBucket,
 }
 
-export default connect<StateProps>(
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
 )(Buckets)
