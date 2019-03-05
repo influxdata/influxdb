@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"github.com/opentracing/opentracing-go"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -33,6 +34,9 @@ func NewBucketService(s platform.BucketService, engine BucketDeleter) *BucketSer
 
 // FindBucketByID returns a single bucket by ID.
 func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.FindBucketByID")
+	defer span.Finish()
+
 	if s.inner == nil || s.engine == nil {
 		return nil, errors.New("nil inner BucketService or Engine")
 	}
@@ -41,6 +45,9 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 
 // FindBucket returns the first bucket that matches filter.
 func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.FindBucket")
+	defer span.Finish()
+
 	if s.inner == nil || s.engine == nil {
 		return nil, errors.New("nil inner BucketService or Engine")
 	}
@@ -50,6 +57,9 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.FindBuckets")
+	defer span.Finish()
+
 	if s.inner == nil || s.engine == nil {
 		return nil, 0, errors.New("nil inner BucketService or Engine")
 	}
@@ -58,6 +68,9 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
 func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.CreateBucket")
+	defer span.Finish()
+
 	if s.inner == nil || s.engine == nil {
 		return errors.New("nil inner BucketService or Engine")
 	}
@@ -67,6 +80,9 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 // UpdateBucket updates a single bucket with changeset.
 // Returns the new bucket state after update.
 func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.UpdateBucket")
+	defer span.Finish()
+
 	if s.inner == nil || s.engine == nil {
 		return nil, errors.New("nil inner BucketService or Engine")
 	}
@@ -75,6 +91,9 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 
 // DeleteBucket removes a bucket by ID.
 func (s *BucketService) DeleteBucket(ctx context.Context, bucketID platform.ID) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.DeleteBucket")
+	defer span.Finish()
+
 	bucket, err := s.FindBucketByID(ctx, bucketID)
 	if err != nil {
 		return err

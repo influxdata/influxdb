@@ -278,7 +278,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if _, err := w.WriteMulti(map[string][]value.Value{
+	if _, err := w.WriteMulti(context.Background(), map[string][]value.Value{
 		"cpu,host=A#!~#value": []value.Value{
 			value.NewValue(1, 1.1),
 		},

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"net/http"
 	"net/url"
 	"path"
@@ -1363,6 +1365,9 @@ type TaskService struct {
 
 // FindTaskByID returns a single task
 func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.FindTaskByID")
+	defer span.Finish()
+
 	u, err := newURL(t.Addr, taskIDPath(id))
 	if err != nil {
 		return nil, err
@@ -1373,6 +1378,7 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 		return nil, err
 	}
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -1402,6 +1408,9 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 // FindTasks returns a list of tasks that match a filter (limit 100) and the total count
 // of matching tasks.
 func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.FindTasks")
+	defer span.Finish()
+
 	u, err := newURL(t.Addr, tasksPath)
 	if err != nil {
 		return nil, 0, err
@@ -1431,6 +1440,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 		return nil, 0, err
 	}
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -1457,6 +1467,9 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 
 // CreateTask creates a new task.
 func (t TaskService) CreateTask(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.CreateTask")
+	defer span.Finish()
+
 	u, err := newURL(t.Addr, tasksPath)
 	if err != nil {
 		return nil, err
@@ -1474,6 +1487,7 @@ func (t TaskService) CreateTask(ctx context.Context, tc platform.TaskCreate) (*p
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1496,6 +1510,9 @@ func (t TaskService) CreateTask(ctx context.Context, tc platform.TaskCreate) (*p
 
 // UpdateTask updates a single task with changeset.
 func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.UpdateTask")
+	defer span.Finish()
+
 	u, err := newURL(t.Addr, taskIDPath(id))
 	if err != nil {
 		return nil, err
@@ -1513,6 +1530,7 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1536,6 +1554,9 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 
 // DeleteTask removes a task by ID and purges all associated data and scheduled runs.
 func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.DeleteTask")
+	defer span.Finish()
+
 	u, err := newURL(t.Addr, taskIDPath(id))
 	if err != nil {
 		return err
@@ -1548,6 +1569,7 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1562,6 +1584,9 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 
 // FindLogs returns logs for a run.
 func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.FindLogs")
+	defer span.Finish()
+
 	if !filter.Task.Valid() {
 		return nil, 0, errors.New("task ID required")
 	}
@@ -1583,6 +1608,7 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 		return nil, 0, err
 	}
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1606,6 +1632,9 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 
 // FindRuns returns a list of runs that match a filter and the total count of returned runs.
 func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.FindRuns")
+	defer span.Finish()
+
 	if !filter.Task.Valid() {
 		return nil, 0, errors.New("task ID required")
 	}
@@ -1630,6 +1659,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1658,6 +1688,9 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 
 // FindRunByID returns a single run of a specific task.
 func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.FindRunByID")
+	defer span.Finish()
+
 	u, err := newURL(t.Addr, taskIDRunIDPath(taskID, runID))
 	if err != nil {
 		return nil, err
@@ -1669,6 +1702,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 	}
 
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1697,6 +1731,9 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 
 // RetryRun creates and returns a new run (which is a retry of another run).
 func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.RetryRun")
+	defer span.Finish()
+
 	p := path.Join(taskIDRunIDPath(taskID, runID), "retry")
 	u, err := newURL(t.Addr, p)
 	if err != nil {
@@ -1709,6 +1746,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 	}
 
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1741,6 +1779,9 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 }
 
 func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.ForceRun")
+	defer span.Finish()
+
 	u, err := newURL(t.Addr, taskIDRunsPath(taskID))
 	if err != nil {
 		return nil, err
@@ -1753,6 +1794,7 @@ func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduled
 	}
 
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1789,6 +1831,9 @@ func cancelPath(taskID, runID platform.ID) string {
 }
 
 func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "TaskService.CancelRun")
+	defer span.Finish()
+
 	u, err := newURL(t.Addr, cancelPath(taskID, runID))
 	if err != nil {
 		return err
@@ -1800,6 +1845,7 @@ func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) e
 	}
 
 	SetToken(t.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, t.InsecureSkipVerify)
 

@@ -59,7 +59,7 @@ func (s *Service) initializeSources(ctx context.Context, tx Tx) error {
 func (s *Service) DefaultSource(ctx context.Context) (*influxdb.Source, error) {
 	var sr *influxdb.Source
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		// TODO(desa): make this faster by putting the default source in an index.
 		srcs, err := s.findSources(ctx, tx, influxdb.FindOptions{})
 		if err != nil {
@@ -90,7 +90,7 @@ func (s *Service) DefaultSource(ctx context.Context) (*influxdb.Source, error) {
 func (s *Service) FindSourceByID(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
 	var sr *influxdb.Source
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		src, pe := s.findSourceByID(ctx, tx, id)
 		if pe != nil {
 			return &influxdb.Error{
@@ -147,7 +147,7 @@ func (s *Service) findSourceByID(ctx context.Context, tx Tx, id influxdb.ID) (*i
 // Other filters will do a linear scan across all sources searching for a match.
 func (s *Service) FindSources(ctx context.Context, opt influxdb.FindOptions) ([]*influxdb.Source, int, error) {
 	ss := []*influxdb.Source{}
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		srcs, err := s.findSources(ctx, tx, opt)
 		if err != nil {
 			return err
@@ -183,7 +183,7 @@ func (s *Service) findSources(ctx context.Context, tx Tx, opt influxdb.FindOptio
 
 // CreateSource creates a influxdb source and sets s.ID.
 func (s *Service) CreateSource(ctx context.Context, src *influxdb.Source) error {
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		src.ID = s.IDGenerator.ID()
 
 		// Generating an organization id if it missing or invalid
@@ -203,7 +203,7 @@ func (s *Service) CreateSource(ctx context.Context, src *influxdb.Source) error 
 
 // PutSource will put a source without setting an ID.
 func (s *Service) PutSource(ctx context.Context, src *influxdb.Source) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.putSource(ctx, tx, src)
 	})
 }
@@ -259,7 +259,7 @@ func (s *Service) forEachSource(ctx context.Context, tx Tx, fn func(*influxdb.So
 // UpdateSource updates a source according the parameters set on upd.
 func (s *Service) UpdateSource(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
 	var sr *influxdb.Source
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		src, err := s.updateSource(ctx, tx, id, upd)
 		if err != nil {
 			return &influxdb.Error{
@@ -292,7 +292,7 @@ func (s *Service) updateSource(ctx context.Context, tx Tx, id influxdb.ID, upd i
 
 // DeleteSource deletes a source and prunes it from the index.
 func (s *Service) DeleteSource(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		pe := s.deleteSource(ctx, tx, id)
 		if pe != nil {
 			return &influxdb.Error{

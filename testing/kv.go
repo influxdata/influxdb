@@ -2,6 +2,7 @@ package testing
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -125,7 +126,7 @@ func KVGet(
 			s, close := init(tt.fields, t)
 			defer close()
 
-			err := s.View(func(tx kv.Tx) error {
+			err := s.View(context.Background(), func(tx kv.Tx) error {
 				b, err := tx.Bucket(tt.args.bucket)
 				if err != nil {
 					t.Errorf("unexpected error retrieving bucket: %v", err)
@@ -200,7 +201,7 @@ func KVPut(
 			s, close := init(tt.fields, t)
 			defer close()
 
-			err := s.Update(func(tx kv.Tx) error {
+			err := s.Update(context.Background(), func(tx kv.Tx) error {
 				b, err := tx.Bucket(tt.args.bucket)
 				if err != nil {
 					t.Errorf("unexpected error retrieving bucket: %v", err)
@@ -286,7 +287,7 @@ func KVDelete(
 			s, close := init(tt.fields, t)
 			defer close()
 
-			err := s.Update(func(tx kv.Tx) error {
+			err := s.Update(context.Background(), func(tx kv.Tx) error {
 				b, err := tx.Bucket(tt.args.bucket)
 				if err != nil {
 					t.Errorf("unexpected error retrieving bucket: %v", err)
@@ -416,7 +417,7 @@ func KVCursor(
 			s, close := init(tt.fields, t)
 			defer close()
 
-			err := s.View(func(tx kv.Tx) error {
+			err := s.View(context.Background(), func(tx kv.Tx) error {
 				b, err := tx.Bucket(tt.args.bucket)
 				if err != nil {
 					t.Errorf("unexpected error retrieving bucket: %v", err)
@@ -601,7 +602,7 @@ func KVView(
 			s, close := init(tt.fields, t)
 			defer close()
 
-			err := s.View(func(tx kv.Tx) error {
+			err := s.View(context.Background(), func(tx kv.Tx) error {
 				b, err := tx.Bucket(tt.args.bucket)
 				if err != nil {
 					t.Errorf("unexpected error retrieving bucket: %v", err)
@@ -719,7 +720,7 @@ func KVUpdate(
 			defer close()
 
 			{
-				err := s.Update(func(tx kv.Tx) error {
+				err := s.Update(context.Background(), func(tx kv.Tx) error {
 					b, err := tx.Bucket(tt.args.bucket)
 					if err != nil {
 						t.Errorf("unexpected error retrieving bucket: %v", err)
@@ -764,7 +765,7 @@ func KVUpdate(
 			}
 
 			{
-				err := s.View(func(tx kv.Tx) error {
+				err := s.View(context.Background(), func(tx kv.Tx) error {
 					b, err := tx.Bucket(tt.args.bucket)
 					if err != nil {
 						t.Errorf("unexpected error retrieving bucket: %v", err)
@@ -848,7 +849,7 @@ func KVConcurrentUpdate(
 
 			errCh := make(chan error)
 			var fn = func(v []byte) {
-				err := s.Update(func(tx kv.Tx) error {
+				err := s.Update(context.Background(), func(tx kv.Tx) error {
 					b, err := tx.Bucket(tt.args.bucket)
 					if err != nil {
 						return err
@@ -886,7 +887,7 @@ func KVConcurrentUpdate(
 			close(errCh)
 
 			{
-				err := s.View(func(tx kv.Tx) error {
+				err := s.View(context.Background(), func(tx kv.Tx) error {
 					b, err := tx.Bucket(tt.args.bucket)
 					if err != nil {
 						t.Errorf("unexpected error retrieving bucket: %v", err)

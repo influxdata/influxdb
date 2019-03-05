@@ -52,7 +52,7 @@ func (s *Service) userIndexBucket(tx Tx) (Bucket, error) {
 func (s *Service) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 	var u *influxdb.User
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		usr, err := s.findUserByID(ctx, tx, id)
 		if err != nil {
 			return err
@@ -115,7 +115,7 @@ func MarshalUser(u *influxdb.User) ([]byte, error) {
 func (s *Service) FindUserByName(ctx context.Context, n string) (*influxdb.User, error) {
 	var u *influxdb.User
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		usr, err := s.findUserByName(ctx, tx, n)
 		if err != nil {
 			return err
@@ -207,7 +207,7 @@ func (s *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt
 
 	us := []*influxdb.User{}
 	filterFn := filterUsersFn(filter)
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		return s.forEachUser(ctx, tx, func(u *influxdb.User) bool {
 			if filterFn(u) {
 				us = append(us, u)
@@ -225,7 +225,7 @@ func (s *Service) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt
 
 // CreateUser creates a influxdb user and sets b.ID.
 func (s *Service) CreateUser(ctx context.Context, u *influxdb.User) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.createUser(ctx, tx, u)
 	})
 }
@@ -245,7 +245,7 @@ func (s *Service) createUser(ctx context.Context, tx Tx, u *influxdb.User) error
 
 // PutUser will put a user without setting an ID.
 func (s *Service) PutUser(ctx context.Context, u *influxdb.User) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.putUser(ctx, tx, u)
 	})
 }
@@ -325,7 +325,7 @@ func (s *Service) uniqueUserName(ctx context.Context, tx Tx, u *influxdb.User) e
 // UpdateUser updates a user according the parameters set on upd.
 func (s *Service) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	var u *influxdb.User
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		usr, err := s.updateUser(ctx, tx, id, upd)
 		if err != nil {
 			return err
@@ -383,7 +383,7 @@ func (s *Service) removeUserFromIndex(ctx context.Context, tx Tx, id influxdb.ID
 
 // DeleteUser deletes a user and prunes it from the index.
 func (s *Service) DeleteUser(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.deleteUser(ctx, tx, id)
 	})
 }
@@ -450,7 +450,7 @@ func (s *Service) GetUserOperationLog(ctx context.Context, id influxdb.ID, opts 
 	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
 	log := []*influxdb.OperationLogEntry{}
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		key, err := encodeUserOperationLogKey(id)
 		if err != nil {
 			return err

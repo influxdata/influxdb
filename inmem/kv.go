@@ -24,7 +24,7 @@ func NewKVStore() *KVStore {
 }
 
 // View opens up a transaction with a read lock.
-func (s *KVStore) View(fn func(kv.Tx) error) error {
+func (s *KVStore) View(ctx context.Context, fn func(kv.Tx) error) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.buckets == nil {
@@ -33,12 +33,12 @@ func (s *KVStore) View(fn func(kv.Tx) error) error {
 	return fn(&Tx{
 		kv:       s,
 		writable: false,
-		ctx:      context.Background(),
+		ctx:      ctx,
 	})
 }
 
 // Update opens up a transaction with a write lock.
-func (s *KVStore) Update(fn func(kv.Tx) error) error {
+func (s *KVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.buckets == nil {
@@ -48,12 +48,12 @@ func (s *KVStore) Update(fn func(kv.Tx) error) error {
 	return fn(&Tx{
 		kv:       s,
 		writable: true,
-		ctx:      context.Background(),
+		ctx:      ctx,
 	})
 }
 
 // Flush removes all data from the buckets.  Used for testing.
-func (s *KVStore) Flush() {
+func (s *KVStore) Flush(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, b := range s.buckets {
@@ -62,7 +62,7 @@ func (s *KVStore) Flush() {
 }
 
 // Buckets returns the names of all buckets within inmem.KVStore.
-func (s *KVStore) Buckets() [][]byte {
+func (s *KVStore) Buckets(ctx context.Context) [][]byte {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

@@ -29,7 +29,7 @@ func (s *Service) initializeLabels(ctx context.Context, tx Tx) error {
 func (s *Service) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 	var l *influxdb.Label
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		label, pe := s.findLabelByID(ctx, tx, id)
 		if pe != nil {
 			return pe
@@ -91,7 +91,7 @@ func filterLabelsFn(filter influxdb.LabelFilter) func(l *influxdb.Label) bool {
 // FindLabels returns a list of labels that match a filter.
 func (s *Service) FindLabels(ctx context.Context, filter influxdb.LabelFilter, opt ...influxdb.FindOptions) ([]*influxdb.Label, error) {
 	ls := []*influxdb.Label{}
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		labels, err := s.findLabels(ctx, tx, filter)
 		if err != nil {
 			return err
@@ -179,7 +179,7 @@ func (s *Service) findResourceLabels(ctx context.Context, tx Tx, filter influxdb
 
 func (s *Service) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 	ls := []*influxdb.Label{}
-	if err := s.kv.View(func(tx Tx) error {
+	if err := s.kv.View(ctx, func(tx Tx) error {
 		return s.findResourceLabels(ctx, tx, filter, &ls)
 	}); err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter influxdb.LabelM
 
 // CreateLabelMapping creates a new mapping between a resource and a label.
 func (s *Service) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.createLabelMapping(ctx, tx, m)
 	})
 }
@@ -210,7 +210,7 @@ func (s *Service) createLabelMapping(ctx context.Context, tx Tx, m *influxdb.Lab
 
 // DeleteLabelMapping deletes a label mapping.
 func (s *Service) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		return s.deleteLabelMapping(ctx, tx, m)
 	})
 	if err != nil {
@@ -245,7 +245,7 @@ func (s *Service) deleteLabelMapping(ctx context.Context, tx Tx, m *influxdb.Lab
 
 // CreateLabel creates a new label.
 func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		l.ID = s.IDGenerator.ID()
 
 		return s.putLabel(ctx, tx, l)
@@ -261,7 +261,7 @@ func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 
 // PutLabel creates a label from the provided struct, without generating a new ID.
 func (s *Service) PutLabel(ctx context.Context, l *influxdb.Label) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		var err error
 		pe := s.putLabel(ctx, tx, l)
 		if pe != nil {
@@ -322,7 +322,7 @@ func (s *Service) forEachLabel(ctx context.Context, tx Tx, fn func(*influxdb.Lab
 // UpdateLabel updates a label.
 func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var label *influxdb.Label
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		labelResponse, pe := s.updateLabel(ctx, tx, id, upd)
 		if pe != nil {
 			return &influxdb.Error{
@@ -402,7 +402,7 @@ func (s *Service) putLabel(ctx context.Context, tx Tx, l *influxdb.Label) error 
 
 // PutLabelMapping writes a label mapping to boltdb
 func (s *Service) PutLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		var err error
 		pe := s.putLabelMapping(ctx, tx, m)
 		if pe != nil {
@@ -443,7 +443,7 @@ func (s *Service) putLabelMapping(ctx context.Context, tx Tx, m *influxdb.LabelM
 
 // DeleteLabel deletes a label.
 func (s *Service) DeleteLabel(ctx context.Context, id influxdb.ID) error {
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		return s.deleteLabel(ctx, tx, id)
 	})
 	if err != nil {

@@ -1,6 +1,7 @@
 package inmem_test
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"testing"
@@ -13,7 +14,7 @@ import (
 func initKVStore(f platformtesting.KVStoreFields, t *testing.T) (kv.Store, func()) {
 	s := inmem.NewKVStore()
 
-	err := s.Update(func(tx kv.Tx) error {
+	err := s.Update(context.Background(), func(tx kv.Tx) error {
 		b, err := tx.Bucket(f.Bucket)
 		if err != nil {
 			return err
@@ -57,7 +58,7 @@ func TestKVStore_Buckets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &inmem.KVStore{}
-			err := s.Update(func(tx kv.Tx) error {
+			err := s.Update(context.Background(), func(tx kv.Tx) error {
 				for _, b := range tt.buckets {
 					if _, err := tx.Bucket([]byte(b)); err != nil {
 						return err
@@ -68,7 +69,7 @@ func TestKVStore_Buckets(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unable to setup store with buckets: %v", err)
 			}
-			got := s.Buckets()
+			got := s.Buckets(context.Background())
 			sort.Slice(got, func(i, j int) bool {
 				return string(got[i]) < string(got[j])
 			})

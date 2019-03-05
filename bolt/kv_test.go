@@ -1,6 +1,7 @@
 package bolt_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/influxdata/influxdb/kv"
@@ -13,7 +14,7 @@ func initKVStore(f platformtesting.KVStoreFields, t *testing.T) (kv.Store, func(
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
 
-	err = s.Update(func(tx kv.Tx) error {
+	err = s.Update(context.Background(), func(tx kv.Tx) error {
 		b, err := tx.Bucket(f.Bucket)
 		if err != nil {
 			return err

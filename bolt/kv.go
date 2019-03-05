@@ -3,6 +3,7 @@ package bolt
 import (
 	"context"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,6 +31,9 @@ func NewKVStore(path string) *KVStore {
 
 // Open creates boltDB file it doesn't exists and opens it otherwise.
 func (s *KVStore) Open(ctx context.Context) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "KVStore.Open")
+	defer span.Finish()
+
 	// Ensure the required directory structure exists.
 	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
 		return fmt.Errorf("unable to create directory %s: %v", s.path, err)
@@ -59,14 +63,13 @@ func (s *KVStore) Close() error {
 }
 
 // Flush removes all bolt keys within each bucket.
-func (s *KVStore) Flush() {
+func (s *KVStore) Flush(ctx context.Context) {
 	_ = s.db.Update(
 		func(tx *bolt.Tx) error {
 			return tx.ForEach(func(name []byte, b *bolt.Bucket) error {
 				s.cleanBucket(tx, b)
 				return nil
 			})
-
 		},
 	)
 }
@@ -97,21 +100,27 @@ func (s *KVStore) WithDB(db *bolt.DB) {
 }
 
 // View opens up a view transaction against the store.
-func (s *KVStore) View(fn func(tx kv.Tx) error) error {
+func (s *KVStore) View(ctx context.Context, fn func(tx kv.Tx) error) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "KVStore.View")
+	defer span.Finish()
+
 	return s.db.View(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
-			ctx: context.Background(),
+			ctx: ctx,
 		})
 	})
 }
 
 // Update opens up an update transaction against the store.
-func (s *KVStore) Update(fn func(tx kv.Tx) error) error {
+func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "KVStore.Update")
+	defer span.Finish()
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
-			ctx: context.Background(),
+			ctx: ctx,
 		})
 	})
 }

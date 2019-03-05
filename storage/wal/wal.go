@@ -308,7 +308,10 @@ func (l *WAL) sync() {
 // WriteMulti writes the given values to the WAL. It returns the WAL segment ID to
 // which the points were written. If an error is returned the segment ID should
 // be ignored. If the WAL is disabled, -1 and nil is returned.
-func (l *WAL) WriteMulti(values map[string][]value.Value) (int, error) {
+func (l *WAL) WriteMulti(ctx context.Context, values map[string][]value.Value) (int, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "WAL.WriteMulti")
+	defer span.Finish()
+
 	if !l.enabled {
 		return -1, nil
 	}

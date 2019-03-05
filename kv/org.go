@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"go.uber.org/zap"
 )
@@ -32,7 +33,7 @@ func (s *Service) initializeOrgs(ctx context.Context, tx Tx) error {
 // FindOrganizationByID retrieves a organization by id.
 func (s *Service) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
 	var o *influxdb.Organization
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		org, pe := s.findOrganizationByID(ctx, tx, id)
 		if pe != nil {
 			return &influxdb.Error{
@@ -51,6 +52,9 @@ func (s *Service) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*in
 }
 
 func (s *Service) findOrganizationByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Organization, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Service.findOrganizationByID")
+	defer span.Finish()
+
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, &influxdb.Error{
@@ -88,9 +92,12 @@ func (s *Service) findOrganizationByID(ctx context.Context, tx Tx, id influxdb.I
 
 // FindOrganizationByName returns a organization by name for a particular organization.
 func (s *Service) FindOrganizationByName(ctx context.Context, n string) (*influxdb.Organization, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.FindOrganizationByName")
+	defer span.Finish()
+
 	var o *influxdb.Organization
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		org, err := s.findOrganizationByName(ctx, tx, n)
 		if err != nil {
 			return err
@@ -103,6 +110,9 @@ func (s *Service) FindOrganizationByName(ctx context.Context, n string) (*influx
 }
 
 func (s *Service) findOrganizationByName(ctx context.Context, tx Tx, n string) (*influxdb.Organization, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.findOrganizationByName")
+	defer span.Finish()
+
 	b, err := tx.Bucket(organizationIndex)
 	if err != nil {
 		return nil, err
@@ -193,7 +203,7 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 
 	os := []*influxdb.Organization{}
 	filterFn := filterOrganizationsFn(filter)
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		return forEachOrganization(ctx, tx, func(o *influxdb.Organization) bool {
 			if filterFn(o) {
 				os = append(os, o)
@@ -213,7 +223,7 @@ func (s *Service) FindOrganizations(ctx context.Context, filter influxdb.Organiz
 
 // CreateOrganization creates a influxdb organization and sets b.ID.
 func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		if err := s.createOrganization(ctx, tx, o); err != nil {
 			return err
 		}
@@ -257,7 +267,7 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 // PutOrganization will put a organization without setting an ID.
 func (s *Service) PutOrganization(ctx context.Context, o *influxdb.Organization) error {
 	var err error
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		if pe := s.putOrganization(ctx, tx, o); pe != nil {
 			err = pe
 		}
@@ -348,7 +358,7 @@ func (s *Service) uniqueOrganizationName(ctx context.Context, tx Tx, o *influxdb
 // UpdateOrganization updates a organization according the parameters set on upd.
 func (s *Service) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	var o *influxdb.Organization
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		org, pe := s.updateOrganization(ctx, tx, id, upd)
 		if pe != nil {
 			return &influxdb.Error{
@@ -398,7 +408,7 @@ func (s *Service) updateOrganization(ctx context.Context, tx Tx, id influxdb.ID,
 
 // DeleteOrganization deletes a organization and prunes it from the index.
 func (s *Service) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		//if pe := s.deleteOrganizationsBuckets(ctx, tx, id); pe != nil {
 		//	return pe
 		//}
@@ -474,7 +484,7 @@ func (s *Service) GetOrganizationOperationLog(ctx context.Context, id influxdb.I
 	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
 	log := []*influxdb.OperationLogEntry{}
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		key, err := encodeOrganizationOperationLogKey(id)
 		if err != nil {
 			return err

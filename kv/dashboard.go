@@ -49,7 +49,7 @@ func (s *Service) initializeDashboards(ctx context.Context, tx Tx) error {
 func (s *Service) FindDashboardByID(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
 	var d *influxdb.Dashboard
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		dash, err := s.findDashboardByID(ctx, tx, id)
 		if err != nil {
 			return err
@@ -109,7 +109,7 @@ func (s *Service) FindDashboard(ctx context.Context, filter influxdb.DashboardFi
 	}
 
 	var d *influxdb.Dashboard
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		filterFn := filterDashboardsFn(filter)
 		return s.forEachDashboard(ctx, tx, opts[0].Descending, func(dash *influxdb.Dashboard) bool {
 			if filterFn(dash) {
@@ -164,7 +164,7 @@ func (s *Service) FindDashboards(ctx context.Context, filter influxdb.DashboardF
 		}
 		return []*influxdb.Dashboard{d}, 1, nil
 	}
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		dashs, err := s.findDashboards(ctx, tx, filter, opts)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 			return err
@@ -280,7 +280,7 @@ func (s *Service) findDashboards(ctx context.Context, tx Tx, filter influxdb.Das
 
 // CreateDashboard creates a influxdb dashboard and sets d.ID.
 func (s *Service) CreateDashboard(ctx context.Context, d *influxdb.Dashboard) error {
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		d.ID = s.IDGenerator.ID()
 
 		for _, cell := range d.Cells {
@@ -338,7 +338,7 @@ func (s *Service) createCellView(ctx context.Context, tx Tx, dashID, cellID infl
 
 // ReplaceDashboardCells updates the positions of each cell in a dashboard concurrently.
 func (s *Service) ReplaceDashboardCells(ctx context.Context, id influxdb.ID, cs []*influxdb.Cell) error {
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		d, err := s.findDashboardByID(ctx, tx, id)
 		if err != nil {
 			return err
@@ -401,7 +401,7 @@ func (s *Service) addDashboardCell(ctx context.Context, tx Tx, id influxdb.ID, c
 
 // AddDashboardCell adds a cell to a dashboard and sets the cells ID.
 func (s *Service) AddDashboardCell(ctx context.Context, id influxdb.ID, cell *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		return s.addDashboardCell(ctx, tx, id, cell, opts)
 	})
 	if err != nil {
@@ -414,7 +414,7 @@ func (s *Service) AddDashboardCell(ctx context.Context, id influxdb.ID, cell *in
 
 // RemoveDashboardCell removes a cell from a dashboard.
 func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID, cellID influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		d, err := s.findDashboardByID(ctx, tx, dashboardID)
 		if err != nil {
 			return &influxdb.Error{
@@ -462,7 +462,7 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID, cellID i
 // GetDashboardCellView retrieves the view for a dashboard cell.
 func (s *Service) GetDashboardCellView(ctx context.Context, dashboardID, cellID influxdb.ID) (*influxdb.View, error) {
 	var v *influxdb.View
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		view, err := s.findDashboardCellView(ctx, tx, dashboardID, cellID)
 		if err != nil {
 			return err
@@ -577,7 +577,7 @@ func encodeDashboardCellViewID(dashID, cellID influxdb.ID) ([]byte, error) {
 func (s *Service) UpdateDashboardCellView(ctx context.Context, dashboardID, cellID influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
 	var v *influxdb.View
 
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		view, err := s.findDashboardCellView(ctx, tx, dashboardID, cellID)
 		if err != nil {
 			return err
@@ -613,7 +613,7 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID, cellID i
 	}
 
 	var cell *influxdb.Cell
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		d, err := s.findDashboardByID(ctx, tx, dashboardID)
 		if err != nil {
 			return err
@@ -657,7 +657,7 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID, cellID i
 
 // PutDashboard will put a dashboard without setting an ID.
 func (s *Service) PutDashboard(ctx context.Context, d *influxdb.Dashboard) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		for _, cell := range d.Cells {
 			if err := s.createCellView(ctx, tx, d.ID, cell.ID, nil); err != nil {
 				return err
@@ -801,7 +801,7 @@ func (s *Service) UpdateDashboard(ctx context.Context, id influxdb.ID, upd influ
 	}
 
 	var d *influxdb.Dashboard
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		dash, err := s.updateDashboard(ctx, tx, id, upd)
 		if err != nil {
 			return err
@@ -842,7 +842,7 @@ func (s *Service) updateDashboard(ctx context.Context, tx Tx, id influxdb.ID, up
 
 // DeleteDashboard deletes a dashboard and prunes it from the index.
 func (s *Service) DeleteDashboard(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		if pe := s.deleteDashboard(ctx, tx, id); pe != nil {
 			return &influxdb.Error{
 				Err: pe,
@@ -922,7 +922,7 @@ func (s *Service) GetDashboardOperationLog(ctx context.Context, id influxdb.ID, 
 	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
 	log := []*influxdb.OperationLogEntry{}
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		key, err := encodeDashboardOperationLogKey(id)
 		if err != nil {
 			return err

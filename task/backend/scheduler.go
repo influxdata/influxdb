@@ -12,7 +12,7 @@ import (
 
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -597,7 +597,12 @@ func (r *runner) startFromWorking(now int64) {
 		atomic.StoreUint32(r.state, runnerIdle)
 		return
 	}
-	ctx, cancel := context.WithCancel(r.ctx)
+
+	span := opentracing.StartSpan("runner.startFromWorking")
+	ctx := opentracing.ContextWithSpan(r.ctx, span)
+	defer span.Finish()
+
+	ctx, cancel := context.WithCancel(ctx)
 	rc, err := r.desiredState.CreateNextRun(ctx, r.task.ID, now)
 	if err != nil {
 		r.logger.Info("Failed to create run", zap.Error(err))

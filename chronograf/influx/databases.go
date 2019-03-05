@@ -5,17 +5,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/influxdb/chronograf"
 )
 
 // AllDB returns all databases from within Influx
 func (c *Client) AllDB(ctx context.Context) ([]chronograf.Database, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.AllDB")
+	defer span.Finish()
+
 	return c.showDatabases(ctx)
 }
 
 // CreateDB creates a database within Influx
 func (c *Client) CreateDB(ctx context.Context, db *chronograf.Database) (*chronograf.Database, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.CreateDB")
+	defer span.Finish()
+
 	_, err := c.Query(ctx, chronograf.Query{
 		Command: fmt.Sprintf(`CREATE DATABASE "%s"`, db.Name),
 	})
@@ -30,6 +37,9 @@ func (c *Client) CreateDB(ctx context.Context, db *chronograf.Database) (*chrono
 
 // DropDB drops a database within Influx
 func (c *Client) DropDB(ctx context.Context, db string) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.DropDB")
+	defer span.Finish()
+
 	_, err := c.Query(ctx, chronograf.Query{
 		Command: fmt.Sprintf(`DROP DATABASE "%s"`, db),
 		DB:      db,
@@ -42,10 +52,16 @@ func (c *Client) DropDB(ctx context.Context, db string) error {
 
 // AllRP returns all the retention policies for a specific database
 func (c *Client) AllRP(ctx context.Context, db string) ([]chronograf.RetentionPolicy, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.AllRP")
+	defer span.Finish()
+
 	return c.showRetentionPolicies(ctx, db)
 }
 
 func (c *Client) getRP(ctx context.Context, db, rp string) (chronograf.RetentionPolicy, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.getRP")
+	defer span.Finish()
+
 	rs, err := c.AllRP(ctx, db)
 	if err != nil {
 		return chronograf.RetentionPolicy{}, err
@@ -61,6 +77,9 @@ func (c *Client) getRP(ctx context.Context, db, rp string) (chronograf.Retention
 
 // CreateRP creates a retention policy for a specific database
 func (c *Client) CreateRP(ctx context.Context, db string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.CreateRP")
+	defer span.Finish()
+
 	query := fmt.Sprintf(`CREATE RETENTION POLICY "%s" ON "%s" DURATION %s REPLICATION %d`, rp.Name, db, rp.Duration, rp.Replication)
 	if len(rp.ShardDuration) != 0 {
 		query = fmt.Sprintf(`%s SHARD DURATION %s`, query, rp.ShardDuration)
@@ -88,6 +107,9 @@ func (c *Client) CreateRP(ctx context.Context, db string, rp *chronograf.Retenti
 
 // UpdateRP updates a specific retention policy for a specific database
 func (c *Client) UpdateRP(ctx context.Context, db string, rp string, upd *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.UpdateRP")
+	defer span.Finish()
+
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf(`ALTER RETENTION POLICY "%s" ON "%s"`, rp, db))
 	if len(upd.Duration) > 0 {
@@ -140,6 +162,9 @@ func (c *Client) UpdateRP(ctx context.Context, db string, rp string, upd *chrono
 
 // DropRP removes a specific retention policy for a specific database
 func (c *Client) DropRP(ctx context.Context, db string, rp string) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.DropRP")
+	defer span.Finish()
+
 	_, err := c.Query(ctx, chronograf.Query{
 		Command: fmt.Sprintf(`DROP RETENTION POLICY "%s" ON "%s"`, rp, db),
 		DB:      db,
@@ -155,10 +180,16 @@ func (c *Client) DropRP(ctx context.Context, db string, rp string) error {
 // optional limit and offset. If no limit or offset is provided, it defaults to
 // a limit of 100 measurements with no offset.
 func (c *Client) GetMeasurements(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.GetMeasurements")
+	defer span.Finish()
+
 	return c.showMeasurements(ctx, db, limit, offset)
 }
 
 func (c *Client) showDatabases(ctx context.Context) ([]chronograf.Database, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.showDatabases")
+	defer span.Finish()
+
 	res, err := c.Query(ctx, chronograf.Query{
 		Command: `SHOW DATABASES`,
 	})
@@ -179,6 +210,9 @@ func (c *Client) showDatabases(ctx context.Context) ([]chronograf.Database, erro
 }
 
 func (c *Client) showRetentionPolicies(ctx context.Context, db string) ([]chronograf.RetentionPolicy, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.showRetentionPolicies")
+	defer span.Finish()
+
 	retentionPolicies, err := c.Query(ctx, chronograf.Query{
 		Command: fmt.Sprintf(`SHOW RETENTION POLICIES ON "%s"`, db),
 		DB:      db,
@@ -201,6 +235,9 @@ func (c *Client) showRetentionPolicies(ctx context.Context, db string) ([]chrono
 }
 
 func (c *Client) showMeasurements(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.showMeasurements")
+	defer span.Finish()
+
 	show := fmt.Sprintf(`SHOW MEASUREMENTS ON "%s"`, db)
 	if limit > 0 {
 		show += fmt.Sprintf(" LIMIT %d", limit)

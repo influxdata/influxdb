@@ -320,12 +320,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.logger.Info("tracing via Jaeger")
 		cfg, err := jaegerconfig.FromEnv()
 		if err != nil {
-			m.logger.Warn("failed to get Jaeger client config from environment variables", zap.Error(err))
+			m.logger.Error("failed to get Jaeger client config from environment variables", zap.Error(err))
 			break
 		}
 		tracer, closer, err := cfg.NewTracer()
 		if err != nil {
-			m.logger.Warn("failed to instantiate Jaeger tracer", zap.Error(err))
+			m.logger.Error("failed to instantiate Jaeger tracer", zap.Error(err))
 			break
 		}
 		opentracing.SetGlobalTracer(tracer)
@@ -602,7 +602,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.httpServer.Handler = h
 	// If we are in testing mode we allow all data to be flushed and removed.
 	if m.testing {
-		m.httpServer.Handler = http.DebugFlush(h, flusher)
+		m.httpServer.Handler = http.DebugFlush(ctx, h, flusher)
 	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)

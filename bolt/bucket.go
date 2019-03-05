@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
@@ -30,6 +31,9 @@ func (c *Client) initializeBuckets(ctx context.Context, tx *bolt.Tx) error {
 }
 
 func (c *Client) setOrganizationOnBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) *platform.Error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.setOrganizationOnBucket")
+	defer span.Finish()
+
 	o, err := c.findOrganizationByID(ctx, tx, b.OrganizationID)
 	if err != nil {
 		return &platform.Error{
@@ -42,6 +46,9 @@ func (c *Client) setOrganizationOnBucket(ctx context.Context, tx *bolt.Tx, b *pl
 
 // FindBucketByID retrieves a bucket by id.
 func (c *Client) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.FindBucketByID")
+	defer span.Finish()
+
 	var b *platform.Bucket
 	var err error
 
@@ -64,6 +71,9 @@ func (c *Client) FindBucketByID(ctx context.Context, id platform.ID) (*platform.
 }
 
 func (c *Client) findBucketByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Bucket, *platform.Error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.findBucketByID")
+	defer span.Finish()
+
 	var b platform.Bucket
 
 	encodedID, err := id.Encode()
@@ -100,6 +110,9 @@ func (c *Client) findBucketByID(ctx context.Context, tx *bolt.Tx, id platform.ID
 // FindBucketByName returns a bucket by name for a particular organization.
 // TODO: have method for finding bucket using organization name and bucket name.
 func (c *Client) FindBucketByName(ctx context.Context, orgID platform.ID, n string) (*platform.Bucket, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.FindBucketByName")
+	defer span.Finish()
+
 	var b *platform.Bucket
 	var err error
 
@@ -118,6 +131,9 @@ func (c *Client) FindBucketByName(ctx context.Context, orgID platform.ID, n stri
 }
 
 func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platform.ID, n string) (*platform.Bucket, *platform.Error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.findBucketByName")
+	defer span.Finish()
+
 	b := &platform.Bucket{
 		OrganizationID: orgID,
 		Name:           n,
@@ -151,6 +167,9 @@ func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platfo
 // Filters using ID, or OrganizationID and bucket Name should be efficient.
 // Other filters will do a linear scan across buckets until it finds a match.
 func (c *Client) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.FindBucket")
+	defer span.Finish()
+
 	var b *platform.Bucket
 	var err error
 
@@ -237,6 +256,9 @@ func filterBucketsFn(filter platform.BucketFilter) func(b *platform.Bucket) bool
 // Filters using ID, or OrganizationID and bucket Name should be efficient.
 // Other filters will do a linear scan across all buckets searching for a match.
 func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.FindBuckets")
+	defer span.Finish()
+
 	if filter.ID != nil {
 		b, err := c.FindBucketByID(ctx, *filter.ID)
 		if err != nil {
@@ -273,6 +295,9 @@ func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, 
 }
 
 func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, *platform.Error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.findBuckets")
+	defer span.Finish()
+
 	bs := []*platform.Bucket{}
 	if filter.Organization != nil {
 		o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
@@ -319,6 +344,9 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 
 // CreateBucket creates a platform bucket and sets b.ID.
 func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.CreateBucket")
+	defer span.Finish()
+
 	var err error
 	op := getOp(platform.OpCreateBucket)
 	return c.db.Update(func(tx *bolt.Tx) error {

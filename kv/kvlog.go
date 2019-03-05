@@ -178,7 +178,7 @@ func (s *Service) updateKeyValueLogBounds(ctx context.Context, tx Tx, k []byte, 
 
 // ForEachLogEntry retrieves the keyValue log for a resource type ID combination. KeyValues may be returned in ascending and descending order.
 func (s *Service) ForEachLogEntry(ctx context.Context, k []byte, opts platform.FindOptions, fn func([]byte, time.Time) error) error {
-	return s.kv.View(func(tx Tx) error {
+	return s.kv.View(ctx, func(tx Tx) error {
 		return s.forEachLogEntry(ctx, tx, k, opts, fn)
 	})
 }
@@ -274,7 +274,7 @@ func (s *Service) forEachLogEntry(ctx context.Context, tx Tx, k []byte, opts pla
 
 // AddLogEntry logs an keyValue for a particular resource type ID pairing.
 func (s *Service) AddLogEntry(ctx context.Context, k, v []byte, t time.Time) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.addLogEntry(ctx, tx, k, v, t)
 	})
 }
@@ -337,7 +337,7 @@ func (s *Service) FirstLogEntry(ctx context.Context, k []byte) ([]byte, time.Tim
 	var v []byte
 	var t time.Time
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		val, ts, err := s.firstLogEntry(ctx, tx, k)
 		if err != nil {
 			return err
@@ -360,7 +360,7 @@ func (s *Service) LastLogEntry(ctx context.Context, k []byte) ([]byte, time.Time
 	var v []byte
 	var t time.Time
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		val, ts, err := s.lastLogEntry(ctx, tx, k)
 		if err != nil {
 			return err

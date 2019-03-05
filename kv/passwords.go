@@ -72,7 +72,7 @@ func (s *Service) initializePasswords(ctx context.Context, tx Tx) error {
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
 func (s *Service) CompareAndSetPassword(ctx context.Context, name string, old string, new string) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		if err := s.comparePassword(ctx, tx, name, old); err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ func (s *Service) CompareAndSetPassword(ctx context.Context, name string, old st
 
 // SetPassword overrides the password of a known user.
 func (s *Service) SetPassword(ctx context.Context, name string, password string) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.setPassword(ctx, tx, name, password)
 	})
 }
@@ -90,7 +90,7 @@ func (s *Service) SetPassword(ctx context.Context, name string, password string)
 // ComparePassword checks if the password matches the password recorded.
 // Passwords that do not match return errors.
 func (s *Service) ComparePassword(ctx context.Context, name string, password string) error {
-	return s.kv.View(func(tx Tx) error {
+	return s.kv.View(ctx, func(tx Tx) error {
 		return s.comparePassword(ctx, tx, name, password)
 	})
 }

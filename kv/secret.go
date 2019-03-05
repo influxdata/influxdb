@@ -25,7 +25,7 @@ func (s *Service) initializeSecrets(ctx context.Context, tx Tx) error {
 // LoadSecret retrieves the secret value v found at key k for organization orgID.
 func (s *Service) LoadSecret(ctx context.Context, orgID influxdb.ID, k string) (string, error) {
 	var v string
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		val, err := s.loadSecret(ctx, tx, orgID, k)
 		if err != nil {
 			return err
@@ -76,7 +76,7 @@ func (s *Service) loadSecret(ctx context.Context, tx Tx, orgID influxdb.ID, k st
 // GetSecretKeys retrieves all secret keys that are stored for the organization orgID.
 func (s *Service) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]string, error) {
 	var vs []string
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		vals, err := s.getSecretKeys(ctx, tx, orgID)
 		if err != nil {
 			return err
@@ -151,7 +151,7 @@ func (s *Service) getSecretKeys(ctx context.Context, tx Tx, orgID influxdb.ID) (
 
 // PutSecret stores the secret pair (k,v) for the organization orgID.
 func (s *Service) PutSecret(ctx context.Context, orgID influxdb.ID, k, v string) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.putSecret(ctx, tx, orgID, k, v)
 	})
 }
@@ -223,7 +223,7 @@ func encodeSecretValue(v string) []byte {
 
 // PutSecrets puts all provided secrets and overwrites any previous values.
 func (s *Service) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		keys, err := s.getSecretKeys(ctx, tx, orgID)
 		if err != nil {
 			return err
@@ -246,7 +246,7 @@ func (s *Service) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[strin
 
 // PatchSecrets patches all provided secrets and updates any previous values.
 func (s *Service) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		for k, v := range m {
 			if err := s.putSecret(ctx, tx, orgID, k, v); err != nil {
 				return err
@@ -258,7 +258,7 @@ func (s *Service) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[str
 
 // DeleteSecret removes secrets from the secret store.
 func (s *Service) DeleteSecret(ctx context.Context, orgID influxdb.ID, ks ...string) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		for _, k := range ks {
 			if err := s.deleteSecret(ctx, tx, orgID, k); err != nil {
 				return err

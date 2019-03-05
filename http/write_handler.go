@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -73,6 +74,9 @@ func NewWriteHandler(b *WriteBackend) *WriteHandler {
 }
 
 func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "WriteHandler")
+	defer span.Finish()
+
 	ctx := r.Context()
 	defer r.Body.Close()
 

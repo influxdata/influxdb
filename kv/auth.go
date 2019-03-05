@@ -28,7 +28,7 @@ func (s *Service) initializeAuths(ctx context.Context, tx Tx) error {
 // FindAuthorizationByID retrieves a authorization by id.
 func (s *Service) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
 	var a *influxdb.Authorization
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		auth, err := s.findAuthorizationByID(ctx, tx, id)
 		if err != nil {
 			return err
@@ -85,7 +85,7 @@ func (s *Service) findAuthorizationByID(ctx context.Context, tx Tx, id influxdb.
 // FindAuthorizationByToken returns a authorization by token for a particular authorization.
 func (s *Service) FindAuthorizationByToken(ctx context.Context, n string) (*influxdb.Authorization, error) {
 	var a *influxdb.Authorization
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		auth, err := s.findAuthorizationByToken(ctx, tx, n)
 		if err != nil {
 			return err
@@ -176,7 +176,7 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 	}
 
 	as := []*influxdb.Authorization{}
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		auths, err := s.findAuthorizations(ctx, tx, filter)
 		if err != nil {
 			return err
@@ -221,7 +221,7 @@ func (s *Service) findAuthorizations(ctx context.Context, tx Tx, f influxdb.Auth
 
 // CreateAuthorization creates a influxdb authorization and sets b.ID, and b.UserID if not provided.
 func (s *Service) CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.createAuthorization(ctx, tx, a)
 	})
 }
@@ -266,7 +266,7 @@ func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Au
 
 // PutAuthorization will put a authorization without setting an ID.
 func (s *Service) PutAuthorization(ctx context.Context, a *influxdb.Authorization) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.putAuthorization(ctx, tx, a)
 	})
 }
@@ -371,7 +371,7 @@ func (s *Service) forEachAuthorization(ctx context.Context, tx Tx, fn func(*infl
 
 // DeleteAuthorization deletes a authorization and prunes it from the index.
 func (s *Service) DeleteAuthorization(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) (err error) {
+	return s.kv.Update(ctx, func(tx Tx) (err error) {
 		return s.deleteAuthorization(ctx, tx, id)
 	})
 }
@@ -415,7 +415,7 @@ func (s *Service) deleteAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 // SetAuthorizationStatus updates the status of the authorization. Useful
 // for setting an authorization to inactive or active.
 func (s *Service) SetAuthorizationStatus(ctx context.Context, id influxdb.ID, status influxdb.Status) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.updateAuthorization(ctx, tx, id, status)
 	})
 }

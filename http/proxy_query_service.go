@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"io"
 	"net/http"
 
@@ -140,49 +142,52 @@ func (s *ProxyQueryService) Ping(ctx context.Context) error {
 }
 
 func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "ProxyQueryService.Query")
+	defer span.Finish()
 	u, err := newURL(s.Addr, proxyQueryPath)
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(req); err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	hreq, err := http.NewRequest("POST", u.String(), &body)
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	token := s.Token
 	if token == "" {
 		token, err = icontext.GetToken(ctx)
 		if err != nil {
-			return flux.Statistics{}, err
+			return flux.Statistics{}, tracing.LogError(span, err)
 		}
 	}
 
 	SetToken(token, hreq)
 	hreq = hreq.WithContext(ctx)
+	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 	if err := CheckError(resp); err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	if _, err = io.Copy(w, resp.Body); err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	data := []byte(resp.Trailer.Get(QueryStatsTrailer))
 	var stats flux.Statistics
 	if err := json.Unmarshal(data, &stats); err != nil {
-		return stats, err
+		return stats, tracing.LogError(span, err)
 	}
 
 	return stats, nil

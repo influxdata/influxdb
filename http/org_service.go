@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"net/http"
 	"path"
 
@@ -613,9 +615,31 @@ func (s *OrganizationService) FindOrganization(ctx context.Context, filter influ
 
 // FindOrganizations returns all organizations that match the filter via HTTP.
 func (s *OrganizationService) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "OrganizationService.FindOrganizations")
+	defer span.Finish()
+
+	if filter.Name != nil {
+		span.LogKV("org", *filter.Name)
+	}
+	if filter.ID != nil {
+		span.LogKV("org-id", *filter.ID)
+	}
+	for _, o := range opt {
+		if o.Offset != 0 {
+			span.LogKV("offset", o.Offset)
+		}
+		span.LogKV("descending", o.Descending)
+		if o.Limit > 0 {
+			span.LogKV("limit", o.Limit)
+		}
+		if o.SortBy != "" {
+			span.LogKV("sortBy", o.SortBy)
+		}
+	}
+
 	url, err := newURL(s.Addr, organizationPath)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, tracing.LogError(span, err)
 	}
 	qp := url.Query()
 
@@ -629,30 +653,30 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, tracing.LogError(span, err)
 	}
+	tracing.InjectToHTTPRequest(span, req)
 
 	SetToken(s.Token, req)
 	hc := newClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
-		return nil, 0, err
+		return nil, 0, tracing.LogError(span, err)
 	}
 
 	var os orgsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&os); err != nil {
-		return nil, 0, err
+		return nil, 0, tracing.LogError(span, err)
 	}
 
 	orgs := os.Toinfluxdb()
 	return orgs, len(orgs), nil
-
 }
 
 // CreateOrganization creates an organization.
@@ -664,20 +688,31 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 		}
 	}
 
+	span, _ := opentracing.StartSpanFromContext(ctx, "OrganizationService.CreateOrganization")
+	defer span.Finish()
+
+	if o.Name != "" {
+		span.LogKV("org", o.Name)
+	}
+	if o.ID != 0 {
+		span.LogKV("org-id", o.ID)
+	}
+
 	url, err := newURL(s.Addr, organizationPath)
 	if err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
 
 	octets, err := json.Marshal(o)
 	if err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
 
 	req, err := http.NewRequest("POST", url.String(), bytes.NewReader(octets))
 	if err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
+	tracing.InjectToHTTPRequest(span, req)
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
@@ -686,17 +721,17 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 
 	// TODO(jsternberg): Should this check for a 201 explicitly?
 	if err := CheckError(resp); err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(o); err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
 
 	return nil
@@ -704,20 +739,27 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 
 // UpdateOrganization updates the organization over HTTP.
 func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "OrganizationService.UpdateOrganization")
+	defer span.Finish()
+
+	span.LogKV("org-id", id)
+	span.LogKV("name", upd.Name)
+
 	u, err := newURL(s.Addr, organizationIDPath(id))
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	octets, err := json.Marshal(upd)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
+	tracing.InjectToHTTPRequest(span, req)
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
@@ -726,17 +768,17 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	var o influxdb.Organization
 	if err := json.NewDecoder(resp.Body).Decode(&o); err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	return &o, nil
@@ -744,25 +786,35 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 
 // DeleteOrganization removes organization id over HTTP.
 func (s *OrganizationService) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "OrganizationService.DeleteOrganization")
+	defer span.Finish()
+
 	u, err := newURL(s.Addr, organizationIDPath(id))
 	if err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
 
 	req, err := http.NewRequest("DELETE", u.String(), nil)
 	if err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
+	tracing.InjectToHTTPRequest(span, req)
+
 	SetToken(s.Token, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 
-	return CheckErrorStatus(http.StatusNoContent, resp)
+	err = CheckErrorStatus(http.StatusNoContent, resp)
+	if err != nil {
+		return tracing.LogError(span, err)
+	}
+
+	return nil
 }
 
 func organizationIDPath(id influxdb.ID) string {
