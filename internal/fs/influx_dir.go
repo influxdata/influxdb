@@ -24,9 +24,9 @@ func InfluxDir() (string, error) {
 		}
 		dir = wd
 	}
-	dir = filepath.Join(dir, ".influxdbv2")
 
-	return dir, nil
+	dir = filepath.Join(dir, ".influxdbv2")
+	return dir, os.MkdirAll(dir, 0700)
 }
 
 // BoltFile returns the path to the bolt file for influxdb
