@@ -4,7 +4,9 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Page} from 'src/pageLayout'
-import GetLabels from 'src/configuration/components/GetLabels'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Labels from 'src/configuration/components/Labels'
@@ -47,9 +49,9 @@ class ConfigurationPage extends Component<Props> {
                 url="labels_tab"
                 title="Labels"
               >
-                <GetLabels>
+                <GetResources resource={ResourceTypes.Labels}>
                   <Labels />
-                </GetLabels>
+                </GetResources>
               </TabbedPageSection>
               <TabbedPageSection
                 id="settings_tab"
