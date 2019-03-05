@@ -3,7 +3,6 @@ package tracing
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"runtime"
 
@@ -44,21 +43,60 @@ func ExtractFromHTTPRequest(req *http.Request, handlerName string) (opentracing.
 	return span, req
 }
 
-// StartSpanFromContext is an easier-to-use opentracing.StartSpanFromContext.
-// Uses the calling function as the operation name, and logs the file:line.
-// TODO unused for now; consider removing this because performance isn't awesome.
+// StartSpanFromContext is an improved opentracing.StartSpanFromContext.
+// Uses the calling function as the operation name, and logs the filename and line number.
+//
+// Passing nil context triggers new context and root span construction.
+// Context without parent span reference triggers root span construction.
+// This function never returns nil values.
+//
+// Performance
+//
+// This function incurs a small performance penalty, roughly 1000 ns/op, 376 B/op, 6 allocs/op.
+// Jaeger timestamp and duration precision is only µs, so this is pretty negligible.
+//
+// Alternatives
+//
+// If this performance penalty is too much, try these, which are also demonstrated in benchmark tests:
+//  // Create a root span
+//  span := opentracing.StartSpan("operation name")
+//
+//  // Create a child span
+//  span := opentracing.StartSpan("operation name", opentracing.ChildOf(sc))
+//
+//  // Sugar to create a child span
+//  span, ctx := opentracing.StartSpanFromContext(ctx, "operation name")
 func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Context) {
-	pc, _, _, ok := runtime.Caller(1)
-	if !ok {
-		span, ctx := opentracing.StartSpanFromContext(ctx, "unknown")
-		span.LogFields(log.Error(errors.New("failed to get calling frame")))
-		return span, ctx
+	if ctx == nil {
+		// Guard against nil context.
+		ctx = context.Background()
 	}
 
-	frame, _ := runtime.CallersFrames([]uintptr{pc}).Next()
+	var frame runtime.Frame
+	{
+		// Get caller frame.
+		pc, _, _, ok := runtime.Caller(1)
+		if !ok {
+			span, ctx := opentracing.StartSpanFromContext(ctx, "unknown")
+			span.LogFields(log.Error(errors.New("runtime.Caller failed")))
+			return span, ctx
+		}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, frame.Function)
-	span.LogFields(log.String("location", fmt.Sprintf("%s:%d", frame.File, frame.Line)))
+		frame, _ = runtime.CallersFrames([]uintptr{pc}).Next()
+	}
+
+	var span opentracing.Span
+	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {
+		// Create a child span.
+		span = opentracing.StartSpan(frame.Function, opentracing.ChildOf(parentSpan.Context()))
+	} else {
+		// Create a root span.
+		span = opentracing.StartSpan(frame.Function)
+	}
+	// New context references this span, not the parent (if there was one).
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
+	span.LogFields(log.String("filename", frame.File), log.Int("line", frame.Line))
 
 	return span, ctx
 }
