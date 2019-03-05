@@ -1,5 +1,4 @@
 import _ from 'lodash'
-import {client} from 'src/utils/api'
 
 import {notify} from 'src/shared/actions/notifications'
 
@@ -10,12 +9,26 @@ import {
   importTaskFailed,
 } from 'src/shared/copy/notifications'
 
+// API
+import {client} from 'src/utils/api'
+
+// Actions
+import {
+  Action as TaskLabelsAction,
+  addTaskLabelsFactoryAsync,
+} from 'src/tasks/actions/v2/labels'
+
+// Types
+import {Organization, AppState} from 'src/types/v2'
+
 export enum ActionTypes {
   GetTasks = 'GET_TASKS',
   PopulateTasks = 'POPULATE_TASKS',
+  AddTaskLabels = 'ADD_TASK_LABELS',
+  RemoveTaskLabels = 'REMOVE_TASK_LABELS',
 }
 
-export type Actions = PopulateTasks
+export type Actions = TaskLabelsAction | PopulateTasks
 
 export interface PopulateTasks {
   type: ActionTypes.PopulateTasks
@@ -48,3 +61,6 @@ export const createTaskFromTemplate = (
     dispatch(notify(importTaskFailed(error)))
   }
 }
+export const addTaskLabelsAsync = addTaskLabelsFactoryAsync(
+  (state: AppState) => state.orgView.tasks
+)

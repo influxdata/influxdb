@@ -1,7 +1,10 @@
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {Run, LogEvent} from '@influxdata/influx'
 
-// Types
+// Utils
+import {addTaskLabels, removeTaskLabels} from 'src/tasks/reducers/v2/utils'
+
+//Types
 import {Action} from 'src/tasks/actions/v2'
 import {Task} from '@influxdata/influx'
 import {RemoteDataState} from '@influxdata/clockface'
@@ -103,31 +106,11 @@ export default (state: State = defaultState, action: Action): State => {
     case 'ADD_TASK_LABELS':
       const {taskID, labels} = action.payload
 
-      const updatedTasks = state.tasks.map(t => {
-        if (t.id === taskID) {
-          return {...t, labels: [...labels]}
-        }
-        return t
-      })
-
-      return {...state, tasks: [...updatedTasks]}
+      return {...state, tasks: addTaskLabels(state.tasks, taskID, labels)}
     case 'REMOVE_TASK_LABELS': {
       const {taskID, labels} = action.payload
 
-      const updatedTasks = state.tasks.map(t => {
-        if (t.id === taskID) {
-          const updatedLabels = t.labels.filter(l => {
-            if (!labels.find(label => label.name === l.name)) {
-              return l
-            }
-          })
-
-          return {...t, labels: updatedLabels}
-        }
-        return t
-      })
-
-      return {...state, tasks: [...updatedTasks]}
+      return {...state, tasks: removeTaskLabels(state.tasks, taskID, labels)}
     }
     case 'SET_RUNS':
       const {runs, runStatus} = action.payload

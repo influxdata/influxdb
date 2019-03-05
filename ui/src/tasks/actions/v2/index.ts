@@ -24,8 +24,9 @@ import {
 } from 'src/shared/copy/v2/notifications'
 
 // Types
-import {AppState, Label} from 'src/types/v2'
+import {AppState} from 'src/types/v2'
 import {Task} from '@influxdata/influx'
+import {Action as TaskLabelsAction} from 'src/tasks/actions/v2/labels'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -34,6 +35,12 @@ import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
+
+// Actions
+import {
+  addTaskLabelsFactoryAsync,
+  removeTaskLabelsAsync,
+} from 'src/tasks/actions/v2/labels'
 
 export type Action =
   | SetNewScript
@@ -48,10 +55,9 @@ export type Action =
   | ClearTask
   | SetTaskOption
   | SetAllTaskOptions
-  | AddTaskLabels
-  | RemoveTaskLabels
   | SetRuns
   | SetLogs
+  | TaskLabelsAction
 
 type GetStateFunc = () => AppState
 
@@ -128,22 +134,6 @@ export interface SetTaskOption {
   payload: {
     key: TaskOptionKeys
     value: string
-  }
-}
-
-export interface AddTaskLabels {
-  type: 'ADD_TASK_LABELS'
-  payload: {
-    taskID: string
-    labels: Label[]
-  }
-}
-
-export interface RemoveTaskLabels {
-  type: 'REMOVE_TASK_LABELS'
-  payload: {
-    taskID: string
-    labels: Label[]
   }
 }
 
@@ -224,26 +214,12 @@ export const setLogs = (logs: LogEvent[]): SetLogs => ({
   payload: {logs},
 })
 
-const addTaskLabels = (taskID: string, labels: Label[]): AddTaskLabels => ({
-  type: 'ADD_TASK_LABELS',
-  payload: {
-    taskID,
-    labels,
-  },
-})
-
-const removeTaskLabels = (
-  taskID: string,
-  labels: Label[]
-): RemoveTaskLabels => ({
-  type: 'REMOVE_TASK_LABELS',
-  payload: {
-    taskID,
-    labels,
-  },
-})
-
 // Thunks
+export {removeTaskLabelsAsync}
+
+export const addTaskLabelsAsync = addTaskLabelsFactoryAsync(
+  (state: AppState) => state.tasks.tasks
+)
 
 export const updateTaskStatus = (task: Task) => async dispatch => {
   try {
@@ -438,45 +414,6 @@ export const importTask = (script: string) => async (
     console.error(error)
     const message = _.get(error, 'response.data.error.message', '')
     dispatch(notify(taskImportFailed(message)))
-  }
-}
-
-export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
-  dispatch,
-  getState: GetStateFunc
-): Promise<void> => {
-  try {
-    const {
-      tasks: {tasks},
-    } = await getState()
-
-    const task = tasks.find(t => {
-      return t.id === taskID
-    })
-
-    const labelsToAdd = labels.filter(label => {
-      if (!task.labels.find(l => l.name === label.name)) {
-        return label
-      }
-    })
-
-    const newLabels = await client.tasks.addLabels(taskID, labelsToAdd)
-
-    dispatch(addTaskLabels(taskID, newLabels))
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-export const removeTaskLabelsAsync = (
-  taskID: string,
-  labels: Label[]
-) => async (dispatch): Promise<void> => {
-  try {
-    await client.tasks.removeLabels(taskID, labels)
-    dispatch(removeTaskLabels(taskID, labels))
-  } catch (error) {
-    console.error(error)
   }
 }
 
