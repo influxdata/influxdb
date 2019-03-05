@@ -9,6 +9,8 @@
   padding: 10px;
   color: $g14-chromium;
   z-index: $z--dygraph-legend;
+  position: fixed;
+  display: none;
 }
 
 .histogram-tooltip--bin {
