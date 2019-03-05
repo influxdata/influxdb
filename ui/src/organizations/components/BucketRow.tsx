@@ -46,6 +46,7 @@ export default class BucketRow extends PureComponent<Props> {
               noNameString={DEFAULT_BUCKET_NAME}
             />
           </IndexList.Cell>
+          <IndexList.Cell>{bucket.organization}</IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton

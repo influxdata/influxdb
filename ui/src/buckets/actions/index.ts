@@ -32,7 +32,7 @@ export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
   try {
     dispatch(setBuckets(RemoteDataState.Loading))
 
-    const buckets = await client.buckets.getAllByOrg('')
+    const buckets = (await client.buckets.getAllByOrg('')) as Bucket[]
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
   } catch (e) {

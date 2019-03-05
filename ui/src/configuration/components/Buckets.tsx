@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 
 // Components
 import FilterList from 'src/shared/components/Filter'
-import BucketList from 'src/organizations/components/BucketList'
+import BucketList from 'src/configuration/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
 import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'
 
@@ -17,14 +17,8 @@ import {
 } from '@influxdata/clockface'
 import {Input, OverlayTechnology, EmptyState, Tabs} from 'src/clockface'
 
-// Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
-
 // Utils
 import {ruleToString} from 'src/utils/formatting'
-
-// APIs
-import {client} from 'src/utils/api'
 
 // Types
 import {OverlayState} from 'src/types'
@@ -32,10 +26,8 @@ import {AppState} from 'src/types/v2'
 
 import {Bucket, BucketRetentionRules} from '@influxdata/influx'
 
-interface Props {
+interface StateProps {
   buckets: Bucket[]
-  onChange: () => void
-  notify: NotificationsActions.PublishNotificationActionCreator
 }
 
 interface State {
@@ -46,18 +38,10 @@ interface State {
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  bucketDeleteSuccess,
-  bucketDeleteFailed,
-  bucketCreateFailed,
-  bucketCreateSuccess,
-  bucketUpdateFailed,
-  bucketUpdateSuccess,
-} from 'src/shared/copy/v2/notifications'
 
 @ErrorHandling
-class Buckets extends PureComponent<Props, State> {
-  constructor(props: Props) {
+class Buckets extends PureComponent<StateProps, State> {
+  constructor(props: StateProps) {
     super(props)
 
     this.state = {
@@ -91,7 +75,7 @@ class Buckets extends PureComponent<Props, State> {
         </Tabs.TabContentsHeader>
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
-          searchKeys={['name', 'ruleString', 'labels[].name']}
+          searchKeys={['name', 'ruleString', 'organization', 'labels[].name']}
           list={this.prettyBuckets(buckets)}
         >
           {bs => (
@@ -116,40 +100,40 @@ class Buckets extends PureComponent<Props, State> {
   }
 
   private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {
-    const {onChange, notify} = this.props
-    try {
-      await client.buckets.update(updatedBucket.id, updatedBucket)
-      onChange()
-      notify(bucketUpdateSuccess(updatedBucket.name))
-    } catch (e) {
-      console.error(e)
-      notify(bucketUpdateFailed(updatedBucket.name))
-    }
+    // const {onChange, notify} = this.props
+    // try {
+    //   await client.buckets.update(updatedBucket.id, updatedBucket)
+    //   onChange()
+    //   notify(bucketUpdateSuccess(updatedBucket.name))
+    // } catch (e) {
+    //   console.error(e)
+    //   notify(bucketUpdateFailed(updatedBucket.name))
+    // }
   }
 
   private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
-    const {onChange, notify} = this.props
-    try {
-      await client.buckets.delete(deletedBucket.id)
-      onChange()
-      notify(bucketDeleteSuccess(deletedBucket.name))
-    } catch (e) {
-      console.error(e)
-      bucketDeleteFailed(deletedBucket.name)
-    }
+    // const {onChange, notify} = this.props
+    // try {
+    //   await client.buckets.delete(deletedBucket.id)
+    //   onChange()
+    //   notify(bucketDeleteSuccess(deletedBucket.name))
+    // } catch (e) {
+    //   console.error(e)
+    //   bucketDeleteFailed(deletedBucket.name)
+    // }
   }
 
   private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
-    const {onChange, notify} = this.props
-    try {
-      await client.buckets.create(bucket)
-      onChange()
-      this.handleCloseModal()
-      notify(bucketCreateSuccess())
-    } catch (e) {
-      console.error(e)
-      notify(bucketCreateFailed())
-    }
+    // const {onChange, notify} = this.props
+    // try {
+    //   await client.buckets.create(bucket)
+    //   onChange()
+    //   this.handleCloseModal()
+    //   notify(bucketCreateSuccess())
+    // } catch (e) {
+    //   console.error(e)
+    //   notify(bucketCreateFailed())
+    // }
   }
 
   private handleOpenModal = (): void => {
@@ -220,13 +204,13 @@ class Buckets extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({buckets}: AppState) => {
+const mstp = ({buckets}: AppState): StateProps => {
   return {
     buckets: buckets.list,
   }
 }
 
-export default connect(
+export default connect<StateProps>(
   mstp,
   null
 )(Buckets)
