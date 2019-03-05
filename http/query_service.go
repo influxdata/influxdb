@@ -8,6 +8,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/iocounter"
+	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
@@ -31,6 +33,18 @@ type QueryHandler struct {
 
 	QueryService     query.QueryService
 	CompilerMappings flux.CompilerMappings
+
+	// OnFinishedHandler is invoked when a query is finished.
+	// If nil, it is not called.
+	OnFinishedHandler func(event QueryFinishedEvent)
+}
+
+// QueryFinishedEvent is sent when a query is finished to the OnFinishedHandler.
+type QueryFinishedEvent struct {
+	OrganizationID    influxdb.ID
+	Statistics        flux.Statistics
+	ResponseByteCount int64
+	Err               error
 }
 
 // NewQueryHandler returns a new instance of QueryHandler.
@@ -69,7 +83,6 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Always cancel the results to free resources.
-	// If all results were consumed cancelling does nothing.
 	defer results.Release()
 
 	// Setup headers
@@ -82,13 +95,14 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	// As such we rely on the http.ResponseWriter behavior
 	// to write an StatusOK header with the first write.
 
+	encw := iocounter.Writer{Writer: w}
 	switch r.Header.Get("Accept") {
 	case "text/csv":
 		fallthrough
 	default:
 		h.csvDialect.SetHeaders(w)
 		encoder := h.csvDialect.Encoder()
-		n, err := encoder.Encode(w, results)
+		n, err := encoder.Encode(&encw, results)
 		if err != nil {
 			if n == 0 {
 				// If the encoder did not write anything, we can write an error header.
@@ -101,12 +115,27 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	data, err := json.Marshal(results.Statistics())
+	// Release the resources which should finalize the statistics.
+	results.Release()
+
+	stats := results.Statistics()
+	stats.Metadata.Add("influxdb/response-bytes", encw.Count())
+	if h.OnFinishedHandler != nil {
+		event := QueryFinishedEvent{
+			OrganizationID:    req.OrganizationID,
+			Statistics:        stats,
+			ResponseByteCount: encw.Count(),
+			Err:               results.Err(),
+		}
+		h.OnFinishedHandler(event)
+	}
+
+	data, err := json.Marshal(stats)
 	if err != nil {
 		h.Logger.Info("Failed to encode statistics", zap.Error(err))
 		return
 	}
-	// Write statisitcs trailer
+	// Write statistics trailer
 	w.Header().Set(queryStatisticsTrailer, string(data))
 }
 
