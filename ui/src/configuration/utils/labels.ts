@@ -8,7 +8,12 @@ import {
 export const randomPresetColor = () =>
   _.sample(PRESET_LABEL_COLORS.slice(1)).colorHex
 
-export const validateLabelUniqueness = (labelNames: string[], name: string) => {
+// TODO: Accept a list of label objects instead of strings
+// Will have to wait until label types are standardized in the UI
+export const validateLabelUniqueness = (
+  labelNames: string[],
+  name: string
+): string | null => {
   if (name.trim() === '') {
     return 'Label name is required'
   }
