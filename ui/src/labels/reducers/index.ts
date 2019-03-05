@@ -64,8 +64,6 @@ export const labelsReducer = (
           return l.id !== id
         })
 
-        console.log(deleted)
-
         draftState.list = deleted
         return
       }

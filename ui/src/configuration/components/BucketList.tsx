@@ -22,8 +22,8 @@ import {AppState} from 'src/types/v2'
 interface OwnProps {
   buckets: PrettyBucket[]
   emptyState: JSX.Element
-  onUpdateBucket: (b: PrettyBucket) => Promise<void>
-  onDeleteBucket: (b: PrettyBucket) => Promise<void>
+  onUpdateBucket: (b: PrettyBucket) => void
+  onDeleteBucket: (b: PrettyBucket) => void
   onFilterChange: (searchTerm: string) => void
 }
 

@@ -57,17 +57,15 @@ export const bucketsReducer = (
         return
       }
 
-      // case 'REMOVE_BUCKET': {
-      //   const {id} = action.payload
-      //   const {list} = draftState
-      //   const deleted = list.filter(l => {
-      //     return l.id !== id
-      //   })
+      case 'REMOVE_BUCKET': {
+        const {id} = action.payload
+        const {list} = draftState
+        const deleted = list.filter(l => {
+          return l.id !== id
+        })
 
-      //   console.log(deleted)
-
-      //   draftState.list = deleted
-      //   return
-      // }
+        draftState.list = deleted
+        return
+      }
     }
   })

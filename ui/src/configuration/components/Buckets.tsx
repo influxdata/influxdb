@@ -18,7 +18,7 @@ import {
 import {Input, OverlayTechnology, EmptyState, Tabs} from 'src/clockface'
 
 // Actions
-import {createBucket, updateBucket} from 'src/buckets/actions'
+import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
 
 // Utils
 import {ruleToString} from 'src/utils/formatting'
@@ -37,6 +37,7 @@ interface StateProps {
 interface DispatchProps {
   createBucket: typeof createBucket
   updateBucket: typeof updateBucket
+  deleteBucket: typeof deleteBucket
 }
 
 interface State {
@@ -114,16 +115,8 @@ class Buckets extends PureComponent<Props, State> {
     this.props.updateBucket(updatedBucket as Bucket)
   }
 
-  private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
-    // const {onChange, notify} = this.props
-    // try {
-    //   await client.buckets.delete(deletedBucket.id)
-    //   onChange()
-    //   notify(bucketDeleteSuccess(deletedBucket.name))
-    // } catch (e) {
-    //   console.error(e)
-    //   bucketDeleteFailed(deletedBucket.name)
-    // }
+  private handleDeleteBucket = ({id, name}: PrettyBucket) => {
+    this.props.deleteBucket(id, name)
   }
 
   private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
@@ -211,6 +204,7 @@ const mstp = ({buckets, orgs}: AppState): StateProps => {
 const mdtp = {
   createBucket,
   updateBucket,
+  deleteBucket,
 }
 
 export default connect<StateProps>(

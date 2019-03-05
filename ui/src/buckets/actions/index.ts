@@ -11,15 +11,12 @@ import {notify} from 'src/shared/actions/notifications'
 import {getBucketsFailed} from 'src/shared/copy/notifications'
 
 import {
-  //   bucketDeleteSuccess,
-  //   bucketDeleteFailed,
   bucketCreateFailed,
-  //   bucketCreateSuccess,
   bucketUpdateFailed,
-  //   bucketUpdateSuccess,
+  bucketDeleteFailed,
 } from 'src/shared/copy/v2/notifications'
 
-export type Action = SetBuckets | AddBucket | EditBucket
+export type Action = SetBuckets | AddBucket | EditBucket | RemoveBucket
 
 interface SetBuckets {
   type: 'SET_BUCKETS'
@@ -51,12 +48,24 @@ export const addBucket = (bucket: Bucket): AddBucket => ({
 
 interface EditBucket {
   type: 'EDIT_BUCKET'
-  payload: {bucket}
+  payload: {
+    bucket: Bucket
+  }
 }
 
 export const editLabel = (bucket: Bucket): EditBucket => ({
   type: 'EDIT_BUCKET',
   payload: {bucket},
+})
+
+interface RemoveBucket {
+  type: 'REMOVE_BUCKET'
+  payload: {id: string}
+}
+
+export const removeBucket = (id: string): RemoveBucket => ({
+  type: 'REMOVE_BUCKET',
+  payload: {id},
 })
 
 export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
@@ -99,28 +108,15 @@ export const updateBucket = (bucket: Bucket) => async (
   }
 }
 
-//
-// interface RemoveLabel {
-//   type: 'REMOVE_LABEL'
-//   payload: {id}
-// }
-//
-// export const removeLabel = (id: string): RemoveLabel => ({
-//   type: 'REMOVE_LABEL',
-//   payload: {id},
-// })
+export const deleteBucket = (id: string, name: string) => async (
+  dispatch: Dispatch<Action>
+) => {
+  try {
+    await client.buckets.delete(id)
 
-//
-// export const deleteLabel = (id: string) => async (
-//   dispatch: Dispatch<Action>
-// ) => {
-//   try {
-//     await client.labels.delete(id)
-//
-//     dispatch(removeLabel(id))
-//   } catch (e) {
-//     console.log(e)
-//     dispatch(notify(deleteLabelFailed()))
-//   }
-// }
-//
+    dispatch(removeBucket(id))
+  } catch (e) {
+    console.log(e)
+    dispatch(notify(bucketDeleteFailed(name)))
+  }
+}
