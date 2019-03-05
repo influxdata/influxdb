@@ -403,9 +403,9 @@ export const saveNewScript = (
   route?: string
 ) => async (dispatch): Promise<void> => {
   try {
-    const scriptWithOptions = await insertPreambleInScript(script, preamble)
+    const fluxScript = await insertPreambleInScript(script, preamble)
 
-    await client.tasks.create(orgName, scriptWithOptions)
+    await client.tasks.create(orgName, fluxScript)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
