@@ -22,8 +22,9 @@ class TelegrafInstructions extends PureComponent<Props> {
   public render() {
     const {notify, authToken, configID} = this.props
     const exportToken = `export INFLUX_TOKEN=${authToken || ''}`
-    const configScript = `telegraf -config http://localhost:9999/api/v2/telegrafs/${configID ||
-      ''}`
+    const configScript = `telegraf -config ${
+      this.origin
+    }/api/v2/telegrafs/${configID || ''}`
     return (
       <div className="wizard-step--body">
         <h6>1. Install the Latest Telegraf</h6>
@@ -54,6 +55,10 @@ class TelegrafInstructions extends PureComponent<Props> {
         <CodeSnippet copyText={configScript} notify={notify} label="CLI" />
       </div>
     )
+  }
+
+  private get origin(): string {
+    return window.location.origin
   }
 }
 

@@ -57,7 +57,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
       scraper: {
         name: 'My Cool Scraper',
         type: ScraperTargetRequest.TypeEnum.Prometheus,
-        url: 'http://localhost:9999/metrics',
+        url: `${this.origin}/metrics`,
         orgID,
         bucketID,
       },
@@ -165,6 +165,10 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
       console.error(e)
       notify(scraperCreateFailed())
     }
+  }
+
+  private get origin(): string {
+    return window.location.origin
   }
 }
 
