@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/influxdb"

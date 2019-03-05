@@ -14,6 +14,12 @@ import (
 
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	jaegerconfig "github.com/uber/jaeger-client-go/config"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
@@ -44,11 +50,6 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	jaegerconfig "github.com/uber/jaeger-client-go/config"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (

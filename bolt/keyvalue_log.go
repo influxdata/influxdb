@@ -7,10 +7,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
+	"github.com/opentracing/opentracing-go"
+
 	platform "github.com/influxdata/influxdb"
 )
 

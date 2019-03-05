@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+
 	"github.com/opentracing/opentracing-go"
 
 	platform "github.com/influxdata/influxdb"

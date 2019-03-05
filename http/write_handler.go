@@ -4,19 +4,21 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/influxdata/influxdb/kit/tracing"
+
+	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap"
 )
 
 // WriteBackend is all services and associated parameters required to construct

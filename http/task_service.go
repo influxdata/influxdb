@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
 	"net/http"
 	"net/url"
 	"path"
@@ -16,15 +14,18 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/julienschmidt/httprouter"
+	"github.com/opentracing/opentracing-go"
+	"go.uber.org/zap"
+
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
-	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap"
 )
 
 // TaskBackend is all services and associated parameters required to construct

@@ -5,14 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
 	"net/http"
 	"path"
 
-	"github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
+	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
+
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 // OrgBackend is all services and associated parameters required to construct

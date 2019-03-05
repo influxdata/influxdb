@@ -3,8 +3,9 @@ package influxdb
 import (
 	"context"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
 
 	platform "github.com/influxdata/influxdb"
 )

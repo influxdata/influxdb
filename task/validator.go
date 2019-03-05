@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/opentracing/opentracing-go"
+
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/query"

@@ -5,15 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
 	"net/http"
 	"path"
 	"time"
 
-	"github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
+	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
+
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 // BucketBackend is all services and associated parameters required to construct

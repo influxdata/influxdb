@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/influxdb"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/influxdata/influxdb"
 )
 
 // MinPasswordLength is the shortest password we allow into the system.

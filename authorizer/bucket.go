@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/influxdb"
