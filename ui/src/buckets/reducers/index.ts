@@ -42,20 +42,20 @@ export const bucketsReducer = (
         return
       }
 
-      // case 'EDIT_BUCKET': {
-      //   const {bucket} = action.payload
-      //   const {list} = draftState
+      case 'EDIT_BUCKET': {
+        const {bucket} = action.payload
+        const {list} = draftState
 
-      //   draftState.list = list.map(l => {
-      //     if (l.id === bucket.id) {
-      //       return bucket
-      //     }
+        draftState.list = list.map(l => {
+          if (l.id === bucket.id) {
+            return bucket
+          }
 
-      //     return l
-      //   })
+          return l
+        })
 
-      //   return
-      // }
+        return
+      }
 
       // case 'REMOVE_BUCKET': {
       //   const {id} = action.payload

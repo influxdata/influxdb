@@ -1,6 +1,3 @@
-// Libraries
-import {get} from 'lodash'
-
 // API
 import {client} from 'src/utils/api'
 
@@ -11,20 +8,18 @@ import {Dispatch} from 'redux-thunk'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
-import {
-  getBucketsFailed,
-  createBucketFailed,
-} from 'src/shared/copy/notifications'
-// import {
-//   bucketDeleteSuccess,
-//   bucketDeleteFailed,
-//   bucketCreateFailed,
-//   bucketCreateSuccess,
-//   bucketUpdateFailed,
-//   bucketUpdateSuccess,
-// } from 'src/shared/copy/v2/notifications'
+import {getBucketsFailed} from 'src/shared/copy/notifications'
 
-export type Action = SetBuckets | AddBucket
+import {
+  //   bucketDeleteSuccess,
+  //   bucketDeleteFailed,
+  bucketCreateFailed,
+  //   bucketCreateSuccess,
+  bucketUpdateFailed,
+  //   bucketUpdateSuccess,
+} from 'src/shared/copy/v2/notifications'
+
+export type Action = SetBuckets | AddBucket | EditBucket
 
 interface SetBuckets {
   type: 'SET_BUCKETS'
@@ -54,6 +49,16 @@ export const addBucket = (bucket: Bucket): AddBucket => ({
   payload: {bucket},
 })
 
+interface EditBucket {
+  type: 'EDIT_BUCKET'
+  payload: {bucket}
+}
+
+export const editLabel = (bucket: Bucket): EditBucket => ({
+  type: 'EDIT_BUCKET',
+  payload: {bucket},
+})
+
 export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
   try {
     dispatch(setBuckets(RemoteDataState.Loading))
@@ -76,20 +81,24 @@ export const createBucket = (bucket: Bucket) => async (
     dispatch(addBucket(createdBucket))
   } catch (e) {
     console.log(e)
-    dispatch(notify(createBucketFailed()))
+    dispatch(notify(bucketCreateFailed()))
     throw e
   }
 }
 
-// interface EditLabel {
-//   type: 'EDIT_LABEL'
-//   payload: {label}
-// }
-//
-// export const editLabel = (label: Label): EditLabel => ({
-//   type: 'EDIT_LABEL',
-//   payload: {label},
-// })
+export const updateBucket = (bucket: Bucket) => async (
+  dispatch: Dispatch<Action>
+) => {
+  try {
+    const label = await client.buckets.update(bucket.id, bucket)
+
+    dispatch(editLabel(label))
+  } catch (e) {
+    console.log(e)
+    dispatch(notify(bucketUpdateFailed(bucket.name)))
+  }
+}
+
 //
 // interface RemoveLabel {
 //   type: 'REMOVE_LABEL'
@@ -101,19 +110,6 @@ export const createBucket = (bucket: Bucket) => async (
 //   payload: {id},
 // })
 
-//
-// export const updateLabel = (id: string, properties: LabelProperties) => async (
-//   dispatch: Dispatch<Action>
-// ) => {
-//   try {
-//     const label = await client.labels.update(id, properties)
-//
-//     dispatch(editLabel(label))
-//   } catch (e) {
-//     console.log(e)
-//     dispatch(notify(updateLabelFailed()))
-//   }
-// }
 //
 // export const deleteLabel = (id: string) => async (
 //   dispatch: Dispatch<Action>
