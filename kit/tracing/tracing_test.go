@@ -2,8 +2,9 @@ package tracing
 
 import (
 	"context"
-	"github.com/opentracing/opentracing-go"
 	"testing"
+
+	"github.com/opentracing/opentracing-go"
 )
 
 /*

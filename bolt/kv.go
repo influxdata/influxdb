@@ -3,14 +3,15 @@ package bolt
 import (
 	"context"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"os"
 	"path/filepath"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
+
+	"github.com/influxdata/influxdb/kv"
 )
 
 // KVStore is a kv.Store backed by boltdb.

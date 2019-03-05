@@ -3,13 +3,14 @@ package control
 
 import (
 	"context"
-	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/control"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // orgLabel is the metric label to use in the controller

@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"go.uber.org/zap"
+
 	influxdb "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
-	"go.uber.org/zap"
 )
 
 var (

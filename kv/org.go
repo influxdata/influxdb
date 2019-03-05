@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
+	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
-	"go.uber.org/zap"
 )
 
 var (

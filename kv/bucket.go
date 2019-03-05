@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"

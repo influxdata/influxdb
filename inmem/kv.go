@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/google/btree"
+
 	"github.com/influxdata/influxdb/kv"
 )
 

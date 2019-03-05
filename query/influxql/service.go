@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 
 	"github.com/influxdata/flux"
+	"github.com/opentracing/opentracing-go"
+
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 )
 

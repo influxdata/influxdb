@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"io"
 	"math"
 	"os"
@@ -19,12 +18,14 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/influxdata/influxdb/tsdb/value"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 )
 
 const (

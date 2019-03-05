@@ -12,6 +12,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
+	"github.com/opentracing/opentracing-go"
+
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"

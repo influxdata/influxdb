@@ -6,14 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/opentracing/opentracing-go"
+
 	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var _ chronograf.TimeSeries = &Client{}

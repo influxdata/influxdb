@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/rand"
 	"github.com/influxdata/influxdb/snowflake"
-	"go.uber.org/zap"
 )
 
 var (

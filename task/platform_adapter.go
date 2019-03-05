@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
 
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"

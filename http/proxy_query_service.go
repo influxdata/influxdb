@@ -5,16 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
 	"io"
 	"net/http"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/iocounter"
 	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

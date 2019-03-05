@@ -18,7 +18,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxdb/tsdb/value"
 	"github.com/influxdata/influxql"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
