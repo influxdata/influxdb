@@ -2,12 +2,15 @@ package backend_test
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/query"
 	pcontrol "github.com/influxdata/influxdb/query/control"
@@ -22,9 +25,9 @@ import (
 func TestInMemRunStore(t *testing.T) {
 	storetest.NewRunStoreTest(
 		"inmem",
-		func(t *testing.T) (backend.LogWriter, backend.LogReader) {
+		func(t *testing.T) (backend.LogWriter, backend.LogReader, storetest.MakeNewAuthorizationFunc) {
 			rw := backend.NewInMemRunReaderWriter()
-			return rw, rw
+			return rw, rw, nil
 		},
 		func(t *testing.T, w backend.LogWriter, r backend.LogReader) {})(t)
 }
@@ -32,9 +35,9 @@ func TestInMemRunStore(t *testing.T) {
 func TestQueryStorageRunStore(t *testing.T) {
 	storetest.NewRunStoreTest(
 		"PointLogWriter and QueryLogReader",
-		func(t *testing.T) (backend.LogWriter, backend.LogReader) {
+		func(t *testing.T) (backend.LogWriter, backend.LogReader, storetest.MakeNewAuthorizationFunc) {
 			lrw := newFullStackAwareLogReaderWriter(t)
-			return lrw, lrw
+			return lrw, lrw, lrw.makeNewAuthorization
 		},
 		func(t *testing.T, w backend.LogWriter, r backend.LogReader) {
 			if w.(*fullStackAwareLogReaderWriter) != r.(*fullStackAwareLogReaderWriter) {
@@ -53,6 +56,8 @@ type fullStackAwareLogReaderWriter struct {
 
 	rootDir       string
 	storageEngine *storage.Engine
+
+	i *inmem.Service
 }
 
 func (lrw *fullStackAwareLogReaderWriter) Close(t *testing.T) {
@@ -65,6 +70,29 @@ func (lrw *fullStackAwareLogReaderWriter) Close(t *testing.T) {
 	if err := os.RemoveAll(lrw.rootDir); err != nil {
 		t.Error(err)
 	}
+}
+
+func (lrw *fullStackAwareLogReaderWriter) makeNewAuthorization(ctx context.Context, t *testing.T) *influxdb.Authorization {
+	o := &influxdb.Organization{Name: fmt.Sprintf("org-%s-%d", t.Name(), time.Now().UnixNano())}
+	if err := lrw.i.CreateOrganization(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+
+	u := &influxdb.User{Name: fmt.Sprintf("user-%s-%d", t.Name(), time.Now().UnixNano())}
+	if err := lrw.i.CreateUser(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+
+	a := &influxdb.Authorization{
+		UserID:      u.ID,
+		OrgID:       o.ID,
+		Permissions: influxdb.OperPermissions(),
+	}
+	if err := lrw.i.CreateAuthorization(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+
+	return a
 }
 
 func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWriter {
@@ -119,5 +147,7 @@ func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWrit
 
 		rootDir:       rootDir,
 		storageEngine: engine,
+
+		i: svc,
 	}
 }
