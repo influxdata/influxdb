@@ -11,7 +11,7 @@ import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
-import {Task} from 'src/types/v2'
+import {Task} from '@influxdata/influx'
 
 import {Sort} from 'src/clockface'
 import {

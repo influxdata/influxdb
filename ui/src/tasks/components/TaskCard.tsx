@@ -9,8 +9,7 @@ import FeatureFlag from 'src/shared/components/FeatureFlag'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {Task as TaskAPI} from '@influxdata/influx'
-import {Task} from 'src/types/v2'
+import {Task} from '@influxdata/influx'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
@@ -37,7 +36,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         testID="task-card"
         disabled={!this.isTaskActive}
         labels={() => this.labels}
-        owner={task.organization}
+        owner={{name: task.org, id: task.orgID}}
         contextMenu={() => this.contextMenu}
         name={() => (
           <ResourceList.Name
@@ -118,9 +117,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private handleExport = () => {
     const {router, task} = this.props
-    router.push(
-      `/organizations/${task.organization.id}/tasks/${task.id}/export`
-    )
+    router.push(`/organizations/${task.orgID}/tasks/${task.id}/export`)
   }
 
   private get labels(): JSX.Element {
@@ -154,7 +151,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private get isTaskActive(): boolean {
     const {task} = this.props
-    if (task.status === TaskAPI.StatusEnum.Active) {
+    if (task.status === Task.StatusEnum.Active) {
       return true
     }
     return false
@@ -168,10 +165,10 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private changeToggle = () => {
     const {task, onActivate} = this.props
-    if (task.status === TaskAPI.StatusEnum.Active) {
-      task.status = TaskAPI.StatusEnum.Inactive
+    if (task.status === Task.StatusEnum.Active) {
+      task.status = Task.StatusEnum.Inactive
     } else {
-      task.status = TaskAPI.StatusEnum.Active
+      task.status = Task.StatusEnum.Active
     }
     onActivate(task)
   }
