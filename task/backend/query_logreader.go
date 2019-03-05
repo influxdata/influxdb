@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/influxdata/flux/values"
@@ -81,9 +80,9 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, orgID platform.ID, logF
 		return nil, ErrNoRunsFound
 	}
 
-	logs := make([]platform.Log, len(runs))
-	for i, r := range runs {
-		logs[i] = r.Log
+	var logs []platform.Log
+	for _, r := range runs {
+		logs = append(logs, r.Log...)
 	}
 	return logs, nil
 }
@@ -308,7 +307,7 @@ func (re *runExtractor) extractRecord(cr flux.ColReader) error {
 }
 
 func (re *runExtractor) extractLog(cr flux.ColReader) error {
-	entries := make(map[platform.ID][]string)
+	entries := make(map[platform.ID][]platform.Log)
 	for i := 0; i < cr.Len(); i++ {
 		var runID platform.ID
 		var when, line string
@@ -331,12 +330,12 @@ func (re *runExtractor) extractLog(cr flux.ColReader) error {
 			return errors.New("extractLog: did not find valid run ID in table")
 		}
 
-		entries[runID] = append(entries[runID], when+": "+line)
+		entries[runID] = append(entries[runID], platform.Log{Time: when, Message: line})
 	}
 
-	for id, lines := range entries {
+	for id, logs := range entries {
 		run := re.runs[id]
-		run.Log = platform.Log(strings.Join(lines, "\n"))
+		run.Log = append(run.Log, logs...)
 		re.runs[id] = run
 	}
 
