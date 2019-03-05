@@ -73,6 +73,16 @@ Object {
               <div
                 class="index-list--cell"
                 data-testid="table-cell"
+              >
+                default
+              </div>
+            </td>
+            <td
+              class="index-list--row-cell index-list--align-left"
+            >
+              <div
+                class="index-list--cell"
+                data-testid="table-cell"
               />
             </td>
             <td
@@ -208,6 +218,16 @@ Object {
                     />
                   </div>
                 </div>
+              </div>
+            </td>
+            <td
+              class="index-list--row-cell index-list--align-left"
+            >
+              <div
+                class="index-list--cell"
+                data-testid="table-cell"
+              >
+                default
               </div>
             </td>
             <td
@@ -408,6 +428,16 @@ Object {
             <div
               class="index-list--cell"
               data-testid="table-cell"
+            >
+              default
+            </div>
+          </td>
+          <td
+            class="index-list--row-cell index-list--align-left"
+          >
+            <div
+              class="index-list--cell"
+              data-testid="table-cell"
             />
           </td>
           <td
@@ -543,6 +573,16 @@ Object {
                   />
                 </div>
               </div>
+            </div>
+          </td>
+          <td
+            class="index-list--row-cell index-list--align-left"
+          >
+            <div
+              class="index-list--cell"
+              data-testid="table-cell"
+            >
+              default
             </div>
           </td>
           <td
