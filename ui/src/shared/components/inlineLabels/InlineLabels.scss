@@ -1,0 +1,25 @@
+@import 'src/style/modules';
+
+/*
+  Inline Labels
+  ------------------------------------------------------------------------------
+*/
+
+$inline-labels--margin: $ix-border / 2;
+
+.inline-labels {
+  width: 100%;
+}
+
+.inline-labels--container {
+  width: calc(100% + #{$inline-labels--margin * 2});
+  position: relative;
+  left: $inline-labels--margin * -2;
+  display: flex;
+  flex-wrap: wrap;
+  padding: $inline-labels--margin;
+
+  > .label {
+    margin: $inline-labels--margin;
+  }
+}

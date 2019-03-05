@@ -20,7 +20,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
 
 // Utils
-import {validateLabelName} from 'src/configuration/utils/labels'
+import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Types
 import {LabelType} from 'src/clockface'
@@ -137,7 +137,9 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleNameValidation = (name: string): string | null => {
-    return validateLabelName(this.labelTypes, name)
+    const names = this.props.labels.map(label => label.name)
+
+    return validateLabelUniqueness(names, name)
   }
 
   private get labelTypes(): LabelType[] {
