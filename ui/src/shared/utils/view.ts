@@ -21,7 +21,6 @@ import {
   NewView,
   ViewProperties,
   DashboardQuery,
-  InfluxLanguage,
   QueryEditMode,
 } from 'src/types/v2/dashboards'
 
@@ -33,9 +32,8 @@ function defaultView() {
 
 export function defaultViewQuery(): DashboardQuery {
   return {
+    name: '',
     text: '',
-    type: InfluxLanguage.Flux,
-    sourceID: '',
     editMode: QueryEditMode.Builder,
     builderConfig: {
       buckets: [],

@@ -4,7 +4,7 @@ import {shallow} from 'enzyme'
 
 // Components
 import DataLoaderSwitcher from 'src/dataLoaders/components/DataLoaderSwitcher'
-import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
+import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 
@@ -26,13 +26,26 @@ const setup = (override = {}) => {
 }
 
 describe('DataLoading.Components.DataLoaderSwitcher', () => {
-  it('renders data loaders wizard', () => {
-    const {wrapper} = setup()
+  describe('if type is empty', () => {
+    it('renders empty div', () => {
+      const {wrapper} = setup({type: DataLoaderType.Empty})
 
-    const wizard = wrapper.find(DataLoadersWizard)
+      const emptyDiv = wrapper.find({'data-testid': 'data-loader-empty'})
 
-    expect(wrapper.exists()).toBe(true)
-    expect(wizard.exists()).toBe(true)
+      expect(wrapper.exists()).toBe(true)
+      expect(emptyDiv.exists()).toBe(true)
+    })
+  })
+
+  describe('if type is scraping', () => {
+    it('renders create scraper overlay', () => {
+      const {wrapper} = setup({type: DataLoaderType.Scraping})
+
+      const overlay = wrapper.find(CreateScraperOverlay)
+
+      expect(wrapper.exists()).toBe(true)
+      expect(overlay.exists()).toBe(true)
+    })
   })
 
   describe('if type is streaming', () => {

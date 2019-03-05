@@ -19,7 +19,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   labels: LabelType[]
   emptyState: JSX.Element
-  onUpdateLabel: (label: LabelType) => Promise<void>
+  onUpdateLabel: (label: LabelType) => void
 }
 
 interface State {

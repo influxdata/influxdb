@@ -65,7 +65,7 @@ export class SelectCollectorsStep extends PureComponent<Props> {
             telegrafPlugins={this.props.telegrafPlugins}
             onTogglePluginBundle={this.handleTogglePluginBundle}
             buckets={this.props.buckets}
-            bucket={this.props.bucket}
+            selectedBucketName={this.props.bucket}
             onSelectBucket={this.handleSelectBucket}
           />
         </FancyScrollbar>

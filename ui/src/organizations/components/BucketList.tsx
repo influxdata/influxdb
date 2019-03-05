@@ -15,7 +15,7 @@ import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
 import {OverlayState} from 'src/types'
-import {Substep, DataLoaderStep, DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {AppState} from 'src/types/v2'
 
@@ -73,6 +73,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
       onDeleteBucket,
       onFilterChange,
     } = this.props
+    const {bucketID} = this.state
 
     return (
       <>
@@ -108,7 +109,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
           visible={this.isDataLoadersWizardVisible}
           onCompleteSetup={this.handleDismissDataLoaders}
           buckets={buckets}
-          {...this.startingValues}
+          overrideBucketIDSelection={bucketID}
         />
       </>
     )
@@ -116,27 +117,6 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
 
   private get bucket(): PrettyBucket {
     return this.props.buckets.find(b => b.id === this.state.bucketID)
-  }
-
-  private get startingValues(): {
-    startingType: DataLoaderType
-    startingStep: number
-    startingSubstep?: Substep
-  } {
-    const {dataLoaderType} = this.props
-
-    switch (dataLoaderType) {
-      case DataLoaderType.Scraping:
-        return {
-          startingType: DataLoaderType.Scraping,
-          startingStep: DataLoaderStep.Configure,
-        }
-      case DataLoaderType.LineProtocol:
-        return {
-          startingType: DataLoaderType.LineProtocol,
-          startingStep: DataLoaderStep.Configure,
-        }
-    }
   }
 
   private handleCloseModal = () => {

@@ -790,3 +790,24 @@ export const importFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to import resource.`,
 })
+
+// Labels
+export const getLabelsFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to fetch labels',
+})
+
+export const createLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create label',
+})
+
+export const updateLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to update label',
+})
+
+export const deleteLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to delete label',
+})

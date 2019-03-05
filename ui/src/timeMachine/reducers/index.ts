@@ -19,7 +19,6 @@ import {
   ViewType,
   DashboardDraftQuery,
   BuilderConfig,
-  InfluxLanguage,
   QueryEditMode,
   QueryView,
   QueryViewProperties,
@@ -66,7 +65,7 @@ export interface TimeMachinesState {
 export const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
   view: createView(),
-  draftQueries: [{...defaultViewQuery(), hidden: false, manuallyEdited: false}],
+  draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
@@ -108,7 +107,6 @@ export const timeMachinesReducer = (
     const draftQueries = _.map(cloneDeep(view.properties.queries), q => ({
       ...q,
       hidden: false,
-      manuallyEdited: false,
     }))
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
     const activeQueryIndex = 0
@@ -187,18 +185,6 @@ export const timeMachineReducer = (
       draftQueries[state.activeQueryIndex] = {
         ...draftQueries[state.activeQueryIndex],
         text,
-      }
-
-      return {...state, draftQueries}
-    }
-
-    case 'SET_ACTIVE_QUERY_EDITED': {
-      const {manuallyEdited} = action.payload
-      const draftQueries = [...state.draftQueries]
-
-      draftQueries[state.activeQueryIndex] = {
-        ...draftQueries[state.activeQueryIndex],
-        manuallyEdited,
       }
 
       return {...state, draftQueries}
@@ -462,23 +448,6 @@ export const timeMachineReducer = (
       draftQueries[activeQueryIndex] = {
         ...draftQueries[activeQueryIndex],
         editMode: QueryEditMode.Advanced,
-        type: InfluxLanguage.Flux,
-      }
-
-      return {
-        ...state,
-        draftQueries,
-      }
-    }
-
-    case 'EDIT_ACTIVE_QUERY_AS_INFLUXQL': {
-      const {activeQueryIndex} = state
-      const draftQueries = [...state.draftQueries]
-
-      draftQueries[activeQueryIndex] = {
-        ...draftQueries[activeQueryIndex],
-        editMode: QueryEditMode.Advanced,
-        type: InfluxLanguage.InfluxQL,
       }
 
       return {
@@ -501,7 +470,7 @@ export const timeMachineReducer = (
       return produce(state, draftState => {
         draftState.draftQueries = [
           ...state.draftQueries,
-          {...defaultViewQuery(), hidden: false, manuallyEdited: false},
+          {...defaultViewQuery(), hidden: false},
         ]
         draftState.activeQueryIndex = draftState.draftQueries.length - 1
 

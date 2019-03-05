@@ -81,3 +81,10 @@ function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
 
   return `\n  ${calls}`
 }
+
+export function hasQueryBeenEdited(
+  query: string,
+  builderConfig: BuilderConfig
+): boolean {
+  return query !== buildQuery(builderConfig)
+}

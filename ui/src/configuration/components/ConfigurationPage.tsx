@@ -5,7 +5,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {Page} from 'src/pageLayout'
 import GetLabels from 'src/configuration/components/GetLabels'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Labels from 'src/configuration/components/Labels'
@@ -49,14 +48,7 @@ class ConfigurationPage extends Component<Props> {
                 title="Labels"
               >
                 <GetLabels>
-                  {(labels, loading) => (
-                    <SpinnerContainer
-                      loading={loading}
-                      spinnerComponent={<TechnoSpinner />}
-                    >
-                      <Labels labels={labels} />
-                    </SpinnerContainer>
-                  )}
+                  <Labels />
                 </GetLabels>
               </TabbedPageSection>
               <TabbedPageSection
