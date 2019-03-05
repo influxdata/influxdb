@@ -13,8 +13,7 @@ import (
 
 // LogError adds a span log for an error.
 // Returns unchanged error, so useful to wrap as in:
-//
-// return 0, tracing.LogError(err)
+//  return 0, tracing.LogError(err)
 func LogError(span opentracing.Span, err error) error {
 	span.LogFields(log.Error(err))
 	return err
