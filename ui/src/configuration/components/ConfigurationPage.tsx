@@ -12,6 +12,7 @@ import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Labels from 'src/configuration/components/Labels'
 import Settings from 'src/me/components/account/Settings'
 import Tokens from 'src/me/components/account/Tokens'
+import Buckets from 'src/configuration/components/Buckets'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -51,6 +52,15 @@ class ConfigurationPage extends Component<Props> {
               >
                 <GetResources resource={ResourceTypes.Labels}>
                   <Labels />
+                </GetResources>
+              </TabbedPageSection>
+              <TabbedPageSection
+                id="buckets_tab"
+                url="buckets_tab"
+                title="Buckets"
+              >
+                <GetResources resource={ResourceTypes.Buckets}>
+                  <Buckets />
                 </GetResources>
               </TabbedPageSection>
               <TabbedPageSection

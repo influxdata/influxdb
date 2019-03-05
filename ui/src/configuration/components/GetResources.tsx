@@ -5,11 +5,13 @@ import {connect} from 'react-redux'
 
 // Actions
 import {getLabels} from 'src/labels/actions'
+import {getBuckets} from 'src/buckets/actions'
 
 // Types
 import {RemoteDataState} from 'src/types'
 import {AppState} from 'src/types/v2'
 import {LabelsState} from 'src/labels/reducers'
+import {BucketsState} from 'src/buckets/reducers'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -17,10 +19,12 @@ import {TechnoSpinner} from '@influxdata/clockface'
 
 interface StateProps {
   labels: LabelsState
+  buckets: BucketsState
 }
 
 interface DispatchProps {
   getLabels: typeof getLabels
+  getBuckets: typeof getBuckets
 }
 
 interface PassedProps {
@@ -31,6 +35,7 @@ type Props = StateProps & DispatchProps & PassedProps
 
 export enum ResourceTypes {
   Labels = 'labels',
+  Buckets = 'buckets',
 }
 
 @ErrorHandling
@@ -38,7 +43,11 @@ class GetResources extends PureComponent<Props, StateProps> {
   public async componentDidMount() {
     switch (this.props.resource) {
       case ResourceTypes.Labels: {
-        await this.props.getLabels()
+        return await this.props.getLabels()
+      }
+
+      case ResourceTypes.Buckets: {
+        return await this.props.getBuckets()
       }
     }
   }
@@ -54,14 +63,16 @@ class GetResources extends PureComponent<Props, StateProps> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = ({labels, buckets}: AppState): StateProps => {
   return {
     labels,
+    buckets,
   }
 }
 
 const mdtp = {
   getLabels: getLabels,
+  getBuckets: getBuckets,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

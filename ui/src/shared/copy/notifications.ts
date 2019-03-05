@@ -811,3 +811,24 @@ export const deleteLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to delete label',
 })
+
+// Buckets
+export const getBucketsFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to fetch buckets',
+})
+
+export const createBucketFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create bucket',
+})
+
+export const updateBucketFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to update bucket',
+})
+
+export const deleteBucketFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to delete bucket',
+})
