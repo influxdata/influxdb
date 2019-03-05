@@ -59,7 +59,7 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 	}
 	// The results iterator may have had an error independent of encoding errors.
 	if err = results.Err(); err != nil {
-		return 0, tracing.LogError(span, err)
+		return n, tracing.LogError(span, err)
 	}
 	return stats, nil
 }
