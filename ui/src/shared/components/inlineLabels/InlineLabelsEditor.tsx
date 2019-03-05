@@ -17,6 +17,7 @@ import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 
 // Types
 import {Label} from '@influxdata/influx'
+import {OverlayState} from 'src/types/overlay'
 
 // Utils
 import {validateLabelUniqueness} from 'src/configuration/utils/labels'
@@ -25,11 +26,6 @@ import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-enum OverlayState {
-  Visible = 'visible',
-  Hidden = 'hidden',
-}
 
 interface Props {
   selectedLabels: Label[]
@@ -62,7 +58,7 @@ class InlineLabelsEditor extends Component<Props, State> {
       searchTerm: '',
       filteredLabels: initialFilteredLabels,
       isPopoverVisible: false,
-      isCreatingLabel: OverlayState.Hidden,
+      isCreatingLabel: OverlayState.Closed,
     }
   }
 
@@ -85,7 +81,7 @@ class InlineLabelsEditor extends Component<Props, State> {
           {this.noLabelsIndicator}
         </div>
         <CreateLabelOverlay
-          isVisible={isCreatingLabel === OverlayState.Visible}
+          isVisible={isCreatingLabel === OverlayState.Open}
           onDismiss={this.handleStopCreatingLabel}
           overrideDefaultName={searchTerm}
           onCreateLabel={this.handleCreateLabel}
@@ -212,12 +208,12 @@ class InlineLabelsEditor extends Component<Props, State> {
   }
 
   private handleStartCreatingLabel = (): void => {
-    this.setState({isCreatingLabel: OverlayState.Visible})
+    this.setState({isCreatingLabel: OverlayState.Open})
     this.handleDismissPopover()
   }
 
   private handleStopCreatingLabel = (): void => {
-    this.setState({isCreatingLabel: OverlayState.Hidden})
+    this.setState({isCreatingLabel: OverlayState.Closed})
   }
 
   private handleEnsureUniqueLabelName = (name: string): string | null => {
