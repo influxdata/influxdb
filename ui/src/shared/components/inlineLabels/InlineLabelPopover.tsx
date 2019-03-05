@@ -55,7 +55,7 @@ export default class InlineLabelPopover extends Component<Props> {
             onKeyDown={this.handleKeyDown}
             onChange={onInputChange}
             autoFocus={true}
-            onBlur={this.handleReFocusInput}
+            onBlur={this.handleRefocusInput}
           />
           <InlineLabelsList
             searchTerm={searchTerm}
@@ -114,7 +114,7 @@ export default class InlineLabelPopover extends Component<Props> {
     onUpdateSelectedItem(adjacentID)
   }
 
-  private handleReFocusInput = (e: ChangeEvent<HTMLInputElement>): void => {
+  private handleRefocusInput = (e: ChangeEvent<HTMLInputElement>): void => {
     e.target.focus()
   }
 }
