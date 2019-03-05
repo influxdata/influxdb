@@ -242,7 +242,7 @@ func (e *Engine) replayWAL() error {
 		switch en := entry.(type) {
 		case *wal.WriteWALEntry:
 			points := tsm1.ValuesToPoints(en.Values)
-			err := e.writePointsLocked(tsdb.NewSeriesCollection(points), en.Values)
+			err := e.writePointsLocked(context.Background(), tsdb.NewSeriesCollection(points), en.Values)
 			if _, ok := err.(tsdb.PartialWriteError); ok {
 				err = nil
 			}
@@ -360,6 +360,9 @@ func (e *Engine) CreateCursorIterator(ctx context.Context) (tsdb.CursorIterator,
 //
 // Appropriate errors are returned in those cases.
 func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Engine.WritePoints")
+	defer span.Finish()
+
 	collection, j := tsdb.NewSeriesCollection(points), 0
 
 	// dropPoint should be called whenever there is reason to drop a point from
@@ -433,15 +436,18 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 	}
 
 	// Add the write to the WAL to be replayed if there is a crash or shutdown.
-	if _, err := e.wal.WriteMulti(values); err != nil {
+	if _, err := e.wal.WriteMulti(ctx, values); err != nil {
 		return err
 	}
 
-	return e.writePointsLocked(collection, values)
+	return e.writePointsLocked(ctx, collection, values)
 }
 
 // writePointsLocked does the work of writing points and must be called under some sort of lock.
-func (e *Engine) writePointsLocked(collection *tsdb.SeriesCollection, values map[string][]value.Value) error {
+func (e *Engine) writePointsLocked(ctx context.Context, collection *tsdb.SeriesCollection, values map[string][]value.Value) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Engine.writePointsLocked")
+	defer span.Finish()
+
 	// TODO(jeff): keep track of the values in the collection so that partial write
 	// errors get tracked all the way. Right now, the engine doesn't drop any values
 	// but if it ever did, the errors could end up missing some data.

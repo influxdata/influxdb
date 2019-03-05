@@ -159,7 +159,7 @@ func (s *Service) forEachVariable(ctx context.Context, tx Tx, fn func(*influxdb.
 func (s *Service) FindVariables(ctx context.Context, filter influxdb.VariableFilter, opt ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
 	// todo(leodido) > handle find options
 	res := []*influxdb.Variable{}
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		variables, err := s.findVariables(ctx, tx, filter)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 			return err
@@ -180,7 +180,7 @@ func (s *Service) FindVariables(ctx context.Context, filter influxdb.VariableFil
 // FindVariableByID finds a single variable in the store by its ID
 func (s *Service) FindVariableByID(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
 	var variable *influxdb.Variable
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		m, pe := s.findVariableByID(ctx, tx, id)
 		if pe != nil {
 			return &influxdb.Error{
@@ -236,7 +236,7 @@ func (s *Service) findVariableByID(ctx context.Context, tx Tx, id influxdb.ID) (
 
 // CreateVariable creates a new variable and assigns it an ID
 func (s *Service) CreateVariable(ctx context.Context, variable *influxdb.Variable) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		variable.ID = s.IDGenerator.ID()
 
 		if err := s.putVariableOrgsIndex(ctx, tx, variable); err != nil {
@@ -255,7 +255,7 @@ func (s *Service) CreateVariable(ctx context.Context, variable *influxdb.Variabl
 
 // ReplaceVariable puts a variable in the store
 func (s *Service) ReplaceVariable(ctx context.Context, variable *influxdb.Variable) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		if err := s.putVariableOrgsIndex(ctx, tx, variable); err != nil {
 			return &influxdb.Error{
 				Err: err,
@@ -360,7 +360,7 @@ func (s *Service) putVariable(ctx context.Context, tx Tx, variable *influxdb.Var
 // UpdateVariable updates a single variable in the store with a changeset
 func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *influxdb.VariableUpdate) (*influxdb.Variable, error) {
 	var variable *influxdb.Variable
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		m, pe := s.findVariableByID(ctx, tx, id)
 		if pe != nil {
 			return &influxdb.Error{
@@ -388,7 +388,7 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 
 // DeleteVariable removes a single variable from the store by its ID
 func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		m, pe := s.findVariableByID(ctx, tx, id)
 		if pe != nil {
 			return &influxdb.Error{

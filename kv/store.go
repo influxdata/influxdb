@@ -23,9 +23,9 @@ func IsNotFound(err error) bool {
 type Store interface {
 	// View opens up a transaction that will not write to any data. Implementing interfaces
 	// should take care to ensure that all view transactions do not mutate any data.
-	View(func(Tx) error) error
+	View(context.Context, func(Tx) error) error
 	// Update opens up a transaction that will mutate data.
-	Update(func(Tx) error) error
+	Update(context.Context, func(Tx) error) error
 }
 
 // Tx is a transaction in the store.
@@ -41,6 +41,7 @@ type Tx interface {
 // Bucket is the abstraction used to perform get/put/delete/get-many operations
 // in a key value store.
 type Bucket interface {
+	// TODO context?
 	// Get returns a key within this bucket. Errors if key does not exist.
 	Get(key []byte) ([]byte, error)
 	// Cursor returns a cursor at the beginning of this bucket.

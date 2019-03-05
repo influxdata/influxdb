@@ -25,7 +25,7 @@ func (s *Service) initializeOnboarding(ctx context.Context, tx Tx) error {
 // false means that the onboarding has been completed.
 func (s *Service) IsOnboarding(ctx context.Context) (bool, error) {
 	notSetup := true
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		bucket, err := tx.Bucket(onboardingBucket)
 		if err != nil {
 			return err
@@ -54,7 +54,7 @@ func (s *Service) IsOnboarding(ctx context.Context) (bool, error) {
 // true means that onboarding is NOT needed.
 // false means that onboarding is needed.
 func (s *Service) PutOnboardingStatus(ctx context.Context, hasBeenOnboarded bool) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.putOnboardingStatus(ctx, tx, hasBeenOnboarded)
 	})
 }
@@ -129,7 +129,7 @@ func (s *Service) Generate(ctx context.Context, req *influxdb.OnboardingRequest)
 		Token:       req.Token,
 	}
 
-	err = s.kv.Update(func(tx Tx) error {
+	err = s.kv.Update(ctx, func(tx Tx) error {
 		if err := s.createUser(ctx, tx, u); err != nil {
 			return err
 		}

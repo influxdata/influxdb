@@ -13,8 +13,10 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/influxql"
+	"github.com/opentracing/opentracing-go"
 )
 
 type SourceProxyQueryService struct {
@@ -34,50 +36,55 @@ func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *q
 }
 
 func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "SourceProxyQueryService.queryFlux")
+	defer span.Finish()
 	u, err := newURL(s.Addr, "/api/v2/query")
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(req); err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	hreq, err := http.NewRequest("POST", u.String(), &body)
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 	hreq.Header.Set("Authorization", fmt.Sprintf("Token %s", s.Token))
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq = hreq.WithContext(ctx)
+	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 	if err := CheckError(resp); err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	if _, err = io.Copy(w, resp.Body); err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	return flux.Statistics{}, nil
 }
 
 func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "SourceProxyQueryService.queryInfluxQL")
+	defer span.Finish()
 	compiler, ok := req.Request.Compiler.(*influxql.Compiler)
 
 	if !ok {
-		return flux.Statistics{}, fmt.Errorf("compiler is not of type 'influxql'")
+		return flux.Statistics{}, tracing.LogError(span, fmt.Errorf("compiler is not of type 'influxql'"))
 	}
 
 	u, err := newURL(s.Addr, "/query")
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	body := url.Values{}
@@ -87,7 +94,7 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 	body.Add("rp", compiler.RP)
 	hreq, err := http.NewRequest("POST", u.String(), strings.NewReader(body.Encode()))
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 	hreq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	hreq.Header.Set("Authorization", fmt.Sprintf("Token %s", s.Token))
@@ -96,16 +103,16 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
 	if err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	if _, err = io.Copy(w, resp.Body); err != nil {
-		return flux.Statistics{}, err
+		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
 	return flux.Statistics{}, nil

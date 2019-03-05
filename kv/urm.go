@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
@@ -82,7 +83,7 @@ func filterMappingsFn(filter influxdb.UserResourceMappingFilter) func(m *influxd
 // FindUserResourceMappings returns a list of UserResourceMappings that match filter and the total count of matching mappings.
 func (s *Service) FindUserResourceMappings(ctx context.Context, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
 	var ms []*influxdb.UserResourceMapping
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		var err error
 		ms, err = s.findUserResourceMappings(ctx, tx, filter)
 		return err
@@ -124,12 +125,15 @@ func (s *Service) findUserResourceMapping(ctx context.Context, tx Tx, filter inf
 // CreateUserResourceMapping associates a user to a resource either as a member
 // or owner.
 func (s *Service) CreateUserResourceMapping(ctx context.Context, m *influxdb.UserResourceMapping) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.createUserResourceMapping(ctx, tx, m)
 	})
 }
 
 func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.createUserResourceMapping")
+	defer span.Finish()
+
 	if err := s.uniqueUserResourceMapping(ctx, tx, m); err != nil {
 		return err
 	}
@@ -162,6 +166,9 @@ func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influ
 
 // This method creates the user/resource mappings for resources that belong to an organization.
 func (s *Service) createOrgDependentMappings(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.createOrgDependentMappings")
+	defer span.Finish()
+
 	bf := influxdb.BucketFilter{OrganizationID: &m.ResourceID}
 	bs, err := s.findBuckets(ctx, tx, bf)
 	if err != nil {
@@ -247,7 +254,7 @@ func (s *Service) uniqueUserResourceMapping(ctx context.Context, tx Tx, m *influ
 
 // DeleteUserResourceMapping deletes a user resource mapping.
 func (s *Service) DeleteUserResourceMapping(ctx context.Context, resourceID influxdb.ID, userID influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		// TODO(goller): I don't think this find is needed as delete also finds.
 		m, err := s.findUserResourceMapping(ctx, tx, influxdb.UserResourceMappingFilter{
 			ResourceID: resourceID,

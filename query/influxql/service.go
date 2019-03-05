@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -29,15 +31,18 @@ type Service struct {
 // Query will execute a query for the influxql.Compiler type against an influxdb 1.x endpoint,
 // and return results using the default decoder.
 func (s *Service) Query(ctx context.Context, req *query.Request) (flux.ResultIterator, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.Query")
+	defer span.Finish()
+
 	resp, err := s.query(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	// Decode the response into the JSON structure.
 	var results Response
 	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
 	// Return a result iterator using the response.
@@ -47,31 +52,44 @@ func (s *Service) Query(ctx context.Context, req *query.Request) (flux.ResultIte
 // QueryRawJSON will execute a query for the influxql.Compiler type against an influxdb 1.x endpoint,
 // and return the body of the response as a byte array.
 func (s *Service) QueryRawJSON(ctx context.Context, req *query.Request) ([]byte, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.Query")
+	defer span.Finish()
+
 	resp, err := s.query(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 
-	return ioutil.ReadAll(resp.Body)
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, tracing.LogError(span, err)
+	}
+
+	return b, nil
 }
 
 func (s *Service) query(ctx context.Context, req *query.Request) (*http.Response, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.query")
+	defer span.Finish()
+
 	// Verify that this is an influxql query in the compiler.
 	compiler, ok := req.Compiler.(*Compiler)
 	if !ok {
-		return nil, fmt.Errorf("influxql query service does not support the '%s' compiler type", req.Compiler.CompilerType())
+		err := fmt.Errorf("influxql query service does not support the '%s' compiler type", req.Compiler.CompilerType())
+		return nil, tracing.LogError(span, err)
 	}
 
 	// Lookup the endpoint information for the cluster.
 	endpoint, ok := s.Endpoints[compiler.Cluster]
 	if !ok {
-		return nil, fmt.Errorf("no endpoint found for cluster %s", compiler.Cluster)
+		err := fmt.Errorf("no endpoint found for cluster %s", compiler.Cluster)
+		return nil, tracing.LogError(span, err)
 	}
 
 	// Prepare the HTTP request.
 	u, err := url.Parse(endpoint.URL)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	u.Path += "/query"
 
@@ -87,17 +105,19 @@ func (s *Service) query(ctx context.Context, req *query.Request) (*http.Response
 
 	hreq, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	}
 	hreq = hreq.WithContext(ctx)
 	hreq.SetBasicAuth(endpoint.Username, endpoint.Password)
+	tracing.InjectToHTTPRequest(span, hreq)
 
 	// Perform the request and look at the status code.
 	resp, err := http.DefaultClient.Do(hreq)
 	if err != nil {
-		return nil, err
+		return nil, tracing.LogError(span, err)
 	} else if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("unexpected http status: %s", resp.Status)
+		err = fmt.Errorf("unexpected http status: %s", resp.Status)
+		return nil, tracing.LogError(span, err)
 	}
 
 	return resp, nil

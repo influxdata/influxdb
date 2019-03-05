@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
@@ -52,6 +53,9 @@ func (c *Client) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*inf
 }
 
 func (c *Client) findOrganizationByID(ctx context.Context, tx *bolt.Tx, id influxdb.ID) (*influxdb.Organization, *influxdb.Error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Client.findOrganizationByID")
+	defer span.Finish()
+
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, &influxdb.Error{
@@ -95,6 +99,9 @@ func (c *Client) FindOrganizationByName(ctx context.Context, n string) (*influxd
 }
 
 func (c *Client) findOrganizationByName(ctx context.Context, tx *bolt.Tx, n string) (*influxdb.Organization, *influxdb.Error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.findOrganizationByName")
+	defer span.Finish()
+
 	o := tx.Bucket(organizationIndex).Get(organizationIndexKey(n))
 	if o == nil {
 		return nil, &influxdb.Error{

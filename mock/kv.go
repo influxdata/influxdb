@@ -16,12 +16,12 @@ type Store struct {
 
 // View opens up a transaction that will not write to any data. Implementing interfaces
 // should take care to ensure that all view transactions do not mutate any data.
-func (s *Store) View(fn func(kv.Tx) error) error {
+func (s *Store) View(ctx context.Context, fn func(kv.Tx) error) error {
 	return s.ViewFn(fn)
 }
 
 // Update opens up a transaction that will mutate data.
-func (s *Store) Update(fn func(kv.Tx) error) error {
+func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 	return s.UpdateFn(fn)
 }
 

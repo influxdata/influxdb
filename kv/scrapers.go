@@ -98,7 +98,7 @@ func (s *Service) scrapersBucket(tx Tx) (Bucket, error) {
 // ListTargets will list all scrape targets.
 func (s *Service) ListTargets(ctx context.Context) ([]influxdb.ScraperTarget, error) {
 	targets := []influxdb.ScraperTarget{}
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		var err error
 		targets, err = s.listTargets(ctx, tx)
 		return err
@@ -130,7 +130,7 @@ func (s *Service) listTargets(ctx context.Context, tx Tx) ([]influxdb.ScraperTar
 
 // AddTarget add a new scraper target into storage.
 func (s *Service) AddTarget(ctx context.Context, target *influxdb.ScraperTarget, userID influxdb.ID) (err error) {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.addTarget(ctx, tx, target, userID)
 	})
 }
@@ -160,7 +160,7 @@ func (s *Service) addTarget(ctx context.Context, tx Tx, target *influxdb.Scraper
 
 // RemoveTarget removes a scraper target from the bucket.
 func (s *Service) RemoveTarget(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.removeTarget(ctx, tx, id)
 	})
 }
@@ -201,7 +201,7 @@ func (s *Service) removeTarget(ctx context.Context, tx Tx, id influxdb.ID) error
 // UpdateTarget updates a scraper target.
 func (s *Service) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID influxdb.ID) (*influxdb.ScraperTarget, error) {
 	var target *influxdb.ScraperTarget
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		var err error
 		target, err = s.updateTarget(ctx, tx, update, userID)
 		return err
@@ -234,7 +234,7 @@ func (s *Service) updateTarget(ctx context.Context, tx Tx, update *influxdb.Scra
 // GetTargetByID retrieves a scraper target by id.
 func (s *Service) GetTargetByID(ctx context.Context, id influxdb.ID) (*influxdb.ScraperTarget, error) {
 	var target *influxdb.ScraperTarget
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		var err error
 		target, err = s.findTargetByID(ctx, tx, id)
 		return err
@@ -272,7 +272,7 @@ func (s *Service) findTargetByID(ctx context.Context, tx Tx, id influxdb.ID) (*i
 
 // PutTarget will put a scraper target without setting an ID.
 func (s *Service) PutTarget(ctx context.Context, target *influxdb.ScraperTarget) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.putTarget(ctx, tx, target)
 	})
 }

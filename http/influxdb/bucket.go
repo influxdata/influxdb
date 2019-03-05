@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"time"
 
 	platform "github.com/influxdata/influxdb"
@@ -22,6 +23,9 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 }
 
 func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.FindBuckets")
+	defer span.Finish()
+
 	c, err := newClient(s.Source)
 	if err != nil {
 		return nil, 0, err

@@ -3,6 +3,7 @@ package control
 
 import (
 	"context"
+	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/control"
@@ -28,6 +29,9 @@ func New(config control.Config) *Controller {
 
 // Query satisfies the AsyncQueryService while ensuring the request is propagated on the context.
 func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Controller.Query")
+	defer span.Finish()
+
 	// Set the request on the context so platform specific Flux operations can retrieve it later.
 	ctx = query.ContextWithRequest(ctx, req)
 	// Set the org label value for controller metrics

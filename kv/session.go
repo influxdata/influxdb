@@ -28,7 +28,7 @@ func (s *Service) RenewSession(ctx context.Context, session *influxdb.Session, n
 			Msg: "session is nil",
 		}
 	}
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		session.ExpiresAt = newExpiration
 		if err := s.putSession(ctx, tx, session); err != nil {
 			return &influxdb.Error{
@@ -42,7 +42,7 @@ func (s *Service) RenewSession(ctx context.Context, session *influxdb.Session, n
 // FindSession retrieves the session found at the provided key.
 func (s *Service) FindSession(ctx context.Context, key string) (*influxdb.Session, error) {
 	var sess *influxdb.Session
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		s, err := s.findSession(ctx, tx, key)
 		if err != nil {
 			return err
@@ -119,7 +119,7 @@ func (s *Service) findSession(ctx context.Context, tx Tx, key string) (*influxdb
 
 // PutSession puts the session at key.
 func (s *Service) PutSession(ctx context.Context, sn *influxdb.Session) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		if err := s.putSession(ctx, tx, sn); err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func (s *Service) putSession(ctx context.Context, tx Tx, sn *influxdb.Session) e
 
 // ExpireSession expires the session at the provided key.
 func (s *Service) ExpireSession(ctx context.Context, key string) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		sn, err := s.findSession(ctx, tx, key)
 		if err != nil {
 			return err
@@ -168,7 +168,7 @@ func (s *Service) ExpireSession(ctx context.Context, key string) error {
 // CreateSession creates a session for a user with the users maximal privileges.
 func (s *Service) CreateSession(ctx context.Context, user string) (*influxdb.Session, error) {
 	var sess *influxdb.Session
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		sn, err := s.createSession(ctx, tx, user)
 		if err != nil {
 			return err

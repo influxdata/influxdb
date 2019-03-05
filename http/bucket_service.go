@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"net/http"
 	"path"
 	"time"
@@ -440,6 +442,9 @@ func decodeDeleteBucketRequest(ctx context.Context, r *http.Request) (*deleteBuc
 
 // handleGetBuckets is the HTTP handler for the GET /api/v2/buckets route.
 func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "BucketHandler")
+	defer span.Finish()
+
 	ctx := r.Context()
 
 	req, err := decodeGetBucketsRequest(ctx, r)
@@ -589,6 +594,9 @@ type BucketService struct {
 
 // FindBucketByID returns a single bucket by ID.
 func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "BucketService.FindBucketByID")
+	defer span.Finish()
+
 	u, err := newURL(s.Addr, bucketIDPath(id))
 	if err != nil {
 		return nil, err
@@ -599,6 +607,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 		return nil, err
 	}
 	SetToken(s.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -620,6 +629,9 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 
 // FindBucket returns the first bucket that matches filter.
 func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.FindBucket")
+	defer span.Finish()
+
 	bs, n, err := s.FindBuckets(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -639,6 +651,9 @@ func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFi
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "BucketService.FindBuckets")
+	defer span.Finish()
+
 	u, err := newURL(s.Addr, bucketPath)
 	if err != nil {
 		return nil, 0, err
@@ -673,6 +688,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 
 	req.URL.RawQuery = query.Encode()
 	SetToken(s.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -705,6 +721,9 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
 func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "BucketService.CreateBucket")
+	defer span.Finish()
+
 	u, err := newURL(s.Addr, bucketPath)
 	if err != nil {
 		return err
@@ -722,6 +741,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 

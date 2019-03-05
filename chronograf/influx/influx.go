@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -46,7 +48,10 @@ func (r Response) MarshalJSON() ([]byte, error) {
 	return r.Results, nil
 }
 
-func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, error) {
+func (c *Client) query(ctx context.Context, u *url.URL, q chronograf.Query) (chronograf.Response, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Client.query")
+	defer span.Finish()
+
 	u.Path = "query"
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
@@ -71,6 +76,7 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 		params.Set("epoch", q.Epoch)
 	}
 	req.URL.RawQuery = params.Encode()
+	tracing.InjectToHTTPRequest(span, req)
 
 	if c.Authorizer != nil {
 		if err := c.Authorizer.Set(req); err != nil {
@@ -134,9 +140,12 @@ type result struct {
 // include both the database and retention policy. In-flight requests can be
 // cancelled using the provided context.
 func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Response, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.Query")
+	defer span.Finish()
+
 	resps := make(chan (result))
 	go func() {
-		resp, err := c.query(c.URL, q)
+		resp, err := c.query(ctx, c.URL, q)
 		resps <- result{resp, err}
 	}()
 
@@ -150,6 +159,9 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 
 // Connect caches the URL and optional Bearer Authorization for the data source
 func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Client.Connect")
+	defer span.Finish()
+
 	u, err := url.Parse(src.URL)
 	if err != nil {
 		return err
@@ -193,9 +205,12 @@ func (c *Client) Type(ctx context.Context) (string, error) {
 }
 
 func (c *Client) pingTimeout(ctx context.Context) (string, string, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.pingTimeout")
+	defer span.Finish()
+
 	resps := make(chan (pingResult))
 	go func() {
-		version, tsdbType, err := c.ping(c.URL)
+		version, tsdbType, err := c.ping(ctx, c.URL)
 		resps <- pingResult{version, tsdbType, err}
 	}()
 
@@ -213,13 +228,17 @@ type pingResult struct {
 	Err     error
 }
 
-func (c *Client) ping(u *url.URL) (string, string, error) {
+func (c *Client) ping(ctx context.Context, u *url.URL) (string, string, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "Client.ping")
+	defer span.Finish()
+
 	u.Path = "ping"
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return "", "", err
 	}
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := &http.Client{}
 	if c.InsecureSkipVerify {
@@ -260,6 +279,9 @@ func (c *Client) ping(u *url.URL) (string, string, error) {
 
 // Write POSTs line protocol to a database and retention policy
 func (c *Client) Write(ctx context.Context, points []chronograf.Point) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.Write")
+	defer span.Finish()
+
 	for _, point := range points {
 		if err := c.writePoint(ctx, &point); err != nil {
 			return err
@@ -269,6 +291,9 @@ func (c *Client) Write(ctx context.Context, points []chronograf.Point) error {
 }
 
 func (c *Client) writePoint(ctx context.Context, point *chronograf.Point) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.writePoint")
+	defer span.Finish()
+
 	lp, err := toLineProtocol(point)
 	if err != nil {
 		return err
@@ -301,6 +326,9 @@ func (c *Client) writePoint(ctx context.Context, point *chronograf.Point) error 
 }
 
 func (c *Client) write(ctx context.Context, u *url.URL, db, rp, lp string) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.write")
+	defer span.Finish()
+
 	u.Path = "write"
 	req, err := http.NewRequest("POST", u.String(), strings.NewReader(lp))
 	if err != nil {
@@ -318,6 +346,7 @@ func (c *Client) write(ctx context.Context, u *url.URL, db, rp, lp string) error
 	params.Set("db", db)
 	params.Set("rp", rp)
 	req.URL.RawQuery = params.Encode()
+	tracing.InjectToHTTPRequest(span, req)
 
 	hc := &http.Client{}
 	if c.InsecureSkipVerify {

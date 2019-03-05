@@ -95,7 +95,7 @@ func (s *Service) FindTelegrafConfigByID(ctx context.Context, id influxdb.ID) (*
 		err error
 	)
 
-	err = s.kv.View(func(tx Tx) error {
+	err = s.kv.View(ctx, func(tx Tx) error {
 		tc, err = s.findTelegrafConfigByID(ctx, tx, id)
 		return err
 	})
@@ -128,7 +128,7 @@ func (s *Service) findTelegrafConfigByID(ctx context.Context, tx Tx, id influxdb
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
 func (s *Service) FindTelegrafConfigs(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) (tcs []*influxdb.TelegrafConfig, n int, err error) {
-	err = s.kv.View(func(tx Tx) error {
+	err = s.kv.View(ctx, func(tx Tx) error {
 		tcs, n, err = s.findTelegrafConfigs(ctx, tx, filter)
 		return err
 	})
@@ -167,7 +167,7 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, tx Tx, filter influxd
 
 // PutTelegrafConfig put a telegraf config to storage.
 func (s *Service) PutTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig) error {
-	return s.kv.Update(func(tx Tx) (err error) {
+	return s.kv.Update(ctx, func(tx Tx) (err error) {
 		return s.putTelegrafConfig(ctx, tx, tc)
 	})
 }
@@ -200,7 +200,7 @@ func (s *Service) putTelegrafConfig(ctx context.Context, tx Tx, tc *influxdb.Tel
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
 func (s *Service) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.createTelegrafConfig(ctx, tx, tc, userID)
 	})
 }
@@ -224,7 +224,7 @@ func (s *Service) createTelegrafConfig(ctx context.Context, tx Tx, tc *influxdb.
 // Returns the new telegraf config after update.
 func (s *Service) UpdateTelegrafConfig(ctx context.Context, id influxdb.ID, tc *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
 	var err error
-	err = s.kv.Update(func(tx Tx) error {
+	err = s.kv.Update(ctx, func(tx Tx) error {
 		tc, err = s.updateTelegrafConfig(ctx, tx, id, tc, userID)
 		return err
 	})
@@ -246,7 +246,7 @@ func (s *Service) updateTelegrafConfig(ctx context.Context, tx Tx, id influxdb.I
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
 func (s *Service) DeleteTelegrafConfig(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(func(tx Tx) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.deleteTelegrafConfig(ctx, tx, id)
 	})
 }
