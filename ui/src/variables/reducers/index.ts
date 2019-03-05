@@ -6,7 +6,7 @@ import {RemoteDataState} from 'src/types'
 import {Action} from 'src/variables/actions'
 import {Variable} from '@influxdata/influx'
 
-const initialState = (): VariablesState => ({
+export const initialState = (): VariablesState => ({
   status: RemoteDataState.NotStarted,
   variables: {},
 })

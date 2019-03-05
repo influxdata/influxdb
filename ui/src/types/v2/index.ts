@@ -37,9 +37,11 @@ import {ProtosState} from 'src/protos/reducers'
 import {VariablesState} from 'src/variables/reducers'
 import {Label} from 'src/types/v2/labels'
 import {OrgViewState} from 'src/organizations/reducers/orgView'
+import {LabelsState} from 'src/labels/reducers'
 
 export interface AppState {
   VERSION: string
+  labels: LabelsState
   links: Links
   app: AppPresentationState
   ranges: RangeState
