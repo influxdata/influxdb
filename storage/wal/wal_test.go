@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -264,7 +265,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := NewWAL(dir)
-	if err := w.Open(); err != nil {
+	if err := w.Open(context.Background()); err != nil {
 		t.Fatalf("error opening WAL: %v", err)
 	}
 
@@ -292,7 +293,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 	// Re-open the WAL
 	w = NewWAL(dir)
 	defer w.Close()
-	if err := w.Open(); err != nil {
+	if err := w.Open(context.Background()); err != nil {
 		t.Fatalf("error opening WAL: %v", err)
 	}
 

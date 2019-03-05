@@ -46,6 +46,7 @@ export default class BucketRow extends PureComponent<Props> {
               noNameString={DEFAULT_BUCKET_NAME}
             />
           </IndexList.Cell>
+          <IndexList.Cell>{bucket.organization}</IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
@@ -87,8 +88,8 @@ export default class BucketRow extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateBucketName = (value: string) => {
-    this.props.onUpdateBucket({...this.props.bucket, name: value})
+  private handleUpdateBucketName = async (value: string) => {
+    await this.props.onUpdateBucket({...this.props.bucket, name: value})
   }
 
   private handleEditBucket = (): void => {

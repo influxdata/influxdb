@@ -2,38 +2,56 @@ package tsi1
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"regexp"
-	"sync"
 	"unsafe"
 
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
 // FileSet represents a collection of files.
 type FileSet struct {
-	levels       []CompactionLevel
 	sfile        *tsdb.SeriesFile
+	sfileref     *lifecycle.Reference
 	files        []File
+	filesref     lifecycle.References
 	manifestSize int64 // Size of the manifest file in bytes.
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(levels []CompactionLevel, sfile *tsdb.SeriesFile, files []File) (*FileSet, error) {
+func NewFileSet(sfile *tsdb.SeriesFile, files []File) (*FileSet, error) {
+	// First try to acquire a reference to the series file.
+	sfileref, err := sfile.Acquire()
+	if err != nil {
+		return nil, err
+	}
+
+	// Next, acquire references to all of the passed in files.
+	filesref := make(lifecycle.References, 0, len(files))
+	for _, f := range files {
+		ref, err := f.Acquire()
+		if err != nil {
+			filesref.Release()
+			sfileref.Release()
+			return nil, err
+		}
+		filesref = append(filesref, ref)
+	}
+
 	return &FileSet{
-		levels: levels,
-		sfile:  sfile,
-		files:  files,
+		sfile:    sfile,
+		sfileref: sfileref,
+		files:    files,
+		filesref: filesref,
 	}, nil
 }
 
 // bytes estimates the memory footprint of this FileSet, in bytes.
 func (fs *FileSet) bytes() int {
 	var b int
-	for _, level := range fs.levels {
-		b += int(unsafe.Sizeof(level))
-	}
 	// Do not count SeriesFile because it belongs to the code that constructed this FileSet.
 	for _, file := range fs.files {
 		b += file.bytes()
@@ -42,42 +60,24 @@ func (fs *FileSet) bytes() int {
 	return b
 }
 
-// Close closes all the files in the file set.
-func (fs FileSet) Close() error {
-	var err error
-	for _, f := range fs.files {
-		if e := f.Close(); e != nil && err == nil {
-			err = e
-		}
-	}
-	return err
-}
-
-// Retain adds a reference count to all files.
-func (fs *FileSet) Retain() {
-	for _, f := range fs.files {
-		f.Retain()
-	}
-}
-
-// Release removes a reference count from all files.
-func (fs *FileSet) Release() {
-	for _, f := range fs.files {
-		f.Release()
-	}
-}
-
-// SeriesFile returns the attached series file.
 func (fs *FileSet) SeriesFile() *tsdb.SeriesFile { return fs.sfile }
+
+// Release releases all resources on the file set.
+func (fs *FileSet) Release() {
+	fs.filesref.Release()
+	fs.sfileref.Release()
+}
+
+// Duplicate returns a copy of the FileSet, acquiring another resource to the
+// files and series file for the file set.
+func (fs *FileSet) Duplicate() (*FileSet, error) {
+	return NewFileSet(fs.sfile, fs.files)
+}
 
 // PrependLogFile returns a new file set with f added at the beginning.
 // Filters do not need to be rebuilt because log files have no bloom filter.
-func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
-	return &FileSet{
-		levels: fs.levels,
-		sfile:  fs.sfile,
-		files:  append([]File{f}, fs.files...),
-	}
+func (fs *FileSet) PrependLogFile(f *LogFile) (*FileSet, error) {
+	return NewFileSet(fs.sfile, append([]File{f}, fs.files...))
 }
 
 // Size returns the on-disk size of the FileSet.
@@ -91,7 +91,7 @@ func (fs *FileSet) Size() int64 {
 
 // MustReplace swaps a list of files for a single file and returns a new file set.
 // The caller should always guarantee that the files exist and are contiguous.
-func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
+func (fs *FileSet) MustReplace(oldFiles []File, newFile File) (*FileSet, error) {
 	assert(len(oldFiles) > 0, "cannot replace empty files")
 
 	// Find index of first old file.
@@ -100,14 +100,14 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 		if fs.files[i] == oldFiles[0] {
 			break
 		} else if i == len(fs.files)-1 {
-			panic("first replacement file not found")
+			return nil, errors.New("first replacement file not found")
 		}
 	}
 
 	// Ensure all old files are contiguous.
 	for j := range oldFiles {
 		if fs.files[i+j] != oldFiles[j] {
-			panic(fmt.Sprintf("cannot replace non-contiguous files: subset=%+v, fileset=%+v", Files(oldFiles).IDs(), Files(fs.files).IDs()))
+			return nil, fmt.Errorf("cannot replace non-contiguous files: subset=%+v, fileset=%+v", Files(oldFiles).IDs(), Files(fs.files).IDs())
 		}
 	}
 
@@ -118,10 +118,7 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 	copy(other[i+1:], fs.files[i+len(oldFiles):])
 
 	// Build new fileset and rebuild changed filters.
-	return &FileSet{
-		levels: fs.levels,
-		files:  other,
-	}
+	return NewFileSet(fs.sfile, other)
 }
 
 // MaxID returns the highest file identifier.
@@ -434,8 +431,7 @@ type File interface {
 	TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error)
 
 	// Reference counting.
-	Retain()
-	Release()
+	Acquire() (*lifecycle.Reference, error)
 
 	// Size of file on disk
 	Size() int64
@@ -456,9 +452,8 @@ func (a Files) IDs() []int {
 
 // fileSetSeriesIDIterator attaches a fileset to an iterator that is released on close.
 type fileSetSeriesIDIterator struct {
-	once sync.Once
-	fs   *FileSet
-	itr  tsdb.SeriesIDIterator
+	fs  *FileSet
+	itr tsdb.SeriesIDIterator
 }
 
 func newFileSetSeriesIDIterator(fs *FileSet, itr tsdb.SeriesIDIterator) tsdb.SeriesIDIterator {
@@ -477,15 +472,14 @@ func (itr *fileSetSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 }
 
 func (itr *fileSetSeriesIDIterator) Close() error {
-	itr.once.Do(func() { itr.fs.Release() })
+	itr.fs.Release()
 	return itr.itr.Close()
 }
 
 // fileSetSeriesIDSetIterator attaches a fileset to an iterator that is released on close.
 type fileSetSeriesIDSetIterator struct {
-	once sync.Once
-	fs   *FileSet
-	itr  tsdb.SeriesIDSetIterator
+	fs  *FileSet
+	itr tsdb.SeriesIDSetIterator
 }
 
 func (itr *fileSetSeriesIDSetIterator) Next() (tsdb.SeriesIDElem, error) {
@@ -493,7 +487,7 @@ func (itr *fileSetSeriesIDSetIterator) Next() (tsdb.SeriesIDElem, error) {
 }
 
 func (itr *fileSetSeriesIDSetIterator) Close() error {
-	itr.once.Do(func() { itr.fs.Release() })
+	itr.fs.Release()
 	return itr.itr.Close()
 }
 
@@ -503,12 +497,15 @@ func (itr *fileSetSeriesIDSetIterator) SeriesIDSet() *tsdb.SeriesIDSet {
 
 // fileSetMeasurementIterator attaches a fileset to an iterator that is released on close.
 type fileSetMeasurementIterator struct {
-	once sync.Once
-	fs   *FileSet
-	itr  tsdb.MeasurementIterator
+	fs  *FileSet
+	itr tsdb.MeasurementIterator
 }
 
-func newFileSetMeasurementIterator(fs *FileSet, itr tsdb.MeasurementIterator) *fileSetMeasurementIterator {
+func newFileSetMeasurementIterator(fs *FileSet, itr tsdb.MeasurementIterator) tsdb.MeasurementIterator {
+	if itr == nil {
+		fs.Release()
+		return nil
+	}
 	return &fileSetMeasurementIterator{fs: fs, itr: itr}
 }
 
@@ -517,18 +514,21 @@ func (itr *fileSetMeasurementIterator) Next() ([]byte, error) {
 }
 
 func (itr *fileSetMeasurementIterator) Close() error {
-	itr.once.Do(func() { itr.fs.Release() })
+	itr.fs.Release()
 	return itr.itr.Close()
 }
 
 // fileSetTagKeyIterator attaches a fileset to an iterator that is released on close.
 type fileSetTagKeyIterator struct {
-	once sync.Once
-	fs   *FileSet
-	itr  tsdb.TagKeyIterator
+	fs  *FileSet
+	itr tsdb.TagKeyIterator
 }
 
-func newFileSetTagKeyIterator(fs *FileSet, itr tsdb.TagKeyIterator) *fileSetTagKeyIterator {
+func newFileSetTagKeyIterator(fs *FileSet, itr tsdb.TagKeyIterator) tsdb.TagKeyIterator {
+	if itr == nil {
+		fs.Release()
+		return nil
+	}
 	return &fileSetTagKeyIterator{fs: fs, itr: itr}
 }
 
@@ -537,18 +537,21 @@ func (itr *fileSetTagKeyIterator) Next() ([]byte, error) {
 }
 
 func (itr *fileSetTagKeyIterator) Close() error {
-	itr.once.Do(func() { itr.fs.Release() })
+	itr.fs.Release()
 	return itr.itr.Close()
 }
 
 // fileSetTagValueIterator attaches a fileset to an iterator that is released on close.
 type fileSetTagValueIterator struct {
-	once sync.Once
-	fs   *FileSet
-	itr  tsdb.TagValueIterator
+	fs  *FileSet
+	itr tsdb.TagValueIterator
 }
 
-func newFileSetTagValueIterator(fs *FileSet, itr tsdb.TagValueIterator) *fileSetTagValueIterator {
+func newFileSetTagValueIterator(fs *FileSet, itr tsdb.TagValueIterator) tsdb.TagValueIterator {
+	if itr == nil {
+		fs.Release()
+		return nil
+	}
 	return &fileSetTagValueIterator{fs: fs, itr: itr}
 }
 
@@ -557,6 +560,6 @@ func (itr *fileSetTagValueIterator) Next() ([]byte, error) {
 }
 
 func (itr *fileSetTagValueIterator) Close() error {
-	itr.once.Do(func() { itr.fs.Release() })
+	itr.fs.Release()
 	return itr.itr.Close()
 }

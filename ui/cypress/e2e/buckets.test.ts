@@ -62,7 +62,7 @@ describe('Buckets', () => {
         .and('contain', newName)
     })
 
-    it('can delete a bucket', () => {
+    it.skip('can delete a bucket', () => {
       cy.get<Organization>('@org').then(({id, name}) => {
         cy.createBucket(id, name, 'newbucket1')
         cy.createBucket(id, name, 'newbucket2')

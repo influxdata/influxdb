@@ -12,9 +12,11 @@ import {
   ComponentColor,
   IconFont,
   ComponentSize,
+  ComponentStatus,
 } from '@influxdata/clockface'
 import {EmptyState, Input, InputType, Tabs} from 'src/clockface'
-import DataLoadersWizard from 'src/dataLoaders/components/DataLoadersWizard'
+import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
+import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -25,7 +27,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {ScraperTargetResponse, Bucket} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
-import {DataLoaderType, DataLoaderStep} from 'src/types/v2/dataLoaders'
 import {
   scraperDeleteSuccess,
   scraperDeleteFailed,
@@ -48,7 +49,7 @@ interface State {
 }
 
 @ErrorHandling
-export default class Scrapers extends PureComponent<Props, State> {
+class Scrapers extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -74,8 +75,9 @@ export default class Scrapers extends PureComponent<Props, State> {
             onChange={this.handleFilterChange}
             onBlur={this.handleFilterBlur}
           />
-          {this.createScraperButton}
+          {this.createScraperButton('create-scraper-button-header')}
         </Tabs.TabContentsHeader>
+        <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
         <FilterList<ScraperTargetResponse>
           searchTerm={searchTerm}
           searchKeys={['name', 'url']}
@@ -90,48 +92,70 @@ export default class Scrapers extends PureComponent<Props, State> {
             />
           )}
         </FilterList>
-        <DataLoadersWizard
-          visible={this.isOverlayVisible}
-          onCompleteSetup={this.handleDismissDataLoaders}
-          startingType={DataLoaderType.Scraping}
-          startingStep={DataLoaderStep.Configure}
-          buckets={this.buckets}
-        />
+        {this.createScraperOverlay}
       </>
     )
   }
 
-  private get buckets(): Bucket[] {
+  private get hasNoBuckets(): boolean {
     const {buckets} = this.props
 
     if (!buckets || !buckets.length) {
-      return []
+      return true
     }
-    return buckets
+
+    return false
+  }
+
+  private get createScraperOverlay(): JSX.Element {
+    const {buckets} = this.props
+
+    if (this.hasNoBuckets) {
+      return
+    }
+
+    return (
+      <CreateScraperOverlay
+        visible={this.isOverlayVisible}
+        buckets={buckets}
+        onDismiss={this.handleDismissOverlay}
+      />
+    )
   }
 
   private get isOverlayVisible(): boolean {
     return this.state.overlayState === OverlayState.Open
   }
 
-  private get createScraperButton(): JSX.Element {
+  private handleShowOverlay = () => {
+    this.setState({overlayState: OverlayState.Open})
+  }
+
+  private handleDismissOverlay = () => {
+    this.setState({overlayState: OverlayState.Closed})
+    this.props.onChange()
+  }
+
+  private createScraperButton = (testID: string): JSX.Element => {
+    let status = ComponentStatus.Default
+    let titleText = 'Create a new Scraper'
+
+    if (this.hasNoBuckets) {
+      status = ComponentStatus.Disabled
+      titleText = 'You need at least 1 bucket in order to create a scraper'
+    }
+
     return (
       <Button
         text="Create Scraper"
         icon={IconFont.Plus}
         color={ComponentColor.Primary}
-        onClick={this.handleAddScraper}
+        onClick={this.handleShowOverlay}
+        status={status}
+        titleText={titleText}
+        testID={testID}
       />
     )
-  }
-
-  private handleAddScraper = () => {
-    this.setState({overlayState: OverlayState.Open})
-  }
-
-  private handleDismissDataLoaders = () => {
-    this.setState({overlayState: OverlayState.Closed})
-    this.props.onChange()
   }
 
   private get emptyState(): JSX.Element {
@@ -142,17 +166,17 @@ export default class Scrapers extends PureComponent<Props, State> {
       return (
         <EmptyState size={ComponentSize.Medium}>
           <EmptyState.Text
-            text={`${orgName} does not own any Scrapers, why not create one?`}
+            text={`${orgName} does not own any Scrapers , why not create one?`}
             highlightWords={['Scrapers']}
           />
-          {this.createScraperButton}
+          {this.createScraperButton('create-scraper-button-empty')}
         </EmptyState>
       )
     }
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="No Scraper buckets match your query" />
+        <EmptyState.Text text="No Scrapers match your query" />
       </EmptyState>
     )
   }
@@ -189,3 +213,5 @@ export default class Scrapers extends PureComponent<Props, State> {
     this.setState({searchTerm: e.target.value})
   }
 }
+
+export default Scrapers

@@ -31,7 +31,6 @@ class ViewComponent extends Component<Props> {
 
     switch (view.properties.type) {
       case ViewShape.Empty:
-      case ViewType.LogViewer:
         return this.emptyGraph
       case ViewType.Markdown:
         return <Markdown text={view.properties.note} />

@@ -73,6 +73,16 @@ Object {
               <div
                 class="index-list--cell"
                 data-testid="table-cell"
+              >
+                default
+              </div>
+            </td>
+            <td
+              class="index-list--row-cell index-list--align-left"
+            >
+              <div
+                class="index-list--cell"
+                data-testid="table-cell"
               />
             </td>
             <td
@@ -216,6 +226,16 @@ Object {
               <div
                 class="index-list--cell"
                 data-testid="table-cell"
+              >
+                default
+              </div>
+            </td>
+            <td
+              class="index-list--row-cell index-list--align-left"
+            >
+              <div
+                class="index-list--cell"
+                data-testid="table-cell"
               />
             </td>
             <td
@@ -335,16 +355,8 @@ Object {
         />
       </div>
       <div
-        class="overlay-tech"
-      >
-        <div
-          class="overlay--dialog"
-          data-testid="overlay-children"
-        />
-        <div
-          class="overlay--mask"
-        />
-      </div>
+        data-testid="data-loader-empty"
+      />
     </div>
   </body>,
   "container": <div>
@@ -408,6 +420,16 @@ Object {
                   />
                 </div>
               </div>
+            </div>
+          </td>
+          <td
+            class="index-list--row-cell index-list--align-left"
+          >
+            <div
+              class="index-list--cell"
+              data-testid="table-cell"
+            >
+              default
             </div>
           </td>
           <td
@@ -559,6 +581,16 @@ Object {
             <div
               class="index-list--cell"
               data-testid="table-cell"
+            >
+              default
+            </div>
+          </td>
+          <td
+            class="index-list--row-cell index-list--align-left"
+          >
+            <div
+              class="index-list--cell"
+              data-testid="table-cell"
             />
           </td>
           <td
@@ -678,16 +710,8 @@ Object {
       />
     </div>
     <div
-      class="overlay-tech"
-    >
-      <div
-        class="overlay--dialog"
-        data-testid="overlay-children"
-      />
-      <div
-        class="overlay--mask"
-      />
-    </div>
+      data-testid="data-loader-empty"
+    />
   </div>,
   "debug": [Function],
   "getAllByAltText": [Function],

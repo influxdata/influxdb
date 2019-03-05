@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
+import {isEmpty} from 'lodash'
 
 // Components
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
@@ -14,16 +14,12 @@ import ImportOverlay from 'src/shared/components/ImportOverlay'
 import ExportOverlay from 'src/shared/components/ExportOverlay'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
-// Utils
-import {getDeep} from 'src/utils/wrappers'
-
 // APIs
 import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
 
 // Actions
 import {
   getDashboardsAsync,
-  importDashboardAsync,
   deleteDashboardAsync,
   updateDashboardAsync,
   addDashboardLabelsAsync,
@@ -38,11 +34,14 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 import {
   dashboardSetDefaultFailed,
   dashboardCreateFailed,
+  dashboardImported,
+  dashboardImportFailed,
 } from 'src/shared/copy/notifications'
+import {cantImportInvalidResource} from 'src/shared/copy/v2/notifications'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {Links, Cell, Dashboard, AppState, Organization} from 'src/types/v2'
+import {Links, Dashboard, AppState, Organization} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -51,7 +50,6 @@ interface DispatchProps {
   handleSetDefaultDashboard: typeof setDefaultDashboard
   handleGetDashboards: typeof getDashboardsAsync
   handleDeleteDashboard: typeof deleteDashboardAsync
-  handleImportDashboard: typeof importDashboardAsync
   handleUpdateDashboard: typeof updateDashboardAsync
   notify: (message: Notification) => void
   retainRangesDashTimeV1: (dashboardIDs: string[]) => void
@@ -213,27 +211,22 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private handleImportDashboard = async (
-    dashboard: Dashboard
+    importString: string
   ): Promise<void> => {
-    const defaultCell = {
-      x: 0,
-      y: 0,
-      w: 4,
-      h: 4,
+    const {notify} = this.props
+    try {
+      const resource = JSON.parse(importString)
+
+      if (isEmpty(resource)) {
+        notify(cantImportInvalidResource('Dashboard'))
+        return
+      }
+      console.log(resource)
+      this.handleToggleImportOverlay()
+      notify(dashboardImported())
+    } catch (error) {
+      notify(dashboardImportFailed(error))
     }
-
-    const name = get(dashboard, 'name', DEFAULT_DASHBOARD_NAME)
-    const cellsWithDefaultsApplied = getDeep<Cell[]>(
-      dashboard,
-      'cells',
-      []
-    ).map(c => ({...defaultCell, ...c}))
-
-    await this.props.handleImportDashboard({
-      ...dashboard,
-      name,
-      cells: cellsWithDefaultsApplied,
-    })
   }
 
   private handleFilterDashboards = (searchTerm: string): void => {
@@ -249,7 +242,6 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private get importOverlay(): JSX.Element {
-    const {notify} = this.props
     const {isImportingDashboard} = this.state
 
     return (
@@ -257,9 +249,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         isVisible={isImportingDashboard}
         resourceName="Dashboard"
         onDismissOverlay={this.handleToggleImportOverlay}
-        onImport={this.handleImportDashboard}
-        notify={notify}
-        isResourceValid={this.handleValidateDashboard}
+        onSubmit={this.handleImportDashboard}
       />
     )
   }
@@ -283,10 +273,6 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private handleStopEditingLabels = (): void => {
     this.setState({isEditingDashboardLabels: false})
-  }
-
-  private handleValidateDashboard = (): boolean => {
-    return true
   }
 
   private get labelEditorOverlay(): JSX.Element {
@@ -321,7 +307,6 @@ const mdtp: DispatchProps = {
   handleSetDefaultDashboard: setDefaultDashboard,
   handleGetDashboards: getDashboardsAsync,
   handleDeleteDashboard: deleteDashboardAsync,
-  handleImportDashboard: importDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
   onAddDashboardLabels: addDashboardLabelsAsync,

@@ -36,7 +36,7 @@ describe('OrgsTasksPage', () => {
   it('renders', () => {
     const {getAllByTestId} = setup({props: {tasks}, state: {}})
 
-    expect(getAllByTestId('task-row')).toHaveLength(tasks.length)
+    expect(getAllByTestId('task-card')).toHaveLength(tasks.length)
   })
 
   describe('labels click', () => {
@@ -78,13 +78,13 @@ describe('OrgsTasksPage', () => {
         state: {},
       })
 
-      expect(getAllByTestId('task-row')).toHaveLength(2)
+      expect(getAllByTestId('task-card')).toHaveLength(2)
 
       const labelPill = getByTestId(`label--pill ${labelName}`)
 
       fireEvent.click(labelPill)
 
-      expect(getAllByTestId('task-row')).toHaveLength(1)
+      expect(getAllByTestId('task-card')).toHaveLength(1)
     })
 
     it('displays label name in input when clicked', () => {
@@ -95,7 +95,7 @@ describe('OrgsTasksPage', () => {
         state: {},
       })
 
-      expect(getAllByTestId('task-row')).toHaveLength(2)
+      expect(getAllByTestId('task-card')).toHaveLength(2)
 
       const labelPill = getByTestId(`label--pill ${labelName}`)
       fireEvent.click(labelPill)

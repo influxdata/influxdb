@@ -15,7 +15,6 @@ import {
   QueryEditMode,
   BuilderConfig,
   DashboardQuery,
-  InfluxLanguage,
   Dashboard,
 } from 'src/types/v2/dashboards'
 
@@ -38,9 +37,13 @@ import {ProtosState} from 'src/protos/reducers'
 import {VariablesState} from 'src/variables/reducers'
 import {Label} from 'src/types/v2/labels'
 import {OrgViewState} from 'src/organizations/reducers/orgView'
+import {LabelsState} from 'src/labels/reducers'
+import {BucketsState} from 'src/buckets/reducers'
 
 export interface AppState {
   VERSION: string
+  labels: LabelsState
+  buckets: BucketsState
   links: Links
   app: AppPresentationState
   ranges: RangeState
@@ -89,6 +92,5 @@ export {
   Task,
   TaskStatus,
   MeState,
-  InfluxLanguage,
   Label,
 }

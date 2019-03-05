@@ -1,9 +1,14 @@
 package tsdb
 
 import (
+	"context"
+	"io/ioutil"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/kit/prom/promtest"
+	"github.com/influxdata/influxdb/models"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -128,5 +133,47 @@ func TestMetrics_SeriesPartition(t *testing.T) {
 				t.Errorf("[%s %d] got %v, expected %v", name, i, got, exp)
 			}
 		}
+	}
+}
+
+// This test ensures that disabling metrics works even if a series file has been created before.
+func TestMetrics_Disabled(t *testing.T) {
+	// This test messes with global state. Gotta fix it up otherwise other tests panic. I really
+	// am beginning to wonder about our metrics.
+	defer func() {
+		mmu.Lock()
+		sms = nil
+		ims = nil
+		mmu.Unlock()
+	}()
+
+	path, err := ioutil.TempDir("", "sfile-metrics-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(path)
+
+	// Step 1. make a series file with metrics and some labels
+	sfile := NewSeriesFile(path)
+	sfile.SetDefaultMetricLabels(prometheus.Labels{"foo": "bar"})
+	if err := sfile.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := sfile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 2. open the series file again, but disable metrics
+	sfile = NewSeriesFile(path)
+	sfile.DisableMetrics()
+	if err := sfile.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer sfile.Close()
+
+	// Step 3. add a series
+	points := []models.Point{models.MustNewPoint("a", models.Tags{}, models.Fields{"f": 1.0}, time.Now())}
+	if err := sfile.CreateSeriesListIfNotExists(NewSeriesCollection(points)); err != nil {
+		t.Fatal(err)
 	}
 }

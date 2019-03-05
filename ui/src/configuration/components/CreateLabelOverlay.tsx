@@ -27,6 +27,7 @@ interface Props {
   onDismiss: () => void
   onCreateLabel: (label: LabelType) => void
   onNameValidation: (name: string) => string | null
+  overrideDefaultName?: string
 }
 
 interface State {
@@ -37,7 +38,7 @@ interface State {
 @ErrorHandling
 class CreateLabelOverlay extends Component<Props, State> {
   public state: State = {
-    label: EMPTY_LABEL,
+    label: {...EMPTY_LABEL, name: this.props.overrideDefaultName},
     useCustomColorHex: false,
   }
 

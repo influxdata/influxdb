@@ -1,4 +1,5 @@
 import {Doc} from 'codemirror'
+import {Organization} from '@influxdata/influx'
 import {FROM, RANGE, MEAN} from '../../src/shared/constants/fluxFunctions'
 
 interface HTMLElementCM extends HTMLElement {
@@ -13,7 +14,9 @@ describe('DataExplorer', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.signin()
+    cy.signin().then(({body}) => {
+      cy.wrap(body.org).as('org')
+    })
 
     cy.fixture('routes').then(({explorer}) => {
       cy.visit(explorer)
@@ -85,10 +88,69 @@ describe('DataExplorer', () => {
       cy.get('.input-field').type('covariance')
       cy.getByTestID('toolbar-function').should('have.length', 1)
     })
+
+    it('shows the empty state when the query returns no results', () => {
+      cy.getByTestID('time-machine--bottom').within(() => {
+        cy.get('textarea').type(
+          `from(bucket: "defbuck")
+  |> range(start: -10s)
+  |> filter(fn: (r) => r._measurement == "no exist")`,
+          {force: true}
+        )
+        cy.getByTestID('time-machine-submit-button').click()
+      })
+
+      cy.getByTestID('empty-graph--no-results').should('exist')
+    })
+  })
+
+  describe('query builder', () => {
+    it('shows an empty state for tag keys when the bucket is empty', () => {
+      cy.getByTestID('empty-tag-keys').should('exist')
+    })
+
+    it('shows the correct number of buckets in the buckets dropdown', () => {
+      cy.get<Organization>('@org').then(({id, name}) => {
+        cy.createBucket(id, name, 'newBucket')
+      })
+
+      cy.getByTestID('buckets--button').click()
+
+      cy.getByTestID('dropdown--item defbuck').should('exist')
+      cy.getByTestID('dropdown--item newBucket').should('exist')
+    })
+
+    it('can delete a second query', () => {
+      cy.get('.time-machine-queries--new').click()
+      cy.get('.query-tab').should('have.length', 2)
+      cy.get('.query-tab--close')
+        .first()
+        .click()
+      cy.get('.query-tab').should('have.length', 1)
+    })
+
+    it('can remove a second query using tab context menu', () => {
+      cy.get('.query-tab').trigger('contextmenu')
+      cy.getByTestID('right-click--remove-tab').should('have.class', 'disabled')
+
+      cy.get('.time-machine-queries--new').click()
+      cy.get('.query-tab').should('have.length', 2)
+
+      cy.get('.query-tab')
+        .first()
+        .trigger('contextmenu')
+      cy.getByTestID('right-click--remove-tab').click()
+
+      cy.get('.query-tab').should('have.length', 1)
+    })
   })
 
   describe('visualizations', () => {
     describe('empty states', () => {
+      it('shows a message if no queries have been created', () => {
+        cy.getByTestID('empty-graph--no-queries').should('exist')
+      })
+
       it('shows an error if a query is syntactically invalid', () => {
         cy.getByTestID('switch-to-script-editor').click()
 
@@ -97,13 +159,7 @@ describe('DataExplorer', () => {
           cy.getByTestID('time-machine-submit-button').click()
         })
 
-        cy.getByTestID('empty-graph-message').within(() => {
-          cy.contains('Error').should('exist')
-        })
-      })
-
-      it('show an empty state for tag keys when the bucket is empty', () => {
-        cy.getByTestID('empty-tag-keys').should('exist')
+        cy.getByTestID('empty-graph--error').should('exist')
       })
     })
   })

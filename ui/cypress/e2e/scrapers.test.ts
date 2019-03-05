@@ -19,13 +19,13 @@ describe('Scrapers', () => {
   })
 
   describe('from the org view', () => {
-    it('can create a scraper', () => {
-      const newScraper = 'Scraper'
+    it('can create a scraper from the create button in the page header', () => {
+      const newScraper = '🐍craper'
       const newURL = 'http://google.com'
 
       cy.getByTestID('table-row').should('have.length', 0)
 
-      cy.contains('Create').click()
+      cy.getByTestID('create-scraper-button-header').click()
       cy.getByTestID('overlay--container').within(() => {
         cy.getByInputName('name')
           .clear()
@@ -33,14 +33,30 @@ describe('Scrapers', () => {
         cy.getByInputName('url')
           .clear()
           .type(newURL)
-        cy.get('.button')
-          .contains('Finish')
-          .click()
+        cy.getByTestID('create-scraper--submit').click()
       })
 
-      cy.getByTestID('table-row')
-        .should('have.length', 1)
-        .and('contain', newScraper)
+      cy.getByTestID('table-row').should('have.length', 1)
+    })
+
+    it('can create a scraper from the create button in the empty state', () => {
+      const newScraper = '🐍craper'
+      const newURL = 'http://google.com'
+
+      cy.getByTestID('table-row').should('have.length', 0)
+
+      cy.getByTestID('create-scraper-button-empty').click()
+      cy.getByTestID('overlay--container').within(() => {
+        cy.getByInputName('name')
+          .clear()
+          .type(newScraper)
+        cy.getByInputName('url')
+          .clear()
+          .type(newURL)
+        cy.getByTestID('create-scraper--submit').click()
+      })
+
+      cy.getByTestID('table-row').should('have.length', 1)
     })
 
     it('can update scrapers name', () => {

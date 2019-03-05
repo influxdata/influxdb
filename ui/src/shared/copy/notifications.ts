@@ -515,19 +515,15 @@ export const dashboardSetDefaultFailed = (name: string) => ({
   message: `Failed to set ${name} to default dashboard.`,
 })
 
-export const dashboardImported = (name: string): Notification => ({
+export const dashboardImported = (): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  message: `Dashboard ${name} imported successfully.`,
+  message: `Dashboard imported successfully.`,
 })
 
-export const dashboardImportFailed = (
-  fileName: string,
-  errorMessage: string
-): Notification => ({
+export const dashboardImportFailed = (errorMessage: string): Notification => ({
   ...defaultErrorNotification,
-  duration: INFINITE,
-  message: `Failed to import Dashboard from file ${fileName}: ${errorMessage}.`,
+  message: `Failed to import Dashboard: ${errorMessage}.`,
 })
 
 export const dashboardDeleteFailed = (
@@ -793,4 +789,46 @@ export const importSucceeded = (): Notification => ({
 export const importFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to import resource.`,
+})
+
+// Labels
+export const getLabelsFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to fetch labels',
+})
+
+export const createLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create label',
+})
+
+export const updateLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to update label',
+})
+
+export const deleteLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to delete label',
+})
+
+// Buckets
+export const getBucketsFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to fetch buckets',
+})
+
+export const createBucketFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create bucket',
+})
+
+export const updateBucketFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to update bucket',
+})
+
+export const deleteBucketFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to delete bucket',
 })

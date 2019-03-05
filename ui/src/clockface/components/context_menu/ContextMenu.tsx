@@ -110,7 +110,7 @@ class ContextMenu extends Component<Props, State> {
                 />
               )
             } else {
-              throw new Error('Expected children of type <Context.Item />')
+              return child
             }
           })}
         </div>

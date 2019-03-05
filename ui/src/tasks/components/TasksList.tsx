@@ -3,8 +3,8 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {IndexList} from 'src/clockface'
-import TaskRow from 'src/tasks/components/TaskRow'
+import {ResourceList} from 'src/clockface'
+import TaskCard from 'src/tasks/components/TaskCard'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 import {OverlayTechnology} from 'src/clockface'
 import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
@@ -33,7 +33,8 @@ interface Props {
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRunTask: typeof runTask
-  onUpdate?: (task: Task) => void
+  onUpdate: (task: Task) => void
+  filterComponent?: () => JSX.Element
 }
 
 type SortKey = keyof Task | 'organization.name'
@@ -57,7 +58,7 @@ export default class TasksList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {searchTerm, onCreate, totalCount} = this.props
+    const {searchTerm, onCreate, totalCount, filterComponent} = this.props
     const {sortKey, sortDirection} = this.state
 
     const headerKeys: SortKey[] = [
@@ -70,46 +71,40 @@ export default class TasksList extends PureComponent<Props, State> {
 
     return (
       <>
-        <IndexList>
-          <IndexList.Header>
-            <IndexList.HeaderCell
-              columnName="Name"
-              width="45%"
+        <ResourceList>
+          <ResourceList.Header filterComponent={filterComponent}>
+            <ResourceList.Sorter
+              name="Name"
               sortKey={headerKeys[0]}
               sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
-            <IndexList.HeaderCell
-              columnName="Owner"
-              width="15%"
+            <ResourceList.Sorter
+              name="Owner"
               sortKey={headerKeys[3]}
               sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
-            <IndexList.HeaderCell
-              columnName="Active"
-              width="5%"
+            <ResourceList.Sorter
+              name="Active"
               sortKey={headerKeys[1]}
               sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
-            <IndexList.HeaderCell
-              columnName="Schedule"
-              width="15%"
+            <ResourceList.Sorter
+              name="Schedule"
               sortKey={headerKeys[2]}
               sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
-            <IndexList.HeaderCell
-              columnName="Last Completed"
-              width="10%"
+            <ResourceList.Sorter
+              name="Last Completed"
               sortKey={headerKeys[4]}
               sort={sortKey === headerKeys[4] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
-            <IndexList.HeaderCell columnName="" width="10%" />
-          </IndexList.Header>
-          <IndexList.Body
+          </ResourceList.Header>
+          <ResourceList.Body
             emptyState={
               <EmptyTasksList
                 searchTerm={searchTerm}
@@ -117,11 +112,10 @@ export default class TasksList extends PureComponent<Props, State> {
                 totalCount={totalCount}
               />
             }
-            columnCount={6}
           >
-            {this.sortedRows}
-          </IndexList.Body>
-        </IndexList>
+            {this.sortedCards}
+          </ResourceList.Body>
+        </ResourceList>
         {this.renderLabelEditorOverlay}
       </>
     )
@@ -131,7 +125,7 @@ export default class TasksList extends PureComponent<Props, State> {
     this.setState({sortKey, sortDirection: nextSort})
   }
 
-  private rows = (tasks: Task[]): JSX.Element => {
+  private cards = (tasks: Task[]): JSX.Element => {
     const {
       onActivate,
       onDelete,
@@ -141,10 +135,10 @@ export default class TasksList extends PureComponent<Props, State> {
       onRunTask,
       onFilterChange,
     } = this.props
-    const taskrows = (
+    const taskCards = (
       <>
         {tasks.map(t => (
-          <TaskRow
+          <TaskCard
             key={`task-id--${t.id}`}
             task={t}
             onActivate={onActivate}
@@ -159,10 +153,10 @@ export default class TasksList extends PureComponent<Props, State> {
         ))}
       </>
     )
-    return taskrows
+    return taskCards
   }
 
-  private get sortedRows(): JSX.Element {
+  private get sortedCards(): JSX.Element {
     const {tasks} = this.props
     const {sortKey, sortDirection} = this.state
 
@@ -173,7 +167,7 @@ export default class TasksList extends PureComponent<Props, State> {
           sortKey={sortKey}
           direction={sortDirection}
         >
-          {this.rows}
+          {this.cards}
         </SortingHat>
       )
     }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -23,18 +24,20 @@ func (p IndexFiles) IDs() []int {
 	return a
 }
 
-// Retain adds a reference count to all files.
-func (p IndexFiles) Retain() {
+// Acquire acquires a reference to each file in the index files.
+func (p IndexFiles) Acquire() (lifecycle.References, error) {
+	refs := make(lifecycle.References, 0, len(p))
 	for _, f := range p {
-		f.Retain()
+		ref, err := f.Acquire()
+		if err != nil {
+			for _, ref := range refs {
+				ref.Release()
+			}
+			return nil, err
+		}
+		refs = append(refs, ref)
 	}
-}
-
-// Release removes a reference count from all files.
-func (p IndexFiles) Release() {
-	for _, f := range p {
-		f.Release()
-	}
+	return refs, nil
 }
 
 // Files returns p as a list of File objects.

@@ -2,6 +2,7 @@ package tsdb_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -243,7 +244,7 @@ func NewSeriesFile() *SeriesFile {
 func MustOpenSeriesFile() *SeriesFile {
 	f := NewSeriesFile()
 	f.Logger = logger.New(os.Stdout)
-	if err := f.Open(); err != nil {
+	if err := f.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return f
@@ -261,7 +262,7 @@ func (f *SeriesFile) Reopen() error {
 		return err
 	}
 	f.SeriesFile = tsdb.NewSeriesFile(f.SeriesFile.Path())
-	return f.SeriesFile.Open()
+	return f.SeriesFile.Open(context.Background())
 }
 
 // ForceCompact executes an immediate compaction across all partitions.

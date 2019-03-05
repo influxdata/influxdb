@@ -10,11 +10,7 @@ import VariablesToolbar from 'src/timeMachine/components/variableToolbar/Variabl
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
 
 // Actions
-import {
-  setActiveQueryText,
-  submitScript,
-  setActiveQueryEdited,
-} from 'src/timeMachine/actions'
+import {setActiveQueryText, submitScript} from 'src/timeMachine/actions'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
@@ -27,6 +23,7 @@ import {AppState} from 'src/types/v2'
 
 // Styles
 import 'src/timeMachine/components/TimeMachineFluxEditor.scss'
+import FeatureFlag from 'src/shared/components/FeatureFlag'
 
 interface StateProps {
   activeQueryText: string
@@ -35,7 +32,6 @@ interface StateProps {
 interface DispatchProps {
   onSetActiveQueryText: typeof setActiveQueryText
   onSubmitScript: typeof submitScript
-  onSetActiveQueryEdited: typeof setActiveQueryEdited
 }
 
 interface State {
@@ -45,24 +41,12 @@ interface State {
 type Props = StateProps & DispatchProps
 
 class TimeMachineFluxEditor extends PureComponent<Props, State> {
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {
-      displayFluxFunctions: true,
-    }
-  }
-
-  public componentDidMount() {
-    this.props.onSetActiveQueryEdited(false)
-  }
-
-  public componentWillUnmount() {
-    this.props.onSetActiveQueryEdited(false)
+  public state: State = {
+    displayFluxFunctions: true,
   }
 
   public render() {
-    const {activeQueryText, onSubmitScript} = this.props
+    const {activeQueryText, onSubmitScript, onSetActiveQueryText} = this.props
 
     const divisions = [
       {
@@ -72,7 +56,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           <FluxEditor
             script={activeQueryText}
             status={{type: '', text: ''}}
-            onChangeScript={this.handleChangeScript}
+            onChangeScript={onSetActiveQueryText}
             onSubmitScript={onSubmitScript}
             suggestions={[]}
           />
@@ -83,11 +67,13 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           return (
             <>
               <div className="toolbar-tab-container">
-                <ToolbarTab
-                  onSetActive={this.hideFluxFunctions}
-                  name="Variables"
-                  active={!this.state.displayFluxFunctions}
-                />
+                <FeatureFlag>
+                  <ToolbarTab
+                    onSetActive={this.hideFluxFunctions}
+                    name="Variables"
+                    active={!this.state.displayFluxFunctions}
+                  />
+                </FeatureFlag>
                 <ToolbarTab
                   onSetActive={this.showFluxFunctions}
                   name="Functions"
@@ -109,13 +95,6 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
         <Threesizer orientation={HANDLE_VERTICAL} divisions={divisions} />
       </div>
     )
-  }
-
-  private handleChangeScript = (script: string) => {
-    const {onSetActiveQueryText} = this.props
-    onSetActiveQueryText(script)
-
-    this.props.onSetActiveQueryEdited(true)
   }
 
   private get rightDivision(): JSX.Element {
@@ -146,7 +125,6 @@ const mstp = (state: AppState) => {
 const mdtp = {
   onSetActiveQueryText: setActiveQueryText,
   onSubmitScript: submitScript,
-  onSetActiveQueryEdited: setActiveQueryEdited,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

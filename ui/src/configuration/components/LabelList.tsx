@@ -7,7 +7,7 @@ import UpdateLabelOverlay from 'src/configuration/components/UpdateLabelOverlay'
 import LabelRow from 'src/configuration/components/LabelRow'
 
 // Utils
-import {validateLabelName} from 'src/configuration/utils/labels'
+import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Types
 import {LabelType} from 'src/clockface'
@@ -19,7 +19,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   labels: LabelType[]
   emptyState: JSX.Element
-  onUpdateLabel: (label: LabelType) => Promise<void>
+  onUpdateLabel: (label: LabelType) => void
 }
 
 interface State {
@@ -95,8 +95,9 @@ export default class LabelList extends PureComponent<Props, State> {
 
   private handleNameValidation = (name: string): string | null => {
     const {labels} = this.props
-    const {labelID} = this.state
 
-    return validateLabelName(labels, name, labelID)
+    const names = labels.map(label => label.name)
+
+    return validateLabelUniqueness(names, name)
   }
 }

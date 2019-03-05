@@ -18,6 +18,13 @@ const defaultSuccessNotification: NotificationExcludingMessage = {
   duration: FIVE_SECONDS,
 }
 
+export const cantImportInvalidResource = (
+  resourceName: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Invalid JSON, could not create ${resourceName}`,
+})
+
 export const taskNotCreated = (additionalMessage: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to create new task: ${additionalMessage}`,
@@ -74,13 +81,13 @@ export const taskUpdateSuccess = (): Notification => ({
 export const taskImportFailed = (errorMessage: string): Notification => ({
   ...defaultErrorNotification,
   duration: INFINITE,
-  message: `Failed to import Task from file. ${errorMessage}.`,
+  message: `Failed to import Task: ${errorMessage}.`,
 })
 
 export const taskImportSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   duration: FIVE_SECONDS,
-  message: `Successfully imported task from file.`,
+  message: `Successfully imported task.`,
 })
 
 export const taskRunSuccess = (): Notification => ({

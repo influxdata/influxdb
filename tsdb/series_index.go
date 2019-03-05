@@ -125,6 +125,7 @@ func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 	options := rhh.DefaultOptions
 	options.Metrics = idx.rhhMetrics
 	options.Labels = idx.rhhLabels
+	options.MetricsEnabled = idx.rhhMetricsEnabled
 
 	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)

@@ -205,7 +205,7 @@ func TestEngine_OpenClose(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := engine.Open(); err != nil {
+	if err := engine.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -239,7 +239,7 @@ func TestEngineClose_RemoveIndex(t *testing.T) {
 
 	// ensure the index gets loaded after closing and opening the shard
 	engine.Engine.Close() // Don't destroy temporary data.
-	engine.Open()
+	engine.Open(context.Background())
 
 	if got, exp := engine.SeriesCardinality(), int64(1); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
@@ -347,7 +347,7 @@ func NewDefaultEngine() *Engine {
 
 // MustOpen opens the engine or panicks.
 func (e *Engine) MustOpen() {
-	if err := e.Engine.Open(); err != nil {
+	if err := e.Engine.Open(context.Background()); err != nil {
 		panic(err)
 	}
 }

@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -16,13 +17,13 @@ func TestLegacyOpen(t *testing.T) {
 	os.RemoveAll(dir)
 
 	sfile := tsdb.NewSeriesFile(dir)
-	if err := sfile.Open(); err != nil {
+	if err := sfile.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer sfile.Close()
 
 	index := NewIndex(sfile, NewConfig(), WithPath("testdata/index-file-index"))
-	if err := index.Open(); err != nil {
+	if err := index.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer index.Close()

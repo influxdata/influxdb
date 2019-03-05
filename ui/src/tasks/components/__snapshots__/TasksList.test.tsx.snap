@@ -2,56 +2,40 @@
 
 exports[`TasksList rendering renders 1`] = `
 <Fragment>
-  <IndexList>
-    <IndexListHeader>
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Name"
+  <ResourceList>
+    <ResourceListHeader>
+      <ResourceListSorter
+        name="Name"
         onClick={[Function]}
         sort="none"
         sortKey="name"
-        width="45%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Owner"
+      <ResourceListSorter
+        name="Owner"
         onClick={[Function]}
         sort="none"
         sortKey="organization.name"
-        width="15%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Active"
+      <ResourceListSorter
+        name="Active"
         onClick={[Function]}
         sort="none"
         sortKey="status"
-        width="5%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Schedule"
+      <ResourceListSorter
+        name="Schedule"
         onClick={[Function]}
         sort="none"
         sortKey="every"
-        width="15%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Last Completed"
+      <ResourceListSorter
+        name="Last Completed"
         onClick={[Function]}
         sort="none"
         sortKey="latestCompleted"
-        width="10%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName=""
-        width="10%"
-      />
-    </IndexListHeader>
-    <IndexListBody
-      columnCount={6}
+    </ResourceListHeader>
+    <ResourceListBody
       emptyState={
         <EmptyTasksLists
           onCreate={[Function]}
@@ -134,8 +118,8 @@ from(bucket: \\"inbucket\\")
       >
         <Component />
       </SortingHat>
-    </IndexListBody>
-  </IndexList>
+    </ResourceListBody>
+  </ResourceList>
   <OverlayTechnology
     visible={false}
   >

@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Components
-import CopyText from 'src/shared/components/CopyText'
+import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 // Types
 import {NotificationAction} from 'src/types'
@@ -45,13 +45,13 @@ class TelegrafInstructions extends PureComponent<Props> {
           copy the following command to your terminal window to set an
           environment variable with your token.
         </p>
-        <CopyText copyText={exportToken} notify={notify} />
+        <CodeSnippet copyText={exportToken} notify={notify} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>
           Finally, you can run the following command the start Telegraf agent
           running on your machine.
         </p>
-        <CopyText copyText={configScript} notify={notify} />
+        <CodeSnippet copyText={configScript} notify={notify} label="CLI" />
       </div>
     )
   }

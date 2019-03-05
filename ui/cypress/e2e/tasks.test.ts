@@ -31,27 +31,65 @@ describe('Tasks', () => {
 
     cy.contains('Save').click()
 
-    cy.getByTestID('task-row')
+    cy.getByTestID('task-card')
       .should('have.length', 1)
       .and('contain', taskName)
   })
 
-  // TODO: wait on delete
   it.skip('can delete a task', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.createTask(id)
       cy.createTask(id)
     })
 
-    cy.getByTestID('task-row').should('have.length', 2)
+    cy.getByTestID('task-card').should('have.length', 2)
 
-    cy.getByTestID('confirmation-button')
+    cy.getByTestID('task-card')
       .first()
-      .click({force: true})
+      .trigger('mouseover')
+      .within(() => {
+        cy.getByTestID('context-delete-menu').click()
+
+        cy.getByTestID('context-delete-task').click()
+      })
 
     cy.wait(500)
 
-    cy.getByTestID('task-row').should('have.length', 1)
+    cy.getByTestID('task-card').should('have.length', 1)
+  })
+
+  it('can disable a task', () => {
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createTask(id)
+    })
+
+    cy.getByTestID('task-card--slide-toggle').should('have.class', 'active')
+
+    cy.getByTestID('task-card--slide-toggle').click()
+
+    cy.getByTestID('task-card--slide-toggle').should('not.have.class', 'active')
+  })
+
+  it('can edit a tasks name', () => {
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createTask(id)
+    })
+
+    const newName = '🅱️ask'
+
+    cy.getByTestID('task-card').within(() => {
+      cy.getByTestID('task-card--name').trigger('mouseover')
+
+      cy.getByTestID('task-card--name-button').click()
+
+      cy.get('.input-field')
+        .type(newName)
+        .type('{enter}')
+    })
+
+    cy.visit('/tasks')
+
+    cy.getByTestID('task-card').should('contain', newName)
   })
 
   it('fails to create a task without a valid script', () => {
@@ -88,11 +126,11 @@ describe('Tasks', () => {
 
       cy.visit('/tasks')
 
-      cy.getByTestID('task-row').should('have.length', 2)
+      cy.getByTestID('task-card').should('have.length', 2)
 
       cy.getByTestID(`label--pill ${newLabelName}`).click()
 
-      cy.getByTestID('task-row').should('have.length', 1)
+      cy.getByTestID('task-card').should('have.length', 1)
     })
   })
 
@@ -108,7 +146,7 @@ describe('Tasks', () => {
 
       cy.getByTestID('search-widget').type('bEE')
 
-      cy.getByTestID('task-row').should('have.length', 1)
+      cy.getByTestID('task-card').should('have.length', 1)
     })
   })
 })

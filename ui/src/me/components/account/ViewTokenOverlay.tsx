@@ -7,7 +7,7 @@ import PermissionsWidget, {
   PermissionsWidgetMode,
   PermissionsWidgetSelection,
 } from 'src/shared/components/permissionsWidget/PermissionsWidget'
-import CopyText from 'src/shared/components/CopyText'
+import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 // Types
 import {Authorization, Permission} from '@influxdata/influx'
@@ -43,7 +43,7 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
       <OverlayContainer>
         <OverlayHeading title={description} onDismiss={this.handleDismiss} />
         <OverlayBody>
-          <CopyText copyText={this.props.auth.token} notify={onNotify} />
+          <CodeSnippet copyText={this.props.auth.token} notify={onNotify} />
           <PermissionsWidget
             mode={PermissionsWidgetMode.Read}
             heightPixels={500}

@@ -44,8 +44,9 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -55,6 +56,11 @@ const (
 	BoltStore = "bolt"
 	// MemoryStore stores all REST resources in memory (useful for testing).
 	MemoryStore = "memory"
+
+	// LogTracing enables tracing via zap logs
+	LogTracing = "log"
+	// JaegerTracing enables tracing via the Jaeger client library
+	JaegerTracing = "jaeger"
 )
 
 // Launcher represents the main program execution.
@@ -68,6 +74,7 @@ type Launcher struct {
 	testing    bool
 
 	logLevel          string
+	tracingType       string
 	reportingDisabled bool
 
 	httpBindAddress string
@@ -90,8 +97,9 @@ type Launcher struct {
 	scheduler *taskbackend.TickScheduler
 	taskStore taskbackend.Store
 
-	logger *zap.Logger
-	reg    *prom.Registry
+	jaegerTracerCloser io.Closer
+	logger             *zap.Logger
+	reg                *prom.Registry
 
 	// BuildInfo contains commit, version and such of influxdb.
 	BuildInfo platform.BuildInfo
@@ -176,6 +184,12 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 
 	m.wg.Wait()
 
+	if m.jaegerTracerCloser != nil {
+		if err := m.jaegerTracerCloser.Close(); err != nil {
+			m.logger.Warn("failed to closer Jaeger tracer", zap.Error(err))
+		}
+	}
+
 	m.logger.Sync()
 }
 
@@ -198,6 +212,12 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 				Flag:    "log-level",
 				Default: "info",
 				Desc:    "supported log levels are debug, info, and error",
+			},
+			{
+				DestP:   &m.tracingType,
+				Flag:    "tracing-type",
+				Default: "",
+				Desc:    fmt.Sprintf("supported tracing types are %s, %s", LogTracing, JaegerTracing),
 			},
 			{
 				DestP:   &m.httpBindAddress,
@@ -261,6 +281,9 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 }
 
 func (m *Launcher) run(ctx context.Context) (err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Launcher.run")
+	defer span.Finish()
+
 	m.running = true
 	ctx, m.cancel = context.WithCancel(ctx)
 
@@ -285,11 +308,29 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		zap.String("build_date", m.BuildInfo.Date),
 	)
 
-	// set tracing
-	tracer := new(pzap.Tracer)
-	tracer.Logger = m.logger
-	tracer.IDGenerator = snowflake.NewIDGenerator()
-	opentracing.SetGlobalTracer(tracer)
+	switch m.tracingType {
+	case LogTracing:
+		m.logger.Info("tracing via zap logging")
+		tracer := new(pzap.Tracer)
+		tracer.Logger = m.logger
+		tracer.IDGenerator = snowflake.NewIDGenerator()
+		opentracing.SetGlobalTracer(tracer)
+
+	case JaegerTracing:
+		m.logger.Info("tracing via Jaeger")
+		cfg, err := jaegerconfig.FromEnv()
+		if err != nil {
+			m.logger.Warn("failed to get Jaeger client config from environment variables", zap.Error(err))
+			break
+		}
+		tracer, closer, err := cfg.NewTracer()
+		if err != nil {
+			m.logger.Warn("failed to instantiate Jaeger tracer", zap.Error(err))
+			break
+		}
+		opentracing.SetGlobalTracer(tracer)
+		m.jaegerTracerCloser = closer
+	}
 
 	m.boltClient = bolt.NewClient()
 	m.boltClient.Path = m.boltPath
@@ -403,7 +444,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.engine = storage.NewEngine(m.enginePath, storage.NewConfig(), storage.WithRetentionEnforcer(bucketSvc))
 		m.engine.WithLogger(m.logger)
 
-		if err := m.engine.Open(); err != nil {
+		if err := m.engine.Open(ctx); err != nil {
 			m.logger.Error("failed to open engine", zap.Error(err))
 			return err
 		}

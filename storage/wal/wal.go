@@ -2,8 +2,10 @@ package wal
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"io"
 	"math"
 	"os"
@@ -101,9 +103,7 @@ type WAL struct {
 	syncDelay time.Duration
 
 	// WALOutput is the writer used by the logger.
-	logger       *zap.Logger // Logger to be used for important messages
-	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
-	traceLogging bool
+	logger *zap.Logger // Logger to be used for important messages
 
 	// SegmentSize is the file size at which a segment file will be rotated
 	SegmentSize int
@@ -127,15 +127,6 @@ func NewWAL(path string) *WAL {
 		syncWaiters: make(chan chan error, 1024),
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
-		traceLogger: logger,
-	}
-}
-
-// EnableTraceLogging must be called before the WAL is opened.
-func (l *WAL) EnableTraceLogging(enabled bool) {
-	l.traceLogging = enabled
-	if enabled {
-		l.traceLogger = l.logger
 	}
 }
 
@@ -152,10 +143,6 @@ func (l *WAL) SetEnabled(enabled bool) {
 // WithLogger sets the WAL's logger.
 func (l *WAL) WithLogger(log *zap.Logger) {
 	l.logger = log.With(zap.String("service", "wal"))
-
-	if l.traceLogging {
-		l.traceLogger = l.logger
-	}
 }
 
 // SetDefaultMetricLabels sets the default labels for metrics on the engine.
@@ -175,13 +162,19 @@ func (l *WAL) Path() string {
 }
 
 // Open opens and initializes the Log. Open can recover from previous unclosed shutdowns.
-func (l *WAL) Open() error {
+func (l *WAL) Open(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	if !l.enabled {
 		return nil
 	}
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "WAL.Open")
+	defer span.Finish()
+
+	span.LogKV("segment_size", l.SegmentSize,
+		"path", l.path)
 
 	// Initialise metrics for trackers.
 	mmu.Lock()
@@ -192,9 +185,6 @@ func (l *WAL) Open() error {
 
 	// Set the shared metrics for the tracker
 	l.tracker = newWALTracker(wms, l.defaultMetricLabels)
-
-	l.traceLogger.Info("tsm1 WAL starting", zap.Int("segment_size", l.SegmentSize))
-	l.traceLogger.Info("tsm1 WAL writing", zap.String("path", l.path))
 
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
@@ -375,16 +365,19 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 }
 
 // Remove deletes the given segment file paths from disk and cleans up any associated objects.
-func (l *WAL) Remove(files []string) error {
+func (l *WAL) Remove(ctx context.Context, files []string) error {
 	if !l.enabled {
 		return nil
 	}
 
+	span, _ := opentracing.StartSpanFromContext(ctx, "WAL.Remove")
+	defer span.Finish()
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	for _, fn := range files {
-		l.traceLogger.Info("Removing WAL file", zap.String("path", fn))
+	for i, fn := range files {
+		span.LogKV(fmt.Sprintf("path-%d", i), fn)
 		os.RemoveAll(fn)
 	}
 
@@ -551,8 +544,12 @@ func (l *WAL) Close() error {
 	}
 
 	l.once.Do(func() {
+		span := opentracing.StartSpan("WAL.Close once.Do")
+		defer span.Finish()
+
+		span.LogKV("path", l.path)
+
 		// Close, but don't set to nil so future goroutines can still be signaled
-		l.traceLogger.Info("Closing WAL file", zap.String("path", l.path))
 		close(l.closing)
 
 		if l.currentSegmentWriter != nil {

@@ -173,7 +173,7 @@ export interface BinaryExpression extends BaseNode {
 
 export interface CallExpression extends BaseNode {
   callee: Expression
-  arguments: Expression[]
+  arguments?: Expression[]
   type: 'CallExpression'
 }
 

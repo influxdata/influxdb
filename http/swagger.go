@@ -1,6 +1,7 @@
 package http
 
-//go:generate env GO111MODULE=on go run github.com/kevinburke/go-bindata/go-bindata -o swagger_gen.go -tags assets -ignore go -nocompress -pkg http .
+// Only generate an asset for swagger.yml.
+//go:generate env GO111MODULE=on go run github.com/kevinburke/go-bindata/go-bindata -o swagger_gen.go -tags assets -nocompress -pkg http ./swagger.yml
 
 import (
 	"context"

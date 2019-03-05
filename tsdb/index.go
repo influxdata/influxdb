@@ -3,82 +3,11 @@ package tsdb
 import (
 	"bytes"
 	"fmt"
-	"sync"
 
-	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
-
-// SeriesElem represents a generic series element.
-type SeriesElem interface {
-	Name() []byte
-	Tags() models.Tags
-	Deleted() bool
-
-	// InfluxQL expression associated with series during filtering.
-	Expr() influxql.Expr
-}
-
-// SeriesIterator represents a iterator over a list of series.
-type SeriesIterator interface {
-	Close() error
-	Next() (SeriesElem, error)
-}
-
-// NewSeriesIteratorAdapter returns an adapter for converting series ids to series.
-func NewSeriesIteratorAdapter(sfile *SeriesFile, itr SeriesIDIterator) SeriesIterator {
-	return &seriesIteratorAdapter{
-		sfile: sfile,
-		itr:   itr,
-	}
-}
-
-type seriesIteratorAdapter struct {
-	sfile *SeriesFile
-	itr   SeriesIDIterator
-}
-
-func (itr *seriesIteratorAdapter) Close() error { return itr.itr.Close() }
-
-func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
-	for {
-		elem, err := itr.itr.Next()
-		if err != nil {
-			return nil, err
-		} else if elem.SeriesID.IsZero() {
-			return nil, nil
-		}
-
-		// Skip if this key has been tombstoned.
-		key := itr.sfile.SeriesKey(elem.SeriesID)
-		if len(key) == 0 {
-			continue
-		}
-
-		name, tags := ParseSeriesKey(key)
-		deleted := itr.sfile.IsDeleted(elem.SeriesID)
-
-		return &seriesElemAdapter{
-			name:    name,
-			tags:    tags,
-			deleted: deleted,
-			expr:    elem.Expr,
-		}, nil
-	}
-}
-
-type seriesElemAdapter struct {
-	name    []byte
-	tags    models.Tags
-	deleted bool
-	expr    influxql.Expr
-}
-
-func (e *seriesElemAdapter) Name() []byte        { return e.name }
-func (e *seriesElemAdapter) Tags() models.Tags   { return e.tags }
-func (e *seriesElemAdapter) Deleted() bool       { return e.deleted }
-func (e *seriesElemAdapter) Expr() influxql.Expr { return e.expr }
 
 // SeriesIDElem represents a single series and optional expression.
 type SeriesIDElem struct {
@@ -207,86 +136,31 @@ func (a SeriesIDIterators) Close() (err error) {
 	return err
 }
 
-// seriesQueryAdapterIterator adapts SeriesIDIterator to an influxql.Iterator.
-type seriesQueryAdapterIterator struct {
-	once  sync.Once
-	sfile *SeriesFile
-	itr   SeriesIDIterator
-	opt   query.IteratorOptions
-
-	point query.FloatPoint // reusable point
-}
-
-// NewSeriesQueryAdapterIterator returns a new instance of SeriesQueryAdapterIterator.
-func NewSeriesQueryAdapterIterator(sfile *SeriesFile, itr SeriesIDIterator, opt query.IteratorOptions) query.Iterator {
-	return &seriesQueryAdapterIterator{
-		sfile: sfile,
-		itr:   itr,
-		point: query.FloatPoint{
-			Aux: make([]interface{}, len(opt.Aux)),
-		},
-		opt: opt,
-	}
-}
-
-// Stats returns stats about the points processed.
-func (itr *seriesQueryAdapterIterator) Stats() query.IteratorStats { return query.IteratorStats{} }
-
-// Close closes the iterator.
-func (itr *seriesQueryAdapterIterator) Close() error {
-	itr.once.Do(func() {
-		itr.itr.Close()
-	})
-	return nil
-}
-
-// Next emits the next point in the iterator.
-func (itr *seriesQueryAdapterIterator) Next() (*query.FloatPoint, error) {
-	for {
-		// Read next series element.
-		e, err := itr.itr.Next()
-		if err != nil {
-			return nil, err
-		} else if e.SeriesID.IsZero() {
-			return nil, nil
-		}
-
-		// Skip if key has been tombstoned.
-		seriesKey := itr.sfile.SeriesKey(e.SeriesID)
-		if len(seriesKey) == 0 {
-			continue
-		}
-
-		// Convert to a key.
-		name, tags := ParseSeriesKey(seriesKey)
-		key := string(models.MakeKey(name, tags))
-
-		// Write auxiliary fields.
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = key
-			}
-		}
-		return &itr.point, nil
-	}
-}
-
 // filterUndeletedSeriesIDIterator returns all series which are not deleted.
 type filterUndeletedSeriesIDIterator struct {
-	sfile *SeriesFile
-	itr   SeriesIDIterator
+	sfile    *SeriesFile
+	sfileref *lifecycle.Reference
+	itr      SeriesIDIterator
 }
 
 // FilterUndeletedSeriesIDIterator returns an iterator which filters all deleted series.
-func FilterUndeletedSeriesIDIterator(sfile *SeriesFile, itr SeriesIDIterator) SeriesIDIterator {
+func FilterUndeletedSeriesIDIterator(sfile *SeriesFile, itr SeriesIDIterator) (SeriesIDIterator, error) {
 	if itr == nil {
-		return nil
+		return nil, nil
 	}
-	return &filterUndeletedSeriesIDIterator{sfile: sfile, itr: itr}
+	sfileref, err := sfile.Acquire()
+	if err != nil {
+		return nil, err
+	}
+	return &filterUndeletedSeriesIDIterator{
+		sfile:    sfile,
+		sfileref: sfileref,
+		itr:      itr,
+	}, nil
 }
 
-func (itr *filterUndeletedSeriesIDIterator) Close() error {
+func (itr *filterUndeletedSeriesIDIterator) Close() (err error) {
+	itr.sfileref.Release()
 	return itr.itr.Close()
 }
 
@@ -373,9 +247,8 @@ type seriesIDMergeIterator struct {
 	itrs []SeriesIDIterator
 }
 
-func (itr *seriesIDMergeIterator) Close() error {
-	SeriesIDIterators(itr.itrs).Close()
-	return nil
+func (itr *seriesIDMergeIterator) Close() (err error) {
+	return SeriesIDIterators(itr.itrs).Close()
 }
 
 // Next returns the element with the next lowest name/tags across the iterators.
@@ -836,11 +709,13 @@ type tagKeyMergeIterator struct {
 	itrs []TagKeyIterator
 }
 
-func (itr *tagKeyMergeIterator) Close() error {
+func (itr *tagKeyMergeIterator) Close() (err error) {
 	for i := range itr.itrs {
-		itr.itrs[i].Close()
+		if e := itr.itrs[i].Close(); e != nil && err == nil {
+			err = e
+		}
 	}
-	return nil
+	return err
 }
 
 // Next returns the element with the next lowest key across the iterators.
@@ -941,11 +816,13 @@ type tagValueMergeIterator struct {
 	itrs []TagValueIterator
 }
 
-func (itr *tagValueMergeIterator) Close() error {
+func (itr *tagValueMergeIterator) Close() (err error) {
 	for i := range itr.itrs {
-		itr.itrs[i].Close()
+		if e := itr.itrs[i].Close(); e != nil && err == nil {
+			err = e
+		}
 	}
-	return nil
+	return err
 }
 
 // Next returns the element with the next lowest value across the iterators.

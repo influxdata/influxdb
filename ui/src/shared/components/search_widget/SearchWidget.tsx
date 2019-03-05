@@ -22,7 +22,7 @@ interface State {
 @ErrorHandling
 class SearchWidget extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
-    widthPixels: 210,
+    widthPixels: 440,
     placeholderText: 'Search...',
     searchTerm: '',
   }

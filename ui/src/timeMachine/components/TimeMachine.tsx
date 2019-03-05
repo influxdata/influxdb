@@ -13,7 +13,7 @@ import ViewOptions from 'src/timeMachine/components/view_options/ViewOptions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {timeRangeVariables} from 'src/shared/utils/timeRangeVariables'
+import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 
 // Types
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
@@ -57,7 +57,7 @@ class TimeMachine extends Component<Props, State> {
             queries={queries}
             submitToken={submitToken}
             implicitSubmit={false}
-            variables={{...timeRangeVariables(timeRange)}}
+            variables={getTimeRangeVars(timeRange)}
           >
             {queriesState => (
               <DraggableResizer

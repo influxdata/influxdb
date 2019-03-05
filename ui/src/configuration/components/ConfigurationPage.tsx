@@ -4,13 +4,15 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Page} from 'src/pageLayout'
-import GetLabels from 'src/configuration/components/GetLabels'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Labels from 'src/configuration/components/Labels'
 import Settings from 'src/me/components/account/Settings'
 import Tokens from 'src/me/components/account/Tokens'
+import Buckets from 'src/configuration/components/Buckets'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -48,16 +50,18 @@ class ConfigurationPage extends Component<Props> {
                 url="labels_tab"
                 title="Labels"
               >
-                <GetLabels>
-                  {(labels, loading) => (
-                    <SpinnerContainer
-                      loading={loading}
-                      spinnerComponent={<TechnoSpinner />}
-                    >
-                      <Labels labels={labels} />
-                    </SpinnerContainer>
-                  )}
-                </GetLabels>
+                <GetResources resource={ResourceTypes.Labels}>
+                  <Labels />
+                </GetResources>
+              </TabbedPageSection>
+              <TabbedPageSection
+                id="buckets_tab"
+                url="buckets_tab"
+                title="Buckets"
+              >
+                <GetResources resource={ResourceTypes.Buckets}>
+                  <Buckets />
+                </GetResources>
               </TabbedPageSection>
               <TabbedPageSection
                 id="settings_tab"

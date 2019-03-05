@@ -10,7 +10,6 @@ import TimeMachineRefreshDropdown from 'src/timeMachine/components/RefreshDropdo
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import TimeMachineQueryTab from 'src/timeMachine/components/QueryTab'
 import TimeMachineQueryBuilder from 'src/timeMachine/components/QueryBuilder'
-import TimeMachineInfluxQLEditor from 'src/timeMachine/components/TimeMachineInfluxQLEditor'
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
 import {
   Button,
@@ -34,13 +33,7 @@ import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 import 'src/timeMachine/components/Queries.scss'
 
 // Types
-import {
-  AppState,
-  DashboardQuery,
-  InfluxLanguage,
-  QueryEditMode,
-  TimeRange,
-} from 'src/types/v2'
+import {AppState, DashboardQuery, QueryEditMode, TimeRange} from 'src/types/v2'
 import {DashboardDraftQuery} from 'src/types/v2/dashboards'
 import {QueriesState} from 'src/shared/components/TimeSeries'
 
@@ -125,10 +118,10 @@ class TimeMachineQueries extends PureComponent<Props> {
 
     if (activeQuery.editMode === QueryEditMode.Builder) {
       return <TimeMachineQueryBuilder />
-    } else if (activeQuery.type === InfluxLanguage.Flux) {
+    } else if (activeQuery.editMode === QueryEditMode.Advanced) {
       return <TimeMachineFluxEditor />
-    } else if (activeQuery.type === InfluxLanguage.InfluxQL) {
-      return <TimeMachineInfluxQLEditor />
+    } else {
+      return null
     }
   }
 
