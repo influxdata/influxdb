@@ -1,7 +1,10 @@
-import React, {SFC} from 'react'
+import React, {useRef, SFC} from 'react'
+import {createPortal} from 'react-dom'
 import {uniq, flatten} from 'lodash'
-import {HistogramTooltipProps} from 'src/minard'
+import {HistogramTooltipProps, useTooltipStyle} from 'src/minard'
 import {format} from 'd3-format'
+
+import {TOOLTIP_PORTAL_ID} from 'src/shared/components/TooltipPortal'
 
 import 'src/shared/components/HistogramTooltip.scss'
 
@@ -10,12 +13,16 @@ const formatSmall = format('.4~g')
 const formatBin = n => (n < 1 && n > -1 ? formatSmall(n) : formatLarge(n))
 
 const HistogramTooltip: SFC<HistogramTooltipProps> = ({xMin, xMax, counts}) => {
+  const tooltipEl = useRef<HTMLDivElement>(null)
+
+  useTooltipStyle(tooltipEl.current)
+
   const groupColNames = uniq(
     flatten(counts.map(({grouping}) => Object.keys(grouping)))
   ).sort()
 
-  return (
-    <div className="histogram-tooltip">
+  return createPortal(
+    <div className="histogram-tooltip" ref={tooltipEl}>
       <div className="histogram-tooltip--bin">
         {formatBin(xMin)} &ndash; {formatBin(xMax)}
       </div>
@@ -49,7 +56,8 @@ const HistogramTooltip: SFC<HistogramTooltipProps> = ({xMin, xMax, counts}) => {
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.querySelector(`#${TOOLTIP_PORTAL_ID}`)
   )
 }
 
