@@ -502,7 +502,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
   "startedAt": "2018-12-01T17:00:03.155645Z",
   "finishedAt": "2018-12-01T17:00:13.155645Z",
   "requestedAt": "2018-12-01T17:00:13Z",
-  "log": ""
+  "log": null
 }`,
 			},
 		},
@@ -614,7 +614,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
       "startedAt": "2018-12-01T17:00:03.155645Z",
       "finishedAt": "2018-12-01T17:00:13.155645Z",
       "requestedAt": "2018-12-01T17:00:13Z",
-      "log": ""
+      "log": null
     }
   ]
 }`,
@@ -1434,7 +1434,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 					t.Fatalf("expected run ID %v, got %v", runID, *f.Run)
 				}
 
-				line := platform.Log("a log line")
+				line := platform.Log{Time: "time", Message: "a log line"}
 				return []*platform.Log{&line}, 1, nil
 			},
 

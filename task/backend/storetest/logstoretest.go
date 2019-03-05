@@ -156,12 +156,11 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 		t.Fatal(err)
 	}
 
-	run.Log = platform.Log(fmt.Sprintf(
-		"%s: first\n%s: second\n%s: third",
-		sa.Add(time.Second).Format(time.RFC3339Nano),
-		sa.Add(2*time.Second).Format(time.RFC3339Nano),
-		sa.Add(3*time.Second).Format(time.RFC3339Nano),
-	))
+	run.Log = []platform.Log{
+		platform.Log{Time: sa.Add(time.Second).Format(time.RFC3339Nano), Message: "first"},
+		platform.Log{Time: sa.Add(2 * time.Second).Format(time.RFC3339Nano), Message: "second"},
+		platform.Log{Time: sa.Add(3 * time.Second).Format(time.RFC3339Nano), Message: "third"},
+	}
 	returnedRun, err := reader.FindRunByID(ctx, task.Org, run.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -333,7 +332,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		t.Fatalf("expected:\n%#v, got: \n%#v", run, *returnedRun)
 	}
 
-	returnedRun.Log = "cows"
+	returnedRun.Log = []platform.Log{platform.Log{Message: "cows"}}
 
 	rr2, err := reader.FindRunByID(ctx, task.Org, run.ID)
 	if err != nil {
@@ -404,8 +403,11 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	}
 
 	fmtTimelog := now.Add(time.Duration(targetRun-nRuns)*time.Second + 2*time.Millisecond).Format(time.RFC3339Nano)
-	if fmtTimelog+": log4" != string(logs[0]) {
-		t.Fatalf("expected: %q, got: %q", fmtTimelog+": log4", string(logs[0]))
+	if logs[0].Time != fmtTimelog {
+		t.Fatalf("expected: %q, got: %q", fmtTimelog, logs[0].Time)
+	}
+	if "log4" != logs[0].Message {
+		t.Fatalf("expected: %q, got: %q", "log4", logs[0].Message)
 	}
 
 	logs, err = reader.ListLogs(ctx, task.Org, platform.LogFilter{Task: task.ID})

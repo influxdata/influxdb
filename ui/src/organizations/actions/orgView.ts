@@ -1,5 +1,5 @@
-import {Task, Organization} from 'src/types/v2'
-import {ScraperTargetRequest} from '@influxdata/influx'
+import {Organization} from 'src/types/v2'
+import {ScraperTargetRequest, Task} from '@influxdata/influx'
 
 import {client} from 'src/utils/api'
 
@@ -22,10 +22,8 @@ export const populateTasks = (tasks: Task[]): PopulateTasks => ({
 
 export const getTasks = (org: Organization) => async dispatch => {
   const tasks = await client.tasks.getAllByOrg(org.name)
-  const organization = await client.organizations.get(org.id)
-  const tasksWithOrg = tasks.map(t => ({...t, organization})) as Task[]
-
-  dispatch(populateTasks(tasksWithOrg))
+  console.log(tasks)
+  dispatch(populateTasks(tasks))
 }
 
 export const createScraper = (scraper: ScraperTargetRequest) => async () => {

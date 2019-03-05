@@ -280,7 +280,7 @@ export const tasks: Task[] = [
     flux:
       'option task = {\n  name: "pasdlak",\n  cron: "2 0 * * *"\n}\nfrom(bucket: "inbucket") \n|> range(start: -1h)',
     cron: '2 0 * * *',
-    organization: orgs[0],
+    org: 'default',
     labels: [],
   },
   {
@@ -291,16 +291,7 @@ export const tasks: Task[] = [
     flux:
       'option task = {\n  name: "somename",\n  every: 1m,\n}\nfrom(bucket: "inbucket") \n|> range(start: -task.every)',
     every: '1m0s',
-    organization: {
-      links: {
-        buckets: '/api/v2/buckets?org=RadicalOrganization',
-        dashboards: '/api/v2/dashboards?org=RadicalOrganization',
-        self: '/api/v2/orgs/02ee9e2a29d73000',
-        tasks: '/api/v2/tasks?org=RadicalOrganization',
-      },
-      id: '02ee9e2a29d73000',
-      name: 'RadicalOrganization',
-    },
+    org: 'default',
     labels,
   },
 ]

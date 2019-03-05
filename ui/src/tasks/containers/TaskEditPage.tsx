@@ -22,14 +22,14 @@ import {
 } from 'src/tasks/actions/v2'
 
 // Types
-import {Organization} from '@influxdata/influx'
+import {Organization, Task} from '@influxdata/influx'
 import {State as TasksState} from 'src/tasks/reducers/v2'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {Task, Links} from 'src/types/v2'
+import {Links} from 'src/types/v2'
 
 interface PassedInProps {
   router: InjectedRouter

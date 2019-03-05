@@ -3,8 +3,8 @@ import {
   Telegraf,
   ScraperTargetResponse,
   Bucket,
+  Task,
 } from '@influxdata/influx'
-import {Task} from 'src/types/v2'
 import {Dashboard} from 'src/types'
 import {ActionTypes, Actions} from 'src/organizations/actions/orgView'
 

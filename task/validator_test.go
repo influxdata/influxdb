@@ -57,7 +57,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		Every: "1s",
 	}
 
-	log := influxdb.Log("howdy partner")
+	log := influxdb.Log{Message: "howdy partner"}
 
 	run := influxdb.Run{
 		ID:           runID,
@@ -66,7 +66,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		ScheduledFor: "a while ago",
 		StartedAt:    "not so long ago",
 		FinishedAt:   "more recently",
-		Log:          log,
+		Log:          []influxdb.Log{log},
 	}
 
 	return &mock.TaskService{
