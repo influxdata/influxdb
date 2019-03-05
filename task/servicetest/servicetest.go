@@ -787,7 +787,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		expLine1 := platform.Log(log1Time.Format(time.RFC3339Nano) + ": entry 1")
+		expLine1 := platform.Log{Time: log1Time.Format(time.RFC3339Nano), Message: "entry 1"}
 		exp := []platform.Log{expLine1}
 		if diff := cmp.Diff(logs, exp); diff != "" {
 			t.Fatalf("unexpected log: -got/+want: %s", diff)
@@ -807,7 +807,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		expLine2 := platform.Log(log2Time.Format(time.RFC3339Nano) + ": entry 2")
+		expLine2 := platform.Log{Time: log2Time.Format(time.RFC3339Nano), Message: "entry 2"}
 		exp = []platform.Log{expLine1, expLine2}
 		if diff := cmp.Diff(logs, exp); diff != "" {
 			t.Fatalf("unexpected log: -got/+want: %s", diff)

@@ -26,8 +26,8 @@ import {
 } from 'src/tasks/actions/v2'
 
 // Types
-import {Organization} from '@influxdata/influx'
-import {AppState, Task, TaskStatus} from 'src/types/v2'
+import {Organization, Task} from '@influxdata/influx'
+import {AppState, TaskStatus} from 'src/types/v2'
 import {client} from 'src/utils/api'
 
 interface PassedInProps {

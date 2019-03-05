@@ -223,7 +223,7 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(logs) != 1 {
-		t.Fatalf("expected 1 log for run, got %d", len(logs))
+	if len(logs) < 1 {
+		t.Fatalf("expected logs for run, got %d", len(logs))
 	}
 }

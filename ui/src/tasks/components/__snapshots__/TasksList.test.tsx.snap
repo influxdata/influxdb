@@ -58,17 +58,8 @@ from(bucket: \\"inbucket\\")
               "id": "02ef9deff2141000",
               "labels": Array [],
               "name": "pasdlak",
+              "org": "default",
               "orgID": "02ee9e2a29d73000",
-              "organization": Object {
-                "id": "02ee9e2a29d73000",
-                "links": Object {
-                  "buckets": "/api/v2/buckets?org=RadicalOrganization",
-                  "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
-                  "self": "/api/v2/orgs/02ee9e2a29d73000",
-                  "tasks": "/api/v2/tasks?org=RadicalOrganization",
-                },
-                "name": "RadicalOrganization",
-              },
               "status": "active",
             },
             Object {
@@ -99,17 +90,8 @@ from(bucket: \\"inbucket\\")
                 },
               ],
               "name": "somename",
+              "org": "default",
               "orgID": "02ee9e2a29d73000",
-              "organization": Object {
-                "id": "02ee9e2a29d73000",
-                "links": Object {
-                  "buckets": "/api/v2/buckets?org=RadicalOrganization",
-                  "dashboards": "/api/v2/dashboards?org=RadicalOrganization",
-                  "self": "/api/v2/orgs/02ee9e2a29d73000",
-                  "tasks": "/api/v2/tasks?org=RadicalOrganization",
-                },
-                "name": "RadicalOrganization",
-              },
               "status": "active",
             },
           ]

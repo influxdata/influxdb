@@ -24,7 +24,8 @@ import {
 } from 'src/shared/copy/v2/notifications'
 
 // Types
-import {AppState, Label, Task} from 'src/types/v2'
+import {AppState, Label} from 'src/types/v2'
+import {Task} from '@influxdata/influx'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -324,16 +325,12 @@ export const populateTasks = () => async (
 }
 
 export const selectTaskByID = (id: string, route?: string) => async (
-  dispatch,
-  getState: GetStateFunc
+  dispatch
 ): Promise<void> => {
   try {
-    const {orgs} = getState()
-
     const task = (await client.tasks.get(id)) as Task
-    const org = orgs.find(org => org.id === task.orgID)
 
-    return dispatch(setCurrentTask({...task, organization: org}))
+    return dispatch(setCurrentTask({...task}))
   } catch (e) {
     console.error(e)
     dispatch(goToTasks(route))
