@@ -126,7 +126,7 @@ class InlineLabelsEditor extends Component<Props, State> {
         className="label label--xs label--colorless"
         onClick={this.handleShowPopover}
       >
-        Add a label
+        <span className="label--name">Add a label</span>
       </div>
     )
   }
