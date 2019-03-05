@@ -1,18 +1,29 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {IconFont, ComponentColor} from '@influxdata/clockface'
-import {Label, ResourceList, Context} from 'src/clockface'
+import {ResourceList, Context} from 'src/clockface'
 import FeatureFlag from 'src/shared/components/FeatureFlag'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+
+// Actions
+import {createLabel} from 'src/labels/actions'
+import {
+  addDashboardLabelsAsync,
+  removeDashboardLabelsAsync,
+} from 'src/dashboards/actions/v2'
 
 // Types
-import {Dashboard, Organization} from 'src/types/v2'
+import {Organization} from 'src/types/v2'
+import {Dashboard, Label} from '@influxdata/influx'
+import {AppState} from 'src/types/v2'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 
-interface Props {
+interface PassedProps {
   dashboard: Dashboard
   orgs: Organization[]
   onDeleteDashboard: (dashboard: Dashboard) => void
@@ -24,9 +35,21 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-export default class DashboardCard extends PureComponent<Props> {
+interface StateProps {
+  labels: Label[]
+}
+
+interface DispatchProps {
+  createLabel: typeof createLabel
+  onAddDashboardLabels: typeof addDashboardLabelsAsync
+  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
+}
+
+type Props = PassedProps & DispatchProps & StateProps
+
+class DashboardCard extends PureComponent<Props> {
   public render() {
-    const {dashboard} = this.props
+    const {dashboard, onFilterChange, labels} = this.props
     const {id} = dashboard
 
     return (
@@ -51,7 +74,16 @@ export default class DashboardCard extends PureComponent<Props> {
             placeholder={`Describe ${dashboard.name}`}
           />
         )}
-        labels={() => this.labels}
+        labels={() => (
+          <InlineLabels
+            selectedLabels={dashboard.labels}
+            labels={labels}
+            onFilterChange={onFilterChange}
+            onAddLabel={this.handleAddLabel}
+            onRemoveLabel={this.handleRemoveLabel}
+            onCreateLabel={this.handleCreateLabel}
+          />
+        )}
         updatedAt={dashboard.meta.updatedAt}
         owner={this.ownerOrg}
         contextMenu={() => this.contextMenu}
@@ -108,53 +140,12 @@ export default class DashboardCard extends PureComponent<Props> {
     )
   }
 
-  private get labels(): JSX.Element {
-    const {dashboard} = this.props
-
-    if (!dashboard.labels.length) {
-      return (
-        <Label.Container
-          limitChildCount={4}
-          onEdit={this.handleEditLabels}
-          resourceName="this Dashboard"
-        />
-      )
-    }
-
-    return (
-      <Label.Container
-        limitChildCount={8}
-        onEdit={this.handleEditLabels}
-        resourceName="this Dashboard"
-      >
-        {dashboard.labels.map((label, index) => (
-          <Label
-            key={label.id || `label-${index}`}
-            id={label.id}
-            colorHex={label.properties.color}
-            name={label.name}
-            description={label.properties.description}
-            onClick={this.handleLabelClick}
-          />
-        ))}
-      </Label.Container>
-    )
-  }
-
-  private handleLabelClick = (id: string) => {
-    const label = this.props.dashboard.labels.find(l => l.id === id)
-
-    this.props.onFilterChange(label.name)
-  }
-
-  private handleEditLabels = () => {
-    const {dashboard, onEditLabels} = this.props
-    onEditLabels(dashboard)
-  }
-
   private get ownerOrg(): Organization {
-    const {dashboard, orgs} = this.props
-    return orgs.find(o => o.id === dashboard.orgID)
+    const {dashboard, orgs, showOwnerColumn} = this.props
+
+    if (showOwnerColumn) {
+      return orgs.find(o => o.id === dashboard.orgID)
+    }
   }
 
   private handleUpdateDescription = (description: string): void => {
@@ -163,4 +154,37 @@ export default class DashboardCard extends PureComponent<Props> {
 
     onUpdateDashboard(dashboard)
   }
+
+  private handleAddLabel = (label: Label): void => {
+    const {dashboard, onAddDashboardLabels} = this.props
+
+    onAddDashboardLabels(dashboard.id, [label])
+  }
+
+  private handleRemoveLabel = (label: Label): void => {
+    const {dashboard, onRemoveDashboardLabels} = this.props
+
+    onRemoveDashboardLabels(dashboard.id, [label])
+  }
+
+  private handleCreateLabel = (label: Label): void => {
+    console.log(label)
+  }
 }
+
+const mstp = ({labels}: AppState): StateProps => {
+  return {
+    labels: labels.list,
+  }
+}
+
+const mdtp: DispatchProps = {
+  onAddDashboardLabels: addDashboardLabelsAsync,
+  onRemoveDashboardLabels: removeDashboardLabelsAsync,
+  createLabel: createLabel,
+}
+
+export default connect<StateProps, DispatchProps, PassedProps>(
+  mstp,
+  mdtp
+)(DashboardCard)
