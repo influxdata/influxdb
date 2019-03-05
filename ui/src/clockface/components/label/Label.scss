@@ -13,7 +13,7 @@ $label-margin: 1px;
   user-select: none;
   transition: background-color 0.25s ease;
   white-space: nowrap;
-  
+
   > label {
     cursor: inherit;
     font-weight: 700;
@@ -22,7 +22,8 @@ $label-margin: 1px;
 }
 
 .label--clickable {
-  &, &:hover {
+  &,
+  &:hover {
     cursor: pointer;
   }
 }
@@ -53,10 +54,10 @@ $label-margin: 1px;
   width: 60%;
   height: $ix-border;
   border-radius: $ix-border / 2;
-  transform: translate(-50%,-50%) rotate(45deg);
+  transform: translate(-50%, -50%) rotate(45deg);
 
   &:nth-child(2) {
-    transform: translate(-50%,-50%) rotate(-45deg);
+    transform: translate(-50%, -50%) rotate(-45deg);
   }
 }
 
@@ -100,4 +101,20 @@ $label-margin: 1px;
 
 .label--lg {
   @include labelSizeModifier($form-lg-font, $form-lg-padding, $form-lg-height);
+}
+
+/*
+  Misc
+  ------------------------------------------------------------------------------
+*/
+
+.label--colorless {
+  font-weight: 600;
+  font-style: italic;
+
+  &,
+  &:hover {
+    background-color: $g5-pepper;
+    color: $g13-mist;
+  }
 }
