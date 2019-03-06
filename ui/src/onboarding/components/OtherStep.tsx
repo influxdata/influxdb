@@ -25,22 +25,20 @@ class OtherStep extends PureComponent<OnboardingStepProps, null> {
       <div className="onboarding-step">
         <h3 className="wizard-step--title">This is Another Step</h3>
         <h5 className="wizard-step--sub-title">Import data here</h5>
-        <div className="wizard--button-container">
-          <div className="wizard--button-bar">
-            <Button
-              color={ComponentColor.Default}
-              text="Back"
-              size={ComponentSize.Medium}
-              onClick={this.props.onDecrementCurrentStepIndex}
-            />
-            <Button
-              color={ComponentColor.Primary}
-              text="Next"
-              size={ComponentSize.Medium}
-              onClick={this.handleNext}
-              titleText={'Next'}
-            />
-          </div>
+        <div className="wizard--button-bar">
+          <Button
+            color={ComponentColor.Default}
+            text="Back"
+            size={ComponentSize.Medium}
+            onClick={this.props.onDecrementCurrentStepIndex}
+          />
+          <Button
+            color={ComponentColor.Primary}
+            text="Next"
+            size={ComponentSize.Medium}
+            onClick={this.handleNext}
+            titleText={'Next'}
+          />
         </div>
       </div>
     )

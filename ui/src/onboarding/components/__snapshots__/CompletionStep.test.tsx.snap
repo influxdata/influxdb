@@ -2,7 +2,7 @@
 
 exports[`Onboarding.Components.CompletionStep renders 1`] = `
 <div
-  className="onboarding-step buttonless"
+  className="onboarding-step"
 >
   <div
     className="wizard-step--scroll-area"
