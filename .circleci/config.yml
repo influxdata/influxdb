@@ -40,7 +40,7 @@ jobs:
       - store_artifacts:
           path: ~/project
       - store_test_results:
-          path: ~/project     
+          path: ~/project
 
   e2e:
     docker:
