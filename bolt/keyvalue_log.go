@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
-	"github.com/opentracing/opentracing-go"
+	"github.com/coreos/bbolt"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
@@ -114,7 +114,7 @@ func (c *Client) initializeKeyValueLog(ctx context.Context, tx *bolt.Tx) error {
 var errKeyValueLogBoundsNotFound = fmt.Errorf("oplog not found")
 
 func (c *Client) getKeyValueLogBounds(ctx context.Context, tx *bolt.Tx, key []byte) (*keyValueLogBounds, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "Client.getKeyValueLogBounds")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	k := encodeKeyValueIndexKey(key)
@@ -149,7 +149,7 @@ func (c *Client) putKeyValueLogBounds(ctx context.Context, tx *bolt.Tx, key []by
 }
 
 func (c *Client) updateKeyValueLogBounds(ctx context.Context, tx *bolt.Tx, k []byte, t time.Time) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.updateKeyValueLogBounds")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// retrieve the keyValue log boundaries

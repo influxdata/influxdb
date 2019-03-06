@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
@@ -282,7 +283,7 @@ func (m *Launcher) Run(ctx context.Context, args ...string) error {
 }
 
 func (m *Launcher) run(ctx context.Context) (err error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Launcher.run")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	m.running = true

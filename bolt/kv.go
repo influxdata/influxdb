@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
-	"github.com/opentracing/opentracing-go"
+	"github.com/coreos/bbolt"
 	"go.uber.org/zap"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"
 )
 
@@ -32,7 +32,7 @@ func NewKVStore(path string) *KVStore {
 
 // Open creates boltDB file it doesn't exists and opens it otherwise.
 func (s *KVStore) Open(ctx context.Context) error {
-	span, _ := opentracing.StartSpanFromContext(ctx, "KVStore.Open")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Ensure the required directory structure exists.
@@ -102,7 +102,7 @@ func (s *KVStore) WithDB(db *bolt.DB) {
 
 // View opens up a view transaction against the store.
 func (s *KVStore) View(ctx context.Context, fn func(tx kv.Tx) error) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "KVStore.View")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	return s.db.View(func(tx *bolt.Tx) error {
@@ -115,7 +115,7 @@ func (s *KVStore) View(ctx context.Context, fn func(tx kv.Tx) error) error {
 
 // Update opens up an update transaction against the store.
 func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "KVStore.Update")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	return s.db.Update(func(tx *bolt.Tx) error {

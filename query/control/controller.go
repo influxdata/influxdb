@@ -6,10 +6,10 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/control"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -30,7 +30,7 @@ func New(config control.Config) *Controller {
 
 // Query satisfies the AsyncQueryService while ensuring the request is propagated on the context.
 func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Controller.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Set the request on the context so platform specific Flux operations can retrieve it later.

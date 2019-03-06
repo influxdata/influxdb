@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/opentracing/opentracing-go"
-
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
@@ -132,7 +131,7 @@ func (s *Service) CreateUserResourceMapping(ctx context.Context, m *influxdb.Use
 }
 
 func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.createUserResourceMapping")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if err := s.uniqueUserResourceMapping(ctx, tx, m); err != nil {
@@ -167,7 +166,7 @@ func (s *Service) createUserResourceMapping(ctx context.Context, tx Tx, m *influ
 
 // This method creates the user/resource mappings for resources that belong to an organization.
 func (s *Service) createOrgDependentMappings(ctx context.Context, tx Tx, m *influxdb.UserResourceMapping) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.createOrgDependentMappings")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	bf := influxdb.BucketFilter{OrganizationID: &m.ResourceID}

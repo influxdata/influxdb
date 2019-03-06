@@ -60,9 +60,11 @@ func ExtractFromHTTPRequest(req *http.Request, handlerName string) (opentracing.
 // If this performance penalty is too much, try these, which are also demonstrated in benchmark tests:
 //  // Create a root span
 //  span := opentracing.StartSpan("operation name")
+//  ctx := opentracing.ContextWithSpan(context.Background(), span)
 //
 //  // Create a child span
 //  span := opentracing.StartSpan("operation name", opentracing.ChildOf(sc))
+//  ctx := opentracing.ContextWithSpan(context.Background(), span)
 //
 //  // Sugar to create a child span
 //  span, ctx := opentracing.StartSpanFromContext(ctx, "operation name")

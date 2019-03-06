@@ -11,8 +11,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/opentracing/opentracing-go"
-
 	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
@@ -50,7 +48,7 @@ func (r Response) MarshalJSON() ([]byte, error) {
 }
 
 func (c *Client) query(ctx context.Context, u *url.URL, q chronograf.Query) (chronograf.Response, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "Client.query")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u.Path = "query"
@@ -141,7 +139,7 @@ type result struct {
 // include both the database and retention policy. In-flight requests can be
 // cancelled using the provided context.
 func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Response, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	resps := make(chan (result))
@@ -160,7 +158,7 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 
 // Connect caches the URL and optional Bearer Authorization for the data source
 func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
-	span, _ := opentracing.StartSpanFromContext(ctx, "Client.Connect")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u, err := url.Parse(src.URL)
@@ -206,7 +204,7 @@ func (c *Client) Type(ctx context.Context) (string, error) {
 }
 
 func (c *Client) pingTimeout(ctx context.Context) (string, string, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.pingTimeout")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	resps := make(chan (pingResult))
@@ -230,7 +228,7 @@ type pingResult struct {
 }
 
 func (c *Client) ping(ctx context.Context, u *url.URL) (string, string, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "Client.ping")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u.Path = "ping"
@@ -280,7 +278,7 @@ func (c *Client) ping(ctx context.Context, u *url.URL) (string, string, error) {
 
 // Write POSTs line protocol to a database and retention policy
 func (c *Client) Write(ctx context.Context, points []chronograf.Point) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.Write")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	for _, point := range points {
@@ -292,7 +290,7 @@ func (c *Client) Write(ctx context.Context, points []chronograf.Point) error {
 }
 
 func (c *Client) writePoint(ctx context.Context, point *chronograf.Point) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.writePoint")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	lp, err := toLineProtocol(point)
@@ -327,7 +325,7 @@ func (c *Client) writePoint(ctx context.Context, point *chronograf.Point) error 
 }
 
 func (c *Client) write(ctx context.Context, u *url.URL, db, rp, lp string) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.write")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u.Path = "write"

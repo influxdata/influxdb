@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
-	"github.com/opentracing/opentracing-go"
-
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/coreos/bbolt"
+	"github.com/influxdata/influxdb"
 	influxdbcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
@@ -54,7 +53,7 @@ func (c *Client) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*inf
 }
 
 func (c *Client) findOrganizationByID(ctx context.Context, tx *bolt.Tx, id influxdb.ID) (*influxdb.Organization, *influxdb.Error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "Client.findOrganizationByID")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	encodedID, err := id.Encode()
@@ -100,7 +99,7 @@ func (c *Client) FindOrganizationByName(ctx context.Context, n string) (*influxd
 }
 
 func (c *Client) findOrganizationByName(ctx context.Context, tx *bolt.Tx, n string) (*influxdb.Organization, *influxdb.Error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Client.findOrganizationByName")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	o := tx.Bucket(organizationIndex).Get(organizationIndexKey(n))

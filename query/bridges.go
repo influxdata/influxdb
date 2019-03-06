@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/flux/csv"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
 )
 
 // QueryServiceBridge implements the QueryService interface while consuming the AsyncQueryService interface.
@@ -74,7 +73,7 @@ type ProxyQueryServiceAsyncBridge struct {
 }
 
 func (b ProxyQueryServiceAsyncBridge) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (flux.Statistics, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "ProxyQueryServiceBridge.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	q, err := b.AsyncQueryService.Query(ctx, &req.Request)

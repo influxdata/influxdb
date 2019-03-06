@@ -9,7 +9,6 @@ import (
 	"path"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
@@ -616,7 +615,7 @@ func (s *OrganizationService) FindOrganization(ctx context.Context, filter influ
 
 // FindOrganizations returns all organizations that match the filter via HTTP.
 func (s *OrganizationService) FindOrganizations(ctx context.Context, filter influxdb.OrganizationFilter, opt ...influxdb.FindOptions) ([]*influxdb.Organization, int, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "OrganizationService.FindOrganizations")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if filter.Name != nil {
@@ -689,7 +688,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 		}
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "OrganizationService.CreateOrganization")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if o.Name != "" {
@@ -740,7 +739,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 
 // UpdateOrganization updates the organization over HTTP.
 func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "OrganizationService.UpdateOrganization")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	span.LogKV("org-id", id)
@@ -787,7 +786,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 
 // DeleteOrganization removes organization id over HTTP.
 func (s *OrganizationService) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
-	span, _ := opentracing.StartSpanFromContext(ctx, "OrganizationService.DeleteOrganization")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u, err := newURL(s.Addr, organizationIDPath(id))

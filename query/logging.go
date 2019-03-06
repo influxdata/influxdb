@@ -8,7 +8,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/opentracing/opentracing-go"
 )
 
 // LoggingServiceBridge implements ProxyQueryService and logs the queries while consuming a QueryService interface.
@@ -19,7 +18,7 @@ type LoggingServiceBridge struct {
 
 // Query executes and logs the query.
 func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (stats flux.Statistics, err error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "LoggingServiceBridge.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var n int64
@@ -59,7 +58,7 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 	}
 	// The results iterator may have had an error independent of encoding errors.
 	if err = results.Err(); err != nil {
-		return n, tracing.LogError(span, err)
+		return stats, tracing.LogError(span, err)
 	}
 	return stats, nil
 }

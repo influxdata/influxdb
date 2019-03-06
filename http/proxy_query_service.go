@@ -14,7 +14,6 @@ import (
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -142,7 +141,7 @@ func (s *ProxyQueryService) Ping(ctx context.Context) error {
 }
 
 func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "ProxyQueryService.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	u, err := newURL(s.Addr, proxyQueryPath)
 	if err != nil {

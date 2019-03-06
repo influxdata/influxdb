@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/opentracing/opentracing-go"
 
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -39,7 +39,7 @@ func NewValidator(ts platform.TaskService, bs platform.BucketService) platform.T
 }
 
 func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.FindTaskByID")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Unauthenticated task lookup, to identify the task's organization.
@@ -61,7 +61,7 @@ func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID
 }
 
 func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.FindTasks")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// First, get the tasks in the organization, without authentication.
@@ -90,7 +90,7 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.T
 }
 
 func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskCreate) (*platform.Task, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.CreateTask")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, t.OrganizationID)
@@ -110,7 +110,7 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 }
 
 func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.UpdateTask")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Unauthenticated task lookup, to identify the task's organization.
@@ -136,7 +136,7 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, 
 }
 
 func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.DeleteTask")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Unauthenticated task lookup, to identify the task's organization.
@@ -158,7 +158,7 @@ func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) 
 }
 
 func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.FindLogs")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Look up the task first, through the validator, to ensure we have permission to view the task.
@@ -171,7 +171,7 @@ func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter platform.Lo
 }
 
 func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.FindRuns")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Look up the task first, through the validator, to ensure we have permission to view the task.
@@ -194,7 +194,7 @@ func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.Ru
 }
 
 func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.FindRunByID")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Unauthenticated task lookup, to identify the task's organization.
@@ -216,7 +216,7 @@ func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID p
 }
 
 func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.CancelRun")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Unauthenticated task lookup, to identify the task's organization.
@@ -238,7 +238,7 @@ func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID pla
 }
 
 func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.RetryRun")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Unauthenticated task lookup, to identify the task's organization.
@@ -260,7 +260,7 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID plat
 }
 
 func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "taskServiceValidator.ForceRun")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Unauthenticated task lookup, to identify the task's organization.
