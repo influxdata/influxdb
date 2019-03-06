@@ -1,5 +1,4 @@
 import _ from 'lodash'
-import {client} from 'src/utils/api'
 
 import {notify} from 'src/shared/actions/notifications'
 
@@ -10,12 +9,19 @@ import {
   importTaskFailed,
 } from 'src/shared/copy/notifications'
 
+// API
+import {client} from 'src/utils/api'
+
+// Actions
+import {UpdateTask} from 'src/tasks/actions/v2'
+
 export enum ActionTypes {
   GetTasks = 'GET_TASKS',
   PopulateTasks = 'POPULATE_TASKS',
+  UpdateTask = 'UPDATE_TASK',
 }
 
-export type Actions = PopulateTasks
+export type Actions = UpdateTask | PopulateTasks
 
 export interface PopulateTasks {
   type: ActionTypes.PopulateTasks
