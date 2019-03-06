@@ -71,12 +71,16 @@ func setupF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
-	err = writeTokenToPath(result.Auth.Token, defaultTokenPath())
+	dPath, dir, err := defaultTokenPath()
 	if err != nil {
-		return fmt.Errorf("failed to write token to path %q: %v", defaultTokenPath(), err)
+		return err
+	}
+	err = writeTokenToPath(result.Auth.Token, dPath, dir)
+	if err != nil {
+		return fmt.Errorf("failed to write token to path %q: %v", dPath, err)
 	}
 
-	fmt.Println(promptWithColor("Your token has been stored in "+defaultTokenPath()+".", colorCyan))
+	fmt.Println(promptWithColor("Your token has been stored in "+dPath+".", colorCyan))
 
 	w := internal.NewTabWriter(os.Stdout)
 	w.WriteHeaders(

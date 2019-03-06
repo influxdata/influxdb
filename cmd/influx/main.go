@@ -47,15 +47,19 @@ type Flags struct {
 
 var flags Flags
 
-func defaultTokenPath() string {
+func defaultTokenPath() (string, string, error) {
 	dir, err := fs.InfluxDir()
 	if err != nil {
-		return ""
+		return "", "", err
 	}
-	return filepath.Join(dir, "credentials")
+	return filepath.Join(dir, "credentials"), dir, nil
 }
 
-func getTokenFromPath(path string) (string, error) {
+func getTokenFromDefaultPath() (string, error) {
+	path, _, err := defaultTokenPath()
+	if err != nil {
+		return "", err
+	}
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -63,7 +67,10 @@ func getTokenFromPath(path string) (string, error) {
 	return string(b), nil
 }
 
-func writeTokenToPath(tok string, path string) error {
+func writeTokenToPath(tok, path, dir string) error {
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return err
+	}
 	return ioutil.WriteFile(path, []byte(tok), 0600)
 }
 
@@ -74,7 +81,7 @@ func init() {
 	viper.BindEnv("TOKEN")
 	if h := viper.GetString("TOKEN"); h != "" {
 		flags.token = h
-	} else if tok, err := getTokenFromPath(defaultTokenPath()); err == nil {
+	} else if tok, err := getTokenFromDefaultPath(); err == nil {
 		flags.token = tok
 	}
 
