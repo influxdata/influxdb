@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	proxyQueryPath    = "/api/v2/queryproxysvc"
+	proxyQueryPath    = "/queryproxysvc"
 	QueryStatsTrailer = "Influx-Query-Statistics"
 )
 

@@ -38,13 +38,9 @@ func (b QueryServiceProxyBridge) Query(ctx context.Context, req *Request) (flux.
 	statsChan := make(chan flux.Statistics, 1)
 
 	go func() {
-		var stats flux.Statistics
-		var err error
-		defer func() {
-			_ = w.CloseWithError(err)
-			statsChan <- stats
-		}()
-		stats, err = b.ProxyQueryService.Query(ctx, w, preq)
+		stats, err := b.ProxyQueryService.Query(ctx, w, preq)
+		_ = w.CloseWithError(err)
+		statsChan <- stats
 	}()
 
 	dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
