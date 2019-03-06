@@ -101,13 +101,7 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 	if _, err = io.Copy(w, resp.Body); err != nil {
 		return flux.Statistics{}, err
 	}
-
-	data := []byte(resp.Trailer.Get(platformhttp.QueryStatsTrailer))
-	var stats flux.Statistics
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return stats, err
-	}
-	return stats, nil
+	return flux.Statistics{}, nil
 }
 
 func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
@@ -162,11 +156,5 @@ func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, 
 	if _, err = csv.NewMultiResultEncoder(csvDialect.ResultEncoderConfig).Encode(w, influxql.NewResponseIterator(res)); err != nil {
 		return flux.Statistics{}, err
 	}
-
-	data := []byte(resp.Trailer.Get(platformhttp.QueryStatsTrailer))
-	var stats flux.Statistics
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return stats, err
-	}
-	return stats, nil
+	return flux.Statistics{}, nil
 }

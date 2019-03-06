@@ -99,13 +99,10 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, fmt.Errorf("unsupported dialect over HTTP %T", req.Dialect), w)
 		return
 	}
-
-	w.Header().Set("Trailer", QueryStatsTrailer)
 	hd.SetHeaders(w)
 
 	cw := iocounter.Writer{Writer: w}
-	stats, err := h.ProxyQueryService.Query(ctx, &cw, req)
-	if err != nil {
+	if _, err := h.ProxyQueryService.Query(ctx, &cw, req); err != nil {
 		if cw.Count() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
 			EncodeError(ctx, err, w)
@@ -113,20 +110,9 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		}
 		h.Logger.Info("Error writing response to client",
 			zap.String("handler", "flux"),
-			zap.Error(err))
-		return
+			zap.Error(err),
+		)
 	}
-
-	// Write statistics trailer
-	data, err := json.Marshal(stats)
-	if err != nil {
-		h.Logger.Info("Failed to encode statistics",
-			zap.String("handler", "flux"),
-			zap.Error(err))
-		return
-	}
-
-	w.Header().Set(QueryStatsTrailer, string(data))
 }
 
 type langRequest struct {
@@ -359,16 +345,10 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 		return flux.Statistics{}, err
 	}
 
-	if _, err = io.Copy(w, resp.Body); err != nil {
+	if _, err := io.Copy(w, resp.Body); err != nil {
 		return flux.Statistics{}, err
 	}
-
-	data := []byte(resp.Trailer.Get(QueryStatsTrailer))
-	var stats flux.Statistics
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return flux.Statistics{}, err
-	}
-	return stats, nil
+	return flux.Statistics{}, nil
 }
 
 var _ query.QueryService = (*FluxQueryService)(nil)

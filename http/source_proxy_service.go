@@ -61,17 +61,11 @@ func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, re
 		return flux.Statistics{}, err
 	}
 
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
+	if _, err = io.Copy(w, resp.Body); err != nil {
 		return flux.Statistics{}, err
 	}
 
-	data := []byte(resp.Trailer.Get("Influx-Query-Statistics"))
-	var stats flux.Statistics
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return stats, err
-	}
-	return stats, nil
+	return flux.Statistics{}, nil
 }
 
 func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
@@ -110,15 +104,9 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 		return flux.Statistics{}, err
 	}
 
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
+	if _, err = io.Copy(w, resp.Body); err != nil {
 		return flux.Statistics{}, err
 	}
 
-	data := []byte(resp.Trailer.Get(QueryStatsTrailer))
-	var stats flux.Statistics
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return stats, err
-	}
-	return stats, nil
+	return flux.Statistics{}, nil
 }

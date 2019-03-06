@@ -3,7 +3,6 @@ package http
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -44,10 +43,8 @@ func TestFluxService_Query(t *testing.T) {
 				Dialect: csv.DefaultDialect(),
 			},
 			status: http.StatusOK,
-			want: flux.Statistics{
-				ScannedValues: 100,
-			},
-			wantW: "howdy\n",
+			want:   flux.Statistics{},
+			wantW:  "howdy\n",
 		},
 		{
 			name:  "error status",
@@ -68,14 +65,8 @@ func TestFluxService_Query(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Trailer", QueryStatsTrailer)
 				w.WriteHeader(tt.status)
 				fmt.Fprintln(w, "howdy")
-				stats := flux.Statistics{
-					ScannedValues: 100,
-				}
-				data, _ := json.Marshal(&stats)
-				w.Header().Set(QueryStatsTrailer, string(data))
 			}))
 			defer ts.Close()
 			s := &FluxService{
