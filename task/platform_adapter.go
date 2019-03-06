@@ -207,10 +207,13 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 	}
 	req.Options = upd.Options
 
-	req.AuthorizationID, err = p.authorizationIDFromToken(ctx, upd.Token)
-	if err != nil {
-		return nil, err
+	if upd.Token != "" {
+		req.AuthorizationID, err = p.authorizationIDFromToken(ctx, upd.Token)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	res, err := p.s.UpdateTask(ctx, req)
 	if err != nil {
 		return nil, err
@@ -343,7 +346,7 @@ func (p pAdapter) authorizationIDFromToken(ctx context.Context, token string) (p
 	if token == "" {
 		// No explicit token. Use the authorization ID from the context's authorizer.
 		k := authorizer.Kind()
-		if k != platform.AuthorizationKind && k != platform.SessionAuthorizionKind {
+		if k != platform.AuthorizationKind {
 			return 0, fmt.Errorf("unable to create task using authorization of kind %s", k)
 		}
 

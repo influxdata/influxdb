@@ -2,7 +2,7 @@
 import React, {SFC} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import NavMenuSubItem from 'src/pageLayout/components/NavMenuSubItem'
@@ -17,7 +17,7 @@ interface Props {
   link: string
   children?: JSX.Element | JSX.Element[]
   location: string
-  highlightWhen: string[]
+  highlightPaths: string[]
 }
 
 const NavMenuItem: SFC<Props> = ({
@@ -26,10 +26,10 @@ const NavMenuItem: SFC<Props> = ({
   link,
   children,
   location,
-  highlightWhen,
+  highlightPaths,
 }) => {
-  const {length} = _.intersection(_.split(location, '/'), highlightWhen)
-  const isActive = !!length
+  const parentPath = get(location.split('/'), '1', '')
+  const isActive = highlightPaths.some(path => path === parentPath)
 
   return (
     <div

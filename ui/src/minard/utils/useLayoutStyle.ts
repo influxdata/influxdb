@@ -1,18 +1,18 @@
-import {useLayoutEffect, MutableRefObject, CSSProperties} from 'react'
+import {useLayoutEffect, CSSProperties} from 'react'
 
 export const useLayoutStyle = (
-  ref: MutableRefObject<HTMLElement>,
+  el: HTMLElement,
   f: (el: HTMLElement) => CSSProperties
 ) => {
   useLayoutEffect(() => {
-    if (!ref.current) {
+    if (!el) {
       return
     }
 
-    const style = f(ref.current)
+    const style = f(el)
 
     for (const [k, v] of Object.entries(style)) {
-      ref.current.style[k] = v
+      el.style[k] = v
     }
   })
 }

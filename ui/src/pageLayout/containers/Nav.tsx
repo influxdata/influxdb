@@ -40,13 +40,13 @@ class SideNav extends PureComponent<Props> {
           link="/me"
           icon={IconFont.CuboNav}
           location={location.pathname}
-          highlightWhen={['me', 'account']}
+          highlightPaths={['me', 'account']}
         >
           <NavMenu.SubItem
             title="Logout"
             link={`/logout`}
             location={location.pathname}
-            highlightWhen={[]}
+            highlightPaths={[]}
           />
         </NavMenu.Item>
         <NavMenu.Item
@@ -54,53 +54,53 @@ class SideNav extends PureComponent<Props> {
           link="/data-explorer"
           icon={IconFont.GraphLine}
           location={location.pathname}
-          highlightWhen={['data-explorer']}
+          highlightPaths={['data-explorer']}
         />
         <NavMenu.Item
           title="Dashboards"
           link="/dashboards"
           icon={IconFont.Dashboards}
           location={location.pathname}
-          highlightWhen={['dashboards']}
+          highlightPaths={['dashboards']}
         />
         <NavMenu.Item
           title="Tasks"
           link="/tasks"
           icon={IconFont.Calendar}
           location={location.pathname}
-          highlightWhen={['tasks']}
+          highlightPaths={['tasks']}
         />
         <NavMenu.Item
           title="Organizations"
           link="/organizations"
           icon={IconFont.UsersDuo}
           location={location.pathname}
-          highlightWhen={['organizations']}
+          highlightPaths={['organizations']}
         />
         <NavMenu.Item
           title="Configuration"
           link="/configuration/labels_tab"
           icon={IconFont.Wrench}
           location={location.pathname}
-          highlightWhen={['configuration']}
+          highlightPaths={['configuration']}
         >
           <NavMenu.SubItem
             title="Labels"
             link="/configuration/labels_tab"
             location={location.pathname}
-            highlightWhen={['labels']}
+            highlightPaths={['labels_tab']}
           />
           <NavMenu.SubItem
             title="Profile"
             link="/configuration/settings_tab"
             location={location.pathname}
-            highlightWhen={['settings_tab']}
+            highlightPaths={['settings_tab']}
           />
           <NavMenu.SubItem
             title="Tokens"
             link="/configuration/tokens_tab"
             location={location.pathname}
-            highlightWhen={['tokens_tab']}
+            highlightPaths={['tokens_tab']}
           />
         </NavMenu.Item>
       </NavMenu>

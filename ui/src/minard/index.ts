@@ -19,6 +19,8 @@ export {
   TooltipProps as HistogramTooltipProps,
 } from 'src/minard/components/Histogram'
 
+export {useTooltipStyle} from 'src/minard/utils/useTooltipStyle'
+
 export {isNumeric} from 'src/minard/utils/isNumeric'
 
 export type ColumnType = 'int' | 'uint' | 'float' | 'string' | 'time' | 'bool'
