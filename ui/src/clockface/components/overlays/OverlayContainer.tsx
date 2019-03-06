@@ -1,8 +1,10 @@
 import React, {Component, ReactNode, CSSProperties} from 'react'
+import classnames from 'classnames'
 
 interface Props {
   children: ReactNode
   maxWidth?: number
+  customClass?: string
 }
 
 class OverlayContainer extends Component<Props> {
@@ -11,11 +13,13 @@ class OverlayContainer extends Component<Props> {
   }
 
   public render() {
-    const {children} = this.props
+    const {children, customClass} = this.props
 
     return (
       <div
-        className="overlay--container"
+        className={classnames('overlay--container', {
+          [`${customClass}`]: customClass,
+        })}
         data-testid="overlay--container"
         style={this.style}
       >
