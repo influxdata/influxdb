@@ -7,6 +7,7 @@
 ### Bug Fixes
 
 1. [12302](https://github.com/influxdata/influxdb/pull/12302): Prevent clipping of code snippets in Firefox
+1. [12379](https://github.com/influxdata/influxdb/pull/12379): Prevent clipping of cell edit menus in dashboards
 
 ### UI Improvements
 
