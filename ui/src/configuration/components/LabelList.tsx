@@ -100,7 +100,7 @@ export default class LabelList extends PureComponent<Props, State> {
   private handleNameValidation = (name: string): string | null => {
     const {labels} = this.props
 
-    const names = labels.map(label => label.name)
+    const names = labels.map(label => label.name).filter(l => l !== name)
 
     return validateLabelUniqueness(names, name)
   }
