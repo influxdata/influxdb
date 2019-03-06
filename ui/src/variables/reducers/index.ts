@@ -3,12 +3,14 @@ import {produce} from 'immer'
 
 // Types
 import {RemoteDataState} from 'src/types'
+import {VariableValuesByID} from 'src/variables/types'
 import {Action} from 'src/variables/actions'
 import {Variable} from '@influxdata/influx'
 
 export const initialState = (): VariablesState => ({
   status: RemoteDataState.NotStarted,
   variables: {},
+  values: {},
 })
 
 export interface VariablesState {
@@ -17,6 +19,15 @@ export interface VariablesState {
     [variableID: string]: {
       status: RemoteDataState // Loading status of an individual variable
       variable: Variable
+    }
+  }
+  values: {
+    // Different variable values can be selected in different
+    // "contexts"---different parts of the app like a particular dashboard, or
+    // the Data Explorer
+    [contextID: string]: {
+      status: RemoteDataState
+      values: VariableValuesByID
     }
   }
 }
@@ -65,6 +76,18 @@ export const variablesReducer = (
         delete draftState.variables[id]
 
         return
+      }
+
+      case 'SET_VARIABLE_VALUES': {
+        const {contextID, status, values} = action.payload
+
+        if (values) {
+          draftState.values[contextID] = {status, values}
+        } else if (draftState.values[contextID]) {
+          draftState.values[contextID].status = status
+        } else {
+          draftState.values[contextID] = {status, values: null}
+        }
       }
     }
   })
