@@ -22,9 +22,7 @@ describe('Dashboards', () => {
 
     cy.visit('/dashboards')
 
-    cy.getByTestID('resource-card')
-      .its('length')
-      .should('be.eq', 1)
+    cy.getByTestID('resource-card').should('have.length', 1)
   })
 
   it('can create a dashboard from the header', () => {
@@ -36,64 +34,11 @@ describe('Dashboards', () => {
 
     cy.visit('/dashboards')
 
-    cy.getByTestID('resource-card')
-      .its('length')
-      .should('be.eq', 1)
+    cy.getByTestID('resource-card').should('have.length', 1)
   })
 
-  it.skip('can delete a dashboard', () => {
-    cy.get<Organization>('@org').then(({id}) => {
-      cy.createDashboard(id)
-      cy.createDashboard(id)
-    })
-
-    cy.getByTestID('resource-card')
-      .its('length')
-      .should('eq', 2)
-
-    cy.getByTestID('resource-card')
-      .first()
-      .trigger('mouseover')
-      .within(() => {
-        cy.getByTestID('context-delete-menu').click()
-
-        cy.getByTestID('context-delete-dashboard').click()
-      })
-
-    cy.getByTestID('resource-card')
-      .its('length')
-      .should('eq', 1)
-  })
-
-  it('can edit a dashboards name', () => {
-    cy.get<Organization>('@org').then(({id}) => {
-      cy.createDashboard(id)
-    })
-
-    const newName = 'new 🅱️ashboard'
-
-    cy.getByTestID('resource-card').within(() => {
-      cy.getByTestID('dashboard-card--name').trigger('mouseover')
-
-      cy.getByTestID('dashboard-card--name-button').click()
-
-      cy.get('.input-field')
-        .type(newName)
-        .type('{enter}')
-    })
-
-    cy.visit('/dashboards')
-
-    cy.getByTestID('resource-card').should('contain', newName)
-  })
-
-  describe('labeling', () => {
+  describe('Dashboard List', () => {
     beforeEach(() => {
-      cy.server()
-      cy.route('POST', 'http://localhost:9999/api/v2/dashboards').as(
-        'createDashboard'
-      )
-
       cy.get<Organization>('@org').then(({id}) => {
         cy.createDashboard(id).then(({body}) => {
           cy.createAndAddLabel('dashboards', body.id, newLabelName)
@@ -102,10 +47,49 @@ describe('Dashboards', () => {
         cy.createDashboard(id).then(({body}) => {
           cy.createAndAddLabel('dashboards', body.id, 'bar')
         })
-        cy.wait('@createDashboard')
       })
+
+      cy.visit('/dashboards')
     })
 
+    it('can delete a dashboard', () => {
+      cy.getByTestID('resource-card').should('have.length', 2)
+
+      cy.getByTestID('resource-card')
+        .first()
+        .trigger('mouseover')
+        .within(() => {
+          cy.getByTestID('context-delete-menu').click()
+          cy.getByTestID('context-delete-dashboard').click()
+        })
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+    })
+
+    for (let i = 0; i <= 200; i++) {
+      it.only('can edit a dashboards name', () => {
+        const newName = 'new 🅱️ashboard'
+
+        cy.getByTestID('resource-card').within(() => {
+          cy.getByTestID('dashboard-card--name')
+            .first()
+            .trigger('mouseover')
+
+          cy.getByTestID('dashboard-card--name-button')
+            .first()
+            .click()
+
+          cy.get('.input-field')
+            .type(newName)
+            .type('{enter}')
+        })
+
+        cy.getByTestID('resource-card').should('contain', newName)
+      })
+    }
+  })
+
+  describe('labeling', () => {
     it('can click to filter dashboard labels', () => {
       cy.getByTestID('resource-card').should('have.length', 2)
 
@@ -130,7 +114,7 @@ describe('Dashboards', () => {
         })
     })
 
-    it.only('can add an existing label to a dashboard', () => {
+    it('can add an existing label to a dashboard', () => {
       const labelName = 'swogglez'
 
       cy.createLabel(labelName).then(() => {
@@ -149,30 +133,16 @@ describe('Dashboards', () => {
 
   describe('searching', () => {
     it('can search dashboards by labels', () => {
-      const widgetSearch = 'searchME'
-
-      cy.get<Organization>('@org').then(({id}) => {
-        cy.createDashboard(id).then(({body}) => {
-          cy.createAndAddLabel('dashboards', body.id, widgetSearch)
-        })
-
-        cy.createDashboard(id).then(({body}) => {
-          cy.createAndAddLabel('dashboards', body.id, 'bar')
-        })
-      })
-
-      cy.visit('/dashboards')
-
       cy.getByTestID('resource-card').should('have.length', 2)
 
-      cy.getByTestID('search-widget').type(widgetSearch)
+      cy.getByTestID('search-widget').type(newLabelName)
 
       cy.getByTestID('resource-card').should('have.length', 1)
 
       cy.getByTestID('resource-card')
         .first()
         .get('.label')
-        .should('contain', widgetSearch)
+        .should('contain', newLabelName)
     })
 
     it('can search by clicking label', () => {
@@ -200,18 +170,10 @@ describe('Dashboards', () => {
     })
 
     it('can search by dashboard name', () => {
-      const searchName = 'beepBoop'
-      cy.get<Organization>('@org').then(({id}) => {
-        cy.createDashboard(id, searchName)
-        cy.createDashboard(id)
-      })
-
-      cy.visit('/dashboards')
-
       cy.getByTestID('search-widget').type('bEE')
 
       cy.getByTestID('resource-card').should('have.length', 1)
-      cy.getByTestID('dashboard-card--name').contains('span', searchName)
+      cy.getByTestID('dashboard-card--name').contains('span', 'beEE')
     })
   })
 })
