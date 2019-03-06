@@ -1,5 +1,6 @@
 // API
 import {client} from 'src/utils/api'
+import {hydrateVars} from 'src/variables/utils/hydrateVars'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -12,12 +13,17 @@ import {
   createVariableSuccess,
 } from 'src/shared/copy/notifications'
 
+// Utils
+import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
+
 // Types
 import {Dispatch} from 'redux-thunk'
 import {RemoteDataState} from 'src/types'
+import {GetState} from 'src/types/v2'
 import {Variable} from '@influxdata/influx'
+import {VariableValuesByID} from 'src/variables/types'
 
-export type Action = SetVariables | SetVariable | RemoveVariable
+export type Action = SetVariables | SetVariable | RemoveVariable | SetValues
 
 interface SetVariables {
   type: 'SET_VARIABLES'
@@ -61,6 +67,24 @@ interface RemoveVariable {
 const removeVariable = (id: string): RemoveVariable => ({
   type: 'REMOVE_VARIABLE',
   payload: {id},
+})
+
+interface SetValues {
+  type: 'SET_VARIABLE_VALUES'
+  payload: {
+    contextID: string
+    status: RemoteDataState
+    values?: VariableValuesByID
+  }
+}
+
+const setValues = (
+  contextID: string,
+  status: RemoteDataState,
+  values?: VariableValuesByID
+): SetValues => ({
+  type: 'SET_VARIABLE_VALUES',
+  payload: {contextID, status, values},
 })
 
 export const getVariables = () => async (dispatch: Dispatch<Action>) => {
@@ -138,5 +162,29 @@ export const deleteVariable = (id: string) => async (
     console.log(e)
     dispatch(setVariable(id, RemoteDataState.Done))
     dispatch(notify(deleteVariableFailed()))
+  }
+}
+
+export const refreshVariableValues = (
+  contextID: string,
+  orgID: string,
+  variables: Variable[]
+) => async (dispatch: Dispatch<Action>, getState: GetState): Promise<void> => {
+  dispatch(setValues(contextID, RemoteDataState.Loading))
+
+  try {
+    const url = getState().links.query.self
+    const selections = getValueSelections(getState(), contextID)
+    const allVariables = getVariablesForOrg(getState(), orgID)
+
+    const values = await hydrateVars(variables, allVariables, {
+      url,
+      orgID,
+      selections,
+    }).promise
+
+    dispatch(setValues(contextID, RemoteDataState.Done, values))
+  } catch (e) {
+    dispatch(setValues(contextID, RemoteDataState.Error))
   }
 }
