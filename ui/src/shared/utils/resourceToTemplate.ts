@@ -5,32 +5,35 @@ import {ITemplate, TemplateType} from '@influxdata/influx'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 
-const blankTemplate = {
+const blankTemplate = () => ({
   meta: {version: CURRENT_TEMPLATE_VERSION},
   content: {data: {}, included: []},
   labels: [],
-}
+})
 
-const blankTaskTemplate = {
-  ...blankTemplate,
-  meta: {
-    ...blankTemplate.meta,
-  },
-  content: {
-    ...blankTemplate.content,
-    data: {...blankTemplate.content.data, type: TemplateType.Task},
-  },
-  labels: [
-    ...blankTemplate.labels,
-    {
-      id: '1',
-      name: 'influx.task',
-      properties: {
-        color: 'ffb3b3',
-        description: 'This is a template for a task resource on influx 2.0',
-      },
+const blankTaskTemplate = () => {
+  const baseTemplate = blankTemplate()
+  return {
+    ...baseTemplate,
+    meta: {
+      ...baseTemplate.meta,
     },
-  ],
+    content: {
+      ...baseTemplate.content,
+      data: {...baseTemplate.content.data, type: TemplateType.Task},
+    },
+    labels: [
+      ...baseTemplate.labels,
+      {
+        id: '1',
+        name: 'influx.task',
+        properties: {
+          color: 'ffb3b3',
+          description: 'This is a template for a task resource on influx 2.0',
+        },
+      },
+    ],
+  }
 }
 
 export const labelToRelationship = (l: Label) => {
@@ -50,7 +53,7 @@ export const labelToIncluded = (l: Label) => {
 
 export const taskToTemplate = (
   task: Task,
-  baseTemplate = blankTaskTemplate
+  baseTemplate = blankTaskTemplate()
 ): ITemplate => {
   const taskName = _.get(task, 'name', '')
   const templateName = `${taskName}-Template`
