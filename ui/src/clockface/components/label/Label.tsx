@@ -14,7 +14,7 @@ import './Label.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-export interface LabelType {
+interface PassedProps {
   id: string
   name: string
   description: string
@@ -32,7 +32,7 @@ interface State {
   isMouseOver: boolean
 }
 
-type Props = LabelType & DefaultProps
+type Props = PassedProps & DefaultProps
 
 @ErrorHandling
 class Label extends Component<Props, State> {

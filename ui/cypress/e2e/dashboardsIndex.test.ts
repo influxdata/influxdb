@@ -1,5 +1,7 @@
 import {Organization} from '@influxdata/influx'
 
+const newLabelName = 'click-me'
+
 describe('Dashboards', () => {
   beforeEach(() => {
     cy.flush()
@@ -86,26 +88,62 @@ describe('Dashboards', () => {
   })
 
   describe('labeling', () => {
-    it('can click to filter dashboard labels', () => {
-      const newLabelName = 'click-me'
+    beforeEach(() => {
+      cy.server()
+      cy.route('POST', 'http://localhost:9999/api/v2/dashboards').as(
+        'createDashboard'
+      )
 
       cy.get<Organization>('@org').then(({id}) => {
         cy.createDashboard(id).then(({body}) => {
-          cy.createLabel('dashboards', body.id, newLabelName)
+          cy.createAndAddLabel('dashboards', body.id, newLabelName)
         })
 
         cy.createDashboard(id).then(({body}) => {
-          cy.createLabel('dashboards', body.id, 'bar')
+          cy.createAndAddLabel('dashboards', body.id, 'bar')
         })
+        cy.wait('@createDashboard')
       })
+    })
 
-      cy.visit('/dashboards')
-
+    it('can click to filter dashboard labels', () => {
       cy.getByTestID('resource-card').should('have.length', 2)
 
       cy.getByTestID(`label--pill ${newLabelName}`).click()
 
       cy.getByTestID('resource-card').should('have.length', 1)
+    })
+
+    it('can delete a label from a dashboard', () => {
+      cy.getByTestID('resource-card').should('have.length', 2)
+
+      cy.getByTestID('resource-card')
+        .first()
+        .within(() => {
+          cy.getByTestID(`label--pill ${newLabelName}`).should('have.length', 1)
+          cy.getByTestID(`label--pill--delete ${newLabelName}`).click({
+            force: true,
+          })
+
+          cy.getByTestID(`label--pill ${newLabelName}`).should('have.length', 0)
+          cy.getByTestID(`inline-labels--empty`).should('have.length', 1)
+        })
+    })
+
+    it.only('can add an existing label to a dashboard', () => {
+      const labelName = 'swogglez'
+
+      cy.createLabel(labelName).then(() => {
+        cy.getByTestID('resource-card').should('have.length', 2)
+
+        cy.getByTestID(`inline-labels--add`).click()
+        cy.getByTestID('inline-labels--popover').within(() => {
+          cy.getByTestID(`label--pill ${labelName}`).click()
+        })
+
+        cy.visit('/dashboards')
+        cy.getByTestID(`label--pill ${labelName}`).should('have.length', 1)
+      })
     })
   })
 
@@ -115,11 +153,11 @@ describe('Dashboards', () => {
 
       cy.get<Organization>('@org').then(({id}) => {
         cy.createDashboard(id).then(({body}) => {
-          cy.createLabel('dashboards', body.id, widgetSearch)
+          cy.createAndAddLabel('dashboards', body.id, widgetSearch)
         })
 
         cy.createDashboard(id).then(({body}) => {
-          cy.createLabel('dashboards', body.id, 'bar')
+          cy.createAndAddLabel('dashboards', body.id, 'bar')
         })
       })
 
@@ -142,11 +180,11 @@ describe('Dashboards', () => {
 
       cy.get<Organization>('@org').then(({id}) => {
         cy.createDashboard(id).then(({body}) => {
-          cy.createLabel('dashboards', body.id, clicked)
+          cy.createAndAddLabel('dashboards', body.id, clicked)
         })
 
         cy.createDashboard(id).then(({body}) => {
-          cy.createLabel('dashboards', body.id, 'bar')
+          cy.createAndAddLabel('dashboards', body.id, 'bar')
         })
       })
 

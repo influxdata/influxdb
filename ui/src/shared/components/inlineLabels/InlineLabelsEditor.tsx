@@ -65,13 +65,14 @@ class InlineLabelsEditor extends Component<Props, State> {
     return (
       <>
         <div className="inline-labels--editor">
-          <div className="inline-label--add">
+          <div className="inline-labels--add">
             <Button
               color={ComponentColor.Secondary}
               titleText="Add labels"
               onClick={this.handleShowPopover}
               shape={ButtonShape.Square}
               icon={IconFont.Plus}
+              testID="inline-labels--add"
             />
           </div>
           {this.popover}
@@ -122,6 +123,7 @@ class InlineLabelsEditor extends Component<Props, State> {
       <div
         className="label label--xs label--colorless"
         onClick={this.handleShowPopover}
+        data-testid="inline-labels--empty"
       >
         <span className="label--name">Add a label</span>
       </div>

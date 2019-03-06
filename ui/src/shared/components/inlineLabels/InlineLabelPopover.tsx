@@ -46,7 +46,10 @@ export default class InlineLabelPopover extends Component<Props> {
     } = this.props
     return (
       <ClickOutside onClickOutside={onDismiss}>
-        <div className="inline-labels--popover">
+        <div
+          className="inline-labels--popover"
+          data-testid="inline-labels--popover"
+        >
           <h5 className="inline-labels--popover-heading">Add Labels</h5>
           <Input
             icon={IconFont.Search}

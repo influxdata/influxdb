@@ -32,7 +32,7 @@ $inline-labels--margin: $ix-border / 2;
 $label-margin: 1px;
 $label-edit-button-diameter: 18px; // Should be the same as the height of labels
 
-.inline-label--add {
+.inline-labels--add {
   width: $label-edit-button-diameter;
   height: $label-edit-button-diameter;
   margin: $label-margin;
