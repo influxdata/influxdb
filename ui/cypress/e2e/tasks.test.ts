@@ -38,28 +38,26 @@ describe('Tasks', () => {
     })
   })
 
-  for (let i = 0; i <= 100; i++) {
-    it('can delete a task', () => {
-      cy.get<Organization>('@org').then(({id}) => {
-        cy.createTask(id)
-        cy.createTask(id)
+  it('can delete a task', () => {
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createTask(id)
+      cy.createTask(id)
 
-        cy.visit('/tasks')
+      cy.visit('/tasks')
 
-        cy.getByTestID('task-card').should('have.length', 2)
+      cy.getByTestID('task-card').should('have.length', 2)
 
-        cy.getByTestID('task-card')
-          .first()
-          .trigger('mouseover')
-          .within(() => {
-            cy.getByTestID('context-delete-menu').click()
-            cy.getByTestID('context-delete-task').click()
-          })
+      cy.getByTestID('task-card')
+        .first()
+        .trigger('mouseover')
+        .within(() => {
+          cy.getByTestID('context-delete-menu').click()
+          cy.getByTestID('context-delete-task').click()
+        })
 
-        cy.getByTestID('task-card').should('have.length', 1)
-      })
+      cy.getByTestID('task-card').should('have.length', 1)
     })
-  }
+  })
 
   it('can disable a task', () => {
     cy.get<Organization>('@org').then(({id}) => {
