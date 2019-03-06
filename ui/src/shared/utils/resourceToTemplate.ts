@@ -6,7 +6,7 @@ import {ITemplate, TemplateType} from '@influxdata/influx'
 const CURRENT_TEMPLATE_VERSION = '1'
 
 const blankTemplate = {
-  meta: {version: '0.1.0'},
+  meta: {version: CURRENT_TEMPLATE_VERSION},
   content: {data: {}, included: []},
   labels: [],
 }
