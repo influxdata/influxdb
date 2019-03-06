@@ -144,12 +144,19 @@ class Root extends PureComponent {
                             />
                           </Route>
                         </Route>
-                        <Route path="tasks">
-                          <IndexRoute component={TasksPage} />
-                          <Route path=":id/runs" component={TaskRunsPage} />
-                          <Route path="new" component={TaskPage} />
-                          <Route path=":id" component={TaskEditPage} />
+                        <Route path="tasks" component={TasksPage}>
+                          <Route
+                            path=":id/export"
+                            component={OrgTaskExportOverlay}
+                          />
+                          <Route
+                            path="import"
+                            component={OrgTaskImportOverlay}
+                          />
                         </Route>
+                        <Route path="tasks/:id/runs" component={TaskRunsPage} />
+                        <Route path="tasks/new" component={TaskPage} />
+                        <Route path="tasks/:id" component={TaskEditPage} />
                         <Route
                           path="data-explorer"
                           component={DataExplorerPage}

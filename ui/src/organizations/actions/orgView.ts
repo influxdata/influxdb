@@ -1,7 +1,14 @@
-import {Organization} from 'src/types/v2'
-import {ScraperTargetRequest, Task} from '@influxdata/influx'
-
+import _ from 'lodash'
 import {client} from 'src/utils/api'
+
+import {notify} from 'src/shared/actions/notifications'
+
+import {ScraperTargetRequest, Task, ITaskTemplate} from '@influxdata/influx'
+
+import {
+  importTaskSucceeded,
+  importTaskFailed,
+} from 'src/shared/copy/notifications'
 
 export enum ActionTypes {
   GetTasks = 'GET_TASKS',
@@ -20,12 +27,24 @@ export const populateTasks = (tasks: Task[]): PopulateTasks => ({
   payload: {tasks},
 })
 
-export const getTasks = (org: Organization) => async dispatch => {
-  const tasks = await client.tasks.getAllByOrg(org.name)
-  console.log(tasks)
+export const getTasks = (orgID: string) => async dispatch => {
+  const tasks = await client.tasks.getAllByOrgID(orgID)
   dispatch(populateTasks(tasks))
 }
 
 export const createScraper = (scraper: ScraperTargetRequest) => async () => {
   await client.scrapers.create(scraper)
+}
+
+export const createTaskFromTemplate = (
+  template: ITaskTemplate,
+  orgID: string
+) => async dispatch => {
+  try {
+    await client.tasks.createFromTemplate(template, orgID)
+
+    dispatch(notify(importTaskSucceeded()))
+  } catch (error) {
+    dispatch(notify(importTaskFailed(error)))
+  }
 }

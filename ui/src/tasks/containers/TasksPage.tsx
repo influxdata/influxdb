@@ -9,7 +9,6 @@ import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
 import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import ImportOverlay from 'src/shared/components/ImportOverlay'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 
@@ -33,11 +32,6 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
 import {allOrganizationsID} from 'src/tasks/constants'
-import {
-  taskImportFailed,
-  taskImportSuccess,
-  cantImportInvalidResource,
-} from 'src/shared/copy/v2/notifications'
 
 // Types
 import {Organization} from '@influxdata/influx'
@@ -116,7 +110,7 @@ class TasksPage extends PureComponent<Props, State> {
             setShowInactive={setShowInactive}
             showInactive={showInactive}
             filterComponent={() => this.search}
-            onImportTask={this.handleToggleImportOverlay}
+            onImportTask={this.summonOverlay}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
@@ -148,7 +142,7 @@ class TasksPage extends PureComponent<Props, State> {
             </div>
           </Page.Contents>
         </Page>
-        {this.importOverlay}
+        {this.props.children}
       </>
     )
   }
@@ -176,8 +170,10 @@ class TasksPage extends PureComponent<Props, State> {
     router.push('/tasks/new')
   }
 
-  private handleToggleImportOverlay = (): void => {
-    this.setState({isImporting: !this.state.isImporting})
+  private summonOverlay = (): void => {
+    const {router} = this.props
+
+    router.push('/tasks/import')
   }
 
   private get search(): JSX.Element {
@@ -190,35 +186,6 @@ class TasksPage extends PureComponent<Props, State> {
         searchTerm={searchTerm}
       />
     )
-  }
-
-  private get importOverlay(): JSX.Element {
-    const {isImporting} = this.state
-
-    return (
-      <ImportOverlay
-        isVisible={isImporting}
-        resourceName="Task"
-        onDismissOverlay={this.handleToggleImportOverlay}
-        onSubmit={this.importTask}
-      />
-    )
-  }
-
-  private importTask = (importString: string): void => {
-    const {notify, importTask} = this.props
-    try {
-      const resource = JSON.parse(importString)
-      if (_.isEmpty(resource)) {
-        notify(cantImportInvalidResource('Task'))
-        return
-      }
-      importTask(resource)
-      this.handleToggleImportOverlay()
-      notify(taskImportSuccess())
-    } catch (error) {
-      notify(taskImportFailed(error))
-    }
   }
 
   private get filteredTasks(): Task[] {

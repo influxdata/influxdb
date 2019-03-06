@@ -116,8 +116,12 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleExport = () => {
-    const {router, task} = this.props
-    router.push(`/organizations/${task.orgID}/tasks/${task.id}/export`)
+    const {
+      router,
+      task,
+      location: {pathname},
+    } = this.props
+    router.push(`${pathname}/${task.id}/export`)
   }
 
   private get labels(): JSX.Element {
