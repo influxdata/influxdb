@@ -20,7 +20,7 @@ interface Props extends WithRouterProps {
 }
 
 class OrgTaskExportOverlay extends PureComponent<Props, State> {
-  public state = {taskTemplate: null}
+  public state: State = {taskTemplate: null}
 
   public async componentDidMount() {
     const {
