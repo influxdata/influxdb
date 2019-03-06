@@ -1134,6 +1134,39 @@ func UpdateBucket(
 			},
 		},
 		{
+			name: "update name unique",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "bucket1",
+					},
+					{
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(bucketOneID),
+				name: "bucket2",
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EConflict,
+					Msg:  "bucket name is not unique",
+				},
+			},
+		},
+		{
 			name: "update retention",
 			fields: BucketFields{
 				Organizations: []*platform.Organization{
