@@ -67,6 +67,7 @@ export class Signin extends PureComponent<Props, State> {
 
   private checkForLogin = async () => {
     try {
+      this.setState({loading: RemoteDataState.Loading})
       await client.users.me()
       this.setState({loading: RemoteDataState.Done})
     } catch (error) {
