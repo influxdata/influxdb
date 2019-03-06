@@ -20,10 +20,10 @@ import {
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
   importTask,
+  addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
 } from 'src/tasks/actions/v2'
-import {addTaskLabelsAsync} from 'src/organizations/actions/orgView'
 
 // Types
 import {Organization, Task} from '@influxdata/influx'

@@ -1,9 +1,6 @@
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {Run, LogEvent} from '@influxdata/influx'
 
-// Utils
-import {addTaskLabels, removeTaskLabels} from 'src/tasks/reducers/v2/utils'
-
 //Types
 import {Action} from 'src/tasks/actions/v2'
 import {Task} from '@influxdata/influx'
@@ -103,14 +100,11 @@ export default (state: State = defaultState, action: Action): State => {
     case 'SET_DROPDOWN_ORG_ID':
       const {dropdownOrgID} = action.payload
       return {...state, dropdownOrgID}
-    case 'ADD_TASK_LABELS':
-      const {taskID, labels} = action.payload
+    case 'UPDATE_TASK': {
+      const {task} = action.payload
+      const tasks = state.tasks.map(t => (t.id === task.id ? task : t))
 
-      return {...state, tasks: addTaskLabels(state.tasks, taskID, labels)}
-    case 'REMOVE_TASK_LABELS': {
-      const {taskID, labels} = action.payload
-
-      return {...state, tasks: removeTaskLabels(state.tasks, taskID, labels)}
+      return {...state, tasks}
     }
     case 'SET_RUNS':
       const {runs, runStatus} = action.payload
