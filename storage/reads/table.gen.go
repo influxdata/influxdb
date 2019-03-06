@@ -27,6 +27,7 @@ type floatTable struct {
 	valBuf []float64
 	mu     sync.Mutex
 	cur    cursors.FloatArrayCursor
+	alloc  *memory.Allocator
 }
 
 func newFloatTable(
@@ -37,9 +38,10 @@ func newFloatTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *floatTable {
 	t := &floatTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -135,9 +137,10 @@ func newFloatGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *floatGroupTable {
 	t := &floatGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -253,6 +256,7 @@ type integerTable struct {
 	valBuf []int64
 	mu     sync.Mutex
 	cur    cursors.IntegerArrayCursor
+	alloc  *memory.Allocator
 }
 
 func newIntegerTable(
@@ -263,9 +267,10 @@ func newIntegerTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *integerTable {
 	t := &integerTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -361,9 +366,10 @@ func newIntegerGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *integerGroupTable {
 	t := &integerGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -479,6 +485,7 @@ type unsignedTable struct {
 	valBuf []uint64
 	mu     sync.Mutex
 	cur    cursors.UnsignedArrayCursor
+	alloc  *memory.Allocator
 }
 
 func newUnsignedTable(
@@ -489,9 +496,10 @@ func newUnsignedTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *unsignedTable {
 	t := &unsignedTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -587,9 +595,10 @@ func newUnsignedGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *unsignedGroupTable {
 	t := &unsignedGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -705,6 +714,7 @@ type stringTable struct {
 	valBuf []string
 	mu     sync.Mutex
 	cur    cursors.StringArrayCursor
+	alloc  *memory.Allocator
 }
 
 func newStringTable(
@@ -715,9 +725,10 @@ func newStringTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *stringTable {
 	t := &stringTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -813,9 +824,10 @@ func newStringGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *stringGroupTable {
 	t := &stringGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -931,6 +943,7 @@ type booleanTable struct {
 	valBuf []bool
 	mu     sync.Mutex
 	cur    cursors.BooleanArrayCursor
+	alloc  *memory.Allocator
 }
 
 func newBooleanTable(
@@ -941,9 +954,10 @@ func newBooleanTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *booleanTable {
 	t := &booleanTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -1039,9 +1053,10 @@ func newBooleanGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *booleanGroupTable {
 	t := &booleanGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}

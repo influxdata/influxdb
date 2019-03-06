@@ -140,50 +140,49 @@ func decodeLabelMappingKey(key []byte) (resourceID influxdb.ID, labelID influxdb
 	return resourceID, labelID, nil
 }
 
-func (s *Service) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+func (s *Service) findResourceLabels(ctx context.Context, tx Tx, filter influxdb.LabelMappingFilter, ls *[]*influxdb.Label) error {
 	if !filter.ResourceID.Valid() {
-		return nil, &influxdb.Error{Code: influxdb.EInvalid, Msg: "filter requires a valid resource id", Err: influxdb.ErrInvalidID}
+		return &influxdb.Error{Code: influxdb.EInvalid, Msg: "filter requires a valid resource id", Err: influxdb.ErrInvalidID}
+	}
+	idx, err := tx.Bucket(labelMappingBucket)
+	if err != nil {
+		return err
 	}
 
-	ls := []*influxdb.Label{}
-	err := s.kv.View(func(tx Tx) error {
-		idx, err := tx.Bucket(labelMappingBucket)
-		if err != nil {
-			return err
-		}
-
-		cur, err := idx.Cursor()
-		if err != nil {
-			return err
-		}
-
-		prefix, err := filter.ResourceID.Encode()
-		if err != nil {
-			return err
-		}
-
-		for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
-			_, id, err := decodeLabelMappingKey(k)
-			if err != nil {
-				return err
-			}
-
-			l, err := s.findLabelByID(ctx, tx, id)
-			if l == nil && err != nil {
-				// TODO(jm): return error instead of continuing once orphaned mappings are fixed
-				// (see https://github.com/influxdata/influxdb/issues/11278)
-				continue
-			}
-
-			ls = append(ls, l)
-		}
-		return nil
-	})
-
+	cur, err := idx.Cursor()
 	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
+		return err
+	}
+
+	prefix, err := filter.ResourceID.Encode()
+	if err != nil {
+		return err
+	}
+
+	for k, _ := cur.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = cur.Next() {
+		_, id, err := decodeLabelMappingKey(k)
+		if err != nil {
+			return err
 		}
+
+		l, err := s.findLabelByID(ctx, tx, id)
+		if l == nil && err != nil {
+			// TODO(jm): return error instead of continuing once orphaned mappings are fixed
+			// (see https://github.com/influxdata/influxdb/issues/11278)
+			continue
+		}
+
+		*ls = append(*ls, l)
+	}
+	return nil
+}
+
+func (s *Service) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+	ls := []*influxdb.Label{}
+	if err := s.kv.View(func(tx Tx) error {
+		return s.findResourceLabels(ctx, tx, filter, &ls)
+	}); err != nil {
+		return nil, err
 	}
 
 	return ls, nil
@@ -191,21 +190,19 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter influxdb.LabelM
 
 // CreateLabelMapping creates a new mapping between a resource and a label.
 func (s *Service) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	_, err := s.FindLabelByID(ctx, m.LabelID)
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
+	return s.kv.Update(func(tx Tx) error {
+		return s.createLabelMapping(ctx, tx, m)
+	})
+}
+
+// createLabelMapping creates a new mapping between a resource and a label.
+func (s *Service) createLabelMapping(ctx context.Context, tx Tx, m *influxdb.LabelMapping) error {
+	if _, err := s.findLabelByID(ctx, tx, m.LabelID); err != nil {
+		return err
 	}
 
-	err = s.kv.Update(func(tx Tx) error {
-		return s.putLabelMapping(ctx, tx, m)
-	})
-
-	if err != nil {
-		return &influxdb.Error{
-			Err: err,
-		}
+	if err := s.putLabelMapping(ctx, tx, m); err != nil {
+		return err
 	}
 
 	return nil

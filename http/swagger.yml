@@ -147,6 +147,113 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OnboardingResponse"
+  /documents/templates:
+    get:
+      tags:
+        - Templates
+      parameters:
+          - $ref: '#/components/parameters/TraceSpan'
+          - in: query
+            name: org
+            description: specifies the name of the organization of the template
+            required: true
+            schema:
+              type: string
+      responses:
+        '200':
+          description: a list of template documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Documents"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Templates
+      summary: Create a template
+      parameters:
+          - $ref: '#/components/parameters/TraceSpan'
+      requestBody:
+        description: template that will be created
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentCreate"
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/documents/templates/{templateID}':
+    get:
+      tags:
+        - Templates
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: templateID
+          schema:
+            type: string
+          required: true
+          description: ID of template
+      responses:
+        '200':
+          description: the template requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      tags:
+        - Templates
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: templateID
+          schema:
+            type: string
+          required: true
+          description: ID of template
+      requestBody:
+        description: template that will be updated
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentUpdate"
+      responses:
+        '200':
+          description: the newly updated template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /telegrafs:
     get:
       tags:
@@ -6753,6 +6860,67 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ScraperTargetResponse"
+    DocumentMeta:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        meta:
+          $ref: "#/components/schemas/DocumentMeta"
+        content:
+          type: object
+        labels:
+          $ref: "#/components/schemas/Labels"
+    DocumentCreate:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/DocumentMeta"
+        content:
+          type: object
+        org:
+          type: string
+          description: must specify one of orgID and org
+        orgID:
+          type: string
+          description: must specify one of orgID and org
+        labels:
+          type: array
+          description: this is an array of label strings that will be added as labels to the document
+          items:
+            type: string
+    DocumentUpdate:
+      type: object
+      properties:
+        meta:
+          $ref: "#/components/schemas/DocumentMeta"
+        content:
+          type: object
+    DocumentListEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        meta:
+          $ref: "#/components/schemas/DocumentMeta"
+        labels:
+          $ref: "#/components/schemas/Labels"
+    Documents:
+      type: object
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentListEntry"
     TelegrafRequest:
       type: object
       properties:

@@ -791,6 +791,18 @@ export const importFailed = (): Notification => ({
   message: `Failed to import resource.`,
 })
 
+// Templates
+
+export const importTaskSucceeded = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully imported task.`,
+})
+
+export const importTaskFailed = (error: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Failed to import task: ${error}`,
+})
+
 // Labels
 export const getLabelsFailed = (): Notification => ({
   ...defaultErrorNotification,

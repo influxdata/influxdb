@@ -127,11 +127,11 @@ func TestFluxQueryService_Query(t *testing.T) {
 			status: http.StatusOK,
 			csv: `#datatype,string,long,dateTime:RFC3339,double,long,string,boolean,string,string,string
 #group,false,false,false,false,false,false,false,true,true,true
-#default,0,,,,,,,,,
+#default,_result,,,,,,,,,
 ,result,table,_time,usage_user,test,mystr,this,cpu,host,_measurement
 ,,0,2018-08-29T13:08:47Z,10.2,10,yay,true,cpu-total,a,cpui
 `,
-			want: toCRLF(`,,,2018-08-29T13:08:47Z,10.2,10,yay,true,cpu-total,a,cpui
+			want: toCRLF(`,_result,0,2018-08-29T13:08:47Z,10.2,10,yay,true,cpu-total,a,cpui
 
 `),
 		},

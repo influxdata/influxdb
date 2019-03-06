@@ -528,6 +528,14 @@ func (c *Client) updateBucket(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 	}
 
 	if upd.Name != nil {
+		_, err := c.findBucketByName(ctx, tx, b.OrganizationID, *upd.Name)
+		if err == nil {
+			return nil, &platform.Error{
+				Code: platform.EConflict,
+				Msg:  "bucket name is not unique",
+			}
+		}
+
 		key, err := bucketIndexKey(b)
 		if err != nil {
 			return nil, err

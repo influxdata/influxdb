@@ -57,12 +57,11 @@ class ContextMenuItem extends Component<Props> {
   private handleClick = (): void => {
     const {action, onCollapseMenu, value} = this.props
 
-    if (!onCollapseMenu) {
-      return
-    }
-
-    onCollapseMenu()
     action(value)
+
+    if (onCollapseMenu) {
+      onCollapseMenu()
+    }
   }
 }
 

@@ -302,12 +302,25 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		t.Fatalf("expected task status to be active, got %q", f.Status)
 	}
 
-	// Update task: just update the token.
-	// First we need to make a new authorization in order to get a new token.
-	newAuthz := &platform.Authorization{OrgID: cr.OrgID, UserID: cr.UserID}
+	// Update task: use a new token on the context and modify some other option.
+	// Ensure the authorization doesn't change -- it did change at one time, which was bug https://github.com/influxdata/influxdb/issues/12218.
+	newAuthz := &platform.Authorization{OrgID: cr.OrgID, UserID: cr.UserID, Permissions: platform.OperPermissions()}
 	if err := sys.I.CreateAuthorization(sys.Ctx, newAuthz); err != nil {
 		t.Fatal(err)
 	}
+	newAuthorizedCtx := icontext.SetAuthorizer(sys.Ctx, newAuthz)
+	f, err = sys.ts.UpdateTask(newAuthorizedCtx, origID, platform.TaskUpdate{Options: options.Options{Name: "foo"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Name != "foo" {
+		t.Fatalf("expected name to update to foo, got %s", f.Name)
+	}
+	if f.AuthorizationID != authzID {
+		t.Fatalf("expected authorization ID to remain %v, got %v", authzID, f.AuthorizationID)
+	}
+
+	// Now actually update to use the new token, from the original authorization context.
 	f, err = sys.ts.UpdateTask(authorizedCtx, origID, platform.TaskUpdate{Token: newAuthz.Token})
 	if err != nil {
 		t.Fatal(err)

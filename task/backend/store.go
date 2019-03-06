@@ -194,6 +194,7 @@ func (t *UpdateTaskRequest) UpdateFlux(oldFlux string) error {
 	}
 	tu := platform.TaskUpdate{
 		Options: t.Options,
+		Flux:    &t.Script,
 	}
 	if err := tu.UpdateFlux(oldFlux); err != nil {
 		return err
