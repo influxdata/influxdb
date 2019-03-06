@@ -1,64 +1,39 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 import {Task, Label} from 'src/types/v2'
+import {ITemplate, TemplateType} from '@influxdata/influx'
 
-export enum TemplateType {
-  Label = 'label',
-  Task = 'task',
+const CURRENT_TEMPLATE_VERSION = '1'
+
+const blankTemplate = {
+  meta: {version: '0.1.0'},
+  content: {data: {}, included: []},
+  labels: [],
 }
-
-interface KeyValuePairs {
-  [key: string]: any
-}
-
-export interface Template {
-  meta: TemplateMeta
-  data: TemplateData[]
-  included?: TemplateIncluded[]
-}
-
-interface TemplateMeta extends KeyValuePairs {
-  name: string
-}
-
-interface TemplateData {
-  type: TemplateType
-  attributes: KeyValuePairs
-  relationships?: {[key in TemplateType]?: {data: RelationshipDataItem[]}}
-}
-
-export interface RelationshipDataItem {
-  type: TemplateType
-  id: string
-}
-
-interface TemplateIncluded {
-  type: TemplateType
-  id: string
-  attributes: KeyValuePairs
-}
-
-const blankTemplate = {meta: {version: '0.1.0'}, data: [{}], included: []}
 
 const blankTaskTemplate = {
   ...blankTemplate,
   meta: {
     ...blankTemplate.meta,
-    labels: [
-      {
-        id: '1',
-        name: 'influx.task',
-        properties: {
-          color: 'ffb3b3',
-          description: 'This is a template for a task resource on influx 2.0',
-        },
-      },
-    ],
   },
-  data: [{...blankTemplate.data[0], type: TemplateType.Task}],
+  content: {
+    ...blankTemplate.content,
+    data: {...blankTemplate.content.data, type: TemplateType.Task},
+  },
+  labels: [
+    ...blankTemplate.labels,
+    {
+      id: '1',
+      name: 'influx.task',
+      properties: {
+        color: 'ffb3b3',
+        description: 'This is a template for a task resource on influx 2.0',
+      },
+    },
+  ],
 }
 
-const labelToRelationship = (l: Label): RelationshipDataItem => {
+const labelToRelationship = (l: Label) => {
   return {type: TemplateType.Label, id: l.id}
 }
 
@@ -66,7 +41,6 @@ const labelToIncluded = (l: Label) => {
   return {
     type: TemplateType.Label,
     id: l.id,
-
     attributes: {
       name: l.name,
       properties: l.properties,
@@ -77,7 +51,7 @@ const labelToIncluded = (l: Label) => {
 export const taskToTemplate = (
   task: Task,
   baseTemplate = blankTaskTemplate
-): Template => {
+): ITemplate => {
   const taskName = _.get(task, 'name', '')
   const templateName = `${taskName}-Template`
 
@@ -95,21 +69,25 @@ export const taskToTemplate = (
   const relationshipsLabels = labels.map(l => labelToRelationship(l))
 
   const template = {
+    ...baseTemplate,
     meta: {
       ...baseTemplate.meta,
       name: templateName,
+      version: CURRENT_TEMPLATE_VERSION,
       description: `template created from task: ${taskName}`,
     },
-    data: [
-      {
-        ...baseTemplate.data[0],
+    content: {
+      ...baseTemplate.content,
+      data: {
+        ...baseTemplate.content.data,
+        type: TemplateType.Task,
         attributes: taskAttributes,
         relationships: {
           [TemplateType.Label]: {data: relationshipsLabels},
         },
       },
-    ],
-    included: [...baseTemplate.included, ...includedLabels],
+      included: [...baseTemplate.content.included, ...includedLabels],
+    },
   }
 
   return template
