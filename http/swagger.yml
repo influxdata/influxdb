@@ -5519,13 +5519,9 @@ components:
           $ref: "#/components/schemas/Link"
       required: [self]
     Logs:
-      type: object
+      type: array
       properties:
-        events:
-          readOnly: true
-          type: array
-          items:
-            $ref: "#/components/schemas/LogEvent"
+        $ref: "#/components/schemas/LogEvent"
     LogEvent:
       type: object
       properties:
