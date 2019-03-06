@@ -46,7 +46,7 @@ func ExplodePoints(org, bucket platform.ID, points []models.Point) ([]models.Poi
 
 		t := pt.Time()
 		itr := pt.FieldIterator()
-		tags = append(tags, models.Tag{}) // Make room for
+		tags = append(tags, models.Tag{}) // Make room for field key and value.
 
 		for itr.Next() {
 			tags[len(tags)-1] = models.NewTag(models.FieldKeyTagKeyBytes, itr.FieldKey())

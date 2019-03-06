@@ -2478,11 +2478,11 @@ func appendField(b []byte, k string, v interface{}) []byte {
 // ValidToken returns true if the provided token is a valid unicode string, and
 // only contains printable, non-replacement characters.
 func ValidToken(a []byte) bool {
-	s := string(a)
-	if !utf8.ValidString(s) {
+	if !utf8.Valid(a) {
 		return false
 	}
-	for _, r := range s {
+
+	for _, r := range string(a) {
 		if !unicode.IsPrint(r) || r == unicode.ReplacementChar {
 			return false
 		}

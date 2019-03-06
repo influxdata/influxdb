@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
