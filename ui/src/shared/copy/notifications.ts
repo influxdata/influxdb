@@ -798,7 +798,7 @@ export const importTaskSucceeded = (): Notification => ({
   message: `Successfully imported task.`,
 })
 
-export const ImportTaskFailed = (error: string): Notification => ({
+export const importTaskFailed = (error: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Failed to import task: ${error}`,
 })
