@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -71,6 +72,7 @@ type source struct {
 	readSpec ReadSpec
 	window   execute.Window
 	bounds   execute.Bounds
+	alloc    *memory.Allocator
 
 	ts []execute.Transformation
 
@@ -80,7 +82,7 @@ type source struct {
 	stats cursors.CursorStats
 }
 
-func NewSource(id execute.DatasetID, r Reader, readSpec ReadSpec, bounds execute.Bounds, w execute.Window, currentTime execute.Time) execute.Source {
+func NewSource(id execute.DatasetID, r Reader, readSpec ReadSpec, bounds execute.Bounds, w execute.Window, currentTime execute.Time, alloc *memory.Allocator) execute.Source {
 	return &source{
 		id:          id,
 		reader:      r,
@@ -88,6 +90,7 @@ func NewSource(id execute.DatasetID, r Reader, readSpec ReadSpec, bounds execute
 		bounds:      bounds,
 		window:      w,
 		currentTime: currentTime,
+		alloc:       alloc,
 	}
 }
 
@@ -168,6 +171,7 @@ func (s *source) next(ctx context.Context) (TableIterator, execute.Time, bool) {
 		s.readSpec,
 		start,
 		stop,
+		s.alloc,
 	)
 	if err != nil {
 		log.Println("E!", err)
@@ -237,7 +241,7 @@ type ReadSpec struct {
 }
 
 type Reader interface {
-	Read(ctx context.Context, rs ReadSpec, start, stop execute.Time) (TableIterator, error)
+	Read(ctx context.Context, rs ReadSpec, start, stop execute.Time, alloc *memory.Allocator) (TableIterator, error)
 	Close()
 }
 
