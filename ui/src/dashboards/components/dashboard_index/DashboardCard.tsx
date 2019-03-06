@@ -53,7 +53,7 @@ class DashboardCard extends PureComponent<Props> {
     return (
       <ResourceList.Card
         key={`dashboard-id--${id}`}
-        testID="resource-card"
+        testID="dashboard-card"
         name={() => (
           <ResourceList.Name
             onUpdate={this.handleUpdateDashboard}

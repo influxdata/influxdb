@@ -25,7 +25,7 @@ describe('Dashboards', () => {
 
       cy.visit('/dashboards')
 
-      cy.getByTestID('resource-card').should('have.length', 1)
+      cy.getByTestID('dashboard-card').should('have.length', 1)
     })
 
     it('can create a dashboard from the header', () => {
@@ -37,7 +37,7 @@ describe('Dashboards', () => {
 
       cy.visit('/dashboards')
 
-      cy.getByTestID('resource-card').should('have.length', 1)
+      cy.getByTestID('dashboard-card').should('have.length', 1)
     })
 
     describe('Dashboard List', () => {
@@ -56,9 +56,9 @@ describe('Dashboards', () => {
       })
 
       it('can delete a dashboard', () => {
-        cy.getByTestID('resource-card').should('have.length', 2)
+        cy.getByTestID('dashboard-card').should('have.length', 2)
 
-        cy.getByTestID('resource-card')
+        cy.getByTestID('dashboard-card')
           .first()
           .trigger('mouseover')
           .within(() => {
@@ -66,13 +66,13 @@ describe('Dashboards', () => {
             cy.getByTestID('context-delete-dashboard').click()
           })
 
-        cy.getByTestID('resource-card').should('have.length', 1)
+        cy.getByTestID('dashboard-card').should('have.length', 1)
       })
 
       it('can edit a dashboards name', () => {
         const newName = 'new 🅱️ashboard'
 
-        cy.getByTestID('resource-card').within(() => {
+        cy.getByTestID('dashboard-card').within(() => {
           cy.getByTestID('dashboard-card--name')
             .first()
             .trigger('mouseover')
@@ -86,22 +86,22 @@ describe('Dashboards', () => {
             .type('{enter}')
         })
 
-        cy.getByTestID('resource-card').should('contain', newName)
+        cy.getByTestID('dashboard-card').should('contain', newName)
       })
 
       describe('Labeling', () => {
         it('can click to filter dashboard labels', () => {
-          cy.getByTestID('resource-card').should('have.length', 2)
+          cy.getByTestID('dashboard-card').should('have.length', 2)
 
           cy.getByTestID(`label--pill ${newLabelName}`).click()
 
-          cy.getByTestID('resource-card')
+          cy.getByTestID('dashboard-card')
             .should('have.length', 1)
             .and('contain', newLabelName)
         })
 
         it('can delete a label from a dashboard', () => {
-          cy.getByTestID('resource-card')
+          cy.getByTestID('dashboard-card')
             .first()
             .within(() => {
               const pillID = `label--pill ${newLabelName}`
@@ -129,7 +129,7 @@ describe('Dashboards', () => {
               cy.getByTestID(`label--pill ${labelName}`).click()
             })
 
-            cy.getByTestID('resource-card')
+            cy.getByTestID('dashboard-card')
               .first()
               .within(() => {
                 cy.getByTestID(`label--pill ${labelName}`).should('be.visible')
@@ -153,7 +153,7 @@ describe('Dashboards', () => {
             cy.getByTestID('create-label--button').click()
           })
 
-          cy.getByTestID('resource-card')
+          cy.getByTestID('dashboard-card')
             .first()
             .within(() => {
               cy.getByTestID(`label--pill ${label}`).should('be.visible')
@@ -163,13 +163,13 @@ describe('Dashboards', () => {
 
       describe('Searching', () => {
         it('can search dashboards by labels', () => {
-          cy.getByTestID('resource-card').should('have.length', 2)
+          cy.getByTestID('dashboard-card').should('have.length', 2)
 
           cy.getByTestID('search-widget').type(newLabelName)
 
-          cy.getByTestID('resource-card').should('have.length', 1)
+          cy.getByTestID('dashboard-card').should('have.length', 1)
 
-          cy.getByTestID('resource-card')
+          cy.getByTestID('dashboard-card')
             .first()
             .get('.label')
             .should('contain', newLabelName)
@@ -178,19 +178,19 @@ describe('Dashboards', () => {
         it('can search by clicking label', () => {
           const clicked = 'click-me'
 
-          cy.getByTestID('resource-card').should('have.length', 2)
+          cy.getByTestID('dashboard-card').should('have.length', 2)
 
           cy.getByTestID(`label--pill ${clicked}`).click()
 
           cy.getByTestID('search-widget').should('have.value', clicked)
 
-          cy.getByTestID('resource-card').should('have.length', 1)
+          cy.getByTestID('dashboard-card').should('have.length', 1)
         })
 
         it('can search by dashboard name', () => {
           cy.getByTestID('search-widget').type(dashSearchName)
 
-          cy.getByTestID('resource-card').should('have.length', 1)
+          cy.getByTestID('dashboard-card').should('have.length', 1)
           cy.getByTestID('dashboard-card--name').contains(
             'span',
             dashSearchName
