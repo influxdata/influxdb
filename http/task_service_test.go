@@ -123,7 +123,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/tasks"
+    "self": "/api/v2/tasks?limit=100"
   },
   "tasks": [
     {
@@ -183,6 +183,79 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			},
 		},
 		{
+			name:      "get tasks by after and limit",
+			getParams: "after=0000000000000001&limit=1",
+			fields: fields{
+				taskService: &mock.TaskService{
+					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
+						tasks := []*platform.Task{
+							{
+								ID:              2,
+								Name:            "task2",
+								OrganizationID:  2,
+								Organization:    "test",
+								AuthorizationID: 0x200,
+							},
+						}
+						return tasks, len(tasks), nil
+					},
+				},
+				labelService: &mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								Name: "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "self": "/api/v2/tasks?after=0000000000000001&limit=1",
+    "next": "/api/v2/tasks?after=0000000000000002&limit=1"
+  },
+  "tasks": [
+    {
+      "links": {
+        "self": "/api/v2/tasks/0000000000000002",
+        "owners": "/api/v2/tasks/0000000000000002/owners",
+        "members": "/api/v2/tasks/0000000000000002/members",
+        "labels": "/api/v2/tasks/0000000000000002/labels",
+        "runs": "/api/v2/tasks/0000000000000002/runs",
+        "logs": "/api/v2/tasks/0000000000000002/logs"
+      },
+      "id": "0000000000000002",
+      "name": "task2",
+			"labels": [
+        {
+          "id": "fc3dc670a4be9b9a",
+          "name": "label",
+          "properties": {
+            "color": "fff000"
+          }
+        }
+      ],
+      "orgID": "0000000000000002",
+      "org": "test",
+      "status": "",
+			"authorizationID": "0000000000000200",
+      "flux": ""
+    }
+  ]
+}`,
+			},
+		},
+		{
 			name:      "get tasks by org name",
 			getParams: "org=test2",
 			fields: fields{
@@ -221,7 +294,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/api/v2/tasks"
+    "self": "/api/v2/tasks?limit=100&org=test2"
   },
   "tasks": [
     {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/influxdata/flux"
@@ -325,6 +326,32 @@ type TaskFilter struct {
 	Organization   string
 	User           *ID
 	Limit          int
+}
+
+// QueryParams Converts TaskFilter fields to url query params.
+func (f TaskFilter) QueryParams() map[string][]string {
+	qp := map[string][]string{}
+	if f.After != nil {
+		qp["after"] = []string{f.After.String()}
+	}
+
+	if f.OrganizationID != nil {
+		qp["orgID"] = []string{f.OrganizationID.String()}
+	}
+
+	if f.Organization != "" {
+		qp["org"] = []string{f.Organization}
+	}
+
+	if f.User != nil {
+		qp["user"] = []string{f.User.String()}
+	}
+
+	if f.Limit > 0 {
+		qp["limit"] = []string{strconv.Itoa(f.Limit)}
+	}
+
+	return qp
 }
 
 // RunFilter represents a set of filters that restrict the returned results

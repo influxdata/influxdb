@@ -176,39 +176,46 @@ func newTaskResponse(t platform.Task, labels []*platform.Label) taskResponse {
 	return response
 }
 
-type tasksResponse struct {
-	Links map[string]string `json:"links"`
-	Tasks []taskResponse    `json:"tasks"`
+func newTasksPagingLinks(basePath string, ts []*platform.Task, f platform.TaskFilter) *platform.PagingLinks {
+	var self, next string
+	u := url.URL{
+		Path: basePath,
+	}
+
+	values := url.Values{}
+	for k, vs := range f.QueryParams() {
+		for _, v := range vs {
+			if v != "" {
+				values.Add(k, v)
+			}
+		}
+	}
+
+	u.RawQuery = values.Encode()
+	self = u.String()
+
+	if len(ts) >= f.Limit {
+		values.Set("after", ts[f.Limit-1].ID.String())
+		u.RawQuery = values.Encode()
+		next = u.String()
+	}
+
+	links := &platform.PagingLinks{
+		Self: self,
+		Next: next,
+	}
+
+	return links
 }
 
-func newTasksResponse(ctx context.Context, ts []*platform.Task, labelService platform.LabelService) tasksResponse {
-	// TODO: impl paging links
-	/*
-	   In swagger, paging links are embedded in a map, like this:
-	   "links": {
-	       "next": {
-	           "href": "string"
-	       },
-	       "self": {
-	           "href": "string"
-	       },
-	       "prev": {
-	           "href": "string"
-	       }
-	   }
+type tasksResponse struct {
+	Links *platform.PagingLinks `json:"links"`
+	Tasks []taskResponse        `json:"tasks"`
+}
 
-	   But in http services (auth, org, bucket...), links are flat:
-	   "links": {
-	       "self": "string"
-	   }
-
-	   Them need to be unified.
-	*/
-
+func newTasksResponse(ctx context.Context, ts []*platform.Task, f platform.TaskFilter, labelService platform.LabelService) tasksResponse {
 	rs := tasksResponse{
-		Links: map[string]string{
-			"self": tasksPath,
-		},
+		Links: newTasksPagingLinks(tasksPath, ts, f),
 		Tasks: make([]taskResponse, len(ts)),
 	}
 
@@ -281,7 +288,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, h.LabelService)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, req.filter, h.LabelService)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}
