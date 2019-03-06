@@ -6,8 +6,8 @@ import {notify} from 'src/shared/actions/notifications'
 import {ScraperTargetRequest, Task, ITaskTemplate} from '@influxdata/influx'
 
 import {
-  ImportTaskSucceeded,
-  ImportTaskFailed,
+  importTaskSucceeded,
+  importTaskFailed,
 } from 'src/shared/copy/notifications'
 
 export enum ActionTypes {
@@ -43,8 +43,8 @@ export const createTaskFromTemplate = (
   try {
     await client.tasks.createFromTemplate(template, orgID)
 
-    dispatch(notify(ImportTaskSucceeded()))
+    dispatch(notify(importTaskSucceeded()))
   } catch (error) {
-    dispatch(notify(ImportTaskFailed(error)))
+    dispatch(notify(importTaskFailed(error)))
   }
 }
