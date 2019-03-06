@@ -1,9 +1,8 @@
 import {HistogramPosition} from 'src/minard'
 import {Color} from 'src/types/colors'
-import {Label} from 'src/types/v2/labels'
 
 import {
-  Dashboard as DashboardAPI,
+  IDashboard as DashboardAPI,
   View as ViewAPI,
   Cell as CellAPI,
 } from '@influxdata/influx'
@@ -91,9 +90,8 @@ export interface Cell extends CellAPI {
   dashboardID: string
 }
 
-export interface Dashboard extends Omit<DashboardAPI, 'cells' | 'labels'> {
+export interface Dashboard extends Omit<DashboardAPI, 'cells'> {
   cells: Cell[]
-  labels: Label[]
 }
 
 type Omit<K, V> = Pick<K, Exclude<keyof K, V>>
