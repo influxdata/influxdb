@@ -793,7 +793,7 @@ export const importFailed = (): Notification => ({
 
 // Templates
 
-export const ImportTaskSucceeded = (): Notification => ({
+export const importTaskSucceeded = (): Notification => ({
   ...defaultSuccessNotification,
   message: `Successfully imported task.`,
 })
