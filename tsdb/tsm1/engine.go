@@ -588,12 +588,18 @@ func (e *Engine) Free() error {
 
 // WritePoints saves the set of points in the engine.
 func (e *Engine) WritePoints(points []models.Point) error {
-	values, err := PointsToValues(points)
+	collection := tsdb.NewSeriesCollection(points)
+
+	values, err := CollectionToValues(collection)
 	if err != nil {
 		return err
 	}
 
-	return e.WriteValues(values)
+	if err := e.WriteValues(values); err != nil {
+		return err
+	}
+
+	return collection.PartialWriteError()
 }
 
 // WriteValues saves the set of values in the engine.
