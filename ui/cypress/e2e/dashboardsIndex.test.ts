@@ -1,6 +1,8 @@
 import {Organization} from '@influxdata/influx'
 
 const newLabelName = 'click-me'
+const dashboardName = 'Bee Happy'
+const dashSearchName = 'bEE'
 
 describe('Dashboards', () => {
   beforeEach(() => {
@@ -41,7 +43,7 @@ describe('Dashboards', () => {
     describe('Dashboard List', () => {
       beforeEach(() => {
         cy.get<Organization>('@org').then(({id}) => {
-          cy.createDashboard(id).then(({body}) => {
+          cy.createDashboard(id, dashboardName).then(({body}) => {
             cy.createAndAddLabel('dashboards', body.id, newLabelName)
           })
 
@@ -186,10 +188,13 @@ describe('Dashboards', () => {
         })
 
         it('can search by dashboard name', () => {
-          cy.getByTestID('search-widget').type('bEE')
+          cy.getByTestID('search-widget').type(dashSearchName)
 
           cy.getByTestID('resource-card').should('have.length', 1)
-          cy.getByTestID('dashboard-card--name').contains('span', 'beEE')
+          cy.getByTestID('dashboard-card--name').contains(
+            'span',
+            dashSearchName
+          )
         })
       })
     })
