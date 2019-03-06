@@ -116,7 +116,14 @@ class CreateLabelOverlay extends Component<Props, State> {
     const value = e.target.value
     const key = e.target.name
 
-    if (key in this.state.label) {
+    if (key === 'description' || key === 'color') {
+      const properties = {...this.state.label.properties, [key]: value}
+      const label = {...this.state.label, properties}
+
+      this.setState({
+        label,
+      })
+    } else {
       const label = {...this.state.label, [key]: value}
 
       this.setState({
