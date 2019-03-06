@@ -20,7 +20,7 @@ jobs:
       - store_artifacts:
           path: ~/project
       - store_test_results:
-          path: ~/project/
+          path: /home/circleci/
 
   litmus_nightly:
     machine: true
