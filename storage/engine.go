@@ -385,7 +385,6 @@ func (e *Engine) WritePoints(ctx context.Context, points []models.Point) error {
 
 		// First tag key is not measurement tag.
 		if !bytes.Equal(tags[0].Key, models.MeasurementTagKeyBytes) {
-			fmt.Println(tags[0].Key)
 			dropPoint(iter.Key(), fmt.Sprintf("missing required measurement tag as first tag, got: %q", tags[0].Key))
 			continue
 		}
