@@ -15,6 +15,9 @@ import {RemoteDataState} from 'src/types'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import VersionInfo from 'src/shared/components/VersionInfo'
 
+// Constants
+import {CLOUD, CLOUD_SIGNIN_PATHNAME} from 'src/shared/constants'
+
 interface State {
   status: RemoteDataState
 }
@@ -33,6 +36,9 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
 
     if (allowed) {
       this.props.router.push('/onboarding/0')
+    } else if (CLOUD) {
+      window.location.pathname = CLOUD_SIGNIN_PATHNAME
+      return
     }
 
     this.setState({status: RemoteDataState.Done})

@@ -14,6 +14,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
 import {sessionTimedOut} from 'src/shared/copy/notifications'
+import {CLOUD, CLOUD_SIGNIN_PATHNAME} from 'src/shared/constants'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -46,8 +47,7 @@ export class Signin extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    this.setState({loading: RemoteDataState.Done})
-    this.checkForLogin()
+    await this.checkForLogin()
     this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
   }
 
@@ -67,12 +67,21 @@ export class Signin extends PureComponent<Props, State> {
 
   private checkForLogin = async () => {
     try {
+      this.setState({loading: RemoteDataState.Loading})
       await client.users.me()
+      this.setState({loading: RemoteDataState.Done})
     } catch (error) {
       const {
         location: {pathname},
       } = this.props
       clearInterval(this.intervalID)
+
+      // TODO: add returnTo to CLOUD signin
+      if (CLOUD) {
+        window.location.pathname = CLOUD_SIGNIN_PATHNAME
+
+        return
+      }
 
       if (pathname.startsWith('/signin')) {
         return
