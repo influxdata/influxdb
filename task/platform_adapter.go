@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
 )
@@ -38,7 +37,7 @@ type pAdapter struct {
 var _ platform.TaskService = pAdapter{}
 
 func (p pAdapter) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.FindTaskByID")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	t, m, err := p.s.FindTaskByIDWithMeta(ctx, id)
@@ -54,7 +53,7 @@ func (p pAdapter) FindTaskByID(ctx context.Context, id platform.ID) (*platform.T
 }
 
 func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.FindTasks")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	params := backend.TaskSearchParams{PageSize: filter.Limit}
@@ -126,7 +125,7 @@ func (p pAdapter) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]
 }
 
 func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platform.Task, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.CreateTask")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	auth, err := icontext.GetAuthorizer(ctx)
@@ -205,7 +204,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 }
 
 func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.CreateTask")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	err := upd.Validate()
@@ -239,7 +238,7 @@ func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.T
 }
 
 func (p pAdapter) DeleteTask(ctx context.Context, id platform.ID) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.DeleteTask")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	_, err := p.s.DeleteTask(ctx, id)
@@ -267,7 +266,7 @@ func (p pAdapter) DeleteTask(ctx context.Context, id platform.ID) error {
 }
 
 func (p pAdapter) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.FindLogs")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	task, err := p.s.FindTaskByID(ctx, filter.Task)
@@ -284,7 +283,7 @@ func (p pAdapter) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*p
 }
 
 func (p pAdapter) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.FindRuns")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	task, err := p.s.FindTaskByID(ctx, filter.Task)
@@ -297,7 +296,7 @@ func (p pAdapter) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*p
 }
 
 func (p pAdapter) FindRunByID(ctx context.Context, taskID, id platform.ID) (*platform.Run, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.FindRunByID")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	task, err := p.s.FindTaskByID(ctx, taskID)
@@ -308,7 +307,7 @@ func (p pAdapter) FindRunByID(ctx context.Context, taskID, id platform.ID) (*pla
 }
 
 func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID) (*platform.Run, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.RetryRun")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	task, err := p.s.FindTaskByID(ctx, taskID)
@@ -344,7 +343,7 @@ func (p pAdapter) RetryRun(ctx context.Context, taskID, id platform.ID) (*platfo
 }
 
 func (p pAdapter) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.ForceRun")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	requestedAt := time.Now()
@@ -362,7 +361,7 @@ func (p pAdapter) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor
 }
 
 func (p pAdapter) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "pAdapter.CancelRun")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	return p.rc.CancelRun(ctx, taskID, runID)

@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/influxdata/influxdb/tsdb/value"
@@ -171,7 +172,7 @@ func (l *WAL) Open(ctx context.Context) error {
 		return nil
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "WAL.Open")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	span.LogKV("segment_size", l.SegmentSize,
@@ -310,7 +311,7 @@ func (l *WAL) sync() {
 // which the points were written. If an error is returned the segment ID should
 // be ignored. If the WAL is disabled, -1 and nil is returned.
 func (l *WAL) WriteMulti(ctx context.Context, values map[string][]value.Value) (int, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "WAL.WriteMulti")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if !l.enabled {
@@ -374,7 +375,7 @@ func (l *WAL) Remove(ctx context.Context, files []string) error {
 		return nil
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "WAL.Remove")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	l.mu.Lock()

@@ -3,12 +3,12 @@ package tracing
 import (
 	"context"
 	"fmt"
-	"github.com/uber/jaeger-client-go"
 	"net/http"
 	"runtime"
 	"testing"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 )
 
 func TestInjectAndExtractHTTPRequest(t *testing.T) {
@@ -162,5 +162,3 @@ func BenchmarkOpentracing_StartSpan_child(b *testing.B) {
 		_ = opentracing.StartSpan("operation name", opentracing.ChildOf(parentSpan.Context()))
 	}
 }
-
-// TODO test nil and other context problems with StartSpanFromContext.

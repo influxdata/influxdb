@@ -6,13 +6,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync"
 
 	"github.com/cespare/xxhash"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/binaryutil"
@@ -92,7 +92,7 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 		return errors.New("series file already opened")
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "SeriesFile.Open")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	_, logEnd := logger.NewOperation(f.Logger, "Opening Series File", "series_file_open", zap.String("path", f.path))

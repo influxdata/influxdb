@@ -12,7 +12,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
-	"github.com/opentracing/opentracing-go"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -37,7 +36,7 @@ func (s *SourceProxyQueryService) Query(ctx context.Context, w io.Writer, req *q
 }
 
 func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "SourceProxyQueryService.queryFlux")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	u, err := newURL(s.Addr, "/api/v2/query")
 	if err != nil {
@@ -75,7 +74,7 @@ func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, re
 }
 
 func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "SourceProxyQueryService.queryInfluxQL")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	compiler, ok := req.Request.Compiler.(*influxql.Compiler)
 

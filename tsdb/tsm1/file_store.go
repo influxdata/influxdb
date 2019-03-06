@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"math"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
@@ -517,7 +517,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 		return errors.New("cannot open FileStore without an OpenLimiter (is EngineOptions.OpenLimiter set?)")
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "FileStore.Open")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// find the current max ID for temp directories
@@ -1104,7 +1104,7 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 // CreateSnapshot creates hardlinks for all tsm and tombstone files
 // in the path provided.
 func (f *FileStore) CreateSnapshot(ctx context.Context) (string, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "FileStore.CreateSnapshot")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	span.LogKV("dir", f.dir)

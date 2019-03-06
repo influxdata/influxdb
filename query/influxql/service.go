@@ -9,7 +9,6 @@ import (
 	"net/url"
 
 	"github.com/influxdata/flux"
-	"github.com/opentracing/opentracing-go"
 
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
@@ -32,7 +31,7 @@ type Service struct {
 // Query will execute a query for the influxql.Compiler type against an influxdb 1.x endpoint,
 // and return results using the default decoder.
 func (s *Service) Query(ctx context.Context, req *query.Request) (flux.ResultIterator, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	resp, err := s.query(ctx, req)
@@ -53,7 +52,7 @@ func (s *Service) Query(ctx context.Context, req *query.Request) (flux.ResultIte
 // QueryRawJSON will execute a query for the influxql.Compiler type against an influxdb 1.x endpoint,
 // and return the body of the response as a byte array.
 func (s *Service) QueryRawJSON(ctx context.Context, req *query.Request) ([]byte, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	resp, err := s.query(ctx, req)
@@ -70,7 +69,7 @@ func (s *Service) QueryRawJSON(ctx context.Context, req *query.Request) ([]byte,
 }
 
 func (s *Service) query(ctx context.Context, req *query.Request) (*http.Response, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Verify that this is an influxql query in the compiler.

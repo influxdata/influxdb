@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
 	"github.com/julienschmidt/httprouter"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
@@ -330,7 +329,7 @@ type FluxService struct {
 // Query runs a flux query against a influx server and sends the results to the io.Writer.
 // Will use the token from the context over the token within the service struct.
 func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequest) (flux.Statistics, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FluxService.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	u, err := newURL(s.Addr, fluxPath)
 	if err != nil {
@@ -386,7 +385,7 @@ type FluxQueryService struct {
 
 // Query runs a flux query against a influx server and decodes the result
 func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.ResultIterator, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "FluxQueryService.Query")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u, err := newURL(s.Addr, fluxPath)

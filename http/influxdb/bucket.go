@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 // BucketService connects to Influx via HTTP using tokens to manage buckets
@@ -24,7 +23,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 }
 
 func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.FindBuckets")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	c, err := newClient(s.Source)

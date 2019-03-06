@@ -9,13 +9,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdata/influxdb/kit/tracing"
-
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"

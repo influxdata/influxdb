@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
-
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
@@ -49,7 +48,7 @@ func (s *Service) bucketsIndexBucket(tx Tx) (Bucket, error) {
 }
 
 func (s *Service) setOrganizationOnBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.setOrganizationOnBucket")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	o, err := s.findOrganizationByID(ctx, tx, b.OrganizationID)
@@ -64,7 +63,7 @@ func (s *Service) setOrganizationOnBucket(ctx context.Context, tx Tx, b *influxd
 
 // FindBucketByID retrieves a bucket by id.
 func (s *Service) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.FindBucketByID")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var b *influxdb.Bucket
@@ -88,7 +87,7 @@ func (s *Service) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb
 }
 
 func (s *Service) findBucketByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.findBucketByID")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var b influxdb.Bucket
@@ -136,7 +135,7 @@ func (s *Service) findBucketByID(ctx context.Context, tx Tx, id influxdb.ID) (*i
 // FindBucketByName returns a bucket by name for a particular organization.
 // TODO: have method for finding bucket using organization name and bucket name.
 func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.FindBucketByName")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var b *influxdb.Bucket
@@ -156,7 +155,7 @@ func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, n str
 }
 
 func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.findBucketByName")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	b := &influxdb.Bucket{
@@ -201,7 +200,7 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 // Filters using ID, or OrganizationID and bucket Name should be efficient.
 // Other filters will do a linear scan across buckets until it finds a match.
 func (s *Service) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.FindBucket")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var b *influxdb.Bucket
@@ -288,7 +287,7 @@ func filterBucketsFn(filter influxdb.BucketFilter) func(b *influxdb.Bucket) bool
 // Filters using ID, or OrganizationID and bucket Name should be efficient.
 // Other filters will do a linear scan across all buckets searching for a match.
 func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.FindBuckets")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if filter.ID != nil {
@@ -327,7 +326,7 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 }
 
 func (s *Service) findBuckets(ctx context.Context, tx Tx, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.findBuckets")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	bs := []*influxdb.Bucket{}
@@ -376,7 +375,7 @@ func (s *Service) findBuckets(ctx context.Context, tx Tx, filter influxdb.Bucket
 
 // CreateBucket creates a influxdb bucket and sets b.ID.
 func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.CreateBucket")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	return s.kv.Update(ctx, func(tx Tx) error {
@@ -386,7 +385,7 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 
 func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
 	if b.OrganizationID.Valid() {
-		span, ctx := opentracing.StartSpanFromContext(ctx, "Service.createBucket")
+		span, ctx := tracing.StartSpanFromContext(ctx)
 		defer span.Finish()
 
 		_, pe := s.findOrganizationByID(ctx, tx, b.OrganizationID)
@@ -442,7 +441,7 @@ func (s *Service) PutBucket(ctx context.Context, b *influxdb.Bucket) error {
 }
 
 func (s *Service) createBucketUserResourceMappings(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.createBucketUserResourceMappings")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	ms, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
@@ -472,7 +471,7 @@ func (s *Service) createBucketUserResourceMappings(ctx context.Context, tx Tx, b
 }
 
 func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.putBucket")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	b.Organization = ""
@@ -531,7 +530,7 @@ func bucketIndexKey(b *influxdb.Bucket) ([]byte, error) {
 
 // forEachBucket will iterate through all buckets while fn returns true.
 func (s *Service) forEachBucket(ctx context.Context, tx Tx, descending bool, fn func(*influxdb.Bucket) bool) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.forEachBucket")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	bkt, err := s.bucketsBucket(tx)
@@ -574,7 +573,7 @@ func (s *Service) forEachBucket(ctx context.Context, tx Tx, descending bool, fn 
 }
 
 func (s *Service) uniqueBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.uniqueBucketName")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	key, err := bucketIndexKey(b)
@@ -593,7 +592,7 @@ func (s *Service) uniqueBucketName(ctx context.Context, tx Tx, b *influxdb.Bucke
 
 // UpdateBucket updates a bucket according the parameters set on upd.
 func (s *Service) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.UpdateBucket")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var b *influxdb.Bucket
@@ -610,7 +609,7 @@ func (s *Service) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb
 }
 
 func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.updateBucket")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	b, err := s.findBucketByID(ctx, tx, id)

@@ -16,7 +16,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"io"
 	"math"
 	"os"
@@ -27,6 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -811,7 +811,7 @@ func (c *Compactor) EnableCompactions() {
 
 // WriteSnapshot writes a Cache snapshot to one or more new TSM files.
 func (c *Compactor) WriteSnapshot(ctx context.Context, cache *Cache) ([]string, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "Compactor.WriteSnapshot")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	c.mu.RLock()

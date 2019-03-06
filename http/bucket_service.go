@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
@@ -595,7 +594,7 @@ type BucketService struct {
 
 // FindBucketByID returns a single bucket by ID.
 func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "BucketService.FindBucketByID")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u, err := newURL(s.Addr, bucketIDPath(id))
@@ -630,7 +629,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 
 // FindBucket returns the first bucket that matches filter.
 func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "BucketService.FindBucket")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	bs, n, err := s.FindBuckets(ctx, filter)
@@ -652,7 +651,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFi
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "BucketService.FindBuckets")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u, err := newURL(s.Addr, bucketPath)
@@ -722,7 +721,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
 func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
-	span, _ := opentracing.StartSpanFromContext(ctx, "BucketService.CreateBucket")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	u, err := newURL(s.Addr, bucketPath)

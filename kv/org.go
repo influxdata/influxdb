@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
@@ -53,7 +53,7 @@ func (s *Service) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*in
 }
 
 func (s *Service) findOrganizationByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Organization, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "Service.findOrganizationByID")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	encodedID, err := id.Encode()
@@ -93,7 +93,7 @@ func (s *Service) findOrganizationByID(ctx context.Context, tx Tx, id influxdb.I
 
 // FindOrganizationByName returns a organization by name for a particular organization.
 func (s *Service) FindOrganizationByName(ctx context.Context, n string) (*influxdb.Organization, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.FindOrganizationByName")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var o *influxdb.Organization
@@ -111,7 +111,7 @@ func (s *Service) FindOrganizationByName(ctx context.Context, n string) (*influx
 }
 
 func (s *Service) findOrganizationByName(ctx context.Context, tx Tx, n string) (*influxdb.Organization, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Service.findOrganizationByName")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	b, err := tx.Bucket(organizationIndex)

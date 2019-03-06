@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/lifecycle"
@@ -495,7 +496,7 @@ func (e *Engine) initTrackers() {
 
 // Open opens and initializes the engine.
 func (e *Engine) Open(ctx context.Context) (err error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Engine.Open")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	defer func() {
@@ -775,7 +776,7 @@ func (t *compactionTracker) SetFullQueue(length uint64) { t.SetQueue(5, length) 
 
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
 func (e *Engine) WriteSnapshot(ctx context.Context) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Engine.WriteSnapshot")
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Lock and grab the cache snapshot along with all the closed WAL

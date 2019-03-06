@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
@@ -639,7 +640,7 @@ func (r *runner) clearRunning(id platform.ID) {
 func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *zap.Logger) {
 	defer r.wg.Done()
 
-	sp, spCtx := opentracing.StartSpanFromContext(ctx, "task.run.execution")
+	sp, spCtx := tracing.StartSpanFromContext(ctx)
 	defer sp.Finish()
 
 	rp, err := r.executor.Execute(spCtx, qr)

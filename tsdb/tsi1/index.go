@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/slices"
@@ -217,7 +217,7 @@ func (i *Index) Open(ctx context.Context) error {
 		return errors.New("index already open")
 	}
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "Index.Open")
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	// Ensure root exists.
