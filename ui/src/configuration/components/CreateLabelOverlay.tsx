@@ -14,7 +14,7 @@ import {
 import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Types
-import {Label} from '@influxdata/influx'
+import {ILabel} from '@influxdata/influx'
 
 // Constants
 import {EMPTY_LABEL} from 'src/configuration/constants/LabelColors'
@@ -25,13 +25,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   isVisible: boolean
   onDismiss: () => void
-  onCreateLabel: (label: Label) => void
+  onCreateLabel: (label: ILabel) => void
   onNameValidation: (name: string) => string | null
   overrideDefaultName?: string
 }
 
 interface State {
-  label: Label
+  label: ILabel
   useCustomColorHex: boolean
 }
 

@@ -1,12 +1,12 @@
 // Labels can use a different set of brand colors than single stats or gauges
-import {Label} from '@influxdata/influx'
+import {ILabel} from '@influxdata/influx'
 import {LabelColor, LabelColorType} from 'src/types/colors'
 
 export const HEX_CODE_CHAR_LENGTH = 7
 
 export const DEFAULT_LABEL_COLOR_HEX = '#326BBA'
 
-export const EMPTY_LABEL: Label = {
+export const EMPTY_LABEL: ILabel = {
   name: '',
   properties: {
     description: '',

@@ -10,7 +10,6 @@ import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/D
 import {OverlayTechnology, Input, Tabs} from 'src/clockface'
 import {Button, ComponentColor, IconFont} from '@influxdata/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
-import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -138,14 +137,12 @@ class Dashboards extends PureComponent<Props, State> {
           onCloneDashboard={this.handleCloneDashboard}
           onExportDashboard={this.handleExportDashboard}
           onUpdateDashboard={handleUpdateDashboard}
-          onEditLabels={this.handleStartEditingLabels}
           notify={notify}
           searchTerm={searchTerm}
           showOwnerColumn={false}
           onFilterChange={this.handleFilterUpdate}
         />
         {this.renderImportOverlay}
-        {this.renderLabelEditorOverlay}
       </>
     )
   }
@@ -275,30 +272,6 @@ class Dashboards extends PureComponent<Props, State> {
           onDismissOverlay={this.handleToggleOverlay}
           onImportDashboard={this.handleImportDashboard}
           notify={notify}
-        />
-      </OverlayTechnology>
-    )
-  }
-
-  private handleStartEditingLabels = (dashboardLabelsEdit: Dashboard): void => {
-    this.setState({dashboardLabelsEdit, isEditingDashboardLabels: true})
-  }
-
-  private handleStopEditingLabels = (): void => {
-    this.setState({isEditingDashboardLabels: false})
-  }
-
-  private get renderLabelEditorOverlay(): JSX.Element {
-    const {onAddDashboardLabels, onRemoveDashboardLabels} = this.props
-    const {isEditingDashboardLabels, dashboardLabelsEdit} = this.state
-
-    return (
-      <OverlayTechnology visible={isEditingDashboardLabels}>
-        <EditLabelsOverlay<Dashboard>
-          resource={dashboardLabelsEdit}
-          onDismissOverlay={this.handleStopEditingLabels}
-          onAddLabels={onAddDashboardLabels}
-          onRemoveLabels={onRemoveDashboardLabels}
         />
       </OverlayTechnology>
     )

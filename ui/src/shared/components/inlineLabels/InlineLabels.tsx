@@ -7,7 +7,7 @@ import {Label} from 'src/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {Label as LabelType} from '@influxdata/influx'
+import {ILabel} from '@influxdata/influx'
 
 // Styles
 import 'src/shared/components/inlineLabels/InlineLabels.scss'
@@ -16,11 +16,11 @@ import 'src/shared/components/inlineLabels/InlineLabels.scss'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  selectedLabels: LabelType[]
-  labels: LabelType[]
-  onRemoveLabel: (label: LabelType) => void
-  onAddLabel: (label: LabelType) => void
-  onCreateLabel: (label: LabelType) => Promise<LabelType>
+  selectedLabels: ILabel[]
+  labels: ILabel[]
+  onRemoveLabel: (label: ILabel) => void
+  onAddLabel: (label: ILabel) => void
+  onCreateLabel: (label: ILabel) => Promise<ILabel>
   onFilterChange: (searchTerm: string) => void
 }
 
@@ -34,17 +34,15 @@ export default class InlineLabels extends Component<Props> {
     const {selectedLabels, labels, onAddLabel, onCreateLabel} = this.props
 
     return (
-      <>
-        <div className="inline-labels--container">
-          <InlineLabelsEditor
-            labels={labels}
-            selectedLabels={selectedLabels}
-            onAddLabel={onAddLabel}
-            onCreateLabel={onCreateLabel}
-          />
-          {this.currentLabels}
-        </div>
-      </>
+      <div className="inline-labels--container">
+        <InlineLabelsEditor
+          labels={labels}
+          selectedLabels={selectedLabels}
+          onAddLabel={onAddLabel}
+          onCreateLabel={onCreateLabel}
+        />
+        {this.currentLabels}
+      </div>
     )
   }
 

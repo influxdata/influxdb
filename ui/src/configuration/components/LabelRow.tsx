@@ -2,28 +2,25 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {
-  Button,
-  Alignment,
-  ComponentSize,
-  ComponentColor,
-} from '@influxdata/clockface'
-import {IndexList, Label} from 'src/clockface'
+import {Alignment, ComponentSize} from '@influxdata/clockface'
+import {IndexList, Label, ConfirmationButton} from 'src/clockface'
 
 // Types
-import {LabelType} from 'src/clockface'
+import {ILabel} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  label: LabelType
+  label: ILabel
+  onClick: (labelID: string) => void
+  onDelete: (labelID: string) => void
 }
 
 @ErrorHandling
 export default class LabelRow extends PureComponent<Props> {
   public render() {
-    const {label} = this.props
+    const {label, onDelete} = this.props
 
     return (
       <IndexList.Row key={label.id}>
@@ -31,28 +28,29 @@ export default class LabelRow extends PureComponent<Props> {
           <Label
             id={label.id}
             name={label.name}
-            colorHex={label.colorHex}
-            description={label.description}
+            colorHex={label.properties.color}
+            description={label.properties.description}
             size={ComponentSize.Small}
-            onClick={label.onClick}
+            onClick={this.handleClick}
           />
         </IndexList.Cell>
-        <IndexList.Cell>{label.description}</IndexList.Cell>
+        <IndexList.Cell>{label.properties.description}</IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-          <Button
+          <ConfirmationButton
             text="Delete"
-            color={ComponentColor.Danger}
+            confirmText="Confirm"
             size={ComponentSize.ExtraSmall}
-            onClick={this.handleClick}
+            onConfirm={onDelete}
+            returnValue={label.id}
           />
         </IndexList.Cell>
       </IndexList.Row>
     )
   }
 
-  private handleClick = () => {
-    const {label} = this.props
+  private handleClick = (): void => {
+    const {label, onClick} = this.props
 
-    label.onDelete(label.id)
+    onClick(label.id)
   }
 }

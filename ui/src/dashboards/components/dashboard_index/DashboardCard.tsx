@@ -17,7 +17,7 @@ import {
 
 // Types
 import {Organization} from 'src/types/v2'
-import {Dashboard, Label} from '@influxdata/influx'
+import {Dashboard, ILabel} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
 
 // Constants
@@ -35,7 +35,7 @@ interface PassedProps {
 }
 
 interface StateProps {
-  labels: Label[]
+  labels: ILabel[]
 }
 
 interface DispatchProps {
@@ -153,22 +153,21 @@ class DashboardCard extends PureComponent<Props> {
     onUpdateDashboard(dashboard)
   }
 
-  private handleAddLabel = (label: Label): void => {
+  private handleAddLabel = (label: ILabel): void => {
     const {dashboard, onAddDashboardLabels} = this.props
 
     onAddDashboardLabels(dashboard.id, [label])
   }
 
-  private handleRemoveLabel = (label: Label): void => {
+  private handleRemoveLabel = (label: ILabel): void => {
     const {dashboard, onRemoveDashboardLabels} = this.props
 
     onRemoveDashboardLabels(dashboard.id, [label])
   }
 
-  private handleCreateLabel = async (label: Label): Promise<Label> => {
+  private handleCreateLabel = async (label: ILabel): Promise<ILabel> => {
     try {
       const newLabel = await createLabelAJAX(label)
-      console.log(`created new label with name "${newLabel.name}"`)
       // notify success
       return newLabel
     } catch (err) {

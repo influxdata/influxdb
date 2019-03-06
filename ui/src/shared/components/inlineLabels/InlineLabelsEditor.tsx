@@ -13,7 +13,7 @@ import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPo
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 
 // Types
-import {Label} from '@influxdata/influx'
+import {ILabel} from '@influxdata/influx'
 import {OverlayState} from 'src/types/overlay'
 
 // Utils
@@ -25,15 +25,15 @@ import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  selectedLabels: Label[]
-  labels: Label[]
-  onAddLabel: (label: Label) => void
-  onCreateLabel: (label: Label) => Promise<Label>
+  selectedLabels: ILabel[]
+  labels: ILabel[]
+  onAddLabel: (label: ILabel) => void
+  onCreateLabel: (label: ILabel) => Promise<ILabel>
 }
 
 interface State {
   searchTerm: string
-  filteredLabels: Label[]
+  filteredLabels: ILabel[]
   isPopoverVisible: boolean
   selectedItemID: string
   isCreatingLabel: OverlayState
@@ -192,14 +192,14 @@ class InlineLabelsEditor extends Component<Props, State> {
     this.setState({searchTerm, filteredLabels, selectedItemID})
   }
 
-  private get availableLabels(): Label[] {
+  private get availableLabels(): ILabel[] {
     const {selectedLabels} = this.props
     const {filteredLabels} = this.state
 
     return _.differenceBy(filteredLabels, selectedLabels, label => label.name)
   }
 
-  private handleCreateLabel = async (label: Label) => {
+  private handleCreateLabel = async (label: ILabel) => {
     const {onCreateLabel, onAddLabel} = this.props
     const newLabel = await onCreateLabel(label)
     onAddLabel(newLabel)
