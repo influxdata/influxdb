@@ -436,3 +436,4 @@ export const VERSION = process.env.npm_package_version
 export const GIT_SHA = process.env.GIT_SHA
 
 export const CLOUD = process.env.CLOUD && process.env.CLOUD === 'true'
+export const CLOUD_SIGNIN_PATHNAME = '/api/v2/signin'
