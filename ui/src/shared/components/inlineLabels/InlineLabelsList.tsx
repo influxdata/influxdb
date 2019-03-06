@@ -94,6 +94,7 @@ class InlineLabelsList extends Component<Props> {
       <div
         className="inline-labels--list-item inline-labels--create-new"
         onClick={onStartCreatingLabel}
+        data-testid="inline-labels--create-new"
       >
         Create new label "<strong>{`${searchTerm}`}</strong>"
       </div>
