@@ -105,9 +105,8 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	cw := iocounter.Writer{Writer: w}
 	stats, err := h.ProxyQueryService.Query(ctx, &cw, req)
-	n := cw.Count()
 	if err != nil {
-		if n == 0 {
+		if cw.Count() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
 			EncodeError(ctx, err, w)
 			return
@@ -360,8 +359,7 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 		return flux.Statistics{}, err
 	}
 
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
+	if _, err = io.Copy(w, resp.Body); err != nil {
 		return flux.Statistics{}, err
 	}
 

@@ -98,8 +98,7 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 		return flux.Statistics{}, err
 	}
 
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
+	if _, err = io.Copy(w, resp.Body); err != nil {
 		return flux.Statistics{}, err
 	}
 
@@ -160,8 +159,7 @@ func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, 
 		return flux.Statistics{}, fmt.Errorf("unsupported dialect %T", req.Dialect)
 	}
 
-	_, err = csv.NewMultiResultEncoder(csvDialect.ResultEncoderConfig).Encode(w, influxql.NewResponseIterator(res))
-	if err != nil {
+	if _, err = csv.NewMultiResultEncoder(csvDialect.ResultEncoderConfig).Encode(w, influxql.NewResponseIterator(res)); err != nil {
 		return flux.Statistics{}, err
 	}
 
