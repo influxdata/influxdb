@@ -17,19 +17,19 @@ import {
 
 // Types
 import {Organization} from 'src/types/v2'
-import {Dashboard, ILabel} from '@influxdata/influx'
+import {IDashboard, ILabel} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 
 interface PassedProps {
-  dashboard: Dashboard
+  dashboard: IDashboard
   orgs: Organization[]
-  onDeleteDashboard: (dashboard: Dashboard) => void
-  onCloneDashboard: (dashboard: Dashboard) => void
-  onExportDashboard: (dashboard: Dashboard) => void
-  onUpdateDashboard: (dashboard: Dashboard) => void
+  onDeleteDashboard: (dashboard: IDashboard) => void
+  onCloneDashboard: (dashboard: IDashboard) => void
+  onExportDashboard: (dashboard: IDashboard) => void
+  onUpdateDashboard: (dashboard: IDashboard) => void
   showOwnerColumn: boolean
   onFilterChange: (searchTerm: string) => void
 }
