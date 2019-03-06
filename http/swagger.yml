@@ -5671,7 +5671,7 @@ components:
             logs:
               type: string
               format: uri
-      required: [name, orgID, flux]
+      required: [id, name, orgID, flux]
     Tasks:
       type: array
       items:
