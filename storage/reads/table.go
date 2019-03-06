@@ -36,6 +36,7 @@ type table struct {
 	err error
 
 	cancelled int32
+	alloc     *memory.Allocator
 }
 
 func newTable(
@@ -44,6 +45,7 @@ func newTable(
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) table {
 	return table{
 		done:    done,
@@ -53,11 +55,8 @@ func newTable(
 		defs:    defs,
 		colBufs: make([]array.Interface, len(cols)),
 		cols:    cols,
+		alloc:   alloc,
 	}
-}
-
-func (t *table) Statistics() flux.Statistics {
-	return flux.Statistics{}
 }
 
 func (t *table) Key() flux.GroupKey   { return t.key }
@@ -126,7 +125,7 @@ func (t *table) appendTags() {
 	for j := range t.cols {
 		v := t.tags[j]
 		if v != nil {
-			b := arrow.NewStringBuilder(&memory.Allocator{})
+			b := arrow.NewStringBuilder(t.alloc)
 			b.Reserve(t.l)
 			for i := 0; i < t.l; i++ {
 				b.Append(v)
@@ -141,7 +140,7 @@ func (t *table) appendTags() {
 func (t *table) appendBounds() {
 	bounds := []execute.Time{t.bounds.Start, t.bounds.Stop}
 	for j := range []int{startColIdx, stopColIdx} {
-		b := arrow.NewIntBuilder(&memory.Allocator{})
+		b := arrow.NewIntBuilder(t.alloc)
 		b.Reserve(t.l)
 		for i := 0; i < t.l; i++ {
 			b.UnsafeAppend(int64(bounds[j]))
@@ -200,9 +199,10 @@ func newTableNoPoints(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *tableNoPoints {
 	t := &tableNoPoints{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 	}
 	t.readTags(tags)
 
@@ -232,9 +232,10 @@ func newGroupTableNoPoints(
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *groupTableNoPoints {
 	t := &groupTableNoPoints{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 	}
 
 	return t
@@ -254,32 +255,32 @@ func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
 func (t *groupTableNoPoints) Statistics() cursors.CursorStats { return cursors.CursorStats{} }
 
 func (t *floatTable) toArrowBuffer(vs []float64) *array.Float64 {
-	return arrow.NewFloat(vs, &memory.Allocator{})
+	return arrow.NewFloat(vs, t.alloc)
 }
 func (t *floatGroupTable) toArrowBuffer(vs []float64) *array.Float64 {
-	return arrow.NewFloat(vs, &memory.Allocator{})
+	return arrow.NewFloat(vs, t.alloc)
 }
 func (t *integerTable) toArrowBuffer(vs []int64) *array.Int64 {
-	return arrow.NewInt(vs, &memory.Allocator{})
+	return arrow.NewInt(vs, t.alloc)
 }
 func (t *integerGroupTable) toArrowBuffer(vs []int64) *array.Int64 {
-	return arrow.NewInt(vs, &memory.Allocator{})
+	return arrow.NewInt(vs, t.alloc)
 }
 func (t *unsignedTable) toArrowBuffer(vs []uint64) *array.Uint64 {
-	return arrow.NewUint(vs, &memory.Allocator{})
+	return arrow.NewUint(vs, t.alloc)
 }
 func (t *unsignedGroupTable) toArrowBuffer(vs []uint64) *array.Uint64 {
-	return arrow.NewUint(vs, &memory.Allocator{})
+	return arrow.NewUint(vs, t.alloc)
 }
 func (t *stringTable) toArrowBuffer(vs []string) *array.Binary {
-	return arrow.NewString(vs, &memory.Allocator{})
+	return arrow.NewString(vs, t.alloc)
 }
 func (t *stringGroupTable) toArrowBuffer(vs []string) *array.Binary {
-	return arrow.NewString(vs, &memory.Allocator{})
+	return arrow.NewString(vs, t.alloc)
 }
 func (t *booleanTable) toArrowBuffer(vs []bool) *array.Boolean {
-	return arrow.NewBool(vs, &memory.Allocator{})
+	return arrow.NewBool(vs, t.alloc)
 }
 func (t *booleanGroupTable) toArrowBuffer(vs []bool) *array.Boolean {
-	return arrow.NewBool(vs, &memory.Allocator{})
+	return arrow.NewBool(vs, t.alloc)
 }

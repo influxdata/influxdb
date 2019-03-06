@@ -713,6 +713,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 		*bounds,
 		w,
 		currentTime,
+		a.Allocator(),
 	), nil
 }
 
