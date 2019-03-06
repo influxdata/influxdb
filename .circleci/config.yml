@@ -20,7 +20,7 @@ jobs:
       - store_artifacts:
           path: ~/project
       - store_test_results:
-          path: ~/project/result.xml
+          path: ~/project/
 
   litmus_nightly:
     machine: true
