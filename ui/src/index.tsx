@@ -156,7 +156,7 @@ class Root extends PureComponent {
                         </Route>
                         <Route path="tasks/:id/runs" component={TaskRunsPage} />
                         <Route path="tasks/new" component={TaskPage} />
-                        <Route path="tasks:id" component={TaskEditPage} />
+                        <Route path="tasks/:id" component={TaskEditPage} />
                         <Route
                           path="data-explorer"
                           component={DataExplorerPage}
