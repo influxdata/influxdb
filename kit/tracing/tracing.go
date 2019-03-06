@@ -70,8 +70,7 @@ func ExtractFromHTTPRequest(req *http.Request, handlerName string) (opentracing.
 //  span, ctx := opentracing.StartSpanFromContext(ctx, "operation name")
 func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Context) {
 	if ctx == nil {
-		// Guard against nil context.
-		ctx = context.Background()
+		panic("StartSpanFromContext called with nil context")
 	}
 
 	var frame runtime.Frame

@@ -56,6 +56,7 @@ func TestStartSpanFromContext(t *testing.T) {
 
 	type testCase struct {
 		ctx          context.Context
+		expectPanic  bool
 		expectParent bool
 	}
 	var testCases []testCase
@@ -63,23 +64,44 @@ func TestStartSpanFromContext(t *testing.T) {
 	testCases = append(testCases,
 		testCase{
 			ctx:          nil,
+			expectPanic:  true,
 			expectParent: false,
 		},
 		testCase{
 			ctx:          context.Background(),
+			expectPanic:  false,
 			expectParent: false,
 		})
 
 	parentSpan := opentracing.StartSpan("parent operation name")
 	testCases = append(testCases, testCase{
 		ctx:          opentracing.ContextWithSpan(context.Background(), parentSpan),
+		expectPanic:  false,
 		expectParent: true,
 	})
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			var span opentracing.Span
+			var ctx context.Context
+			var gotPanic bool
 
-			span, ctx := StartSpanFromContext(tc.ctx)
+			func(inputCtx context.Context) {
+				defer func() {
+					if recover() != nil {
+						gotPanic = true
+					}
+				}()
+				span, ctx = StartSpanFromContext(inputCtx)
+			}(tc.ctx)
+
+			if tc.expectPanic != gotPanic {
+				t.Errorf("panic: expect %v got %v", tc.expectPanic, gotPanic)
+			}
+			if tc.expectPanic {
+				// No other valid checks if panic.
+				return
+			}
 			if ctx == nil {
 				t.Error("never expect non-nil ctx")
 			}
