@@ -58,66 +58,66 @@ describe('resourceToTemplate', () => {
 
       expect(actual).toEqual(expected)
     })
-  }),
-    describe('taskToTemplate', () => {
-      it('converts a task to a template', () => {
-        const actual = taskToTemplate(myfavetask)
-        const expected = {
-          content: {
-            data: {
-              type: 'task',
-              attributes: {
-                every: '24h0m0s',
-                flux:
-                  'option task = {name: "lala", every: 86400000000000ns, offset: 60000000000ns}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
-                name: 'lala',
-                offset: '1m0s',
-                status: 'active',
-              },
-              relationships: {
-                label: {
-                  data: [
-                    {
-                      id: '037b0c86a92a2000',
-                      type: 'label',
-                    },
-                  ],
-                },
+  })
+  describe('taskToTemplate', () => {
+    it('converts a task to a template', () => {
+      const actual = taskToTemplate(myfavetask)
+      const expected = {
+        content: {
+          data: {
+            type: 'task',
+            attributes: {
+              every: '24h0m0s',
+              flux:
+                'option task = {name: "lala", every: 86400000000000ns, offset: 60000000000ns}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
+              name: 'lala',
+              offset: '1m0s',
+              status: 'active',
+            },
+            relationships: {
+              label: {
+                data: [
+                  {
+                    id: '037b0c86a92a2000',
+                    type: 'label',
+                  },
+                ],
               },
             },
-            included: [
-              {
-                attributes: {
-                  name: 'yum',
-                  properties: {
-                    color: '#FF8564',
-                    description: '',
-                  },
-                },
-                id: '037b0c86a92a2000',
-                type: TemplateType.Label,
-              },
-            ],
           },
-          labels: [
+          included: [
             {
-              id: '1',
-              name: 'influx.task',
-              properties: {
-                color: 'ffb3b3',
-                description:
-                  'This is a template for a task resource on influx 2.0',
+              attributes: {
+                name: 'yum',
+                properties: {
+                  color: '#FF8564',
+                  description: '',
+                },
               },
+              id: '037b0c86a92a2000',
+              type: TemplateType.Label,
             },
           ],
-          meta: {
-            description: 'template created from task: lala',
-            name: 'lala-Template',
-            version: '1',
+        },
+        labels: [
+          {
+            id: '1',
+            name: 'influx.task',
+            properties: {
+              color: 'ffb3b3',
+              description:
+                'This is a template for a task resource on influx 2.0',
+            },
           },
-        }
+        ],
+        meta: {
+          description: 'template created from task: lala',
+          name: 'lala-Template',
+          version: '1',
+        },
+      }
 
-        expect(actual).toEqual(expected)
-      })
+      expect(actual).toEqual(expected)
     })
+  })
 })
