@@ -48,12 +48,9 @@ class OrgTaskExportOverlay extends PureComponent<Props, State> {
   }
 
   private onDismiss = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {router} = this.props
 
-    router.push(`/organizations/${orgID}/tasks`)
+    router.goBack()
   }
 }
 
