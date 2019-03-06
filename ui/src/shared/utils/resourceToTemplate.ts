@@ -33,11 +33,11 @@ const blankTaskTemplate = {
   ],
 }
 
-const labelToRelationship = (l: Label) => {
+export const labelToRelationship = (l: Label) => {
   return {type: TemplateType.Label, id: l.id}
 }
 
-const labelToIncluded = (l: Label) => {
+export const labelToIncluded = (l: Label) => {
   return {
     type: TemplateType.Label,
     id: l.id,
