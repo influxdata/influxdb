@@ -149,6 +149,10 @@ class Root extends PureComponent {
                             path=":id/export"
                             component={OrgTaskExportOverlay}
                           />
+                          <Route
+                            path="import"
+                            component={OrgTaskImportOverlay}
+                          />
                         </Route>
                         <Route path="tasks/:id/runs" component={TaskRunsPage} />
                         <Route path="tasks/new" component={TaskPage} />

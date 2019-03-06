@@ -33,14 +33,9 @@ class OrgTaskImportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {router} = this.props
 
-    // fetch tasks
-
-    router.push(`/organizations/${orgID}/tasks`)
+    router.goBack()
   }
 
   private handleImportTask = async (importString: string): Promise<void> => {
