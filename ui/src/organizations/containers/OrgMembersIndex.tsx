@@ -13,6 +13,10 @@ import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSecti
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 import Members from 'src/organizations/components/Members'
 
+//Actions
+import * as NotificationsActions from 'src/types/actions/notifications'
+import * as notifyActions from 'src/shared/actions/notifications'
+
 // APIs
 import {client} from 'src/utils/api'
 
@@ -27,11 +31,15 @@ interface RouterProps {
   }
 }
 
+interface DispatchProps {
+  notify: NotificationsActions.PublishNotificationActionCreator
+}
+
 interface StateProps {
   org: Organization
 }
 
-type Props = WithRouterProps & RouterProps & StateProps
+type Props = WithRouterProps & RouterProps & StateProps & DispatchProps
 
 const getOwnersAndMembers = async (org: Organization) => {
   const allMembers = await Promise.all([
@@ -49,7 +57,7 @@ class OrgMembersIndex extends Component<Props> {
   }
 
   public render() {
-    const {org} = this.props
+    const {org, notify} = this.props
 
     return (
       <Page titleTag={org.name}>
@@ -73,7 +81,12 @@ class OrgMembersIndex extends Component<Props> {
                         loading={loading}
                         spinnerComponent={<TechnoSpinner />}
                       >
-                        <Members members={members} orgName={org.name} />
+                        <Members
+                          members={members}
+                          orgName={org.name}
+                          orgID={org.id}
+                          notify={notify}
+                        />
                       </SpinnerContainer>
                     )}
                   </GetOrgResources>
@@ -95,4 +108,11 @@ const mstp = (state: AppState, props: Props) => {
   }
 }
 
-export default connect<StateProps>(mstp)(withRouter<{}>(OrgMembersIndex))
+const mdtp: DispatchProps = {
+  notify: notifyActions.notify,
+}
+
+export default connect<StateProps>(
+  mstp,
+  mdtp
+)(withRouter<{}>(OrgMembersIndex))
