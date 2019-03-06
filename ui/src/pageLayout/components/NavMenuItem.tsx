@@ -29,13 +29,7 @@ const NavMenuItem: SFC<Props> = ({
   highlightPaths,
 }) => {
   const parentPath = get(location.split('/'), '1', '')
-  const isActive = highlightPaths.reduce((acc, path) => {
-    if (path === parentPath) {
-      acc = true
-    }
-
-    return acc
-  }, false)
+  const isActive = highlightPaths.some(path => path === parentPath)
 
   return (
     <div
