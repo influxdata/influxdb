@@ -1,9 +1,9 @@
 import React from 'react'
 import {Provider} from 'react-redux'
+import {Router, createMemoryHistory} from 'react-router'
 
 import {render} from 'react-testing-library'
 import configureStore from 'src/store/configureStore'
-import {createMemoryHistory} from 'history'
 
 const localState = {
   app: {
@@ -37,5 +37,15 @@ export function renderWithRedux(ui, initialState = s => s) {
   return {
     ...render(provider),
     store,
+  }
+}
+
+export function renderWithRouter(
+  ui,
+  {route = '/', history = createMemoryHistory({entries: [route]})} = {}
+) {
+  return {
+    ...render(<Router history={history}>{ui}</Router>),
+    history,
   }
 }

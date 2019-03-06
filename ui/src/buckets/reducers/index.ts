@@ -3,26 +3,26 @@ import {produce} from 'immer'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Action} from 'src/labels/actions'
-import {Label} from 'src/types/v2'
+import {Action} from 'src/buckets/actions'
+import {Bucket} from '@influxdata/influx'
 
-const initialState = (): LabelsState => ({
+const initialState = (): BucketsState => ({
   status: RemoteDataState.NotStarted,
   list: [],
 })
 
-export interface LabelsState {
+export interface BucketsState {
   status: RemoteDataState
-  list: Label[]
+  list: Bucket[]
 }
 
-export const labelsReducer = (
-  state: LabelsState = initialState(),
+export const bucketsReducer = (
+  state: BucketsState = initialState(),
   action: Action
-): LabelsState =>
+): BucketsState =>
   produce(state, draftState => {
     switch (action.type) {
-      case 'SET_LABELS': {
+      case 'SET_BUCKETS': {
         const {status, list} = action.payload
 
         draftState.status = status
@@ -34,21 +34,21 @@ export const labelsReducer = (
         return
       }
 
-      case 'ADD_LABEL': {
-        const {label} = action.payload
+      case 'ADD_BUCKET': {
+        const {bucket} = action.payload
 
-        draftState.list.push(label)
+        draftState.list.push(bucket)
 
         return
       }
 
-      case 'EDIT_LABEL': {
-        const {label} = action.payload
+      case 'EDIT_BUCKET': {
+        const {bucket} = action.payload
         const {list} = draftState
 
         draftState.list = list.map(l => {
-          if (l.id === label.id) {
-            return label
+          if (l.id === bucket.id) {
+            return bucket
           }
 
           return l
@@ -57,7 +57,7 @@ export const labelsReducer = (
         return
       }
 
-      case 'REMOVE_LABEL': {
+      case 'REMOVE_BUCKET': {
         const {id} = action.payload
         const {list} = draftState
         const deleted = list.filter(l => {

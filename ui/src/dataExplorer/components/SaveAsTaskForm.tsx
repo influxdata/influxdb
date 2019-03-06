@@ -19,6 +19,11 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
+import {getActiveOrg} from 'src/organizations/selectors'
+import {
+  taskOptionsToFluxScript,
+  addDestinationToFluxScript,
+} from 'src/utils/taskOptionsToFluxScript'
 
 // Types
 import {AppState, Organization, TimeRange} from 'src/types/v2'
@@ -42,6 +47,7 @@ interface DispatchProps {
 
 interface StateProps {
   orgs: Organization[]
+  activeOrgName: string
   taskOptions: TaskOptions
   draftQueries: DashboardDraftQuery[]
   activeQueryIndex: number
@@ -105,7 +111,13 @@ class SaveAsTaskForm extends PureComponent<Props> {
   }
 
   private handleSubmit = async () => {
-    const {saveNewScript, newScript, taskOptions, timeRange} = this.props
+    const {
+      saveNewScript,
+      newScript,
+      taskOptions,
+      timeRange,
+      activeOrgName,
+    } = this.props
 
     // When a task runs, it does not have access to variables that we typically
     // inject into the script via the front end. So any variables that are used
@@ -121,15 +133,12 @@ class SaveAsTaskForm extends PureComponent<Props> {
       newScript.includes(assignment.id.name)
     )
 
-    let script: string
+    const varOption: string = formatVarsOption(vars) // option v = { ... }
+    const taskOption: string = taskOptionsToFluxScript(taskOptions) // option task = { ... }
+    const preamble = `${varOption}\n\n${taskOption}`
+    const script = addDestinationToFluxScript(newScript, taskOptions)
 
-    if (vars.length) {
-      script = `${formatVarsOption(vars)}\n\n${newScript}`
-    } else {
-      script = newScript
-    }
-
-    saveNewScript(script, taskOptions)
+    saveNewScript(script, preamble, activeOrgName)
   }
 
   private handleChangeTaskOrgID = (orgID: string) => {
@@ -176,8 +185,11 @@ const mstp = (state: AppState): StateProps => {
     state
   )
 
+  const activeOrgName = getActiveOrg(state).name
+
   return {
     orgs,
+    activeOrgName,
     newScript,
     taskOptions,
     timeRange,

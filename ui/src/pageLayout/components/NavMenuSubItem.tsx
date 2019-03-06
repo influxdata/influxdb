@@ -8,11 +8,16 @@ interface Props {
   title: string
   link: string
   location: string
-  highlightWhen: string[]
+  highlightPaths: string[]
 }
 
-const NavMenuSubItem: SFC<Props> = ({title, link, location, highlightWhen}) => {
-  const {length} = _.intersection(_.split(location, '/'), highlightWhen)
+const NavMenuSubItem: SFC<Props> = ({
+  title,
+  link,
+  location,
+  highlightPaths,
+}) => {
+  const {length} = _.intersection(_.split(location, '/'), highlightPaths)
   const isActive = !!length
 
   return (

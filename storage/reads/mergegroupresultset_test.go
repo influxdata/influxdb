@@ -2,7 +2,6 @@ package reads_test
 
 import (
 	"errors"
-	"io"
 	"strings"
 	"testing"
 
@@ -125,7 +124,7 @@ func TestGroupNoneMergedGroupResultSet_ErrNoData(t *testing.T) {
 	}
 }
 
-func TestGroupNoneMergedGroupResultSet_ErrUnexpectedEOF(t *testing.T) {
+func TestGroupNoneMergedGroupResultSet_ErrStreamNoData(t *testing.T) {
 	streams := []reads.StreamReader{
 		newGroupNoneStreamSeries("m0,tag2", "m0,tag2=val20"),
 		&emptyStreamReader{},
@@ -141,7 +140,7 @@ func TestGroupNoneMergedGroupResultSet_ErrUnexpectedEOF(t *testing.T) {
 		t.Errorf("expected nil")
 	}
 
-	if got, expErr := grs.Err(), io.ErrUnexpectedEOF; !cmp.Equal(got, expErr, cmp.Comparer(errCmp)) {
+	if got, expErr := grs.Err(), reads.ErrStreamNoData; !cmp.Equal(got, expErr, cmp.Comparer(errCmp)) {
 		t.Errorf("unexpected error; -got/+exp\n%s", cmp.Diff(got, expErr, cmp.Transformer("err", errTr)))
 	}
 }

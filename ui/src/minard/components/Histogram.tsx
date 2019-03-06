@@ -98,8 +98,6 @@ export const Histogram: SFC<Props> = ({
       />
       {hoveredRowIndices && (
         <HistogramTooltip
-          hoverX={hoverX}
-          hoverY={hoverY}
           hoveredRowIndices={hoveredRowIndices}
           layer={layer}
           tooltip={tooltip}

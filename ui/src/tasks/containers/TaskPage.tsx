@@ -20,6 +20,12 @@ import {
   cancel,
 } from 'src/tasks/actions/v2'
 
+// Utils
+import {
+  taskOptionsToFluxScript,
+  addDestinationToFluxScript,
+} from 'src/utils/taskOptionsToFluxScript'
+
 // Types
 import {Links} from 'src/types/v2/links'
 import {Organization} from 'src/types/v2'
@@ -127,7 +133,15 @@ class TaskPage extends PureComponent<
   private handleSave = () => {
     const {newScript, taskOptions} = this.props
 
-    this.props.saveNewScript(newScript, taskOptions)
+    const taskOption: string = taskOptionsToFluxScript(taskOptions)
+    const script: string = addDestinationToFluxScript(newScript, taskOptions)
+    const preamble = `${taskOption}`
+
+    this.props.saveNewScript(script, preamble, this.orgName)
+  }
+
+  private get orgName(): string {
+    return this.props.orgs[0].name
   }
 
   private handleCancel = () => {

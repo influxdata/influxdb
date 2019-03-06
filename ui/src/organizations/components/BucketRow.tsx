@@ -18,6 +18,7 @@ import {
 import {Bucket} from '@influxdata/influx'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import EditableName from 'src/shared/components/EditableName'
+import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
 
 export interface PrettyBucket extends Bucket {
   ruleString: string
@@ -46,6 +47,7 @@ export default class BucketRow extends PureComponent<Props> {
               noNameString={DEFAULT_BUCKET_NAME}
             />
           </IndexList.Cell>
+          <IndexList.Cell>{bucket.organization}</IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
@@ -74,11 +76,13 @@ export default class BucketRow extends PureComponent<Props> {
                   description="Quickly load an existing line protocol file."
                   action={this.handleAddLineProtocol}
                 />
-                <Context.Item
-                  label="Scrape Metrics"
-                  description="Add a scrape target to pull data into your bucket."
-                  action={this.handleAddScraper}
-                />
+                <CloudFeatureFlag>
+                  <Context.Item
+                    label="Scrape Metrics"
+                    description="Add a scrape target to pull data into your bucket."
+                    action={this.handleAddScraper}
+                  />
+                </CloudFeatureFlag>
               </Context.Menu>
             </Context>
           </IndexList.Cell>

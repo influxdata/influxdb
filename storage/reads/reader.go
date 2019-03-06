@@ -192,10 +192,10 @@ READ:
 			}
 		}
 
-		table.Close()
 		stats := table.Statistics()
 		bi.stats.ScannedValues += stats.ScannedValues
 		bi.stats.ScannedBytes += stats.ScannedBytes
+		table.Close()
 		table = nil
 	}
 	return rs.Err()
@@ -318,10 +318,10 @@ READ:
 			break READ
 		}
 
-		table.Close()
 		stats := table.Statistics()
 		bi.stats.ScannedValues += stats.ScannedValues
 		bi.stats.ScannedBytes += stats.ScannedBytes
+		table.Close()
 		table = nil
 
 		gc = rs.Next()
