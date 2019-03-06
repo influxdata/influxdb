@@ -186,7 +186,7 @@ describe('Dashboards', () => {
         cy.getByTestID('dashboard-card').should('have.length', 1)
       })
 
-      it.only('can search by dashboard name', () => {
+      it('can search by dashboard name', () => {
         cy.getByTestID('search-widget').type(dashSearchName)
 
         cy.getByTestID('dashboard-card').should('have.length', 1)
