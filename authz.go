@@ -120,7 +120,8 @@ const (
 	// LabelsResourceType gives permission to one or more labels.
 	LabelsResourceType = ResourceType("labels") // 11
 	// ViewsResourceType gives permission to one or more views.
-	ViewsResourceType = ResourceType("views") // 12
+	ViewsResourceType     = ResourceType("views")     // 12
+	DocumentsResourceType = ResourceType("documents") // 13
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -138,6 +139,7 @@ var AllResourceTypes = []ResourceType{
 	SecretsResourceType,        // 10
 	LabelsResourceType,         // 11
 	ViewsResourceType,          // 12
+	DocumentsResourceType,      // 13
 }
 
 // OrgResourceTypes is the list of all known resource types that belong to an organization.
@@ -150,6 +152,7 @@ var OrgResourceTypes = []ResourceType{
 	UsersResourceType,      // 7
 	VariablesResourceType,  // 8
 	SecretsResourceType,    // 10
+	DocumentsResourceType,  //13
 }
 
 // Valid checks if the resource type is a member of the ResourceType enum.
@@ -173,6 +176,7 @@ func (t ResourceType) Valid() (err error) {
 	case SecretsResourceType: // 10
 	case LabelsResourceType: // 11
 	case ViewsResourceType: // 12
+	case DocumentsResourceType: // 13
 	default:
 		err = ErrInvalidResourceType
 	}

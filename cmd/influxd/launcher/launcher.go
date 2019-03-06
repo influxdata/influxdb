@@ -585,6 +585,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
 		ProtoService:                    protoSvc,
+		DocumentService:                 m.kvService,
 		OrgLookupService:                m.kvService,
 	}
 
