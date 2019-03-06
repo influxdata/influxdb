@@ -137,9 +137,9 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 	}
 
 	for i := 0; i < len(c.row.Tags); i++ {
-		if bytes.Equal(c.row.Tags[i].Key, tsdb.MeasurementInternalTagKeyBytes) {
+		if bytes.Equal(c.row.Tags[i].Key, models.MeasurementTagKeyBytes) {
 			c.row.Tags[i].Key = measurementKeyBytes
-		} else if bytes.Equal(c.row.Tags[i].Key, tsdb.FieldKeyInternalTagKeyBytes) {
+		} else if bytes.Equal(c.row.Tags[i].Key, models.FieldKeyTagKeyBytes) {
 			c.row.Tags[i].Key = fieldKeyBytes
 		}
 	}

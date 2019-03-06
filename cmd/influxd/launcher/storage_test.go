@@ -36,13 +36,13 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
 
 	exp := `,result,table,_start,_stop,_time,_value,_measurement,k,_field` + "\r\n" +
-		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,m,v1,f` + "\r\n\r\n"
+		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,m,v1,f` + "\r\n\r\n"
 	if got := l.FluxQueryOrFail(t, org1.Org, org1.Auth.Token, qs); !cmp.Equal(got, exp) {
 		t.Errorf("unexpected query results -got/+exp\n%s", cmp.Diff(got, exp))
 	}
 
 	exp = `,result,table,_start,_stop,_time,_value,_measurement,k,_field` + "\r\n" +
-		`,result,table,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,200,m,v2,f` + "\r\n\r\n"
+		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,200,m,v2,f` + "\r\n\r\n"
 	if got := l.FluxQueryOrFail(t, org2.Org, org2.Auth.Token, qs); !cmp.Equal(got, exp) {
 		t.Errorf("unexpected query results -got/+exp\n%s", cmp.Diff(got, exp))
 	}
