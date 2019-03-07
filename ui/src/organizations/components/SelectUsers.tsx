@@ -1,16 +1,22 @@
 // Libraries
 import React, {PureComponent} from 'react'
+
+//Components
 import {MultiSelectDropdown, Dropdown} from 'src/clockface'
-import {User} from '@influxdata/influx'
+
+// Types
+import {UsersMap} from 'src/organizations/components/Members'
 
 interface Props {
-  users: User[]
+  users: UsersMap
   onSelect: (selectedIDs: string[]) => void
   selectedUserIDs: string[]
 }
 
 export default class SelectUsers extends PureComponent<Props> {
   public render() {
+    const {users} = this.props
+
     return (
       <>
         <MultiSelectDropdown
@@ -18,9 +24,9 @@ export default class SelectUsers extends PureComponent<Props> {
           onChange={this.props.onSelect}
           emptyText="Select user"
         >
-          {this.props.users.map(cn => (
-            <Dropdown.Item id={cn.id} key={cn.id} value={cn}>
-              {cn.name}
+          {Object.keys(users).map(key => (
+            <Dropdown.Item id={key} key={key} value={users[key]}>
+              {users[key].name}
             </Dropdown.Item>
           ))}
         </MultiSelectDropdown>
