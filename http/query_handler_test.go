@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
@@ -24,7 +26,7 @@ func TestFluxService_Query(t *testing.T) {
 		ctx     context.Context
 		r       *query.ProxyRequest
 		status  int
-		want    int64
+		want    flux.Statistics
 		wantW   string
 		wantErr bool
 	}{
@@ -41,7 +43,7 @@ func TestFluxService_Query(t *testing.T) {
 				Dialect: csv.DefaultDialect(),
 			},
 			status: http.StatusOK,
-			want:   6,
+			want:   flux.Statistics{},
 			wantW:  "howdy\n",
 		},
 		{
@@ -78,8 +80,8 @@ func TestFluxService_Query(t *testing.T) {
 				t.Errorf("FluxService.Query() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got != tt.want {
-				t.Errorf("FluxService.Query() = %v, want %v", got, tt.want)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("FluxService.Query() = -want/+got: %v", diff)
 			}
 			if gotW := w.String(); gotW != tt.wantW {
 				t.Errorf("FluxService.Query() = %v, want %v", gotW, tt.wantW)

@@ -26,5 +26,5 @@ type AsyncQueryService interface {
 type ProxyQueryService interface {
 	// Query performs the requested query and encodes the results into w.
 	// The number of bytes written to w is returned __independent__ of any error.
-	Query(ctx context.Context, w io.Writer, req *ProxyRequest) (int64, error)
+	Query(ctx context.Context, w io.Writer, req *ProxyRequest) (flux.Statistics, error)
 }

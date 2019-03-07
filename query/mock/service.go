@@ -10,11 +10,11 @@ import (
 
 // ProxyQueryService mocks the idep QueryService for testing.
 type ProxyQueryService struct {
-	QueryF func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error)
+	QueryF func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error)
 }
 
 // Query writes the results of the query request.
-func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
+func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 	return s.QueryF(ctx, w, req)
 }
 
