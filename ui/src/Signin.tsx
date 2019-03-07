@@ -47,7 +47,9 @@ export class Signin extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
+    this.setState({loading: RemoteDataState.Loading})
     await this.checkForLogin()
+    this.setState({loading: RemoteDataState.Done})
     this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
   }
 
@@ -67,9 +69,7 @@ export class Signin extends PureComponent<Props, State> {
 
   private checkForLogin = async () => {
     try {
-      this.setState({loading: RemoteDataState.Loading})
       await client.users.me()
-      this.setState({loading: RemoteDataState.Done})
     } catch (error) {
       const {
         location: {pathname},
@@ -80,7 +80,7 @@ export class Signin extends PureComponent<Props, State> {
       if (CLOUD) {
         window.location.pathname = CLOUD_SIGNIN_PATHNAME
 
-        return
+        throw error
       }
 
       if (pathname.startsWith('/signin')) {
