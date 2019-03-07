@@ -11,6 +11,7 @@ import OrganizationsIndexContents from 'src/organizations/components/Organizatio
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import {OverlayTechnology} from 'src/clockface'
+import FeatureFlag from 'src/shared/components/FeatureFlag'
 
 // Actions
 import {createOrg, deleteOrg} from 'src/organizations/actions/orgs'
@@ -63,18 +64,20 @@ class OrganizationsIndex extends PureComponent<Props, State> {
               <Page.Title title="Organizations" />
             </Page.Header.Left>
             <Page.Header.Right>
-              <SearchWidget
-                placeholderText="Filter organizations by name..."
-                onSearch={this.handleChangeSearchTerm}
-              />
-              <Button
-                color={ComponentColor.Primary}
-                onClick={this.handleOpenModal}
-                icon={IconFont.Plus}
-                text="Create Organization"
-                titleText="Create a new Organization"
-                testID="create-org-button"
-              />
+              <FeatureFlag>
+                <SearchWidget
+                  placeholderText="Filter organizations by name..."
+                  onSearch={this.handleChangeSearchTerm}
+                />
+                <Button
+                  color={ComponentColor.Primary}
+                  onClick={this.handleOpenModal}
+                  icon={IconFont.Plus}
+                  text="Create Organization"
+                  titleText="Create a new Organization"
+                  testID="create-org-button"
+                />
+              </FeatureFlag>
             </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
