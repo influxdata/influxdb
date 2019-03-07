@@ -27,7 +27,7 @@ func (s *Service) CreateDocumentStore(ctx context.Context, ns string) (influxdb.
 	// TODO(desa): keep track of which namespaces exist.
 	var ds influxdb.DocumentStore
 
-	err := s.kv.Update(func(tx Tx) error {
+	err := s.kv.Update(ctx, func(tx Tx) error {
 		store, err := s.createDocumentStore(ctx, tx, ns)
 		if err != nil {
 			return err
@@ -63,7 +63,7 @@ func (s *Service) createDocumentStore(ctx context.Context, tx Tx, ns string) (in
 func (s *Service) FindDocumentStore(ctx context.Context, ns string) (influxdb.DocumentStore, error) {
 	var ds influxdb.DocumentStore
 
-	err := s.kv.View(func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		if _, err := tx.Bucket([]byte(path.Join(ns, documentContentBucket))); err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ type DocumentStore struct {
 
 // CreateDocument creates an instance of a document and sets the ID. After which it applies each of the options provided.
 func (s *DocumentStore) CreateDocument(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
-	return s.service.kv.Update(func(tx Tx) error {
+	return s.service.kv.Update(ctx, func(tx Tx) error {
 		err := s.service.createDocument(ctx, tx, s.namespace, d)
 		if err != nil {
 			return err
@@ -404,7 +404,7 @@ func (s *Service) putDocumentMeta(ctx context.Context, tx Tx, ns string, id infl
 }
 
 func (s *DocumentStore) PutDocument(ctx context.Context, d *influxdb.Document) error {
-	return s.service.kv.Update(func(tx Tx) error {
+	return s.service.kv.Update(ctx, func(tx Tx) error {
 		return s.service.putDocument(ctx, tx, s.namespace, d)
 	})
 }
@@ -518,7 +518,7 @@ func (d *DocumentDecorator) IncludeLabels() error {
 // FindDocuments retrieves all documenst returned by the document find options.
 func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
 	var ds []*influxdb.Document
-	err := s.service.kv.View(func(tx Tx) error {
+	err := s.service.kv.View(ctx, func(tx Tx) error {
 		if len(opts) == 0 {
 			// TODO(desa): might be a better way to do get all.
 			if err := s.service.findDocuments(ctx, tx, s.namespace, &ds); err != nil {
@@ -531,6 +531,7 @@ func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.Docu
 		idx := &DocumentIndex{
 			service: s.service,
 			tx:      tx,
+			ctx:     ctx,
 		}
 
 		dd := &DocumentDecorator{}
@@ -616,7 +617,7 @@ func (s *Service) findDocuments(ctx context.Context, tx Tx, ns string, ds *[]*in
 
 // DeleteDocuments removes all documents returned by the options.
 func (s *DocumentStore) DeleteDocuments(ctx context.Context, opts ...influxdb.DocumentFindOptions) error {
-	return s.service.kv.Update(func(tx Tx) error {
+	return s.service.kv.Update(ctx, func(tx Tx) error {
 		idx := &DocumentIndex{
 			service:  s.service,
 			tx:       tx,
@@ -708,7 +709,7 @@ func (s *Service) deleteDocumentMeta(ctx context.Context, tx Tx, ns string, id i
 
 // UpdateDocument updates the document.
 func (s *DocumentStore) UpdateDocument(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
-	return s.service.kv.Update(func(tx Tx) error {
+	return s.service.kv.Update(ctx, func(tx Tx) error {
 		idx := &DocumentIndex{
 			service:  s.service,
 			tx:       tx,
