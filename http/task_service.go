@@ -797,7 +797,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, logs); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, &getLogsResponse{Events: logs}); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}
@@ -805,6 +805,10 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 
 type getLogsRequest struct {
 	filter platform.LogFilter
+}
+
+type getLogsResponse struct {
+	Events []*platform.Log `json:"events"`
 }
 
 func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest, error) {
@@ -1585,12 +1589,12 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 		return nil, 0, err
 	}
 
-	var logs []*platform.Log
+	var logs getLogsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&logs); err != nil {
 		return nil, 0, err
 	}
 
-	return logs, len(logs), nil
+	return logs.Events, len(logs.Events), nil
 }
 
 // FindRuns returns a list of runs that match a filter and the total count of returned runs.

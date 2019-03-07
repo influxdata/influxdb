@@ -478,7 +478,6 @@ export const getLogs = (taskID: string, runID: string) => async (
 ): Promise<void> => {
   try {
     const logs = await client.tasks.getLogEventsByRunID(taskID, runID)
-    console.log(logs)
     dispatch(setLogs(logs))
   } catch (e) {
     console.error(e)

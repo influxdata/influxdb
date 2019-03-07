@@ -3,14 +3,20 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 //Components
-import Container from 'src/clockface/components/overlays/OverlayContainer'
-import Heading from 'src/clockface/components/overlays/OverlayHeading'
-import Body from 'src/clockface/components/overlays/OverlayBody'
+import {
+  OverlayContainer,
+  OverlayHeading,
+  OverlayBody,
+  IndexList,
+} from 'src/clockface'
 import RunLogRow from 'src/tasks/components/RunLogRow'
-import {IndexList} from 'src/clockface'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Types
 import {LogEvent} from '@influxdata/influx'
+
+// Stylesheet
+import './RunLogsList.scss'
 
 interface Props {
   onDismissOverlay: () => void
@@ -26,25 +32,29 @@ class RunLogsOverlay extends PureComponent<Props> {
     const {onDismissOverlay} = this.props
 
     return (
-      <Container maxWidth={800}>
-        <Heading title="Run Logs" onDismiss={onDismissOverlay} />
-        <Body>
-          <IndexList>
-            <IndexList.Header>
-              <IndexList.HeaderCell columnName="Time" width="50%" />
-              <IndexList.HeaderCell columnName="Message" width="50%" />
-            </IndexList.Header>
-            <IndexList.Body emptyState={<></>} columnCount={2}>
-              {this.listLogs}
-            </IndexList.Body>
-          </IndexList>
-        </Body>
-      </Container>
+      <OverlayContainer customClass={'run-logs--list'}>
+        <OverlayHeading title="Run Logs" onDismiss={onDismissOverlay} />
+        <OverlayBody>
+          <FancyScrollbar autoHeight={true} maxHeight={700}>
+            <IndexList>
+              <IndexList.Header>
+                <IndexList.HeaderCell columnName="Time" width="10%" />
+                <IndexList.HeaderCell columnName="Message" width="90%" />
+              </IndexList.Header>
+              <IndexList.Body emptyState={<></>} columnCount={2}>
+                {this.listLogs}
+              </IndexList.Body>
+            </IndexList>
+          </FancyScrollbar>
+        </OverlayBody>
+      </OverlayContainer>
     )
   }
 
   public get listLogs(): JSX.Element[] {
-    const logs = this.props.logs.map(rl => <RunLogRow log={rl} />)
+    const logs = this.props.logs.map(rl => (
+      <RunLogRow key={rl.message} log={rl} />
+    ))
 
     return logs
   }

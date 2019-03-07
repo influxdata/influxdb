@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import moment from 'moment'
 
 // Components
 import {IndexList, OverlayTechnology} from 'src/clockface'
@@ -13,6 +14,7 @@ import {getLogs} from 'src/tasks/actions/v2'
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
 import {Run, LogEvent} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
+import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 interface OwnProps {
   taskID: string
@@ -64,10 +66,9 @@ class TaskRunsRow extends PureComponent<Props, State> {
               text="View Logs"
               onClick={this.handleToggleOverlay}
             />
+            {this.renderLogOverlay}
           </IndexList.Cell>
         </IndexList.Row>
-
-        {this.renderLogOverlay}
       </>
     )
   }
@@ -77,9 +78,7 @@ class TaskRunsRow extends PureComponent<Props, State> {
       return ''
     }
     const newdate = new Date(dt)
-    const date = newdate.toDateString()
-    const time = newdate.toLocaleTimeString()
-    const formatted = `${date} ${time}`
+    const formatted = moment(newdate).format(DEFAULT_TIME_FORMAT)
 
     return formatted
   }
