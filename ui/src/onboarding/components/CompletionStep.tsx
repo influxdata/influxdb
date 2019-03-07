@@ -51,7 +51,7 @@ class CompletionStep extends PureComponent<Props> {
     const {onExit} = this.props
 
     return (
-      <div className="onboarding-step buttonless">
+      <div className="onboarding-step">
         <div className="wizard-step--scroll-area">
           <FancyScrollbar autoHide={false}>
             <div className="wizard-step--scroll-content">

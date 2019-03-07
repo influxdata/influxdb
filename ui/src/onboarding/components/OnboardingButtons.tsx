@@ -73,7 +73,7 @@ class OnboardingButtons extends PureComponent<Props> {
   }
 
   private get className(): string {
-    return this.props.className || 'wizard--button-container'
+    return this.props.className || ''
   }
 
   private get backButton(): JSX.Element {

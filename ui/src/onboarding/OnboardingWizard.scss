@@ -24,7 +24,7 @@
   background-position: center center;
   background-repeat: no-repeat;
   width: 100%;
-  flex: .5;
+  flex: 0.5;
 
   &.primary {
     background-image: url('../../assets/images/cubo_doodle.svg');
@@ -61,8 +61,7 @@
   background-color: $g3-castle;
   border-radius: $radius;
   padding: $ix-marg-c;
-  padding-bottom: 0;
-  flex: 1 0 100%;
+  flex: 1 0 0;
 }
 
 .side-bar.show + .wizard-step--container {
@@ -84,30 +83,22 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-}
 
-.wizard-step--scroll-area {
-  display: block;
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: calc(100% - 102px);
-  border: $ix-border solid $g5-pepper;
-  border-radius: $ix-radius;
-}
-
-
-.buttonless {
-  .wizard-step--scroll-area {
-    height: calc(100% - 16px);
+  .form--wrapper {
+    display: inline-flex;
+    flex-direction: column;
+    flex: 1 0 0;
   }
 }
 
+.wizard-step--scroll-area {
+  flex: 1 0 0;
+  width: 100%;
+}
 
 .wizard-step--scroll-content {
-  width: 100%;
-  max-width: 90%;
-  min-height: 100%;
+  width: 90%;
+  height: 90%;
   margin: 0 auto $ix-marg-d auto;
   display: inline-flex;
   flex-direction: column;
@@ -126,26 +117,6 @@
 }
 
 /* Buttons */
-.wizard--button-container {
-  position: absolute;
-  bottom: $ix-marg-d;
-  left: 0;
-  right: 0;
-  display: inline-flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  
-  .wizard--skip-container {
-    width: 100%;
-    display: inline-flex;
-    justify-content: center;
-      
-    .button {
-      margin: $ix-marg-b 0 0 0;
-    }
-  }
-}
-
 .wizard--button-bar {
   display: inline-flex;
   flex-shrink: 0;
@@ -155,6 +126,7 @@
   height: auto;
   flex-wrap: nowrap;
   flex: 2;
+  margin-top: $ix-marg-b;
 
   .button {
     position: relative;
@@ -256,7 +228,7 @@
   font-family: 'RobotoMono', monospace;
 }
 
-.wizard-step--body-copybutton{
+.wizard-step--body-copybutton {
   margin-left: 10px;
 }
 
@@ -309,25 +281,11 @@
 @media screen and (min-width: $grid--breakpoint-md) {
   .wizard-step--container {
     padding: $ix-marg-d;
-    padding-bottom: 0;
-  }
-
-  .wizard--button-container {
-    .wizard--skip-container {
-      width: auto;
-      flex: 1;
-      justify-content: flex-end;
-      
-      .button {
-        margin: 0 0 0 $ix-marg-a;
-      }
-    }
   }
 
   .onboarding-step {
     max-width: 60vw;
   }
-
 
   .buttonless {
     .wizard-step--scroll-area {
