@@ -76,7 +76,7 @@ class OrgMembersIndex extends Component<Props> {
                     organization={org}
                     fetcher={getOwnersAndMembers}
                   >
-                    {(members, loading) => (
+                    {(members, loading, fetch) => (
                       <SpinnerContainer
                         loading={loading}
                         spinnerComponent={<TechnoSpinner />}
@@ -86,6 +86,7 @@ class OrgMembersIndex extends Component<Props> {
                           orgName={org.name}
                           orgID={org.id}
                           notify={notify}
+                          onChange={fetch}
                         />
                       </SpinnerContainer>
                     )}

@@ -14,6 +14,7 @@ import {
 import MemberList from 'src/organizations/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 import AddMembersOverlay from 'src/organizations/components/AddMembersOverlay'
+import {Button, ComponentColor} from '@influxdata/clockface'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -21,11 +22,10 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 // Types
 import {
   ResourceOwner,
-  User,
   AddResourceMemberRequestBody,
+  User,
 } from '@influxdata/influx'
 import {OverlayState} from 'src/types'
-import {Button, ComponentColor} from '@influxdata/clockface'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -34,17 +34,22 @@ import {
   memberAddFailed,
 } from 'src/shared/copy/v2/notifications'
 
+export interface UsersMap {
+  [userID: string]: User
+}
+
 interface Props {
   members: ResourceOwner[]
   orgName: string
   orgID: string
+  onChange: () => void
   notify: NotificationsActions.PublishNotificationActionCreator
 }
 
 interface State {
   searchTerm: string
   overlayState: OverlayState
-  users: User[]
+  users: UsersMap
 }
 
 export default class Members extends PureComponent<Props, State> {
@@ -53,7 +58,7 @@ export default class Members extends PureComponent<Props, State> {
     this.state = {
       searchTerm: '',
       overlayState: OverlayState.Closed,
-      users: [],
+      users: {},
     }
   }
   public render() {
@@ -109,8 +114,23 @@ export default class Members extends PureComponent<Props, State> {
   }
 
   private async getUsers() {
+    const {members} = this.props
+
     const data = await client.users.getAllUsers()
-    this.setState({users: data.users})
+
+    const users = {}
+
+    data.users.forEach(key => {
+      users[key.id] = key
+    })
+
+    members.forEach(m => {
+      if (users[m.id]) {
+        delete users[m.id]
+      }
+    })
+
+    this.setState({users: users})
   }
 
   private addUser = async (user: AddResourceMemberRequestBody) => {
@@ -120,6 +140,7 @@ export default class Members extends PureComponent<Props, State> {
       await client.organizations.addMember(this.props.orgID, user)
       this.setState({overlayState: OverlayState.Closed})
       notify(memberAddSuccess())
+      this.props.onChange()
     } catch (e) {
       console.error(e)
       this.setState({overlayState: OverlayState.Closed})

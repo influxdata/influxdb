@@ -4,11 +4,14 @@ import React, {PureComponent} from 'react'
 // Components
 import {OverlayBody, OverlayHeading, OverlayContainer} from 'src/clockface'
 import AddMembersForm from './AddMembersForm'
-import {User, AddResourceMemberRequestBody} from '@influxdata/influx'
+import {AddResourceMemberRequestBody} from '@influxdata/influx'
+
+// Types
+import {UsersMap} from 'src/organizations/components/Members'
 
 interface Props {
   onCloseModal: () => void
-  users: User[]
+  users: UsersMap
   addUser: (user: AddResourceMemberRequestBody) => void
 }
 
@@ -54,12 +57,8 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
     const {selectedUserIDs} = this.state
 
     selectedUserIDs.forEach(id => {
-      const user = users.find(l => {
-        return l.id === id
-      })
-
-      if (user) {
-        addUser({id: user.id, name: user.name})
+      if (users[id]) {
+        addUser({id: id, name: users[id].name})
       }
     })
   }

@@ -5,11 +5,13 @@ import React, {PureComponent} from 'react'
 import {Button, ButtonType} from '@influxdata/clockface'
 import {Form, Grid} from 'src/clockface'
 import SelectUsers from 'src/organizations/components/SelectUsers'
-import {User} from '@influxdata/influx'
+
+// Types
+import {UsersMap} from 'src/organizations/components/Members'
 
 interface Props {
   onCloseModal: () => void
-  users: User[]
+  users: UsersMap
   onSelect: (selectedIDs: string[]) => void
   selectedUserIDs: string[]
   onSave: () => void
