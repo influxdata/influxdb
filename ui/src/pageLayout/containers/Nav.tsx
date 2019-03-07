@@ -91,6 +91,12 @@ class SideNav extends PureComponent<Props> {
             highlightPaths={['labels_tab']}
           />
           <NavMenu.SubItem
+            title="Buckets"
+            link="/configuration/buckets_tab"
+            location={location.pathname}
+            highlightPaths={['buckets_tab']}
+          />
+          <NavMenu.SubItem
             title="Profile"
             link="/configuration/settings_tab"
             location={location.pathname}
