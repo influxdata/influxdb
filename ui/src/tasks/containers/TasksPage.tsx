@@ -11,6 +11,7 @@ import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import GetLabels from 'src/configuration/components/GetLabels'
 
 // Actions
 import {
@@ -114,31 +115,33 @@ class TasksPage extends PureComponent<Props, State> {
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
-              <FilterList<Task>
-                list={this.filteredTasks}
-                searchTerm={searchTerm}
-                searchKeys={['name', 'labels[].name']}
-              >
-                {ts => (
-                  <TasksList
-                    searchTerm={searchTerm}
-                    tasks={ts}
-                    totalCount={this.totalTaskCount}
-                    onActivate={this.handleActivate}
-                    onDelete={this.handleDelete}
-                    onCreate={this.handleCreateTask}
-                    onClone={this.handleClone}
-                    onSelect={this.props.selectTask}
-                    onAddTaskLabels={onAddTaskLabels}
-                    onRemoveTaskLabels={onRemoveTaskLabels}
-                    onRunTask={onRunTask}
-                    onFilterChange={setSearchTerm}
-                    filterComponent={() => this.search}
-                    onUpdate={updateTaskName}
-                  />
-                )}
-              </FilterList>
-              {this.hiddenTaskAlert}
+              <GetLabels>
+                <FilterList<Task>
+                  list={this.filteredTasks}
+                  searchTerm={searchTerm}
+                  searchKeys={['name', 'labels[].name']}
+                >
+                  {ts => (
+                    <TasksList
+                      searchTerm={searchTerm}
+                      tasks={ts}
+                      totalCount={this.totalTaskCount}
+                      onActivate={this.handleActivate}
+                      onDelete={this.handleDelete}
+                      onCreate={this.handleCreateTask}
+                      onClone={this.handleClone}
+                      onSelect={this.props.selectTask}
+                      onAddTaskLabels={onAddTaskLabels}
+                      onRemoveTaskLabels={onRemoveTaskLabels}
+                      onRunTask={onRunTask}
+                      onFilterChange={setSearchTerm}
+                      filterComponent={() => this.search}
+                      onUpdate={updateTaskName}
+                    />
+                  )}
+                </FilterList>
+                {this.hiddenTaskAlert}
+              </GetLabels>
             </div>
           </Page.Contents>
         </Page>

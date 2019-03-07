@@ -138,8 +138,6 @@ class OrgTaskPage extends PureComponent<
     const script: string = addDestinationToFluxScript(newScript, taskOptions)
     const preamble = `${taskOption}`
 
-    console.log('preamble', preamble)
-    console.log('script', script)
     this.props.saveNewScript(script, preamble, this.orgName, this.route)
   }
 
