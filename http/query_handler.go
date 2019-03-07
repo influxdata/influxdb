@@ -99,6 +99,9 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Transform the context into one with the request's authorization.
+	ctx = pcontext.SetAuthorizer(ctx, req.Request.Authorization)
+
 	hd, ok := req.Dialect.(HTTPDialect)
 	if !ok {
 		EncodeError(ctx, fmt.Errorf("unsupported dialect over HTTP %T", req.Dialect), w)

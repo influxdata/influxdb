@@ -25,6 +25,7 @@ var (
 	OpRenewSession = "RenewSession"
 )
 
+// SessionAuthorizionKind defines the type of authorizer
 const SessionAuthorizionKind = "session"
 
 // Session is a user session.
@@ -69,6 +70,18 @@ func (s *Session) Identifier() ID { return s.ID }
 // GetUserID returns the user id.
 func (s *Session) GetUserID() ID {
 	return s.UserID
+}
+
+// EphemeralAuth generates an Authorization that is not stored
+// but at the user's max privs.
+func (s *Session) EphemeralAuth(orgID ID) *Authorization {
+	return &Authorization{
+		ID:          s.ID,
+		OrgID:       orgID,
+		Status:      Active,
+		UserID:      s.UserID,
+		Permissions: s.Permissions,
+	}
 }
 
 // SessionService represents a service for managing user sessions.

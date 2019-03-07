@@ -10,7 +10,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/iocounter"
-	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
@@ -157,15 +156,6 @@ func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.P
 		return flux.Statistics{}, tracing.LogError(span, err)
 	}
 
-	token := s.Token
-	if token == "" {
-		token, err = icontext.GetToken(ctx)
-		if err != nil {
-			return flux.Statistics{}, tracing.LogError(span, err)
-		}
-	}
-
-	SetToken(token, hreq)
 	hreq = hreq.WithContext(ctx)
 	tracing.InjectToHTTPRequest(span, hreq)
 
