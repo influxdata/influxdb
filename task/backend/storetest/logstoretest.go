@@ -186,7 +186,8 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	{
 		r, err := reader.ListRuns(ctx, task.ID, platform.RunFilter{Task: task.ID})
 		if err != nil {
-			t.Fatalf("got an error when we should have returned a empty list: %v", err)
+			// TODO(lh): We may get an error here in the future when the system is more aggressive at checking orgID's
+			t.Fatalf("got an error with bad orgID when we should have returned a empty list: %v", err)
 		}
 		if len(r) != 0 {
 			t.Fatalf("expected 0 runs, got: %d", len(r))
@@ -195,7 +196,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	{
 		r, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{Task: task.Org})
 		if err != nil {
-			t.Fatalf("got an error when we should have returned a empty list: %v", err)
+			t.Fatalf("got an error with bad taskID when we should have returned a empty list: %v", err)
 		}
 		if len(r) != 0 {
 			t.Fatalf("expected 0 runs, got: %d", len(r))
@@ -232,7 +233,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	{
 		r, err := reader.ListRuns(ctx, 9999999, platform.RunFilter{Task: task.ID})
 		if err != nil {
-			t.Fatalf("got an error when we should have returned a empty list: %v", err)
+			t.Fatalf("got an error with a bad orgID when we should have returned a empty list: %v", err)
 		}
 		if len(r) != 0 {
 			t.Fatalf("expected 0 runs, got: %d", len(r))
