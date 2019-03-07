@@ -89,7 +89,9 @@ class Label extends Component<Props, State> {
   private handleDelete = (): void => {
     const {id, onDelete} = this.props
 
-    onDelete(id)
+    if (onDelete) {
+      onDelete(id)
+    }
   }
 
   private handleMouseEnter = (): void => {
