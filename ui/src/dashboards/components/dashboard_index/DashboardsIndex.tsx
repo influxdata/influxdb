@@ -221,7 +221,6 @@ class DashboardIndex extends PureComponent<Props, State> {
         notify(cantImportInvalidResource('Dashboard'))
         return
       }
-      console.log(resource)
       this.handleToggleImportOverlay()
       notify(dashboardImported())
     } catch (error) {
