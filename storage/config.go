@@ -9,10 +9,9 @@ import (
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
+// Default configuration values.
 const (
-	DefaultRetentionInterval = 1 * time.Hour
-	DefaultValidateKeys      = false
-
+	DefaultRetentionInterval       = time.Hour
 	DefaultSeriesFileDirectoryName = "_series"
 	DefaultIndexDirectoryName      = "index"
 	DefaultWALDirectoryName        = "wal"
@@ -23,9 +22,6 @@ const (
 type Config struct {
 	// Frequency of retention in seconds.
 	RetentionInterval toml.Duration `toml:"retention-interval"`
-
-	// Enables unicode validation on series keys on write.
-	ValidateKeys bool `toml:"validate-keys"`
 
 	// Series file config.
 	SeriesFilePath string `toml:"series-file-path"` // Overrides the default path.
@@ -47,11 +43,9 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		RetentionInterval: toml.Duration(DefaultRetentionInterval),
-		ValidateKeys:      DefaultValidateKeys,
-
-		WAL:    tsm1.NewWALConfig(),
-		Engine: tsm1.NewConfig(),
-		Index:  tsi1.NewConfig(),
+		WAL:               tsm1.NewWALConfig(),
+		Engine:            tsm1.NewConfig(),
+		Index:             tsi1.NewConfig(),
 	}
 }
 

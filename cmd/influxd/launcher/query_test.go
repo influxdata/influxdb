@@ -45,13 +45,19 @@ mem,server=b value=45.2`))
 	}
 
 	rawQ := fmt.Sprintf(`from(bucket:"%s")
-	|> filter(fn: (r) => r._m ==  "cpu" and (r._f == "v1" or r._f == "v0"))
+	|> filter(fn: (r) => r._measurement ==  "cpu" and (r._field == "v1" or r._field == "v0"))
 	|> range(start:-1m)
 	`, be.Bucket.Name)
 
+	// Expected keys:
+	//
+	// _measurement=cpu,region=east,server=b,area=z,_field=v1
+	// _measurement=cpu,region=west,server=a,_field=v0
+	// _measurement=cpu,region=west,server=b,_field=v0
+	//
 	results := be.MustExecuteQuery(be.Org.ID, rawQ, be.Auth)
 	defer results.Done()
-	results.First(t).HasTablesWithCols([]int{4, 4, 5})
+	results.First(t).HasTablesWithCols([]int{5, 4, 4})
 }
 
 // This test initialises a default launcher writes some data,

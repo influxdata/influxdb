@@ -70,15 +70,15 @@ func TestExplodePoints(t *testing.T) {
 	sort.Strings(lines)
 
 	expected := []string{
-		`OOOOOOOOBBBBBBBB,_f=f1,_m=cpu,t1=a,t2=q f1=5 9`,
-		`OOOOOOOOBBBBBBBB,_f=f1,_m=mem,t1=b,t2=w f1=6 8`,
-		`OOOOOOOOBBBBBBBB,_f=f1,_m=mem,t1=d,t2=r,t4=g f1=8 6`,
-		`OOOOOOOOBBBBBBBB,_f=f2,_m=cpu,t1=a,t2=q f2="f" 9`,
-		`OOOOOOOOBBBBBBBB,_f=f2,_m=mem,t1=b,t2=w f2="g" 8`,
-		`OOOOOOOOBBBBBBBB,_f=f2,_m=mem,t1=d,t2=r,t4=g f2="i" 6`,
-		`OOOOOOOOBBBBBBBB,_f=f3,_m=cpu,t1=c,t3=e f3=7 7`,
-		`OOOOOOOOBBBBBBBB,_f=f3,_m=mem,t1=b,t2=w f3=true 8`,
-		`OOOOOOOOBBBBBBBB,_f=f4,_m=cpu,t1=c,t3=e f4="h" 7`,
+		"OOOOOOOOBBBBBBBB,\x00=cpu,t1=a,t2=q,\xff=f1 f1=5 9",
+		"OOOOOOOOBBBBBBBB,\x00=cpu,t1=a,t2=q,\xff=f2 f2=\"f\" 9",
+		"OOOOOOOOBBBBBBBB,\x00=cpu,t1=c,t3=e,\xff=f3 f3=7 7",
+		"OOOOOOOOBBBBBBBB,\x00=cpu,t1=c,t3=e,\xff=f4 f4=\"h\" 7",
+		"OOOOOOOOBBBBBBBB,\x00=mem,t1=b,t2=w,\xff=f1 f1=6 8",
+		"OOOOOOOOBBBBBBBB,\x00=mem,t1=b,t2=w,\xff=f2 f2=\"g\" 8",
+		"OOOOOOOOBBBBBBBB,\x00=mem,t1=b,t2=w,\xff=f3 f3=true 8",
+		"OOOOOOOOBBBBBBBB,\x00=mem,t1=d,t2=r,t4=g,\xff=f1 f1=8 6",
+		"OOOOOOOOBBBBBBBB,\x00=mem,t1=d,t2=r,t4=g,\xff=f2 f2=\"i\" 6",
 	}
 
 	if !reflect.DeepEqual(lines, expected) {

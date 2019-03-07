@@ -2397,6 +2397,42 @@ func TestParseName(t *testing.T) {
 	}
 }
 
+func TestValidTagTokens(t *testing.T) {
+	testCases := []struct {
+		tags     models.Tags
+		expected bool
+	}{
+		{tags: models.NewTags(map[string]string{}), expected: true},
+		{tags: models.NewTags(map[string]string{"foo": "bar"}), expected: true},
+		{tags: models.NewTags(map[string]string{"foo": "bar", "_foo": "cpu", "hello": "こんにちは", "a smile": "😂"}), expected: true},
+
+		// These cases have invalid keys, but since they're used for special tags (measurement and field key), they're not validated.
+		{tags: models.NewTags(map[string]string{models.MeasurementTagKey: "bar"}), expected: true},
+		{tags: models.NewTags(map[string]string{"\x00": "bar"}), expected: true},
+		{tags: models.NewTags(map[string]string{string([]byte{0}): "bar"}), expected: true},
+		{tags: models.NewTags(map[string]string{"\x00": "bar"}), expected: true},
+		{tags: models.NewTags(map[string]string{"\u0000": "bar"}), expected: true},
+		{tags: models.NewTags(map[string]string{models.FieldKeyTagKey: "bar"}), expected: true},
+		{tags: models.NewTags(map[string]string{"\xff": "bar"}), expected: true},
+		{tags: models.NewTags(map[string]string{string([]byte{255}): "bar"}), expected: true},
+
+		// These cases all have invalid tag values
+		{tags: models.NewTags(map[string]string{string([]byte{0}): "\x00"}), expected: false},
+		{tags: models.NewTags(map[string]string{"\x00": "\x00"}), expected: false},
+		{tags: models.NewTags(map[string]string{"\u0000": "\x00"}), expected: false},
+		{tags: models.NewTags(map[string]string{"\xff": "\x00"}), expected: false},
+		{tags: models.NewTags(map[string]string{string([]byte{255}): "\x00"}), expected: false},
+		{tags: models.NewTags(map[string]string{string([]byte{100, 200}): "bar", "_foo": "cpu"}), expected: false},
+		{tags: models.NewTags(map[string]string{"good key": string([]byte{255})}), expected: false},
+	}
+
+	for i, testCase := range testCases {
+		if got := models.ValidTagTokens(testCase.tags); got != testCase.expected {
+			t.Fatalf("[example %d] got %v, expected %v for tags %s", i+1, got, testCase.expected, testCase.tags)
+		}
+	}
+}
+
 func BenchmarkEscapeStringField_Plain(b *testing.B) {
 	s := "nothing special"
 	for i := 0; i < b.N; i++ {

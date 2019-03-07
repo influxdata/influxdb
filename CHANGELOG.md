@@ -1,10 +1,37 @@
 ## v2.0.0-alpha.5 [unreleased]
 
+### Release Notes
+
+This release includes a [breaking change](https://github.com/influxdata/influxdb/pull/12391) to the format that TSM and index data are stored on disk.
+Any existing local data will not be queryable once InfluxDB is upgraded to this release.
+Prior to installing this release we recommend all storage-engine data is removed from your local InfluxDB `2.x` installation; this can be achieved without losing any of your other InfluxDB `2.x` data (settings etc).
+To remove only local storage data, run the following in a terminal.
+
+On most `linux` systems:
+
+```sh
+
+# Replace <username> with your actual username. 
+
+$ rm -r /home/<username>/.influxdbv2/engine
+```
+
+On `macOS`:
+
+```sh
+# Replace <username> with your actual username.
+
+$ rm -r /Users/<username>/.influxdbv2/engine
+```
+
+Once completed, `v2.0.0-alpha.5` can be started.
+
 ### Features
 
 1. [12096](https://github.com/influxdata/influxdb/pull/12096): Add labels to cloned tasks
 1. [12111](https://github.com/influxdata/influxdb/pull/12111): Add ability to filter resources by clicking a label
 1. [12401](https://github.com/influxdata/influxdb/pull/12401): Add ability to add a member to org
+1. [12391](https://github.com/influxdata/influxdb/pull/12391): Improve representation of TSM tagsets on disk
 
 ### Bug Fixes
 
