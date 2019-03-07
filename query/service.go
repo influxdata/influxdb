@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/influxdb/kit/check"
 )
 
 // QueryService represents a type capable of performing queries.
@@ -12,6 +13,7 @@ type QueryService interface {
 	// Query submits a query for execution returning a results iterator.
 	// Cancel must be called on any returned results to free resources.
 	Query(ctx context.Context, req *Request) (flux.ResultIterator, error)
+	Check(ctx context.Context) check.Response
 }
 
 // AsyncQueryService represents a service for performing queries where the results are delivered asynchronously.
@@ -27,4 +29,5 @@ type ProxyQueryService interface {
 	// Query performs the requested query and encodes the results into w.
 	// The number of bytes written to w is returned __independent__ of any error.
 	Query(ctx context.Context, w io.Writer, req *ProxyRequest) (flux.Statistics, error)
+	Check(ctx context.Context) check.Response
 }

@@ -17,14 +17,14 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
+	platform "github.com/influxdata/influxdb"
+	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/check"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-
-	platform "github.com/influxdata/influxdb"
-	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/query"
 )
 
 const (
@@ -377,6 +377,12 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 	return flux.Statistics{}, nil
 }
 
+// Check is required to implement the ProxyQueryService interface, but is unused because
+// there is no associated handler for it.
+func (FluxService) Check(ctx context.Context) check.Response {
+	return check.Response{Name: "Flux Service", Status: check.StatusPass}
+}
+
 var _ query.QueryService = (*FluxQueryService)(nil)
 
 // FluxQueryService implements query.QueryService by making HTTP requests to the /api/v2/query API endpoint.
@@ -442,6 +448,12 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	}
 
 	return itr, nil
+}
+
+// Check is required to implement the QueryService interface, but is unused because
+// there is no associated handler for it.
+func (FluxQueryService) Check(ctx context.Context) check.Response {
+	return check.Response{Name: "Flux Service", Status: check.StatusPass}
 }
 
 // SimpleQuery runs a flux query with common parameters and returns CSV results.

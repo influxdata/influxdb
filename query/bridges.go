@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
@@ -21,6 +22,12 @@ func (b QueryServiceBridge) Query(ctx context.Context, req *Request) (flux.Resul
 		return nil, err
 	}
 	return flux.NewResultIteratorFromQuery(query), nil
+}
+
+// Check returns the status of this query service.  Since this bridge consumes an AsyncQueryService,
+// which is not available over the network, this check always passes.
+func (QueryServiceBridge) Check(context.Context) check.Response {
+	return check.Response{Name: "Query Service", Status: check.StatusPass}
 }
 
 // QueryServiceProxyBridge implements QueryService while consuming a ProxyQueryService interface.
@@ -50,6 +57,10 @@ func (b QueryServiceProxyBridge) Query(ctx context.Context, req *Request) (flux.
 		ResultIterator: ri,
 		statsChan:      statsChan,
 	}, err
+}
+
+func (b QueryServiceProxyBridge) Check(ctx context.Context) check.Response {
+	return b.ProxyQueryService.Check(ctx)
 }
 
 type asyncStatsResultIterator struct {
@@ -92,6 +103,12 @@ func (b ProxyQueryServiceAsyncBridge) Query(ctx context.Context, w io.Writer, re
 
 	stats := results.Statistics()
 	return stats, nil
+}
+
+// Check returns the status of this query service.  Since this bridge consumes an AsyncQueryService,
+// which is not available over the network, this check always passes.
+func (ProxyQueryServiceAsyncBridge) Check(context.Context) check.Response {
+	return check.Response{Name: "Query Service", Status: check.StatusPass}
 }
 
 // REPLQuerier implements the repl.Querier interface while consuming a QueryService
