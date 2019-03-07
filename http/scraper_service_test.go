@@ -312,7 +312,7 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 				body: fmt.Sprintf(
 					`
                     {
-                      "id": "%[1]s",
+                      "id": "%s",
                       "name": "target-1",
                       "type": "prometheus",
 					  "url": "www.some.url",
@@ -323,13 +323,13 @@ func TestService_handleGetScraperTarget(t *testing.T) {
                       "links": {
                         "bucket": "/api/v2/buckets/0000000000000212",
                         "organization": "/api/v2/orgs/0000000000000211",
-                        "self": "/api/v2/scrapers/%[1]s",
-                        "members": "/api/v2/scrapers/%[1]s/members",
-                        "owners": "/api/v2/scrapers/%[1]s/owners"
+                        "self": "/api/v2/scrapers/%s",
+                        "members": "/api/v2/scrapers/%s/members",
+                        "owners": "/api/v2/scrapers/%s/owners"
                       }
                     }
                     `,
-					targetOneIDString,
+					targetOneIDString, targetOneIDString, targetOneIDString, targetOneIDString,
 				),
 			},
 		},
@@ -541,7 +541,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 				body: fmt.Sprintf(
 					`
                     {
-                      "id": "%[1]s",
+                      "id": "%s",
                       "name": "hello",
                       "type": "prometheus",
                       "url": "www.some.url",
@@ -552,13 +552,13 @@ func TestService_handlePostScraperTarget(t *testing.T) {
                       "links": {
                         "bucket": "/api/v2/buckets/0000000000000212",
                         "organization": "/api/v2/orgs/0000000000000211",
-                        "self": "/api/v2/scrapers/%[1]s",
-                        "members": "/api/v2/scrapers/%[1]s/members",
-                        "owners": "/api/v2/scrapers/%[1]s/owners"
+                        "self": "/api/v2/scrapers/%s",
+                        "members": "/api/v2/scrapers/%s/members",
+                        "owners": "/api/v2/scrapers/%s/owners"
                       }
                     }
                     `,
-					targetOneIDString,
+					targetOneIDString, targetOneIDString, targetOneIDString, targetOneIDString,
 				),
 			},
 		},
@@ -672,7 +672,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: fmt.Sprintf(
 					`{
-		              "id":"%[1]s",
+		              "id":"%s",
 		              "name":"name",
 		              "type":"prometheus",
 					  "url":"www.example.url",
@@ -683,12 +683,12 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 		              "links":{
 		                "bucket": "/api/v2/buckets/0000000000000212",
 		                "organization": "/api/v2/orgs/0000000000000211",
-		                "self":"/api/v2/scrapers/%[1]s",
-		                "members":"/api/v2/scrapers/%[1]s/members",
-		                "owners":"/api/v2/scrapers/%[1]s/owners"
+		                "self":"/api/v2/scrapers/%s",
+		                "members":"/api/v2/scrapers/%s/members",
+		                "owners":"/api/v2/scrapers/%s/owners"
 		              }
 		            }`,
-					targetOneIDString,
+					targetOneIDString, targetOneIDString, targetOneIDString, targetOneIDString,
 				),
 			},
 		},
