@@ -3,7 +3,8 @@ import _ from 'lodash'
 
 // Apis
 import {client} from 'src/utils/api'
-import {ScraperTargetRequest} from '@influxdata/influx'
+import {ScraperTargetRequest, PermissionResource} from '@influxdata/influx'
+import {createAuthorization} from 'src/authorizations/apis'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -30,8 +31,10 @@ import {
   WritePrecision,
   TelegrafRequest,
   TelegrafPluginOutputInfluxDBV2,
+  Permission,
 } from '@influxdata/influx'
 import {Dispatch} from 'redux'
+import {addTelegraf} from 'src/telegrafs/actions'
 
 type GetState = () => AppState
 
@@ -321,6 +324,7 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
       },
       steps: {org, bucket, orgID},
     },
+    buckets,
   } = getState()
 
   const influxDB2Out = {
@@ -355,6 +359,18 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
     return
   }
 
+  createTelegraf(dispatch, getState, plugins)
+}
+
+const createTelegraf = async (dispatch, getState, plugins) => {
+  const {
+    dataLoading: {
+      dataLoaders: {telegrafConfigName, telegrafConfigDescription},
+      steps: {bucket, orgID},
+    },
+    buckets,
+  } = getState()
+
   const telegrafRequest: TelegrafRequest = {
     name: telegrafConfigName,
     description: telegrafConfigDescription,
@@ -363,8 +379,34 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
     plugins,
   }
 
-  const created = await client.telegrafConfigs.create(telegrafRequest)
-  dispatch(setTelegrafConfigID(created.id))
+  // create telegraf config
+  const tc = await client.telegrafConfigs.create(telegrafRequest)
+
+  const b = buckets.list.find(b => b.name === bucket)
+
+  const permissions = [
+    {
+      action: Permission.ActionEnum.Write,
+      resource: {type: PermissionResource.TypeEnum.Buckets, id: b.id},
+    },
+    {
+      action: Permission.ActionEnum.Read,
+      resource: {type: PermissionResource.TypeEnum.Telegrafs, id: tc.id},
+    },
+  ]
+
+  const token = {
+    name: `${telegrafConfigName} token`,
+    orgID,
+    description: `write to ${bucket} bucket.  read to ${telegrafConfigName} telegraf config`,
+    permissions,
+  }
+
+  // create token
+  await createAuthorization(token)
+
+  dispatch(setTelegrafConfigID(tc.id))
+  dispatch(addTelegraf(tc))
 }
 
 interface SetActiveTelegrafPlugin {

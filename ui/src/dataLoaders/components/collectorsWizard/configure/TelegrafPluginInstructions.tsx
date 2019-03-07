@@ -110,7 +110,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
 
         <OnboardingButtons
           onClickBack={onDecrementStep}
-          nextButtonText={'Create and Verify'}
+          nextButtonText="Create and Verify"
           className="data-loading--button-container"
         />
       </Form>
