@@ -183,11 +183,23 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	ctx := context.Background()
 	ctx = pcontext.SetAuthorizer(ctx, makeNewAuthorization(ctx, t, makeAuthz))
 
-	if _, err := reader.ListRuns(ctx, task.ID, platform.RunFilter{Task: task.ID}); err == nil {
-		t.Fatal("with bad org ID, expected error but got nil")
+	{
+		r, err := reader.ListRuns(ctx, task.ID, platform.RunFilter{Task: task.ID})
+		if err != nil {
+			t.Fatalf("got an error when we should have returned a empty list: %v", err)
+		}
+		if len(r) != 0 {
+			t.Fatalf("expected 0 runs, got: %d", len(r))
+		}
 	}
-	if _, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{Task: task.Org}); err != backend.ErrNoRunsFound {
-		t.Fatalf("with bad task ID, expected error %v, got %v", backend.ErrNoRunsFound, err)
+	{
+		r, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{Task: task.Org})
+		if err != nil {
+			t.Fatalf("got an error when we should have returned a empty list: %v", err)
+		}
+		if len(r) != 0 {
+			t.Fatalf("expected 0 runs, got: %d", len(r))
+		}
 	}
 
 	now := time.Now().UTC()
@@ -217,8 +229,14 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	if _, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{}); err == nil {
 		t.Fatal("failed to error with invalid task ID")
 	}
-	if _, err := reader.ListRuns(ctx, 0, platform.RunFilter{Task: task.ID}); err == nil {
-		t.Fatal("failed to error with invalid org ID")
+	{
+		r, err := reader.ListRuns(ctx, 9999999, platform.RunFilter{Task: task.ID})
+		if err != nil {
+			t.Fatalf("got an error when we should have returned a empty list: %v", err)
+		}
+		if len(r) != 0 {
+			t.Fatalf("expected 0 runs, got: %d", len(r))
+		}
 	}
 
 	listRuns, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{
@@ -364,8 +382,12 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	if _, err := reader.ListLogs(ctx, task.Org, platform.LogFilter{}); err == nil {
 		t.Fatalf("expected error when task ID missing, but got nil")
 	}
-	if _, err := reader.ListLogs(ctx, 9999999, platform.LogFilter{Task: task.ID}); err == nil {
-		t.Fatal("with bad org ID, expected error but got nil")
+	r, err := reader.ListLogs(ctx, 9999999, platform.LogFilter{Task: task.ID})
+	if err != nil {
+		t.Fatalf("with bad org ID, expected no error: %v", err)
+	}
+	if len(r) != 0 {
+		t.Fatalf("with bad org id expected no runs, got: %d", len(r))
 	}
 
 	now := time.Now().UTC()

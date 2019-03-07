@@ -76,9 +76,6 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, orgID platform.ID, logF
 	}
 
 	runs := re.Runs()
-	if len(runs) == 0 {
-		return nil, ErrNoRunsFound
-	}
 
 	var logs []platform.Log
 	for _, r := range runs {
@@ -138,10 +135,6 @@ from(bucketID: "000000000000000a")
 	runs, err := queryIttrToRuns(ittr)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(runs) == 0 {
-		return nil, ErrNoRunsFound
 	}
 
 	return runs, nil
