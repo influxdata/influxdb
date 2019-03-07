@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/iocounter"
 	influxdbcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
@@ -121,6 +122,18 @@ type ProxyQueryService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
+}
+
+func (s *ProxyQueryService) Check(ctx context.Context) check.Response {
+	resp := check.Response{Name: "Query Service"}
+	if err := s.Ping(ctx); err != nil {
+		resp.Status = check.StatusFail
+		resp.Message = err.Error()
+	} else {
+		resp.Status = check.StatusPass
+	}
+
+	return resp
 }
 
 // Ping checks to see if the server is responding to a ping request.

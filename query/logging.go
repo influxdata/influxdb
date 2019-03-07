@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
@@ -61,4 +62,8 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 		return stats, tracing.LogError(span, err)
 	}
 	return stats, nil
+}
+
+func (s *LoggingServiceBridge) Check(ctx context.Context) check.Response {
+	return s.QueryService.Check(ctx)
 }

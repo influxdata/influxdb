@@ -12,8 +12,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
-
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/influxql"
@@ -116,4 +116,8 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 	}
 
 	return flux.Statistics{}, nil
+}
+
+func (s *SourceProxyQueryService) Check(context.Context) check.Response {
+	return QueryHealthCheck(s.Addr)
 }

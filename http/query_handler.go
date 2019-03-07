@@ -17,14 +17,15 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
-	"github.com/julienschmidt/httprouter"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
-
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
+	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 const (
@@ -377,6 +378,10 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 	return flux.Statistics{}, nil
 }
 
+func (s FluxService) Check(ctx context.Context) check.Response {
+	return QueryHealthCheck(s.Addr)
+}
+
 var _ query.QueryService = (*FluxQueryService)(nil)
 
 // FluxQueryService implements query.QueryService by making HTTP requests to the /api/v2/query API endpoint.
@@ -444,6 +449,10 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	return itr, nil
 }
 
+func (s FluxQueryService) Check(ctx context.Context) check.Response {
+	return QueryHealthCheck(s.Addr)
+}
+
 // SimpleQuery runs a flux query with common parameters and returns CSV results.
 func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
 	u, err := newURL(addr, fluxPath)
@@ -494,4 +503,46 @@ func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
 
 	defer res.Body.Close()
 	return ioutil.ReadAll(res.Body)
+}
+
+func QueryHealthCheck(url string) check.Response {
+	u, err := newURL(url, "/health")
+	if err != nil {
+		return check.Response{
+			Name:    "query health",
+			Status:  check.StatusFail,
+			Message: errors.Wrap(err, "could not form URL").Error(),
+		}
+	}
+
+	insecureSkipVerify := true
+	hc := newClient(u.Scheme, insecureSkipVerify)
+	resp, err := hc.Get(u.String())
+	if err != nil {
+		return check.Response{
+			Name:    "query health",
+			Status:  check.StatusFail,
+			Message: errors.Wrap(err, "error getting response").Error(),
+		}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return check.Response{
+			Name:    "query health",
+			Status:  check.StatusFail,
+			Message: fmt.Sprintf("http error %v", resp.StatusCode),
+		}
+	}
+
+	var healthResponse check.Response
+	if err = json.NewDecoder(resp.Body).Decode(&healthResponse); err != nil {
+		return check.Response{
+			Name:    "query health",
+			Status:  check.StatusFail,
+			Message: errors.Wrap(err, "error decoding JSON response").Error(),
+		}
+	}
+
+	return healthResponse
 }
