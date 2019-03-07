@@ -6,25 +6,30 @@ import {connect} from 'react-redux'
 // Actions
 import {getLabels} from 'src/labels/actions'
 import {getBuckets} from 'src/buckets/actions'
+import {getTelegrafs} from 'src/telegrafs/actions'
 
 // Types
-import {RemoteDataState} from 'src/types'
 import {AppState} from 'src/types/v2'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
+import {TelegrafsState} from 'src/telegrafs/reducers'
+import {Organization} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {TechnoSpinner} from '@influxdata/clockface'
+import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
 
 interface StateProps {
+  org: Organization
   labels: LabelsState
   buckets: BucketsState
+  telegrafs: TelegrafsState
 }
 
 interface DispatchProps {
   getLabels: typeof getLabels
   getBuckets: typeof getBuckets
+  getTelegrafs: typeof getTelegrafs
 }
 
 interface PassedProps {
@@ -36,6 +41,7 @@ type Props = StateProps & DispatchProps & PassedProps
 export enum ResourceTypes {
   Labels = 'labels',
   Buckets = 'buckets',
+  Telegrafs = 'telegrafs',
 }
 
 @ErrorHandling
@@ -49,30 +55,46 @@ class GetResources extends PureComponent<Props, StateProps> {
       case ResourceTypes.Buckets: {
         return await this.props.getBuckets()
       }
+
+      case ResourceTypes.Telegrafs: {
+        return await this.props.getTelegrafs(this.props.org)
+      }
+
+      default: {
+        throw new Error('incorrect resource type provided')
+      }
     }
   }
 
   public render() {
     const {resource, children} = this.props
 
-    if (this.props[resource].status != RemoteDataState.Done) {
-      return <TechnoSpinner />
-    }
-
-    return children
+    return (
+      <SpinnerContainer
+        loading={this.props[resource].status}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        <>{children}</>
+      </SpinnerContainer>
+    )
   }
 }
 
-const mstp = ({labels, buckets}: AppState): StateProps => {
+const mstp = ({orgs, labels, buckets, telegrafs}: AppState): StateProps => {
+  const org = orgs[0]
+
   return {
     labels,
     buckets,
+    telegrafs,
+    org,
   }
 }
 
 const mdtp = {
   getLabels: getLabels,
   getBuckets: getBuckets,
+  getTelegrafs: getTelegrafs,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

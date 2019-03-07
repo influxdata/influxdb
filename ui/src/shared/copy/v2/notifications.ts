@@ -198,6 +198,16 @@ export const telegrafUpdateSuccess = (telegrafName: string): Notification => ({
   message: `Telegraf "${telegrafName}" was updated successfully`,
 })
 
+export const telegrafGetFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to get telegraf configs',
+})
+
+export const telegrafCreateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create telegraf',
+})
+
 export const telegrafUpdateFailed = (telegrafName: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to update telegraf: "${telegrafName}"`,

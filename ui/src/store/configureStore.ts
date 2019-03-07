@@ -25,6 +25,7 @@ import protosReducer from 'src/protos/reducers'
 import {variablesReducer} from 'src/variables/reducers'
 import {labelsReducer} from 'src/labels/reducers'
 import {bucketsReducer} from 'src/buckets/reducers'
+import {telegrafsReducer} from 'src/telegrafs/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -50,6 +51,7 @@ export const rootReducer = combineReducers<ReducerState>({
   variables: variablesReducer,
   labels: labelsReducer,
   buckets: bucketsReducer,
+  telegrafs: telegrafsReducer,
   VERSION: () => '',
 })
 

@@ -18,7 +18,7 @@ import {
   Dashboard,
 } from 'src/types/v2/dashboards'
 
-import {Source} from '@influxdata/influx'
+import {Source, Telegraf} from '@influxdata/influx'
 import {Member} from 'src/types/v2/members'
 import {Organization, Task} from '@influxdata/influx'
 import {TaskStatus} from 'src/types/tasks'
@@ -39,11 +39,13 @@ import {Label} from 'src/types/v2/labels'
 import {OrgViewState} from 'src/organizations/reducers/orgView'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
+import {TelegrafsState} from 'src/telegrafs/reducers'
 
 export interface AppState {
   VERSION: string
   labels: LabelsState
   buckets: BucketsState
+  telegrafs: TelegrafsState
   links: Links
   app: AppPresentationState
   ranges: RangeState
