@@ -330,11 +330,6 @@ func OwnerPermissions(orgID ID) []Permission {
 			ps = append(ps, Permission{Action: a, Resource: Resource{Type: r, OrgID: &orgID}})
 		}
 	}
-
-	// TODO(desa): this is likely just a thing for the alpha. We'll likely want a limited number of users about to
-	// create organizations. https://github.com/influxdata/influxdb/issues/11344
-	ps = append(ps, Permission{Action: WriteAction, Resource: Resource{Type: OrgsResourceType}}, Permission{ReadAction, Resource{Type: OrgsResourceType}})
-
 	return ps
 }
 

@@ -9,7 +9,7 @@ describe('Orgs', () => {
     cy.visit(orgRoute)
   })
 
-  it('can update an org name', () => {
+  it.skip('can update an org name', () => {
     cy.createOrg().then(({body}) => {
       const newName = 'new 🅱️organization'
       cy.visit(`${orgRoute}/${body.id}/members`)
@@ -28,7 +28,7 @@ describe('Orgs', () => {
     })
   })
 
-  it('can create an org', () => {
+  it.skip('can create an org', () => {
     cy.get('.index-list--row').should('have.length', 1)
 
     cy.getByTestID('create-org-button').click()
@@ -44,7 +44,7 @@ describe('Orgs', () => {
       .and('have.length', 2)
   })
 
-  it('can delete an org', () => {
+  it.skip('can delete an org', () => {
     cy.createOrg()
 
     cy.visit(orgRoute)
