@@ -6,98 +6,65 @@ exports[`MemberList rendering renders 1`] = `
     <IndexListHeaderCell
       alignment="left"
       columnName="Username"
-      width="25%"
+      width="20%"
     />
     <IndexListHeaderCell
       alignment="left"
       columnName="Role"
-      width="25%"
+      width="20%"
     />
     <IndexListHeaderCell
       alignment="left"
       columnName=""
-      width="50%"
+      width="60%"
     />
   </IndexListHeader>
   <IndexListBody
     columnCount={3}
     emptyState={<React.Fragment />}
   >
-    <IndexListRow
-      disabled={false}
+    <MemberRow
       key="1"
-      testID="table-row"
-    >
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      >
-        John
-      </IndexListRowCell>
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      >
-        owner
-      </IndexListRowCell>
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      />
-    </IndexListRow>
-    <IndexListRow
-      disabled={false}
+      member={
+        Object {
+          "id": "1",
+          "links": Object {
+            "self": "/api/v2/users/1",
+          },
+          "name": "John",
+          "role": "owner",
+          "status": "active",
+        }
+      }
+    />
+    <MemberRow
       key="2"
-      testID="table-row"
-    >
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      >
-        Jane
-      </IndexListRowCell>
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      >
-        owner
-      </IndexListRowCell>
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      />
-    </IndexListRow>
-    <IndexListRow
-      disabled={false}
+      member={
+        Object {
+          "id": "2",
+          "links": Object {
+            "self": "/api/v2/users/2",
+          },
+          "name": "Jane",
+          "role": "owner",
+          "status": "active",
+        }
+      }
+    />
+    <MemberRow
       key="3"
-      testID="table-row"
-    >
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      >
-        Smith
-      </IndexListRowCell>
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      >
-        owner
-      </IndexListRowCell>
-      <IndexListRowCell
-        alignment="left"
-        revealOnHover={false}
-        testID="table-cell"
-      />
-    </IndexListRow>
+      member={
+        Object {
+          "id": "3",
+          "links": Object {
+            "self": "/api/v2/users/3",
+          },
+          "name": "Smith",
+          "role": "owner",
+          "status": "active",
+        }
+      }
+    />
   </IndexListBody>
 </IndexList>
 `;

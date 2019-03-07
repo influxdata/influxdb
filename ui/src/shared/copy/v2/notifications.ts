@@ -213,12 +213,22 @@ export const telegrafDeleteFailed = (telegrafName: string): Notification => ({
   message: `Failed to delete telegraf: "${telegrafName}"`,
 })
 
-export const memberAddSuccess = (): Notification => ({
+export const memberAddSuccess = (username: string): Notification => ({
   ...defaultSuccessNotification,
-  message: 'Members added successfully',
+  message: `Member "${username}" was added successfully`,
 })
 
 export const memberAddFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to add members: "${message}"`,
+})
+
+export const memberRemoveSuccess = (memberName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Member "${memberName}" was removed successfully`,
+})
+
+export const memberRemoveFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to remove members: "${message}"`,
 })

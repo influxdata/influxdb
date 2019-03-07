@@ -11,7 +11,7 @@ On most `linux` systems:
 
 ```sh
 
-# Replace <username> with your actual username. 
+# Replace <username> with your actual username.
 
 $ rm -r /home/<username>/.influxdbv2/engine
 ```
@@ -32,6 +32,7 @@ Once completed, `v2.0.0-alpha.5` can be started.
 1. [12111](https://github.com/influxdata/influxdb/pull/12111): Add ability to filter resources by clicking a label
 1. [12401](https://github.com/influxdata/influxdb/pull/12401): Add ability to add a member to org
 1. [12391](https://github.com/influxdata/influxdb/pull/12391): Improve representation of TSM tagsets on disk
+1. [12437](https://github.com/influxdata/influxdb/pull/12437): Add ability to remove a member from org
 
 ### Bug Fixes
 
