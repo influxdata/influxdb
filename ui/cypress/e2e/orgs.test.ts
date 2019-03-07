@@ -9,10 +9,27 @@ describe('Orgs', () => {
     cy.visit(orgRoute)
   })
 
+  it('can update an org name', () => {
+    cy.createOrg().then(({body}) => {
+      const newName = 'new 🅱️organization'
+      cy.visit(`${orgRoute}/${body.id}/members`)
+
+      cy.get('.renamable-page-title--title').click()
+
+      cy.getByTestID('page-header').within(() => {
+        cy.getByTestID('input-field')
+          .type(newName)
+          .type('{enter}')
+      })
+
+      cy.visit('/organizations')
+
+      cy.get('.index-list--row').should('contain', newName)
+    })
+  })
+
   it('can create an org', () => {
-    cy.get('.index-list--row')
-      .its('length')
-      .should('be.eq', 1)
+    cy.get('.index-list--row').should('have.length', 1)
 
     cy.getByTestID('create-org-button').click()
 
@@ -24,52 +41,27 @@ describe('Orgs', () => {
 
     cy.get('.index-list--row')
       .should('contain', orgName)
-      .its('length')
-      .should('be.eq', 2)
+      .and('have.length', 2)
   })
 
-  //TODO: skipping delete an org because it is flaky but needs fixing: https://github.com/influxdata/influxdb/issues/12283
-  it.skip('can delete an org', () => {
+  it('can delete an org', () => {
     cy.createOrg()
-      .then(() => {
-        cy.getByTestID('table-row')
-          .its('length')
-          .should('eq', 2)
 
-        cy.getByTestID('table-row')
-          .last()
+    cy.visit(orgRoute)
+
+    cy.getByTestID('table-row').should('have.length', 2)
+
+    cy.getByTestID('table-row')
+      .last()
+      .trigger('mouseover')
+      .within(() => {
+        cy.getByTestID('delete-button')
           .trigger('mouseover')
-          .within(() => {
-            cy.getByTestID('delete-button')
-              .trigger('mouseover')
-              .click()
+          .click()
 
-            cy.getByTestID('confirmation-button').click()
-          })
-      })
-      .then(() => {
-        cy.getByTestID('table-row')
-          .its('length')
-          .should('eq', 1)
-      })
-  })
-
-  //TODO: skipping update an org name because it is flaky but needs fixing: https://github.com/influxdata/influxdb/issues/12311
-  it.skip('can update an org name', () => {
-    cy.createOrg().then(({body}) => {
-      const newName = 'new 🅱️organization'
-      cy.visit(`${orgRoute}/${body.id}/members`)
-
-      cy.get('.renamable-page-title--title').click()
-      cy.getByTestID('page-header').within(() => {
-        cy.getByTestID('input-field')
-          .type(newName)
-          .type('{enter}')
+        cy.getByTestID('confirmation-button').click()
       })
 
-      cy.visit('/organizations')
-
-      cy.get('.index-list--row').should('contain', newName)
-    })
+    cy.getByTestID('table-row').should('have.length', 1)
   })
 })
