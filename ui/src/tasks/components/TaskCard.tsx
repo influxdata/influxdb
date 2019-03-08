@@ -1,31 +1,50 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
+import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {SlideToggle, ComponentSize} from '@influxdata/clockface'
-import {ResourceList, Label, Context} from 'src/clockface'
+import {ResourceList, Context} from 'src/clockface'
 import FeatureFlag from 'src/shared/components/FeatureFlag'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+
+// API
+import {createLabelAJAX} from 'src/labels/api'
+
+// Actions
+import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions/v2'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {Task} from '@influxdata/influx'
+import {ITask as Task, ILabel} from '@influxdata/influx'
+import {AppState, TaskStatus} from 'src/types/v2'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
 import {IconFont} from 'src/clockface/types/index'
 
-interface Props {
+interface PassedProps {
   task: Task
   onActivate: (task: Task) => void
   onDelete: (task: Task) => void
   onSelect: (task: Task) => void
   onClone: (task: Task) => void
-  onEditLabels: (task: Task) => void
   onRunTask: (taskID: string) => void
   onUpdate: (task: Task) => void
   onFilterChange: (searchTerm: string) => void
 }
+
+interface StateProps {
+  labels: ILabel[]
+}
+
+interface DispatchProps {
+  onAddTaskLabels: typeof addTaskLabelsAsync
+  onRemoveTaskLabels: typeof removeTaskLabelsAsync
+}
+
+type Props = PassedProps & StateProps & DispatchProps
 
 export class TaskCard extends PureComponent<Props & WithRouterProps> {
   public render() {
@@ -125,54 +144,56 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private get labels(): JSX.Element {
-    const {task} = this.props
-
-    if (!task.labels.length) {
-      return <Label.Container onEdit={this.handleEditLabels} />
-    }
+    const {task, labels, onFilterChange} = this.props
 
     return (
-      <Label.Container resourceName="this Task" onEdit={this.handleEditLabels}>
-        {task.labels.map(label => (
-          <Label
-            key={label.id}
-            id={label.id}
-            colorHex={label.properties.color}
-            name={label.name}
-            description={label.properties.description}
-            onClick={this.handleLabelClick}
-          />
-        ))}
-      </Label.Container>
+      <InlineLabels
+        selectedLabels={task.labels}
+        labels={labels}
+        onFilterChange={onFilterChange}
+        onAddLabel={this.handleAddLabel}
+        onRemoveLabel={this.handleRemoveLabel}
+        onCreateLabel={this.handleCreateLabel}
+      />
     )
   }
 
-  private handleLabelClick = (id: string) => {
-    const label = this.props.task.labels.find(l => l.id === id)
+  private handleAddLabel = (label: ILabel): void => {
+    const {task, onAddTaskLabels} = this.props
 
-    this.props.onFilterChange(label.name)
+    onAddTaskLabels(task.id, [label])
+  }
+
+  private handleRemoveLabel = (label: ILabel): void => {
+    const {task, onRemoveTaskLabels} = this.props
+
+    onRemoveTaskLabels(task.id, [label])
+  }
+
+  private handleCreateLabel = async (label: ILabel): Promise<ILabel> => {
+    try {
+      const newLabel = await createLabelAJAX(label)
+
+      return newLabel
+    } catch (err) {
+      throw err
+    }
   }
 
   private get isTaskActive(): boolean {
     const {task} = this.props
-    if (task.status === Task.StatusEnum.Active) {
+    if (task.status === TaskStatus.Active) {
       return true
     }
     return false
   }
 
-  private handleEditLabels = () => {
-    const {task, onEditLabels} = this.props
-
-    onEditLabels(task)
-  }
-
   private changeToggle = () => {
     const {task, onActivate} = this.props
-    if (task.status === Task.StatusEnum.Active) {
-      task.status = Task.StatusEnum.Inactive
+    if (task.status === TaskStatus.Active) {
+      task.status = TaskStatus.Inactive
     } else {
-      task.status = Task.StatusEnum.Active
+      task.status = TaskStatus.Active
     }
     onActivate(task)
   }
@@ -191,4 +212,19 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     return ''
   }
 }
-export default withRouter(TaskCard)
+
+const mstp = ({labels}: AppState): StateProps => {
+  return {
+    labels: labels.list,
+  }
+}
+
+const mdtp: DispatchProps = {
+  onAddTaskLabels: addTaskLabelsAsync,
+  onRemoveTaskLabels: removeTaskLabelsAsync,
+}
+
+export default connect<StateProps, DispatchProps, PassedProps>(
+  mstp,
+  mdtp
+)(withRouter<Props>(TaskCard))

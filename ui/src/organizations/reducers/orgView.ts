@@ -3,7 +3,7 @@ import {
   Telegraf,
   ScraperTargetResponse,
   Bucket,
-  Task,
+  ITask as Task,
 } from '@influxdata/influx'
 import {Dashboard} from 'src/types'
 import {Actions, ActionTypes} from 'src/organizations/actions/orgView'

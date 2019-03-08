@@ -26,9 +26,10 @@ import {
 } from 'src/tasks/actions/v2'
 
 // Types
-import {Organization, Task} from '@influxdata/influx'
+import {Organization, ITask as Task} from '@influxdata/influx'
 import {AppState, TaskStatus} from 'src/types/v2'
 import {client} from 'src/utils/api'
+import GetLabels from 'src/configuration/components/GetLabels'
 
 interface PassedInProps {
   tasks: Task[]
@@ -101,29 +102,31 @@ class OrgTasksPage extends PureComponent<Props, State> {
           isFullPage={false}
           filterComponent={() => this.filterComponent}
         />
-        <FilterList<Task>
-          searchTerm={searchTerm}
-          searchKeys={['name', 'labels[].name']}
-          list={this.filteredTasks}
-        >
-          {ts => (
-            <TasksList
-              searchTerm={searchTerm}
-              tasks={ts}
-              totalCount={this.totalTaskCount}
-              onActivate={this.handleActivate}
-              onDelete={this.handleDelete}
-              onCreate={this.handleCreateTask}
-              onClone={this.handleClone}
-              onSelect={this.handleSelectTask}
-              onAddTaskLabels={onAddTaskLabels}
-              onRemoveTaskLabels={onRemoveTaskLabels}
-              onUpdate={this.handleUpdateTask}
-              onRunTask={onRunTask}
-              onFilterChange={setSearchTerm}
-            />
-          )}
-        </FilterList>
+        <GetLabels>
+          <FilterList<Task>
+            searchTerm={searchTerm}
+            searchKeys={['name', 'labels[].name']}
+            list={this.filteredTasks}
+          >
+            {ts => (
+              <TasksList
+                searchTerm={searchTerm}
+                tasks={ts}
+                totalCount={this.totalTaskCount}
+                onActivate={this.handleActivate}
+                onDelete={this.handleDelete}
+                onCreate={this.handleCreateTask}
+                onClone={this.handleClone}
+                onSelect={this.handleSelectTask}
+                onAddTaskLabels={onAddTaskLabels}
+                onRemoveTaskLabels={onRemoveTaskLabels}
+                onUpdate={this.handleUpdateTask}
+                onRunTask={onRunTask}
+                onFilterChange={setSearchTerm}
+              />
+            )}
+          </FilterList>
+        </GetLabels>
       </>
     )
   }

@@ -2,7 +2,11 @@ import _ from 'lodash'
 
 import {notify} from 'src/shared/actions/notifications'
 
-import {ScraperTargetRequest, Task, ITaskTemplate} from '@influxdata/influx'
+import {
+  ScraperTargetRequest,
+  ITask as Task,
+  ITaskTemplate,
+} from '@influxdata/influx'
 
 import {
   importTaskSucceeded,

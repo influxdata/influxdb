@@ -3,7 +3,7 @@ import {Run, LogEvent} from '@influxdata/influx'
 
 //Types
 import {Action} from 'src/tasks/actions/v2'
-import {Task} from '@influxdata/influx'
+import {ITask as Task} from '@influxdata/influx'
 import {RemoteDataState} from '@influxdata/clockface'
 
 export interface State {

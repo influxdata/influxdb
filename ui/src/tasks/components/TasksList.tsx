@@ -6,12 +6,10 @@ import _ from 'lodash'
 import {ResourceList} from 'src/clockface'
 import TaskCard from 'src/tasks/components/TaskCard'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
-import {OverlayTechnology} from 'src/clockface'
-import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
-import {Task} from '@influxdata/influx'
+import {ITask as Task} from '@influxdata/influx'
 
 import {Sort} from 'src/clockface'
 import {
@@ -116,7 +114,6 @@ export default class TasksList extends PureComponent<Props, State> {
             {this.sortedCards}
           </ResourceList.Body>
         </ResourceList>
-        {this.renderLabelEditorOverlay}
       </>
     )
   }
@@ -145,7 +142,6 @@ export default class TasksList extends PureComponent<Props, State> {
             onDelete={onDelete}
             onClone={onClone}
             onSelect={onSelect}
-            onEditLabels={this.handleStartEditingLabels}
             onUpdate={onUpdate}
             onRunTask={onRunTask}
             onFilterChange={onFilterChange}
@@ -173,29 +169,5 @@ export default class TasksList extends PureComponent<Props, State> {
     }
 
     return null
-  }
-
-  private handleStartEditingLabels = (taskLabelsEdit: Task): void => {
-    this.setState({taskLabelsEdit, isEditingTaskLabels: true})
-  }
-
-  private handleStopEditingLabels = (): void => {
-    this.setState({isEditingTaskLabels: false})
-  }
-
-  private get renderLabelEditorOverlay(): JSX.Element {
-    const {onAddTaskLabels, onRemoveTaskLabels} = this.props
-    const {isEditingTaskLabels, taskLabelsEdit} = this.state
-
-    return (
-      <OverlayTechnology visible={isEditingTaskLabels}>
-        <EditLabelsOverlay<Task>
-          resource={taskLabelsEdit}
-          onDismissOverlay={this.handleStopEditingLabels}
-          onAddLabels={onAddTaskLabels}
-          onRemoveLabels={onRemoveTaskLabels}
-        />
-      </OverlayTechnology>
-    )
   }
 }

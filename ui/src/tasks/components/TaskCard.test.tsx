@@ -18,10 +18,12 @@ const setup = (override = {}) => {
     onDelete: jest.fn(),
     onClone: jest.fn(),
     onSelect: jest.fn(),
-    onEditLabels: jest.fn(),
     onRunTask: jest.fn(),
     onFilterChange: jest.fn(),
     onUpdate: jest.fn(),
+    onAddTaskLabels: jest.fn(),
+    onRemoveTaskLabels: jest.fn(),
+    labels: [], // all labels
     ...override,
   }
 
@@ -33,7 +35,7 @@ describe('Tasks.Components.TaskCard', () => {
     it('renders with labels', () => {
       const {getAllByTestId} = setup()
 
-      const labels = getAllByTestId(/label--pill/)
+      const labels = getAllByTestId(/label--pill /)
 
       expect(labels.length).toEqual(task.labels.length)
     })

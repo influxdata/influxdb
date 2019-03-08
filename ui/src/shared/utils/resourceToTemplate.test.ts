@@ -3,8 +3,8 @@ import {
   labelToIncluded,
   taskToTemplate,
 } from 'src/shared/utils/resourceToTemplate'
-import {TemplateType, Task as TaskApi} from '@influxdata/influx'
-import {Label, Task} from 'src/types/v2'
+import {TemplateType} from '@influxdata/influx'
+import {Label, Task, TaskStatus} from 'src/types/v2'
 
 const myfavelabel: Label = {
   id: '1',
@@ -29,7 +29,7 @@ const myfavetask: Task = {
   offset: '1m0s',
   org: 'org',
   orgID: '037b084ec8ebc000',
-  status: TaskApi.StatusEnum.Active,
+  status: TaskStatus.Active,
 }
 
 describe('resourceToTemplate', () => {
