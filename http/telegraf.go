@@ -177,11 +177,11 @@ type telegrafResponse struct {
 }
 
 type telegrafResponses struct {
-	TelegrafConfigs []telegrafResponse `json:"configurations"`
+	TelegrafConfigs []*telegrafResponse `json:"configurations"`
 }
 
-func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) telegrafResponse {
-	res := telegrafResponse{
+func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) *telegrafResponse {
+	res := &telegrafResponse{
 		TelegrafConfig: tc,
 		Links: telegrafLinks{
 			Self:   fmt.Sprintf("/api/v2/telegrafs/%s", tc.ID),
@@ -197,9 +197,9 @@ func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) 
 	return res
 }
 
-func newTelegrafResponses(ctx context.Context, tcs []*platform.TelegrafConfig, labelService platform.LabelService) telegrafResponses {
-	resp := telegrafResponses{
-		TelegrafConfigs: make([]telegrafResponse, len(tcs)),
+func newTelegrafResponses(ctx context.Context, tcs []*platform.TelegrafConfig, labelService platform.LabelService) *telegrafResponses {
+	resp := &telegrafResponses{
+		TelegrafConfigs: make([]*telegrafResponse, len(tcs)),
 	}
 	for i, c := range tcs {
 		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: c.ID})

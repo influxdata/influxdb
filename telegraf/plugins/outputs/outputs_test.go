@@ -35,7 +35,7 @@ func TestTOML(t *testing.T) {
   ## Files to write to, "stdout" is a specially handled file.
   files = []
 `,
-				&InfluxDBV2{}: `[[outputs.influxdb_v2]]	
+				&InfluxDBV2{}: `[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -74,7 +74,7 @@ func TestTOML(t *testing.T) {
 					Token:        "tok1",
 					Organization: "org1",
 					Bucket:       "bucket1",
-				}: `[[outputs.influxdb_v2]]	
+				}: `[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
