@@ -46,7 +46,8 @@ func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRu
 		return nil, err
 	}
 
-	return newSyncRunPromise(icontext.SetAuthorizer(ctx, auth), run, e, t), nil
+	// TODO(goller): remove need for context authorization.
+	return newSyncRunPromise(icontext.SetAuthorizer(ctx, auth), auth, run, e, t), nil
 }
 
 func (e *queryServiceExecutor) Wait() {
@@ -56,6 +57,7 @@ func (e *queryServiceExecutor) Wait() {
 // syncRunPromise implements backend.RunPromise for a synchronous QueryService.
 type syncRunPromise struct {
 	qr     backend.QueuedRun
+	auth   *influxdb.Authorization
 	qs     query.QueryService
 	t      *backend.StoreTask
 	ctx    context.Context
@@ -71,12 +73,13 @@ type syncRunPromise struct {
 
 var _ backend.RunPromise = (*syncRunPromise)(nil)
 
-func newSyncRunPromise(ctx context.Context, qr backend.QueuedRun, e *queryServiceExecutor, t *backend.StoreTask) *syncRunPromise {
+func newSyncRunPromise(ctx context.Context, auth *influxdb.Authorization, qr backend.QueuedRun, e *queryServiceExecutor, t *backend.StoreTask) *syncRunPromise {
 	ctx, cancel := context.WithCancel(ctx)
 	opLogger := e.logger.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
 	log, logEnd := logger.NewOperation(opLogger, "Executing task", "execute")
 	rp := &syncRunPromise{
 		qr:     qr,
+		auth:   auth,
 		qs:     e.qs,
 		t:      t,
 		logger: log,
@@ -143,6 +146,7 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 	}
 
 	req := &query.Request{
+		Authorization:  p.auth,
 		OrganizationID: p.t.Org,
 		Compiler: lang.SpecCompiler{
 			Spec: spec,
@@ -194,7 +198,7 @@ type asyncQueryServiceExecutor struct {
 
 var _ backend.Executor = (*asyncQueryServiceExecutor)(nil)
 
-// NewQueryServiceExecutor returns a new executor based on the given AsyncQueryService.
+// NewAsyncQueryServiceExecutor returns a new executor based on the given AsyncQueryService.
 func NewAsyncQueryServiceExecutor(logger *zap.Logger, qs query.AsyncQueryService, as influxdb.AuthorizationService, st backend.Store) backend.Executor {
 	return &asyncQueryServiceExecutor{logger: logger, qs: qs, as: as, st: st}
 }
@@ -216,6 +220,7 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 	}
 
 	req := &query.Request{
+		Authorization:  auth,
 		OrganizationID: t.Org,
 		Compiler: lang.SpecCompiler{
 			Spec: spec,
