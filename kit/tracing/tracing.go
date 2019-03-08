@@ -78,7 +78,7 @@ func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Contex
 	n := runtime.Callers(2, pcs[:])
 	if n < 1 {
 		span, ctx := opentracing.StartSpanFromContext(ctx, "unknown")
-		span.LogFields(log.Error(errors.New("runtime.Caller failed")))
+		span.LogFields(log.Error(errors.New("runtime.Callers failed")))
 		return span, ctx
 	}
 	fn := runtime.FuncForPC(pcs[0])
