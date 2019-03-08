@@ -1,0 +1,74 @@
+@import 'src/style/modules';
+
+/*
+  Color Picker Widget
+  ------------------------------------------------------------------------------
+*/
+
+$color-picker--margin: 0;
+
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 240px;
+  background-color: $g2-kevlar;
+  padding: $ix-marg-b;
+}
+
+.color-picker--swatches {
+  margin-bottom: $ix-marg-b;
+  position: relative;
+  padding: $color-picker--margin;
+  border-radius: $radius;
+  overflow: hidden;
+}
+
+.color-picker--swatch {
+  width: 10%;
+  padding-bottom: 10%;
+  position: relative;
+  float: left;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+
+  > span {
+    position: absolute;
+    top: $color-picker--margin;
+    left: $color-picker--margin;
+    right: $color-picker--margin;
+    bottom: $color-picker--margin;
+  }
+
+  &:hover {
+    cursor: pointer;
+    opacity: 0.5;
+  }
+}
+
+.color-picker--form {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.input.color-picker--input {
+  flex: 1 0 0;
+  margin-right: $ix-marg-a;
+
+  > input {
+    padding-left: $ix-marg-d;
+  }
+}
+
+.color-picker--selected {
+  pointer-events: none;
+  z-index: 2;
+  position: absolute;
+  top: 50%;
+  left: $ix-marg-c;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}

@@ -2,6 +2,7 @@
 import Alert from './components/alerts/Alert'
 import AutoInput from './components/auto_input/AutoInput'
 import ConfirmationButton from './components/confirmation_button/ConfirmationButton'
+import ColorPicker from './components/color_picker/ColorPicker'
 import Dropdown, {DropdownMode} from './components/dropdowns/Dropdown'
 import MultiSelectDropdown from './components/dropdowns/MultiSelectDropdown'
 import Form from './components/form_layout/Form'
@@ -61,6 +62,7 @@ export {
   AutoInput,
   ButtonType,
   ButtonShape,
+  ColorPicker,
   Columns,
   ComponentColor,
   ComponentSize,
