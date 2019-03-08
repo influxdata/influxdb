@@ -11,9 +11,8 @@ $color-picker--margin: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  width: 240px;
-  background-color: $g2-kevlar;
-  padding: $ix-marg-b;
+  width: 100%;
+  min-width: 160px;
 }
 
 .color-picker--swatches {
