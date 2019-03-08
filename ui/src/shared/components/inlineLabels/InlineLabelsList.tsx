@@ -12,12 +12,12 @@ import InlineLabelsListItem from 'src/shared/components/inlineLabels/InlineLabel
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Label} from '@influxdata/influx'
+import {ILabel} from '@influxdata/influx'
 
 interface Props {
   searchTerm: string
   selectedItemID: string
-  filteredLabels: Label[]
+  filteredLabels: ILabel[]
   onItemClick: (labelID: string) => void
   onUpdateSelectedItem: (labelID: string) => void
   allLabelsUsed: boolean
@@ -80,7 +80,7 @@ class InlineLabelsList extends Component<Props> {
     }
 
     const searchTermHasExactMatch = filteredLabels.reduce(
-      (acc: boolean, current: Label) => {
+      (acc: boolean, current: ILabel) => {
         return acc === true || current.name === searchTerm
       },
       false
@@ -94,6 +94,7 @@ class InlineLabelsList extends Component<Props> {
       <div
         className="inline-labels--list-item inline-labels--create-new"
         onClick={onStartCreatingLabel}
+        data-testid="inline-labels--create-new"
       >
         Create new label "<strong>{`${searchTerm}`}</strong>"
       </div>

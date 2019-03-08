@@ -16,9 +16,8 @@ $inline-labels--popover-caret: 12px;
 
 .inline-labels--popover {
   position: absolute;
-  top: calc(100% + #{$inline-labels--popover-caret});
-  left: 9px;
-  transform: translateX(-50%);
+  top: calc(100% + #{$inline-labels--popover-caret - $ix-marg-a});
+  left: $inline-labels--popover-caret * -2;
   width: 320px;
   background-color: $g5-pepper;
   padding: $ix-marg-c;
@@ -35,7 +34,7 @@ $inline-labels--popover-caret: 12px;
     border-bottom-color: $g5-pepper;
     position: absolute;
     top: 0;
-    left: 50%;
+    left: ($inline-labels--popover-caret * 3) - $ix-border;
     transform: translate(-50%, -100%);
   }
 }

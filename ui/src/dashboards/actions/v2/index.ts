@@ -40,7 +40,7 @@ import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {CreateCell} from '@influxdata/influx'
 import {Dashboard, NewView, Cell} from 'src/types/v2'
-import {Label} from 'src/types/v2/labels'
+import {ILabel} from '@influxdata/influx'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -113,7 +113,7 @@ interface AddDashboardLabelsAction {
   type: ActionTypes.AddDashboardLabels
   payload: {
     dashboardID: string
-    labels: Label[]
+    labels: ILabel[]
   }
 }
 
@@ -121,7 +121,7 @@ interface RemoveDashboardLabelsAction {
   type: ActionTypes.RemoveDashboardLabels
   payload: {
     dashboardID: string
-    labels: Label[]
+    labels: ILabel[]
   }
 }
 
@@ -172,7 +172,7 @@ export const deleteCell = (
 
 export const addDashboardLabels = (
   dashboardID: string,
-  labels: Label[]
+  labels: ILabel[]
 ): AddDashboardLabelsAction => ({
   type: ActionTypes.AddDashboardLabels,
   payload: {dashboardID, labels},
@@ -180,7 +180,7 @@ export const addDashboardLabels = (
 
 export const removeDashboardLabels = (
   dashboardID: string,
-  labels: Label[]
+  labels: ILabel[]
 ): RemoveDashboardLabelsAction => ({
   type: ActionTypes.RemoveDashboardLabels,
   payload: {dashboardID, labels},
@@ -353,7 +353,7 @@ export const copyDashboardCellAsync = (
 
 export const addDashboardLabelsAsync = (
   dashboardID: string,
-  labels: Label[]
+  labels: ILabel[]
 ) => async (dispatch: Dispatch<Action>) => {
   try {
     const newLabels = await addDashboardLabelsAJAX(dashboardID, labels)
@@ -367,7 +367,7 @@ export const addDashboardLabelsAsync = (
 
 export const removeDashboardLabelsAsync = (
   dashboardID: string,
-  labels: Label[]
+  labels: ILabel[]
 ) => async (dispatch: Dispatch<Action>) => {
   try {
     await removeDashboardLabelsAJAX(dashboardID, labels)

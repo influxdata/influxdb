@@ -14,7 +14,7 @@ import './Label.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-export interface LabelType {
+interface PassedProps {
   id: string
   name: string
   description: string
@@ -23,7 +23,7 @@ export interface LabelType {
   onDelete?: (id: string) => void
 }
 
-interface LabelProps {
+interface DefaultProps {
   size?: ComponentSize
   testID?: string
 }
@@ -32,11 +32,11 @@ interface State {
   isMouseOver: boolean
 }
 
-type Props = LabelType & LabelProps
+type Props = PassedProps & DefaultProps
 
 @ErrorHandling
 class Label extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     size: ComponentSize.ExtraSmall,
     testID: 'label--pill',
   }
@@ -59,24 +59,29 @@ class Label extends Component<Props, State> {
     return (
       <div
         className={this.className}
-        onClick={this.handleClick}
         onMouseEnter={this.handleMouseEnter}
         onMouseLeave={this.handleMouseLeave}
         style={this.style}
         title={this.title}
-        data-testid={`${testID} ${name}`}
       >
-        <label>{name}</label>
+        <span
+          className="label--name"
+          onClick={this.handleClick}
+          data-testid={`${testID} ${name}`}
+        >
+          {name}
+        </span>
         {this.deleteButton}
       </div>
     )
   }
 
   private handleClick = (e: MouseEvent<HTMLDivElement>): void => {
-    e.preventDefault()
     const {id, onClick} = this.props
 
     if (onClick) {
+      e.stopPropagation()
+      e.preventDefault()
       onClick(id)
     }
   }
@@ -110,8 +115,8 @@ class Label extends Component<Props, State> {
 
     return classnames('label', {
       [`label--${size}`]: size,
-      'label--clickable': onClick,
       'label--deletable': onDelete,
+      'label--clickable': onClick,
     })
   }
 
@@ -126,7 +131,7 @@ class Label extends Component<Props, State> {
   }
 
   private get deleteButton(): JSX.Element {
-    const {onDelete, name} = this.props
+    const {onDelete, name, testID} = this.props
 
     if (onDelete) {
       return (
@@ -134,7 +139,8 @@ class Label extends Component<Props, State> {
           className="label--delete"
           onClick={this.handleDelete}
           type="button"
-          title={`Click × to remove "${name}"`}
+          title={`Remove label "${name}"`}
+          data-testid={`${testID}--delete ${name}`}
         >
           <div
             className="label--delete-x"

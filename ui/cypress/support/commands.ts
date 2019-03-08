@@ -100,6 +100,22 @@ export const createVariable = (
 }
 
 export const createLabel = (
+  name?: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/labels',
+    body: {
+      name,
+      properties: {
+        description: `test ${name}`,
+        color: '#ff0054',
+      },
+    },
+  })
+}
+
+export const createAndAddLabel = (
   resource: string,
   resourceID: string,
   name?: string
@@ -274,3 +290,4 @@ Cypress.Commands.add('createVariable', createVariable)
 
 // Labels
 Cypress.Commands.add('createLabel', createLabel)
+Cypress.Commands.add('createAndAddLabel', createAndAddLabel)

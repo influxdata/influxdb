@@ -11,6 +11,7 @@ import {
   getByTitle,
   createTask,
   createVariable,
+  createAndAddLabel,
   createLabel,
   createBucket,
   createScraper,
@@ -32,6 +33,7 @@ declare global {
       getByTestID: typeof getByTestID
       getByInputName: typeof getByInputName
       getByTitle: typeof getByTitle
+      createAndAddLabel: typeof createAndAddLabel
       createLabel: typeof createLabel
       createBucket: typeof createBucket
       createScraper: typeof createScraper

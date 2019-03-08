@@ -23,19 +23,14 @@ import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
 import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Types
-import {LabelType} from 'src/clockface'
-import {Label, AppState} from 'src/types/v2'
+import {AppState} from 'src/types/v2'
+import {ILabel} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface LabelProperties {
-  color: string
-  description: string
-}
-
 interface StateProps {
-  labels: Label[]
+  labels: ILabel[]
 }
 
 interface State {
@@ -64,6 +59,7 @@ class Labels extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {labels} = this.props
     const {searchTerm, isOverlayVisible} = this.state
 
     return (
@@ -85,8 +81,8 @@ class Labels extends PureComponent<Props, State> {
             onClick={this.handleShowOverlay}
           />
         </TabbedPageHeader>
-        <FilterList<LabelType>
-          list={this.labelTypes}
+        <FilterList<ILabel>
+          list={labels}
           searchKeys={['name', 'description']}
           searchTerm={searchTerm}
         >
@@ -95,6 +91,7 @@ class Labels extends PureComponent<Props, State> {
               labels={ls}
               emptyState={this.emptyState}
               onUpdateLabel={this.handleUpdateLabel}
+              onDeleteLabel={this.handleDelete}
             />
           )}
         </FilterList>
@@ -124,12 +121,12 @@ class Labels extends PureComponent<Props, State> {
     this.setState({searchTerm: e.target.value})
   }
 
-  private handleCreateLabel = (labelType: LabelType) => {
-    this.props.createLabel(labelType.name, this.labelProperties(labelType))
+  private handleCreateLabel = (label: ILabel) => {
+    this.props.createLabel(label.name, label.properties)
   }
 
-  private handleUpdateLabel = (labelType: LabelType) => {
-    this.props.updateLabel(labelType.id, this.labelProperties(labelType))
+  private handleUpdateLabel = (label: ILabel) => {
+    this.props.updateLabel(label.id, label.properties)
   }
 
   private handleDelete = async (id: string) => {
@@ -140,29 +137,6 @@ class Labels extends PureComponent<Props, State> {
     const names = this.props.labels.map(label => label.name)
 
     return validateLabelUniqueness(names, name)
-  }
-
-  private get labelTypes(): LabelType[] {
-    return this.props.labels.map(this.labelType)
-  }
-
-  private labelType = (label: Label): LabelType => {
-    const {properties} = label
-
-    return {
-      id: label.id,
-      name: label.name,
-      description: properties.description,
-      colorHex: properties.color,
-      onDelete: this.handleDelete,
-    }
-  }
-
-  private labelProperties(labelType: LabelType): LabelProperties {
-    return {
-      description: labelType.description,
-      color: labelType.colorHex,
-    }
   }
 
   private get emptyState(): JSX.Element {

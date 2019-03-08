@@ -8,11 +8,9 @@ import {isEmpty} from 'lodash'
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import {OverlayTechnology} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 import ExportOverlay from 'src/shared/components/ExportOverlay'
-import EditLabelsOverlay from 'src/shared/components/EditLabelsOverlay'
 
 // APIs
 import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
@@ -74,8 +72,6 @@ interface State {
   isImportingDashboard: boolean
   isExportingDashboard: boolean
   exportDashboard: Dashboard
-  isEditingDashboardLabels: boolean
-  dashboardLabelsEdit: Dashboard
 }
 
 @ErrorHandling
@@ -88,8 +84,6 @@ class DashboardIndex extends PureComponent<Props, State> {
       isImportingDashboard: false,
       isExportingDashboard: false,
       exportDashboard: null,
-      isEditingDashboardLabels: false,
-      dashboardLabelsEdit: null,
     }
   }
 
@@ -138,7 +132,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onCloneDashboard={this.handleCloneDashboard}
                 onExportDashboard={this.handleExportDashboard}
                 onUpdateDashboard={handleUpdateDashboard}
-                onEditLabels={this.handleStartEditingLabels}
                 notify={notify}
                 searchTerm={searchTerm}
                 showOwnerColumn={true}
@@ -149,7 +142,6 @@ class DashboardIndex extends PureComponent<Props, State> {
         </Page>
         {this.importOverlay}
         {this.exportOverlay}
-        {this.labelEditorOverlay}
       </>
     )
   }
@@ -263,30 +255,6 @@ class DashboardIndex extends PureComponent<Props, State> {
         resourceName="Dashboard"
         onDismissOverlay={this.handleToggleExportOverlay}
       />
-    )
-  }
-
-  private handleStartEditingLabels = (dashboardLabelsEdit: Dashboard): void => {
-    this.setState({dashboardLabelsEdit, isEditingDashboardLabels: true})
-  }
-
-  private handleStopEditingLabels = (): void => {
-    this.setState({isEditingDashboardLabels: false})
-  }
-
-  private get labelEditorOverlay(): JSX.Element {
-    const {onAddDashboardLabels, onRemoveDashboardLabels} = this.props
-    const {isEditingDashboardLabels, dashboardLabelsEdit} = this.state
-
-    return (
-      <OverlayTechnology visible={isEditingDashboardLabels}>
-        <EditLabelsOverlay<Dashboard>
-          resource={dashboardLabelsEdit}
-          onDismissOverlay={this.handleStopEditingLabels}
-          onAddLabels={onAddDashboardLabels}
-          onRemoveLabels={onRemoveDashboardLabels}
-        />
-      </OverlayTechnology>
     )
   }
 }
