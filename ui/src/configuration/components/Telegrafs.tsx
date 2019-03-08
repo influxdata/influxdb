@@ -22,6 +22,7 @@ import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
 
 // Actions
+import {deleteLabel} from 'src/labels/actions'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 import {
   setDataLoadersType,
@@ -34,6 +35,7 @@ import {
   createTelegraf,
   deleteTelegraf,
 } from 'src/telegrafs/actions'
+import {deleteAuthorization} from 'src/authorizations/actions'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -59,6 +61,8 @@ interface DispatchProps {
   updateTelegraf: typeof updateTelegraf
   deleteTelegraf: typeof deleteTelegraf
   createTelegraf: typeof createTelegraf
+  deleteLabel: typeof deleteLabel
+  deleteAuthorization: typeof deleteAuthorization
 }
 
 type Props = StateProps & DispatchProps
@@ -293,6 +297,14 @@ export class Telegrafs extends PureComponent<Props, State> {
 
   private handleDeleteTelegraf = async (telegraf: Telegraf) => {
     this.props.deleteTelegraf(telegraf.id, telegraf.name)
+
+    // hack to remove stale tokens from system when telegraf is deleted
+    const label = telegraf.labels.find(l => l.name == 'token')
+
+    if (label) {
+      this.props.deleteLabel(label.id)
+      this.props.deleteAuthorization(label.properties.tokenID)
+    }
   }
 
   private handleUpdateTelegraf = async (telegraf: Telegraf) => {
@@ -321,6 +333,8 @@ const mdtp: DispatchProps = {
   updateTelegraf,
   createTelegraf,
   deleteTelegraf,
+  deleteLabel,
+  deleteAuthorization,
 }
 
 const mstp = ({orgs, buckets, telegrafs}: AppState): StateProps => {

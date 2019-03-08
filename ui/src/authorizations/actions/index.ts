@@ -114,11 +114,11 @@ export const updateAuthorization = (authorization: Authorization) => async (
     dispatch(editLabel(label))
   } catch (e) {
     console.log(e)
-    dispatch(notify(authorizationUpdateFailed(authorization.name)))
+    dispatch(notify(authorizationUpdateFailed(authorization.id)))
   }
 }
 
-export const deleteAuthorization = (id: string, name: string) => async (
+export const deleteAuthorization = (id: string, name: string = '') => async (
   dispatch: Dispatch<Action>
 ) => {
   try {

@@ -62,13 +62,13 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
 
     const labels = get(config, 'labels', [])
 
-    const token = labels.find(l => l.name === 'token')
+    const label = labels.find(l => l.name === 'token')
 
-    if (!token) {
+    if (!label) {
       return ''
     }
 
-    return token.properties.description
+    return label.properties.token
   }
 }
 

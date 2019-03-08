@@ -3,7 +3,11 @@ import _ from 'lodash'
 
 // Apis
 import {client} from 'src/utils/api'
-import {ScraperTargetRequest, PermissionResource} from '@influxdata/influx'
+import {
+  ScraperTargetRequest,
+  PermissionResource,
+  ILabelProperties,
+} from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
 
 // Utils
@@ -405,7 +409,7 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   const token = {
     name: `${telegrafConfigName} token`,
     orgID,
-    description: `write to ${bucket} bucket.  read to ${telegrafConfigName} telegraf config`,
+    description: `WRITE ${bucket} bucket / READ ${telegrafConfigName} telegraf config`,
     permissions,
   }
 
@@ -415,10 +419,14 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   dispatch(setToken(createdToken.token))
 
   // create label
-  const createdLabel = await client.labels.create('token', {
+  const tokenLabel = {
     color: '#FFFFFF',
-    description: createdToken.token,
-  })
+    description: `token for telegraf config: ${telegrafConfigName}`,
+    tokenID: createdToken.id,
+    token: createdToken.token,
+  } as ILabelProperties // hack to make compiler work
+
+  const createdLabel = await client.labels.create('token', tokenLabel)
 
   // add label to telegraf config
   const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
