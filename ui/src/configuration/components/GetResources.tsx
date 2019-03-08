@@ -62,7 +62,7 @@ class GetResources extends PureComponent<Props, StateProps> {
       }
 
       case ResourceTypes.Telegrafs: {
-        return await this.props.getTelegrafs(this.props.org)
+        return await this.props.getTelegrafs()
       }
 
       case ResourceTypes.Authorizations: {

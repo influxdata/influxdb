@@ -4,10 +4,7 @@ import _ from 'lodash'
 // Apis
 import {client} from 'src/utils/api'
 import {ScraperTargetRequest, PermissionResource} from '@influxdata/influx'
-import {
-  createAuthorization,
-  addLabelToAuthorization,
-} from 'src/authorizations/apis'
+import {createAuthorization} from 'src/authorizations/apis'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -38,8 +35,6 @@ import {
 } from '@influxdata/influx'
 import {Dispatch} from 'redux'
 import {addTelegraf} from 'src/telegrafs/actions'
-import {createDashFromProto} from 'src/protos/actions'
-import {addAuthorization} from 'src/authorizations/actions'
 
 type GetState = () => AppState
 
@@ -70,6 +65,7 @@ export type Action =
   | ClearDataLoaders
   | SetTelegrafConfigName
   | SetTelegrafConfigDescription
+  | SetToken
 
 interface SetDataLoadersType {
   type: 'SET_DATA_LOADERS_TYPE'
@@ -288,6 +284,16 @@ export const setScraperTargetID = (id: string): SetScraperTargetID => ({
   payload: {id},
 })
 
+interface SetToken {
+  type: 'SET_TOKEN'
+  payload: {token: string}
+}
+
+export const setToken = (token: string): SetToken => ({
+  type: 'SET_TOKEN',
+  payload: {token},
+})
+
 export const addPluginBundleWithPlugins = (bundle: BundleName) => dispatch => {
   dispatch(addPluginBundle(bundle))
   const plugins = pluginsByBundle[bundle]
@@ -327,9 +333,8 @@ export const createOrUpdateTelegrafConfigAsync = () => async (
         telegrafConfigName,
         telegrafConfigDescription,
       },
-      steps: {org, bucket, orgID},
+      steps: {org, bucket},
     },
-    buckets,
   } = getState()
 
   const influxDB2Out = {
@@ -407,19 +412,24 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   // create token
   const createdToken = await createAuthorization(token)
 
+  dispatch(setToken(createdToken.token))
+
   // create label
   const label = await client.labels.create('token', {
     color: '#FFFFFF',
     description: createdToken.token,
   })
 
-  console.log(createdToken, label)
+  // add label to telegraf config
+  await client.telegrafConfigs.addLabel(tc.id, label)
 
-  // add label to authorization
-  await addLabelToAuthorization(createdToken.id, label.id)
+  const config = {
+    ...tc,
+    labels: [label],
+  }
 
   dispatch(setTelegrafConfigID(tc.id))
-  dispatch(addTelegraf(tc))
+  dispatch(addTelegraf(config))
 }
 
 interface SetActiveTelegrafPlugin {

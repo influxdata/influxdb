@@ -63,9 +63,9 @@ export class Tokens extends PureComponent<Props, State> {
         >
           {filteredAuths => (
             <TokenList
+              onNotify={notify}
               auths={filteredAuths}
               searchTerm={searchTerm}
-              onNotify={notify}
             />
           )}
         </FilterList>

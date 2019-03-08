@@ -6,7 +6,6 @@ import _ from 'lodash'
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DataStreaming from 'src/dataLoaders/components/verifyStep/DataStreaming'
-import FetchAuthToken from 'src/dataLoaders/components/verifyStep/FetchAuthToken'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
@@ -22,6 +21,7 @@ interface StateProps {
   telegrafConfigID: string
   bucket: string
   org: string
+  token: string
 }
 
 export type Props = StateProps & OwnProps
@@ -30,13 +30,13 @@ export type Props = StateProps & OwnProps
 export class VerifyCollectorStep extends PureComponent<Props> {
   public render() {
     const {
-      username,
       telegrafConfigID,
       bucket,
       notify,
       org,
       onDecrementCurrentStepIndex,
       onExit,
+      token,
     } = this.props
 
     return (
@@ -51,21 +51,17 @@ export class VerifyCollectorStep extends PureComponent<Props> {
               Start Telegraf and ensure data is being written to InfluxDB
             </h5>
           </div>
-          <FetchAuthToken bucket={bucket} username={username}>
-            {authToken => (
-              <DataStreaming
-                org={org}
-                notify={notify}
-                bucket={bucket}
-                authToken={authToken}
-                configID={telegrafConfigID}
-              />
-            )}
-          </FetchAuthToken>
+          <DataStreaming
+            org={org}
+            notify={notify}
+            bucket={bucket}
+            token={token}
+            configID={telegrafConfigID}
+          />
         </FancyScrollbar>
         <OnboardingButtons
           onClickBack={onDecrementCurrentStepIndex}
-          nextButtonText={'Finish'}
+          nextButtonText="Finish"
           className="data-loading--button-container"
         />
       </Form>
@@ -75,7 +71,7 @@ export class VerifyCollectorStep extends PureComponent<Props> {
 
 const mstp = ({
   dataLoading: {
-    dataLoaders: {telegrafConfigID},
+    dataLoaders: {telegrafConfigID, token},
     steps: {bucket, org},
   },
   me: {name},
@@ -84,6 +80,7 @@ const mstp = ({
   telegrafConfigID,
   bucket,
   org,
+  token,
 })
 
 export default connect<StateProps, {}, OwnProps>(mstp)(VerifyCollectorStep)

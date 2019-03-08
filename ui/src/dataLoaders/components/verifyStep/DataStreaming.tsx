@@ -17,19 +17,19 @@ interface Props {
   bucket: string
   org: string
   configID: string
-  authToken: string
+  token: string
 }
 
 @ErrorHandling
 class DataStreaming extends PureComponent<Props> {
   public render() {
-    const {authToken, configID, bucket, notify} = this.props
+    const {token, configID, bucket, notify} = this.props
 
     return (
       <div className="streaming">
         <TelegrafInstructions
           notify={notify}
-          authToken={authToken}
+          token={token}
           configID={configID}
         />
 

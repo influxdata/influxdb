@@ -3,7 +3,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Telegraf, Organization} from '@influxdata/influx'
+import {Telegraf} from '@influxdata/influx'
 import {Dispatch} from 'redux-thunk'
 
 // Actions
@@ -68,13 +68,11 @@ export const removeTelegraf = (id: string): RemoveTelegraf => ({
   payload: {id},
 })
 
-export const getTelegrafs = (org: Organization) => async (
-  dispatch: Dispatch<Action>
-) => {
+export const getTelegrafs = () => async (dispatch: Dispatch<Action>) => {
   try {
     dispatch(setTelegrafs(RemoteDataState.Loading))
 
-    const telegrafs = await client.telegrafConfigs.getAllByOrg(org)
+    const telegrafs = await client.telegrafConfigs.getAll()
 
     dispatch(setTelegrafs(RemoteDataState.Done, telegrafs))
   } catch (e) {

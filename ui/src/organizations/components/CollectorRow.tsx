@@ -61,9 +61,9 @@ export default class CollectorRow extends PureComponent<Props> {
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ComponentSpacer align={Alignment.Right}>
               <Button
+                text="Setup Instructions"
                 size={ComponentSize.ExtraSmall}
                 color={ComponentColor.Secondary}
-                text={'Setup Instructions'}
                 onClick={this.handleOpenInstructions}
               />
               <ConfirmationButton

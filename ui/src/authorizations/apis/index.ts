@@ -14,19 +14,3 @@ export const createAuthorization = async authorization => {
     throw error
   }
 }
-
-export const addLabelToAuthorization = async (
-  authID: string,
-  labelID: string
-) => {
-  try {
-    return await AJAX({
-      method: 'POST',
-      url: `/api/v2/authorizations/${authID}/labels`,
-      data: {labelID},
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}

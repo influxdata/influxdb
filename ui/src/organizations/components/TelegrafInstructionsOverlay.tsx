@@ -7,7 +7,6 @@ import {get} from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
-import FetchAuthToken from 'src/dataLoaders/components/verifyStep/FetchAuthToken'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -28,6 +27,7 @@ interface DispatchProps {
 
 interface StateProps {
   username: string
+  telegrafs: Telegraf[]
 }
 
 type Props = StateProps & DispatchProps & OwnProps
@@ -35,7 +35,7 @@ type Props = StateProps & DispatchProps & OwnProps
 @ErrorHandling
 export class TelegrafInstructionsOverlay extends PureComponent<Props> {
   public render() {
-    const {notify, collector, visible, onDismiss, username} = this.props
+    const {notify, collector, visible, onDismiss} = this.props
 
     return (
       <WizardOverlay
@@ -43,22 +43,38 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
         title="Telegraf Setup Instructions"
         onDismiss={onDismiss}
       >
-        <FetchAuthToken username={username}>
-          {authToken => (
-            <TelegrafInstructions
-              notify={notify}
-              authToken={authToken}
-              configID={get(collector, 'id', '')}
-            />
-          )}
-        </FetchAuthToken>
+        <TelegrafInstructions
+          notify={notify}
+          token={this.token}
+          configID={get(collector, 'id', '')}
+        />
       </WizardOverlay>
     )
   }
+
+  private get token(): string {
+    const {collector, telegrafs} = this.props
+    const config = telegrafs.find(t => get(collector, 'id', '') === t.id)
+
+    if (!config) {
+      return ''
+    }
+
+    const labels = get(config, 'labels', [])
+
+    const token = labels.find(l => l.name === 'token')
+
+    if (!token) {
+      return ''
+    }
+
+    return token.description
+  }
 }
 
-const mstp = ({me: {name}}: AppState): StateProps => ({
+const mstp = ({me: {name}, telegrafs}: AppState): StateProps => ({
   username: name,
+  telegrafs: telegrafs.list,
 })
 
 const mdtp: DispatchProps = {
