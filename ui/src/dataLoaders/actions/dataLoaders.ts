@@ -4,7 +4,10 @@ import _ from 'lodash'
 // Apis
 import {client} from 'src/utils/api'
 import {ScraperTargetRequest, PermissionResource} from '@influxdata/influx'
-import {createAuthorization} from 'src/authorizations/apis'
+import {
+  createAuthorization,
+  addLabelToAuthorization,
+} from 'src/authorizations/apis'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -35,6 +38,8 @@ import {
 } from '@influxdata/influx'
 import {Dispatch} from 'redux'
 import {addTelegraf} from 'src/telegrafs/actions'
+import {createDashFromProto} from 'src/protos/actions'
+import {addAuthorization} from 'src/authorizations/actions'
 
 type GetState = () => AppState
 
@@ -400,7 +405,18 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   }
 
   // create token
-  await createAuthorization(token)
+  const createdToken = await createAuthorization(token)
+
+  // create label
+  const label = await client.labels.create('token', {
+    color: '#FFFFFF',
+    description: createdToken.token,
+  })
+
+  console.log(createdToken, label)
+
+  // add label to authorization
+  await addLabelToAuthorization(createdToken.id, label.id)
 
   dispatch(setTelegrafConfigID(tc.id))
   dispatch(addTelegraf(tc))
