@@ -415,13 +415,13 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   dispatch(setToken(createdToken.token))
 
   // create label
-  const label = await client.labels.create('token', {
+  const createdLabel = await client.labels.create('token', {
     color: '#FFFFFF',
     description: createdToken.token,
   })
 
   // add label to telegraf config
-  await client.telegrafConfigs.addLabel(tc.id, label)
+  const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
 
   const config = {
     ...tc,

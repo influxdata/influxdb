@@ -68,7 +68,7 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
       return ''
     }
 
-    return token.description
+    return token.properties.description
   }
 }
 
