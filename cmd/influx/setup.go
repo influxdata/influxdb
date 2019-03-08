@@ -62,6 +62,18 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance at %q has already been setup", flags.host)
 	}
 
+	dPath, dir, err := defaultTokenPath()
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(dPath); err == nil {
+		return &platform.Error{
+			Code: platform.EConflict,
+			Msg:  fmt.Sprintf("token already exists at %s", dPath),
+		}
+	}
+
 	req, err := onboardingRequest()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
@@ -71,10 +83,7 @@ func setupF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
-	dPath, dir, err := defaultTokenPath()
-	if err != nil {
-		return err
-	}
+
 	err = writeTokenToPath(result.Auth.Token, dPath, dir)
 	if err != nil {
 		return fmt.Errorf("failed to write token to path %q: %v", dPath, err)

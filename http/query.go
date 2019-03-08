@@ -352,12 +352,16 @@ func decodeProxyQueryRequest(ctx context.Context, r *http.Request, auth influxdb
 		return nil, err
 	}
 
-	a, ok := auth.(*influxdb.Authorization)
-	if !ok {
-		// TODO(desa): this should go away once we're using influxdb.Authorizers everywhere.
+	var token *influxdb.Authorization
+	switch a := auth.(type) {
+	case *influxdb.Authorization:
+		token = a
+	case *influxdb.Session:
+		token = a.EphemeralAuth(req.Org.ID)
+	default:
 		return pr, influxdb.ErrAuthorizerNotSupported
 	}
 
-	pr.Request.Authorization = a
+	pr.Request.Authorization = token
 	return pr, nil
 }

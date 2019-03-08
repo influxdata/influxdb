@@ -5,40 +5,38 @@
 
 @import 'src/style/modules';
 
-$label-margin: 1px;
-
 .label {
-  display: inline-block;
-  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  align-content: center;
   user-select: none;
   transition: background-color 0.25s ease;
+  flex-wrap: nowrap;
+}
+
+.label--name {
+  display: block;
+  cursor: inherit;
+  font-weight: 700;
   white-space: nowrap;
-  
-  > label {
-    cursor: inherit;
-    font-weight: 700;
-    margin: 0;
-  }
+  margin: 0;
 }
 
 .label--clickable {
-  &, &:hover {
+  &,
+  &:hover {
     cursor: pointer;
   }
 }
 
 .label--delete {
-  z-index: 2;
-  display: inline-block;
+  display: block;
   background-color: transparent;
-  position: absolute;
-  top: 0;
-  right: $ix-border + $label-margin;
+  position: relative;
   border: 0;
-  margin: 0;
   outline: none;
   opacity: 0.4;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.25s ease, width 0.25s ease, transform 0.25s ease;
 
   &:hover {
     opacity: 1;
@@ -53,10 +51,10 @@ $label-margin: 1px;
   width: 60%;
   height: $ix-border;
   border-radius: $ix-border / 2;
-  transform: translate(-50%,-50%) rotate(45deg);
+  transform: translate(-50%, -50%) rotate(45deg);
 
   &:nth-child(2) {
-    transform: translate(-50%,-50%) rotate(-45deg);
+    transform: translate(-50%, -50%) rotate(-45deg);
   }
 }
 
@@ -71,18 +69,30 @@ $label-margin: 1px;
     border-radius: $height / 2;
     font-size: $fontSize;
     height: $height - $ix-marg-a;
-    line-height: $height - $ix-marg-a;
+  }
+
+  .label--name {
     padding: 0 ($padding + $ix-border);
+    height: $height - $ix-marg-a;
+    line-height: $height - $ix-marg-a;
+  }
+
+  &.label--deletable {
+    padding-right: $padding + $ix-border;
+  }
+
+  &.label--deletable .label--name {
+    padding-right: 0;
   }
 
   .label--delete {
     height: $height - $ix-marg-a;
-    width: $height - $ix-marg-a;
+    transform: translateX($padding - $ix-border);
+    width: 0;
   }
 
-  &.label--deletable {
-    position: relative;
-    padding-right: $height;
+  &:hover .label--delete {
+    width: $height - $ix-marg-a - $ix-border;
   }
 }
 
@@ -100,4 +110,15 @@ $label-margin: 1px;
 
 .label--lg {
   @include labelSizeModifier($form-lg-font, $form-lg-padding, $form-lg-height);
+}
+
+.label--colorless {
+  font-weight: 600;
+  font-style: italic;
+
+  &,
+  &:hover {
+    background-color: $g6-smoke;
+    color: $g13-mist;
+  }
 }

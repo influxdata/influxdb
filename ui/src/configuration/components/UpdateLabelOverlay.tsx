@@ -9,20 +9,20 @@ import {OverlayContainer, OverlayBody, OverlayHeading} from 'src/clockface'
 import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Types
-import {LabelType} from 'src/clockface'
+import {ILabel} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  label: LabelType
+  label: ILabel
   onDismiss: () => void
-  onUpdateLabel: (label: LabelType) => Promise<void>
+  onUpdateLabel: (label: ILabel) => Promise<void>
   onNameValidation: (name: string) => string | null
 }
 
 interface State {
-  label: LabelType
+  label: ILabel
   useCustomColorHex: boolean
 }
 
@@ -48,8 +48,8 @@ class UpdateLabelOverlay extends Component<Props, State> {
           <LabelOverlayForm
             id={label.id}
             name={label.name}
-            description={label.description}
-            colorHex={label.colorHex}
+            description={label.properties.description}
+            colorHex={label.properties.color}
             onColorHexChange={this.handleColorHexChange}
             onToggleCustomColorHex={this.handleToggleCustomColorHex}
             useCustomColorHex={useCustomColorHex}
@@ -69,7 +69,7 @@ class UpdateLabelOverlay extends Component<Props, State> {
     const {label} = this.state
 
     const nameIsValid = this.props.onNameValidation(label.name) === null
-    const colorIsValid = validateHexCode(label.colorHex) === null
+    const colorIsValid = validateHexCode(label.properties.color) === null
 
     return nameIsValid && colorIsValid
   }
@@ -85,7 +85,14 @@ class UpdateLabelOverlay extends Component<Props, State> {
     const value = e.target.value
     const key = e.target.name
 
-    if (key in this.state.label) {
+    if (key === 'description' || key === 'color') {
+      const properties = {...this.state.label.properties, [key]: value}
+      const label = {...this.state.label, properties}
+
+      this.setState({
+        label,
+      })
+    } else {
       const label = {...this.state.label, [key]: value}
 
       this.setState({
@@ -94,8 +101,9 @@ class UpdateLabelOverlay extends Component<Props, State> {
     }
   }
 
-  private handleColorHexChange = (colorHex: string): void => {
-    const label = {...this.state.label, colorHex}
+  private handleColorHexChange = (color: string): void => {
+    const properties = {...this.state.label.properties, color}
+    const label = {...this.state.label, properties}
 
     this.setState({label})
   }

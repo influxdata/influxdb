@@ -1,16 +1,17 @@
 // Labels can use a different set of brand colors than single stats or gauges
-import {LabelType} from 'src/clockface'
+import {ILabel} from '@influxdata/influx'
 import {LabelColor, LabelColorType} from 'src/types/colors'
 
 export const HEX_CODE_CHAR_LENGTH = 7
 
 export const DEFAULT_LABEL_COLOR_HEX = '#326BBA'
 
-export const EMPTY_LABEL: LabelType = {
-  id: 'newLabel',
+export const EMPTY_LABEL: ILabel = {
   name: '',
-  description: '',
-  colorHex: DEFAULT_LABEL_COLOR_HEX,
+  properties: {
+    description: '',
+    color: DEFAULT_LABEL_COLOR_HEX,
+  },
 }
 
 export const CUSTOM_LABEL: LabelColor = {

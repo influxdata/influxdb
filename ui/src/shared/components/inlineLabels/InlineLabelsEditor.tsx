@@ -2,9 +2,6 @@
 import React, {Component, ChangeEvent} from 'react'
 import _ from 'lodash'
 
-// APIs
-import {client} from 'src/utils/api'
-
 // Components
 import {
   Button,
@@ -16,7 +13,7 @@ import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPo
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 
 // Types
-import {Label} from '@influxdata/influx'
+import {ILabel} from '@influxdata/influx'
 import {OverlayState} from 'src/types/overlay'
 
 // Utils
@@ -28,15 +25,15 @@ import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  selectedLabels: Label[]
-  labels: Label[]
-  onAddLabel: (label: Label) => void
-  onCreateLabel: (labelName: string) => void
+  selectedLabels: ILabel[]
+  labels: ILabel[]
+  onAddLabel: (label: ILabel) => void
+  onCreateLabel: (label: ILabel) => Promise<ILabel>
 }
 
 interface State {
   searchTerm: string
-  filteredLabels: Label[]
+  filteredLabels: ILabel[]
   isPopoverVisible: boolean
   selectedItemID: string
   isCreatingLabel: OverlayState
@@ -68,13 +65,14 @@ class InlineLabelsEditor extends Component<Props, State> {
     return (
       <>
         <div className="inline-labels--editor">
-          <div className="inline-label--add">
+          <div className="inline-labels--add">
             <Button
               color={ComponentColor.Secondary}
               titleText="Add labels"
               onClick={this.handleShowPopover}
               shape={ButtonShape.Square}
               icon={IconFont.Plus}
+              testID="inline-labels--add"
             />
           </div>
           {this.popover}
@@ -125,8 +123,9 @@ class InlineLabelsEditor extends Component<Props, State> {
       <div
         className="label label--xs label--colorless"
         onClick={this.handleShowPopover}
+        data-testid="inline-labels--empty"
       >
-        Add a label
+        <span className="label--name">Add a label</span>
       </div>
     )
   }
@@ -195,16 +194,17 @@ class InlineLabelsEditor extends Component<Props, State> {
     this.setState({searchTerm, filteredLabels, selectedItemID})
   }
 
-  private get availableLabels(): Label[] {
+  private get availableLabels(): ILabel[] {
     const {selectedLabels} = this.props
     const {filteredLabels} = this.state
 
     return _.differenceBy(filteredLabels, selectedLabels, label => label.name)
   }
 
-  private handleCreateLabel = async (label: Label) => {
-    const newLabel = await client.labels.create(label.name, label.properties)
-    this.props.onAddLabel(newLabel)
+  private handleCreateLabel = async (label: ILabel) => {
+    const {onCreateLabel, onAddLabel} = this.props
+    const newLabel = await onCreateLabel(label)
+    onAddLabel(newLabel)
   }
 
   private handleStartCreatingLabel = (): void => {

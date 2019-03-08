@@ -9,7 +9,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
 import {IconFont} from 'src/clockface/types'
-import {Label} from '@influxdata/influx'
+import {ILabel} from '@influxdata/influx'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -25,7 +25,7 @@ interface Props {
   onDismiss: () => void
   onStartCreatingLabel: () => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
-  filteredLabels: Label[]
+  filteredLabels: ILabel[]
   onAddLabel: (labelID: string) => void
   onUpdateSelectedItem: (highlightedID: string) => void
 }
@@ -46,7 +46,10 @@ export default class InlineLabelPopover extends Component<Props> {
     } = this.props
     return (
       <ClickOutside onClickOutside={onDismiss}>
-        <div className="inline-labels--popover">
+        <div
+          className="inline-labels--popover"
+          data-testid="inline-labels--popover"
+        >
           <h5 className="inline-labels--popover-heading">Add Labels</h5>
           <Input
             icon={IconFont.Search}

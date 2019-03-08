@@ -12,7 +12,7 @@ import {UsersMap} from 'src/organizations/components/Members'
 interface Props {
   onCloseModal: () => void
   users: UsersMap
-  addUser: (user: AddResourceMemberRequestBody) => void
+  addMember: (user: AddResourceMemberRequestBody) => void
 }
 
 interface State {
@@ -53,12 +53,12 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
   }
 
   private handleSave = () => {
-    const {users, addUser} = this.props
+    const {users, addMember} = this.props
     const {selectedUserIDs} = this.state
 
     selectedUserIDs.forEach(id => {
       if (users[id]) {
-        addUser({id: id, name: users[id].name})
+        addMember({id: id, name: users[id].name})
       }
     })
   }

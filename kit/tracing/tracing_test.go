@@ -120,12 +120,15 @@ func TestStartSpanFromContext(t *testing.T) {
 }
 
 /*
-BenchmarkLocal_StartSpanFromContext-8                         1000000    1262 ns/op    376 B/op    6 allocs/op
-BenchmarkLocal_StartSpanFromContext_runtimeCaller-8           3000000     526 ns/op
-BenchmarkLocal_StartSpanFromContext_runtimeCallersFrames-8   10000000     237 ns/op
-BenchmarkOpentracing_StartSpanFromContext-8                  10000000     157 ns/op     96 B/op    3 allocs/op
-BenchmarkOpentracing_StartSpan_root-8                       200000000    7.72 ns/op      0 B/op    0 allocs/op
-BenchmarkOpentracing_StartSpan_child-8                       20000000    70.5 ns/op     48 B/op    2 allocs/op
+BenchmarkLocal_StartSpanFromContext-8                          2000000     659 ns/op     224 B/op     4 allocs/op
+BenchmarkLocal_StartSpanFromContext_runtimeCaller-8            3000000     534 ns/op
+BenchmarkLocal_StartSpanFromContext_runtimeCallers-8          10000000     196 ns/op
+BenchmarkLocal_StartSpanFromContext_runtimeFuncForPC-8       200000000       7.28 ns/op
+BenchmarkLocal_StartSpanFromContext_runtimeCallersFrames-8    10000000     234 ns/op
+BenchmarkLocal_StartSpanFromContext_runtimeFuncFileLine-8     20000000     103 ns/op
+BenchmarkOpentracing_StartSpanFromContext-8                   10000000     155 ns/op      96 B/op     3 allocs/op
+BenchmarkOpentracing_StartSpan_root-8                        200000000       7.68 ns/op    0 B/op     0 allocs/op
+BenchmarkOpentracing_StartSpan_child-8                        20000000      71.2 ns/op    48 B/op     2 allocs/op
 */
 
 func BenchmarkLocal_StartSpanFromContext(b *testing.B) {
@@ -145,6 +148,23 @@ func BenchmarkLocal_StartSpanFromContext_runtimeCaller(b *testing.B) {
 	}
 }
 
+func BenchmarkLocal_StartSpanFromContext_runtimeCallers(b *testing.B) {
+	var pcs [1]uintptr
+
+	for n := 0; n < b.N; n++ {
+		_ = runtime.Callers(2, pcs[:])
+	}
+}
+
+func BenchmarkLocal_StartSpanFromContext_runtimeFuncForPC(b *testing.B) {
+	var pcs [1]uintptr
+	_ = runtime.Callers(2, pcs[:])
+
+	for n := 0; n < b.N; n++ {
+		_ = runtime.FuncForPC(pcs[0])
+	}
+}
+
 func BenchmarkLocal_StartSpanFromContext_runtimeCallersFrames(b *testing.B) {
 	pc, _, _, ok := runtime.Caller(1)
 	if !ok {
@@ -153,6 +173,16 @@ func BenchmarkLocal_StartSpanFromContext_runtimeCallersFrames(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		_, _ = runtime.CallersFrames([]uintptr{pc}).Next()
+	}
+}
+
+func BenchmarkLocal_StartSpanFromContext_runtimeFuncFileLine(b *testing.B) {
+	var pcs [1]uintptr
+	_ = runtime.Callers(2, pcs[:])
+	fn := runtime.FuncForPC(pcs[0])
+
+	for n := 0; n < b.N; n++ {
+		_, _ = fn.FileLine(pcs[0])
 	}
 }
 

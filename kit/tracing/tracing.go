@@ -73,31 +73,30 @@ func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Contex
 		panic("StartSpanFromContext called with nil context")
 	}
 
-	var frame runtime.Frame
-	{
-		// Get caller frame.
-		pc, _, _, ok := runtime.Caller(1)
-		if !ok {
-			span, ctx := opentracing.StartSpanFromContext(ctx, "unknown")
-			span.LogFields(log.Error(errors.New("runtime.Caller failed")))
-			return span, ctx
-		}
-
-		frame, _ = runtime.CallersFrames([]uintptr{pc}).Next()
+	// Get caller frame.
+	var pcs [1]uintptr
+	n := runtime.Callers(2, pcs[:])
+	if n < 1 {
+		span, ctx := opentracing.StartSpanFromContext(ctx, "unknown")
+		span.LogFields(log.Error(errors.New("runtime.Callers failed")))
+		return span, ctx
 	}
+	fn := runtime.FuncForPC(pcs[0])
+	name := fn.Name()
 
 	var span opentracing.Span
 	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {
 		// Create a child span.
-		span = opentracing.StartSpan(frame.Function, opentracing.ChildOf(parentSpan.Context()))
+		span = opentracing.StartSpan(name, opentracing.ChildOf(parentSpan.Context()))
 	} else {
 		// Create a root span.
-		span = opentracing.StartSpan(frame.Function)
+		span = opentracing.StartSpan(name)
 	}
 	// New context references this span, not the parent (if there was one).
 	ctx = opentracing.ContextWithSpan(ctx, span)
 
-	span.LogFields(log.String("filename", frame.File), log.Int("line", frame.Line))
+	file, line := fn.FileLine(pcs[0])
+	span.LogFields(log.String("filename", file), log.Int("line", line))
 
 	return span, ctx
 }

@@ -5,14 +5,9 @@ import _ from 'lodash'
 // Components
 import {Label} from 'src/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
-import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 
 // Types
-import {Label as LabelType} from '@influxdata/influx'
-import {OverlayState} from 'src/types/overlay'
-
-// Utils
-import {validateLabelUniqueness} from 'src/configuration/utils/labels'
+import {ILabel} from '@influxdata/influx'
 
 // Styles
 import 'src/shared/components/inlineLabels/InlineLabels.scss'
@@ -21,57 +16,33 @@ import 'src/shared/components/inlineLabels/InlineLabels.scss'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  selectedLabels: LabelType[]
-  labels: LabelType[]
-  onRemoveLabel: (label: LabelType) => void
-  onAddLabel: (label: LabelType) => void
-  onCreateLabel: (label: LabelType) => void
+  selectedLabels: ILabel[]
+  labels: ILabel[]
+  onRemoveLabel: (label: ILabel) => void
+  onAddLabel: (label: ILabel) => void
+  onCreateLabel: (label: ILabel) => Promise<ILabel>
   onFilterChange: (searchTerm: string) => void
 }
 
-interface State {
-  isCreatingLabel: OverlayState
-  overrideLabelName: string | null
-}
-
 @ErrorHandling
-export default class InlineLabels extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {
-      isCreatingLabel: OverlayState.Closed,
-      overrideLabelName: null,
-    }
-  }
-
+export default class InlineLabels extends Component<Props> {
   public render() {
     return <div className="inline-labels">{this.selectedLabels}</div>
   }
 
   private get selectedLabels(): JSX.Element {
-    const {isCreatingLabel, overrideLabelName} = this.state
     const {selectedLabels, labels, onAddLabel, onCreateLabel} = this.props
 
     return (
-      <>
-        <div className="inline-labels--container">
-          <InlineLabelsEditor
-            labels={labels}
-            selectedLabels={selectedLabels}
-            onAddLabel={onAddLabel}
-            onCreateLabel={this.handleStartCreatingLabel}
-          />
-          {this.currentLabels}
-        </div>
-        <CreateLabelOverlay
-          isVisible={isCreatingLabel === OverlayState.Open}
-          onDismiss={this.handleStopCreatingLabel}
+      <div className="inline-labels--container">
+        <InlineLabelsEditor
+          labels={labels}
+          selectedLabels={selectedLabels}
+          onAddLabel={onAddLabel}
           onCreateLabel={onCreateLabel}
-          onNameValidation={this.handleNameValidation}
-          overrideDefaultName={overrideLabelName}
         />
-      </>
+        {this.currentLabels}
+      </div>
     )
   }
 
@@ -106,22 +77,5 @@ export default class InlineLabels extends Component<Props, State> {
     const label = selectedLabels.find(label => label.id === labelID)
 
     onRemoveLabel(label)
-  }
-
-  private handleStopCreatingLabel = (): void => {
-    this.setState({
-      isCreatingLabel: OverlayState.Closed,
-      overrideLabelName: null,
-    })
-  }
-
-  private handleStartCreatingLabel = (name: string): void => {
-    this.setState({overrideLabelName: name, isCreatingLabel: OverlayState.Open})
-  }
-
-  private handleNameValidation = (name: string): string | null => {
-    const names = this.props.labels.map(label => label.name)
-
-    return validateLabelUniqueness(names, name)
   }
 }

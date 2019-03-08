@@ -29,7 +29,7 @@ describe('Dashboard', () => {
 
     cy.visit('/dashboards')
 
-    cy.getByTestID('resource-card').should('contain', newName)
+    cy.getByTestID('dashboard-card').should('contain', newName)
   })
 
   it('can create a cell', () => {

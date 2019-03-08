@@ -7,7 +7,7 @@ import {incrementCloneName} from 'src/utils/naming'
 
 // Types
 import {Cell, NewCell, Dashboard, View} from 'src/types/v2'
-import {Label} from 'src/types/v2/labels'
+import {ILabel} from '@influxdata/influx'
 
 import {Cell as CellAPI, CreateDashboardRequest} from '@influxdata/influx'
 import {client} from 'src/utils/api'
@@ -99,20 +99,20 @@ export const deleteCell = async (
 
 export const addDashboardLabels = async (
   dashboardID: string,
-  labels: Label[]
-): Promise<Label[]> => {
+  labels: ILabel[]
+): Promise<ILabel[]> => {
   const addedLabels = await Promise.all(
     labels.map(async label => {
       return client.dashboards.addLabel(dashboardID, label.id)
     })
   )
 
-  return addedLabels as Label[]
+  return addedLabels as ILabel[]
 }
 
 export const removeDashboardLabels = async (
   dashboardID: string,
-  labels: Label[]
+  labels: ILabel[]
 ): Promise<void> => {
   await Promise.all(
     labels.map(label => {

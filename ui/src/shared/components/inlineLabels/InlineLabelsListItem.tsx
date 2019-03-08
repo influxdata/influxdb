@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, MouseEvent} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
@@ -45,7 +45,8 @@ class InlineLabelsListItem extends Component<Props> {
     onMouseOver(id)
   }
 
-  private handleClick = (): void => {
+  private handleClick = (e: MouseEvent<HTMLDivElement>): void => {
+    e.stopPropagation()
     const {onClick, id} = this.props
 
     onClick(id)

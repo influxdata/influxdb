@@ -55,7 +55,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
 
     this.state = {
       scraper: {
-        name: 'My Cool Scraper',
+        name: 'Name this Scraper',
         type: ScraperTargetRequest.TypeEnum.Prometheus,
         url: `${this.origin}/metrics`,
         orgID,

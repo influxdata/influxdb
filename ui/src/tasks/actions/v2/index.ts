@@ -223,7 +223,7 @@ export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
   dispatch
 ): Promise<void> => {
   try {
-    await client.tasks.addLabels(taskID, labels)
+    await client.tasks.addLabels(taskID, labels.map(l => l.id))
     const task = await client.tasks.get(taskID)
 
     dispatch(updateTask(task))
@@ -237,7 +237,7 @@ export const removeTaskLabelsAsync = (
   labels: Label[]
 ) => async (dispatch): Promise<void> => {
   try {
-    await client.tasks.removeLabels(taskID, labels)
+    await client.tasks.removeLabels(taskID, labels.map(l => l.id))
     const task = await client.tasks.get(taskID)
 
     dispatch(updateTask(task))

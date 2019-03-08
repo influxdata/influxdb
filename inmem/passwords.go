@@ -21,7 +21,7 @@ var (
 	// EShortPassword is used when a password is less than the minimum
 	// acceptable password length.
 	EShortPassword = &platform.Error{
-		Msg: "<invalid> passwords are required to be longer than 8 characters",
+		Msg: "<invalid> passwords must be at least 8 characters long",
 	}
 )
 
