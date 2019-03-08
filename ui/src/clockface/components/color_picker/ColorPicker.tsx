@@ -3,24 +3,34 @@ import React, {Component, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Button, IconFont, ButtonShape} from '@influxdata/clockface'
+import {
+  Button,
+  IconFont,
+  ButtonShape,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import {Input} from 'src/clockface'
 import Swatch from 'src/clockface/components/color_picker/ColorPickerSwatch'
+import Error from 'src/clockface/components/form_layout/FormElementError'
 
 // Constants
 import {colors} from 'src/clockface/constants/colors'
+
+// Utils
+import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Styles
 import 'src/clockface/components/color_picker/ColorPicker.scss'
 
 interface Props {
   selectedHex: string
-  onSelect: (hex: string) => void
+  onSelect: (hex: string, status?: ComponentStatus) => void
   maintainInputFocus?: boolean
 }
 
 interface State {
   inputValue: string
+  status: string
 }
 
 export default class ColorPicker extends Component<Props, State> {
@@ -29,6 +39,7 @@ export default class ColorPicker extends Component<Props, State> {
 
     this.state = {
       inputValue: this.props.selectedHex || '',
+      status: null,
     }
   }
 
@@ -63,6 +74,7 @@ export default class ColorPicker extends Component<Props, State> {
             maxLength={7}
             onBlur={this.handleInputBlur}
             autoFocus={maintainInputFocus}
+            status={this.inputStatus}
           />
           {this.selectedColor}
           <Button
@@ -72,6 +84,7 @@ export default class ColorPicker extends Component<Props, State> {
             titleText="I'm feeling lucky"
           />
         </div>
+        {this.errorMessage}
       </div>
     )
   }
@@ -80,10 +93,15 @@ export default class ColorPicker extends Component<Props, State> {
     const {onSelect} = this.props
 
     this.setState({inputValue: hex})
-    onSelect(hex)
+    onSelect(hex, ComponentStatus.Valid)
+  }
+
+  private get inputStatus(): ComponentStatus {
+    return this.state.status ? ComponentStatus.Error : ComponentStatus.Valid
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const {onSelect} = this.props
     const acceptedChars = [
       '#',
       'a',
@@ -110,7 +128,12 @@ export default class ColorPicker extends Component<Props, State> {
       .filter(char => acceptedChars.includes(char.toLowerCase()))
       .join('')
 
-    this.setState({inputValue})
+    const status = validateHexCode(inputValue)
+    const validity =
+      status === null ? ComponentStatus.Valid : ComponentStatus.Error
+
+    onSelect(inputValue, validity)
+    this.setState({inputValue, status})
   }
 
   private handleInputBlur = (e: ChangeEvent<HTMLInputElement>) => {
@@ -126,7 +149,7 @@ export default class ColorPicker extends Component<Props, State> {
     const {hex} = _.sample(colors)
 
     this.setState({inputValue: hex})
-    onSelect(hex)
+    onSelect(hex, ComponentStatus.Valid)
   }
 
   private get selectedColor(): JSX.Element {
@@ -138,5 +161,17 @@ export default class ColorPicker extends Component<Props, State> {
         style={{backgroundColor: inputValue}}
       />
     )
+  }
+
+  private get errorMessage(): JSX.Element {
+    const {status} = this.state
+
+    if (status) {
+      return (
+        <div className="color-picker--error">
+          <Error message={status} />
+        </div>
+      )
+    }
   }
 }

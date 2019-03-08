@@ -23,7 +23,6 @@ interface Props {
 
 interface State {
   label: ILabel
-  useCustomColorHex: boolean
 }
 
 @ErrorHandling
@@ -33,16 +32,15 @@ class UpdateLabelOverlay extends Component<Props, State> {
 
     this.state = {
       label: props.label,
-      useCustomColorHex: false,
     }
   }
 
   public render() {
     const {onDismiss, onNameValidation} = this.props
-    const {label, useCustomColorHex} = this.state
+    const {label} = this.state
 
     return (
-      <OverlayContainer maxWidth={600}>
+      <OverlayContainer maxWidth={400}>
         <OverlayHeading title="Edit Label" onDismiss={onDismiss} />
         <OverlayBody>
           <LabelOverlayForm
@@ -51,8 +49,6 @@ class UpdateLabelOverlay extends Component<Props, State> {
             description={label.properties.description}
             colorHex={label.properties.color}
             onColorHexChange={this.handleColorHexChange}
-            onToggleCustomColorHex={this.handleToggleCustomColorHex}
-            useCustomColorHex={useCustomColorHex}
             onSubmit={this.handleSubmit}
             onCloseModal={onDismiss}
             onInputChange={this.handleInputChange}
@@ -106,10 +102,6 @@ class UpdateLabelOverlay extends Component<Props, State> {
     const label = {...this.state.label, properties}
 
     this.setState({label})
-  }
-
-  private handleToggleCustomColorHex = (useCustomColorHex: boolean): void => {
-    this.setState({useCustomColorHex})
   }
 }
 

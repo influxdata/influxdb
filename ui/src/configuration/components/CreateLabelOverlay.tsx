@@ -8,10 +8,8 @@ import {
   OverlayContainer,
   OverlayBody,
   OverlayHeading,
+  ComponentStatus,
 } from 'src/clockface'
-
-// Utils
-import {validateHexCode} from 'src/configuration/utils/labels'
 
 // Types
 import {ILabel} from '@influxdata/influx'
@@ -32,14 +30,18 @@ interface Props {
 
 interface State {
   label: ILabel
-  useCustomColorHex: boolean
+  hexcodeStatus: ComponentStatus
 }
 
 @ErrorHandling
 class CreateLabelOverlay extends Component<Props, State> {
-  public state: State = {
-    label: {...EMPTY_LABEL, name: this.props.overrideDefaultName},
-    useCustomColorHex: false,
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      label: {...EMPTY_LABEL, name: this.props.overrideDefaultName},
+      hexcodeStatus: ComponentStatus.Default,
+    }
   }
 
   componentDidUpdate(prevProps) {
@@ -56,11 +58,11 @@ class CreateLabelOverlay extends Component<Props, State> {
 
   public render() {
     const {isVisible, onDismiss, onNameValidation} = this.props
-    const {label, useCustomColorHex} = this.state
+    const {label} = this.state
 
     return (
       <OverlayTechnology visible={isVisible}>
-        <OverlayContainer maxWidth={600}>
+        <OverlayContainer maxWidth={400}>
           <OverlayHeading title="Create Label" onDismiss={onDismiss} />
           <OverlayBody>
             <LabelOverlayForm
@@ -69,8 +71,6 @@ class CreateLabelOverlay extends Component<Props, State> {
               description={label.properties.description}
               colorHex={label.properties.color}
               onColorHexChange={this.handleColorHexChange}
-              onToggleCustomColorHex={this.handleToggleCustomColorHex}
-              useCustomColorHex={useCustomColorHex}
               onSubmit={this.handleSubmit}
               onCloseModal={onDismiss}
               onInputChange={this.handleInputChange}
@@ -85,10 +85,12 @@ class CreateLabelOverlay extends Component<Props, State> {
   }
 
   private get isFormValid(): boolean {
-    const {label} = this.state
+    const {label, hexcodeStatus} = this.state
 
     const nameIsValid = this.props.onNameValidation(label.name) === null
-    const colorIsValid = validateHexCode(label.properties.color) === null
+    const colorIsValid =
+      hexcodeStatus === ComponentStatus.Default ||
+      hexcodeStatus === ComponentStatus.Valid
 
     return nameIsValid && colorIsValid
   }
@@ -108,7 +110,6 @@ class CreateLabelOverlay extends Component<Props, State> {
   private resetForm() {
     this.setState({
       label: EMPTY_LABEL,
-      useCustomColorHex: false,
     })
   }
 
@@ -132,15 +133,16 @@ class CreateLabelOverlay extends Component<Props, State> {
     }
   }
 
-  private handleColorHexChange = (color: string): void => {
+  private handleColorHexChange = (
+    color: string,
+    hexcodeStatus: ComponentStatus
+  ): void => {
     const properties = {...this.state.label.properties, color}
     const label = {...this.state.label, properties}
 
-    this.setState({label})
-  }
+    console.log(hexcodeStatus)
 
-  private handleToggleCustomColorHex = (useCustomColorHex: boolean): void => {
-    this.setState({useCustomColorHex})
+    this.setState({label, hexcodeStatus})
   }
 }
 
