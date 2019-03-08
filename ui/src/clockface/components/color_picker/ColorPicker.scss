@@ -22,6 +22,10 @@ $color-picker--margin: 0;
   padding: $color-picker--margin;
   border-radius: $radius;
   overflow: hidden;
+
+  &:hover {
+    cursor: pointer;
+  }
 }
 
 .color-picker--swatch {
@@ -40,9 +44,26 @@ $color-picker--margin: 0;
     bottom: $color-picker--margin;
   }
 
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0, 0);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: $g20-white;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    box-shadow: 0 0 4px 1px rgba($g0-obsidian, 0.25);
+  }
+
   &:hover {
-    cursor: pointer;
-    opacity: 0.5;
+    &:after {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1, 1);
+    }
   }
 }
 
@@ -71,4 +92,10 @@ $color-picker--margin: 0;
   width: 18px;
   height: 18px;
   border-radius: 50%;
+  border: $ix-border solid $g5-pepper;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+
+  .input:hover + & {
+    border-color: $g7-graphite;
+  }
 }

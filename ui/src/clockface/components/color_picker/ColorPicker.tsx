@@ -55,7 +55,6 @@ export default class ColorPicker extends Component<Props, State> {
           ))}
         </div>
         <div className="color-picker--form">
-          {this.selectedColor}
           <Input
             customClass="color-picker--input"
             placeholder="#000000"
@@ -65,10 +64,12 @@ export default class ColorPicker extends Component<Props, State> {
             onBlur={this.handleInputBlur}
             autoFocus={maintainInputFocus}
           />
+          {this.selectedColor}
           <Button
             icon={IconFont.Refresh}
             shape={ButtonShape.Square}
             onClick={this.handleRandomizeColor}
+            titleText="I'm feeling lucky"
           />
         </div>
       </div>

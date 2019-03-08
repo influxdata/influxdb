@@ -1,22 +1,6 @@
 export const colors = [
   // Row 1
   {
-    hex: '#fafafc',
-    name: 'Ghost',
-  },
-  {
-    hex: '#c6cad3',
-    name: 'Chromium',
-  },
-  {
-    hex: '#757888',
-    name: 'Mountain',
-  },
-  {
-    hex: '#31313d',
-    name: 'Onyx',
-  },
-  {
     hex: '#311F94',
     name: 'Void',
   },
@@ -40,23 +24,23 @@ export const colors = [
     hex: '#C9D0FF',
     name: 'Moonstone',
   },
+  {
+    hex: '#fafafc',
+    name: 'Ghost',
+  },
+  {
+    hex: '#c6cad3',
+    name: 'Chromium',
+  },
+  {
+    hex: '#757888',
+    name: 'Mountain',
+  },
+  {
+    hex: '#31313d',
+    name: 'Onyx',
+  },
   // Row 2
-  {
-    hex: '#f6f6f8',
-    name: 'Cloud',
-  },
-  {
-    hex: '#bec2cc',
-    name: 'Mist',
-  },
-  {
-    hex: '#676978',
-    name: 'Storm',
-  },
-  {
-    hex: '#292933',
-    name: 'Castle',
-  },
   {
     hex: '#326BBA',
     name: 'Sapphire',
@@ -81,23 +65,23 @@ export const colors = [
     hex: '#BEF0FF',
     name: 'Neutrino',
   },
+  {
+    hex: '#f6f6f8',
+    name: 'Cloud',
+  },
+  {
+    hex: '#bec2cc',
+    name: 'Mist',
+  },
+  {
+    hex: '#676978',
+    name: 'Storm',
+  },
+  {
+    hex: '#292933',
+    name: 'Castle',
+  },
   // Row 3
-  {
-    hex: '#eeeff2',
-    name: 'Whisper',
-  },
-  {
-    hex: '#a4a8b6',
-    name: 'Forge',
-  },
-  {
-    hex: '#545667',
-    name: 'Graphite',
-  },
-  {
-    hex: '#202028',
-    name: 'Kevlar',
-  },
   {
     hex: '#108174',
     name: 'Emerald',
@@ -122,23 +106,23 @@ export const colors = [
     hex: '#C6FFD0',
     name: 'Wasabi',
   },
+  {
+    hex: '#eeeff2',
+    name: 'Whisper',
+  },
+  {
+    hex: '#a4a8b6',
+    name: 'Forge',
+  },
+  {
+    hex: '#545667',
+    name: 'Graphite',
+  },
+  {
+    hex: '#202028',
+    name: 'Kevlar',
+  },
   // Row 4
-  {
-    hex: '#e7e8eb',
-    name: 'Pearl',
-  },
-  {
-    hex: '#999dab',
-    name: 'Sidewalk',
-  },
-  {
-    hex: '#434453',
-    name: 'Smoke',
-  },
-  {
-    hex: '#1c1c21',
-    name: 'Raven',
-  },
   {
     hex: '#E85B1C',
     name: 'Topaz',
@@ -163,23 +147,23 @@ export const colors = [
     hex: '#FFF6B8',
     name: 'Daisy',
   },
+  {
+    hex: '#e7e8eb',
+    name: 'Pearl',
+  },
+  {
+    hex: '#999dab',
+    name: 'Sidewalk',
+  },
+  {
+    hex: '#434453',
+    name: 'Smoke',
+  },
+  {
+    hex: '#1c1c21',
+    name: 'Raven',
+  },
   // Row 5
-  {
-    hex: '#d4d7dd',
-    name: 'Platinum',
-  },
-  {
-    hex: '#8e91a1',
-    name: 'Wolf',
-  },
-  {
-    hex: '#383846',
-    name: 'Pepper',
-  },
-  {
-    hex: '#0f0e15',
-    name: 'Obsidian',
-  },
   {
     hex: '#BF3D5E',
     name: 'Ruby',
@@ -203,5 +187,21 @@ export const colors = [
   {
     hex: '#FFDCCF',
     name: 'Marmelade',
+  },
+  {
+    hex: '#d4d7dd',
+    name: 'Platinum',
+  },
+  {
+    hex: '#8e91a1',
+    name: 'Wolf',
+  },
+  {
+    hex: '#383846',
+    name: 'Pepper',
+  },
+  {
+    hex: '#0f0e15',
+    name: 'Obsidian',
   },
 ]
