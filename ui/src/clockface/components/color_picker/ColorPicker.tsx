@@ -22,11 +22,17 @@ import {validateHexCode} from 'src/configuration/utils/labels'
 // Styles
 import 'src/clockface/components/color_picker/ColorPicker.scss'
 
-interface Props {
+interface PassedProps {
   selectedHex: string
   onSelect: (hex: string, status?: ComponentStatus) => void
-  maintainInputFocus?: boolean
 }
+
+interface DefaultProps {
+  maintainInputFocus?: boolean
+  testID?: string
+}
+
+type Props = PassedProps & DefaultProps
 
 interface State {
   inputValue: string
@@ -34,6 +40,11 @@ interface State {
 }
 
 export default class ColorPicker extends Component<Props, State> {
+  public static defaultProps: DefaultProps = {
+    maintainInputFocus: false,
+    testID: 'color-picker',
+  }
+
   constructor(props: Props) {
     super(props)
 
@@ -50,11 +61,11 @@ export default class ColorPicker extends Component<Props, State> {
   }
 
   render() {
-    const {maintainInputFocus} = this.props
+    const {maintainInputFocus, testID} = this.props
     const {inputValue} = this.state
 
     return (
-      <div className="color-picker">
+      <div className="color-picker" data-testid={testID}>
         <div className="color-picker--swatches">
           {colors.map(color => (
             <Swatch
@@ -62,6 +73,7 @@ export default class ColorPicker extends Component<Props, State> {
               hex={color.hex}
               name={color.name}
               onClick={this.handleSwatchClick}
+              testID={testID}
             />
           ))}
         </div>
@@ -75,6 +87,7 @@ export default class ColorPicker extends Component<Props, State> {
             onBlur={this.handleInputBlur}
             autoFocus={maintainInputFocus}
             status={this.inputStatus}
+            testID={`${testID}--input`}
           />
           {this.selectedColor}
           <Button
@@ -82,6 +95,7 @@ export default class ColorPicker extends Component<Props, State> {
             shape={ButtonShape.Square}
             onClick={this.handleRandomizeColor}
             titleText="I'm feeling lucky"
+            testID={`${testID}--randomize`}
           />
         </div>
         {this.errorMessage}
@@ -164,11 +178,12 @@ export default class ColorPicker extends Component<Props, State> {
   }
 
   private get errorMessage(): JSX.Element {
+    const {testID} = this.props
     const {status} = this.state
 
     if (status) {
       return (
-        <div className="color-picker--error">
+        <div className="color-picker--error" data-testid={`${testID}--error`}>
           <Error message={status} />
         </div>
       )
