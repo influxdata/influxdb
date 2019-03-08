@@ -10,6 +10,7 @@ import (
 	"github.com/golang/gddo/httputil"
 	platform "github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/telegraf/plugins"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -118,6 +119,55 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 type telegrafLinks struct {
 	Self   string `json:"self"`
 	Labels string `json:"labels"`
+}
+
+// MarshalJSON implement the json.Marshaler interface.
+// TODO: remove this hack and make labels and links return.
+// see: https://github.com/influxdata/influxdb/issues/12457
+func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
+	// telegrafPluginEncode is the helper struct for json encoding.
+	type telegrafPluginEncode struct {
+		// Name of the telegraf plugin, exp "docker"
+		Name    string         `json:"name"`
+		Type    plugins.Type   `json:"type"`
+		Comment string         `json:"comment"`
+		Config  plugins.Config `json:"config"`
+	}
+
+	// telegrafConfigEncode is the helper struct for json encoding.
+	type telegrafConfigEncode struct {
+		ID             platform.ID                  `json:"id"`
+		OrganizationID platform.ID                  `json:"organizationID,omitempty"`
+		Name           string                       `json:"name"`
+		Description    string                       `json:"description"`
+		Agent          platform.TelegrafAgentConfig `json:"agent"`
+		Plugins        []telegrafPluginEncode       `json:"plugins"`
+		Labels         []platform.Label             `json:"labels"`
+		Links          telegrafLinks                `json:"links"`
+	}
+
+	tce := new(telegrafConfigEncode)
+	*tce = telegrafConfigEncode{
+		ID:             r.ID,
+		OrganizationID: r.OrganizationID,
+		Name:           r.Name,
+		Description:    r.Description,
+		Agent:          r.Agent,
+		Plugins:        make([]telegrafPluginEncode, len(r.Plugins)),
+		Labels:         r.Labels,
+		Links:          r.Links,
+	}
+
+	for k, p := range r.Plugins {
+		tce.Plugins[k] = telegrafPluginEncode{
+			Name:    p.Config.PluginName(),
+			Type:    p.Config.Type(),
+			Comment: p.Comment,
+			Config:  p.Config,
+		}
+	}
+
+	return json.Marshal(tce)
 }
 
 type telegrafResponse struct {

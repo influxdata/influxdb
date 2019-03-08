@@ -87,7 +87,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 							"type":"input",
 							"comment":"",
 							"config":{
-				  
+
 							}
 						  }
 						]
@@ -443,7 +443,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   collect_cpu_time = false
   ## If true, compute and report the sum of all non-idle CPU states.
   report_active = false
-[[outputs.influxdb_v2]]	
+[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -559,7 +559,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   collect_cpu_time = false
   ## If true, compute and report the sum of all non-idle CPU states.
   report_active = false
-[[outputs.influxdb_v2]]	
+[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -676,7 +676,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   collect_cpu_time = false
   ## If true, compute and report the sum of all non-idle CPU states.
   report_active = false
-[[outputs.influxdb_v2]]	
+[[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -820,6 +820,7 @@ func Test_newTelegrafResponses(t *testing.T) {
 }
 
 func Test_newTelegrafResponse(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/12457")
 	type args struct {
 		tc *platform.TelegrafConfig
 	}
