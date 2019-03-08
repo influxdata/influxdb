@@ -16,15 +16,11 @@ import {Authorization, Permission} from '@influxdata/influx'
 // Actions
 import {NotificationAction} from 'src/types'
 
-const {Write, Read} = Permission.ActionEnum
-
 interface Props {
   onNotify: NotificationAction
   auth: Authorization
   onDismissOverlay: () => void
 }
-
-const actions = [Read, Write]
 
 export default class ViewTokenOverlay extends PureComponent<Props> {
   public render() {

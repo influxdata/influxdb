@@ -1,5 +1,9 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
+
+// Actions
+import {deleteAuthorization} from 'src/authorizations/actions'
 
 // Components
 import {
@@ -13,12 +17,18 @@ import {IndexList, ComponentSpacer} from 'src/clockface'
 // Types
 import {Authorization} from '@influxdata/influx'
 
-interface Props {
+interface OwnProps {
   auth: Authorization
   onClickDescription: (authID: string) => void
 }
 
-export default class TokenRow extends PureComponent<Props> {
+interface DispatchProps {
+  onDelete: typeof deleteAuthorization
+}
+
+type Props = DispatchProps & OwnProps
+
+class TokenRow extends PureComponent<Props> {
   public render() {
     const {description, status, id} = this.props.auth
 
@@ -40,6 +50,7 @@ export default class TokenRow extends PureComponent<Props> {
               size={ComponentSize.ExtraSmall}
               color={ComponentColor.Danger}
               text="Delete"
+              onClick={this.handleDelete}
             />
           </ComponentSpacer>
         </IndexList.Cell>
@@ -47,8 +58,22 @@ export default class TokenRow extends PureComponent<Props> {
     )
   }
 
+  private handleDelete = () => {
+    const {id, description} = this.props.auth
+    this.props.onDelete(id, description)
+  }
+
   private handleClickDescription = () => {
     const {onClickDescription, auth} = this.props
     onClickDescription(auth.id)
   }
 }
+
+const mdtp = {
+  onDelete: deleteAuthorization,
+}
+
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(TokenRow)

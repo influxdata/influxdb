@@ -18,18 +18,22 @@ import {Organization} from '@influxdata/influx'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
+import {getAuthorizations} from 'src/authorizations/actions'
+import {AuthorizationsState} from 'src/authorizations/reducers'
 
 interface StateProps {
   org: Organization
   labels: LabelsState
   buckets: BucketsState
   telegrafs: TelegrafsState
+  tokens: AuthorizationsState
 }
 
 interface DispatchProps {
   getLabels: typeof getLabels
   getBuckets: typeof getBuckets
   getTelegrafs: typeof getTelegrafs
+  getAuthorizations: typeof getAuthorizations
 }
 
 interface PassedProps {
@@ -42,6 +46,7 @@ export enum ResourceTypes {
   Labels = 'labels',
   Buckets = 'buckets',
   Telegrafs = 'telegrafs',
+  Authorizations = 'tokens',
 }
 
 @ErrorHandling
@@ -58,6 +63,10 @@ class GetResources extends PureComponent<Props, StateProps> {
 
       case ResourceTypes.Telegrafs: {
         return await this.props.getTelegrafs(this.props.org)
+      }
+
+      case ResourceTypes.Authorizations: {
+        return await this.props.getAuthorizations()
       }
 
       default: {
@@ -80,13 +89,20 @@ class GetResources extends PureComponent<Props, StateProps> {
   }
 }
 
-const mstp = ({orgs, labels, buckets, telegrafs}: AppState): StateProps => {
+const mstp = ({
+  orgs,
+  labels,
+  buckets,
+  telegrafs,
+  tokens,
+}: AppState): StateProps => {
   const org = orgs[0]
 
   return {
     labels,
     buckets,
     telegrafs,
+    tokens,
     org,
   }
 }
@@ -95,6 +111,7 @@ const mdtp = {
   getLabels: getLabels,
   getBuckets: getBuckets,
   getTelegrafs: getTelegrafs,
+  getAuthorizations: getAuthorizations,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

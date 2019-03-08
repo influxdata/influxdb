@@ -76,18 +76,20 @@ class ConfigurationPage extends Component<Props> {
                 </GetResources>
               </TabbedPageSection>
               <TabbedPageSection
+                id="tokens_tab"
+                url="tokens_tab"
+                title="Tokens"
+              >
+                <GetResources resource={ResourceTypes.Authorizations}>
+                  <Tokens />
+                </GetResources>
+              </TabbedPageSection>
+              <TabbedPageSection
                 id="settings_tab"
                 url="settings_tab"
                 title="Profile"
               >
                 <Settings />
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="tokens_tab"
-                url="tokens_tab"
-                title="Tokens"
-              >
-                <Tokens />
               </TabbedPageSection>
             </TabbedPage>
           </div>
