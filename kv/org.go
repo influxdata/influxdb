@@ -407,12 +407,28 @@ func (s *Service) updateOrganization(ctx context.Context, tx Tx, id influxdb.ID,
 	return o, nil
 }
 
+func (s *Service) deleteOrganizationsBuckets(ctx context.Context, tx Tx, id influxdb.ID) error {
+	filter := influxdb.BucketFilter{
+		OrganizationID: &id,
+	}
+	bs, err := s.findBuckets(ctx, tx, filter)
+	if err != nil {
+		return err
+	}
+	for _, b := range bs {
+		if err := s.deleteBucket(ctx, tx, b.ID); err != nil {
+			s.Logger.Warn("bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrganizationID))
+		}
+	}
+	return nil
+}
+
 // DeleteOrganization deletes a organization and prunes it from the index.
 func (s *Service) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
-		//if pe := s.deleteOrganizationsBuckets(ctx, tx, id); pe != nil {
-		//	return pe
-		//}
+		if err := s.deleteOrganizationsBuckets(ctx, tx, id); err != nil {
+			return err
+		}
 		if pe := s.deleteOrganization(ctx, tx, id); pe != nil {
 			return pe
 		}
