@@ -799,8 +799,17 @@ export const importTaskSucceeded = (): Notification => ({
 })
 
 export const importTaskFailed = (error: string): Notification => ({
-  ...defaultSuccessNotification,
+  ...defaultErrorNotification,
   message: `Failed to import task: ${error}`,
+})
+export const importDashboardSucceeded = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully imported dashboard.`,
+})
+
+export const importDashboardFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to import dashboard: ${error}`,
 })
 
 // Labels

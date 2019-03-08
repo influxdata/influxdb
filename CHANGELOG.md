@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.6 [unreleased]
 
 ### Features
+1. [12496](https://github.com/influxdata/influxdb/pull/12496): Add ability to import a dashboard
 
 ### Bug Fixes
 

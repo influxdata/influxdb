@@ -2,15 +2,15 @@
 import React, {PureComponent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
-import {isEmpty} from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import ImportOverlay from 'src/shared/components/ImportOverlay'
 import ExportOverlay from 'src/shared/components/ExportOverlay'
+import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 
 // APIs
 import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
@@ -32,10 +32,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 import {
   dashboardSetDefaultFailed,
   dashboardCreateFailed,
-  dashboardImported,
-  dashboardImportFailed,
 } from 'src/shared/copy/notifications'
-import {cantImportInvalidResource} from 'src/shared/copy/v2/notifications'
 
 // Types
 import {Notification} from 'src/types/notifications'
@@ -197,24 +194,6 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.props.handleDeleteDashboard(dashboard)
   }
 
-  private handleImportDashboard = async (
-    importString: string
-  ): Promise<void> => {
-    const {notify} = this.props
-    try {
-      const resource = JSON.parse(importString)
-
-      if (isEmpty(resource)) {
-        notify(cantImportInvalidResource('Dashboard'))
-        return
-      }
-      this.handleToggleImportOverlay()
-      notify(dashboardImported())
-    } catch (error) {
-      notify(dashboardImportFailed(error))
-    }
-  }
-
   private handleFilterDashboards = (searchTerm: string): void => {
     this.setState({searchTerm})
   }
@@ -229,13 +208,13 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private get importOverlay(): JSX.Element {
     const {isImportingDashboard} = this.state
+    const {orgs} = this.props
 
     return (
-      <ImportOverlay
-        isVisible={isImportingDashboard}
-        resourceName="Dashboard"
+      <ImportDashboardOverlay
         onDismissOverlay={this.handleToggleImportOverlay}
-        onSubmit={this.handleImportDashboard}
+        orgID={get(orgs, '0.id', '')}
+        isVisible={isImportingDashboard}
       />
     )
   }

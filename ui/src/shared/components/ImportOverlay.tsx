@@ -10,6 +10,7 @@ import {
   OverlayHeading,
   OverlayFooter,
   Radio,
+  ComponentStatus,
 } from 'src/clockface'
 import {Button, ComponentColor} from '@influxdata/clockface'
 
@@ -93,6 +94,7 @@ export default class ImportOverlay extends PureComponent<Props, State> {
           submitText="Upload"
           handleSubmit={this.handleSetImportContent}
           submitOnDrop={true}
+          submitOnUpload={true}
           onCancel={this.clearImportContent}
         />
       )
@@ -110,18 +112,21 @@ export default class ImportOverlay extends PureComponent<Props, State> {
   private get submitButton(): JSX.Element {
     const {resourceName} = this.props
     const {selectedImportOption, importContent} = this.state
-    if (
+    const isEnabled =
       selectedImportOption === ImportOption.Paste ||
       (selectedImportOption === ImportOption.Upload && importContent)
-    ) {
-      return (
-        <Button
-          text={`Import JSON as ${resourceName}`}
-          onClick={this.submit}
-          color={ComponentColor.Primary}
-        />
-      )
-    }
+    const status = isEnabled
+      ? ComponentStatus.Default
+      : ComponentStatus.Disabled
+
+    return (
+      <Button
+        text={`Import JSON as ${resourceName}`}
+        onClick={this.submit}
+        color={ComponentColor.Primary}
+        status={status}
+      />
+    )
   }
 
   private submit = () => {
