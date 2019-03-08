@@ -622,8 +622,8 @@ func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd i
 	}
 
 	if upd.Name != nil {
-		_, err := s.findBucketByName(ctx, tx, b.OrganizationID, *upd.Name)
-		if err == nil {
+		b0, err := s.findBucketByName(ctx, tx, b.OrganizationID, *upd.Name)
+		if err == nil && b0.ID != id {
 			return nil, &influxdb.Error{
 				Code: influxdb.EConflict,
 				Msg:  "bucket name is not unique",

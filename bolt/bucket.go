@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/bbolt"
-
+	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
 	platformcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -557,8 +556,8 @@ func (c *Client) updateBucket(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 	}
 
 	if upd.Name != nil {
-		_, err := c.findBucketByName(ctx, tx, b.OrganizationID, *upd.Name)
-		if err == nil {
+		b0, err := c.findBucketByName(ctx, tx, b.OrganizationID, *upd.Name)
+		if err == nil && b0.ID != id {
 			return nil, &platform.Error{
 				Code: platform.EConflict,
 				Msg:  "bucket name is not unique",

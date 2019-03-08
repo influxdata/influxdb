@@ -294,10 +294,10 @@ func (s *Service) UpdateBucket(ctx context.Context, id platform.ID, upd platform
 		b.RetentionPeriod = *upd.RetentionPeriod
 	}
 
-	_, err = s.FindBucket(ctx, platform.BucketFilter{
+	b0, err := s.FindBucket(ctx, platform.BucketFilter{
 		Name: upd.Name,
 	})
-	if err == nil {
+	if err == nil && b0.ID != id {
 		return nil, &platform.Error{
 			Code: platform.EConflict,
 			Msg:  "bucket name is not unique",
