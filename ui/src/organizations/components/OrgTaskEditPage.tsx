@@ -22,7 +22,7 @@ import {
 } from 'src/tasks/actions/v2'
 
 // Types
-import {Organization, Task} from '@influxdata/influx'
+import {Organization, ITask as Task} from '@influxdata/influx'
 import {Links} from 'src/types/v2'
 import {State as TasksState} from 'src/tasks/reducers/v2'
 import {

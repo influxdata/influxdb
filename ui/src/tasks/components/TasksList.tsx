@@ -9,7 +9,7 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
-import {Task} from '@influxdata/influx'
+import {ITask as Task} from '@influxdata/influx'
 
 import {Sort} from 'src/clockface'
 import {

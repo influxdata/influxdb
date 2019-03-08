@@ -17,8 +17,8 @@ import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions/v2'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
-import {Task, ILabel} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {ITask as Task, ILabel} from '@influxdata/influx'
+import {AppState, TaskStatus} from 'src/types/v2'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
@@ -182,7 +182,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private get isTaskActive(): boolean {
     const {task} = this.props
-    if (task.status === Task.StatusEnum.Active) {
+    if (task.status === TaskStatus.Active) {
       return true
     }
     return false
@@ -190,10 +190,10 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private changeToggle = () => {
     const {task, onActivate} = this.props
-    if (task.status === Task.StatusEnum.Active) {
-      task.status = Task.StatusEnum.Inactive
+    if (task.status === TaskStatus.Active) {
+      task.status = TaskStatus.Inactive
     } else {
-      task.status = Task.StatusEnum.Active
+      task.status = TaskStatus.Active
     }
     onActivate(task)
   }

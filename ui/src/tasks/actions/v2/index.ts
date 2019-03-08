@@ -3,7 +3,7 @@ import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {Run, LogEvent, Task} from '@influxdata/influx'
+import {Run, LogEvent, ITask as Task} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -306,7 +306,7 @@ export const populateTasks = () => async (
     const {orgs} = getState()
 
     const user = await client.users.me()
-    const tasks = (await client.tasks.getAllByUser(user)) as Task[]
+    const tasks = await client.tasks.getAllByUser(user)
 
     const mappedTasks = tasks.map(task => {
       const org = orgs.find(org => org.id === task.orgID)
@@ -329,7 +329,7 @@ export const selectTaskByID = (id: string, route?: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const task = (await client.tasks.get(id)) as Task
+    const task = await client.tasks.get(id)
 
     return dispatch(setCurrentTask({...task}))
   } catch (e) {

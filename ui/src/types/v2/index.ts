@@ -20,7 +20,7 @@ import {
 
 import {Source} from '@influxdata/influx'
 import {Member} from 'src/types/v2/members'
-import {Organization, Task} from '@influxdata/influx'
+import {Organization, ITask as Task} from '@influxdata/influx'
 import {TaskStatus} from 'src/types/tasks'
 import {Links} from 'src/types/v2/links'
 import {Notification} from 'src/types'

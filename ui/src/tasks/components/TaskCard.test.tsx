@@ -35,7 +35,7 @@ describe('Tasks.Components.TaskCard', () => {
     it('renders with labels', () => {
       const {getAllByTestId} = setup()
 
-      const labels = getAllByTestId(/label--pill/)
+      const labels = getAllByTestId(/label--pill /)
 
       expect(labels.length).toEqual(task.labels.length)
     })

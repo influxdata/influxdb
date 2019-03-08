@@ -102,13 +102,5 @@ from(bucket: \\"inbucket\\")
       </SortingHat>
     </ResourceListBody>
   </ResourceList>
-  <OverlayTechnology
-    visible={false}
-  >
-    <EditLabelsOverlay
-      onDismissOverlay={[Function]}
-      resource={null}
-    />
-  </OverlayTechnology>
 </Fragment>
 `;
