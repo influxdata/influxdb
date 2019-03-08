@@ -24,7 +24,7 @@ var (
 	// acceptable password length.
 	EShortPassword = &influxdb.Error{
 		Code: influxdb.EInvalid,
-		Msg:  "passwords are required to be longer than 8 characters",
+		Msg:  "passwords must be at least 8 characters long",
 	}
 )
 

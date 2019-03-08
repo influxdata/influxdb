@@ -92,7 +92,7 @@ func SetPassword(
 				password: "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("<invalid> passwords are required to be longer than 8 characters"),
+				err: fmt.Errorf("<invalid> passwords must be at least 8 characters long"),
 			},
 		},
 		{
@@ -327,7 +327,7 @@ func CompareAndSetPassword(
 				new:  "short",
 			},
 			wants: wants{
-				err: fmt.Errorf("<invalid> passwords are required to be longer than 8 characters"),
+				err: fmt.Errorf("<invalid> passwords must be at least 8 characters long"),
 			},
 		},
 	}
