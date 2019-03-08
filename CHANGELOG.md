@@ -45,6 +45,7 @@ Once completed, `v2.0.0-alpha.5` can be started.
 1. [12304](https://github.com/influxdata/influxdb/pull/12304): Always show live preview in Note Cell editor
 1. [12317](https://github.com/influxdata/influxdb/pull/12317): Redesign Create Scraper workflow
 1. [12317](https://github.com/influxdata/influxdb/pull/12317): Show warning in Telegrafs and Scrapers lists when user has no buckets
+1. [12384](https://github.com/influxdata/influxdb/pull/12384): Streamline label addition, removal, and creation from the dashboards list
 
 ## v2.0.0-alpha.4 [2019-02-21]
 
