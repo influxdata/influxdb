@@ -366,9 +366,8 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   const {
     dataLoading: {
       dataLoaders: {telegrafConfigName, telegrafConfigDescription},
-      steps: {bucket, orgID},
+      steps: {bucket, orgID, bucketID},
     },
-    buckets,
   } = getState()
 
   const telegrafRequest: TelegrafRequest = {
@@ -382,12 +381,10 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   // create telegraf config
   const tc = await client.telegrafConfigs.create(telegrafRequest)
 
-  const b = buckets.list.find(b => b.name === bucket)
-
   const permissions = [
     {
       action: Permission.ActionEnum.Write,
-      resource: {type: PermissionResource.TypeEnum.Buckets, id: b.id},
+      resource: {type: PermissionResource.TypeEnum.Buckets, id: bucketID},
     },
     {
       action: Permission.ActionEnum.Read,

@@ -54,11 +54,11 @@ export class VerifyCollectorStep extends PureComponent<Props> {
           <FetchAuthToken bucket={bucket} username={username}>
             {authToken => (
               <DataStreaming
-                notify={notify}
                 org={org}
-                configID={telegrafConfigID}
-                authToken={authToken}
+                notify={notify}
                 bucket={bucket}
+                authToken={authToken}
+                configID={telegrafConfigID}
               />
             )}
           </FetchAuthToken>
