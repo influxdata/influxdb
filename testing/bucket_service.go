@@ -1239,6 +1239,43 @@ func UpdateBucket(
 				},
 			},
 		},
+		{
+			name: "update retention and same name",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             MustIDBase16(bucketOneID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "bucket1",
+					},
+					{
+						ID:             MustIDBase16(bucketTwoID),
+						OrganizationID: MustIDBase16(orgOneID),
+						Name:           "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:        MustIDBase16(bucketTwoID),
+				retention: 101,
+				name:      "bucket2",
+			},
+			wants: wants{
+				bucket: &platform.Bucket{
+					ID:              MustIDBase16(bucketTwoID),
+					OrganizationID:  MustIDBase16(orgOneID),
+					Organization:    "theorg",
+					Name:            "bucket2",
+					RetentionPeriod: 101 * time.Minute,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
