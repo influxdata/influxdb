@@ -1,14 +1,16 @@
-{
+module.exports = {
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "project": "./tsconfig.json",
+    "tsconfigRootDir": __dirname,
     "ecmaFeatures": {
       "jsx": true
     }
   },
   "plugins": [
     "@typescript-eslint",
-    "react"
+    "react",
+    "prettier"
   ],
   "env": {
     "browser": true,
@@ -19,7 +21,7 @@
     "eslint:recommended",
     "plugin:react/recommended",
     "plugin:@typescript-eslint/recommended",
-    "prettier",
+    "plugin:prettier/recommended",
     "prettier/react",
     "prettier/@typescript-eslint"
   ],
@@ -49,7 +51,6 @@
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/prefer-interface": "off",
     "@typescript-eslint/camelcase": "off",
-    "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": ["error", {"varsIgnorePattern": "^_", "argsIgnorePattern": "^_"}],
     "react/jsx-no-target-blank": "off",
     "react/display-name": "off",
