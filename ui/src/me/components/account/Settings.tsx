@@ -10,7 +10,7 @@ import {
   ComponentStatus,
   Columns,
 } from '@influxdata/clockface'
-import {Form, Input, Panel, Grid} from 'src/clockface'
+import {Form, Input, Panel, Grid, ColorPicker} from 'src/clockface'
 
 interface StateProps {
   me: MeState
@@ -18,6 +18,7 @@ interface StateProps {
 
 interface State {
   me: MeState
+  color: string
 }
 
 export class Settings extends PureComponent<StateProps, State> {
@@ -25,11 +26,12 @@ export class Settings extends PureComponent<StateProps, State> {
     super(props)
     this.state = {
       me: this.props.me,
+      color: '',
     }
   }
 
   public render() {
-    const {me} = this.state
+    const {me, color} = this.state
 
     return (
       <Grid>
@@ -54,10 +56,18 @@ export class Settings extends PureComponent<StateProps, State> {
                 </Form>
               </Panel.Body>
             </Panel>
+            <ColorPicker
+              selectedHex={color}
+              onSelect={this.handleSelectColor}
+            />
           </Grid.Column>
         </Grid.Row>
       </Grid>
     )
+  }
+
+  private handleSelectColor = (color: string): void => {
+    this.setState({color})
   }
 
   private handleChangeInput = (_: ChangeEvent<HTMLInputElement>): void => {
