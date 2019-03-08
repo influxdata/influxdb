@@ -370,7 +370,7 @@ func TestTOML(t *testing.T) {
 [[outputs.file]]
   ## Files to write to, "stdout" is a specially handled file.
   files = ["stdout"]
-[[outputs.influxdb_v2]]
+[[outputs.influxdb_v2]]	
   ## The URLs of the InfluxDB cluster nodes.
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
