@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {IconFont, ComponentColor} from '@influxdata/clockface'
@@ -28,7 +29,6 @@ interface PassedProps {
   orgs: Organization[]
   onDeleteDashboard: (dashboard: IDashboard) => void
   onCloneDashboard: (dashboard: IDashboard) => void
-  onExportDashboard: (dashboard: IDashboard) => void
   onUpdateDashboard: (dashboard: IDashboard) => void
   showOwnerColumn: boolean
   onFilterChange: (searchTerm: string) => void
@@ -43,7 +43,7 @@ interface DispatchProps {
   onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
 }
 
-type Props = PassedProps & DispatchProps & StateProps
+type Props = PassedProps & DispatchProps & StateProps & WithRouterProps
 
 class DashboardCard extends PureComponent<Props> {
   public render() {
@@ -94,12 +94,7 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private get contextMenu(): JSX.Element {
-    const {
-      dashboard,
-      onDeleteDashboard,
-      onExportDashboard,
-      onCloneDashboard,
-    } = this.props
+    const {dashboard, onDeleteDashboard, onCloneDashboard} = this.props
 
     return (
       <Context>
@@ -107,7 +102,7 @@ class DashboardCard extends PureComponent<Props> {
           <Context.Menu icon={IconFont.CogThick}>
             <Context.Item
               label="Export"
-              action={onExportDashboard}
+              action={this.handleExport}
               value={dashboard}
             />
           </Context.Menu>
@@ -176,6 +171,16 @@ class DashboardCard extends PureComponent<Props> {
       throw err
     }
   }
+
+  private handleExport = () => {
+    const {
+      router,
+      dashboard,
+      location: {pathname},
+    } = this.props
+
+    router.push(`${pathname}/${dashboard.id}/export`)
+  }
 }
 
 const mstp = ({labels}: AppState): StateProps => {
@@ -192,4 +197,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, PassedProps>(
   mstp,
   mdtp
-)(DashboardCard)
+)(withRouter(DashboardCard))

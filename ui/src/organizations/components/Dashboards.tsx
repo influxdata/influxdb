@@ -2,7 +2,6 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import {downloadTextFile} from 'src/shared/utils/download'
 import _ from 'lodash'
 
 // Components
@@ -32,8 +31,6 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import {
   dashboardSetDefaultFailed,
-  dashboardExported,
-  dashboardExportFailed,
   dashboardCreateFailed,
 } from 'src/shared/copy/notifications'
 
@@ -42,7 +39,6 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {DashboardFile} from 'src/types/v2/dashboards'
 import {Links, Cell, Dashboard, AppState, Organization} from 'src/types/v2'
 
 // Decorators
@@ -135,7 +131,6 @@ class Dashboards extends PureComponent<Props, State> {
           onDeleteDashboard={this.handleDeleteDashboard}
           onCreateDashboard={this.handleCreateDashboard}
           onCloneDashboard={this.handleCloneDashboard}
-          onExportDashboard={this.handleExportDashboard}
           onUpdateDashboard={handleUpdateDashboard}
           notify={notify}
           searchTerm={searchTerm}
@@ -208,30 +203,6 @@ class Dashboards extends PureComponent<Props, State> {
 
   private handleDeleteDashboard = (dashboard: Dashboard) => {
     this.props.handleDeleteDashboard(dashboard)
-  }
-
-  private handleExportDashboard = async (
-    dashboard: Dashboard
-  ): Promise<void> => {
-    const {notify} = this.props
-    const dashboardForDownload = await this.modifyDashboardForDownload(
-      dashboard
-    )
-    try {
-      downloadTextFile(
-        JSON.stringify(dashboardForDownload, null, '\t'),
-        `${dashboard.name}.json`
-      )
-      notify(dashboardExported(dashboard.name))
-    } catch (error) {
-      notify(dashboardExportFailed(dashboard.name, error))
-    }
-  }
-
-  private modifyDashboardForDownload = async (
-    dashboard: Dashboard
-  ): Promise<DashboardFile> => {
-    return {meta: {chronografVersion: '2.0'}, dashboard}
   }
 
   private handleImportDashboard = async (

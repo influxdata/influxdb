@@ -1,6 +1,6 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
-import {Task, Label} from 'src/types/v2'
+import {Task, Label, Dashboard} from 'src/types/v2'
 import {ITemplate, TemplateType} from '@influxdata/influx'
 
 const CURRENT_TEMPLATE_VERSION = '1'
@@ -95,3 +95,9 @@ export const taskToTemplate = (
 
   return template
 }
+
+// Todo: update template to match task format
+export const dashboardToTemplate = (dashboard: Dashboard) => ({
+  meta: {chronografVersion: '2.0'},
+  dashboard,
+})

@@ -11,7 +11,6 @@ interface Props {
   dashboards: Dashboard[]
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
-  onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   orgs: Organization[]
   showOwnerColumn: boolean
@@ -22,7 +21,6 @@ export default class DashboardCards extends PureComponent<Props> {
   public render() {
     const {
       dashboards,
-      onExportDashboard,
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
@@ -35,7 +33,6 @@ export default class DashboardCards extends PureComponent<Props> {
       <DashboardCard
         key={d.id}
         dashboard={d}
-        onExportDashboard={onExportDashboard}
         onCloneDashboard={onCloneDashboard}
         onDeleteDashboard={onDeleteDashboard}
         onUpdateDashboard={onUpdateDashboard}

@@ -130,7 +130,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onDeleteDashboard={this.handleDeleteDashboard}
                 onCreateDashboard={this.handleCreateDashboard}
                 onCloneDashboard={this.handleCloneDashboard}
-                onExportDashboard={this.handleExportDashboard}
                 onUpdateDashboard={handleUpdateDashboard}
                 notify={notify}
                 searchTerm={searchTerm}
@@ -196,10 +195,6 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private handleDeleteDashboard = (dashboard: Dashboard) => {
     this.props.handleDeleteDashboard(dashboard)
-  }
-
-  private handleExportDashboard = (dashboard: Dashboard): void => {
-    this.setState({exportDashboard: dashboard, isExportingDashboard: true})
   }
 
   private handleImportDashboard = async (
