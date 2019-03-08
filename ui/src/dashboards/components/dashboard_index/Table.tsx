@@ -25,7 +25,6 @@ interface Props {
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
-  onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onSetDefaultDashboard: (dashboardLink: string) => void
   onFilterChange: (searchTerm: string) => void
@@ -109,7 +108,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   private get sortedCards(): JSX.Element {
     const {
       dashboards,
-      onExportDashboard,
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
@@ -131,7 +129,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
             <DashboardCards
               dashboards={ds}
               onCloneDashboard={onCloneDashboard}
-              onExportDashboard={onExportDashboard}
               onDeleteDashboard={onDeleteDashboard}
               onUpdateDashboard={onUpdateDashboard}
               orgs={orgs}
