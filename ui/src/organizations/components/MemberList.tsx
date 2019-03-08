@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {IndexList} from 'src/clockface'
+import MemberRow from 'src/organizations/components/MemberRow'
 
 // Types
 import {ResourceOwner} from '@influxdata/influx'
@@ -10,6 +11,7 @@ import {ResourceOwner} from '@influxdata/influx'
 interface Props {
   members: ResourceOwner[]
   emptyState: JSX.Element
+  onDelete: (member: ResourceOwner) => void
 }
 
 export default class MemberList extends PureComponent<Props> {
@@ -17,9 +19,9 @@ export default class MemberList extends PureComponent<Props> {
     return (
       <IndexList>
         <IndexList.Header>
-          <IndexList.HeaderCell columnName="Username" width="25%" />
-          <IndexList.HeaderCell columnName="Role" width="25%" />
-          <IndexList.HeaderCell width="50%" />
+          <IndexList.HeaderCell columnName="Username" width="20%" />
+          <IndexList.HeaderCell columnName="Role" width="20%" />
+          <IndexList.HeaderCell width="60%" />
         </IndexList.Header>
         <IndexList.Body columnCount={3} emptyState={this.props.emptyState}>
           {this.rows}
@@ -29,12 +31,10 @@ export default class MemberList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    return this.props.members.map(member => (
-      <IndexList.Row key={member.id}>
-        <IndexList.Cell>{member.name}</IndexList.Cell>
-        <IndexList.Cell>{member.role}</IndexList.Cell>
-        <IndexList.Cell />
-      </IndexList.Row>
+    const {members, onDelete} = this.props
+
+    return members.map(member => (
+      <MemberRow key={member.id} member={member} onDelete={onDelete} />
     ))
   }
 }

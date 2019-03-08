@@ -32,6 +32,8 @@ import {client} from 'src/utils/api'
 import {
   memberAddSuccess,
   memberAddFailed,
+  memberRemoveSuccess,
+  memberRemoveFailed,
 } from 'src/shared/copy/v2/notifications'
 
 export interface UsersMap {
@@ -87,13 +89,19 @@ export default class Members extends PureComponent<Props, State> {
           searchKeys={['name']}
           searchTerm={searchTerm}
         >
-          {ms => <MemberList members={ms} emptyState={this.emptyState} />}
+          {ms => (
+            <MemberList
+              members={ms}
+              emptyState={this.emptyState}
+              onDelete={this.removeMember}
+            />
+          )}
         </FilterList>
         <OverlayTechnology visible={overlayState === OverlayState.Open}>
           <AddMembersOverlay
             onCloseModal={this.handleCloseModal}
             users={this.state.users}
-            addUser={this.addUser}
+            addMember={this.addMember}
           />
         </OverlayTechnology>
       </>
@@ -133,19 +141,33 @@ export default class Members extends PureComponent<Props, State> {
     this.setState({users: users})
   }
 
-  private addUser = async (user: AddResourceMemberRequestBody) => {
-    const {notify} = this.props
+  private addMember = async (user: AddResourceMemberRequestBody) => {
+    const {notify, onChange} = this.props
 
     try {
       await client.organizations.addMember(this.props.orgID, user)
       this.setState({overlayState: OverlayState.Closed})
-      notify(memberAddSuccess())
-      this.props.onChange()
+      onChange()
+      notify(memberAddSuccess(user.name))
     } catch (e) {
       console.error(e)
       this.setState({overlayState: OverlayState.Closed})
       const message = _.get(e, 'response.data.message', 'Unknown error')
       notify(memberAddFailed(message))
+    }
+  }
+
+  private removeMember = async (member: ResourceOwner) => {
+    const {orgID, notify, onChange} = this.props
+
+    try {
+      await client.organizations.removeMember(orgID, member.id)
+      onChange()
+      notify(memberRemoveSuccess(member.name))
+    } catch (e) {
+      console.error(e)
+      const message = _.get(e, 'response.data.message', 'Unknown error')
+      notify(memberRemoveFailed(message))
     }
   }
 
