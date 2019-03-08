@@ -13,8 +13,8 @@ import (
 // callers to fail early for operations that are not allowed.  However, it's still possible
 // for authorization to be denied at runtime even if this check passes.
 type PreAuthorizer interface {
-	PreAuthorize(ctx context.Context, spec *flux.Spec, auth platform.Authorizer) error
-	RequiredPermissions(ctx context.Context, spec *flux.Spec) ([]platform.Permission, error)
+	PreAuthorize(ctx context.Context, spec *flux.Spec, auth platform.Authorizer, orgID *platform.ID) error
+	RequiredPermissions(ctx context.Context, spec *flux.Spec, orgID *platform.ID) ([]platform.Permission, error)
 }
 
 // NewPreAuthorizer creates a new PreAuthorizer
@@ -28,8 +28,8 @@ type preAuthorizer struct {
 
 // PreAuthorize finds all the buckets read and written by the given spec, and ensures that execution is allowed
 // given the Authorizer.  Returns nil on success, and an error with an appropriate message otherwise.
-func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth platform.Authorizer) error {
-	readBuckets, writeBuckets, err := BucketsAccessed(spec)
+func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth platform.Authorizer, orgID *platform.ID) error {
+	readBuckets, writeBuckets, err := BucketsAccessed(spec, orgID)
 
 	if err != nil {
 		return errors.Wrap(err, "could not retrieve buckets for query.Spec")
@@ -75,8 +75,8 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, spec *flux.Spec, auth 
 
 // RequiredPermissions returns a slice of permissions required for the query contained in spec.
 // This method also validates that the buckets exist.
-func (a *preAuthorizer) RequiredPermissions(ctx context.Context, spec *flux.Spec) ([]platform.Permission, error) {
-	readBuckets, writeBuckets, err := BucketsAccessed(spec)
+func (a *preAuthorizer) RequiredPermissions(ctx context.Context, spec *flux.Spec, orgID *platform.ID) ([]platform.Permission, error) {
+	readBuckets, writeBuckets, err := BucketsAccessed(spec, orgID)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "could not retrieve buckets for query.Spec")

@@ -171,7 +171,7 @@ func (ToOpSpec) Kind() flux.OperationKind {
 }
 
 // BucketsAccessed returns the buckets accessed by the spec.
-func (o *ToOpSpec) BucketsAccessed() (readBuckets, writeBuckets []platform.BucketFilter) {
+func (o *ToOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
 	bf := platform.BucketFilter{}
 	if o.Bucket != "" {
 		bf.Name = &o.Bucket

@@ -102,7 +102,7 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 		return nil, err
 	}
 
-	if err := validateBucket(ctx, t.Flux, ts.preAuth); err != nil {
+	if err := validateBucket(ctx, t.Flux, ts.preAuth, t.OrganizationID); err != nil {
 		return nil, err
 	}
 
@@ -128,7 +128,7 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, 
 		return nil, err
 	}
 
-	if err := validateBucket(ctx, task.Flux, ts.preAuth); err != nil {
+	if err := validateBucket(ctx, task.Flux, ts.preAuth, task.OrganizationID); err != nil {
 		return nil, err
 	}
 
@@ -294,7 +294,7 @@ func validatePermission(ctx context.Context, perm platform.Permission) error {
 	return nil
 }
 
-func validateBucket(ctx context.Context, script string, preAuth query.PreAuthorizer) error {
+func validateBucket(ctx context.Context, script string, preAuth query.PreAuthorizer, orgID platform.ID) error {
 	auth, err := platcontext.GetAuthorizer(ctx)
 	if err != nil {
 		return err
@@ -308,7 +308,7 @@ func validateBucket(ctx context.Context, script string, preAuth query.PreAuthori
 			platform.WithErrorCode(platform.EInvalid))
 	}
 
-	if err := preAuth.PreAuthorize(ctx, spec, auth); err != nil {
+	if err := preAuth.PreAuthorize(ctx, spec, auth, &orgID); err != nil {
 		return platform.NewError(
 			platform.WithErrorErr(err),
 			platform.WithErrorMsg("Failed to authorize."),

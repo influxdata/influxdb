@@ -80,10 +80,13 @@ func (s *FromOpSpec) Kind() flux.OperationKind {
 }
 
 // BucketsAccessed makes FromOpSpec a query.BucketAwareOperationSpec
-func (s *FromOpSpec) BucketsAccessed() (readBuckets, writeBuckets []platform.BucketFilter) {
+func (s *FromOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
 	bf := platform.BucketFilter{}
 	if s.Bucket != "" {
 		bf.Name = &s.Bucket
+	}
+	if orgID != nil {
+		bf.OrganizationID = orgID
 	}
 
 	if len(s.BucketID) > 0 {
