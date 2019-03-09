@@ -42,7 +42,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error compiling query: %v", err)
 	}
-	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
+	err = preAuthorizer.PreAuthorize(ctx, spec, auth, nil)
 	if diagnostic := cmp.Diff("bucket service returned nil bucket", err.Error()); diagnostic != "" {
 		t.Errorf("Authorize message mismatch: -want/+got:\n%v", diagnostic)
 	}
@@ -54,7 +54,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error compiling query: %v", err)
 	}
-	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
+	err = preAuthorizer.PreAuthorize(ctx, spec, auth, nil)
 	if diagnostic := cmp.Diff("bucket service returned nil bucket", err.Error()); diagnostic != "" {
 		t.Errorf("Authorize message mismatch: -want/+got:\n%v", diagnostic)
 	}
@@ -73,7 +73,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 	})
 
 	preAuthorizer = query.NewPreAuthorizer(bucketService)
-	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
+	err = preAuthorizer.PreAuthorize(ctx, spec, auth, &orgID)
 	if diagnostic := cmp.Diff(`no read permission for bucket: "my_bucket"`, err.Error()); diagnostic != "" {
 		t.Errorf("Authorize message mismatch: -want/+got:\n%v", diagnostic)
 	}
@@ -88,7 +88,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 		Permissions: []platform.Permission{*p},
 	}
 
-	err = preAuthorizer.PreAuthorize(ctx, spec, auth)
+	err = preAuthorizer.PreAuthorize(ctx, spec, auth, &orgID)
 	if err != nil {
 		t.Errorf("Expected successful authorization, but got error: \"%v\"", err.Error())
 	}
@@ -119,7 +119,7 @@ func TestPreAuthorizer_RequiredPermissions(t *testing.T) {
 	}
 
 	preAuthorizer := query.NewPreAuthorizer(i)
-	perms, err := preAuthorizer.RequiredPermissions(ctx, spec)
+	perms, err := preAuthorizer.RequiredPermissions(ctx, spec, &o.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

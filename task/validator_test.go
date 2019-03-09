@@ -109,13 +109,11 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 
 func TestValidations(t *testing.T) {
 	var (
-		orgID  influxdb.ID = 0x046
 		taskID influxdb.ID = 0x7456
 		runID  influxdb.ID = 0x402
 	)
 
 	inmem := inmem.NewService()
-	validTaskService := task.NewValidator(mockTaskService(orgID, taskID, runID), inmem)
 
 	r, err := inmem.Generate(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
@@ -127,6 +125,8 @@ func TestValidations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	orgID := r.Org.ID
+	validTaskService := task.NewValidator(mockTaskService(orgID, taskID, runID), inmem)
 
 	var (
 		// Read all tasks in org.
@@ -316,10 +316,10 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteAllTaskBucketPermissions},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				flux := `option task = {
- name: "my_task",
- every: 1s,
-}
-from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
+		 name: "my_task",
+		 every: 1s,
+		}
+		from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 				_, err := svc.UpdateTask(ctx, taskID, influxdb.TaskUpdate{
 					Flux: &flux,
 				})

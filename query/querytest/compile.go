@@ -54,7 +54,7 @@ func BucketAwareQueryTestHelper(t *testing.T, tc BucketAwareQueryTestCase) {
 
 	var gotReadBuckets, gotWriteBuckets []platform.BucketFilter
 	if tc.WantReadBuckets != nil || tc.WantWriteBuckets != nil {
-		gotReadBuckets, gotWriteBuckets, err = query.BucketsAccessed(got)
+		gotReadBuckets, gotWriteBuckets, err = query.BucketsAccessed(got, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

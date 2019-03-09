@@ -387,7 +387,7 @@ func (h *TaskHandler) createBootstrapTaskAuthorizationIfNotExists(ctx context.Co
 	}
 
 	preAuthorizer := query.NewPreAuthorizer(h.BucketService)
-	ps, err := preAuthorizer.RequiredPermissions(ctx, spec)
+	ps, err := preAuthorizer.RequiredPermissions(ctx, spec, &t.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
