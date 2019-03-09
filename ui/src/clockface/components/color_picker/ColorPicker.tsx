@@ -23,8 +23,8 @@ import {validateHexCode} from 'src/configuration/utils/labels'
 import 'src/clockface/components/color_picker/ColorPicker.scss'
 
 interface PassedProps {
-  selectedHex: string
-  onSelect: (hex: string, status?: ComponentStatus) => void
+  color: string
+  onChange: (color: string, status?: ComponentStatus) => void
 }
 
 interface DefaultProps {
@@ -35,8 +35,7 @@ interface DefaultProps {
 type Props = PassedProps & DefaultProps
 
 interface State {
-  inputValue: string
-  status: string
+  errorMessage: string
 }
 
 export default class ColorPicker extends Component<Props, State> {
@@ -49,20 +48,12 @@ export default class ColorPicker extends Component<Props, State> {
     super(props)
 
     this.state = {
-      inputValue: this.props.selectedHex || '',
-      status: null,
-    }
-  }
-
-  componentDidUpdate(prevProps) {
-    if (prevProps.selectedHex !== this.props.selectedHex) {
-      this.setState({inputValue: this.props.selectedHex})
+      errorMessage: null,
     }
   }
 
   render() {
-    const {maintainInputFocus, testID} = this.props
-    const {inputValue} = this.state
+    const {maintainInputFocus, testID, color} = this.props
 
     return (
       <div className="color-picker" data-testid={testID}>
@@ -81,7 +72,7 @@ export default class ColorPicker extends Component<Props, State> {
           <Input
             customClass="color-picker--input"
             placeholder="#000000"
-            value={inputValue}
+            value={color}
             onChange={this.handleInputChange}
             maxLength={7}
             onBlur={this.handleInputBlur}
@@ -89,7 +80,7 @@ export default class ColorPicker extends Component<Props, State> {
             status={this.inputStatus}
             testID={`${testID}--input`}
           />
-          {this.selectedColor}
+          {this.colorPreview}
           <Button
             icon={IconFont.Refresh}
             shape={ButtonShape.Square}
@@ -103,19 +94,21 @@ export default class ColorPicker extends Component<Props, State> {
     )
   }
 
-  private handleSwatchClick = (hex: string): void => {
-    const {onSelect} = this.props
+  private get inputStatus(): ComponentStatus {
+    const {errorMessage} = this.state
 
-    this.setState({inputValue: hex})
-    onSelect(hex, ComponentStatus.Valid)
+    return errorMessage ? ComponentStatus.Error : ComponentStatus.Valid
   }
 
-  private get inputStatus(): ComponentStatus {
-    return this.state.status ? ComponentStatus.Error : ComponentStatus.Valid
+  private handleSwatchClick = (hex: string): void => {
+    const {onChange} = this.props
+
+    this.setState({errorMessage: null})
+    onChange(hex, ComponentStatus.Valid)
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {onSelect} = this.props
+    const {onChange} = this.props
     const acceptedChars = [
       '#',
       'a',
@@ -137,17 +130,16 @@ export default class ColorPicker extends Component<Props, State> {
     ]
 
     const trimmedValue = e.target.value.trim()
-    const inputValue = trimmedValue
+    const cleanedValue = trimmedValue
       .split('')
       .filter(char => acceptedChars.includes(char.toLowerCase()))
       .join('')
 
-    const status = validateHexCode(inputValue)
-    const validity =
-      status === null ? ComponentStatus.Valid : ComponentStatus.Error
+    const errorMessage = validateHexCode(cleanedValue)
+    const status = errorMessage ? ComponentStatus.Error : ComponentStatus.Valid
 
-    onSelect(inputValue, validity)
-    this.setState({inputValue, status})
+    this.setState({errorMessage})
+    onChange(cleanedValue, status)
   }
 
   private handleInputBlur = (e: ChangeEvent<HTMLInputElement>) => {
@@ -159,34 +151,34 @@ export default class ColorPicker extends Component<Props, State> {
   }
 
   private handleRandomizeColor = (): void => {
-    const {onSelect} = this.props
+    const {onChange} = this.props
     const {hex} = _.sample(colors)
 
-    this.setState({inputValue: hex})
-    onSelect(hex, ComponentStatus.Valid)
-  }
-
-  private get selectedColor(): JSX.Element {
-    const {inputValue} = this.state
-
-    return (
-      <div
-        className="color-picker--selected"
-        style={{backgroundColor: inputValue}}
-      />
-    )
+    this.setState({errorMessage: null})
+    onChange(hex, ComponentStatus.Valid)
   }
 
   private get errorMessage(): JSX.Element {
     const {testID} = this.props
-    const {status} = this.state
+    const {errorMessage} = this.state
 
-    if (status) {
+    if (errorMessage) {
       return (
         <div className="color-picker--error" data-testid={`${testID}--error`}>
-          <Error message={status} />
+          <Error message={errorMessage} />
         </div>
       )
     }
+  }
+
+  private get colorPreview(): JSX.Element {
+    const {color} = this.props
+
+    return (
+      <div
+        className="color-picker--selected"
+        style={{backgroundColor: color}}
+      />
+    )
   }
 }

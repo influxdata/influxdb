@@ -4,9 +4,7 @@ import React, {Component, ChangeEvent} from 'react'
 // Components
 import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
 import {OverlayContainer, OverlayBody, OverlayHeading} from 'src/clockface'
-
-// Utils
-import {validateHexCode} from 'src/configuration/utils/labels'
+import {ComponentStatus} from '@influxdata/clockface'
 
 // Types
 import {ILabel} from '@influxdata/influx'
@@ -23,6 +21,7 @@ interface Props {
 
 interface State {
   label: ILabel
+  colorStatus: ComponentStatus
 }
 
 @ErrorHandling
@@ -32,6 +31,7 @@ class UpdateLabelOverlay extends Component<Props, State> {
 
     this.state = {
       label: props.label,
+      colorStatus: ComponentStatus.Default,
     }
   }
 
@@ -47,8 +47,8 @@ class UpdateLabelOverlay extends Component<Props, State> {
             id={label.id}
             name={label.name}
             description={label.properties.description}
-            colorHex={label.properties.color}
-            onColorHexChange={this.handleColorHexChange}
+            color={label.properties.color}
+            onColorChange={this.handleColorHexChange}
             onSubmit={this.handleSubmit}
             onCloseModal={onDismiss}
             onInputChange={this.handleInputChange}
@@ -62,10 +62,12 @@ class UpdateLabelOverlay extends Component<Props, State> {
   }
 
   private get isFormValid(): boolean {
-    const {label} = this.state
+    const {label, colorStatus} = this.state
 
     const nameIsValid = this.props.onNameValidation(label.name) === null
-    const colorIsValid = validateHexCode(label.properties.color) === null
+    const colorIsValid =
+      colorStatus === ComponentStatus.Default ||
+      colorStatus == ComponentStatus.Valid
 
     return nameIsValid && colorIsValid
   }
@@ -97,11 +99,14 @@ class UpdateLabelOverlay extends Component<Props, State> {
     }
   }
 
-  private handleColorHexChange = (color: string): void => {
+  private handleColorHexChange = (
+    color: string,
+    colorStatus: ComponentStatus
+  ): void => {
     const properties = {...this.state.label.properties, color}
     const label = {...this.state.label, properties}
 
-    this.setState({label})
+    this.setState({label, colorStatus})
   }
 }
 

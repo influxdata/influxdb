@@ -29,11 +29,11 @@ interface Props {
   id: string
   name: string
   description: string
-  colorHex: string
+  color: string
+  onColorChange: (color: string, status?: ComponentStatus) => void
   onSubmit: () => void
   onCloseModal: () => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
-  onColorHexChange: (colorHex: string, status?: ComponentStatus) => void
   onNameValidation: (name: string) => string | null
   buttonText: string
   isFormValid: boolean
@@ -45,13 +45,13 @@ export default class LabelOverlayForm extends PureComponent<Props> {
     const {
       id,
       name,
-      colorHex,
+      color,
       onSubmit,
       buttonText,
       description,
       onCloseModal,
       onInputChange,
-      onColorHexChange,
+      onColorChange,
       isFormValid,
     } = this.props
 
@@ -66,7 +66,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                     size={ComponentSize.Small}
                     name={this.placeholderLabelName}
                     description={description}
-                    colorHex={this.colorHexGuard}
+                    colorHex={this.colorGuard}
                     id={id}
                   />
                 </Form.Box>
@@ -106,10 +106,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
             </Grid.Column>
             <Grid.Column widthSM={Columns.Twelve}>
               <Form.Element label="Color">
-                <ColorPicker
-                  selectedHex={colorHex}
-                  onSelect={onColorHexChange}
-                />
+                <ColorPicker color={color} onChange={onColorChange} />
               </Form.Element>
             </Grid.Column>
             <Grid.Column widthXS={Columns.Twelve}>
@@ -149,14 +146,14 @@ export default class LabelOverlayForm extends PureComponent<Props> {
     return name
   }
 
-  private get colorHexGuard(): string {
-    const {colorHex} = this.props
+  private get colorGuard(): string {
+    const {color} = this.props
 
-    if (validateHexCode(colorHex)) {
+    if (validateHexCode(color)) {
       return INPUT_ERROR_COLOR
     }
 
-    return colorHex
+    return color
   }
 
   private handleNameValidation = (name: string): string | null => {

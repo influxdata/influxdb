@@ -30,7 +30,7 @@ interface Props {
 
 interface State {
   label: ILabel
-  hexcodeStatus: ComponentStatus
+  colorStatus: ComponentStatus
 }
 
 @ErrorHandling
@@ -40,7 +40,7 @@ class CreateLabelOverlay extends Component<Props, State> {
 
     this.state = {
       label: {...EMPTY_LABEL, name: this.props.overrideDefaultName},
-      hexcodeStatus: ComponentStatus.Default,
+      colorStatus: ComponentStatus.Default,
     }
   }
 
@@ -69,8 +69,8 @@ class CreateLabelOverlay extends Component<Props, State> {
               id={label.id}
               name={label.name}
               description={label.properties.description}
-              colorHex={label.properties.color}
-              onColorHexChange={this.handleColorHexChange}
+              color={label.properties.color}
+              onColorChange={this.handleColorChange}
               onSubmit={this.handleSubmit}
               onCloseModal={onDismiss}
               onInputChange={this.handleInputChange}
@@ -85,12 +85,12 @@ class CreateLabelOverlay extends Component<Props, State> {
   }
 
   private get isFormValid(): boolean {
-    const {label, hexcodeStatus} = this.state
+    const {label, colorStatus} = this.state
 
     const nameIsValid = this.props.onNameValidation(label.name) === null
     const colorIsValid =
-      hexcodeStatus === ComponentStatus.Default ||
-      hexcodeStatus === ComponentStatus.Valid
+      colorStatus === ComponentStatus.Default ||
+      colorStatus === ComponentStatus.Valid
 
     return nameIsValid && colorIsValid
   }
@@ -133,16 +133,14 @@ class CreateLabelOverlay extends Component<Props, State> {
     }
   }
 
-  private handleColorHexChange = (
+  private handleColorChange = (
     color: string,
-    hexcodeStatus: ComponentStatus
+    colorStatus: ComponentStatus
   ): void => {
     const properties = {...this.state.label.properties, color}
     const label = {...this.state.label, properties}
 
-    console.log(hexcodeStatus)
-
-    this.setState({label, hexcodeStatus})
+    this.setState({label, colorStatus})
   }
 }
 
