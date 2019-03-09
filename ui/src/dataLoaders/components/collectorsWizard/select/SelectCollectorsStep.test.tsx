@@ -21,7 +21,7 @@ import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 const setup = (override = {}) => {
   const props = {
     ...defaultOnboardingStepProps,
-    bucket: '',
+    bucket: 'b1',
     telegrafPlugins: [],
     pluginBundles: [],
     type: DataLoaderType.Empty,
@@ -45,7 +45,7 @@ const setup = (override = {}) => {
 
 describe('DataLoaders.Components.CollectorsWizard.Select.SelectCollectorsStep', () => {
   describe('if there are no plugins selected', () => {
-    it.skip('renders streaming selector with buttons', () => {
+    it('renders streaming selector with buttons', () => {
       const wrapper = setup({
         type: DataLoaderType.Streaming,
         currentStepIndex: 0,
