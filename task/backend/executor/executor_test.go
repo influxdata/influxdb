@@ -57,6 +57,10 @@ func newFakeQueryService() *fakeQueryService {
 }
 
 func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
+	if req.Authorization == nil {
+		panic("authorization required")
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.mostRecentCtx = ctx
