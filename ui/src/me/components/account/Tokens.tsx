@@ -3,19 +3,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {IconFont, Input} from 'src/clockface'
-import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import TokenList from 'src/me/components/account/TokensList'
 import FilterList from 'src/shared/components/Filter'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 
-// APIs
-import {client} from 'src/utils/api'
-
 // Actions
-import {notify} from 'src/shared/actions/notifications'
-import {NotificationAction} from 'src/types'
+import * as notifyActions from 'src/shared/actions/notifications'
 
 // Types
 import {Authorization} from '@influxdata/influx'
@@ -29,11 +23,15 @@ enum AuthSearchKeys {
   Status = 'status',
 }
 
-interface Props {
-  onNotify: NotificationAction
+interface StateProps {
+  tokens: Authorization[]
 }
 
-const getAuthorizations = () => client.authorizations.getAll()
+interface DispatchProps {
+  notify: typeof notifyActions.notify
+}
+
+type Props = StateProps & DispatchProps
 
 export class Tokens extends PureComponent<Props, State> {
   constructor(props) {
@@ -44,8 +42,8 @@ export class Tokens extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onNotify} = this.props
     const {searchTerm} = this.state
+    const {tokens, notify} = this.props
 
     return (
       <>
@@ -58,28 +56,19 @@ export class Tokens extends PureComponent<Props, State> {
             widthPixels={256}
           />
         </TabbedPageHeader>
-        <ResourceFetcher<Authorization[]> fetcher={getAuthorizations}>
-          {(fetchedAuths, loading) => (
-            <SpinnerContainer
-              loading={loading}
-              spinnerComponent={<TechnoSpinner />}
-            >
-              <FilterList<Authorization>
-                list={fetchedAuths}
-                searchTerm={searchTerm}
-                searchKeys={this.searchKeys}
-              >
-                {filteredAuths => (
-                  <TokenList
-                    auths={filteredAuths}
-                    onNotify={onNotify}
-                    searchTerm={searchTerm}
-                  />
-                )}
-              </FilterList>
-            </SpinnerContainer>
+        <FilterList<Authorization>
+          list={tokens}
+          searchTerm={searchTerm}
+          searchKeys={this.searchKeys}
+        >
+          {filteredAuths => (
+            <TokenList
+              onNotify={notify}
+              auths={filteredAuths}
+              searchTerm={searchTerm}
+            />
           )}
-        </ResourceFetcher>
+        </FilterList>
       </>
     )
   }
@@ -94,10 +83,16 @@ export class Tokens extends PureComponent<Props, State> {
 }
 
 const mdtp = {
-  onNotify: notify,
+  notify: notifyActions.notify,
 }
 
-export default connect<{}, Props>(
-  null,
+const mstp = ({tokens}) => {
+  return {
+    tokens: tokens.list,
+  }
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
   mdtp
 )(Tokens)

@@ -198,9 +198,39 @@ export const telegrafUpdateSuccess = (telegrafName: string): Notification => ({
   message: `Telegraf "${telegrafName}" was updated successfully`,
 })
 
+export const telegrafGetFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to get telegraf configs',
+})
+
+export const telegrafCreateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create telegraf',
+})
+
 export const telegrafUpdateFailed = (telegrafName: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to update telegraf: "${telegrafName}"`,
+})
+
+export const authorizationsGetFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to get tokens',
+})
+
+export const authorizationCreateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create tokens',
+})
+
+export const authorizationUpdateFailed = (desc: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update token: "${desc}"`,
+})
+
+export const authorizationDeleteFailed = (desc: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete token: "${desc}"`,
 })
 
 export const telegrafDeleteSuccess = (telegrafName: string): Notification => ({

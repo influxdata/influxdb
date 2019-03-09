@@ -60,14 +60,16 @@ export class SelectCollectorsStep extends PureComponent<Props> {
               metrics to a bucket in InfluxDB
             </h5>
           </div>
-          <StreamingSelector
-            pluginBundles={this.props.pluginBundles}
-            telegrafPlugins={this.props.telegrafPlugins}
-            onTogglePluginBundle={this.handleTogglePluginBundle}
-            buckets={this.props.buckets}
-            selectedBucketName={this.props.bucket}
-            onSelectBucket={this.handleSelectBucket}
-          />
+          {!!this.props.bucket && (
+            <StreamingSelector
+              pluginBundles={this.props.pluginBundles}
+              telegrafPlugins={this.props.telegrafPlugins}
+              onTogglePluginBundle={this.handleTogglePluginBundle}
+              buckets={this.props.buckets}
+              selectedBucketName={this.props.bucket}
+              onSelectBucket={this.handleSelectBucket}
+            />
+          )}
         </FancyScrollbar>
         <OnboardingButtons
           autoFocusNext={true}

@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {get} from 'lodash'
 
 // Components
 import {OverlayContainer, OverlayBody, OverlayHeading} from 'src/clockface'
@@ -15,29 +16,18 @@ import {Authorization, Permission} from '@influxdata/influx'
 // Actions
 import {NotificationAction} from 'src/types'
 
-const {Write, Read} = Permission.ActionEnum
-
 interface Props {
   onNotify: NotificationAction
   auth: Authorization
   onDismissOverlay: () => void
 }
 
-const actions = [Read, Write]
-
 export default class ViewTokenOverlay extends PureComponent<Props> {
   public render() {
-    const {description, permissions} = this.props.auth
+    const {description} = this.props.auth
     const {onNotify} = this.props
 
-    const permissionsByType = {}
-    for (const key of permissions) {
-      if (permissionsByType[key.resource.type]) {
-        permissionsByType[key.resource.type].push(key.action)
-      } else {
-        permissionsByType[key.resource.type] = [key.action]
-      }
-    }
+    const permissions = this.permissions
 
     return (
       <OverlayContainer>
@@ -48,20 +38,20 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
             mode={PermissionsWidgetMode.Read}
             heightPixels={500}
           >
-            {Object.keys(permissionsByType).map((type, permission) => {
+            {Object.keys(permissions).map(type => {
               return (
                 <PermissionsWidget.Section
-                  key={permission}
+                  key={type}
                   id={type}
-                  title={this.title(type)}
+                  title={type}
                   mode={PermissionsWidgetMode.Read}
                 >
-                  {actions.map((a, i) => (
+                  {permissions[type].map((action, i) => (
                     <PermissionsWidget.Item
                       key={i}
-                      id={this.itemID(type, a)}
-                      label={a}
-                      selected={this.selected(permissionsByType[type][i], a)}
+                      label={action}
+                      id={this.itemID(type, action)}
+                      selected={PermissionsWidgetSelection.Selected}
                     />
                   ))}
                 </PermissionsWidget.Section>
@@ -73,15 +63,24 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
     )
   }
 
-  private selected = (
-    permission: string,
-    action: Permission.ActionEnum
-  ): PermissionsWidgetSelection => {
-    if (permission === action) {
-      return PermissionsWidgetSelection.Selected
-    }
+  private get permissions(): {[x: string]: Permission.ActionEnum[]} {
+    const p = this.props.auth.permissions.reduce((acc, {action, resource}) => {
+      const {type} = resource
+      const name = get(resource, 'name', '')
 
-    return PermissionsWidgetSelection.Unselected
+      let key = `${type}-${name}`
+      let actions = get(resource, key, [])
+
+      if (name) {
+        return {...acc, [key]: [...actions, action]}
+      }
+
+      actions = get(resource, type, [])
+
+      return {...acc, [type]: [...actions, action]}
+    }, {})
+
+    return p
   }
 
   private itemID = (
@@ -89,10 +88,6 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
     action: Permission.ActionEnum
   ): string => {
     return `${permission}-${action}-${permission || '*'}-${permission || '*'}`
-  }
-
-  private title = (permission: string): string => {
-    return `${permission}:*`
   }
 
   private handleDismiss = () => {

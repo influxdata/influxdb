@@ -74,6 +74,11 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 				{
 					"configurations":[
 					  {
+							"labels": [],
+							"links": {
+								"labels": "/api/v2/telegrafs/0000000000000001/labels",
+								"self": "/api/v2/telegrafs/0000000000000001"
+							},
 						"id":"0000000000000001",
 						"organizationID":"0000000000000002",
 						"name":"tc1",
@@ -87,7 +92,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 							"type":"input",
 							"comment":"",
 							"config":{
-				  
+
 							}
 						  }
 						]
@@ -136,6 +141,11 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 				body: `{
           "configurations": [
             {
+							"labels": [],
+							"links": {
+								"labels": "/api/v2/telegrafs/0000000000000001/labels",
+								"self": "/api/v2/telegrafs/0000000000000001"
+							},
             "id": "0000000000000001",
             "organizationID": "0000000000000002",
             "name": "my config",
@@ -244,7 +254,6 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				// TODO(goller): once links are in for telegraf, this will need to change.
 				body: `{
             "id": "0000000000000001",
             "organizationID": "0000000000000002",
@@ -252,7 +261,12 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						"description": "",
             "agent": {
               "collectionInterval": 10000
-            },
+						},
+						"labels": [],
+						"links": {
+							"labels": "/api/v2/telegrafs/0000000000000001/labels",
+							"self": "/api/v2/telegrafs/0000000000000001"
+						},
             "plugins": [
               {
               "name": "cpu",
@@ -312,7 +326,6 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				// TODO(goller): once links are in for telegraf, this will need to change.
 				body: `{
             "id": "0000000000000001",
             "organizationID": "0000000000000002",
@@ -320,7 +333,12 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						"description": "",
             "agent": {
               "collectionInterval": 10000
-            },
+						},
+						"labels": [],
+						"links": {
+							"labels": "/api/v2/telegrafs/0000000000000001/labels",
+							"self": "/api/v2/telegrafs/0000000000000001"
+						},
             "plugins": [
               {
               "name": "cpu",
@@ -771,6 +789,12 @@ func Test_newTelegrafResponses(t *testing.T) {
 			want: `{
         "configurations": [
           {
+      "labels": [
+      ],
+      "links": {
+           "labels": "/api/v2/telegrafs/0000000000000001/labels",
+          "self": "/api/v2/telegrafs/0000000000000001"
+          },
           "id": "0000000000000001",
           "organizationID": "0000000000000002",
           "name": "my config",
@@ -820,6 +844,7 @@ func Test_newTelegrafResponses(t *testing.T) {
 }
 
 func Test_newTelegrafResponse(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/12457")
 	type args struct {
 		tc *platform.TelegrafConfig
 	}

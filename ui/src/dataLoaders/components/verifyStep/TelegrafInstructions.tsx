@@ -13,15 +13,15 @@ import {NotificationAction} from 'src/types'
 
 export interface Props {
   notify: NotificationAction
-  authToken: string
+  token: string
   configID: string
 }
 
 @ErrorHandling
 class TelegrafInstructions extends PureComponent<Props> {
   public render() {
-    const {notify, authToken, configID} = this.props
-    const exportToken = `export INFLUX_TOKEN=${authToken || ''}`
+    const {notify, token, configID} = this.props
+    const exportToken = `export INFLUX_TOKEN=${token || ''}`
     const configScript = `telegraf -config ${
       this.origin
     }/api/v2/telegrafs/${configID || ''}`

@@ -13,6 +13,7 @@ import Labels from 'src/configuration/components/Labels'
 import Settings from 'src/me/components/account/Settings'
 import Tokens from 'src/me/components/account/Tokens'
 import Buckets from 'src/configuration/components/Buckets'
+import Telegrafs from 'src/configuration/components/Telegrafs'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -64,18 +65,31 @@ class ConfigurationPage extends Component<Props> {
                 </GetResources>
               </TabbedPageSection>
               <TabbedPageSection
-                id="settings_tab"
-                url="settings_tab"
-                title="Profile"
+                id="telegrafs_tab"
+                url="telegrafs_tab"
+                title="Telegraf"
               >
-                <Settings />
+                <GetResources resource={ResourceTypes.Buckets}>
+                  <GetResources resource={ResourceTypes.Telegrafs}>
+                    <Telegrafs />
+                  </GetResources>
+                </GetResources>
               </TabbedPageSection>
               <TabbedPageSection
                 id="tokens_tab"
                 url="tokens_tab"
                 title="Tokens"
               >
-                <Tokens />
+                <GetResources resource={ResourceTypes.Authorizations}>
+                  <Tokens />
+                </GetResources>
+              </TabbedPageSection>
+              <TabbedPageSection
+                id="settings_tab"
+                url="settings_tab"
+                title="Profile"
+              >
+                <Settings />
               </TabbedPageSection>
             </TabbedPage>
           </div>

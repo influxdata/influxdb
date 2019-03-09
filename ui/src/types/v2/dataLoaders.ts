@@ -71,6 +71,7 @@ export interface DataLoadersState {
   scraperTarget: ScraperTarget
   telegrafConfigName: string
   telegrafConfigDescription: string
+  token: string
 }
 
 export enum ConfigurationState {

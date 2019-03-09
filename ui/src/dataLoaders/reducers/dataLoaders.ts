@@ -42,6 +42,7 @@ export const INITIAL_STATE: DataLoadersState = {
   },
   telegrafConfigName: 'Name this Configuration',
   telegrafConfigDescription: '',
+  token: '',
 }
 
 export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
@@ -329,6 +330,11 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
       return {
         ...state,
         precision: action.payload.precision,
+      }
+    case 'SET_TOKEN':
+      return {
+        ...state,
+        token: action.payload.token,
       }
     default:
       return state

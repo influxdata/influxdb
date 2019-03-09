@@ -39,11 +39,14 @@ import {Label} from 'src/types/v2/labels'
 import {OrgViewState} from 'src/organizations/reducers/orgView'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
+import {TelegrafsState} from 'src/telegrafs/reducers'
+import {AuthorizationsState} from 'src/authorizations/reducers'
 
 export interface AppState {
   VERSION: string
   labels: LabelsState
   buckets: BucketsState
+  telegrafs: TelegrafsState
   links: Links
   app: AppPresentationState
   ranges: RangeState
@@ -62,6 +65,7 @@ export interface AppState {
   dataLoading: DataLoadingState
   protos: ProtosState
   variables: VariablesState
+  tokens: AuthorizationsState
 }
 
 export type GetState = () => AppState
