@@ -261,7 +261,7 @@ export class Telegrafs extends PureComponent<Props, State> {
       onSetBucketInfo(organization, organizationID, name, id)
     }
 
-    onSetDataLoadersType(DataLoaderType.Scraping)
+    onSetDataLoadersType(DataLoaderType.Streaming)
 
     this.setState({dataLoaderOverlay: OverlayState.Open})
   }
