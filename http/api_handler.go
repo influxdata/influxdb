@@ -33,7 +33,7 @@ type APIHandler struct {
 	DocumentHandler      *DocumentHandler
 	SetupHandler         *SetupHandler
 	SessionHandler       *SessionHandler
-	SwaggerHandler       http.HandlerFunc
+	SwaggerHandler       http.Handler
 }
 
 // APIBackend is all services and associated parameters required to construct
@@ -142,7 +142,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.ProtoHandler = NewProtoHandler(NewProtoBackend(b))
 	h.ChronografHandler = NewChronografHandler(b.ChronografService)
-	h.SwaggerHandler = SwaggerHandler()
+	h.SwaggerHandler = newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")))
 	h.LabelHandler = NewLabelHandler(b.LabelService)
 
 	return h
