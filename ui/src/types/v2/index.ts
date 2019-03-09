@@ -18,7 +18,7 @@ import {
   Dashboard,
 } from 'src/types/v2/dashboards'
 
-import {Source, Telegraf} from '@influxdata/influx'
+import {Source} from '@influxdata/influx'
 import {Member} from 'src/types/v2/members'
 import {Organization, Task} from '@influxdata/influx'
 import {TaskStatus} from 'src/types/tasks'

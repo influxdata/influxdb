@@ -45,12 +45,13 @@ const setup = (override = {}) => {
 
 describe('DataLoaders.Components.CollectorsWizard.Select.SelectCollectorsStep', () => {
   describe('if there are no plugins selected', () => {
-    it('renders streaming selector with buttons', () => {
+    it.skip('renders streaming selector with buttons', () => {
       const wrapper = setup({
         type: DataLoaderType.Streaming,
         currentStepIndex: 0,
         substep: 'streaming',
       })
+
       const streamingSelector = wrapper.find(StreamingSelector)
       const onboardingButtons = wrapper.find(OnboardingButtons)
 
