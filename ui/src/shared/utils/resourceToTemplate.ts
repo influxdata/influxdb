@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 import {Task, Label, Dashboard, Cell, View} from 'src/types/v2'
-import {ITemplate, TemplateType} from '@influxdata/influx'
+import {ITemplate, TemplateType, DocumentCreate} from '@influxdata/influx'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 
@@ -19,17 +19,7 @@ const blankTaskTemplate = () => {
       ...baseTemplate.content,
       data: {...baseTemplate.content.data, type: TemplateType.Task},
     },
-    labels: [
-      ...baseTemplate.labels,
-      {
-        id: '1',
-        name: 'influx.task',
-        properties: {
-          color: 'ffb3b3',
-          description: 'This is a template for a task resource on influx 2.0',
-        },
-      },
-    ],
+    labels: [],
   }
 }
 
@@ -41,18 +31,7 @@ const blankDashboardTemplate = () => {
       ...baseTemplate.content,
       data: {...baseTemplate.content.data, type: TemplateType.Dashboard},
     },
-    labels: [
-      ...baseTemplate.labels,
-      {
-        id: '1',
-        name: 'influx.dashboard',
-        properties: {
-          color: 'ffb3b3',
-          description:
-            'This is a template for a dashboard resource on influx 2.0',
-        },
-      },
-    ],
+    labels: [],
   }
 }
 
@@ -115,11 +94,16 @@ export const taskToTemplate = (
   return template
 }
 
-const viewToIncluded = (view: View) => ({
-  type: TemplateType.View,
-  id: view.id,
-  attributes: view,
-})
+const viewToIncluded = (view: View) => {
+  const viewAttributes = _.pick(view, ['properties', 'name'])
+
+  return {
+    type: TemplateType.View,
+    id: view.id,
+    attributes: viewAttributes,
+  }
+}
+
 const viewToRelationship = (view: View) => ({
   type: TemplateType.View,
   id: view.id,
@@ -129,10 +113,12 @@ const cellToIncluded = (cell: Cell, views: View[]) => {
   const cellView = views.find(v => v.id === cell.id)
   const viewRelationship = viewToRelationship(cellView)
 
+  const cellAttributes = _.pick(cell, ['x', 'y', 'w', 'h'])
+
   return {
     id: cell.id,
     type: TemplateType.Cell,
-    attributes: cell,
+    attributes: cellAttributes,
     relationships: {
       [TemplateType.View]: {
         data: viewRelationship,
@@ -150,7 +136,7 @@ export const dashboardToTemplate = (
   dashboard: Dashboard,
   views: View[],
   baseTemplate = blankDashboardTemplate()
-) => {
+): ITemplate => {
   const dashboardName = _.get(dashboard, 'name', '')
   const templateName = `${dashboardName}-Template`
 
@@ -194,4 +180,11 @@ export const dashboardToTemplate = (
   }
 
   return template
+}
+
+export const addOrgIDToTemplate = (
+  template: ITemplate,
+  orgID: string
+): DocumentCreate => {
+  return {...template, orgID}
 }
