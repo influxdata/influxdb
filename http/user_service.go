@@ -48,7 +48,7 @@ const (
 	mePasswordPath    = "/api/v2/me/password"
 	usersIDPath       = "/api/v2/users/:id"
 	usersPasswordPath = "/api/v2/users/:id/password"
-	usersLogPath      = "/api/v2/users/:id/log"
+	usersLogPath      = "/api/v2/users/:id/logs"
 )
 
 // NewUserHandler returns a new instance of UserHandler.
@@ -336,7 +336,7 @@ func newUserResponse(u *influxdb.User) *userResponse {
 	return &userResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
-			"log":  fmt.Sprintf("/api/v2/users/%s/log", u.ID),
+			"logs": fmt.Sprintf("/api/v2/users/%s/logs", u.ID),
 		},
 		User: *u,
 	}
@@ -746,14 +746,14 @@ func decodeGetUserLogRequest(ctx context.Context, r *http.Request) (*getUserLogR
 }
 
 func newUserLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
-	log := make([]*operationLogEntryResponse, 0, len(es))
+	logs := make([]*operationLogEntryResponse, 0, len(es))
 	for _, e := range es {
-		log = append(log, newOperationLogEntryResponse(e))
+		logs = append(logs, newOperationLogEntryResponse(e))
 	}
 	return &operationLogResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/users/%s/log", id),
+			"self": fmt.Sprintf("/api/v2/users/%s/logs", id),
 		},
-		Log: log,
+		Logs: logs,
 	}
 }

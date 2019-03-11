@@ -5784,12 +5784,12 @@ components:
           readOnly: true
           example:
             self: "/api/v2/users/1"
-            log: "/api/v2/users/1/log"
+            logs: "/api/v2/users/1/logs"
           properties:
             self:
               type: string
               format: uri
-            log:
+            logs:
               type: string
               format: uri
       required: [name]
