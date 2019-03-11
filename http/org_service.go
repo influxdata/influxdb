@@ -28,6 +28,7 @@ type OrgBackend struct {
 	UserService                     influxdb.UserService
 }
 
+// NewOrgBackend is a datasource used by the org handler.
 func NewOrgBackend(b *APIBackend) *OrgBackend {
 	return &OrgBackend{
 		Logger: b.Logger.With(zap.String("handler", "org")),
@@ -58,7 +59,7 @@ type OrgHandler struct {
 const (
 	organizationsPath            = "/api/v2/orgs"
 	organizationsIDPath          = "/api/v2/orgs/:id"
-	organizationsIDLogPath       = "/api/v2/orgs/:id/log"
+	organizationsIDLogPath       = "/api/v2/orgs/:id/logs"
 	organizationsIDMembersPath   = "/api/v2/orgs/:id/members"
 	organizationsIDMembersIDPath = "/api/v2/orgs/:id/members/:userID"
 	organizationsIDOwnersPath    = "/api/v2/orgs/:id/owners"
@@ -166,7 +167,7 @@ func newOrgResponse(o *influxdb.Organization) *orgResponse {
 	return &orgResponse{
 		Links: map[string]string{
 			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
-			"log":        fmt.Sprintf("/api/v2/orgs/%s/log", o.ID),
+			"logs":       fmt.Sprintf("/api/v2/orgs/%s/logs", o.ID),
 			"members":    fmt.Sprintf("/api/v2/orgs/%s/members", o.ID),
 			"owners":     fmt.Sprintf("/api/v2/orgs/%s/owners", o.ID),
 			"secrets":    fmt.Sprintf("/api/v2/orgs/%s/secrets", o.ID),
@@ -876,14 +877,14 @@ func decodeGetOrganizationLogRequest(ctx context.Context, r *http.Request) (*get
 }
 
 func newOrganizationLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
-	log := make([]*operationLogEntryResponse, 0, len(es))
+	logs := make([]*operationLogEntryResponse, 0, len(es))
 	for _, e := range es {
-		log = append(log, newOperationLogEntryResponse(e))
+		logs = append(logs, newOperationLogEntryResponse(e))
 	}
 	return &operationLogResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/orgs/%s/log", id),
+			"self": fmt.Sprintf("/api/v2/orgs/%s/logs", id),
 		},
-		Log: log,
+		Logs: logs,
 	}
 }

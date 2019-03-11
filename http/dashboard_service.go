@@ -26,6 +26,7 @@ type DashboardBackend struct {
 	UserService                  platform.UserService
 }
 
+// NewDashboardBackend creates a backend used by the dashboard handler.
 func NewDashboardBackend(b *APIBackend) *DashboardBackend {
 	return &DashboardBackend{
 		Logger: b.Logger.With(zap.String("handler", "dashboard")),
@@ -58,7 +59,7 @@ const (
 	dashboardsIDCellsIDPath     = "/api/v2/dashboards/:id/cells/:cellID"
 	dashboardsIDCellsIDViewPath = "/api/v2/dashboards/:id/cells/:cellID/view"
 	dashboardsIDMembersPath     = "/api/v2/dashboards/:id/members"
-	dashboardsIDLogPath         = "/api/v2/dashboards/:id/log"
+	dashboardsIDLogPath         = "/api/v2/dashboards/:id/logs"
 	dashboardsIDMembersIDPath   = "/api/v2/dashboards/:id/members/:userID"
 	dashboardsIDOwnersPath      = "/api/v2/dashboards/:id/owners"
 	dashboardsIDOwnersIDPath    = "/api/v2/dashboards/:id/owners/:userID"
@@ -134,7 +135,7 @@ type dashboardLinks struct {
 	Members      string `json:"members"`
 	Owners       string `json:"owners"`
 	Cells        string `json:"cells"`
-	Log          string `json:"log"`
+	Logs         string `json:"logs"`
 	Labels       string `json:"labels"`
 	Organization string `json:"org"`
 }
@@ -170,7 +171,7 @@ func newDashboardResponse(d *platform.Dashboard, labels []*platform.Label) dashb
 			Members:      fmt.Sprintf("/api/v2/dashboards/%s/members", d.ID),
 			Owners:       fmt.Sprintf("/api/v2/dashboards/%s/owners", d.ID),
 			Cells:        fmt.Sprintf("/api/v2/dashboards/%s/cells", d.ID),
-			Log:          fmt.Sprintf("/api/v2/dashboards/%s/log", d.ID),
+			Logs:         fmt.Sprintf("/api/v2/dashboards/%s/logs", d.ID),
 			Labels:       fmt.Sprintf("/api/v2/dashboards/%s/labels", d.ID),
 			Organization: fmt.Sprintf("/api/v2/orgs/%s", d.OrganizationID),
 		},
@@ -240,19 +241,19 @@ func newDashboardCellViewResponse(dashID, cellID platform.ID, v *platform.View) 
 
 type operationLogResponse struct {
 	Links map[string]string            `json:"links"`
-	Log   []*operationLogEntryResponse `json:"log"`
+	Logs  []*operationLogEntryResponse `json:"logs"`
 }
 
 func newDashboardLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
-	log := make([]*operationLogEntryResponse, 0, len(es))
+	logs := make([]*operationLogEntryResponse, 0, len(es))
 	for _, e := range es {
-		log = append(log, newOperationLogEntryResponse(e))
+		logs = append(logs, newOperationLogEntryResponse(e))
 	}
 	return &operationLogResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/dashboards/%s/log", id),
+			"self": fmt.Sprintf("/api/v2/dashboards/%s/logs", id),
 		},
-		Log: log,
+		Logs: logs,
 	}
 }
 

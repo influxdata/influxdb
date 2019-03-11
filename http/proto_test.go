@@ -162,7 +162,7 @@ func TestProtoHandler(t *testing.T) {
 		        "owners": "/api/v2/dashboards/da7aba5e5d81e550/owners",
 		        "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
 		        "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels",
-		        "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
+		        "logs": "/api/v2/dashboards/da7aba5e5d81e550/logs",
 		        "org": "/api/v2/orgs/0000000000000001",
 		        "self": "/api/v2/dashboards/da7aba5e5d81e550"
 		      },
@@ -185,7 +185,7 @@ func TestProtoHandler(t *testing.T) {
 		        "owners": "/api/v2/dashboards/0ca2204eca2204e0/owners",
 		        "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells",
 		        "labels": "/api/v2/dashboards/0ca2204eca2204e0/labels",
-		        "log": "/api/v2/dashboards/0ca2204eca2204e0/log",
+		        "logs": "/api/v2/dashboards/0ca2204eca2204e0/logs",
 		        "org": "/api/v2/orgs/0000000000000001",
 		        "self": "/api/v2/dashboards/0ca2204eca2204e0"
 		      },

@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
@@ -80,7 +81,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
   "users": [
     {
       "links": {
-        "log": "/api/v2/users/0000000000000001/log",
+        "logs": "/api/v2/users/0000000000000001/logs",
         "self": "/api/v2/users/0000000000000001"
       },
       "id": "0000000000000001",
@@ -89,7 +90,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
     },
     {
       "links": {
-        "log": "/api/v2/users/0000000000000002/log",
+        "logs": "/api/v2/users/0000000000000002/logs",
         "self": "/api/v2/users/0000000000000002"
       },
       "id": "0000000000000002",
@@ -144,7 +145,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
   "users": [
     {
       "links": {
-        "log": "/api/v2/users/0000000000000001/log",
+        "logs": "/api/v2/users/0000000000000001/logs",
         "self": "/api/v2/users/0000000000000001"
       },
       "id": "0000000000000001",
@@ -153,7 +154,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
     },
     {
       "links": {
-        "log": "/api/v2/users/0000000000000002/log",
+        "logs": "/api/v2/users/0000000000000002/logs",
         "self": "/api/v2/users/0000000000000002"
       },
       "id": "0000000000000002",
@@ -269,7 +270,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 				body: `
 {
 	"links": {
-		"log": "/api/v2/users/0000000000000001/log",
+		"logs": "/api/v2/users/0000000000000001/logs",
 		"self": "/api/v2/users/0000000000000001"
 	},
 	"id": "0000000000000001",
@@ -307,7 +308,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 				body: `
 {
 	"links": {
-		"log": "/api/v2/users/0000000000000002/log",
+		"logs": "/api/v2/users/0000000000000002/logs",
 		"self": "/api/v2/users/0000000000000002"
 	},
 	"id": "0000000000000002",

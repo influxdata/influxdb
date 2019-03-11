@@ -60,7 +60,7 @@ type BucketHandler struct {
 const (
 	bucketsPath            = "/api/v2/buckets"
 	bucketsIDPath          = "/api/v2/buckets/:id"
-	bucketsIDLogPath       = "/api/v2/buckets/:id/log"
+	bucketsIDLogPath       = "/api/v2/buckets/:id/logs"
 	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
 	bucketsIDMembersIDPath = "/api/v2/buckets/:id/members/:userID"
 	bucketsIDOwnersPath    = "/api/v2/buckets/:id/owners"
@@ -252,7 +252,7 @@ func newBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResp
 	res := &bucketResponse{
 		Links: map[string]string{
 			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
-			"log":     fmt.Sprintf("/api/v2/buckets/%s/log", b.ID),
+			"logs":    fmt.Sprintf("/api/v2/buckets/%s/logs", b.ID),
 			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
 			"members": fmt.Sprintf("/api/v2/buckets/%s/members", b.ID),
 			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
@@ -893,14 +893,14 @@ func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucket
 }
 
 func newBucketLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
-	log := make([]*operationLogEntryResponse, 0, len(es))
+	logs := make([]*operationLogEntryResponse, 0, len(es))
 	for _, e := range es {
-		log = append(log, newOperationLogEntryResponse(e))
+		logs = append(logs, newOperationLogEntryResponse(e))
 	}
 	return &operationLogResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/buckets/%s/log", id),
+			"self": fmt.Sprintf("/api/v2/buckets/%s/logs", id),
 		},
-		Log: log,
+		Logs: logs,
 	}
 }

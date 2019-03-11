@@ -108,7 +108,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "links": {
         "org": "/api/v2/orgs/50f7ba1150f7ba11",
         "self": "/api/v2/buckets/0b501e7e557ab1ed",
-        "log": "/api/v2/buckets/0b501e7e557ab1ed/log",
+        "logs": "/api/v2/buckets/0b501e7e557ab1ed/logs",
         "labels": "/api/v2/buckets/0b501e7e557ab1ed/labels",
         "owners": "/api/v2/buckets/0b501e7e557ab1ed/owners",
         "members": "/api/v2/buckets/0b501e7e557ab1ed/members"
@@ -131,7 +131,7 @@ func TestService_handleGetBuckets(t *testing.T) {
       "links": {
         "org": "/api/v2/orgs/7e55e118dbabb1ed",
         "self": "/api/v2/buckets/c0175f0077a77005",
-        "log": "/api/v2/buckets/c0175f0077a77005/log",
+        "logs": "/api/v2/buckets/c0175f0077a77005/logs",
         "labels": "/api/v2/buckets/c0175f0077a77005/labels",
         "members": "/api/v2/buckets/c0175f0077a77005/members",
         "owners": "/api/v2/buckets/c0175f0077a77005/owners"
@@ -270,7 +270,7 @@ func TestService_handleGetBucket(t *testing.T) {
 		  "links": {
 		    "org": "/api/v2/orgs/020f755c3c082000",
 		    "self": "/api/v2/buckets/020f755c3c082000",
-		    "log": "/api/v2/buckets/020f755c3c082000/log",
+		    "logs": "/api/v2/buckets/020f755c3c082000/logs",
 		    "labels": "/api/v2/buckets/020f755c3c082000/labels",
 		    "members": "/api/v2/buckets/020f755c3c082000/members",
 		    "owners": "/api/v2/buckets/020f755c3c082000/owners"
@@ -394,7 +394,7 @@ func TestService_handlePostBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/6f626f7274697320",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "logs": "/api/v2/buckets/020f755c3c082000/logs",
     "labels": "/api/v2/buckets/020f755c3c082000/labels",
     "members": "/api/v2/buckets/020f755c3c082000/members",
     "owners": "/api/v2/buckets/020f755c3c082000/owners"
@@ -604,7 +604,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "logs": "/api/v2/buckets/020f755c3c082000/logs",
     "labels": "/api/v2/buckets/020f755c3c082000/labels",
     "members": "/api/v2/buckets/020f755c3c082000/members",
     "owners": "/api/v2/buckets/020f755c3c082000/owners"
@@ -679,7 +679,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "logs": "/api/v2/buckets/020f755c3c082000/logs",
     "labels": "/api/v2/buckets/020f755c3c082000/labels",
     "members": "/api/v2/buckets/020f755c3c082000/members",
     "owners": "/api/v2/buckets/020f755c3c082000/owners"
@@ -735,7 +735,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "links": {
     "org": "/api/v2/orgs/020f755c3c082000",
     "self": "/api/v2/buckets/020f755c3c082000",
-    "log": "/api/v2/buckets/020f755c3c082000/log",
+    "logs": "/api/v2/buckets/020f755c3c082000/logs",
     "labels": "/api/v2/buckets/020f755c3c082000/labels",
     "members": "/api/v2/buckets/020f755c3c082000/members",
     "owners": "/api/v2/buckets/020f755c3c082000/owners"
@@ -887,7 +887,7 @@ func TestService_handlePostBucketMember(t *testing.T) {
 				body: `
 {
   "links": {
-    "log": "/api/v2/users/6f626f7274697320/log",
+    "logs": "/api/v2/users/6f626f7274697320/logs",
     "self": "/api/v2/users/6f626f7274697320"
   },
   "role": "member",
@@ -977,7 +977,7 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 				body: `
 {
   "links": {
-    "log": "/api/v2/users/6f626f7274697320/log",
+    "logs": "/api/v2/users/6f626f7274697320/logs",
     "self": "/api/v2/users/6f626f7274697320"
   },
   "role": "owner",
