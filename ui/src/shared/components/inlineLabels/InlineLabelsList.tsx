@@ -46,6 +46,7 @@ class InlineLabelsList extends Component<Props> {
       onUpdateSelectedItem,
       selectedItemID,
       allLabelsUsed,
+      searchTerm,
     } = this.props
 
     if (filteredLabels.length) {
@@ -67,6 +68,14 @@ class InlineLabelsList extends Component<Props> {
       return (
         <EmptyState size={ComponentSize.Small}>
           <EmptyState.Text text="This resource uses all available labels" />
+        </EmptyState>
+      )
+    }
+
+    if (!searchTerm) {
+      return (
+        <EmptyState size={ComponentSize.Small}>
+          <EmptyState.Text text="Type to create your first label" />
         </EmptyState>
       )
     }
