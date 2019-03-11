@@ -3,7 +3,7 @@ import React, {Component, ChangeEvent} from 'react'
 
 // Components
 import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
-import {OverlayContainer, OverlayBody, OverlayHeading} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 import {ComponentStatus} from '@influxdata/clockface'
 
 // Types
@@ -40,9 +40,9 @@ class UpdateLabelOverlay extends Component<Props, State> {
     const {label} = this.state
 
     return (
-      <OverlayContainer maxWidth={400}>
-        <OverlayHeading title="Edit Label" onDismiss={onDismiss} />
-        <OverlayBody>
+      <Overlay.Container maxWidth={400}>
+        <Overlay.Heading title="Edit Label" onDismiss={onDismiss} />
+        <Overlay.Body>
           <LabelOverlayForm
             id={label.id}
             name={label.name}
@@ -56,8 +56,8 @@ class UpdateLabelOverlay extends Component<Props, State> {
             isFormValid={this.isFormValid}
             onNameValidation={onNameValidation}
           />
-        </OverlayBody>
-      </OverlayContainer>
+        </Overlay.Body>
+      </Overlay.Container>
     )
   }
 

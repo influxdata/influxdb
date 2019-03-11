@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {OverlayBody, OverlayHeading, OverlayContainer} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 import AddMembersForm from './AddMembersForm'
 import {AddResourceMemberRequestBody} from '@influxdata/influx'
 
@@ -33,9 +33,9 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
     const {selectedUserIDs} = this.state
 
     return (
-      <OverlayContainer maxWidth={500}>
-        <OverlayHeading title="Add Member" onDismiss={onCloseModal} />
-        <OverlayBody>
+      <Overlay.Container maxWidth={500}>
+        <Overlay.Heading title="Add Member" onDismiss={onCloseModal} />
+        <Overlay.Body>
           <AddMembersForm
             onCloseModal={onCloseModal}
             users={users}
@@ -43,8 +43,8 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
             selectedUserIDs={selectedUserIDs}
             onSave={this.handleSave}
           />
-        </OverlayBody>
-      </OverlayContainer>
+        </Overlay.Body>
+      </Overlay.Container>
     )
   }
 

@@ -3,12 +3,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 //Components
-import {
-  OverlayContainer,
-  OverlayHeading,
-  OverlayBody,
-  IndexList,
-} from 'src/clockface'
+import {IndexList, Overlay} from 'src/clockface'
 import RunLogRow from 'src/tasks/components/RunLogRow'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
@@ -32,9 +27,9 @@ class RunLogsOverlay extends PureComponent<Props> {
     const {onDismissOverlay} = this.props
 
     return (
-      <OverlayContainer customClass={'run-logs--list'}>
-        <OverlayHeading title="Run Logs" onDismiss={onDismissOverlay} />
-        <OverlayBody>
+      <Overlay.Container customClass={'run-logs--list'}>
+        <Overlay.Heading title="Run Logs" onDismiss={onDismissOverlay} />
+        <Overlay.Body>
           <FancyScrollbar autoHeight={true} maxHeight={700}>
             <IndexList>
               <IndexList.Header>
@@ -46,8 +41,8 @@ class RunLogsOverlay extends PureComponent<Props> {
               </IndexList.Body>
             </IndexList>
           </FancyScrollbar>
-        </OverlayBody>
-      </OverlayContainer>
+        </Overlay.Body>
+      </Overlay.Container>
     )
   }
 

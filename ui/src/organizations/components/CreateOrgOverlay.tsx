@@ -9,14 +9,7 @@ import {
   ComponentStatus,
   ButtonType,
 } from '@influxdata/clockface'
-import {
-  Form,
-  OverlayBody,
-  OverlayHeading,
-  OverlayContainer,
-  OverlayFooter,
-  Input,
-} from 'src/clockface'
+import {Form, Overlay, Input} from 'src/clockface'
 
 // Types
 import {Organization} from '@influxdata/influx'
@@ -49,13 +42,13 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
     const {org, nameInputStatus, errorMessage} = this.state
 
     return (
-      <OverlayContainer maxWidth={500}>
-        <OverlayHeading
+      <Overlay.Container maxWidth={500}>
+        <Overlay.Heading
           title="Create Organization"
           onDismiss={this.props.onCloseModal}
         />
         <Form onSubmit={this.handleCreateOrg}>
-          <OverlayBody>
+          <Overlay.Body>
             <Form.Element label="Name" errorMessage={errorMessage}>
               <Input
                 placeholder="Give your organization a name"
@@ -67,8 +60,8 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
                 testID="create-org-name-input"
               />
             </Form.Element>
-          </OverlayBody>
-          <OverlayFooter>
+          </Overlay.Body>
+          <Overlay.Footer>
             <Button text="Cancel" onClick={onCloseModal} />
             <Button
               text="Create"
@@ -77,9 +70,9 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
               status={this.submitButtonStatus}
               testID="create-org-submit-button"
             />
-          </OverlayFooter>
+          </Overlay.Footer>
         </Form>
-      </OverlayContainer>
+      </Overlay.Container>
     )
   }
 

@@ -2,13 +2,7 @@ import React, {PureComponent} from 'react'
 import {get} from 'lodash'
 
 // Components
-import {
-  Overlay,
-  OverlayBody,
-  OverlayContainer,
-  OverlayHeading,
-  OverlayFooter,
-} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 import {Button, ComponentColor} from '@influxdata/clockface'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 
@@ -43,12 +37,12 @@ export default class ExportOverlay extends PureComponent<Props> {
     }
     return (
       <Overlay visible={isVisible}>
-        <OverlayContainer maxWidth={800}>
-          <OverlayHeading
+        <Overlay.Container maxWidth={800}>
+          <Overlay.Heading
             title={`Export ${resourceName}`}
             onDismiss={onDismissOverlay}
           />
-          <OverlayBody>
+          <Overlay.Body>
             <div className="export-overlay--text-area">
               <ReactCodeMirror
                 autoFocus={true}
@@ -59,9 +53,9 @@ export default class ExportOverlay extends PureComponent<Props> {
                 onTouchStart={this.doNothing}
               />
             </div>
-          </OverlayBody>
-          <OverlayFooter>{this.submitButton}</OverlayFooter>
-        </OverlayContainer>
+          </Overlay.Body>
+          <Overlay.Footer>{this.submitButton}</Overlay.Footer>
+        </Overlay.Container>
       </Overlay>
     )
   }

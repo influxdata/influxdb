@@ -5,14 +5,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import 'src/organizations/components/CreateVariableOverlay.scss'
 
 // Components
-import {
-  Form,
-  OverlayBody,
-  OverlayHeading,
-  OverlayContainer,
-  Input,
-  OverlayFooter,
-} from 'src/clockface'
+import {Form, Input, Overlay} from 'src/clockface'
 import {Button} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
@@ -53,14 +46,14 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
     const {nameInputStatus, name, script} = this.state
 
     return (
-      <OverlayContainer maxWidth={1000}>
-        <OverlayHeading
+      <Overlay.Container maxWidth={1000}>
+        <Overlay.Heading
           title="Create Variable"
           onDismiss={this.props.onCloseModal}
         />
 
         <Form onSubmit={this.handleSubmit}>
-          <OverlayBody>
+          <Overlay.Body>
             <div className="overlay-flux-editor--spacing">
               <Form.Element label="Name">
                 <Input
@@ -85,7 +78,7 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
               </div>
             </Form.Element>
 
-            <OverlayFooter>
+            <Overlay.Footer>
               <Button
                 text="Cancel"
                 color={ComponentColor.Danger}
@@ -96,10 +89,10 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
                 type={ButtonType.Submit}
                 color={ComponentColor.Primary}
               />
-            </OverlayFooter>
-          </OverlayBody>
+            </Overlay.Footer>
+          </Overlay.Body>
         </Form>
-      </OverlayContainer>
+      </Overlay.Container>
     )
   }
 

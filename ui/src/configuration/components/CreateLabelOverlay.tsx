@@ -3,13 +3,7 @@ import React, {Component, ChangeEvent} from 'react'
 
 // Components
 import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
-import {
-  Overlay,
-  OverlayContainer,
-  OverlayBody,
-  OverlayHeading,
-  ComponentStatus,
-} from 'src/clockface'
+import {Overlay, ComponentStatus} from 'src/clockface'
 
 // Types
 import {ILabel} from '@influxdata/influx'
@@ -62,9 +56,9 @@ class CreateLabelOverlay extends Component<Props, State> {
 
     return (
       <Overlay visible={isVisible}>
-        <OverlayContainer maxWidth={400}>
-          <OverlayHeading title="Create Label" onDismiss={onDismiss} />
-          <OverlayBody>
+        <Overlay.Container maxWidth={400}>
+          <Overlay.Heading title="Create Label" onDismiss={onDismiss} />
+          <Overlay.Body>
             <LabelOverlayForm
               id={label.id}
               name={label.name}
@@ -78,8 +72,8 @@ class CreateLabelOverlay extends Component<Props, State> {
               isFormValid={this.isFormValid}
               onNameValidation={onNameValidation}
             />
-          </OverlayBody>
-        </OverlayContainer>
+          </Overlay.Body>
+        </Overlay.Container>
       </Overlay>
     )
   }

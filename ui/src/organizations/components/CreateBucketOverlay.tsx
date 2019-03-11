@@ -2,12 +2,7 @@
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 
 // Components
-import {
-  OverlayBody,
-  OverlayHeading,
-  ComponentStatus,
-  OverlayContainer,
-} from 'src/clockface'
+import {Overlay, ComponentStatus} from 'src/clockface'
 import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
 
 // Types
@@ -47,12 +42,12 @@ export default class BucketOverlay extends PureComponent<Props, State> {
     const {bucket, nameInputStatus, nameErrorMessage, ruleType} = this.state
 
     return (
-      <OverlayContainer maxWidth={500}>
-        <OverlayHeading
+      <Overlay.Container maxWidth={500}>
+        <Overlay.Heading
           title="Create Bucket"
           onDismiss={this.props.onCloseModal}
         />
-        <OverlayBody>
+        <Overlay.Body>
           <BucketOverlayForm
             name={bucket.name}
             buttonText="Create"
@@ -66,8 +61,8 @@ export default class BucketOverlay extends PureComponent<Props, State> {
             onChangeRuleType={this.handleChangeRuleType}
             onChangeRetentionRule={this.handleChangeRetentionRule}
           />
-        </OverlayBody>
-      </OverlayContainer>
+        </Overlay.Body>
+      </Overlay.Container>
     )
   }
 

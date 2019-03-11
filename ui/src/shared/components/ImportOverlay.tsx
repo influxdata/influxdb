@@ -3,15 +3,7 @@ import _ from 'lodash'
 
 // Components
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import {
-  Overlay,
-  OverlayBody,
-  OverlayContainer,
-  OverlayHeading,
-  OverlayFooter,
-  Radio,
-  ComponentStatus,
-} from 'src/clockface'
+import {Overlay, Radio, ComponentStatus} from 'src/clockface'
 import {Button, ComponentColor} from '@influxdata/clockface'
 
 // Styles
@@ -53,12 +45,12 @@ export default class ImportOverlay extends PureComponent<Props, State> {
 
     return (
       <Overlay visible={isVisible}>
-        <OverlayContainer maxWidth={800}>
-          <OverlayHeading
+        <Overlay.Container maxWidth={800}>
+          <Overlay.Heading
             title={`Import ${resourceName}`}
             onDismiss={this.onDismiss}
           />
-          <OverlayBody>
+          <Overlay.Body>
             <div className="import--options">
               <Radio>
                 <Radio.Button
@@ -78,9 +70,9 @@ export default class ImportOverlay extends PureComponent<Props, State> {
               </Radio>
             </div>
             {this.importBody}
-          </OverlayBody>
-          <OverlayFooter>{this.submitButton}</OverlayFooter>
-        </OverlayContainer>
+          </Overlay.Body>
+          <Overlay.Footer>{this.submitButton}</Overlay.Footer>
+        </Overlay.Container>
       </Overlay>
     )
   }

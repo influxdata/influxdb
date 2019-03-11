@@ -6,13 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import NoteEditor from 'src/dashboards/components/NoteEditor'
 import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
-import {
-  OverlayBody,
-  OverlayHeading,
-  Overlay,
-  OverlayContainer,
-  OverlayFooter,
-} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 
 // Actions
 import {
@@ -60,12 +54,12 @@ class NoteEditorContainer extends PureComponent<Props, State> {
     return (
       <div className="note-editor-container">
         <Overlay visible={overlayVisible}>
-          <OverlayContainer maxWidth={900}>
-            <OverlayHeading title={this.overlayTitle} onDismiss={onHide} />
-            <OverlayBody>
+          <Overlay.Container maxWidth={900}>
+            <Overlay.Heading title={this.overlayTitle} onDismiss={onHide} />
+            <Overlay.Body>
               <NoteEditor />
-            </OverlayBody>
-            <OverlayFooter>
+            </Overlay.Body>
+            <Overlay.Footer>
               <Button text="Cancel" onClick={onHide} />
               <Button
                 text="Save"
@@ -73,8 +67,8 @@ class NoteEditorContainer extends PureComponent<Props, State> {
                 status={this.saveButtonStatus}
                 onClick={this.handleSave}
               />
-            </OverlayFooter>
-          </OverlayContainer>
+            </Overlay.Footer>
+          </Overlay.Container>
         </Overlay>
       </div>
     )
