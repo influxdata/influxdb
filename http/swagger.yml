@@ -5447,21 +5447,34 @@ components:
           type: object
           readOnly: true
           example:
-            self: "/api/v2/buckets/1"
-            org: "/api/v2/orgs/2"
-            write: "/api/v2/write?org=myorg"
+            labels: "/api/v2/buckets/1/labels"
+            logs: "/api/v2/buckets/1/logs"
             members: "/api/v2/buckets/1/members"
+            org: "/api/v2/orgs/2"
             owners: "/api/v2/buckets/1/owners"
+            self: "/api/v2/buckets/1"
+            write: "/api/v2/write?org=2&bucket=1"
           properties:
-            self:
+            labels:
+              description: URL to retrieve labels for this bucket
               $ref: "#/components/schemas/Link"
-            org:
-              $ref: "#/components/schemas/Link"
-            write:
+            logs:
+              description: URL to retrieve operation logs for this bucket
               $ref: "#/components/schemas/Link"
             members:
+              description: URL to retrieve members that can read this bucket
+              $ref: "#/components/schemas/Link"
+            org:
+              description: URL to retrieve parent organization for this bucket
               $ref: "#/components/schemas/Link"
             owners:
+              description: URL to retrieve owners that can read and write to this bucket.
+              $ref: "#/components/schemas/Link"
+            self:
+              description: URL for this bucket
+              $ref: "#/components/schemas/Link"
+            write:
+              description: URL to write line protocol for this bucket
               $ref: "#/components/schemas/Link"
         id:
           readOnly: true
