@@ -30,6 +30,11 @@
 .dropdown--caret {
   margin: 0;
   font-size: 0.9em;
+  transition: transform 0.25s ease;
+
+  .active & {
+    transform: translateY(-50%) rotate(-180deg);
+  }
 }
 
 /* Button Size Modifiers */

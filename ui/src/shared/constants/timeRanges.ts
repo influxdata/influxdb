@@ -1,12 +1,17 @@
 import {TimeRange} from 'src/types'
 
-export const CUSTOM_TIME_RANGE = 'Custom Time Range'
+export const TIME_RANGE_LABEL = 'Time Range'
+export const CUSTOM_TIME_RANGE_LABEL = 'Custom Time Range'
 export const TIME_RANGE_FORMAT = 'YYYY-MM-DD HH:mm'
 
 export const TIME_RANGES: TimeRange[] = [
   {
     lower: '',
-    label: CUSTOM_TIME_RANGE,
+    label: TIME_RANGE_LABEL,
+  },
+  {
+    lower: '',
+    label: CUSTOM_TIME_RANGE_LABEL,
   },
   {
     seconds: 300,

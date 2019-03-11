@@ -54,7 +54,7 @@
   &.checked {
     color: $g20-white;
   }
-  
+
   &.checked {
     padding-left: 24px;
   }
@@ -67,7 +67,11 @@
   .dropdown-wrap & {
     word-break: break-all;
     white-space: pre-wrap;
-  } 
+  }
+
+  .dropdown--action & {
+    padding-left: 11px;
+  }
 }
 
 .dropdown-item--dot {
@@ -123,12 +127,12 @@
     width: 6px;
     height: 6px;
     opacity: 0;
-    transform: translate(-50%,-50%) scale(1.5,1.5);
+    transform: translate(-50%, -50%) scale(1.5, 1.5);
   }
 
   .active &:after {
     opacity: 1;
-    transform: translate(-50%,-50%) scale(1,1);
+    transform: translate(-50%, -50%) scale(1, 1);
   }
 
   .checked &:after {
@@ -138,7 +142,17 @@
 
 /* Themes */
 
-@mixin dropdownMenuColor($backgroundA, $backgroundB, $hoverA, $hoverB, $dividerA, $dividerB, $dividerText, $scrollA, $scrollB) {
+@mixin dropdownMenuColor(
+  $backgroundA,
+  $backgroundB,
+  $hoverA,
+  $hoverB,
+  $dividerA,
+  $dividerB,
+  $dividerText,
+  $scrollA,
+  $scrollB
+) {
   @include gradient-h($backgroundA, $backgroundB);
 
   .dropdown--item:hover,
@@ -164,19 +178,59 @@
 }
 
 .dropdown--amethyst {
-  @include dropdownMenuColor($c-star, $c-pool, $c-comet, $c-laser, $c-amethyst, $c-ocean, $c-potassium, $c-neutrino, $c-hydrogen);
+  @include dropdownMenuColor(
+    $c-star,
+    $c-pool,
+    $c-comet,
+    $c-laser,
+    $c-amethyst,
+    $c-ocean,
+    $c-potassium,
+    $c-neutrino,
+    $c-hydrogen
+  );
 }
 
 .dropdown--sapphire {
-  @include dropdownMenuColor($c-ocean, $c-pool, $c-pool, $c-laser, $c-sapphire, $c-ocean, $c-laser, $c-neutrino, $c-hydrogen);
+  @include dropdownMenuColor(
+    $c-ocean,
+    $c-pool,
+    $c-pool,
+    $c-laser,
+    $c-sapphire,
+    $c-ocean,
+    $c-laser,
+    $c-neutrino,
+    $c-hydrogen
+  );
 }
 
 .dropdown--malachite {
-  @include dropdownMenuColor($c-pool, $c-rainforest, $c-laser, $c-honeydew, $c-ocean, $c-viridian, $c-krypton, $c-neutrino, $c-krypton);
+  @include dropdownMenuColor(
+    $c-pool,
+    $c-rainforest,
+    $c-laser,
+    $c-honeydew,
+    $c-ocean,
+    $c-viridian,
+    $c-krypton,
+    $c-neutrino,
+    $c-krypton
+  );
 }
 
 .dropdown--onyx {
-  @include dropdownMenuColor($g2-kevlar, $g4-onyx, $g4-onyx, $g6-smoke, $g0-obsidian, $g2-kevlar, $g11-sidewalk, $c-pool, $c-comet);
+  @include dropdownMenuColor(
+    $g2-kevlar,
+    $g4-onyx,
+    $g4-onyx,
+    $g6-smoke,
+    $g0-obsidian,
+    $g2-kevlar,
+    $g11-sidewalk,
+    $c-pool,
+    $c-comet
+  );
 }
 
 /* TODO: Make fancyscroll more customizable */

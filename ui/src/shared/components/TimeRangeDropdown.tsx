@@ -10,7 +10,8 @@ import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePick
 // Constants
 import {
   TIME_RANGES,
-  CUSTOM_TIME_RANGE,
+  TIME_RANGE_LABEL,
+  CUSTOM_TIME_RANGE_LABEL,
   TIME_RANGE_FORMAT,
 } from 'src/shared/constants/timeRanges'
 
@@ -56,11 +57,16 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
             widthPixels={this.dropdownWidth}
             titleText={this.formattedCustomTimeRange}
           >
-            {TIME_RANGES.map(({label}) => (
-              <Dropdown.Item key={label} value={label} id={label}>
-                {label}
-              </Dropdown.Item>
-            ))}
+            {TIME_RANGES.map(({label}) => {
+              if (label === TIME_RANGE_LABEL) {
+                return <Dropdown.Divider key={label} text={label} id={label} />
+              }
+              return (
+                <Dropdown.Item key={label} value={label} id={label}>
+                  {label}
+                </Dropdown.Item>
+              )
+            })}
           </Dropdown>
         </div>
       </>
@@ -78,7 +84,8 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
   private get isCustomTimeRange(): boolean {
     const {timeRange} = this.props
     return (
-      get(timeRange, 'label', '') === CUSTOM_TIME_RANGE || !!timeRange.upper
+      get(timeRange, 'label', '') === CUSTOM_TIME_RANGE_LABEL ||
+      !!timeRange.upper
     )
   }
 
@@ -104,7 +111,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
       const lower =
         timeRange.lower && this.isCustomTimeRange ? timeRange.lower : date
       return {
-        label: CUSTOM_TIME_RANGE,
+        label: CUSTOM_TIME_RANGE_LABEL,
         lower,
         upper,
       }
@@ -143,7 +150,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
     const {onSetTimeRange} = this.props
     const timeRange = TIME_RANGES.find(t => t.label === label)
 
-    if (label === CUSTOM_TIME_RANGE) {
+    if (label === CUSTOM_TIME_RANGE_LABEL) {
       const {top, left} = this.dropdownRef.current.getBoundingClientRect()
       const right = window.innerWidth - left
       this.setState({isDatePickerOpen: true, dropdownPosition: {top, right}})
