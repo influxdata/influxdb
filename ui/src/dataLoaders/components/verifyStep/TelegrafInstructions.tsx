@@ -22,7 +22,7 @@ class TelegrafInstructions extends PureComponent<Props> {
   public render() {
     const {notify, token, configID} = this.props
     const exportToken = `export INFLUX_TOKEN=${token || ''}`
-    const configScript = `telegraf -config ${
+    const configScript = `telegraf --config ${
       this.origin
     }/api/v2/telegrafs/${configID || ''}`
     return (
@@ -49,7 +49,7 @@ class TelegrafInstructions extends PureComponent<Props> {
         <CodeSnippet copyText={exportToken} notify={notify} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>
-          Finally, you can run the following command the start Telegraf agent
+          Finally, you can run the following command to start the Telegraf agent
           running on your machine.
         </p>
         <CodeSnippet copyText={configScript} notify={notify} label="CLI" />
