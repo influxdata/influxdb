@@ -35,6 +35,7 @@ import {MePage, Account} from 'src/me'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
+import Notifications from 'src/shared/containers/Notifications'
 import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
 import OrgDashboardsIndex from 'src/organizations/containers/OrgDashboardsIndex'
 import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
@@ -98,9 +99,11 @@ class Root extends PureComponent {
                   path=":stepID/:substepID"
                   component={OnboardingWizardPage}
                 />
+                <Route component={Notifications}>
+                  <Route path="/signin" component={SigninPage} />
+                  <Route path="/logout" component={Logout} />
+                </Route>
               </Route>
-              <Route path="/signin" component={SigninPage} />
-              <Route path="/logout" component={Logout} />
               <Route path="/">
                 <Route component={Signin}>
                   <Route component={GetMe}>

@@ -64,7 +64,6 @@ class GettingStarted extends PureComponent<StateProps> {
 
   private get firstOrgCollectorLink(): string {
     const {orgs} = this.props
-
     const firstOrgID = orgs[0].id
 
     return `/organizations/${firstOrgID}/telegrafs`
