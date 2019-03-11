@@ -7,6 +7,7 @@ import OverlayContainer from 'src/clockface/components/overlays/OverlayContainer
 import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 import OverlayBody from 'src/clockface/components/overlays/OverlayBody'
 import OverlayFooter from 'src/clockface/components/overlays/OverlayFooter'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Styles
 import 'src/clockface/components/overlays/Overlay.scss'
@@ -57,10 +58,15 @@ class Overlay extends Component<Props, State> {
 
   public render() {
     return (
-      <div className={this.overlayClass}>
+      <FancyScrollbar
+        className={this.overlayClass}
+        thumbStartColor="#ffffff"
+        thumbStopColor="#C9D0FF"
+        autoHide={false}
+      >
         {this.childContainer}
         <div className="overlay--mask" />
-      </div>
+      </FancyScrollbar>
     )
   }
 

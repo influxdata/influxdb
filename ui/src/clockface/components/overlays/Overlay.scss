@@ -4,20 +4,23 @@
    -----------------------------------------------------------------------------
 */
 
-$overlay-title-height: $page-header-size;
-$overlay-gutter: $ix-marg-d;
+$overlay--gutter: $ix-marg-c + $ix-marg-b;
+$overlay--header-height: $page-header-size;
+$overlay--title-size: $page-title-size;
+$overlay--title-weight: $page-title-weight;
+$overlay--container-padding: $ix-marg-c + $ix-marg-d;
 
 // Mixin for shared styles
 %overlay-styles {
-  position: fixed;
-  width: 100%;
-  height: 100%;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
   top: 0;
   left: 0;
 }
 
 .overlay--mask {
-  z-index: 1;
+  z-index: 0;
   @extend %overlay-styles;
   opacity: 0;
   transition: opacity 0.25s ease;
@@ -25,7 +28,6 @@ $overlay-gutter: $ix-marg-d;
 }
 
 .overlay--transition {
-  height: 100%;
   position: relative;
   z-index: 2;
   transform: translateY(72px);
@@ -59,30 +61,30 @@ $overlay-gutter: $ix-marg-d;
 }
 
 .overlay--container {
-  margin: 40px auto;
+  margin: $overlay--container-padding auto;
   @include gradient-v($g3-castle, $g2-kevlar);
   border-radius: $radius;
 }
 
 .overlay--heading {
-  height: 80px;
+  height: $overlay--header-height;
   display: flex;
+  padding: 0 $overlay--gutter;
   justify-content: space-between;
   align-items: center;
-  padding: 0 $overlay-gutter;
   @include no-user-select();
 }
 
 .overlay--title {
-  font-size: 19px;
-  font-weight: 400;
+  font-size: $overlay--title-size;
+  font-weight: $overlay--title-weight;
   color: $g17-whisper;
   white-space: nowrap;
 }
 
 .overlay--dismiss {
-  width: ($overlay-title-height - 20px);
-  height: ($overlay-title-height - 20px);
+  width: ($overlay--header-height - 20px);
+  height: ($overlay--header-height - 20px);
   position: relative;
   background-color: transparent;
   border: 0;
@@ -118,9 +120,8 @@ $overlay-gutter: $ix-marg-d;
 }
 
 .overlay--body {
-  padding: $overlay-gutter;
+  padding: $overlay--gutter;
   padding-top: 0;
-  padding-bottom: $overlay-gutter / 2;
   color: $g13-mist;
 
   p {
@@ -129,6 +130,6 @@ $overlay-gutter: $ix-marg-d;
 }
 
 .overlay--footer {
-  padding: $overlay-gutter 0;
-  padding-top: $overlay-gutter / 2;
+  padding: $overlay--gutter;
+  padding-top: 0;
 }
