@@ -1,5 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import Markdown from 'src/shared/components/views/Markdown'
@@ -11,7 +12,7 @@ import {ViewType, ViewShape, View} from 'src/types/v2'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface OwnProps {
   view: View
   timeRange: TimeRange
   autoRefresh: number
@@ -19,6 +20,8 @@ interface Props {
   onZoom: (range: TimeRange) => void
   onEditCell: () => void
 }
+
+type Props = OwnProps & WithRouterProps
 
 @ErrorHandling
 class ViewComponent extends Component<Props> {
@@ -28,6 +31,7 @@ class ViewComponent extends Component<Props> {
 
   public render() {
     const {view, onZoom, timeRange, manualRefresh} = this.props
+    const {dashboardID} = this.props.params
 
     switch (view.properties.type) {
       case ViewShape.Empty:
@@ -42,6 +46,8 @@ class ViewComponent extends Component<Props> {
             timeRange={timeRange}
             properties={view.properties}
             manualRefresh={manualRefresh}
+            inView={true}
+            dashboardID={dashboardID}
           />
         )
     }
@@ -61,4 +67,4 @@ class ViewComponent extends Component<Props> {
   }
 }
 
-export default ViewComponent
+export default withRouter<OwnProps>(ViewComponent)

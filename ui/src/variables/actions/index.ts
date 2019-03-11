@@ -185,6 +185,7 @@ export const refreshVariableValues = (
 
     dispatch(setValues(contextID, RemoteDataState.Done, values))
   } catch (e) {
+    console.error(e)
     dispatch(setValues(contextID, RemoteDataState.Error))
   }
 }

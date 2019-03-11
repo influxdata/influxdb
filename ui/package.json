@@ -88,6 +88,7 @@
     "@types/jest": "^23.3.2",
     "@types/levelup": "^3.1.0",
     "@types/lodash": "^4.14.116",
+    "@types/memoize-one": "^4.0.2",
     "@types/node": "^9.4.6",
     "@types/papaparse": "^4.1.34",
     "@types/prop-types": "^15.5.2",
