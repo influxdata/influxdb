@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path"
 
@@ -505,6 +506,8 @@ type targetLinks struct {
 	Self         string `json:"self"`
 	Bucket       string `json:"bucket,omitempty"`
 	Organization string `json:"organization,omitempty"`
+	Members      string `json:"members"`
+	Owners       string `json:"owners"`
 }
 
 type targetResponse struct {
@@ -536,7 +539,9 @@ func (h *ScraperHandler) newListTargetsResponse(ctx context.Context, targets []i
 func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.ScraperTarget) (targetResponse, error) {
 	res := targetResponse{
 		Links: targetLinks{
-			Self: targetIDPath(target.ID),
+			Self:    targetIDPath(target.ID),
+			Members: fmt.Sprintf("/api/v2/scrapers/%s/members", target.ID),
+			Owners:  fmt.Sprintf("/api/v2/scrapers/%s/owners", target.ID),
 		},
 		ScraperTarget: target,
 	}

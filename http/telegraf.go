@@ -117,8 +117,10 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 }
 
 type telegrafLinks struct {
-	Self   string `json:"self"`
-	Labels string `json:"labels"`
+	Self    string `json:"self"`
+	Labels  string `json:"labels"`
+	Members string `json:"members"`
+	Owners  string `json:"owners"`
 }
 
 // MarshalJSON implement the json.Marshaler interface.
@@ -184,8 +186,10 @@ func newTelegrafResponse(tc *platform.TelegrafConfig, labels []*platform.Label) 
 	res := &telegrafResponse{
 		TelegrafConfig: tc,
 		Links: telegrafLinks{
-			Self:   fmt.Sprintf("/api/v2/telegrafs/%s", tc.ID),
-			Labels: fmt.Sprintf("/api/v2/telegrafs/%s/labels", tc.ID),
+			Self:    fmt.Sprintf("/api/v2/telegrafs/%s", tc.ID),
+			Labels:  fmt.Sprintf("/api/v2/telegrafs/%s/labels", tc.ID),
+			Members: fmt.Sprintf("/api/v2/telegrafs/%s/members", tc.ID),
+			Owners:  fmt.Sprintf("/api/v2/telegrafs/%s/owners", tc.ID),
 		},
 		Labels: []platform.Label{},
 	}
