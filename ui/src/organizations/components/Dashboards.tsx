@@ -6,12 +6,9 @@ import _ from 'lodash'
 
 // Components
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
-import {OverlayTechnology, Input, Tabs} from 'src/clockface'
+import {Input, Tabs} from 'src/clockface'
 import {Button, ComponentColor, IconFont} from '@influxdata/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
-
-// Utils
-import {getDeep} from 'src/utils/wrappers'
 
 // APIs
 import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
@@ -39,7 +36,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {Links, Cell, Dashboard, AppState, Organization} from 'src/types/v2'
+import {Links, Dashboard, AppState, Organization} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -205,46 +202,20 @@ class Dashboards extends PureComponent<Props, State> {
     this.props.handleDeleteDashboard(dashboard)
   }
 
-  private handleImportDashboard = async (
-    dashboard: Dashboard
-  ): Promise<void> => {
-    const defaultCell = {
-      x: 0,
-      y: 0,
-      w: 4,
-      h: 4,
-    }
-
-    const name = _.get(dashboard, 'name', DEFAULT_DASHBOARD_NAME)
-    const cellsWithDefaultsApplied = getDeep<Cell[]>(
-      dashboard,
-      'cells',
-      []
-    ).map(c => ({...defaultCell, ...c}))
-
-    await this.props.handleImportDashboard({
-      ...dashboard,
-      name,
-      cells: cellsWithDefaultsApplied,
-    })
-  }
-
   private handleToggleOverlay = (): void => {
     this.setState({isImportingDashboard: !this.state.isImportingDashboard})
   }
 
   private get renderImportOverlay(): JSX.Element {
-    const {notify} = this.props
     const {isImportingDashboard} = this.state
+    const {orgs} = this.props
 
     return (
-      <OverlayTechnology visible={isImportingDashboard}>
-        <ImportDashboardOverlay
-          onDismissOverlay={this.handleToggleOverlay}
-          onImportDashboard={this.handleImportDashboard}
-          notify={notify}
-        />
-      </OverlayTechnology>
+      <ImportDashboardOverlay
+        onDismissOverlay={this.handleToggleOverlay}
+        orgID={_.get(orgs, '0.id', '')}
+        isVisible={isImportingDashboard}
+      />
     )
   }
 }

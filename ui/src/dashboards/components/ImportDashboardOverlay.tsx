@@ -1,70 +1,80 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
 
-import Container from 'src/clockface/components/overlays/OverlayContainer'
-import Heading from 'src/clockface/components/overlays/OverlayHeading'
-import Body from 'src/clockface/components/overlays/OverlayBody'
-import DragAndDrop from 'src/shared/components/DragAndDrop'
+// Constants
 import {dashboardImportFailed} from 'src/shared/copy/notifications'
 
-import {Dashboard} from 'src/types/v2'
-import {Notification} from 'src/types/notifications'
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {getDashboardsAsync} from 'src/dashboards/actions/v2'
 
-interface Props {
+// Types
+import ImportOverlay from 'src/shared/components/ImportOverlay'
+import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions/v2'
+
+interface OwnProps {
   onDismissOverlay: () => void
-  onImportDashboard: (dashboard: Dashboard) => void
-  notify: (message: Notification) => void
+  orgID: string
+  isVisible: boolean
 }
+interface DispatchProps {
+  notify: typeof notifyAction
+  createDashboardFromTemplate: typeof createDashboardFromTemplateAction
+  populateDashboards: typeof getDashboardsAsync
+}
+
+type Props = OwnProps & DispatchProps
+
 class ImportDashboardOverlay extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
   }
 
   public render() {
-    const {onDismissOverlay} = this.props
+    const {isVisible, onDismissOverlay} = this.props
 
     return (
-      <Container maxWidth={800}>
-        <Heading title="Import Dashboard" onDismiss={onDismissOverlay} />
-        <Body>
-          <DragAndDrop
-            submitText="Upload Dashboard"
-            fileTypesToAccept={this.validFileExtension}
-            handleSubmit={this.handleUploadDashboard}
-          />
-        </Body>
-      </Container>
+      <ImportOverlay
+        isVisible={isVisible}
+        onDismissOverlay={onDismissOverlay}
+        resourceName="Dashboard"
+        onSubmit={this.handleUploadDashboard}
+      />
     )
   }
 
-  private get validFileExtension(): string {
-    return '.json'
-  }
-
-  private handleUploadDashboard = (
-    uploadContent: string,
-    fileName: string
-  ): void => {
-    const {notify, onImportDashboard, onDismissOverlay} = this.props
-    const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
-    if (!fileName.match(fileExtensionRegex)) {
-      notify(dashboardImportFailed('Please import a JSON file'))
-      return
-    }
+  private handleUploadDashboard = async (
+    uploadContent: string
+  ): Promise<void> => {
+    const {
+      notify,
+      createDashboardFromTemplate,
+      onDismissOverlay,
+      populateDashboards,
+      orgID,
+    } = this.props
 
     try {
-      const {dashboard} = JSON.parse(uploadContent)
+      const template = JSON.parse(uploadContent)
 
-      if (!_.isEmpty(dashboard)) {
-        onImportDashboard(dashboard)
-        onDismissOverlay()
-      } else {
-        notify(dashboardImportFailed('No dashboard found in file'))
-      }
+      await createDashboardFromTemplate(template, orgID)
+      await populateDashboards()
+
+      onDismissOverlay()
     } catch (error) {
       notify(dashboardImportFailed(error))
     }
   }
 }
+const mdtp: DispatchProps = {
+  notify: notifyAction,
+  createDashboardFromTemplate: createDashboardFromTemplateAction,
+  populateDashboards: getDashboardsAsync,
+}
 
-export default ImportDashboardOverlay
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(ImportDashboardOverlay)

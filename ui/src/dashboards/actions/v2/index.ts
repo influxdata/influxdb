@@ -16,6 +16,7 @@ import {
   removeDashboardLabels as removeDashboardLabelsAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis/v2'
+import {client} from 'src/utils/api'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -25,6 +26,10 @@ import {
   DeleteTimeRangeAction,
 } from 'src/dashboards/actions/v2/ranges'
 import {setView, SetViewAction} from 'src/dashboards/actions/v2/views'
+import {
+  importDashboardSucceeded,
+  importDashboardFailed,
+} from 'src/shared/copy/notifications'
 
 // Utils
 import {
@@ -38,7 +43,7 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
-import {CreateCell} from '@influxdata/influx'
+import {CreateCell, IDashboardTemplate} from '@influxdata/influx'
 import {Dashboard, NewView, Cell} from 'src/types/v2'
 import {ILabel} from '@influxdata/influx'
 
@@ -198,6 +203,19 @@ export const getDashboardsAsync = () => async (
   } catch (error) {
     console.error(error)
     throw error
+  }
+}
+
+export const createDashboardFromTemplate = (
+  template: IDashboardTemplate,
+  orgID: string
+) => async dispatch => {
+  try {
+    await client.dashboards.createFromTemplate(template, orgID)
+
+    dispatch(notify(importDashboardSucceeded()))
+  } catch (error) {
+    dispatch(notify(importDashboardFailed(error)))
   }
 }
 
