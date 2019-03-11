@@ -158,13 +158,11 @@ class DashboardCard extends PureComponent<Props> {
     onRemoveDashboardLabels(dashboard.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel): Promise<ILabel> => {
+  private handleCreateLabel = async (label: ILabel): Promise<void> => {
     try {
       await this.props.onCreateLabel(label.name, label.properties)
 
-      const createdLabel = this.props.labels.find(l => l.name === label.name)
       // notify success
-      return createdLabel
     } catch (err) {
       console.error(err)
       // notify of fail

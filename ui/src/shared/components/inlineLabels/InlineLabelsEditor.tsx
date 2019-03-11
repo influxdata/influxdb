@@ -28,7 +28,7 @@ interface Props {
   selectedLabels: ILabel[]
   labels: ILabel[]
   onAddLabel: (label: ILabel) => void
-  onCreateLabel: (label: ILabel) => Promise<ILabel>
+  onCreateLabel: (label: ILabel) => Promise<void>
 }
 
 interface State {
@@ -201,7 +201,8 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private handleCreateLabel = async (label: ILabel) => {
     const {onCreateLabel, onAddLabel} = this.props
-    const newLabel = await onCreateLabel(label)
+    await onCreateLabel(label)
+    const newLabel = this.props.labels.find(l => l.name === label.name)
     await onAddLabel(newLabel)
   }
 
