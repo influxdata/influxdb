@@ -31,7 +31,7 @@ describe('FilterList', () => {
   })
 
   it('renders a sorted list', () => {
-    const itemOne = {name: 'foo'}
+    const itemOne = {name: 'Foo'}
     const itemTwo = {name: 'bar'}
     const list = [itemOne, itemTwo]
     const {getAllByTestId} = setup<{name: string}>({list, sortByKey: 'name'})

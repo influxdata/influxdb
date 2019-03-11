@@ -23,7 +23,21 @@ const EMPTY_ARRAY_BRACKETS = /\[\]?\./
  */
 export default class FilterList<T> extends PureComponent<Props<T>> {
   public render() {
-    return this.props.children(_.sortBy(this.filtered, this.props.sortByKey))
+    return this.props.children(this.sorted)
+  }
+
+  private get sorted(): T[] {
+    return _.sortBy<T>(this.filtered, [
+      (item: T) => {
+        const value = _.get(item, this.props.sortByKey)
+
+        if (!!value && _.isString(value)) {
+          return value.toLocaleLowerCase()
+        }
+
+        return value
+      },
+    ])
   }
 
   private get filtered(): T[] {
