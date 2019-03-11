@@ -1,6 +1,6 @@
 // Utils
 import {
-  readView as readViewAJAX,
+  getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis/v2/'
 
@@ -29,12 +29,12 @@ export const setView = (
   payload: {id, view, status},
 })
 
-export const readView = (dashboardID: string, cellID: string) => async (
+export const getView = (dashboardID: string, cellID: string) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
   dispatch(setView(cellID, null, RemoteDataState.Loading))
   try {
-    const view = await readViewAJAX(dashboardID, cellID)
+    const view = await getViewAJAX(dashboardID, cellID)
 
     dispatch(setView(cellID, view, RemoteDataState.Done))
   } catch {

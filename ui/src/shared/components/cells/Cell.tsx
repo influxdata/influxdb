@@ -11,7 +11,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import Conditional from 'src/shared/components/Conditional'
 
 // Actions
-import {readView} from 'src/dashboards/actions/v2/views'
+import {getView} from 'src/dashboards/actions/v2/views'
 
 // Types
 import {RemoteDataState, TimeRange} from 'src/types'
@@ -26,7 +26,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onReadView: typeof readView
+  onGetView: typeof getView
 }
 
 interface PassedProps {
@@ -45,11 +45,11 @@ type Props = StateProps & DispatchProps & PassedProps
 @ErrorHandling
 class CellComponent extends Component<Props> {
   public async componentDidMount() {
-    const {viewStatus, cell, onReadView} = this.props
+    const {viewStatus, cell, onGetView} = this.props
 
     if (viewStatus === RemoteDataState.NotStarted) {
       const dashboardID = cell.dashboardID
-      onReadView(dashboardID, cell.id)
+      onGetView(dashboardID, cell.id)
     }
   }
 
@@ -144,7 +144,7 @@ const mstp = (state: AppState, ownProps: PassedProps): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onReadView: readView,
+  onGetView: getView,
 }
 
 export default connect(
