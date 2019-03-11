@@ -69,8 +69,6 @@ class MultiSelectDropdown extends Component<Props, State> {
   }
 
   public render() {
-    this.validateChildCount()
-
     return (
       <ClickOutside onClickOutside={this.collapseMenu}>
         <div className={this.containerClassName} style={this.containerStyle}>
@@ -249,19 +247,6 @@ class MultiSelectDropdown extends Component<Props, State> {
     }
 
     onChange(updatedSelection, value)
-  }
-
-  private validateChildCount = (): void => {
-    const {children, status} = this.props
-
-    const shouldHaveChildren =
-      status === ComponentStatus.Default || status === ComponentStatus.Valid
-
-    if (shouldHaveChildren && React.Children.count(children) === 0) {
-      throw new Error(
-        'Dropdowns require at least 1 child element. We recommend using Dropdown.Item and/or Dropdown.Divider.'
-      )
-    }
   }
 
   private childTypeIsValid = (child: JSX.Element): boolean =>

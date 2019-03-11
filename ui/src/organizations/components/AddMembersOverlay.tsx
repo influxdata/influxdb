@@ -1,13 +1,14 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {OverlayBody, OverlayHeading, OverlayContainer} from 'src/clockface'
 import AddMembersForm from './AddMembersForm'
-import {AddResourceMemberRequestBody} from '@influxdata/influx'
+import FilterList from 'src/shared/components/Filter'
 
 // Types
 import {UsersMap} from 'src/organizations/components/Members'
+import {AddResourceMemberRequestBody, User} from '@influxdata/influx'
 
 interface Props {
   onCloseModal: () => void
@@ -17,11 +18,15 @@ interface Props {
 
 interface State {
   selectedUserIDs: string[]
+  searchTerm: string
+  selectedMembers: UsersMap
 }
 
 export default class AddMembersOverlay extends PureComponent<Props, State> {
   public state: State = {
+    searchTerm: '',
     selectedUserIDs: [],
+    selectedMembers: {},
   }
 
   constructor(props) {
@@ -29,37 +34,75 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onCloseModal, users} = this.props
-    const {selectedUserIDs} = this.state
+    const {onCloseModal} = this.props
+    const {selectedUserIDs, searchTerm, selectedMembers} = this.state
 
     return (
       <OverlayContainer maxWidth={500}>
         <OverlayHeading title="Add Member" onDismiss={onCloseModal} />
         <OverlayBody>
-          <AddMembersForm
-            onCloseModal={onCloseModal}
-            users={users}
-            onSelect={this.handleSelectUserID}
-            selectedUserIDs={selectedUserIDs}
-            onSave={this.handleSave}
-          />
+          <FilterList<User>
+            list={this.filteredList}
+            searchTerm={searchTerm}
+            searchKeys={['name']}
+          >
+            {ts => (
+              <AddMembersForm
+                onCloseModal={onCloseModal}
+                users={ts}
+                onSelect={this.handleSelectUserID}
+                selectedUserIDs={selectedUserIDs}
+                onSave={this.handleSave}
+                searchTerm={searchTerm}
+                onFilterChange={this.handleFilterChange}
+                onFilterBlur={this.handleFilterBlur}
+                selectedMembers={selectedMembers}
+              />
+            )}
+          </FilterList>
         </OverlayBody>
       </OverlayContainer>
     )
   }
 
+  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
+  }
+
+  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.handleFilterUpdate(e.target.value)
+  }
+
+  private handleFilterUpdate = (searchTerm: string): void => {
+    this.setState({searchTerm})
+  }
+
+  private get filteredList(): User[] {
+    const {users} = this.props
+    const userValues = Object.values(users)
+    return userValues
+  }
+
   private handleSelectUserID = (selectedIDs: string[]) => {
-    this.setState({selectedUserIDs: selectedIDs})
+    const {users} = this.props
+    const membersSelected = {}
+
+    selectedIDs.forEach(key => {
+      membersSelected[key] = users[key]
+    })
+
+    this.setState({
+      selectedUserIDs: selectedIDs,
+      selectedMembers: membersSelected,
+    })
   }
 
   private handleSave = () => {
-    const {users, addMember} = this.props
-    const {selectedUserIDs} = this.state
+    const {addMember} = this.props
+    const {selectedMembers} = this.state
 
-    selectedUserIDs.forEach(id => {
-      if (users[id]) {
-        addMember({id: id, name: users[id].name})
-      }
+    Object.keys(selectedMembers).map(id => {
+      addMember({id: id, name: selectedMembers[id].name})
     })
   }
 }
