@@ -13,10 +13,16 @@ import (
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
+type streamCursor interface {
+	streamCursor()
+}
+
 type floatCursorStreamReader struct {
 	fr *frameReader
 	a  cursors.FloatArray
 }
+
+func (c *floatCursorStreamReader) streamCursor() {}
 
 func (c *floatCursorStreamReader) Close() {
 	for c.fr.state == stateReadFloatPoints {
@@ -65,6 +71,8 @@ type integerCursorStreamReader struct {
 	a  cursors.IntegerArray
 }
 
+func (c *integerCursorStreamReader) streamCursor() {}
+
 func (c *integerCursorStreamReader) Close() {
 	for c.fr.state == stateReadIntegerPoints {
 		c.readFrame()
@@ -111,6 +119,8 @@ type unsignedCursorStreamReader struct {
 	fr *frameReader
 	a  cursors.UnsignedArray
 }
+
+func (c *unsignedCursorStreamReader) streamCursor() {}
 
 func (c *unsignedCursorStreamReader) Close() {
 	for c.fr.state == stateReadUnsignedPoints {
@@ -159,6 +169,8 @@ type stringCursorStreamReader struct {
 	a  cursors.StringArray
 }
 
+func (c *stringCursorStreamReader) streamCursor() {}
+
 func (c *stringCursorStreamReader) Close() {
 	for c.fr.state == stateReadStringPoints {
 		c.readFrame()
@@ -205,6 +217,8 @@ type booleanCursorStreamReader struct {
 	fr *frameReader
 	a  cursors.BooleanArray
 }
+
+func (c *booleanCursorStreamReader) streamCursor() {}
 
 func (c *booleanCursorStreamReader) Close() {
 	for c.fr.state == stateReadBooleanPoints {
