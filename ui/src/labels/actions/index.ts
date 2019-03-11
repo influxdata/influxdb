@@ -87,7 +87,7 @@ export const createLabel = (
   try {
     const createdLabel = await client.labels.create(name, properties)
 
-    dispatch(addLabel(createdLabel))
+    await dispatch(addLabel(createdLabel))
   } catch (e) {
     console.log(e)
     dispatch(notify(createLabelFailed()))
