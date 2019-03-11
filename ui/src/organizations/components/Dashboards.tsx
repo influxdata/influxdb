@@ -7,8 +7,9 @@ import _ from 'lodash'
 // Components
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Input, Tabs} from 'src/clockface'
-import {Button, ComponentColor, IconFont} from '@influxdata/clockface'
+import {IconFont} from '@influxdata/clockface'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 // APIs
 import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
@@ -112,12 +113,10 @@ class Dashboards extends PureComponent<Props, State> {
             testID={`dashboards--filter-field ${searchTerm}`}
             customClass="filter-dashboards"
           />
-          <Button
-            color={ComponentColor.Primary}
-            onClick={this.handleCreateDashboard}
-            icon={IconFont.Plus}
-            text="Create Dashboard"
-            titleText="Create a new dashboard"
+          <AddResourceDropdown
+            onSelectNew={this.handleCreateDashboard}
+            onSelectImport={this.handleToggleOverlay}
+            resourceName="Dashboard"
           />
         </Tabs.TabContentsHeader>
         <DashboardsIndexContents
