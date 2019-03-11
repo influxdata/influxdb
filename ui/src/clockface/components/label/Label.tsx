@@ -6,9 +6,6 @@ import classnames from 'classnames'
 // Types
 import {ComponentSize, Greys} from 'src/clockface/types'
 
-// Components
-import LabelContainer from 'src/clockface/components/label/LabelContainer'
-
 // Styles
 import './Label.scss'
 
@@ -40,8 +37,6 @@ class Label extends Component<Props, State> {
     size: ComponentSize.ExtraSmall,
     testID: 'label--pill',
   }
-
-  public static Container = LabelContainer
 
   constructor(props: Props) {
     super(props)
