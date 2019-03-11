@@ -48,19 +48,9 @@ class DropdownButton extends Component<Props> {
       >
         {this.icon}
         <span className="dropdown--selected">{children}</span>
-        {this.caret}
+        <span className="dropdown--caret icon caret-down" />
       </button>
     )
-  }
-
-  private get caret(): JSX.Element {
-    const {active} = this.props
-
-    if (active) {
-      return <span className="dropdown--caret icon caret-up" />
-    }
-
-    return <span className="dropdown--caret icon caret-down" />
   }
 
   private get isDisabled(): boolean {
