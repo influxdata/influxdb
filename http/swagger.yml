@@ -6949,6 +6949,7 @@ components:
       properties:
         name:
           type: string
+          example: cpu
         type:
           type: string
           enum:
