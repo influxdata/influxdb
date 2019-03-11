@@ -4,7 +4,7 @@ import React, {Component, ChangeEvent} from 'react'
 // Components
 import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
 import {
-  OverlayTechnology,
+  Overlay,
   OverlayContainer,
   OverlayBody,
   OverlayHeading,
@@ -61,7 +61,7 @@ class CreateLabelOverlay extends Component<Props, State> {
     const {label} = this.state
 
     return (
-      <OverlayTechnology visible={isVisible}>
+      <Overlay visible={isVisible}>
         <OverlayContainer maxWidth={400}>
           <OverlayHeading title="Create Label" onDismiss={onDismiss} />
           <OverlayBody>
@@ -80,7 +80,7 @@ class CreateLabelOverlay extends Component<Props, State> {
             />
           </OverlayBody>
         </OverlayContainer>
-      </OverlayTechnology>
+      </Overlay>
     )
   }
 

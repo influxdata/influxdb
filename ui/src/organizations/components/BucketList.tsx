@@ -7,7 +7,7 @@ import _ from 'lodash'
 // Components
 import UpdateBucketOverlay from 'src/organizations/components/UpdateBucketOverlay'
 import BucketRow, {PrettyBucket} from 'src/organizations/components/BucketRow'
-import {OverlayTechnology, IndexList} from 'src/clockface'
+import {Overlay, IndexList} from 'src/clockface'
 import DataLoaderSwitcher from 'src/dataLoaders/components/DataLoaderSwitcher'
 
 // Actions
@@ -97,13 +97,13 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
             ))}
           </IndexList.Body>
         </IndexList>
-        <OverlayTechnology visible={this.isBucketOverlayVisible}>
+        <Overlay visible={this.isBucketOverlayVisible}>
           <UpdateBucketOverlay
             bucket={this.bucket}
             onCloseModal={this.handleCloseModal}
             onUpdateBucket={this.handleUpdateBucket}
           />
-        </OverlayTechnology>
+        </Overlay>
         <DataLoaderSwitcher
           type={dataLoaderType}
           visible={this.isDataLoadersWizardVisible}

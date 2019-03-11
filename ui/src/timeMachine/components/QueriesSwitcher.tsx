@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 // Components
 import {Button, ComponentColor} from '@influxdata/clockface'
 import {
-  OverlayTechnology,
+  Overlay,
   OverlayBody,
   OverlayHeading,
   OverlayContainer,
@@ -58,7 +58,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
     return (
       <>
         {this.button}
-        <OverlayTechnology visible={isOverlayVisible}>
+        <Overlay visible={isOverlayVisible}>
           <OverlayContainer maxWidth={400}>
             <OverlayHeading
               title="Are you sure?"
@@ -79,7 +79,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
               />
             </OverlayFooter>
           </OverlayContainer>
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }

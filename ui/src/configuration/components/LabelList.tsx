@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {IndexList, OverlayTechnology} from 'src/clockface'
+import {IndexList, Overlay} from 'src/clockface'
 import UpdateLabelOverlay from 'src/configuration/components/UpdateLabelOverlay'
 import LabelRow from 'src/configuration/components/LabelRow'
 
@@ -48,14 +48,14 @@ export default class LabelList extends PureComponent<Props, State> {
             {this.rows}
           </IndexList.Body>
         </IndexList>
-        <OverlayTechnology visible={this.isOverlayVisible}>
+        <Overlay visible={this.isOverlayVisible}>
           <UpdateLabelOverlay
             label={this.label}
             onDismiss={this.handleCloseModal}
             onUpdateLabel={this.handleUpdateLabel}
             onNameValidation={this.handleNameValidation}
           />
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }

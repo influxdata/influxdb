@@ -3,7 +3,7 @@ import {get} from 'lodash'
 
 // Components
 import {
-  OverlayTechnology,
+  Overlay,
   OverlayBody,
   OverlayContainer,
   OverlayHeading,
@@ -42,7 +42,7 @@ export default class ExportOverlay extends PureComponent<Props> {
       completeSingle: false,
     }
     return (
-      <OverlayTechnology visible={isVisible}>
+      <Overlay visible={isVisible}>
         <OverlayContainer maxWidth={800}>
           <OverlayHeading
             title={`Export ${resourceName}`}
@@ -62,7 +62,7 @@ export default class ExportOverlay extends PureComponent<Props> {
           </OverlayBody>
           <OverlayFooter>{this.submitButton}</OverlayFooter>
         </OverlayContainer>
-      </OverlayTechnology>
+      </Overlay>
     )
   }
 

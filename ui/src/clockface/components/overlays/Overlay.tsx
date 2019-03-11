@@ -2,6 +2,16 @@
 import React, {Component} from 'react'
 import classnames from 'classnames'
 
+// Components
+import OverlayContainer from 'src/clockface/components/overlays/OverlayContainer'
+import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
+import OverlayBody from 'src/clockface/components/overlays/OverlayBody'
+import OverlayFooter from 'src/clockface/components/overlays/OverlayFooter'
+
+// Styles
+import 'src/clockface/components/overlays/Overlay.scss'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -14,7 +24,12 @@ interface State {
 }
 
 @ErrorHandling
-class OverlayTechnology extends Component<Props, State> {
+class Overlay extends Component<Props, State> {
+  public static Container = OverlayContainer
+  public static Heading = OverlayHeading
+  public static Body = OverlayBody
+  public static Footer = OverlayFooter
+
   public static getDerivedStateFromProps(props) {
     if (props.visible) {
       return {showChildren: true}
@@ -55,19 +70,21 @@ class OverlayTechnology extends Component<Props, State> {
 
     if (showChildren) {
       return (
-        <div className="overlay--dialog" data-testid="overlay-children">
+        <div className="overlay--transition" data-testid="overlay-children">
           {children}
         </div>
       )
     }
 
-    return <div className="overlay--dialog" data-testid="overlay-children" />
+    return (
+      <div className="overlay--transition" data-testid="overlay-children" />
+    )
   }
 
   private get overlayClass(): string {
     const {visible} = this.props
 
-    return classnames('overlay-tech', {show: visible})
+    return classnames('overlay', {show: visible})
   }
 
   private hideChildren = (): void => {
@@ -75,4 +92,4 @@ class OverlayTechnology extends Component<Props, State> {
   }
 }
 
-export default OverlayTechnology
+export default Overlay

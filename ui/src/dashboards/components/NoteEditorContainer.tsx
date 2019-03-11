@@ -9,7 +9,7 @@ import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
 import {
   OverlayBody,
   OverlayHeading,
-  OverlayTechnology,
+  Overlay,
   OverlayContainer,
   OverlayFooter,
 } from 'src/clockface'
@@ -59,7 +59,7 @@ class NoteEditorContainer extends PureComponent<Props, State> {
 
     return (
       <div className="note-editor-container">
-        <OverlayTechnology visible={overlayVisible}>
+        <Overlay visible={overlayVisible}>
           <OverlayContainer maxWidth={900}>
             <OverlayHeading title={this.overlayTitle} onDismiss={onHide} />
             <OverlayBody>
@@ -75,7 +75,7 @@ class NoteEditorContainer extends PureComponent<Props, State> {
               />
             </OverlayFooter>
           </OverlayContainer>
-        </OverlayTechnology>
+        </Overlay>
       </div>
     )
   }

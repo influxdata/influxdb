@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OverlayBody from 'src/clockface/components/overlays/OverlayBody'
 import OverlayContainer from 'src/clockface/components/overlays/OverlayContainer'
-import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
+import Overlay from 'src/clockface/components/overlays/Overlay'
 import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 import TelegrafConfig from 'src/organizations/components/TelegrafConfig'
 import {ComponentColor, Button} from '@influxdata/clockface'
@@ -52,7 +52,7 @@ export class TelegrafConfigOverlay extends PureComponent<Props> {
     const {visible, onDismiss, telegrafConfigName} = this.props
 
     return (
-      <OverlayTechnology visible={visible}>
+      <Overlay visible={visible}>
         <OverlayContainer maxWidth={1200}>
           <OverlayHeading
             title={`Telegraf Configuration - ${telegrafConfigName}`}
@@ -72,7 +72,7 @@ export class TelegrafConfigOverlay extends PureComponent<Props> {
             />
           </OverlayFooter>
         </OverlayContainer>
-      </OverlayTechnology>
+      </Overlay>
     )
   }
 

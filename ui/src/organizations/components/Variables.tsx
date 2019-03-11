@@ -17,7 +17,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import CreateVariableOverlay from 'src/organizations/components/CreateVariableOverlay'
 import {Button, ComponentSize, TechnoSpinner} from '@influxdata/clockface'
 import VariableList from 'src/organizations/components/VariableList'
-import {Input, OverlayTechnology, EmptyState} from 'src/clockface'
+import {Input, Overlay, EmptyState} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
@@ -106,13 +106,13 @@ class Variables extends PureComponent<Props, State> {
             />
           )}
         </FilterList>
-        <OverlayTechnology visible={createOverlayState === OverlayState.Open}>
+        <Overlay visible={createOverlayState === OverlayState.Open}>
           <CreateVariableOverlay
             onCreateVariable={this.handleCreateVariable}
             onCloseModal={this.handleCloseCreateOverlay}
             orgID={org.id}
           />
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }

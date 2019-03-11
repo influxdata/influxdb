@@ -15,7 +15,7 @@ exports[`SaveAsButton rendering renders 1`] = `
     titleText="Save your query as a Dashboard Cell or a Task"
     type="button"
   />
-  <OverlayTechnology
+  <Overlay
     visible={false}
   >
     <OverlayContainer
@@ -63,6 +63,6 @@ exports[`SaveAsButton rendering renders 1`] = `
         />
       </OverlayBody>
     </OverlayContainer>
-  </OverlayTechnology>
+  </Overlay>
 </Fragment>
 `;

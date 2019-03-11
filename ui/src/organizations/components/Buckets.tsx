@@ -13,7 +13,7 @@ import {
   ComponentColor,
   IconFont,
 } from '@influxdata/clockface'
-import {Input, OverlayTechnology, EmptyState, Tabs} from 'src/clockface'
+import {Input, Overlay, EmptyState, Tabs} from 'src/clockface'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -102,13 +102,13 @@ export default class Buckets extends PureComponent<Props, State> {
             />
           )}
         </FilterList>
-        <OverlayTechnology visible={overlayState === OverlayState.Open}>
+        <Overlay visible={overlayState === OverlayState.Open}>
           <CreateBucketOverlay
             org={org}
             onCloseModal={this.handleCloseModal}
             onCreateBucket={this.handleCreateBucket}
           />
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }

@@ -11,7 +11,7 @@ import {
   OverlayHeading,
   OverlayBody,
   OverlayFooter,
-  OverlayTechnology,
+  Overlay,
 } from 'src/clockface'
 import CreateScraperForm from 'src/organizations/components/CreateScraperForm'
 
@@ -88,7 +88,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
     const {onDismiss, visible, buckets} = this.props
 
     return (
-      <OverlayTechnology visible={visible}>
+      <Overlay visible={visible}>
         <OverlayContainer maxWidth={600}>
           <OverlayHeading title="Create Scraper" onDismiss={onDismiss} />
           <Form onSubmit={this.handleSubmit}>
@@ -122,7 +122,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
             </OverlayFooter>
           </Form>
         </OverlayContainer>
-      </OverlayTechnology>
+      </Overlay>
     )
   }
 

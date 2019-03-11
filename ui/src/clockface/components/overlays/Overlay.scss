@@ -1,17 +1,13 @@
+@import 'src/style/modules';
 /*
    Overlays
    -----------------------------------------------------------------------------
 */
 
-$overlay-title-height: $chronograf-page-header-height;
+$overlay-title-height: $page-header-size;
 $overlay-gutter: $ix-marg-d;
 
-
-/*
-    Overlay Technology Styles
-    ----------------------------------------------------------------------------
-*/
-
+// Mixin for shared styles
 %overlay-styles {
   position: fixed;
   width: 100%;
@@ -21,26 +17,27 @@ $overlay-gutter: $ix-marg-d;
 }
 
 .overlay--mask {
-  @extend %overlay-styles;
   z-index: 1;
+  @extend %overlay-styles;
   opacity: 0;
   transition: opacity 0.25s ease;
-  @include gradient-diag-down($c-pool,$c-comet);
+  @include gradient-diag-down($c-pool, $c-comet);
 }
 
-.overlay--dialog {
+.overlay--transition {
   height: 100%;
   position: relative;
   z-index: 2;
   transform: translateY(72px);
   opacity: 0;
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    opacity 0.25s ease;
 }
 
-.overlay-tech {
+.overlay {
+  z-index: $z--overlays;
   @extend %overlay-styles;
   transition: all 0.25s ease;
-  z-index: $z--overlays;
   pointer-events: none;
   opacity: 0;
 
@@ -51,11 +48,11 @@ $overlay-gutter: $ix-marg-d;
 }
 
 // Open State
-.overlay-tech.show {
+.overlay.show {
   .overlay--mask {
     opacity: 0.7;
   }
-  .overlay--dialog {
+  .overlay--transition {
     opacity: 1;
     transform: translateY(0);
   }
@@ -105,10 +102,10 @@ $overlay-gutter: $ix-marg-d;
     transition: background-color 0.25s ease;
   }
   &:before {
-    transform: translate(-50%,-50%) rotate(45deg);
+    transform: translate(-50%, -50%) rotate(45deg);
   }
   &:after {
-    transform: translate(-50%,-50%) rotate(-45deg);
+    transform: translate(-50%, -50%) rotate(-45deg);
   }
   /* Hover State */
   &:hover {

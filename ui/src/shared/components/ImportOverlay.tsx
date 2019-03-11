@@ -4,7 +4,7 @@ import _ from 'lodash'
 // Components
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import {
-  OverlayTechnology,
+  Overlay,
   OverlayBody,
   OverlayContainer,
   OverlayHeading,
@@ -52,7 +52,7 @@ export default class ImportOverlay extends PureComponent<Props, State> {
     const {selectedImportOption} = this.state
 
     return (
-      <OverlayTechnology visible={isVisible}>
+      <Overlay visible={isVisible}>
         <OverlayContainer maxWidth={800}>
           <OverlayHeading
             title={`Import ${resourceName}`}
@@ -81,7 +81,7 @@ export default class ImportOverlay extends PureComponent<Props, State> {
           </OverlayBody>
           <OverlayFooter>{this.submitButton}</OverlayFooter>
         </OverlayContainer>
-      </OverlayTechnology>
+      </Overlay>
     )
   }
 

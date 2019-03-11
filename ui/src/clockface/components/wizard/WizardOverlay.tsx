@@ -4,7 +4,7 @@ import React, {PureComponent} from 'react'
 // Components
 import OverlayBody from 'src/clockface/components/overlays/OverlayBody'
 import OverlayContainer from 'src/clockface/components/overlays/OverlayContainer'
-import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
+import Overlay from 'src/clockface/components/overlays/Overlay'
 import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -27,14 +27,14 @@ class WizardOverlay extends PureComponent<Props> {
     const {visible, title, maxWidth, children, onDismiss} = this.props
 
     return (
-      <OverlayTechnology visible={visible}>
+      <Overlay visible={visible}>
         <OverlayContainer maxWidth={maxWidth}>
           <OverlayHeading title={title} onDismiss={onDismiss} />
           <OverlayBody>
             <div className="data-loading--overlay">{children}</div>
           </OverlayBody>
         </OverlayContainer>
-      </OverlayTechnology>
+      </Overlay>
     )
   }
 }

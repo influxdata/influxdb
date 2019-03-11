@@ -10,7 +10,7 @@ import Input, {InputType, AutoComplete} from './components/inputs/Input'
 import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
-import OverlayTechnology from './components/overlays/OverlayTechnology'
+import Overlay from './components/overlays/Overlay'
 import OverlayContainer from './components/overlays/OverlayContainer'
 import OverlayHeading from './components/overlays/OverlayHeading'
 import OverlayBody from './components/overlays/OverlayBody'
@@ -92,7 +92,7 @@ export {
   OverlayContainer,
   OverlayFooter,
   OverlayHeading,
-  OverlayTechnology,
+  Overlay,
   Panel,
   ProgressBar,
   QuestionMarkTooltip,

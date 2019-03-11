@@ -6,7 +6,7 @@ import {
   IndexList,
   EmptyState,
   ComponentSize,
-  OverlayTechnology,
+  Overlay,
 } from 'src/clockface'
 import TokenRow from 'src/me/components/account/TokenRow'
 
@@ -60,13 +60,13 @@ export default class TokenList extends PureComponent<Props, State> {
             })}
           </IndexList.Body>
         </IndexList>
-        <OverlayTechnology visible={isTokenOverlayVisible}>
+        <Overlay visible={isTokenOverlayVisible}>
           <ViewTokenOverlay
             onNotify={onNotify}
             auth={authInView}
             onDismissOverlay={this.handleDismissOverlay}
           />
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }

@@ -7,7 +7,7 @@ import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
 import {IconFont, Button, ComponentColor} from '@influxdata/clockface'
 import {
   Radio,
-  OverlayTechnology,
+  Overlay,
   OverlayBody,
   OverlayHeading,
   OverlayContainer,
@@ -46,7 +46,7 @@ class SaveAsButton extends PureComponent<Props, State> {
           color={ComponentColor.Primary}
           titleText="Save your query as a Dashboard Cell or a Task"
         />
-        <OverlayTechnology visible={isOverlayVisible}>
+        <Overlay visible={isOverlayVisible}>
           <OverlayContainer maxWidth={600}>
             <OverlayHeading
               title="Save As"
@@ -76,7 +76,7 @@ class SaveAsButton extends PureComponent<Props, State> {
               {this.saveAsForm}
             </OverlayBody>
           </OverlayContainer>
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }

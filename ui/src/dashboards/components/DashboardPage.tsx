@@ -11,7 +11,7 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import VEO from 'src/dashboards/components/VEO'
-import {OverlayTechnology} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import NoteEditorContainer from 'src/dashboards/components/NoteEditorContainer'
 
@@ -202,9 +202,9 @@ class DashboardPage extends Component<Props, State> {
               onAddCell={this.handleAddCell}
             />
           )}
-          <OverlayTechnology visible={isShowingVEO}>
+          <Overlay visible={isShowingVEO}>
             <VEO onHide={this.handleHideVEO} onSave={this.handleSaveVEO} />
-          </OverlayTechnology>
+          </Overlay>
         </HoverTimeProvider>
         <NoteEditorContainer />
       </Page>

@@ -9,7 +9,7 @@ import {
   IconFont,
   Input,
   Tabs,
-  OverlayTechnology,
+  Overlay,
 } from 'src/clockface'
 import MemberList from 'src/organizations/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
@@ -97,13 +97,13 @@ export default class Members extends PureComponent<Props, State> {
             />
           )}
         </FilterList>
-        <OverlayTechnology visible={overlayState === OverlayState.Open}>
+        <Overlay visible={overlayState === OverlayState.Open}>
           <AddMembersOverlay
             onCloseModal={this.handleCloseModal}
             users={this.state.users}
             addMember={this.addMember}
           />
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }
