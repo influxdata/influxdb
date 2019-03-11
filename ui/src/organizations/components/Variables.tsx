@@ -109,7 +109,7 @@ class Variables extends PureComponent<Props, State> {
         <Overlay visible={createOverlayState === OverlayState.Open}>
           <CreateVariableOverlay
             onCreateVariable={this.handleCreateVariable}
-            onCloseModal={this.handleCloseCreateOverlay}
+            onHideOverlay={this.handleCloseCreateOverlay}
             orgID={org.id}
           />
         </Overlay>

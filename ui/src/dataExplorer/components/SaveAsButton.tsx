@@ -4,6 +4,7 @@ import React, {PureComponent} from 'react'
 // Components
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
 import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
+import SaveAsVariable from 'src/dataExplorer/components/SaveAsVariable'
 import {IconFont, Button, ComponentColor} from '@influxdata/clockface'
 import {Radio, Overlay} from 'src/clockface'
 
@@ -13,6 +14,7 @@ import 'src/dataExplorer/components/SaveAsButton.scss'
 enum SaveAsOption {
   Dashboard = 'dashboard',
   Task = 'task',
+  Variable = 'variable',
 }
 
 interface Props {}
@@ -65,6 +67,14 @@ class SaveAsButton extends PureComponent<Props, State> {
                   >
                     Task
                   </Radio.Button>
+                  <Radio.Button
+                    active={saveAsOption === SaveAsOption.Variable}
+                    value={SaveAsOption.Variable}
+                    onClick={this.handleSetSaveAsOption}
+                    data-testid="variable-radio-button"
+                  >
+                    Variable
+                  </Radio.Button>
                 </Radio>
               </div>
               {this.saveAsForm}
@@ -82,6 +92,8 @@ class SaveAsButton extends PureComponent<Props, State> {
       return <SaveAsCellForm dismiss={this.handleHideOverlay} />
     } else if (saveAsOption === SaveAsOption.Task) {
       return <SaveAsTaskForm dismiss={this.handleHideOverlay} />
+    } else if (saveAsOption === SaveAsOption.Variable) {
+      return <SaveAsVariable onHideOverlay={this.handleHideOverlay} />
     }
   }
 
