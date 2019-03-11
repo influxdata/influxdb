@@ -77,6 +77,8 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 							"labels": [],
 							"links": {
 								"labels": "/api/v2/telegrafs/0000000000000001/labels",
+								"members": "/api/v2/telegrafs/0000000000000001/members",
+								"owners": "/api/v2/telegrafs/0000000000000001/owners",
 								"self": "/api/v2/telegrafs/0000000000000001"
 							},
 						"id":"0000000000000001",
@@ -137,13 +139,14 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				// TODO(goller): once links are in for telegraf, this will need to change.
 				body: `{
           "configurations": [
             {
 							"labels": [],
 							"links": {
 								"labels": "/api/v2/telegrafs/0000000000000001/labels",
+								"members": "/api/v2/telegrafs/0000000000000001/members",
+								"owners": "/api/v2/telegrafs/0000000000000001/owners",
 								"self": "/api/v2/telegrafs/0000000000000001"
 							},
             "id": "0000000000000001",
@@ -265,6 +268,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						"labels": [],
 						"links": {
 							"labels": "/api/v2/telegrafs/0000000000000001/labels",
+							"members": "/api/v2/telegrafs/0000000000000001/members",
+							"owners": "/api/v2/telegrafs/0000000000000001/owners",
 							"self": "/api/v2/telegrafs/0000000000000001"
 						},
             "plugins": [
@@ -337,6 +342,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 						"labels": [],
 						"links": {
 							"labels": "/api/v2/telegrafs/0000000000000001/labels",
+							"members": "/api/v2/telegrafs/0000000000000001/members",
+							"owners": "/api/v2/telegrafs/0000000000000001/owners",
 							"self": "/api/v2/telegrafs/0000000000000001"
 						},
             "plugins": [
@@ -397,7 +404,6 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/toml; charset=utf-8",
-				// TODO(goller): once links are in for telegraf, this will need to change.
 				body: `# Configuration for telegraf agent
 [agent]
   ## Default data collection interval for all inputs
@@ -513,7 +519,6 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/toml; charset=utf-8",
-				// TODO(goller): once links are in for telegraf, this will need to change.
 				body: `# Configuration for telegraf agent
 [agent]
   ## Default data collection interval for all inputs
@@ -630,7 +635,6 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/octet-stream",
-				// TODO(goller): once links are in for telegraf, this will need to change.
 				body: `# Configuration for telegraf agent
 [agent]
   ## Default data collection interval for all inputs
@@ -792,8 +796,10 @@ func Test_newTelegrafResponses(t *testing.T) {
       "labels": [
       ],
       "links": {
-           "labels": "/api/v2/telegrafs/0000000000000001/labels",
-          "self": "/api/v2/telegrafs/0000000000000001"
+	        "labels": "/api/v2/telegrafs/0000000000000001/labels",
+			"members": "/api/v2/telegrafs/0000000000000001/members",
+			"owners": "/api/v2/telegrafs/0000000000000001/owners",
+	        "self": "/api/v2/telegrafs/0000000000000001"
           },
           "id": "0000000000000001",
           "organizationID": "0000000000000002",
