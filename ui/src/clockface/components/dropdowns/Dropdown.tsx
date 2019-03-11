@@ -103,7 +103,14 @@ class Dropdown extends Component<Props, State> {
   }
 
   private get containerClassName(): string {
-    const {buttonColor, buttonSize, status, wrapText, customClass} = this.props
+    const {
+      buttonColor,
+      buttonSize,
+      status,
+      wrapText,
+      customClass,
+      mode,
+    } = this.props
 
     return classnames(
       `dropdown dropdown-${buttonSize} dropdown-${buttonColor}`,
@@ -111,6 +118,7 @@ class Dropdown extends Component<Props, State> {
         disabled: status === ComponentStatus.Disabled,
         'dropdown-wrap': wrapText,
         [customClass]: customClass,
+        [`dropdown--${mode}`]: mode,
       }
     )
   }
