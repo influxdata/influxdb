@@ -6945,9 +6945,16 @@ components:
         propertyName: "name"
       required:
         - name
+        - type
       properties:
         name:
           type: string
+          example: cpu
+        type:
+          type: string
+          enum:
+            - input
+            - output
     TelegrafPluginInputCpu:
       type: object
       required:
