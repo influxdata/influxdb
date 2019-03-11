@@ -127,7 +127,9 @@ class InlineLabelsEditor extends Component<Props, State> {
 
     const label = labels.find(label => label.id === labelID)
 
-    onAddLabel(label)
+    if (label) {
+      onAddLabel(label)
+    }
   }
 
   private handleUpdateSelectedItem = (selectedItemID: string): void => {
