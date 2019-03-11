@@ -243,20 +243,21 @@ func newBucketUpdate(pb *influxdb.BucketUpdate) *bucketUpdate {
 }
 
 type bucketResponse struct {
-	Links map[string]string `json:"links"`
 	bucket
-	Labels []influxdb.Label `json:"labels"`
+	Links  map[string]string `json:"links"`
+	Labels []influxdb.Label  `json:"labels"`
 }
 
 func newBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
 	res := &bucketResponse{
 		Links: map[string]string{
-			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
-			"logs":    fmt.Sprintf("/api/v2/buckets/%s/logs", b.ID),
 			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
+			"logs":    fmt.Sprintf("/api/v2/buckets/%s/logs", b.ID),
 			"members": fmt.Sprintf("/api/v2/buckets/%s/members", b.ID),
-			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
 			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
+			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
+			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
+			"write":   fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", b.OrganizationID, b.ID),
 		},
 		bucket: *newBucket(b),
 		Labels: []influxdb.Label{},
