@@ -1,0 +1,100 @@
+@import 'src/style/modules';
+
+/*
+  Color Picker Widget
+  ------------------------------------------------------------------------------
+*/
+
+$color-picker--margin: 0;
+
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-width: 160px;
+}
+
+.color-picker--swatches {
+  margin-bottom: $ix-marg-b;
+  position: relative;
+  padding: $color-picker--margin;
+  border-radius: $radius;
+  overflow: hidden;
+
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.color-picker--swatch {
+  width: 10%;
+  padding-bottom: 10%;
+  position: relative;
+  float: left;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+
+  > span {
+    position: absolute;
+    top: $color-picker--margin;
+    left: $color-picker--margin;
+    right: $color-picker--margin;
+    bottom: $color-picker--margin;
+  }
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0, 0);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: $g20-white;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    box-shadow: 0 0 4px 1px rgba($g0-obsidian, 0.25);
+  }
+
+  &:hover {
+    &:after {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1, 1);
+    }
+  }
+}
+
+.color-picker--form {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.input.color-picker--input {
+  flex: 1 0 0;
+  margin-right: $ix-marg-a;
+
+  > input {
+    padding-left: $ix-marg-d;
+  }
+}
+
+.color-picker--selected {
+  pointer-events: none;
+  z-index: 2;
+  position: absolute;
+  top: 50%;
+  left: $ix-marg-c;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: $ix-border solid $g5-pepper;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+
+  .input:hover + & {
+    border-color: $g7-graphite;
+  }
+}
