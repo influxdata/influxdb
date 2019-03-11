@@ -124,7 +124,7 @@
     "jsdom": "^9.0.0",
     "mocha": "^5.2.0",
     "mocha-junit-reporter": "^1.18.0",
-    "parcel": "^1.11.0",
+    "parcel": "^1.12.0",
     "prettier": "^1.16.4",
     "react-testing-library": "^5.4.4",
     "sass": "^1.15.3",
