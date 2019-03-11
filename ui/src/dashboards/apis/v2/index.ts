@@ -121,7 +121,7 @@ export const removeDashboardLabels = async (
   )
 }
 
-export const readView = async (
+export const getView = async (
   dashboardID: string,
   cellID: string
 ): Promise<View> => {
