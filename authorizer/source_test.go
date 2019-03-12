@@ -60,8 +60,9 @@ func TestSourceService_DefaultSource(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.SourcesResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.SourcesResourceType,
+						ID:    influxdbtesting.IDPtr(1),
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -146,8 +147,9 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.SourcesResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.SourcesResourceType,
+						ID:    influxdbtesting.IDPtr(1),
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -370,15 +372,17 @@ func TestSourceService_UpdateSource(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.SourcesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.SourcesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -478,15 +482,17 @@ func TestSourceService_DeleteSource(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.SourcesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.SourcesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.SourcesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},

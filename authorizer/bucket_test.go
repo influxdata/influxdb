@@ -61,8 +61,9 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(10),
+						ID:    influxdbtesting.IDPtr(1),
 					},
 				},
 				id: 1,
@@ -148,8 +149,9 @@ func TestBucketService_FindBucket(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.BucketsResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.BucketsResourceType,
+						ID:    influxdbtesting.IDPtr(1),
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -371,15 +373,17 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.BucketsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.BucketsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -479,15 +483,17 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.BucketsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.BucketsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.BucketsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},

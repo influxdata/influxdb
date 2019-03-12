@@ -61,8 +61,9 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.ScraperResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.ScraperResourceType,
+						ID:    influxdbtesting.IDPtr(1),
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -285,15 +286,17 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.ScraperResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.ScraperResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.ScraperResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.ScraperResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -393,15 +396,17 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.ScraperResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.ScraperResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.ScraperResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.ScraperResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},

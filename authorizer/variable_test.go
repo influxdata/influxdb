@@ -61,8 +61,9 @@ func TestVariableService_FindVariableByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.VariablesResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.VariablesResourceType,
+						ID:    influxdbtesting.IDPtr(1),
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -285,15 +286,17 @@ func TestVariableService_UpdateVariable(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -326,8 +329,9 @@ func TestVariableService_UpdateVariable(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -397,15 +401,17 @@ func TestVariableService_ReplaceVariable(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -438,8 +444,9 @@ func TestVariableService_ReplaceVariable(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -505,15 +512,17 @@ func TestVariableService_DeleteVariable(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -543,8 +552,9 @@ func TestVariableService_DeleteVariable(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.VariablesResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.VariablesResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},

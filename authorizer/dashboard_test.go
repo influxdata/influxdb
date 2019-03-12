@@ -61,8 +61,9 @@ func TestDashboardService_FindDashboardByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.DashboardsResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.DashboardsResourceType,
+						ID:    influxdbtesting.IDPtr(1),
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -286,15 +287,17 @@ func TestDashboardService_UpdateDashboard(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.DashboardsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.DashboardsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.DashboardsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.DashboardsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -394,15 +397,17 @@ func TestDashboardService_DeleteDashboard(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.DashboardsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.DashboardsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.DashboardsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.DashboardsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},

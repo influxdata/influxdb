@@ -61,8 +61,9 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.TelegrafsResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type:  influxdb.TelegrafsResourceType,
+						ID:    influxdbtesting.IDPtr(1),
+						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -285,15 +286,17 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.TelegrafsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.TelegrafsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.TelegrafsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.TelegrafsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -326,8 +329,9 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.TelegrafsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.TelegrafsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -393,15 +397,17 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.TelegrafsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.TelegrafsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.TelegrafsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.TelegrafsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -431,8 +437,9 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.TelegrafsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.TelegrafsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(10),
 						},
 					},
 				},
