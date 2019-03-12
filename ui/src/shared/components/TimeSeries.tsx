@@ -168,6 +168,10 @@ class TimeSeries extends Component<Props, State> {
       return true
     }
 
+    if (!isEqual(prevProps.variables, this.props.variables)) {
+      return true
+    }
+
     return false
   }
 }
