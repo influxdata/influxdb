@@ -563,6 +563,11 @@ export const cellAddFailed = (
   message: `Failed to add cell ${cellName + ' '}to dashboard ${dashboardName}`,
 })
 
+export const cellUpdateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update cell`,
+})
+
 export const cellDeleted = (): Notification => ({
   ...defaultDeletionNotification,
   icon: 'dash-h',

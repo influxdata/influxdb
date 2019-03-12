@@ -36,6 +36,7 @@ import {getVariables, refreshVariableValues} from 'src/variables/actions'
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {getVariablesForOrg} from 'src/variables/selectors'
+import {getViewsForDashboard} from 'src/dashboards/selectors'
 import {
   getNewDashboardCell,
   getClonedDashboardCell,
@@ -48,7 +49,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {CreateCell, IDashboardTemplate} from '@influxdata/influx'
-import {Dashboard, NewView, Cell, GetState} from 'src/types/v2'
+import {Dashboard, NewView, Cell, GetState, View} from 'src/types/v2'
 import {ILabel} from '@influxdata/influx'
 
 export enum ActionTypes {
@@ -256,9 +257,20 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
   }
 }
 
+export const refreshDashboardVariableValues = (
+  dashboard: Dashboard,
+  nextViews: View[]
+) => (dispatch, getState: GetState) => {
+  const variables = getVariablesForOrg(getState(), dashboard.orgID)
+  const variablesInUse = filterUnusedVars(variables, nextViews)
+
+  return dispatch(
+    refreshVariableValues(dashboard.id, dashboard.orgID, variablesInUse)
+  )
+}
+
 export const getDashboardAsync = (dashboardID: string) => async (
-  dispatch,
-  getState: GetState
+  dispatch
 ): Promise<void> => {
   try {
     // Fetch the dashboard and all variables a user has access to
@@ -274,14 +286,8 @@ export const getDashboardAsync = (dashboardID: string) => async (
 
     dispatch(setViews(RemoteDataState.Done, views))
 
-    // Find variables in use on dashboard
-    const variables = getVariablesForOrg(getState(), dashboard.orgID)
-    const variablesInUse = filterUnusedVars(variables, views)
-
-    // Ensure the values for those variables are loaded
-    await dispatch(
-      refreshVariableValues(dashboard.id, dashboard.orgID, variablesInUse)
-    )
+    // Ensure the values for the variables in use on the dashboard are populated
+    await dispatch(refreshDashboardVariableValues(dashboard, views))
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(loadDashboard(dashboard))
@@ -307,35 +313,21 @@ export const updateDashboardAsync = (dashboard: Dashboard) => async (
   }
 }
 
-export const addCellAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>
-): Promise<void> => {
-  const cell = getNewDashboardCell(dashboard)
-
-  try {
-    const createdCell = await addCellAJAX(dashboard.id, cell)
-    const updatedDashboard = {
-      ...dashboard,
-      cells: [...dashboard.cells, createdCell],
-    }
-
-    dispatch(loadDashboard(updatedDashboard))
-    dispatch(notify(copy.cellAdded()))
-  } catch (error) {
-    console.error(error)
-  }
-}
-
 export const createCellWithView = (
   dashboard: Dashboard,
   view: NewView,
   clonedCell?: Cell
-) => async (dispatch: Dispatch<Action>): Promise<void> => {
+) => async (dispatch, getState: GetState): Promise<void> => {
   try {
     const cell: CreateCell = getNewDashboardCell(dashboard, clonedCell)
-    const createdCell = await addCellAJAX(dashboard.id, cell)
-    const updatedView = await updateViewAJAX(dashboard.id, createdCell.id, view)
 
+    // Create the cell
+    const createdCell = await addCellAJAX(dashboard.id, cell)
+
+    // Create the view and associate it with the cell
+    const newView = await updateViewAJAX(dashboard.id, createdCell.id, view)
+
+    // Update the dashboard with the new cell
     let updatedDashboard: Dashboard = {
       ...dashboard,
       cells: [...dashboard.cells, createdCell],
@@ -343,10 +335,38 @@ export const createCellWithView = (
 
     updatedDashboard = await updateDashboardAJAX(dashboard)
 
-    dispatch(setView(createdCell.id, updatedView, RemoteDataState.Done))
+    // Refresh variables in use on dashboard
+    const views = [...getViewsForDashboard(getState(), dashboard.id), newView]
+
+    await dispatch(refreshDashboardVariableValues(dashboard, views))
+
+    dispatch(setView(createdCell.id, newView, RemoteDataState.Done))
     dispatch(updateDashboard(updatedDashboard))
   } catch {
     notify(copy.cellAddFailed())
+  }
+}
+
+export const updateView = (dashboard: Dashboard, view: View) => async (
+  dispatch,
+  getState: GetState
+) => {
+  const cellID = view.cellID
+
+  try {
+    const newView = await updateViewAJAX(dashboard.id, cellID, view)
+
+    const views = getViewsForDashboard(getState(), dashboard.id)
+
+    views.splice(views.findIndex(v => v.id === newView.id), 1, newView)
+
+    await dispatch(refreshDashboardVariableValues(dashboard, views))
+
+    dispatch(setView(cellID, newView, RemoteDataState.Done))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.cellUpdateFailed()))
+    dispatch(setView(cellID, null, RemoteDataState.Error))
   }
 }
 
@@ -367,10 +387,19 @@ export const updateCellsAsync = (dashboard: Dashboard, cells: Cell[]) => async (
 }
 
 export const deleteCellAsync = (dashboard: Dashboard, cell: Cell) => async (
-  dispatch: Dispatch<Action>
+  dispatch,
+  getState: GetState
 ): Promise<void> => {
   try {
-    await deleteCellAJAX(dashboard.id, cell)
+    const views = getViewsForDashboard(getState(), dashboard.id).filter(
+      view => view.cellID !== cell.id
+    )
+
+    await Promise.all([
+      deleteCellAJAX(dashboard.id, cell),
+      dispatch(refreshDashboardVariableValues(dashboard, views)),
+    ])
+
     dispatch(deleteCell(dashboard, cell))
     dispatch(notify(copy.cellDeleted()))
   } catch (error) {
