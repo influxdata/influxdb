@@ -28,9 +28,6 @@ var (
 	ErrInvalidSeriesPartitionID = errors.New("tsdb: invalid series partition id")
 )
 
-// SeriesIDSize is the size in bytes of a series key ID.
-const SeriesIDSize = 8
-
 const (
 	// SeriesFilePartitionN is the number of partitions a series file is split into.
 	SeriesFilePartitionN = 8
