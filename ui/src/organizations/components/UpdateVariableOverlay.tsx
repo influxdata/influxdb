@@ -18,29 +18,20 @@ interface Props {
 
 interface State {
   variable: Variable
-  script: string
   nameErrorMessage: string
   nameInputStatus: ComponentStatus
 }
 
 export default class UpdateVariableOverlay extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-
-    const {variable} = this.props
-    const script = _.get(variable, 'arguments.values.query', '')
-
-    this.state = {
-      variable,
-      script,
-      nameInputStatus: ComponentStatus.Default,
-      nameErrorMessage: '',
-    }
+  public state: State = {
+    variable: this.props.variable,
+    nameInputStatus: ComponentStatus.Default,
+    nameErrorMessage: '',
   }
 
   public render() {
     const {onCloseOverlay} = this.props
-    const {variable, nameInputStatus, nameErrorMessage, script} = this.state
+    const {variable, nameInputStatus, nameErrorMessage} = this.state
 
     return (
       <Overlay.Container maxWidth={1000}>
@@ -67,7 +58,7 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
             <Form.Element label="Value">
               <div className="overlay-flux-editor">
                 <FluxEditor
-                  script={script}
+                  script={this.script}
                   onChangeScript={this.handleChangeScript}
                   visibility="visible"
                   suggestions={[]}
@@ -99,9 +90,11 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
   }
 
   private get isVariableValid(): boolean {
-    const {variable, script} = this.state
+    return !!this.state.variable.name && !!this.script
+  }
 
-    return !!variable.name && !!script
+  private get script(): string {
+    return _.get(this.state, 'variable.arguments.values.query', '')
   }
 
   private handleSubmit = (e: FormEvent): void => {
@@ -112,7 +105,24 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
   }
 
   private handleChangeScript = (script: string): void => {
-    this.setState({script})
+    const {variable} = this.state
+
+    if (variable.arguments.type !== 'query') {
+      throw new Error('updating non-query variable not implemented')
+    }
+
+    const newVariable = {
+      ...variable,
+      arguments: {
+        type: 'query',
+        values: {
+          query: script,
+          language: 'flux',
+        },
+      },
+    }
+
+    this.setState({variable: newVariable})
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
