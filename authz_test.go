@@ -15,7 +15,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		allowed     bool
 	}{
 		{
-			name: "global permission",
+			name: "matching against global permission with same action and resource type is allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -35,7 +35,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: true,
 		},
 		{
-			name: "bad org id in permission",
+			name: "bad org id in permission should not be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -57,7 +57,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: false,
 		},
 		{
-			name: "bad resource id in permission",
+			name: "bad resource id in permission should not be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -79,7 +79,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: false,
 		},
 		{
-			name: "bad resource id in permissions",
+			name: "bad resource id in permissions should not be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -101,7 +101,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: false,
 		},
 		{
-			name: "matching action resource and ID",
+			name: "matching action, resource type, resource id, and resource org should be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -123,7 +123,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: true,
 		},
 		{
-			name: "matching action resource with total",
+			name: "matching action, resource type, and resource org while ignoring id should be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -144,7 +144,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: true,
 		},
 		{
-			name: "matching action resource no ID",
+			name: "matching action, resource type, and resource org should be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -164,7 +164,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: true,
 		},
 		{
-			name: "matching action resource differing ID",
+			name: "matching action, resource type, and resource org but with different resource ids should not be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -186,7 +186,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: false,
 		},
 		{
-			name: "differing action same resource",
+			name: "matching resource org, resource id, resource type but with different action should not be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -208,7 +208,7 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 			allowed: false,
 		},
 		{
-			name: "same action differing resource",
+			name: "matching action, resource org, and resource id but with different resource type should not be allowed",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
@@ -224,6 +224,85 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 						Type:  platform.TasksResourceType,
 						OrgID: influxdbtesting.IDPtr(1),
 						ID:    influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "matching action and resource type but with different resource orgs should not be allowed",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(2),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(1),
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "matching action and resource type but with missing resource org should not be allowed",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.BucketsResourceType,
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(3),
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "matching action and resource type but with missing resource org should not be allowed",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.BucketsResourceType,
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type:  platform.BucketsResourceType,
+						OrgID: influxdbtesting.IDPtr(3),
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "matching action, resource type, resource id but disregarding the org resource belongs to should not be allowed",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type:  platform.BucketsResourceType,
+					OrgID: influxdbtesting.IDPtr(10),
+					ID:    influxdbtesting.IDPtr(1),
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type: platform.BucketsResourceType,
+						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
 			},
