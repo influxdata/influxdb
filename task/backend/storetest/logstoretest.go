@@ -326,6 +326,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	if err := writer.UpdateRunState(ctx, rlb, scheduledFor.Add(time.Second), backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
+	time.Sleep(time.Second)
 	listRuns, err = reader.ListRuns(ctx, task.Org, platform.RunFilter{
 		Task:  task.ID,
 		Limit: 2 * nRuns,
