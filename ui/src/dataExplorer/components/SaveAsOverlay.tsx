@@ -47,7 +47,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   active={saveAsOption === SaveAsOption.Task}
                   value={SaveAsOption.Task}
                   onClick={this.handleSetSaveAsOption}
-                  data-testid="task-radio-button"
+                  data-testid="task--radio-button"
                 >
                   Task
                 </Radio.Button>
