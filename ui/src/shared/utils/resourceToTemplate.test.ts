@@ -99,17 +99,7 @@ describe('resourceToTemplate', () => {
             },
           ],
         },
-        labels: [
-          {
-            id: '1',
-            name: 'influx.task',
-            properties: {
-              color: 'ffb3b3',
-              description:
-                'This is a template for a task resource on influx 2.0',
-            },
-          },
-        ],
+        labels: [],
         meta: {
           description: 'template created from task: lala',
           name: 'lala-Template',
