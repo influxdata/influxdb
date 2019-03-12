@@ -20,7 +20,6 @@ import * as dashboardActions from 'src/dashboards/actions/v2'
 import * as rangesActions from 'src/dashboards/actions/v2/ranges'
 import * as appActions from 'src/shared/actions/app'
 import * as notifyActions from 'src/shared/actions/notifications'
-import * as viewActions from 'src/dashboards/actions/v2/views'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Utils
@@ -76,9 +75,8 @@ interface DispatchProps {
   handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   notify: NotificationsActions.PublishNotificationActionCreator
-  onAddCell: typeof dashboardActions.addCellAsync
   onCreateCellWithView: typeof dashboardActions.createCellWithView
-  onUpdateView: typeof viewActions.updateView
+  onUpdateView: typeof dashboardActions.updateView
   onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
 
@@ -262,7 +260,7 @@ class DashboardPage extends Component<Props, State> {
 
     try {
       if (view.id) {
-        onUpdateView(dashboard.id, view)
+        onUpdateView(dashboard, view)
       } else {
         await onCreateCellWithView(dashboard, view)
       }
@@ -372,9 +370,8 @@ const mdtp: DispatchProps = {
   setDashTimeV1: rangesActions.setDashTimeV1,
   updateQueryParams: rangesActions.updateQueryParams,
   setZoomedTimeRange: rangesActions.setZoomedTimeRange,
-  onAddCell: dashboardActions.addCellAsync,
   onCreateCellWithView: dashboardActions.createCellWithView,
-  onUpdateView: viewActions.updateView,
+  onUpdateView: dashboardActions.updateView,
   onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
