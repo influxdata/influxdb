@@ -14,3 +14,7 @@ export const dismissNotification = (
   type: 'DISMISS_NOTIFICATION',
   payload: {id},
 })
+
+export const dismissAllNotifications = (): NotificationsActions.DismissAllNotificationsAction => ({
+  type: 'DISMISS_ALL_NOTIFICATIONS',
+})

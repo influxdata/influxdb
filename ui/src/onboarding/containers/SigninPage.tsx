@@ -1,10 +1,14 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
-// apis
+// APIs
 import {client} from 'src/utils/api'
+
+// Actions
+import {dismissAllNotifications} from 'src/shared/actions/notifications'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -12,7 +16,6 @@ import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import SigninForm from 'src/onboarding/components/SigninForm'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
-import Notifications from 'src/shared/components/notifications/Notifications'
 import VersionInfo from 'src/shared/components/VersionInfo'
 
 // Constants
@@ -22,8 +25,13 @@ interface State {
   status: RemoteDataState
 }
 
+interface DispatchProps {
+  dismissAllNotifications: typeof dismissAllNotifications
+}
+
+type Props = WithRouterProps & DispatchProps
 @ErrorHandling
-class SigninPage extends PureComponent<WithRouterProps, State> {
+class SigninPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -44,13 +52,16 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
     this.setState({status: RemoteDataState.Done})
   }
 
+  componentWillUnmount() {
+    this.props.dismissAllNotifications()
+  }
+
   public render() {
     return (
       <SpinnerContainer
         loading={this.state.status}
         spinnerComponent={<TechnoSpinner />}
       >
-        <Notifications inPresentationMode={true} />
         <SplashPage panelWidthPixels={300}>
           <SplashPage.Panel>
             <SplashPage.Logo />
@@ -64,4 +75,10 @@ class SigninPage extends PureComponent<WithRouterProps, State> {
   }
 }
 
-export default withRouter(SigninPage)
+const mdtp: DispatchProps = {
+  dismissAllNotifications,
+}
+export default connect(
+  null,
+  mdtp
+)(withRouter(SigninPage))
