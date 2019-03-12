@@ -78,14 +78,8 @@ export class DefaultValueFetcher implements ValueFetcher {
   private cache: {[cacheKey: string]: VariableValues} = {}
 
   public fetch(url, orgID, query, variables, prevSelection, defaultSelection) {
-    const cachedValues = this.cachedValues(
-      url,
-      orgID,
-      query,
-      variables,
-      prevSelection,
-      defaultSelection
-    )
+    const key = cacheKey(url, orgID, query, variables)
+    const cachedValues = this.cachedValues(key, prevSelection, defaultSelection)
 
     if (cachedValues) {
       return {promise: Promise.resolve(cachedValues), cancel: () => {}}
@@ -93,9 +87,13 @@ export class DefaultValueFetcher implements ValueFetcher {
 
     const request = executeQueryWithVars(url, orgID, query, variables)
 
-    const promise = request.promise.then(({csv}) =>
-      extractValues(csv, prevSelection, defaultSelection)
-    )
+    const promise = request.promise.then(({csv}) => {
+      const values = extractValues(csv, prevSelection, defaultSelection)
+
+      this.cache[key] = values
+
+      return values
+    })
 
     return {
       promise,
@@ -104,14 +102,11 @@ export class DefaultValueFetcher implements ValueFetcher {
   }
 
   private cachedValues(
-    url: string,
-    orgID: string,
-    query: string,
-    variables: VariableAssignment[],
+    key: string,
     prevSelection: string,
     defaultSelection: string
   ): VariableValues {
-    const cachedValues = this.cache[cacheKey(url, orgID, query, variables)]
+    const cachedValues = this.cache[key]
 
     if (!cachedValues) {
       return null
