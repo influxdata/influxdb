@@ -10,32 +10,32 @@ import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 // APIs
 import {client} from 'src/utils/api'
 import {ITemplate} from '@influxdata/influx'
-import {Task} from 'src/types/v2'
 
 interface State {
   taskTemplate: ITemplate
+  orgID: string
 }
 
 interface Props extends WithRouterProps {
-  params: {id: string; orgID: string}
+  params: {id: string}
 }
 
-class OrgTaskExportOverlay extends PureComponent<Props, State> {
-  public state: State = {taskTemplate: null}
+class TaskExportOverlay extends PureComponent<Props, State> {
+  public state: State = {taskTemplate: null, orgID: null}
 
   public async componentDidMount() {
     const {
       params: {id},
     } = this.props
 
-    const task = (await client.tasks.get(id)) as Task
+    const task = await client.tasks.get(id)
     const taskTemplate = taskToTemplate(task)
 
-    this.setState({taskTemplate})
+    this.setState({taskTemplate, orgID: task.orgID})
   }
 
   public render() {
-    const {taskTemplate} = this.state
+    const {taskTemplate, orgID} = this.state
     if (!taskTemplate) {
       return null
     }
@@ -45,6 +45,7 @@ class OrgTaskExportOverlay extends PureComponent<Props, State> {
         resourceName="Task"
         resource={taskTemplate}
         onDismissOverlay={this.onDismiss}
+        orgID={orgID}
       />
     )
   }
@@ -56,4 +57,4 @@ class OrgTaskExportOverlay extends PureComponent<Props, State> {
   }
 }
 
-export default withRouter(OrgTaskExportOverlay)
+export default withRouter(TaskExportOverlay)

@@ -14,8 +14,8 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
 import {
-  dashboardSavedAsTemplate,
-  saveDashboardAsTemplateFailed,
+  resourceSavedAsTemplate,
+  saveResourceAsTemplateFailed,
 } from 'src/shared/copy/notifications'
 
 // Utils
@@ -28,11 +28,14 @@ import 'src/shared/components/ExportOverlay.scss'
 // Types
 import {ITemplate} from '@influxdata/influx'
 
-interface OwnProps {
+interface OwnProps extends DefaultProps {
   onDismissOverlay: () => void
   resource: ITemplate
-  orgID: string
   resourceName: string
+  orgID: string
+}
+
+interface DefaultProps {
   isVisible?: boolean
 }
 
@@ -43,7 +46,7 @@ interface DispatchProps {
 type Props = OwnProps & DispatchProps
 
 class ExportOverlay extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     isVisible: true,
   }
 
@@ -101,16 +104,13 @@ class ExportOverlay extends PureComponent<Props> {
   }
 
   private get toTemplateButton(): JSX.Element {
-    const {resourceName} = this.props
-    if (resourceName == 'Dashboard') {
-      return (
-        <Button
-          text={`Save as template`}
-          onClick={this.handleConvertToTemplate}
-          color={ComponentColor.Primary}
-        />
-      )
-    }
+    return (
+      <Button
+        text={`Save as template`}
+        onClick={this.handleConvertToTemplate}
+        color={ComponentColor.Primary}
+      />
+    )
   }
 
   private handleExport = (): void => {
@@ -121,15 +121,15 @@ class ExportOverlay extends PureComponent<Props> {
   }
 
   private handleConvertToTemplate = async (): Promise<void> => {
-    const {resource, onDismissOverlay, orgID, notify} = this.props
+    const {resource, onDismissOverlay, orgID, notify, resourceName} = this.props
 
     const template = addOrgIDToTemplate(resource, orgID)
 
     try {
       await client.templates.create(template)
-      notify(dashboardSavedAsTemplate())
+      notify(resourceSavedAsTemplate(resourceName))
     } catch (error) {
-      notify(saveDashboardAsTemplateFailed(error))
+      notify(saveResourceAsTemplateFailed(resourceName, error))
     }
     onDismissOverlay()
   }
@@ -139,7 +139,7 @@ const mdtp: DispatchProps = {
   notify: notifyAction,
 }
 
-export default connect<null, DispatchProps, OwnProps>(
+export default connect<{}, DispatchProps, OwnProps>(
   null,
   mdtp
 )(ExportOverlay)
