@@ -25,6 +25,12 @@
   display: flex;
   align-items: stretch;
   width: 100%;
-  flex: 0 0 calc(100% - #{$page-header-size}); 
+  flex: 0 0 calc(100% - #{$page-header-size});
   padding-bottom: $ix-marg-c;
+}
+
+.veo-overlay {
+  .overlay--transition {
+    height: 100%;
+  }
 }
