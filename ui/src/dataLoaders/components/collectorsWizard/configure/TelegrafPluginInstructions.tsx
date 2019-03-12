@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
+import {includes} from 'lodash'
 
 // Components
 import {Form, Input, InputType, ComponentSize} from 'src/clockface'
@@ -23,12 +24,18 @@ import {
 import {createDashboardsForPlugins as createDashboardsForPluginsAction} from 'src/protos/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
+// Constants
+import {
+  TelegrafConfigCreationSuccess,
+  TelegrafDashboardCreated,
+  TelegrafDashboardFailed,
+} from 'src/shared/copy/notifications'
+
 // Types
 import {AppState} from 'src/types/v2/index'
-import {TelegrafPlugin} from 'src/types/v2/dataLoaders'
-
-// Constants
-import {TelegrafConfigCreationSuccess} from 'src/shared/copy/notifications'
+import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
+import {client} from 'src/utils/api'
+import {IDashboardTemplate} from '@influxdata/influx'
 
 interface DispatchProps {
   onSetTelegrafConfigName: typeof setTelegrafConfigName
@@ -47,6 +54,8 @@ interface StateProps {
   telegrafConfigDescription: string
   telegrafPlugins: TelegrafPlugin[]
   telegrafConfigID: string
+  org: string
+  orgID: string
 }
 
 type Props = DispatchProps & StateProps
@@ -118,21 +127,58 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
   }
 
   private handleFormSubmit = async () => {
-    const {
-      onSaveTelegrafConfig,
-      createDashboardsForPlugins,
-      telegrafConfigID,
-      notify,
-    } = this.props
+    const {onSaveTelegrafConfig, telegrafConfigID, notify} = this.props
 
     await onSaveTelegrafConfig()
+
     notify(TelegrafConfigCreationSuccess)
 
     if (!telegrafConfigID) {
-      await createDashboardsForPlugins()
+      this.handleCreateDashboardsForPlugins()
     }
 
     this.props.onIncrementStep()
+  }
+
+  private async handleCreateDashboardsForPlugins() {
+    const {notify, telegrafPlugins, org, orgID} = this.props
+    try {
+      const templatesEntries = await client.templates.getAll(org)
+
+      const configuredPlugins = telegrafPlugins.filter(
+        tp => tp.configured === ConfigurationState.Configured
+      )
+
+      const configuredPluginNames = configuredPlugins.map(t =>
+        `${t.name}-Template`.toLowerCase()
+      )
+
+      const templatesToGet = templatesEntries.filter(t => {
+        return includes(configuredPluginNames, t.meta.name.toLowerCase())
+      })
+
+      const pluginsWithTemplates = templatesToGet.map(t => {
+        return t.meta.name.replace('-Template', '')
+      })
+
+      const pendingTemplates = templatesToGet.map(t =>
+        client.templates.get(t.id)
+      )
+
+      const templates = await Promise.all(pendingTemplates)
+
+      const pendingDashboards = templates.map(t =>
+        client.dashboards.createFromTemplate(t as IDashboardTemplate, orgID)
+      )
+
+      const dashboards = await Promise.all(pendingDashboards)
+
+      if (dashboards.length) {
+        notify(TelegrafDashboardCreated(pluginsWithTemplates))
+      }
+    } catch (err) {
+      notify(TelegrafDashboardFailed())
+    }
   }
 
   private get sideBarVisible() {
@@ -173,6 +219,7 @@ const mstp = ({
       telegrafPlugins,
       telegrafConfigID,
     },
+    steps: {org, orgID},
   },
 }: AppState): StateProps => {
   return {
@@ -180,6 +227,8 @@ const mstp = ({
     telegrafConfigDescription,
     telegrafPlugins,
     telegrafConfigID,
+    org,
+    orgID,
   }
 }
 

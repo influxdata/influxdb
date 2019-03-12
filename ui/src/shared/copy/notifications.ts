@@ -769,17 +769,6 @@ export const fluxTimeSeriesError = (message: string): Notification => ({
 })
 
 // Protos
-export const ProtoDashboardCreated = (configs: string[]): Notification => ({
-  ...defaultSuccessNotification,
-  message: `Successfully created dashboards for telegraf plugin${
-    configs.length > 1 ? 's' : ''
-  }: ${configs.join(', ')}.`,
-})
-
-export const ProtoDashboardFailed = (): Notification => ({
-  ...defaultErrorNotification,
-  message: `Could not create dashboards for one or more plugins`,
-})
 
 export const importSucceeded = (): Notification => ({
   ...defaultSuccessNotification,
@@ -792,6 +781,17 @@ export const importFailed = (): Notification => ({
 })
 
 // Templates
+export const TelegrafDashboardCreated = (configs: string[]): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully created dashboards for telegraf plugin${
+    configs.length > 1 ? 's' : ''
+  }: ${configs.join(', ')}.`,
+})
+
+export const TelegrafDashboardFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Could not create dashboards for one or more plugins`,
+})
 
 export const importTaskSucceeded = (): Notification => ({
   ...defaultSuccessNotification,
