@@ -43,50 +43,49 @@ type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
 
 @ErrorHandling
 class OrgDashboardsIndex extends Component<Props> {
-  constructor(props) {
-    super(props)
-  }
-
   public render() {
     const {org} = this.props
 
     return (
-      <Page titleTag={org.name}>
-        <OrgHeader orgID={org.id} />
-        <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-12">
-            <Tabs>
-              <OrganizationNavigation tab={'dashboards'} orgID={org.id} />
-              <Tabs.TabContents>
-                <TabbedPageSection
-                  id="org-view-tab--dashboards"
-                  url="dashboards"
-                  title="Dashboards"
-                >
-                  <GetOrgResources<Dashboard>
-                    organization={org}
-                    fetcher={getDashboards}
+      <>
+        <Page titleTag={org.name}>
+          <OrgHeader orgID={org.id} />
+          <Page.Contents fullWidth={false} scrollable={true}>
+            <div className="col-xs-12">
+              <Tabs>
+                <OrganizationNavigation tab={'dashboards'} orgID={org.id} />
+                <Tabs.TabContents>
+                  <TabbedPageSection
+                    id="org-view-tab--dashboards"
+                    url="dashboards"
+                    title="Dashboards"
                   >
-                    {(dashboards, loading, fetch) => (
-                      <SpinnerContainer
-                        loading={loading}
-                        spinnerComponent={<TechnoSpinner />}
-                      >
-                        <Dashboards
-                          dashboards={dashboards}
-                          orgName={org.name}
-                          onChange={fetch}
-                          orgID={org.id}
-                        />
-                      </SpinnerContainer>
-                    )}
-                  </GetOrgResources>
-                </TabbedPageSection>
-              </Tabs.TabContents>
-            </Tabs>
-          </div>
-        </Page.Contents>
-      </Page>
+                    <GetOrgResources<Dashboard>
+                      organization={org}
+                      fetcher={getDashboards}
+                    >
+                      {(dashboards, loading, fetch) => (
+                        <SpinnerContainer
+                          loading={loading}
+                          spinnerComponent={<TechnoSpinner />}
+                        >
+                          <Dashboards
+                            dashboards={dashboards}
+                            orgName={org.name}
+                            onChange={fetch}
+                            orgID={org.id}
+                          />
+                        </SpinnerContainer>
+                      )}
+                    </GetOrgResources>
+                  </TabbedPageSection>
+                </Tabs.TabContents>
+              </Tabs>
+            </div>
+          </Page.Contents>
+        </Page>
+        {this.props.children}
+      </>
     )
   }
 }
