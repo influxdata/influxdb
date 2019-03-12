@@ -47,6 +47,10 @@ $overlay--container-padding: $ix-marg-c + $ix-marg-d;
     opacity: 1;
     pointer-events: all;
   }
+
+  .fancy-scroll--track-h {
+    display: none;
+  }
 }
 
 // Open State
