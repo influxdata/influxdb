@@ -4,6 +4,7 @@ import _ from 'lodash'
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {SetupSuccess, SetupError} from 'src/shared/copy/notifications'
+import {systemTemplate} from 'src/organizations/constants/index'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -82,6 +83,9 @@ export const setupAdmin = (params: ISetupParams) => async (
     const {username, password} = params
 
     await client.auth.signin(username, password)
+
+    await client.templates.create({...systemTemplate(params.bucket), orgID})
+
     dispatch(notify(SetupSuccess))
     dispatch(setStepStatus(1, StepStatus.Complete))
     return true
