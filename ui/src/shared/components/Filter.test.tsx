@@ -31,7 +31,7 @@ describe('FilterList', () => {
   })
 
   it('renders a sorted list', () => {
-    const itemOne = {name: 'Foo'}
+    const itemOne = {name: 'foo'}
     const itemTwo = {name: 'bar'}
     const list = [itemOne, itemTwo]
     const {getAllByTestId} = setup<{name: string}>({list, sortByKey: 'name'})
@@ -41,6 +41,22 @@ describe('FilterList', () => {
     expect(expected.length).toEqual(list.length)
     expect(expected[0].textContent).toEqual(itemTwo.name)
     expect(expected[1].textContent).toEqual(itemOne.name)
+  })
+
+  it('can ignore casing in sorting', () => {
+    const itemOne = {name: 'BBB'}
+    const itemTwo = {name: 'aaa'}
+    const itemThree = {name: 'CCC'}
+
+    const list = [itemOne, itemTwo, itemThree]
+    const {getAllByTestId} = setup<{name: string}>({list, sortByKey: 'name'})
+
+    const expected = getAllByTestId('list-item')
+
+    expect(expected.length).toEqual(list.length)
+    expect(expected[0].textContent).toEqual(itemTwo.name)
+    expect(expected[1].textContent).toEqual(itemOne.name)
+    expect(expected[2].textContent).toEqual(itemThree.name)
   })
 
   it('filters list of flat objects', () => {
