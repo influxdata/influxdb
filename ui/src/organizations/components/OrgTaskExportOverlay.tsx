@@ -9,10 +9,11 @@ import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 
 // APIs
 import {client} from 'src/utils/api'
+import {ITemplate} from '@influxdata/influx'
 import {Task} from 'src/types/v2'
 
 interface State {
-  taskTemplate: Record<string, any>
+  taskTemplate: ITemplate
 }
 
 interface Props extends WithRouterProps {
@@ -38,6 +39,7 @@ class OrgTaskExportOverlay extends PureComponent<Props, State> {
     if (!taskTemplate) {
       return null
     }
+
     return (
       <ExportOverlay
         resourceName="Task"
