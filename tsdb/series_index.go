@@ -22,7 +22,7 @@ const (
 	// SeriesIDSize is the size in bytes of a series key ID.
 	SeriesIDSize        = 8
 	SeriesOffsetSize    = 8
-	SeriesIndexElemSize = 16 // offset + id
+	SeriesIndexElemSize = SeriesOffsetSize + SeriesIDSize
 
 	SeriesIndexLoadFactor = 90 // rhh load factor
 
