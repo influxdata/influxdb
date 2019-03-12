@@ -6,7 +6,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 import {ResourceList, Context} from 'src/clockface'
-import FeatureFlag from 'src/shared/components/FeatureFlag'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
@@ -98,15 +97,13 @@ class DashboardCard extends PureComponent<Props> {
 
     return (
       <Context>
-        <FeatureFlag>
-          <Context.Menu icon={IconFont.CogThick}>
-            <Context.Item
-              label="Export"
-              action={this.handleExport}
-              value={dashboard}
-            />
-          </Context.Menu>
-        </FeatureFlag>
+        <Context.Menu icon={IconFont.CogThick}>
+          <Context.Item
+            label="Export"
+            action={this.handleExport}
+            value={dashboard}
+          />
+        </Context.Menu>
         <Context.Menu
           icon={IconFont.Duplicate}
           color={ComponentColor.Secondary}
@@ -166,7 +163,7 @@ class DashboardCard extends PureComponent<Props> {
       // notify success
       return newLabel
     } catch (err) {
-      console.log(err)
+      console.error(err)
       // notify of fail
       throw err
     }

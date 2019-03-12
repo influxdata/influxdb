@@ -6,7 +6,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {SlideToggle, ComponentSize} from '@influxdata/clockface'
 import {ResourceList, Context} from 'src/clockface'
-import FeatureFlag from 'src/shared/components/FeatureFlag'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // API
@@ -90,9 +89,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     return (
       <Context>
         <Context.Menu icon={IconFont.CogThick}>
-          <FeatureFlag>
-            <Context.Item label="Export" action={this.handleExport} />
-          </FeatureFlag>
+          <Context.Item label="Export" action={this.handleExport} />
           <Context.Item label="View Task Runs" action={this.handleViewRuns} />
           <Context.Item label="Run Task" action={onRunTask} value={task.id} />
         </Context.Menu>
