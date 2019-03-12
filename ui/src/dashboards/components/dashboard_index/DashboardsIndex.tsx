@@ -2,7 +2,6 @@
 import React, {PureComponent} from 'react'
 import {InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
 
 // Components
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
@@ -198,12 +197,10 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private get importOverlay(): JSX.Element {
     const {isImportingDashboard} = this.state
-    const {orgs} = this.props
 
     return (
       <ImportDashboardOverlay
         onDismissOverlay={this.handleToggleImportOverlay}
-        orgID={get(orgs, '0.id', '')}
         isVisible={isImportingDashboard}
       />
     )

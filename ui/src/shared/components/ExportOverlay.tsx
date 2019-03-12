@@ -5,6 +5,7 @@ import {client} from 'src/utils/api'
 
 // Components
 import {Overlay} from 'src/clockface'
+import {Form} from 'src/clockface'
 import {Button, ComponentColor} from '@influxdata/clockface'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 
@@ -60,26 +61,28 @@ class ExportOverlay extends PureComponent<Props> {
     return (
       <Overlay visible={isVisible}>
         <Overlay.Container maxWidth={800}>
-          <Overlay.Heading
-            title={`Export ${resourceName}`}
-            onDismiss={onDismissOverlay}
-          />
-          <Overlay.Body>
-            <div className="export-overlay--text-area">
-              <ReactCodeMirror
-                autoFocus={true}
-                autoCursor={true}
-                value={JSON.stringify(resource, null, 1)}
-                options={options}
-                onBeforeChange={this.doNothing}
-                onTouchStart={this.doNothing}
-              />
-            </div>
-          </Overlay.Body>
-          <Overlay.Footer>
-            {this.downloadButton}
-            {this.toTemplateButton}
-          </Overlay.Footer>
+          <Form onSubmit={this.handleExport}>
+            <Overlay.Heading
+              title={`Export ${resourceName}`}
+              onDismiss={onDismissOverlay}
+            />
+            <Overlay.Body>
+              <div className="export-overlay--text-area">
+                <ReactCodeMirror
+                  autoFocus={false}
+                  autoCursor={true}
+                  value={JSON.stringify(resource, null, 1)}
+                  options={options}
+                  onBeforeChange={this.doNothing}
+                  onTouchStart={this.doNothing}
+                />
+              </div>
+            </Overlay.Body>
+            <Overlay.Footer>
+              {this.downloadButton}
+              {this.toTemplateButton}
+            </Overlay.Footer>
+          </Form>
         </Overlay.Container>
       </Overlay>
     )

@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import ImportOverlay from 'src/shared/components/ImportOverlay'
@@ -9,9 +9,12 @@ import ImportOverlay from 'src/shared/components/ImportOverlay'
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/organizations/actions/orgView'
-import {AppState, Organization} from 'src/types/v2'
 import {getTasks as getTasksAction} from 'src/organizations/actions/orgView'
 import {populateTasks as populateTasksAction} from 'src/tasks/actions/v2'
+import {
+  importTaskFailed,
+  importTaskSucceeded,
+} from 'src/shared/copy/notifications'
 
 interface DispatchProps {
   notify: typeof notifyAction
@@ -20,15 +23,11 @@ interface DispatchProps {
   populateTasks: typeof populateTasksAction
 }
 
-interface StateProps {
-  orgs: Organization[]
-}
-
 interface OwnProps extends WithRouterProps {
   params: {orgID: string}
 }
 
-type Props = DispatchProps & StateProps & OwnProps
+type Props = DispatchProps & OwnProps
 
 class OrgTaskImportOverlay extends PureComponent<Props> {
   public render() {
@@ -47,25 +46,18 @@ class OrgTaskImportOverlay extends PureComponent<Props> {
     router.goBack()
   }
 
-  private handleImportTask = async (importString: string): Promise<void> => {
-    const {
-      params: {orgID},
-      orgs,
-      createTaskFromTemplate,
-      getTasks,
-      populateTasks,
-    } = this.props
+  private handleImportTask = async (
+    importString: string,
+    orgID: string
+  ): Promise<void> => {
+    const {createTaskFromTemplate, getTasks, populateTasks, notify} = this.props
 
     try {
       const template = JSON.parse(importString)
 
-      if (_.isEmpty(template)) {
-        this.onDismiss()
-      }
+      await createTaskFromTemplate(template, orgID)
 
-      await createTaskFromTemplate(template, orgID || orgs[0].id)
-
-      if (orgID) {
+      if (get(this.props.params, 'orgID', '')) {
         // import overlay is in org view
         getTasks(orgID)
       } else {
@@ -74,7 +66,10 @@ class OrgTaskImportOverlay extends PureComponent<Props> {
       }
 
       this.onDismiss()
-    } catch (error) {}
+      notify(importTaskSucceeded())
+    } catch (error) {
+      notify(importTaskFailed(error))
+    }
   }
 }
 
@@ -85,12 +80,7 @@ const mdtp: DispatchProps = {
   populateTasks: populateTasksAction,
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {orgs} = state
-  return {orgs}
-}
-
-export default connect<StateProps, DispatchProps, Props>(
-  mstp,
+export default connect<{}, DispatchProps, Props>(
+  null,
   mdtp
 )(withRouter(OrgTaskImportOverlay))

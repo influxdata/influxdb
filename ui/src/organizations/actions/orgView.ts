@@ -1,17 +1,10 @@
 import _ from 'lodash'
 
-import {notify} from 'src/shared/actions/notifications'
-
 import {
   ScraperTargetRequest,
   ITask as Task,
   ITaskTemplate,
 } from '@influxdata/influx'
-
-import {
-  importTaskSucceeded,
-  importTaskFailed,
-} from 'src/shared/copy/notifications'
 
 // API
 import {client} from 'src/utils/api'
@@ -49,12 +42,6 @@ export const createScraper = (scraper: ScraperTargetRequest) => async () => {
 export const createTaskFromTemplate = (
   template: ITaskTemplate,
   orgID: string
-) => async dispatch => {
-  try {
-    await client.tasks.createFromTemplate(template, orgID)
-
-    dispatch(notify(importTaskSucceeded()))
-  } catch (error) {
-    dispatch(notify(importTaskFailed(error)))
-  }
+) => async () => {
+  await client.tasks.createFromTemplate(template, orgID)
 }

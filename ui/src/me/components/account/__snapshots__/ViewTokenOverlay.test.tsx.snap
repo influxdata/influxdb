@@ -59,6 +59,7 @@ exports[`Account rendering renders! 1`] = `
           <button
             className="overlay--dismiss"
             onClick={[Function]}
+            type="button"
           />
         </div>
       </OverlayHeading>
