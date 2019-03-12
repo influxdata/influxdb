@@ -12,12 +12,12 @@ import {
 import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPopover'
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 
+// Utils
+import {validateLabelUniqueness} from 'src/configuration/utils/labels'
+
 // Types
 import {ILabel} from '@influxdata/influx'
 import {OverlayState} from 'src/types/overlay'
-
-// Utils
-import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Styles
 import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss'
@@ -28,12 +28,11 @@ interface Props {
   selectedLabels: ILabel[]
   labels: ILabel[]
   onAddLabel: (label: ILabel) => void
-  onCreateLabel: (label: ILabel) => Promise<ILabel>
+  onCreateLabel: (label: ILabel) => Promise<void>
 }
 
 interface State {
   searchTerm: string
-  filteredLabels: ILabel[]
   isPopoverVisible: boolean
   selectedItemID: string
   isCreatingLabel: OverlayState
@@ -44,16 +43,9 @@ class InlineLabelsEditor extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
 
-    const initialFilteredLabels = _.differenceBy(
-      props.labels,
-      props.selectedLabels,
-      label => label.name
-    )
-
     this.state = {
       selectedItemID: null,
       searchTerm: '',
-      filteredLabels: initialFilteredLabels,
       isPopoverVisible: false,
       isCreatingLabel: OverlayState.Closed,
     }
@@ -104,7 +96,7 @@ class InlineLabelsEditor extends Component<Props, State> {
           onDismiss={this.handleDismissPopover}
           onStartCreatingLabel={this.handleStartCreatingLabel}
           onInputChange={this.handleInputChange}
-          filteredLabels={this.availableLabels}
+          filteredLabels={this.filteredLabels}
           onAddLabel={this.handleAddLabel}
           onUpdateSelectedItem={this.handleUpdateSelectedItem}
         />
@@ -135,7 +127,9 @@ class InlineLabelsEditor extends Component<Props, State> {
 
     const label = labels.find(label => label.id === labelID)
 
-    onAddLabel(label)
+    if (label) {
+      onAddLabel(label)
+    }
   }
 
   private handleUpdateSelectedItem = (selectedItemID: string): void => {
@@ -159,52 +153,59 @@ class InlineLabelsEditor extends Component<Props, State> {
   }
 
   private handleDismissPopover = () => {
-    const {labels: filteredLabels} = this.props
-
-    this.setState({isPopoverVisible: false, filteredLabels})
+    this.setState({isPopoverVisible: false})
   }
 
-  private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
+  private handleInputChange = async (
+    e: ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
+    const {availableLabels} = this
     let selectedItemID = this.state.selectedItemID
-    const {labels, selectedLabels} = this.props
     const searchTerm = e.target.value
 
-    const availableLabels = _.differenceBy(labels, selectedLabels, l => l.name)
-
-    const filteredLabels = availableLabels.filter(label => {
-      return label.name.includes(searchTerm)
-    })
-
-    const selectedItemIDAvailable = filteredLabels.find(
+    const selectedItemIDAvailable = availableLabels.find(
       al => al.name === selectedItemID
     )
 
-    if (!selectedItemIDAvailable && filteredLabels.length) {
-      selectedItemID = filteredLabels[0].name
+    const matchingLabels = availableLabels.filter(label => {
+      return label.name.includes(searchTerm)
+    })
+
+    if (!selectedItemIDAvailable && matchingLabels.length) {
+      selectedItemID = matchingLabels[0].name
     }
 
     if (searchTerm.length === 0) {
-      return this.setState({
-        filteredLabels: this.props.labels,
-        selectedItemID: null,
-        searchTerm: '',
-      })
+      selectedItemID = null
     }
 
-    this.setState({searchTerm, filteredLabels, selectedItemID})
+    this.setState({searchTerm, selectedItemID})
+  }
+
+  private get filteredLabels(): ILabel[] {
+    const {searchTerm} = this.state
+
+    return this.availableLabels.filter(label => {
+      return label.name.includes(searchTerm)
+    })
   }
 
   private get availableLabels(): ILabel[] {
-    const {selectedLabels} = this.props
-    const {filteredLabels} = this.state
+    const {selectedLabels, labels} = this.props
 
-    return _.differenceBy(filteredLabels, selectedLabels, label => label.name)
+    return _.differenceBy(labels, selectedLabels, label => label.name)
   }
 
   private handleCreateLabel = async (label: ILabel) => {
     const {onCreateLabel, onAddLabel} = this.props
-    const newLabel = await onCreateLabel(label)
-    onAddLabel(newLabel)
+
+    try {
+      await onCreateLabel(label)
+      const newLabel = this.props.labels.find(l => l.name === label.name)
+      await onAddLabel(newLabel)
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   private handleStartCreatingLabel = (): void => {

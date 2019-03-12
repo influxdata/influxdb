@@ -9,11 +9,11 @@ import {ResourceList, Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
-import {createLabelAJAX} from 'src/labels/api'
 import {
   addDashboardLabelsAsync,
   removeDashboardLabelsAsync,
 } from 'src/dashboards/actions/v2'
+import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Types
 import {Organization} from 'src/types/v2'
@@ -40,6 +40,7 @@ interface StateProps {
 interface DispatchProps {
   onAddDashboardLabels: typeof addDashboardLabelsAsync
   onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
+  onCreateLabel: typeof createLabelAsync
 }
 
 type Props = PassedProps & DispatchProps & StateProps & WithRouterProps
@@ -157,11 +158,11 @@ class DashboardCard extends PureComponent<Props> {
     onRemoveDashboardLabels(dashboard.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel): Promise<ILabel> => {
+  private handleCreateLabel = async (label: ILabel): Promise<void> => {
     try {
-      const newLabel = await createLabelAJAX(label)
+      await this.props.onCreateLabel(label.name, label.properties)
+
       // notify success
-      return newLabel
     } catch (err) {
       console.error(err)
       // notify of fail
@@ -187,6 +188,7 @@ const mstp = ({labels}: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
+  onCreateLabel: createLabelAsync,
   onAddDashboardLabels: addDashboardLabelsAsync,
   onRemoveDashboardLabels: removeDashboardLabelsAsync,
 }

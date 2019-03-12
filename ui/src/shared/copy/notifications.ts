@@ -464,6 +464,18 @@ export const databaseNameAlreadyExists = (): Notification => ({
   message: 'A Database by this name already exists.',
 })
 
+//  Task Notifications
+//  ----------------------------------------------------------------------------
+export const addTaskLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to add label to task',
+})
+
+export const removeTaskLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to remove label from task',
+})
+
 //  Dashboard Notifications
 //  ----------------------------------------------------------------------------
 export const tempVarAlreadyExists = (tempVarName: string): Notification => ({
