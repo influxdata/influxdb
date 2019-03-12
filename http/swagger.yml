@@ -6857,20 +6857,25 @@ components:
             bucket:
               type: string
               description: name of the bucket
-            name:
-                type: string
-                description: name of scraper target
             links:
+              type: object
+              readOnly: true
               example:
                 self: "/api/v2/scrapers/1"
                 owners: "/api/v2/scrapers/1/owners"
                 members: "/api/v2/scrapers/1/members"
+                bucket: "/api/v2/buckets/1"
+                organization: "/api/v2/orgs/1"
               properties:
                 self:
                   $ref: "#/components/schemas/Link"
                 members:
                   $ref: "#/components/schemas/Link"
                 owners:
+                  $ref: "#/components/schemas/Link"
+                bucket:
+                  $ref: "#/components/schemas/Link"
+                organization:
                   $ref: "#/components/schemas/Link"
     ScraperTargetResponses:
       type: object
