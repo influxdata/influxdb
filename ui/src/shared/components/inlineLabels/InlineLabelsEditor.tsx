@@ -85,7 +85,8 @@ class InlineLabelsEditor extends Component<Props, State> {
     const {labels, selectedLabels} = this.props
     const {searchTerm, isPopoverVisible, selectedItemID} = this.state
 
-    const labelsUsed = labels.length === selectedLabels.length
+    const labelsUsed =
+      labels.length > 0 && labels.length === selectedLabels.length
 
     if (isPopoverVisible) {
       return (
