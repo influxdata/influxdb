@@ -192,39 +192,43 @@ type Permission struct {
 
 // Matches returns whether or not one permission matches the other.
 func (p Permission) Matches(perm Permission) bool {
+	// Different action is not allowed
 	if p.Action != perm.Action {
 		return false
 	}
 
+	// Different resource type is not allowed
 	if p.Resource.Type != perm.Resource.Type {
 		return false
 	}
 
-	if p.Resource.OrgID == nil && p.Resource.ID == nil {
-		return true
-	}
-
-	if p.Resource.OrgID != nil && p.Resource.ID == nil {
-		pOrgID := *p.Resource.OrgID
-		if perm.Resource.OrgID != nil {
-			permOrgID := *perm.Resource.OrgID
-			if pOrgID == permOrgID {
-				return true
-			}
+	if p.Resource.OrgID != nil {
+		// input resource org is nil and thus does not match the subject one
+		if perm.Resource.OrgID == nil {
+			return false
+		}
+		// Resource orgs do not match
+		if *p.Resource.OrgID != *perm.Resource.OrgID {
+			return false
 		}
 	}
 
 	if p.Resource.ID != nil {
-		pID := *p.Resource.ID
-		if perm.Resource.ID != nil {
-			permID := *perm.Resource.ID
-			if pID == permID {
-				return true
-			}
+		// Input resource identifier is nil and thus does not match the subject one
+		if perm.Resource.ID == nil {
+			return false
+		}
+		// Resource identifiers do not match
+		if *p.Resource.ID != *perm.Resource.ID {
+			return false
+		}
+
+		if p.Resource.OrgID == nil && perm.Resource.OrgID != nil {
+			return false
 		}
 	}
 
-	return false
+	return true
 }
 
 func (p Permission) String() string {
