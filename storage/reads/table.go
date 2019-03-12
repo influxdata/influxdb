@@ -164,6 +164,14 @@ func hasPoints(cur cursors.Cursor) bool {
 		return false
 	}
 
+	// TODO(sgc): this is a temporary fix to identify a remote cursor
+	//  which will not stream points causing hasPoints to return false.
+	//  This is the cause of https://github.com/influxdata/idpe/issues/2774
+	if _, ok := cur.(streamCursor); ok {
+		cur.Close()
+		return true
+	}
+
 	res := false
 	switch cur := cur.(type) {
 	case cursors.IntegerArrayCursor:

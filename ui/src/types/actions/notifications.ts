@@ -1,6 +1,9 @@
 import {Notification} from 'src/types'
 
-export type Action = PublishNotificationAction | DismissNotificationAction
+export type Action =
+  | PublishNotificationAction
+  | DismissNotificationAction
+  | DismissAllNotificationsAction
 
 export type PublishNotificationActionCreator = (
   n: Notification
@@ -20,4 +23,8 @@ export interface DismissNotificationAction {
   payload: {
     id: string
   }
+}
+
+export interface DismissAllNotificationsAction {
+  type: 'DISMISS_ALL_NOTIFICATIONS'
 }

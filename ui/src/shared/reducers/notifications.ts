@@ -20,6 +20,9 @@ export const notifications = (state = initialState, action: Action) => {
       const {id} = action.payload
       return state.filter(n => n.id !== id)
     }
+    case 'DISMISS_ALL_NOTIFICATIONS': {
+      return []
+    }
   }
 
   return state

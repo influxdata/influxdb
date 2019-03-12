@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ComponentClass} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -8,13 +8,12 @@ import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import Conditional from 'src/shared/components/Conditional'
 
-// Actions
-import {getView} from 'src/dashboards/actions/v2/views'
+// Utils
+import {getView} from 'src/dashboards/selectors'
 
 // Types
-import {RemoteDataState, TimeRange} from 'src/types'
+import {TimeRange} from 'src/types'
 import {AppState, ViewType, View, Cell} from 'src/types/v2'
 
 // Styles
@@ -22,14 +21,9 @@ import './Cell.scss'
 
 interface StateProps {
   view: View
-  viewStatus: RemoteDataState
 }
 
-interface DispatchProps {
-  onGetView: typeof getView
-}
-
-interface PassedProps {
+interface OwnProps {
   cell: Cell
   timeRange: TimeRange
   autoRefresh: number
@@ -40,19 +34,10 @@ interface PassedProps {
   onZoom: (range: TimeRange) => void
 }
 
-type Props = StateProps & DispatchProps & PassedProps
+type Props = StateProps & OwnProps
 
 @ErrorHandling
 class CellComponent extends Component<Props> {
-  public async componentDidMount() {
-    const {viewStatus, cell, onGetView} = this.props
-
-    if (viewStatus === RemoteDataState.NotStarted) {
-      const dashboardID = cell.dashboardID
-      onGetView(dashboardID, cell.id)
-    }
-  }
-
   public render() {
     const {onEditCell, onDeleteCell, onCloneCell, cell, view} = this.props
 
@@ -110,21 +95,18 @@ class CellComponent extends Component<Props> {
       manualRefresh,
       onZoom,
       view,
-      viewStatus,
       onEditCell,
     } = this.props
 
     return (
-      <Conditional isRendered={viewStatus === RemoteDataState.Done}>
-        <ViewComponent
-          view={view}
-          onZoom={onZoom}
-          timeRange={timeRange}
-          autoRefresh={autoRefresh}
-          manualRefresh={manualRefresh}
-          onEditCell={onEditCell}
-        />
-      </Conditional>
+      <ViewComponent
+        view={view}
+        onZoom={onZoom}
+        timeRange={timeRange}
+        autoRefresh={autoRefresh}
+        manualRefresh={manualRefresh}
+        onEditCell={onEditCell}
+      />
     )
   }
 
@@ -133,21 +115,11 @@ class CellComponent extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, ownProps: PassedProps): StateProps => {
-  const entry = state.views[ownProps.cell.id]
+const mstp = (state: AppState, ownProps: OwnProps): StateProps => ({
+  view: getView(state, ownProps.cell.id),
+})
 
-  if (entry) {
-    return {view: entry.view, viewStatus: entry.status}
-  }
-
-  return {view: null, viewStatus: RemoteDataState.NotStarted}
-}
-
-const mdtp: DispatchProps = {
-  onGetView: getView,
-}
-
-export default connect(
+export default connect<StateProps, {}, OwnProps>(
   mstp,
-  mdtp
-)(CellComponent) as ComponentClass<PassedProps>
+  null
+)(CellComponent)

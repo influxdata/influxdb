@@ -464,6 +464,18 @@ export const databaseNameAlreadyExists = (): Notification => ({
   message: 'A Database by this name already exists.',
 })
 
+//  Task Notifications
+//  ----------------------------------------------------------------------------
+export const addTaskLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to add label to task',
+})
+
+export const removeTaskLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to remove label from task',
+})
+
 //  Dashboard Notifications
 //  ----------------------------------------------------------------------------
 export const tempVarAlreadyExists = (tempVarName: string): Notification => ({
@@ -472,10 +484,10 @@ export const tempVarAlreadyExists = (tempVarName: string): Notification => ({
   message: `Variable '${tempVarName}' already exists. Please enter a new value.`,
 })
 
-export const dashboardNotFound = (dashboardID: string): Notification => ({
+export const dashboardGetFailed = (dashboardID: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'dash-h',
-  message: `Dashboard ${dashboardID} could not be found`,
+  message: `Failed to load dashboard with id "${dashboardID}"`,
 })
 
 export const dashboardUpdateFailed = (): Notification => ({
@@ -769,17 +781,6 @@ export const fluxTimeSeriesError = (message: string): Notification => ({
 })
 
 // Protos
-export const ProtoDashboardCreated = (configs: string[]): Notification => ({
-  ...defaultSuccessNotification,
-  message: `Successfully created dashboards for telegraf plugin${
-    configs.length > 1 ? 's' : ''
-  }: ${configs.join(', ')}.`,
-})
-
-export const ProtoDashboardFailed = (): Notification => ({
-  ...defaultErrorNotification,
-  message: `Could not create dashboards for one or more plugins`,
-})
 
 export const importSucceeded = (): Notification => ({
   ...defaultSuccessNotification,
@@ -792,6 +793,17 @@ export const importFailed = (): Notification => ({
 })
 
 // Templates
+export const TelegrafDashboardCreated = (configs: string[]): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully created dashboards for telegraf plugin${
+    configs.length > 1 ? 's' : ''
+  }: ${configs.join(', ')}.`,
+})
+
+export const TelegrafDashboardFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Could not create dashboards for one or more plugins`,
+})
 
 export const importTaskSucceeded = (): Notification => ({
   ...defaultSuccessNotification,
@@ -810,6 +822,16 @@ export const importDashboardSucceeded = (): Notification => ({
 export const importDashboardFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to import dashboard: ${error}`,
+})
+
+export const dashboardSavedAsTemplate = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully saved dashboard as template.`,
+})
+
+export const saveDashboardAsTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to save dashboard as template: ${error}`,
 })
 
 // Labels

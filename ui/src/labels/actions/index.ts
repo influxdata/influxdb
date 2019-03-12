@@ -74,7 +74,7 @@ export const getLabels = () => async (dispatch: Dispatch<Action>) => {
 
     dispatch(setLabels(RemoteDataState.Done, labels))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(setLabels(RemoteDataState.Error))
     dispatch(notify(getLabelsFailed()))
   }
@@ -89,7 +89,7 @@ export const createLabel = (
 
     dispatch(addLabel(createdLabel))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(createLabelFailed()))
   }
 }
@@ -102,7 +102,7 @@ export const updateLabel = (id: string, properties: LabelProperties) => async (
 
     dispatch(editLabel(label))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(updateLabelFailed()))
   }
 }
@@ -115,7 +115,7 @@ export const deleteLabel = (id: string) => async (
 
     dispatch(removeLabel(id))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(deleteLabelFailed()))
   }
 }

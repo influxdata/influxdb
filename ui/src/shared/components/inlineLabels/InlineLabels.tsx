@@ -20,7 +20,7 @@ interface Props {
   labels: ILabel[]
   onRemoveLabel: (label: ILabel) => void
   onAddLabel: (label: ILabel) => void
-  onCreateLabel: (label: ILabel) => Promise<ILabel>
+  onCreateLabel: (label: ILabel) => Promise<void>
   onFilterChange: (searchTerm: string) => void
 }
 

@@ -2,6 +2,8 @@
 
 ### Features
 1. [12496](https://github.com/influxdata/influxdb/pull/12496): Add ability to import a dashboard
+1. [12524](https://github.com/influxdata/influxdb/pull/12524): Add ability to import a dashboard from org view
+1. [12531](https://github.com/influxdata/influxdb/pull/12531): Add ability to export a dashboard and a task
 
 ### Bug Fixes
 

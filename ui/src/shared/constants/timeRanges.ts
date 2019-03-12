@@ -78,7 +78,7 @@ export const TIME_RANGES: TimeRange[] = [
   },
 ]
 
-export const DEFAULT_TIME_RANGE: TimeRange = TIME_RANGES[1]
+export const DEFAULT_TIME_RANGE: TimeRange = TIME_RANGES[2]
 
 export const ABSOLUTE = 'absolute'
 export const INVALID = 'invalid'

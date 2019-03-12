@@ -9,7 +9,23 @@ import {RemoteDataState} from 'src/types'
 import {Dispatch} from 'redux'
 import {View} from 'src/types/v2'
 
-export type Action = SetViewAction
+export type Action = SetViewAction | SetViewsAction
+
+export interface SetViewsAction {
+  type: 'SET_VIEWS'
+  payload: {
+    views?: View[]
+    status: RemoteDataState
+  }
+}
+
+export const setViews = (
+  status: RemoteDataState,
+  views: View[]
+): SetViewsAction => ({
+  type: 'SET_VIEWS',
+  payload: {views, status},
+})
 
 export interface SetViewAction {
   type: 'SET_VIEW'

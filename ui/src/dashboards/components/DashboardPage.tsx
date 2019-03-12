@@ -340,7 +340,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     },
     ranges,
     dashboards,
-    views,
+    views: {views},
   } = state
 
   const timeRange =

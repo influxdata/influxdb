@@ -14,6 +14,7 @@ import {
   deleteCell as deleteCellAJAX,
   addDashboardLabels as addDashboardLabelsAJAX,
   removeDashboardLabels as removeDashboardLabelsAJAX,
+  getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis/v2'
 import {client} from 'src/utils/api'
@@ -25,13 +26,16 @@ import {
   updateTimeRangeFromQueryParams,
   DeleteTimeRangeAction,
 } from 'src/dashboards/actions/v2/ranges'
-import {setView, SetViewAction} from 'src/dashboards/actions/v2/views'
 import {
   importDashboardSucceeded,
   importDashboardFailed,
 } from 'src/shared/copy/notifications'
+import {setView, SetViewAction, setViews} from 'src/dashboards/actions/v2/views'
+import {getVariables, refreshVariableValues} from 'src/variables/actions'
 
 // Utils
+import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
+import {getVariablesForOrg} from 'src/variables/selectors'
 import {
   getNewDashboardCell,
   getClonedDashboardCell,
@@ -44,7 +48,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {CreateCell, IDashboardTemplate} from '@influxdata/influx'
-import {Dashboard, NewView, Cell} from 'src/types/v2'
+import {Dashboard, NewView, Cell, GetState} from 'src/types/v2'
 import {ILabel} from '@influxdata/influx'
 
 export enum ActionTypes {
@@ -253,14 +257,37 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
 }
 
 export const getDashboardAsync = (dashboardID: string) => async (
-  dispatch
+  dispatch,
+  getState: GetState
 ): Promise<void> => {
   try {
-    const dashboard = await getDashboardAJAX(dashboardID)
+    // Fetch the dashboard and all variables a user has access to
+    const [dashboard] = await Promise.all([
+      getDashboardAJAX(dashboardID),
+      dispatch(getVariables()),
+    ])
+
+    // Fetch all the views in use on the dashboard
+    const views = await Promise.all(
+      dashboard.cells.map(cell => getViewAJAX(dashboard.id, cell.id))
+    )
+
+    dispatch(setViews(RemoteDataState.Done, views))
+
+    // Find variables in use on dashboard
+    const variables = getVariablesForOrg(getState(), dashboard.orgID)
+    const variablesInUse = filterUnusedVars(variables, views)
+
+    // Ensure the values for those variables are loaded
+    await dispatch(
+      refreshVariableValues(dashboard.id, dashboard.orgID, variablesInUse)
+    )
+
+    // Now that all the necessary state has been loaded, set the dashboard
     dispatch(loadDashboard(dashboard))
   } catch {
     dispatch(replace(`/dashboards`))
-    dispatch(notify(copy.dashboardNotFound(dashboardID)))
+    dispatch(notify(copy.dashboardGetFailed(dashboardID)))
 
     return
   }

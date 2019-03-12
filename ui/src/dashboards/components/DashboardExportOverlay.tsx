@@ -10,8 +10,12 @@ import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 // APIs
 import {getDashboard, getView} from 'src/dashboards/apis/v2'
 
+// Types
+import {ITemplate} from '@influxdata/influx'
+
 interface State {
-  dashboardTemplate: Record<string, any>
+  dashboardTemplate: ITemplate
+  orgID: string
 }
 
 interface Props extends WithRouterProps {
@@ -19,7 +23,7 @@ interface Props extends WithRouterProps {
 }
 
 class DashboardExportOverlay extends PureComponent<Props, State> {
-  public state: State = {dashboardTemplate: null}
+  public state: State = {dashboardTemplate: null, orgID: null}
 
   public async componentDidMount() {
     const {
@@ -31,11 +35,11 @@ class DashboardExportOverlay extends PureComponent<Props, State> {
     const views = await Promise.all(pendingViews)
     const dashboardTemplate = dashboardToTemplate(dashboard, views)
 
-    this.setState({dashboardTemplate})
+    this.setState({dashboardTemplate, orgID: dashboard.orgID})
   }
 
   public render() {
-    const {dashboardTemplate} = this.state
+    const {dashboardTemplate, orgID} = this.state
     if (!dashboardTemplate) {
       return null
     }
@@ -44,6 +48,7 @@ class DashboardExportOverlay extends PureComponent<Props, State> {
         resourceName="Dashboard"
         resource={dashboardTemplate}
         onDismissOverlay={this.onDismiss}
+        orgID={orgID}
       />
     )
   }

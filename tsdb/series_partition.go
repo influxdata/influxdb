@@ -846,11 +846,11 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 		elem := dst[(pos * SeriesIndexElemSize):]
 
 		// If empty slot found or matching offset, insert and exit.
-		elemOffset := int64(binary.BigEndian.Uint64(elem[:8]))
-		elemID := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[8:]))
+		elemOffset := int64(binary.BigEndian.Uint64(elem[:SeriesOffsetSize]))
+		elemID := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[SeriesOffsetSize:]))
 		if elemOffset == 0 || elemOffset == offset {
-			binary.BigEndian.PutUint64(elem[:8], uint64(offset))
-			binary.BigEndian.PutUint64(elem[8:], id.RawID())
+			binary.BigEndian.PutUint64(elem[:SeriesOffsetSize], uint64(offset))
+			binary.BigEndian.PutUint64(elem[SeriesOffsetSize:], id.RawID())
 			return nil
 		}
 
@@ -862,8 +862,8 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 		// existing elem, and keep going to find another slot for that elem.
 		if d := rhh.Dist(elemHash, pos, capacity); d < dist {
 			// Insert current values.
-			binary.BigEndian.PutUint64(elem[:8], uint64(offset))
-			binary.BigEndian.PutUint64(elem[8:], id.RawID())
+			binary.BigEndian.PutUint64(elem[:SeriesOffsetSize], uint64(offset))
+			binary.BigEndian.PutUint64(elem[SeriesOffsetSize:], id.RawID())
 
 			// Swap with values in that position.
 			hash, key, offset, id = elemHash, elemKey, elemOffset, elemID
@@ -884,11 +884,11 @@ func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64,
 		elem := dst[(pos * SeriesIndexElemSize):]
 
 		// If empty slot found or matching id, insert and exit.
-		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[:8]))
-		elemOffset := int64(binary.BigEndian.Uint64(elem[8:]))
+		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[:SeriesIDSize]))
+		elemOffset := int64(binary.BigEndian.Uint64(elem[SeriesIDSize:]))
 		if elemOffset == 0 || elemOffset == offset {
-			binary.BigEndian.PutUint64(elem[:8], id.RawID())
-			binary.BigEndian.PutUint64(elem[8:], uint64(offset))
+			binary.BigEndian.PutUint64(elem[:SeriesIDSize], id.RawID())
+			binary.BigEndian.PutUint64(elem[SeriesIDSize:], uint64(offset))
 			return
 		}
 
@@ -899,8 +899,8 @@ func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64,
 		// existing elem, and keep going to find another slot for that elem.
 		if d := rhh.Dist(elemHash, pos, capacity); d < dist {
 			// Insert current values.
-			binary.BigEndian.PutUint64(elem[:8], id.RawID())
-			binary.BigEndian.PutUint64(elem[8:], uint64(offset))
+			binary.BigEndian.PutUint64(elem[:SeriesIDSize], id.RawID())
+			binary.BigEndian.PutUint64(elem[SeriesIDSize:], uint64(offset))
 
 			// Swap with values in that position.
 			hash, id, offset = elemHash, elemID, elemOffset
