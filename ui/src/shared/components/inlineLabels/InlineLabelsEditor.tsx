@@ -12,12 +12,12 @@ import {
 import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPopover'
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 
+// Utils
+import {validateLabelUniqueness} from 'src/configuration/utils/labels'
+
 // Types
 import {ILabel} from '@influxdata/influx'
 import {OverlayState} from 'src/types/overlay'
-
-// Utils
-import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Styles
 import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss'
@@ -163,7 +163,7 @@ class InlineLabelsEditor extends Component<Props, State> {
     let selectedItemID = this.state.selectedItemID
     const searchTerm = e.target.value
 
-    const selectedItemIDAvailable = this.availableLabels.find(
+    const selectedItemIDAvailable = availableLabels.find(
       al => al.name === selectedItemID
     )
 
@@ -184,11 +184,8 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private get filteredLabels(): ILabel[] {
     const {searchTerm} = this.state
-    const {labels, selectedLabels} = this.props
 
-    const availableLabels = _.differenceBy(labels, selectedLabels, l => l.name)
-
-    return availableLabels.filter(label => {
+    return this.availableLabels.filter(label => {
       return label.name.includes(searchTerm)
     })
   }
@@ -201,9 +198,14 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private handleCreateLabel = async (label: ILabel) => {
     const {onCreateLabel, onAddLabel} = this.props
-    await onCreateLabel(label)
-    const newLabel = this.props.labels.find(l => l.name === label.name)
-    await onAddLabel(newLabel)
+
+    try {
+      await onCreateLabel(label)
+      const newLabel = this.props.labels.find(l => l.name === label.name)
+      await onAddLabel(newLabel)
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   private handleStartCreatingLabel = (): void => {

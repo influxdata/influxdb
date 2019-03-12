@@ -23,6 +23,9 @@ import {
   taskGetFailed,
 } from 'src/shared/copy/v2/notifications'
 
+// Constants
+import * as copy from 'src/shared/copy/notifications'
+
 // Types
 import {AppState, Label} from 'src/types/v2'
 
@@ -229,6 +232,7 @@ export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
     dispatch(updateTask(task))
   } catch (error) {
     console.error(error)
+    dispatch(copy.addTaskLabelFailed())
   }
 }
 
@@ -243,6 +247,7 @@ export const removeTaskLabelsAsync = (
     dispatch(updateTask(task))
   } catch (error) {
     console.error(error)
+    dispatch(copy.removeTaskLabelFailed())
   }
 }
 
