@@ -9,7 +9,6 @@ import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/D
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import ExportOverlay from 'src/shared/components/ExportOverlay'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 
 // APIs
@@ -67,8 +66,6 @@ type Props = DispatchProps & StateProps & OwnProps
 interface State {
   searchTerm: string
   isImportingDashboard: boolean
-  isExportingDashboard: boolean
-  exportDashboard: Dashboard
 }
 
 @ErrorHandling
@@ -79,8 +76,6 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.state = {
       searchTerm: '',
       isImportingDashboard: false,
-      isExportingDashboard: false,
-      exportDashboard: null,
     }
   }
 
@@ -137,7 +132,6 @@ class DashboardIndex extends PureComponent<Props, State> {
           </Page.Contents>
         </Page>
         {this.importOverlay}
-        {this.exportOverlay}
       </>
     )
   }
@@ -202,10 +196,6 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.setState({isImportingDashboard: !this.state.isImportingDashboard})
   }
 
-  private handleToggleExportOverlay = (): void => {
-    this.setState({isExportingDashboard: !this.state.isExportingDashboard})
-  }
-
   private get importOverlay(): JSX.Element {
     const {isImportingDashboard} = this.state
     const {orgs} = this.props
@@ -215,19 +205,6 @@ class DashboardIndex extends PureComponent<Props, State> {
         onDismissOverlay={this.handleToggleImportOverlay}
         orgID={get(orgs, '0.id', '')}
         isVisible={isImportingDashboard}
-      />
-    )
-  }
-
-  private get exportOverlay(): JSX.Element {
-    const {isExportingDashboard, exportDashboard} = this.state
-
-    return (
-      <ExportOverlay
-        resource={exportDashboard}
-        isVisible={isExportingDashboard}
-        resourceName="Dashboard"
-        onDismissOverlay={this.handleToggleExportOverlay}
       />
     )
   }
