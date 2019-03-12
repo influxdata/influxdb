@@ -11,6 +11,7 @@ COPY --from=builder /go/bin/* /usr/bin/
 COPY --from=builder /go/src/github.com/influxdata/influxdb/etc/config.sample.toml /etc/influxdb/influxdb.conf
 
 EXPOSE 8086
+EXPOSE 6060
 VOLUME /var/lib/influxdb
 
 COPY docker/entrypoint.sh /entrypoint.sh
