@@ -5593,6 +5593,7 @@ components:
             buckets: "/api/v2/buckets?org=myorg"
             tasks: "/api/v2/tasks?org=myorg"
             dashboards: "/api/v2/dashboards?org=myorg"
+            logs: "/api/v2/orgs/1/logs"
           properties:
             self:
               $ref: "#/components/schemas/Link"
@@ -5609,6 +5610,8 @@ components:
             tasks:
               $ref: "#/components/schemas/Link"
             dashboards:
+              $ref: "#/components/schemas/Link"
+            logs:
               $ref: "#/components/schemas/Link"
         id:
           readOnly: true
@@ -6715,6 +6718,7 @@ components:
                 cells: "/api/v2/dashboards/1/cells"
                 owners: "/api/v2/dashboards/1/owners"
                 members: "/api/v2/dashboards/1/members"
+                logs: "/api/v2/dashboards/1/logs"
               properties:
                 self:
                   $ref: "#/components/schemas/Link"
@@ -6723,6 +6727,8 @@ components:
                 members:
                   $ref: "#/components/schemas/Link"
                 owners:
+                  $ref: "#/components/schemas/Link"
+                logs:
                   $ref: "#/components/schemas/Link"
             id:
               readOnly: true
