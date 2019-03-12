@@ -1,0 +1,35 @@
+@import 'src/style/modules';
+
+$variables-control-bar--height: $page-header-size -
+  (($page-header-size - $form-sm-height) / 2);
+
+$variables-control-bar--gutter: $ix-marg-a;
+
+.variables-control-bar {
+  min-height: $variables-control-bar--height;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 0 ($page-gutter - ($variables-control-bar--gutter / 2));
+  padding-bottom: (($page-header-size - $form-sm-height) / 2) -
+    $variables-control-bar--gutter;
+
+  /* Adjust height of Page Contents when control bar is present */
+  & + .page-contents {
+    height: calc(
+      100% - #{$variables-control-bar--height + $page-header-size}
+    ) !important;
+  }
+
+  .variable-dropdown {
+    margin: 0 $variables-control-bar--gutter / 2;
+    margin-bottom: $variables-control-bar--gutter;
+  }
+}
+
+.variables-control-bar--empty {
+  background-color: $g3-castle;
+  border-radius: $radius;
+  height: 100%;
+  justify-content: center;
+}

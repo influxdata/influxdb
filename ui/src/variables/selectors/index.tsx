@@ -32,6 +32,50 @@ export const getVariablesForOrg = (
   return getVariablesForOrgMemoized(state.variables.variables, orgID)
 }
 
+export const getVariablesForDashboard = (
+  state: AppState,
+  dashboardID: string
+): Variable[] => {
+  const {
+    variables: {variables, values},
+  } = state
+
+  let variablesForDash = []
+
+  const variablesIDs = Object.keys(get(values, `${dashboardID}.values`))
+
+  variablesIDs.forEach(variableID => {
+    const variable = get(variables, `${variableID}.variable`)
+
+    if (variable) {
+      variablesForDash.push(variable)
+    }
+  })
+
+  return variablesForDash
+}
+
+export const getValuesForVariable = (
+  state: AppState,
+  variableID: string,
+  contextID: string
+): string[] => {
+  const {variables} = state
+  return get(variables, `values.${contextID}.values.${variableID}.values`)
+}
+
+export const getSelectedValueForVariable = (
+  state: AppState,
+  variableID: string,
+  contextID: string
+): string => {
+  const {variables} = state
+  return get(
+    variables,
+    `values.${contextID}.values.${variableID}.selectedValue`
+  )
+}
+
 export const getValueSelections = (
   state: AppState,
   contextID: string

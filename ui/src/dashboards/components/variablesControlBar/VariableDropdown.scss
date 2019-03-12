@@ -1,0 +1,34 @@
+@import 'src/style/modules';
+
+.variable-dropdown {
+  display: flex;
+  flex-direction: row;
+  height: $form-sm-height;
+}
+
+.variable-dropdown--dropdown {
+  .button {
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+  }
+}
+
+.variable-dropdown--label {
+  user-select: none;
+  line-height: $form-sm-height;
+  font-size: $form-sm-font;
+  font-weight: 600;
+  color: $c-comet;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 $form-sm-padding;
+  border-radius: $radius 0 0 $radius;
+  background-color: $g3-castle;
+  background-attachment: fixed;
+
+  > span {
+    @include gradient-h($c-comet, $c-laser);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}

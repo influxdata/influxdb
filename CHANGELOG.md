@@ -4,16 +4,19 @@
 
 1. [12663](https://github.com/influxdata/influxdb/pull/12663): Insert flux function near cursor in flux editor
 1. [12678](https://github.com/influxdata/influxdb/pull/12678): Enable the use of variables in the Data Explorer and Cell Editor Overlay
+1. [12655](https://github.com/influxdata/influxdb/pull/12655): Add a variable control bar to dashboards to select values for variables.
 
 ### Bug Fixes
-1. [12684](https://github.com/influxdata/influxdb/pull/12684): Fix mismatch in bucket row and header  
+
+1. [12684](https://github.com/influxdata/influxdb/pull/12684): Fix mismatch in bucket row and header
 
 ### UI Improvements
 
 ## v2.0.0-alpha.6 [2019-03-15]
 
 ### Release Notes
-We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. In order to get this functionality, remove your existing data and start from scratch. 
+
+We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. In order to get this functionality, remove your existing data and start from scratch.
 
 **NOTE: This will remove all data from your InfluxDB v2.0 instance including timeseries data.**
 
@@ -35,6 +38,7 @@ Once completed, `v2.0.0-alpha.6` can be started.
 1. [12532](https://github.com/influxdata/influxdb/pull/12532): Add System template on onboarding
 
 ### Bug Fixes
+
 1. [12641](https://github.com/influxdata/influxdb/pull/12641): Stop scrollbars from covering text in flux editor
 
 ### UI Improvements
