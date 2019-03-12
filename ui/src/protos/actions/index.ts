@@ -18,8 +18,8 @@ import {ConfigurationState} from 'src/types/v2/dataLoaders'
 
 // Const
 import {
-  ProtoDashboardFailed,
-  ProtoDashboardCreated,
+  TelegrafDashboardFailed,
+  TelegrafDashboardCreated,
 } from 'src/shared/copy/notifications'
 
 export enum ActionTypes {
@@ -98,10 +98,10 @@ export const createDashboardsForPlugins = () => async (
     })
 
     if (plugins.length) {
-      dispatch(notify(ProtoDashboardCreated(plugins)))
+      dispatch(notify(TelegrafDashboardCreated(plugins)))
     }
   } catch (err) {
     console.error(err)
-    dispatch(notify(ProtoDashboardFailed()))
+    dispatch(notify(TelegrafDashboardFailed()))
   }
 }
