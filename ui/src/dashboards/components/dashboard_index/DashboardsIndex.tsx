@@ -131,6 +131,7 @@ class DashboardIndex extends PureComponent<Props, State> {
           </Page.Contents>
         </Page>
         {this.importOverlay}
+        {this.props.children}
       </>
     )
   }

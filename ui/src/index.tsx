@@ -165,17 +165,16 @@ class Root extends PureComponent {
                           path="data-explorer"
                           component={DataExplorerPage}
                         />
-                        <Route path="dashboards">
-                          <IndexRoute component={DashboardsIndex} />
-                          <Route
-                            path=":dashboardID"
-                            component={DashboardPage}
-                          />
+                        <Route path="dashboards" component={DashboardsIndex}>
                           <Route
                             path=":dashboardID/export"
                             component={DashboardExportOverlay}
                           />
                         </Route>
+                        <Route
+                          path="dashboards/:dashboardID"
+                          component={DashboardPage}
+                        />
                         <Route path="me" component={MePage} />
                         <Route path="account/:tab" component={Account} />
                         <Route
