@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {IndexList, OverlayTechnology} from 'src/clockface'
+import {IndexList, Overlay} from 'src/clockface'
 import VariableRow from 'src/organizations/components/VariableRow'
 import UpdateVariableOverlay from 'src/organizations/components/UpdateVariableOverlay'
 
@@ -59,13 +59,13 @@ class VariableList extends PureComponent<Props, State> {
             ))}
           </IndexList.Body>
         </IndexList>
-        <OverlayTechnology visible={this.isVariableOverlayVisible}>
+        <Overlay visible={this.isVariableOverlayVisible}>
           <UpdateVariableOverlay
             variable={this.variable}
             onCloseOverlay={this.handleCloseOverlay}
             onUpdateVariable={this.handleUpdateVariable}
           />
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }

@@ -3,15 +3,7 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {
-  OverlayBody,
-  OverlayHeading,
-  OverlayFooter,
-  ComponentStatus,
-  OverlayContainer,
-  Form,
-  Input,
-} from 'src/clockface'
+import {Overlay, ComponentStatus, Form, Input} from 'src/clockface'
 import {Button, ButtonType, ComponentColor} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
@@ -51,14 +43,14 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
     const {variable, nameInputStatus, nameErrorMessage, script} = this.state
 
     return (
-      <OverlayContainer maxWidth={1000}>
-        <OverlayHeading
+      <Overlay.Container maxWidth={1000}>
+        <Overlay.Heading
           title="Edit Variable"
           onDismiss={this.props.onCloseOverlay}
         />
 
         <Form onSubmit={this.handleSubmit}>
-          <OverlayBody>
+          <Overlay.Body>
             <div className="overlay-flux-editor--spacing">
               <Form.Element label="Name" errorMessage={nameErrorMessage}>
                 <Input
@@ -83,7 +75,7 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
               </div>
             </Form.Element>
 
-            <OverlayFooter>
+            <Overlay.Footer>
               <Button
                 text="Cancel"
                 color={ComponentColor.Danger}
@@ -99,10 +91,10 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
                     : ComponentStatus.Disabled
                 }
               />
-            </OverlayFooter>
-          </OverlayBody>
+            </Overlay.Footer>
+          </Overlay.Body>
         </Form>
-      </OverlayContainer>
+      </Overlay.Container>
     )
   }
 

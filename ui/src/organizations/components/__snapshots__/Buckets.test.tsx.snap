@@ -344,15 +344,39 @@ Object {
         </tbody>
       </table>
       <div
-        class="overlay-tech"
+        class="fancy-scroll--container overlay"
+        style="position: relative; overflow: hidden; width: 100%; height: 100%;"
       >
         <div
-          class="overlay--dialog"
-          data-testid="overlay-children"
-        />
+          class="fancy-scroll--view"
+          style="position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px; overflow: scroll; margin-right: 0px; margin-bottom: 0px;"
+        >
+          <div
+            class="overlay--transition"
+            data-testid="overlay-children"
+          />
+          <div
+            class="overlay--mask"
+          />
+        </div>
         <div
-          class="overlay--mask"
-        />
+          class="fancy-scroll--track-h"
+          style="position: absolute; width: 100%; height: 12px; bottom: 0px; left: 0px; padding: 3px; cursor: pointer;"
+        >
+          <div
+            class="fancy-scroll--thumb-h"
+            style="position: relative; display: block; height: 6px; border-radius: 3px;"
+          />
+        </div>
+        <div
+          class="fancy-scroll--track-v"
+          style="position: absolute; width: 12px; height: 100%; top: 0px; right: 0px; padding: 3px; cursor: pointer;"
+        >
+          <div
+            class="fancy-scroll--thumb-v"
+            style="position: relative; display: block; width: 6px; border-radius: 3px;"
+          />
+        </div>
       </div>
       <div
         data-testid="data-loader-empty"
@@ -699,15 +723,39 @@ Object {
       </tbody>
     </table>
     <div
-      class="overlay-tech"
+      class="fancy-scroll--container overlay"
+      style="position: relative; overflow: hidden; width: 100%; height: 100%;"
     >
       <div
-        class="overlay--dialog"
-        data-testid="overlay-children"
-      />
+        class="fancy-scroll--view"
+        style="position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px; overflow: scroll; margin-right: 0px; margin-bottom: 0px;"
+      >
+        <div
+          class="overlay--transition"
+          data-testid="overlay-children"
+        />
+        <div
+          class="overlay--mask"
+        />
+      </div>
       <div
-        class="overlay--mask"
-      />
+        class="fancy-scroll--track-h"
+        style="position: absolute; width: 100%; height: 12px; bottom: 0px; left: 0px; padding: 3px; cursor: pointer;"
+      >
+        <div
+          class="fancy-scroll--thumb-h"
+          style="position: relative; display: block; height: 6px; border-radius: 3px;"
+        />
+      </div>
+      <div
+        class="fancy-scroll--track-v"
+        style="position: absolute; width: 12px; height: 100%; top: 0px; right: 0px; padding: 3px; cursor: pointer;"
+      >
+        <div
+          class="fancy-scroll--thumb-v"
+          style="position: relative; display: block; width: 6px; border-radius: 3px;"
+        />
+      </div>
     </div>
     <div
       data-testid="data-loader-empty"

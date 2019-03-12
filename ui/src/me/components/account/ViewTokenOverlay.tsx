@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {get} from 'lodash'
 
 // Components
-import {OverlayContainer, OverlayBody, OverlayHeading} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 import PermissionsWidget, {
   PermissionsWidgetMode,
   PermissionsWidgetSelection,
@@ -30,9 +30,9 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
     const permissions = this.permissions
 
     return (
-      <OverlayContainer>
-        <OverlayHeading title={description} onDismiss={this.handleDismiss} />
-        <OverlayBody>
+      <Overlay.Container>
+        <Overlay.Heading title={description} onDismiss={this.handleDismiss} />
+        <Overlay.Body>
           <CodeSnippet copyText={this.props.auth.token} notify={onNotify} />
           <PermissionsWidget
             mode={PermissionsWidgetMode.Read}
@@ -58,8 +58,8 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
               )
             })}
           </PermissionsWidget>
-        </OverlayBody>
-      </OverlayContainer>
+        </Overlay.Body>
+      </Overlay.Container>
     )
   }
 

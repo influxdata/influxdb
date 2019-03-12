@@ -1,46 +1,45 @@
+@import 'src/style/modules';
 /*
    Overlays
    -----------------------------------------------------------------------------
 */
 
-$overlay-title-height: $chronograf-page-header-height;
-$overlay-gutter: $ix-marg-d;
+$overlay--gutter: $ix-marg-c + $ix-marg-b;
+$overlay--header-height: $page-header-size;
+$overlay--title-size: $page-title-size;
+$overlay--title-weight: $page-title-weight;
+$overlay--container-padding: $ix-marg-c + $ix-marg-d;
 
-
-/*
-    Overlay Technology Styles
-    ----------------------------------------------------------------------------
-*/
-
+// Mixin for shared styles
 %overlay-styles {
-  position: fixed;
-  width: 100%;
-  height: 100%;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
   top: 0;
   left: 0;
 }
 
 .overlay--mask {
+  z-index: 0;
   @extend %overlay-styles;
-  z-index: 1;
   opacity: 0;
   transition: opacity 0.25s ease;
-  @include gradient-diag-down($c-pool,$c-comet);
+  @include gradient-diag-down($c-pool, $c-comet);
 }
 
-.overlay--dialog {
-  height: 100%;
+.overlay--transition {
   position: relative;
   z-index: 2;
   transform: translateY(72px);
   opacity: 0;
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    opacity 0.25s ease;
 }
 
-.overlay-tech {
+.overlay {
+  z-index: $z--overlays;
   @extend %overlay-styles;
   transition: all 0.25s ease;
-  z-index: $z--overlays;
   pointer-events: none;
   opacity: 0;
 
@@ -48,44 +47,48 @@ $overlay-gutter: $ix-marg-d;
     opacity: 1;
     pointer-events: all;
   }
+
+  .fancy-scroll--track-h {
+    display: none;
+  }
 }
 
 // Open State
-.overlay-tech.show {
+.overlay.show {
   .overlay--mask {
     opacity: 0.7;
   }
-  .overlay--dialog {
+  .overlay--transition {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
 .overlay--container {
-  margin: 40px auto;
+  margin: $overlay--container-padding auto;
   @include gradient-v($g3-castle, $g2-kevlar);
   border-radius: $radius;
 }
 
 .overlay--heading {
-  height: 80px;
+  height: $overlay--header-height;
   display: flex;
+  padding: 0 $overlay--gutter;
   justify-content: space-between;
   align-items: center;
-  padding: 0 $overlay-gutter;
   @include no-user-select();
 }
 
 .overlay--title {
-  font-size: 19px;
-  font-weight: 400;
+  font-size: $overlay--title-size;
+  font-weight: $overlay--title-weight;
   color: $g17-whisper;
   white-space: nowrap;
 }
 
 .overlay--dismiss {
-  width: ($overlay-title-height - 20px);
-  height: ($overlay-title-height - 20px);
+  width: ($overlay--header-height - 20px);
+  height: ($overlay--header-height - 20px);
   position: relative;
   background-color: transparent;
   border: 0;
@@ -105,10 +108,10 @@ $overlay-gutter: $ix-marg-d;
     transition: background-color 0.25s ease;
   }
   &:before {
-    transform: translate(-50%,-50%) rotate(45deg);
+    transform: translate(-50%, -50%) rotate(45deg);
   }
   &:after {
-    transform: translate(-50%,-50%) rotate(-45deg);
+    transform: translate(-50%, -50%) rotate(-45deg);
   }
   /* Hover State */
   &:hover {
@@ -121,9 +124,8 @@ $overlay-gutter: $ix-marg-d;
 }
 
 .overlay--body {
-  padding: $overlay-gutter;
+  padding: $overlay--gutter;
   padding-top: 0;
-  padding-bottom: $overlay-gutter / 2;
   color: $g13-mist;
 
   p {
@@ -132,6 +134,6 @@ $overlay-gutter: $ix-marg-d;
 }
 
 .overlay--footer {
-  padding: $overlay-gutter 0;
-  padding-top: $overlay-gutter / 2;
+  padding: $overlay--gutter;
+  padding-top: 0;
 }

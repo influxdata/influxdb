@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {OverlayBody, OverlayHeading, OverlayContainer} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 import AddMembersForm from './AddMembersForm'
 import FilterList from 'src/shared/components/Filter'
 
@@ -38,9 +38,9 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
     const {selectedUserIDs, searchTerm, selectedMembers} = this.state
 
     return (
-      <OverlayContainer maxWidth={500}>
-        <OverlayHeading title="Add Member" onDismiss={onCloseModal} />
-        <OverlayBody>
+      <Overlay.Container maxWidth={500}>
+        <Overlay.Heading title="Add Member" onDismiss={onCloseModal} />
+        <Overlay.Body>
           <FilterList<User>
             list={this.filteredList}
             searchTerm={searchTerm}
@@ -60,8 +60,8 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
               />
             )}
           </FilterList>
-        </OverlayBody>
-      </OverlayContainer>
+        </Overlay.Body>
+      </Overlay.Container>
     )
   }
 

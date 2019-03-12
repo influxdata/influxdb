@@ -5,13 +5,7 @@ import React, {PureComponent} from 'react'
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
 import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
 import {IconFont, Button, ComponentColor} from '@influxdata/clockface'
-import {
-  Radio,
-  OverlayTechnology,
-  OverlayBody,
-  OverlayHeading,
-  OverlayContainer,
-} from 'src/clockface'
+import {Radio, Overlay} from 'src/clockface'
 
 // Styles
 import 'src/dataExplorer/components/SaveAsButton.scss'
@@ -46,13 +40,13 @@ class SaveAsButton extends PureComponent<Props, State> {
           color={ComponentColor.Primary}
           titleText="Save your query as a Dashboard Cell or a Task"
         />
-        <OverlayTechnology visible={isOverlayVisible}>
-          <OverlayContainer maxWidth={600}>
-            <OverlayHeading
+        <Overlay visible={isOverlayVisible}>
+          <Overlay.Container maxWidth={600}>
+            <Overlay.Heading
               title="Save As"
               onDismiss={this.handleHideOverlay}
             />
-            <OverlayBody>
+            <Overlay.Body>
               <div className="save-as--options">
                 <Radio>
                   <Radio.Button
@@ -74,9 +68,9 @@ class SaveAsButton extends PureComponent<Props, State> {
                 </Radio>
               </div>
               {this.saveAsForm}
-            </OverlayBody>
-          </OverlayContainer>
-        </OverlayTechnology>
+            </Overlay.Body>
+          </Overlay.Container>
+        </Overlay>
       </>
     )
   }

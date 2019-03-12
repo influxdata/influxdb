@@ -39,13 +39,13 @@ exports[`VariableList rendering renders 1`] = `
       />
     </IndexListBody>
   </IndexList>
-  <OverlayTechnology
+  <Overlay
     visible={false}
   >
     <UpdateVariableOverlay
       onCloseOverlay={[Function]}
       onUpdateVariable={[Function]}
     />
-  </OverlayTechnology>
+  </Overlay>
 </Fragment>
 `;

@@ -4,13 +4,9 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OverlayBody from 'src/clockface/components/overlays/OverlayBody'
-import OverlayContainer from 'src/clockface/components/overlays/OverlayContainer'
-import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
-import OverlayHeading from 'src/clockface/components/overlays/OverlayHeading'
 import TelegrafConfig from 'src/organizations/components/TelegrafConfig'
 import {ComponentColor, Button} from '@influxdata/clockface'
-import {OverlayFooter} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
@@ -52,27 +48,27 @@ export class TelegrafConfigOverlay extends PureComponent<Props> {
     const {visible, onDismiss, telegrafConfigName} = this.props
 
     return (
-      <OverlayTechnology visible={visible}>
-        <OverlayContainer maxWidth={1200}>
-          <OverlayHeading
+      <Overlay visible={visible}>
+        <Overlay.Container maxWidth={1200}>
+          <Overlay.Heading
             title={`Telegraf Configuration - ${telegrafConfigName}`}
             onDismiss={onDismiss}
           />
 
-          <OverlayBody>
+          <Overlay.Body>
             <div className="config-overlay">
               <TelegrafConfig />
             </div>
-          </OverlayBody>
-          <OverlayFooter>
+          </Overlay.Body>
+          <Overlay.Footer>
             <Button
               color={ComponentColor.Secondary}
               text={'Download Config'}
               onClick={this.handleDownloadConfig}
             />
-          </OverlayFooter>
-        </OverlayContainer>
-      </OverlayTechnology>
+          </Overlay.Footer>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 

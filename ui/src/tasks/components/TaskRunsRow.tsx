@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import moment from 'moment'
 
 // Components
-import {IndexList, OverlayTechnology} from 'src/clockface'
+import {IndexList, Overlay} from 'src/clockface'
 import RunLogsOverlay from 'src/tasks/components/RunLogsList'
 
 // Actions
@@ -95,12 +95,12 @@ class TaskRunsRow extends PureComponent<Props, State> {
     const {logs} = this.props
 
     return (
-      <OverlayTechnology visible={isImportOverlayVisible}>
+      <Overlay visible={isImportOverlayVisible}>
         <RunLogsOverlay
           onDismissOverlay={this.handleToggleOverlay}
           logs={logs}
         />
-      </OverlayTechnology>
+      </Overlay>
     )
   }
 }

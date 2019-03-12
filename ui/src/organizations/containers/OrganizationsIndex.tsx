@@ -10,7 +10,7 @@ import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import OrganizationsIndexContents from 'src/organizations/components/OrganizationsIndexContents'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
-import {OverlayTechnology} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 
 // Actions
 import {createOrg, deleteOrg} from 'src/organizations/actions/orgs'
@@ -93,13 +93,13 @@ class OrganizationsIndex extends PureComponent<Props, State> {
             </FilterList>
           </Page.Contents>
         </Page>
-        <OverlayTechnology visible={modalState === ModalState.Open}>
+        <Overlay visible={modalState === ModalState.Open}>
           <CreateOrgOverlay
             link={links.orgs}
             onCloseModal={this.handleCloseModal}
             onCreateOrg={onCreateOrg}
           />
-        </OverlayTechnology>
+        </Overlay>
       </>
     )
   }

@@ -5,14 +5,7 @@ import _ from 'lodash'
 
 // Components
 import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
-import {
-  Form,
-  OverlayContainer,
-  OverlayHeading,
-  OverlayBody,
-  OverlayFooter,
-  OverlayTechnology,
-} from 'src/clockface'
+import {Form, Overlay} from 'src/clockface'
 import CreateScraperForm from 'src/organizations/components/CreateScraperForm'
 
 // Actions
@@ -88,11 +81,11 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
     const {onDismiss, visible, buckets} = this.props
 
     return (
-      <OverlayTechnology visible={visible}>
-        <OverlayContainer maxWidth={600}>
-          <OverlayHeading title="Create Scraper" onDismiss={onDismiss} />
+      <Overlay visible={visible}>
+        <Overlay.Container maxWidth={600}>
+          <Overlay.Heading title="Create Scraper" onDismiss={onDismiss} />
           <Form onSubmit={this.handleSubmit}>
-            <OverlayBody>
+            <Overlay.Body>
               <h5 className="wizard-step--sub-title">
                 Scrapers collect data from multiple targets at regular intervals
                 and to write to a bucket
@@ -105,8 +98,8 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
                 onInputChange={this.handleInputChange}
                 onSelectBucket={this.handleSelectBucket}
               />
-            </OverlayBody>
-            <OverlayFooter>
+            </Overlay.Body>
+            <Overlay.Footer>
               <Button
                 text="Cancel"
                 onClick={onDismiss}
@@ -119,10 +112,10 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
                 color={ComponentColor.Success}
                 testID="create-scraper--submit"
               />
-            </OverlayFooter>
+            </Overlay.Footer>
           </Form>
-        </OverlayContainer>
-      </OverlayTechnology>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 

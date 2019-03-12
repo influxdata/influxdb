@@ -4,13 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import {Button, ComponentColor} from '@influxdata/clockface'
-import {
-  OverlayTechnology,
-  OverlayBody,
-  OverlayHeading,
-  OverlayContainer,
-  OverlayFooter,
-} from 'src/clockface'
+import {Overlay} from 'src/clockface'
 
 // Actions
 import {
@@ -58,28 +52,28 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
     return (
       <>
         {this.button}
-        <OverlayTechnology visible={isOverlayVisible}>
-          <OverlayContainer maxWidth={400}>
-            <OverlayHeading
+        <Overlay visible={isOverlayVisible}>
+          <Overlay.Container maxWidth={400}>
+            <Overlay.Heading
               title="Are you sure?"
               onDismiss={this.handleDismissOverlay}
             />
-            <OverlayBody>
+            <Overlay.Body>
               <p className="queries-switcher--warning">
                 Switching to Query Builder mode will discard any changes you
                 have made using Flux. This cannot be recovered.
               </p>
-            </OverlayBody>
-            <OverlayFooter>
+            </Overlay.Body>
+            <Overlay.Footer>
               <Button text="Cancel" onClick={this.handleDismissOverlay} />
               <Button
                 color={ComponentColor.Danger}
                 text="Switch to Builder"
                 onClick={this.handleConfirmSwitch}
               />
-            </OverlayFooter>
-          </OverlayContainer>
-        </OverlayTechnology>
+            </Overlay.Footer>
+          </Overlay.Container>
+        </Overlay>
       </>
     )
   }

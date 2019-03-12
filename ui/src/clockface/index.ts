@@ -10,11 +10,7 @@ import Input, {InputType, AutoComplete} from './components/inputs/Input'
 import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
-import OverlayTechnology from './components/overlays/OverlayTechnology'
-import OverlayContainer from './components/overlays/OverlayContainer'
-import OverlayHeading from './components/overlays/OverlayHeading'
-import OverlayBody from './components/overlays/OverlayBody'
-import OverlayFooter from './components/overlays/OverlayFooter'
+import Overlay from './components/overlays/Overlay'
 import Panel from './components/panel/Panel'
 import Radio from './components/radio_buttons/RadioButtons'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
@@ -88,11 +84,7 @@ export {
   MultiSelectDropdown,
   MultiInputType,
   MultipleInput,
-  OverlayBody,
-  OverlayContainer,
-  OverlayFooter,
-  OverlayHeading,
-  OverlayTechnology,
+  Overlay,
   Panel,
   ProgressBar,
   QuestionMarkTooltip,
