@@ -480,7 +480,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				authorization: &platform.Authorization{
 					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
 					OrgID:       platformtesting.MustIDBase16("020f755c3c083000"),
-					Description: "only read dashboards sucka",
+					Description: "only read dashboards",
 					Permissions: []platform.Permission{
 						{
 							Action: platform.ReadAction,
@@ -497,7 +497,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
-  "description": "only read dashboards sucka",
+  "description": "only read dashboards",
   "id": "020f755c3c082000",
   "links": {
     "self": "/api/v2/authorizations/020f755c3c082000",
@@ -521,6 +521,88 @@ func TestService_handlePostAuthorization(t *testing.T) {
   "userID": "aaaaaaaaaaaaaaaa"
 }
 `,
+			},
+		},
+		{
+			name: "create a new authorization with permissions regarding different org",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					CreateAuthorizationFn: func(ctx context.Context, c *platform.Authorization) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						c.Token = "token"
+						return nil
+					},
+				},
+				LookupService: &mock.LookupService{
+					NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+						switch resource {
+						case platform.BucketsResourceType:
+							return "b1", nil
+						case platform.OrgsResourceType:
+							return "o1", nil
+						}
+						return "", fmt.Errorf("bad resource type %s", resource)
+					},
+				},
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						if !id.Valid() {
+							return nil, platform.ErrInvalidID
+						}
+						return &platform.User{
+							ID:   id,
+							Name: "u1",
+						}, nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						if !id.Valid() {
+							return nil, platform.ErrInvalidID
+						}
+						return &platform.Organization{
+							ID:   id,
+							Name: "o1",
+						}, nil
+					},
+				},
+			},
+			args: args{
+				session: &platform.Authorization{
+					Token:       "session-token",
+					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
+					UserID:      platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+					OrgID:       platformtesting.MustIDBase16("020f755c3c083000"),
+					Description: "can write to authorization resource",
+					Permissions: []platform.Permission{
+						{
+							Action: platform.WriteAction,
+							Resource: platform.Resource{
+								Type:  platform.AuthorizationsResourceType,
+								OrgID: platformtesting.IDPtr(platformtesting.MustIDBase16("020f755c3c083000")),
+							},
+						},
+					},
+				},
+				authorization: &platform.Authorization{
+					ID:          platformtesting.MustIDBase16("020f755c3c082000"),
+					OrgID:       platformtesting.MustIDBase16("020f755c3c083000"),
+					Description: "read dashboards of different org",
+					Permissions: []platform.Permission{
+						{
+							Action: platform.ReadAction,
+							Resource: platform.Resource{
+								Type:  platform.DashboardsResourceType,
+								OrgID: platformtesting.IDPtr(platformtesting.MustIDBase16("020f755c3c083001")),
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"code":"invalid","message":"unable to create token"}`,
 			},
 		},
 	}

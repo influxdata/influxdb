@@ -194,7 +194,11 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
-	auth := req.toPlatform(user.ID)
+	auth, err := req.toPlatform(user.ID)
+	if err != nil {
+		EncodeError(ctx, platform.ErrUnableToCreateToken, w)
+		return
+	}
 
 	org, err := h.OrganizationService.FindOrganizationByID(ctx, auth.OrgID)
 	if err != nil {
@@ -227,14 +231,15 @@ type postAuthorizationRequest struct {
 	Permissions []platform.Permission `json:"permissions"`
 }
 
-func (p *postAuthorizationRequest) toPlatform(userID platform.ID) *platform.Authorization {
-	return &platform.Authorization{
+func (p *postAuthorizationRequest) toPlatform(userID platform.ID) (*platform.Authorization, error) {
+	a := &platform.Authorization{
 		OrgID:       p.OrgID,
 		Status:      p.Status,
 		Description: p.Description,
 		Permissions: p.Permissions,
 		UserID:      userID,
 	}
+	return a, a.Valid()
 }
 
 func newPostAuthorizationRequest(a *platform.Authorization) (*postAuthorizationRequest, error) {
