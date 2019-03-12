@@ -396,6 +396,37 @@ func TestScheduler_Queue(t *testing.T) {
 	}
 }
 
+func pollForRunLog(t *testing.T, r backend.LogReader, taskID, runID, orgID platform.ID, exp string) {
+	t.Helper()
+
+	var logs []platform.Log
+	var err error
+
+	const maxAttempts = 50
+	for i := 0; i < maxAttempts; i++ {
+		if i != 0 {
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		logs, err = r.ListLogs(context.Background(), orgID, platform.LogFilter{Task: taskID, Run: &runID})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, log := range logs {
+			if log.Message == exp {
+				return
+			}
+		}
+	}
+
+	t.Logf("Didn't find message %q in logs:", exp)
+	for _, log := range logs {
+		t.Logf("\t%s", log.Message)
+	}
+	t.FailNow()
+}
+
 // pollForRunStatus tries a few times to find runs matching supplied conditions, before failing.
 func pollForRunStatus(t *testing.T, r backend.LogReader, taskID, orgID platform.ID, expCount, expIndex int, expStatus string) {
 	t.Helper()
@@ -570,6 +601,7 @@ func TestScheduler_RunFailureCleanup(t *testing.T) {
 	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
 	}
+	pollForRunLog(t, rl, task.ID, promises[0].Run().RunID, task.Org, "Waiting for execution result: forced failure")
 
 	// Should continue even if max concurrency == 1.
 	// This run will start and then fail.
@@ -583,6 +615,7 @@ func TestScheduler_RunFailureCleanup(t *testing.T) {
 	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
 	}
+	pollForRunLog(t, rl, task.ID, promises[0].Run().RunID, task.Org, "Run failed to execute: started but failed to finish properly")
 
 	// Fail to execute next run.
 	if n := d.TotalRunsCreatedForTask(task.ID); n != 2 {
@@ -603,6 +636,12 @@ func TestScheduler_RunFailureCleanup(t *testing.T) {
 			t.Fatalf("expected 3 runs created, got %d", n)
 		}
 	}
+	// We don't have a good hook to get the run ID right now, so list the runs and assume the final one is ours.
+	runs, err := rl.ListRuns(context.Background(), task.Org, platform.RunFilter{Task: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pollForRunLog(t, rl, task.ID, runs[len(runs)-1].ID, task.Org, "Run failed to begin execution: forced failure on Execute")
 
 	// One more tick just to ensure that we can keep going after this type of failure too.
 	s.Tick(9)

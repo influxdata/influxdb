@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
@@ -263,7 +263,6 @@ func (s *TickScheduler) Start(ctx context.Context) {
 }
 
 func (s *TickScheduler) Stop() {
-
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 
@@ -640,6 +639,22 @@ func (r *runner) clearRunning(id platform.ID) {
 	r.ts.runningMu.Unlock()
 }
 
+// fail sets r's state to failed, and marks this runner as idle.
+func (r *runner) fail(qr QueuedRun, runLogger *zap.Logger, stage string, reason error) {
+	rlb := RunLogBase{
+		Task:            r.task,
+		RunID:           qr.RunID,
+		RunScheduledFor: qr.Now,
+		RequestedAt:     qr.RequestedAt,
+	}
+	if err := r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), stage+": "+reason.Error()); err != nil {
+		runLogger.Info("Failed to update run log", zap.Error(err))
+	}
+
+	r.updateRunState(qr, RunFail, runLogger)
+	atomic.StoreUint32(r.state, runnerIdle)
+}
+
 func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *zap.Logger) {
 	defer r.wg.Done()
 
@@ -655,8 +670,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		}
 
 		// TODO(mr): retry?
-		atomic.StoreUint32(r.state, runnerIdle)
-		r.updateRunState(qr, RunFail, runLogger)
+		r.fail(qr, runLogger, "Run failed to begin execution", err)
 		return
 	}
 
@@ -697,8 +711,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		}
 
 		// TODO(mr): retry?
-		r.updateRunState(qr, RunFail, runLogger)
-		atomic.StoreUint32(r.state, runnerIdle)
+		r.fail(qr, runLogger, "Waiting for execution result", err)
 		return
 	}
 	if err := rr.Err(); err != nil {
@@ -708,8 +721,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 			runLogger.Error("Run failed to execute, and desired state update failed", zap.Error(err))
 		}
 		// TODO(mr): retry?
-		r.updateRunState(qr, RunFail, runLogger)
-		atomic.StoreUint32(r.state, runnerIdle)
+		r.fail(qr, runLogger, "Run failed to execute", err)
 		return
 	}
 
