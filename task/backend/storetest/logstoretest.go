@@ -306,6 +306,36 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	if len(listRuns) != beforeTimeIdx {
 		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), beforeTimeIdx)
 	}
+
+	// add a run and now list again but this time with a requested at
+	scheduledFor = now.Add(time.Duration(-2*(nRuns-len(runs))) * time.Second)
+	run := platform.Run{
+		ID:           platform.ID(len(runs) + 1),
+		Status:       "started",
+		ScheduledFor: scheduledFor.Format(time.RFC3339),
+		RequestedAt:  scheduledFor.Format(time.RFC3339),
+	}
+	runs = append(runs, run)
+	rlb := backend.RunLogBase{
+		Task:            task,
+		RunID:           run.ID,
+		RunScheduledFor: scheduledFor.Unix(),
+		RequestedAt:     scheduledFor.Unix(),
+	}
+
+	if err := writer.UpdateRunState(ctx, rlb, scheduledFor.Add(time.Second), backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+	listRuns, err = reader.ListRuns(ctx, task.Org, platform.RunFilter{
+		Task:  task.ID,
+		Limit: 2 * nRuns,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listRuns) != len(runs) {
+		t.Fatalf("retrieved: %d, expected: %d", len(listRuns), len(runs))
+	}
 }
 
 func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
