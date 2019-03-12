@@ -19,7 +19,11 @@ const (
 )
 
 const (
-	SeriesIndexElemSize   = 16 // offset + id
+	// SeriesIDSize is the size in bytes of a series key ID.
+	SeriesIDSize        = 8
+	SeriesOffsetSize    = 8
+	SeriesIndexElemSize = 16 // offset + id
+
 	SeriesIndexLoadFactor = 90 // rhh load factor
 
 	SeriesIndexHeaderSize = 0 +
@@ -225,7 +229,7 @@ func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte)
 	hash := rhh.HashKey(key)
 	for d, pos := int64(0), hash&idx.mask; ; d, pos = d+1, (pos+1)&idx.mask {
 		elem := idx.keyIDData[(pos * SeriesIndexElemSize):]
-		elemOffset := int64(binary.BigEndian.Uint64(elem[:8]))
+		elemOffset := int64(binary.BigEndian.Uint64(elem[:SeriesOffsetSize]))
 
 		if elemOffset == 0 {
 			return SeriesIDTyped{}
@@ -236,7 +240,7 @@ func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte)
 		if d > rhh.Dist(elemHash, pos, idx.capacity) {
 			return SeriesIDTyped{}
 		} else if elemHash == hash && bytes.Equal(elemKey, key) {
-			id := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[8:]))
+			id := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[SeriesOffsetSize:]))
 			if idx.IsDeleted(id.SeriesID()) {
 				return SeriesIDTyped{}
 			}
@@ -276,10 +280,10 @@ func (idx *SeriesIndex) FindOffsetByID(id SeriesID) int64 {
 	hash := rhh.HashUint64(id.RawID())
 	for d, pos := int64(0), hash&idx.mask; ; d, pos = d+1, (pos+1)&idx.mask {
 		elem := idx.idOffsetData[(pos * SeriesIndexElemSize):]
-		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[:8]))
+		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[:SeriesIDSize]))
 
 		if elemID == id {
-			return int64(binary.BigEndian.Uint64(elem[8:]))
+			return int64(binary.BigEndian.Uint64(elem[SeriesIDSize:]))
 		} else if elemID.IsZero() || d > rhh.Dist(rhh.HashUint64(elemID.RawID()), pos, idx.capacity) {
 			return 0
 		}
