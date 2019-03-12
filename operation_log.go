@@ -41,3 +41,9 @@ var DefaultOperationLogFindOptions = FindOptions{
 	Descending: true,
 	Limit:      100,
 }
+
+// OperationLogService represents a service for managing operation logs.
+type OperationLogService interface {
+	// GetOperationLogs returns a list of operation logs that match the resource id and type.
+	GetOperationLogs(ctx context.Context, id ID, rt ResourceType, opts FindOptions) ([]*OperationLogEntry, int, error)
+}

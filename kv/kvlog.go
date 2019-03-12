@@ -10,6 +10,7 @@ import (
 	"time"
 
 	platform "github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 )
 
 var (
@@ -394,4 +395,65 @@ func (s *Service) lastLogEntry(ctx context.Context, tx Tx, k []byte) ([]byte, ti
 	}
 
 	return s.getLogEntry(ctx, tx, k, bounds.StopTime())
+}
+
+func encodeOperationLogKey(rt platform.ResourceType, id platform.ID) ([]byte, error) {
+	buf, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(rt), buf...), nil
+}
+
+// GetOperationLogs returns a list of operation logs that match the resource id and type.
+func (s *Service) GetOperationLogs(ctx context.Context, id platform.ID, rt platform.ResourceType, opts platform.FindOptions) ([]*platform.OperationLogEntry, int, error) {
+	logs := make([]*platform.OperationLogEntry, 0, opts.Limit)
+	err := s.kv.View(ctx, func(tx Tx) error {
+		key, err := encodeOperationLogKey(rt, id)
+		if err != nil {
+			return err
+		}
+
+		return s.forEachLogEntry(ctx, tx, key, opts, func(v []byte, t time.Time) error {
+			e := &platform.OperationLogEntry{}
+			if err := json.Unmarshal(v, e); err != nil {
+				return err
+			}
+			e.Time = t
+
+			logs = append(logs, e)
+
+			return nil
+		})
+	})
+
+	if err != nil && err != errKeyValueLogBoundsNotFound {
+		return nil, 0, err
+	}
+
+	return logs, len(logs), nil
+}
+
+func (s *Service) appendEventToLog(ctx context.Context, tx Tx, id platform.ID, rt platform.ResourceType, event string) error {
+	e := &platform.OperationLogEntry{
+		Description: event,
+	}
+
+	a, err := icontext.GetAuthorizer(ctx)
+	if err == nil {
+		// Add the user to the log if found, but don't error if its not there.
+		e.UserID = a.GetUserID()
+	}
+
+	v, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+
+	k, err := encodeOperationLogKey(rt, id)
+	if err != nil {
+		return err
+	}
+
+	return s.addLogEntry(ctx, tx, k, v, s.time())
 }
