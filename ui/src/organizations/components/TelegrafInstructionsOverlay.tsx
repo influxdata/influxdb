@@ -54,7 +54,8 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
 
   private get token(): string {
     const {collector, telegrafs} = this.props
-    const config = telegrafs.find(t => get(collector, 'id', '') === t.id)
+    const config =
+      telegrafs.find(t => get(collector, 'id', '') === t.id) || collector
 
     if (!config) {
       return ''
