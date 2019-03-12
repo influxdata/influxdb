@@ -18,6 +18,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   children: JSX.Element
   visible: boolean
+  className?: string
 }
 
 interface State {
@@ -88,9 +89,12 @@ class Overlay extends Component<Props, State> {
   }
 
   private get overlayClass(): string {
-    const {visible} = this.props
+    const {visible, className} = this.props
 
-    return classnames('overlay', {show: visible})
+    return classnames('overlay', {
+      show: visible,
+      [`${className}`]: className,
+    })
   }
 
   private hideChildren = (): void => {
