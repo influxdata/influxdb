@@ -202,7 +202,7 @@ class DashboardPage extends Component<Props, State> {
               onAddCell={this.handleAddCell}
             />
           )}
-          <Overlay visible={isShowingVEO}>
+          <Overlay visible={isShowingVEO} className="veo-overlay">
             <VEO onHide={this.handleHideVEO} onSave={this.handleSaveVEO} />
           </Overlay>
         </HoverTimeProvider>
