@@ -5758,24 +5758,22 @@ components:
             self: "/api/v2/tasks/1"
             owners: "/api/v2/tasks/1/owners"
             members: "/api/v2/tasks/1/members"
+            labels: "/api/v2/tasks/1/labels"
             runs: "/api/v2/tasks/1/runs"
             logs: "/api/v2/tasks/1/logs"
           properties:
             self:
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             owners:
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             members:
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             runs:
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
             logs:
-              type: string
-              format: uri
+              $ref: "#/components/schemas/Link"
+            labels:
+              $ref: "#/components/schemas/Link"
       required: [id, name, orgID, flux]
     Tasks:
       type: array
