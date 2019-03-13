@@ -3917,14 +3917,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  tasks:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Task"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/Tasks"
         default:
           description: unexpected error
           content:
@@ -4082,14 +4075,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  runs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Run"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/Runs"
         default:
           description: unexpected error
           content:
@@ -5635,6 +5621,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Organization"
+    Runs:
+      type: object
+      properties:
+        links:
+          readOnly: true
+          $ref: "#/components/schemas/Links"
+        runs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Run"
     Run:
       properties:
         id:
@@ -5699,6 +5695,16 @@ components:
           description: Time used for run's "now" option, RFC3339.  Default is the server's now time.
           type: string
           format: date-time
+    Tasks:
+      type: object
+      properties:
+        links:
+          readOnly: true
+          $ref: "#/components/schemas/Links"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
     Task:
       type: object
       properties:
