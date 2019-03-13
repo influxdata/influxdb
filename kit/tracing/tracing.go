@@ -84,7 +84,7 @@ func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Contex
 	}
 	fn := runtime.FuncForPC(pcs[0])
 	name := fn.Name()
-	if lastPeriod := strings.LastIndexByte(name, '.'); lastPeriod > 0 {
+	if lastPeriod := strings.LastIndexByte(name, '/'); lastPeriod > 0 {
 		name = name[lastPeriod+1:]
 	}
 
