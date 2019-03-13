@@ -56,7 +56,9 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   value={SaveAsOption.Variable}
                   onClick={this.handleSetSaveAsOption}
                   data-testid="variable-radio-button"
-                />
+                >
+                  Variable
+                </Radio.Button>
               </Radio>
             </div>
             {this.saveAsForm}
