@@ -43,8 +43,8 @@ import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
 import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
 import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
 import OrgTasksIndex from 'src/organizations/containers/OrgTasksIndex'
-import OrgTaskExportOverlay from 'src/organizations/components/OrgTaskExportOverlay'
-import OrgTaskImportOverlay from 'src/organizations/components/OrgTaskImportOverlay'
+import TaskExportOverlay from 'src/organizations/components/TaskExportOverlay'
+import TaskImportOverlay from 'src/organizations/components/TaskImportOverlay'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -137,11 +137,11 @@ class Root extends PureComponent {
                             <Route path="tasks" component={OrgTasksIndex}>
                               <Route
                                 path="import"
-                                component={OrgTaskImportOverlay}
+                                component={TaskImportOverlay}
                               />
                               <Route
                                 path=":id/export"
-                                component={OrgTaskExportOverlay}
+                                component={TaskExportOverlay}
                               />
                             </Route>
                             <Route path="tasks/new" component={OrgTaskPage} />
@@ -154,12 +154,9 @@ class Root extends PureComponent {
                         <Route path="tasks" component={TasksPage}>
                           <Route
                             path=":id/export"
-                            component={OrgTaskExportOverlay}
+                            component={TaskExportOverlay}
                           />
-                          <Route
-                            path="import"
-                            component={OrgTaskImportOverlay}
-                          />
+                          <Route path="import" component={TaskImportOverlay} />
                         </Route>
                         <Route path="tasks/:id/runs" component={TaskRunsPage} />
                         <Route path="tasks/new" component={TaskPage} />

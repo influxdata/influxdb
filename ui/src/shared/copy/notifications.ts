@@ -829,14 +829,19 @@ export const importDashboardFailed = (error: string): Notification => ({
   message: `Failed to import dashboard: ${error}`,
 })
 
-export const dashboardSavedAsTemplate = (): Notification => ({
+export const resourceSavedAsTemplate = (
+  resourceName: string
+): Notification => ({
   ...defaultSuccessNotification,
-  message: `Successfully saved dashboard as template.`,
+  message: `Successfully saved ${resourceName.toLowerCase()} as template.`,
 })
 
-export const saveDashboardAsTemplateFailed = (error: string): Notification => ({
+export const saveResourceAsTemplateFailed = (
+  resourceName: string,
+  error: string
+): Notification => ({
   ...defaultErrorNotification,
-  message: `Failed to save dashboard as template: ${error}`,
+  message: `Failed to save ${resourceName.toLowerCase()} as template: ${error}`,
 })
 
 // Labels
