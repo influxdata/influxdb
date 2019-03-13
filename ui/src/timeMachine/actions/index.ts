@@ -405,7 +405,7 @@ export const toggleQuery = (queryIndex: number) => (
   dispatch: Dispatch<Action>
 ) => {
   dispatch(toggleQuerySync(queryIndex))
-  dispatch(submitQueries())
+  dispatch(submitQueriesWithVars())
 }
 
 interface UpdateActiveQueryNameAction {
@@ -559,10 +559,14 @@ export const refreshTimeMachineVariableValues = () => async (
   const contextID = getState().timeMachines.activeTimeMachineID
 
   // Find variables currently used by queries in the TimeMachine
-  const view = getActiveTimeMachine(getState()).view
+  const {view, draftQueries} = getActiveTimeMachine(getState())
+  const draftView = {
+    ...view,
+    properties: {...view.properties, queries: draftQueries},
+  }
   const orgID = getActiveOrg(getState()).id
   const variables = getVariablesForOrg(getState(), orgID)
-  const variablesInUse = filterUnusedVars(variables, [view])
+  const variablesInUse = filterUnusedVars(variables, [draftView])
 
   // Find variables whose values have already been loaded by the TimeMachine
   // (regardless of whether these variables are currently being used)
@@ -576,4 +580,10 @@ export const refreshTimeMachineVariableValues = () => async (
   )
 
   await dispatch(refreshVariableValues(contextID, orgID, variablesToRefresh))
+}
+
+export const submitQueriesWithVars = () => async dispatch => {
+  await dispatch(refreshTimeMachineVariableValues())
+
+  dispatch(submitQueries())
 }

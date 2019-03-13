@@ -11,7 +11,7 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {submitQueries} from 'src/timeMachine/actions'
+import {submitQueriesWithVars} from 'src/timeMachine/actions'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
@@ -25,7 +25,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSubmitQueries: typeof submitQueries
+  onSubmitQueries: typeof submitQueriesWithVars
 }
 
 interface OwnProps {
@@ -92,7 +92,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  onSubmitQueries: submitQueries,
+  onSubmitQueries: submitQueriesWithVars,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
