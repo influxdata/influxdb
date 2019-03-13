@@ -6618,8 +6618,6 @@ components:
               type: string
             view:
               type: string
-        name:
-          type: string
         x:
           type: integer
           format: int32
