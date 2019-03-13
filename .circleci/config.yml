@@ -161,6 +161,7 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
+      - run: make checkcommit
 
       # Speed up `make build` by restoring caches from previous runs.
       - restore_cache:
