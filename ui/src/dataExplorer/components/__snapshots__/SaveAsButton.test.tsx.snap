@@ -56,6 +56,17 @@ exports[`SaveAsButton rendering renders 1`] = `
             >
               Task
             </RadioButton>
+            <RadioButton
+              active={false}
+              data-testid="variable-radio-button"
+              disabled={false}
+              disabledTitleText="This option is disabled"
+              onClick={[Function]}
+              testID="radio-button"
+              value="variable"
+            >
+              Variable
+            </RadioButton>
           </Radio>
         </div>
         <Connect(SaveAsCellForm)
