@@ -333,7 +333,7 @@ export const systemTemplate = (bucketName: string) => ({
             type: 'single-stat',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "uptime")\n  |> window(period: 1h)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> map(fn: (r) => r._value / 86400, mergeKey: true)\n  |> yield(name: "last")\n  \n  \n  `,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "uptime")\n  |> window(period: 1h)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> map(fn: (r) => r._value / 86400, mergeKey: true)\n  |> yield(name: "last")\n  \n  \n  `,
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
@@ -390,7 +390,7 @@ export const systemTemplate = (bucketName: string) => ({
             type: 'single-stat',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "n_cpus")\n  |> window(period: windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "n_cpus")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -447,7 +447,7 @@ export const systemTemplate = (bucketName: string) => ({
             type: 'single-stat',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "load1")\n  |> window(period: windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "load1")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -504,7 +504,7 @@ export const systemTemplate = (bucketName: string) => ({
             type: 'single-stat',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "total")\n  |> window(period: windowPeriod)\n  |> last()\n  |> map(fn: (r) => r._value / 1024 / 1024 / 1024, mergeKey: true)\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")\n  `,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "total")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> map(fn: (r) => r._value / 1024 / 1024 / 1024, mergeKey: true)\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")\n  `,
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
@@ -560,7 +560,7 @@ export const systemTemplate = (bucketName: string) => ({
             shape: 'chronograf-v2',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "disk")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> window(period: windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "disk")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -631,7 +631,7 @@ export const systemTemplate = (bucketName: string) => ({
             shape: 'chronograf-v2',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_user" or r._field == "usage_system" or r._field == "usage_idle")\n  |> filter(fn: (r) => r.cpu == "cpu-total")\n  |> window(period: windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_user" or r._field == "usage_system" or r._field == "usage_idle")\n  |> filter(fn: (r) => r.cpu == "cpu-total")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -706,7 +706,7 @@ export const systemTemplate = (bucketName: string) => ({
             shape: 'chronograf-v2',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "load1" or r._field == "load5" or r._field == "load15")\n  |> window(period: windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "load1" or r._field == "load5" or r._field == "load15")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -777,7 +777,7 @@ export const systemTemplate = (bucketName: string) => ({
             shape: 'chronograf-v2',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> window(period: windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -882,7 +882,7 @@ export const systemTemplate = (bucketName: string) => ({
             shape: 'chronograf-v2',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "diskio")\n  |> filter(fn: (r) => r._field == "read_bytes" or r._field == "write_bytes")\n  |> derivative(unit: windowPeriod, nonNegative: false)\n  |> yield(name: "derivative")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "diskio")\n  |> filter(fn: (r) => r._field == "read_bytes" or r._field == "write_bytes")\n  |> derivative(unit: v.windowPeriod, nonNegative: false)\n  |> yield(name: "derivative")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -953,7 +953,7 @@ export const systemTemplate = (bucketName: string) => ({
             shape: 'chronograf-v2',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "net")\n  |> filter(fn: (r) => r._field == "bytes_recv" or r._field == "bytes_sent")\n  |> derivative(unit: windowPeriod, nonNegative: false)\n  |> yield(name: "derivative")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "net")\n  |> filter(fn: (r) => r._field == "bytes_recv" or r._field == "bytes_sent")\n  |> derivative(unit: v.windowPeriod, nonNegative: false)\n  |> yield(name: "derivative")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -1024,7 +1024,7 @@ export const systemTemplate = (bucketName: string) => ({
             shape: 'chronograf-v2',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "processes")\n  |> filter(fn: (r) => r._field == "running" or r._field == "blocked" or r._field == "idle" or r._field == "unknown")\n  |> window(period: windowPeriod)\n  |> max()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "max")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "processes")\n  |> filter(fn: (r) => r._field == "running" or r._field == "blocked" or r._field == "idle" or r._field == "unknown")\n  |> window(period: v.windowPeriod)\n  |> max()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "max")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
@@ -1095,7 +1095,7 @@ export const systemTemplate = (bucketName: string) => ({
             shape: 'chronograf-v2',
             queries: [
               {
-                text: `from(bucket: "${bucketName}")\n  |> range(start: timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "swap")\n  |> filter(fn: (r) => r._field == "total" or r._field == "used")\n  |> window(period: windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
+                text: `from(bucket: "${bucketName}")\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "swap")\n  |> filter(fn: (r) => r._field == "total" or r._field == "used")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")`,
                 editMode: 'builder',
                 name: '',
                 builderConfig: {
