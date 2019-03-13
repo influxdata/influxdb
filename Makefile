@@ -102,6 +102,9 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
+checkcommit:
+	./etc/circle-detect-committed-binaries.sh
+
 generate: subdirs
 
 test-js: node_modules
