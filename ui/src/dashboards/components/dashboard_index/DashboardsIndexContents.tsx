@@ -17,8 +17,6 @@ import {Notification} from 'src/types/notifications'
 interface Props {
   dashboards: Dashboard[]
   orgs: Organization[]
-  defaultDashboardLink: string
-  onSetDefaultDashboard: (dashboardLink: string) => void
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onDeleteDashboard: (dashboard: Dashboard) => void
@@ -37,8 +35,6 @@ export default class DashboardsIndexContents extends Component<Props> {
       onDeleteDashboard,
       onCloneDashboard,
       onCreateDashboard,
-      defaultDashboardLink,
-      onSetDefaultDashboard,
       onUpdateDashboard,
       searchTerm,
       orgs,
@@ -64,8 +60,6 @@ export default class DashboardsIndexContents extends Component<Props> {
               onDeleteDashboard={onDeleteDashboard}
               onCreateDashboard={onCreateDashboard}
               onCloneDashboard={onCloneDashboard}
-              defaultDashboardLink={defaultDashboardLink}
-              onSetDefaultDashboard={onSetDefaultDashboard}
               onUpdateDashboard={onUpdateDashboard}
               orgs={orgs}
               showOwnerColumn={showOwnerColumn}

@@ -21,12 +21,10 @@ import {Dashboard, Organization} from 'src/types/v2'
 interface Props {
   searchTerm: string
   dashboards: Dashboard[]
-  defaultDashboardLink: string
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  onSetDefaultDashboard: (dashboardLink: string) => void
   onFilterChange: (searchTerm: string) => void
   orgs: Organization[]
   showOwnerColumn: boolean

@@ -1,7 +1,7 @@
 import _ from 'lodash'
 
 import linksReducer from 'src/shared/reducers/links'
-import {linksGetCompleted, setDefaultDashboard} from 'src/shared/actions/links'
+import {linksGetCompleted} from 'src/shared/actions/links'
 import {Links} from 'src/types/v2/links'
 
 const links: Links = {
@@ -41,14 +41,5 @@ describe('Shared.Reducers.linksReducer', () => {
     const actual = linksReducer(undefined, linksGetCompleted(links))
     const expected = links
     expect(_.isEqual(actual, expected)).toBe(true)
-  })
-
-  it('can reduce SET_DEFAULT_DASHBOARD_LINK', () => {
-    const defaultDashboard = '/v2/dashboards/defaultiest_dashboard'
-    const actual = linksReducer(links, setDefaultDashboard(defaultDashboard))
-
-    const expected = {...links, defaultDashboard}
-
-    expect(actual).toEqual(expected)
   })
 })
