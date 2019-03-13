@@ -207,7 +207,6 @@ func TestCoordinator_ManuallyRunTimeRange(t *testing.T) {
 
 	ch := sched.TaskUpdateChan()
 	manualRunTime := time.Now().Unix()
-	// Deleting the task through the coordinator should succeed.
 	if _, err := coord.ManuallyRunTimeRange(context.Background(), id, manualRunTime, manualRunTime, manualRunTime); err != nil {
 		t.Fatal(err)
 	}
