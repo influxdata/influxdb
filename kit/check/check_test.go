@@ -165,6 +165,66 @@ func TestHealthSorting(t *testing.T) {
 	}
 }
 
+func TestForceHealth(t *testing.T) {
+	c, ts := buildCheckWithServer()
+	defer ts.Close()
+
+	c.AddHealthCheck(mockPass("a"))
+
+	_, err := http.Get(ts.URL + "/health?force=true&healthy=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := respBuilder(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := &Response{
+		Name:   "Health",
+		Status: "fail",
+		Checks: Responses{
+			Response{Name: "manual-override", Message: "health manually overriden"},
+			Response{Name: "a", Status: "pass"},
+		},
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	}
+
+	_, err = http.Get(ts.URL + "/health?force=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected = &Response{
+		Name:   "Health",
+		Status: "pass",
+		Checks: Responses{
+			Response{Name: "a", Status: "pass"},
+		},
+	}
+
+	resp, err = http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err = respBuilder(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("unexpected response. expected %v, actual %v", expected, actual)
+	}
+}
+
 func TestNoCrossOver(t *testing.T) {
 	c, ts := buildCheckWithServer()
 	defer ts.Close()

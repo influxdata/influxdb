@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"sync/atomic"
 )
 
 // Status string to indicate the overall status of the check.
@@ -25,8 +26,10 @@ const (
 
 // Check wraps a map of service names to status checkers.
 type Check struct {
-	healthChecks []Checker
-	readyChecks  []Checker
+	healthChecks      []Checker
+	readyChecks       []Checker
+	manualOverride    atomic.Value
+	manualHealthState atomic.Value
 
 	passthroughHandler http.Handler
 }
@@ -38,7 +41,10 @@ type Checker interface {
 
 // NewCheck returns a Health with a default checker.
 func NewCheck() *Check {
-	return &Check{}
+	ch := &Check{}
+	ch.manualOverride.Store(false)
+	ch.manualHealthState.Store(false)
+	return ch
 }
 
 // AddHealthCheck adds the check to the list of ready checks.
@@ -68,9 +74,22 @@ func (c *Check) CheckHealth(ctx context.Context) Response {
 		Status: StatusPass,
 		Checks: make(Responses, len(c.healthChecks)),
 	}
+	override := c.manualOverride.Load().(bool)
+	if override {
+		if c.manualHealthState.Load().(bool) {
+			response.Status = StatusPass
+		} else {
+			response.Status = StatusFail
+		}
+		overrideResponse := Response{
+			Name:    "manual-override",
+			Message: "health manually overriden",
+		}
+		response.Checks = append(response.Checks, overrideResponse)
+	}
 	for i, ch := range c.healthChecks {
 		resp := ch.Check(ctx)
-		if resp.Status != StatusPass {
+		if resp.Status != StatusPass && !override {
 			response.Status = resp.Status
 		}
 		response.Checks[i] = resp
@@ -125,6 +144,19 @@ func (c *Check) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/ready":
 		resp = c.CheckReady(r.Context())
 	case "/health":
+		query := r.URL.Query()
+		switch query.Get("force") {
+		case "true":
+			c.manualOverride.Store(true)
+			switch query.Get("healthy") {
+			case "true":
+				c.manualHealthState.Store(true)
+			case "false":
+				c.manualHealthState.Store(false)
+			}
+		case "false":
+			c.manualOverride.Store(false)
+		}
 		resp = c.CheckHealth(r.Context())
 	}
 
