@@ -1378,21 +1378,13 @@ paths:
       tags:
         - Ready
       summary: Get the readiness of a instance at startup. Allow us to confirm the instance is prepared to accept requests.
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description: the instance is ready
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
-        '503':
-          description: the instance is not ready yet
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/Ready"
         default:
           description: unexpected error
           content:
@@ -7667,6 +7659,20 @@ components:
           type: string
       required:
         - id
+    Ready:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ready
+        start:
+          type: string
+          format: date-time
+          example: "2019-03-13T10:09:33.891196-04:00"
+        up:
+          type: string
+          example: "14m45.911966424s"
     Check:
       type: object
       required:
