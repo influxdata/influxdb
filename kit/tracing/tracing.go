@@ -3,11 +3,11 @@ package tracing
 import (
 	"context"
 	"errors"
-	"net/http"
-	"runtime"
-
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
+	"net/http"
+	"runtime"
+	"strings"
 )
 
 // LogError adds a span log for an error.
@@ -83,6 +83,9 @@ func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Contex
 	}
 	fn := runtime.FuncForPC(pcs[0])
 	name := fn.Name()
+	if lastPeriod := strings.LastIndexByte(name, '.'); lastPeriod > 0 {
+		name = name[lastPeriod+1:]
+	}
 
 	var span opentracing.Span
 	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {
