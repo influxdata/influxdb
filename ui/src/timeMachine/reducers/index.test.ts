@@ -10,7 +10,7 @@ import {
 
 // Actions
 import {
-  submitScript,
+  submitQueries,
   setActiveTab,
   setActiveTimeMachine,
   setActiveQueryIndexSync,
@@ -108,7 +108,7 @@ describe('timeMachinesReducer', () => {
 })
 
 describe('timeMachineReducer', () => {
-  describe('SUBMIT_SCRIPT', () => {
+  describe('SUBMIT_QUERIES', () => {
     test('replaces each queries text', () => {
       const state = initialStateHelper()
 
@@ -133,7 +133,7 @@ describe('timeMachineReducer', () => {
         {...queryB, text: 'buzz', hidden: false},
       ]
 
-      const actual = timeMachineReducer(state, submitScript()).view.properties
+      const actual = timeMachineReducer(state, submitQueries()).view.properties
         .queries
 
       const expected = state.draftQueries

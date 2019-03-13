@@ -10,7 +10,7 @@ import VariablesToolbar from 'src/timeMachine/components/variableToolbar/Variabl
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
 
 // Actions
-import {setActiveQueryText, submitScript} from 'src/timeMachine/actions'
+import {setActiveQueryText, submitQueries} from 'src/timeMachine/actions'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
@@ -31,7 +31,7 @@ interface StateProps {
 
 interface DispatchProps {
   onSetActiveQueryText: typeof setActiveQueryText
-  onSubmitScript: typeof submitScript
+  onSubmitQueries: typeof submitQueries
 }
 
 interface State {
@@ -46,7 +46,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {activeQueryText, onSubmitScript, onSetActiveQueryText} = this.props
+    const {activeQueryText, onSubmitQueries, onSetActiveQueryText} = this.props
 
     const divisions = [
       {
@@ -57,7 +57,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
             script={activeQueryText}
             status={{type: '', text: ''}}
             onChangeScript={onSetActiveQueryText}
-            onSubmitScript={onSubmitScript}
+            onSubmitScript={onSubmitQueries}
             suggestions={[]}
           />
         ),
@@ -124,7 +124,7 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   onSetActiveQueryText: setActiveQueryText,
-  onSubmitScript: submitScript,
+  onSubmitQueries: submitQueries,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

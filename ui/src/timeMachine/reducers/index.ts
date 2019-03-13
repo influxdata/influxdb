@@ -190,7 +190,7 @@ export const timeMachineReducer = (
       return {...state, draftQueries}
     }
 
-    case 'SUBMIT_SCRIPT': {
+    case 'SUBMIT_QUERIES': {
       return produce(state, draftState => {
         submitQueries(draftState)
       })

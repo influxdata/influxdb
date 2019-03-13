@@ -11,7 +11,7 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {submitScript} from 'src/timeMachine/actions'
+import {submitQueries} from 'src/timeMachine/actions'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
@@ -25,7 +25,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSubmitScript: typeof submitScript
+  onSubmitQueries: typeof submitQueries
 }
 
 interface OwnProps {
@@ -80,7 +80,7 @@ class SubmitQueryButton extends PureComponent<Props, State> {
   }
 
   private handleClick = (): void => {
-    this.props.onSubmitScript()
+    this.props.onSubmitQueries()
     this.setState({didClick: true})
   }
 }
@@ -92,7 +92,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  onSubmitScript: submitScript,
+  onSubmitQueries: submitQueries,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
