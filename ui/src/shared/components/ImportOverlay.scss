@@ -1,6 +1,12 @@
+@import "src/style/modules";
+
 .import--options {
   display: flex;
-  margin-top: -10px;
-  margin-bottom: 10px;
+  margin-top: -8px;
+  margin-bottom: $ix-marg-b;
   justify-content: center;
+}
+
+.import--dropdown {
+  margin-top: $ix-marg-b;
 }

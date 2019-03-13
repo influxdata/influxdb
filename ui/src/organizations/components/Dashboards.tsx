@@ -207,12 +207,10 @@ class Dashboards extends PureComponent<Props, State> {
 
   private get renderImportOverlay(): JSX.Element {
     const {isImportingDashboard} = this.state
-    const {orgs} = this.props
 
     return (
       <ImportDashboardOverlay
         onDismissOverlay={this.handleToggleOverlay}
-        orgID={_.get(orgs, '0.id', '')}
         isVisible={isImportingDashboard}
       />
     )

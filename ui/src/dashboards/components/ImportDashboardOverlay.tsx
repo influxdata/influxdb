@@ -16,7 +16,6 @@ import {createDashboardFromTemplate as createDashboardFromTemplateAction} from '
 
 interface OwnProps {
   onDismissOverlay: () => void
-  orgID: string
   isVisible: boolean
 }
 interface DispatchProps {
@@ -46,14 +45,14 @@ class ImportDashboardOverlay extends PureComponent<Props> {
   }
 
   private handleUploadDashboard = async (
-    uploadContent: string
+    uploadContent: string,
+    orgID: string
   ): Promise<void> => {
     const {
       notify,
       createDashboardFromTemplate,
       onDismissOverlay,
       populateDashboards,
-      orgID,
     } = this.props
 
     try {

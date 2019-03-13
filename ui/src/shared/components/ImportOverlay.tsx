@@ -1,80 +1,114 @@
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {get} from 'lodash'
+import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 
 // Components
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import {Overlay, Radio, ComponentStatus} from 'src/clockface'
-import {Button, ComponentColor} from '@influxdata/clockface'
+import {ComponentStatus, FormElement, Form, Overlay} from 'src/clockface'
+import {Button, ComponentColor, Radio, ButtonType} from '@influxdata/clockface'
+import OrgDropdown from 'src/shared/components/OrgDropdown'
 
 // Styles
 import 'src/shared/components/ImportOverlay.scss'
 
 // Types
 import TextArea from 'src/clockface/components/inputs/TextArea'
+import {AppState, Organization} from 'src/types/v2'
 
 enum ImportOption {
   Upload = 'upload',
   Paste = 'paste',
 }
 
-interface Props {
+interface OwnProps extends WithRouterProps {
   onDismissOverlay: () => void
   resourceName: string
-  onSubmit: (importString: string) => void
+  onSubmit: (importString: string, orgID: string) => void
   isVisible?: boolean
+}
+
+interface StateProps {
+  orgs: Organization[]
 }
 
 interface State {
   selectedImportOption: ImportOption
   importContent: string
+  orgID: string
 }
 
-export default class ImportOverlay extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+type Props = StateProps & OwnProps
+
+class ImportOverlay extends PureComponent<Props, State> {
+  public static defaultProps: {isVisible: boolean} = {
     isVisible: true,
   }
 
   public state: State = {
     selectedImportOption: ImportOption.Upload,
     importContent: '',
+    orgID: this.startingOrgID,
   }
 
   public render() {
     const {isVisible, resourceName} = this.props
-    const {selectedImportOption} = this.state
+    const {orgID, selectedImportOption} = this.state
 
     return (
       <Overlay visible={isVisible}>
         <Overlay.Container maxWidth={800}>
-          <Overlay.Heading
-            title={`Import ${resourceName}`}
-            onDismiss={this.onDismiss}
-          />
-          <Overlay.Body>
-            <div className="import--options">
-              <Radio>
-                <Radio.Button
-                  active={selectedImportOption === ImportOption.Upload}
-                  value={ImportOption.Upload}
-                  onClick={this.handleSetImportOption}
-                >
-                  Upload File
-                </Radio.Button>
-                <Radio.Button
-                  active={selectedImportOption === ImportOption.Paste}
-                  value={ImportOption.Paste}
-                  onClick={this.handleSetImportOption}
-                >
-                  Paste JSON
-                </Radio.Button>
-              </Radio>
-            </div>
-            {this.importBody}
-          </Overlay.Body>
-          <Overlay.Footer>{this.submitButton}</Overlay.Footer>
+          <Form onSubmit={this.submit}>
+            <Overlay.Heading
+              title={`Import ${resourceName}`}
+              onDismiss={this.onDismiss}
+            />
+            <Overlay.Body>
+              <div className="import--options">
+                <Radio>
+                  <Radio.Button
+                    id={ImportOption.Upload}
+                    active={selectedImportOption === ImportOption.Upload}
+                    value={ImportOption.Upload}
+                    onClick={this.handleSetImportOption}
+                    titleText="Upload"
+                  >
+                    Upload File
+                  </Radio.Button>
+                  <Radio.Button
+                    id={ImportOption.Paste}
+                    active={selectedImportOption === ImportOption.Paste}
+                    value={ImportOption.Paste}
+                    onClick={this.handleSetImportOption}
+                    titleText="Paste"
+                  >
+                    Paste JSON
+                  </Radio.Button>
+                </Radio>
+              </div>
+              {this.importBody}
+              <div className="import--dropdown">
+                <FormElement label="Destination Organization">
+                  <OrgDropdown
+                    selectedOrgID={orgID}
+                    onSelectOrg={this.handleSelectOrg}
+                  />
+                </FormElement>
+              </div>
+            </Overlay.Body>
+            <Overlay.Footer>{this.submitButton}</Overlay.Footer>
+          </Form>
         </Overlay.Container>
       </Overlay>
     )
+  }
+
+  private get startingOrgID(): string {
+    return get(this.props.params, 'orgID', '') || this.firstOrgID
+  }
+
+  private get firstOrgID(): string {
+    return get(this.props.orgs, '0.id', '')
   }
 
   private get importBody(): JSX.Element {
@@ -114,22 +148,23 @@ export default class ImportOverlay extends PureComponent<Props, State> {
     return (
       <Button
         text={`Import JSON as ${resourceName}`}
-        onClick={this.submit}
         color={ComponentColor.Primary}
         status={status}
+        type={ButtonType.Submit}
       />
     )
   }
 
   private submit = () => {
-    const {importContent} = this.state
+    const {importContent, orgID} = this.state
     const {onSubmit} = this.props
 
-    onSubmit(importContent)
+    onSubmit(importContent, orgID)
     this.clearImportContent()
   }
   private clearImportContent = () => {
     this.handleSetImportContent('')
+    this.handleSelectOrg(this.startingOrgID)
   }
 
   private onDismiss = () => {
@@ -146,4 +181,15 @@ export default class ImportOverlay extends PureComponent<Props, State> {
   private handleSetImportContent = (importContent: string): void => {
     this.setState({importContent})
   }
+
+  private handleSelectOrg = (orgID: string) => {
+    this.setState({orgID})
+  }
 }
+
+const mstp = ({orgs}: AppState): StateProps => ({orgs})
+
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(withRouter(ImportOverlay))
