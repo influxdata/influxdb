@@ -4,6 +4,7 @@
 1. [12496](https://github.com/influxdata/influxdb/pull/12496): Add ability to import a dashboard
 1. [12524](https://github.com/influxdata/influxdb/pull/12524): Add ability to import a dashboard from org view
 1. [12531](https://github.com/influxdata/influxdb/pull/12531): Add ability to export a dashboard and a task
+1. [12615](https://github.com/influxdata/influxdb/pull/12615): Add `run` subcommand to influxd binary. This is also the default when no subcommand is specified.
 
 1. [12523](https://github.com/influxdata/influxdb/pull/12523): Add ability to save a query as a variable from the Data Explorer.
 

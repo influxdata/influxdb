@@ -78,7 +78,6 @@ func NewCommand() *cobra.Command {
 			ctx := context.Background()
 			ctx = signals.WithStandardSignals(ctx)
 
-			// m.SetBuild(version, commit, date)
 			if err := l.run(ctx); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
