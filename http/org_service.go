@@ -188,8 +188,8 @@ type secretsResponse struct {
 func newSecretsResponse(orgID influxdb.ID, ks []string) *secretsResponse {
 	return &secretsResponse{
 		Links: map[string]string{
-			"org":     fmt.Sprintf("/api/v2/orgs/%s", orgID),
-			"secrets": fmt.Sprintf("/api/v2/orgs/%s/secrets", orgID),
+			"org":  fmt.Sprintf("/api/v2/orgs/%s", orgID),
+			"self": fmt.Sprintf("/api/v2/orgs/%s/secrets", orgID),
 		},
 		Secrets: ks,
 	}

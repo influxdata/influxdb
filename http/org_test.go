@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
@@ -98,7 +99,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 {
   "links": {
     "org": "/api/v2/orgs/0000000000000001",
-    "secrets": "/api/v2/orgs/0000000000000001/secrets"
+    "self": "/api/v2/orgs/0000000000000001/secrets"
   },
   "secrets": [
     "hello",
@@ -127,7 +128,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 {
   "links": {
     "org": "/api/v2/orgs/0000000000000001",
-    "secrets": "/api/v2/orgs/0000000000000001/secrets"
+    "self": "/api/v2/orgs/0000000000000001/secrets"
   },
   "secrets": []
 }
