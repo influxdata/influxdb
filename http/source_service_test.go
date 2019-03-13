@@ -32,9 +32,9 @@ func Test_newSourceResponse(t *testing.T) {
 				},
 				Links: map[string]interface{}{
 					"self":    "/api/v2/sources/0000000000000001",
-					"query":   "/api/v2/query",
-					"buckets": "/api/v2/buckets",
-					"health":  "/api/v2/health",
+					"query":   "/api/v2/sources/0000000000000001/query",
+					"buckets": "/api/v2/sources/0000000000000001/buckets",
+					"health":  "/api/v2/sources/0000000000000001/health",
 				},
 			},
 		},

@@ -36,9 +36,9 @@ func newSourceResponse(s *platform.Source) *sourceResponse {
 			Source: s,
 			Links: map[string]interface{}{
 				"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
-				"query":   "/api/v2/query",
-				"buckets": "/api/v2/buckets",
-				"health":  "/api/v2/health",
+				"query":   fmt.Sprintf("%s/%s/query", sourceHTTPPath, s.ID.String()),
+				"buckets": fmt.Sprintf("%s/%s/buckets", sourceHTTPPath, s.ID.String()),
+				"health":  fmt.Sprintf("%s/%s/health", sourceHTTPPath, s.ID.String()),
 			},
 		}
 	}
@@ -331,7 +331,7 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 func (h *SourceHandler) handleGetSourceHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	msg := `{"name":"sources",message:"source is %shealthy","status":"%s","checks":[]}`
+	msg := `{"name":"sources","message":"source is %shealthy","status":"%s","checks":[]}`
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	req, err := decodeGetSourceRequest(ctx, r)
