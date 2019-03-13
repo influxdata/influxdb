@@ -14,8 +14,11 @@ import (
 
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/influxdb/kit/signals"
+	"github.com/influxdata/influxdb/telemetry"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/cobra"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -65,6 +68,128 @@ const (
 	JaegerTracing = "jaeger"
 )
 
+func NewCommand() *cobra.Command {
+	l := NewLauncher()
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Start the influxd server (default)",
+		Run: func(cmd *cobra.Command, args []string) {
+			// exit with SIGINT and SIGTERM
+			ctx := context.Background()
+			ctx = signals.WithStandardSignals(ctx)
+
+			// m.SetBuild(version, commit, date)
+			if err := l.run(ctx); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			} else if !l.Running() {
+				os.Exit(1)
+			}
+
+			var wg sync.WaitGroup
+			if !l.ReportingDisabled() {
+				reporter := telemetry.NewReporter(l.Registry())
+				reporter.Interval = 8 * time.Hour
+				reporter.Logger = l.Logger()
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					reporter.Report(ctx)
+				}()
+			}
+
+			<-ctx.Done()
+
+			// Attempt clean shutdown.
+			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			l.Shutdown(ctx)
+			wg.Wait()
+		},
+	}
+
+	buildLauncherCommand(l, cmd)
+
+	return cmd
+}
+
+func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
+	dir, err := fs.InfluxDir()
+	if err != nil {
+		panic(fmt.Errorf("failed to determine influx directory: %v", err))
+	}
+
+	opts := []cli.Opt{
+		{
+			DestP:   &l.logLevel,
+			Flag:    "log-level",
+			Default: "info",
+			Desc:    "supported log levels are debug, info, and error",
+		},
+		{
+			DestP:   &l.tracingType,
+			Flag:    "tracing-type",
+			Default: "",
+			Desc:    fmt.Sprintf("supported tracing types are %s, %s", LogTracing, JaegerTracing),
+		},
+		{
+			DestP:   &l.httpBindAddress,
+			Flag:    "http-bind-address",
+			Default: ":9999",
+			Desc:    "bind address for the REST HTTP API",
+		},
+		{
+			DestP:   &l.boltPath,
+			Flag:    "bolt-path",
+			Default: filepath.Join(dir, "influxd.bolt"),
+			Desc:    "path to boltdb database",
+		},
+		{
+			DestP: &l.assetsPath,
+			Flag:  "assets-path",
+			Desc:  "override default assets by serving from a specific directory (developer mode)",
+		},
+		{
+			DestP:   &l.storeType,
+			Flag:    "store",
+			Default: "bolt",
+			Desc:    "backing store for REST resources (bolt or memory)",
+		},
+		{
+			DestP:   &l.testing,
+			Flag:    "e2e-testing",
+			Default: false,
+			Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
+		},
+		{
+			DestP:   &l.enginePath,
+			Flag:    "engine-path",
+			Default: filepath.Join(dir, "engine"),
+			Desc:    "path to persistent engine files",
+		},
+		{
+			DestP:   &l.secretStore,
+			Flag:    "secret-store",
+			Default: "bolt",
+			Desc:    "data store for secrets (bolt or vault)",
+		},
+		{
+			DestP:   &l.protosPath,
+			Flag:    "protos-path",
+			Default: filepath.Join(dir, "protos"),
+			Desc:    "path to protos on the filesystem",
+		},
+		{
+			DestP:   &l.reportingDisabled,
+			Flag:    "reporting-disabled",
+			Default: false,
+			Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
+		},
+	}
+
+	cli.BindOptions(cmd, opts)
+}
+
 // Launcher represents the main program execution.
 type Launcher struct {
 	wg      sync.WaitGroup
@@ -103,9 +228,6 @@ type Launcher struct {
 	logger             *zap.Logger
 	reg                *prom.Registry
 
-	// BuildInfo contains commit, version and such of influxdb.
-	BuildInfo platform.BuildInfo
-
 	Stdin      io.Reader
 	Stdout     io.Writer
 	Stderr     io.Writer
@@ -139,13 +261,6 @@ func (m *Launcher) Registry() *prom.Registry {
 // Logger returns the launchers logger.
 func (m *Launcher) Logger() *zap.Logger {
 	return m.logger
-}
-
-// SetBuild adds version, commit, and date to prometheus metrics.
-func (m *Launcher) SetBuild(version, commit, date string) {
-	m.BuildInfo.Version = version
-	m.BuildInfo.Commit = commit
-	m.BuildInfo.Date = date
 }
 
 // URL returns the URL to connect to the HTTP server.
@@ -200,84 +315,16 @@ func (m *Launcher) Cancel() { m.cancel() }
 
 // Run executes the program with the given CLI arguments.
 func (m *Launcher) Run(ctx context.Context, args ...string) error {
-	dir, err := fs.InfluxDir()
-	if err != nil {
-		return fmt.Errorf("failed to determine influx directory: %v", err)
-	}
-
-	prog := &cli.Program{
-		Name: "influxd",
-		Run:  func() error { return m.run(ctx) },
-		Opts: []cli.Opt{
-			{
-				DestP:   &m.logLevel,
-				Flag:    "log-level",
-				Default: "info",
-				Desc:    "supported log levels are debug, info, and error",
-			},
-			{
-				DestP:   &m.tracingType,
-				Flag:    "tracing-type",
-				Default: "",
-				Desc:    fmt.Sprintf("supported tracing types are %s, %s", LogTracing, JaegerTracing),
-			},
-			{
-				DestP:   &m.httpBindAddress,
-				Flag:    "http-bind-address",
-				Default: ":9999",
-				Desc:    "bind address for the REST HTTP API",
-			},
-			{
-				DestP:   &m.boltPath,
-				Flag:    "bolt-path",
-				Default: filepath.Join(dir, "influxd.bolt"),
-				Desc:    "path to boltdb database",
-			},
-			{
-				DestP: &m.assetsPath,
-				Flag:  "assets-path",
-				Desc:  "override default assets by serving from a specific directory (developer mode)",
-			},
-			{
-				DestP:   &m.storeType,
-				Flag:    "store",
-				Default: "bolt",
-				Desc:    "backing store for REST resources (bolt or memory)",
-			},
-			{
-				DestP:   &m.testing,
-				Flag:    "e2e-testing",
-				Default: false,
-				Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
-			},
-			{
-				DestP:   &m.enginePath,
-				Flag:    "engine-path",
-				Default: filepath.Join(dir, "engine"),
-				Desc:    "path to persistent engine files",
-			},
-			{
-				DestP:   &m.secretStore,
-				Flag:    "secret-store",
-				Default: "bolt",
-				Desc:    "data store for secrets (bolt or vault)",
-			},
-			{
-				DestP:   &m.protosPath,
-				Flag:    "protos-path",
-				Default: filepath.Join(dir, "protos"),
-				Desc:    "path to protos on the filesystem",
-			},
-			{
-				DestP:   &m.reportingDisabled,
-				Flag:    "reporting-disabled",
-				Default: false,
-				Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
-			},
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Start the influxd server (default)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return m.run(ctx)
 		},
 	}
 
-	cmd := cli.NewCommand(prog)
+	buildLauncherCommand(m, cmd)
+
 	cmd.SetArgs(args)
 	return cmd.Execute()
 }
@@ -304,10 +351,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	info := platform.GetBuildInfo()
 	m.logger.Info("Welcome to InfluxDB",
-		zap.String("version", m.BuildInfo.Version),
-		zap.String("commit", m.BuildInfo.Commit),
-		zap.String("build_date", m.BuildInfo.Date),
+		zap.String("version", info.Version),
+		zap.String("commit", info.Commit),
+		zap.String("build_date", info.Date),
 	)
 
 	switch m.tracingType {
@@ -373,7 +421,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg = prom.NewRegistry()
 	m.reg.MustRegister(
 		prometheus.NewGoCollector(),
-		infprom.NewInfluxCollector(m.boltClient, m.BuildInfo),
+		infprom.NewInfluxCollector(m.boltClient, info),
 	)
 	m.reg.WithLogger(m.logger)
 	m.reg.MustRegister(m.boltClient)
