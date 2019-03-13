@@ -62,6 +62,7 @@ export default class InlineLabelPopover extends Component<Props> {
             onChange={onInputChange}
             autoFocus={true}
             onBlur={this.handleRefocusInput}
+            testID="inline-labels--popover-field"
           />
           <InlineLabelsList
             searchTerm={searchTerm}

@@ -28,6 +28,7 @@ class InlineLabelsListItem extends Component<Props> {
         className={this.className}
         onMouseOver={this.handleMouseOver}
         onClick={this.handleClick}
+        data-testid={`label-list--item ${name}`}
       >
         <Label
           name={name}
