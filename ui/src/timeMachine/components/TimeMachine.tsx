@@ -5,19 +5,26 @@ import {get} from 'lodash'
 import classnames from 'classnames'
 
 // Components
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {DraggableResizer, Stack} from 'src/clockface'
 import TimeMachineBottom from 'src/timeMachine/components/TimeMachineBottom'
 import TimeMachineVis from 'src/timeMachine/components/Vis'
 import TimeSeries from 'src/shared/components/TimeSeries'
 import ViewOptions from 'src/timeMachine/components/view_options/ViewOptions'
 
+// Actions
+import {refreshTimeMachineVariableValues} from 'src/timeMachine/actions'
+
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import {getVariableAssignments} from 'src/variables/selectors'
 
 // Types
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {AppState, DashboardQuery, TimeRange} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
+import {VariableAssignment} from 'src/types/ast'
 
 // Styles
 import 'src/timeMachine/components/TimeMachine.scss'
@@ -29,35 +36,54 @@ interface StateProps {
   submitToken: number
   timeRange: TimeRange
   activeTab: TimeMachineTab
+  variableAssignments: VariableAssignment[]
+}
+
+interface DispatchProps {
+  onRefreshVariableValues: () => Promise<void>
 }
 
 interface State {
   resizerHandlePosition: number[]
+  initialLoadingStatus: RemoteDataState
 }
 
-type Props = StateProps
+type Props = StateProps & DispatchProps
 
 class TimeMachine extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props)
+  public state: State = {
+    resizerHandlePosition: [INITIAL_RESIZER_HANDLE],
+    initialLoadingStatus: RemoteDataState.Loading,
+  }
 
-    this.state = {
-      resizerHandlePosition: [INITIAL_RESIZER_HANDLE],
+  public async componentDidMount() {
+    try {
+      await this.props.onRefreshVariableValues()
+    } catch (e) {
+      console.log(e)
     }
+
+    // Even if refreshing the variable values fails, most of the `TimeMachine`
+    // can continue to function. So we set the status to `Done` whether or not
+    // the refresh is successful
+    this.setState({initialLoadingStatus: RemoteDataState.Done})
   }
 
   public render() {
-    const {queries, submitToken, timeRange} = this.props
-    const {resizerHandlePosition} = this.state
+    const {queries, submitToken} = this.props
+    const {resizerHandlePosition, initialLoadingStatus} = this.state
 
     return (
-      <>
+      <SpinnerContainer
+        loading={initialLoadingStatus}
+        spinnerComponent={<TechnoSpinner />}
+      >
         <div className={this.containerClassName}>
           <TimeSeries
             queries={queries}
             submitToken={submitToken}
             implicitSubmit={false}
-            variables={getTimeRangeVars(timeRange)}
+            variables={this.variableAssignments}
           >
             {queriesState => (
               <DraggableResizer
@@ -78,7 +104,7 @@ class TimeMachine extends Component<Props, State> {
           </TimeSeries>
         </div>
         {this.viewOptions}
-      </>
+      </SpinnerContainer>
     )
   }
 
@@ -90,8 +116,10 @@ class TimeMachine extends Component<Props, State> {
     }
   }
 
-  private handleResizerChange = (resizerHandlePosition: number[]): void => {
-    this.setState({resizerHandlePosition})
+  private get variableAssignments(): VariableAssignment[] {
+    const {variableAssignments, timeRange} = this.props
+
+    return [...variableAssignments, ...getTimeRangeVars(timeRange)]
   }
 
   private get containerClassName(): string {
@@ -101,19 +129,27 @@ class TimeMachine extends Component<Props, State> {
       'time-machine--split': activeTab === TimeMachineTab.Visualization,
     })
   }
+
+  private handleResizerChange = (resizerHandlePosition: number[]): void => {
+    this.setState({resizerHandlePosition})
+  }
 }
 
 const mstp = (state: AppState) => {
   const timeMachine = getActiveTimeMachine(state)
-  const {activeTab} = getActiveTimeMachine(state)
-  const {timeRange} = timeMachine
+  const {activeTab, timeRange, submitToken} = timeMachine
   const queries = get(timeMachine, 'view.properties.queries', [])
-  const submitToken = timeMachine.submitToken
+  const {activeTimeMachineID} = state.timeMachines
+  const variableAssignments = getVariableAssignments(state, activeTimeMachineID)
 
-  return {queries, submitToken, timeRange, activeTab}
+  return {queries, submitToken, timeRange, activeTab, variableAssignments}
 }
 
-export default connect<StateProps, {}, {}>(
+const mdtp = {
+  onRefreshVariableValues: refreshTimeMachineVariableValues as any,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
-  null
+  mdtp
 )(TimeMachine)

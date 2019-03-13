@@ -1,11 +1,21 @@
+// Libraries
+import {get} from 'lodash'
+
 // Actions
 import {loadBuckets} from 'src/timeMachine/actions/queryBuilder'
+import {refreshVariableValues} from 'src/variables/actions'
+
+// Utils
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
+import {getVariablesForOrg} from 'src/variables/selectors'
+import {getActiveOrg} from 'src/organizations/selectors'
 
 // Types
 import {Dispatch} from 'redux-thunk'
 import {TimeMachineState} from 'src/timeMachine/reducers'
 import {Action as QueryBuilderAction} from 'src/timeMachine/actions/queryBuilder'
-import {TimeRange, ViewType} from 'src/types/v2'
+import {TimeRange, ViewType, GetState} from 'src/types/v2'
 import {
   Axes,
   DecimalPlaces,
@@ -541,3 +551,29 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   type: 'SET_X_AXIS_LABEL',
   payload: {xAxisLabel},
 })
+
+export const refreshTimeMachineVariableValues = () => async (
+  dispatch,
+  getState: GetState
+) => {
+  const contextID = getState().timeMachines.activeTimeMachineID
+
+  // Find variables currently used by queries in the TimeMachine
+  const view = getActiveTimeMachine(getState()).view
+  const orgID = getActiveOrg(getState()).id
+  const variables = getVariablesForOrg(getState(), orgID)
+  const variablesInUse = filterUnusedVars(variables, [view])
+
+  // Find variables whose values have already been loaded by the TimeMachine
+  // (regardless of whether these variables are currently being used)
+  const existingVariableIDs = Object.keys(
+    get(getState(), `variables.values.${contextID}.values`, {})
+  )
+
+  // Refresh values for all variables with existing values and in use variables
+  const variablesToRefresh = variables.filter(
+    v => variablesInUse.includes(v) || existingVariableIDs.includes(v.id)
+  )
+
+  await dispatch(refreshVariableValues(contextID, orgID, variablesToRefresh))
+}
