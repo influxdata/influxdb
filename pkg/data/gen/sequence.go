@@ -20,7 +20,7 @@ type CounterByteSequence struct {
 	nfmt   string
 	val    string
 	s      int
-	v      int
+	i      int
 	end    int
 }
 
@@ -33,7 +33,7 @@ func NewCounterByteSequence(format string, start, end int) *CounterByteSequence 
 		format: format,
 		nfmt:   fmt.Sprintf("%%0%dd", int(math.Ceil(math.Log10(float64(end))))),
 		s:      start,
-		v:      start,
+		i:      start,
 		end:    end,
 	}
 	s.update()
@@ -41,23 +41,44 @@ func NewCounterByteSequence(format string, start, end int) *CounterByteSequence 
 }
 
 func (s *CounterByteSequence) Next() bool {
-	s.v++
-	if s.v >= s.end {
-		s.v = s.s
+	s.i++
+	if s.i >= s.end {
+		s.i = s.s
 	}
 	s.update()
 	return true
 }
 
 func (s *CounterByteSequence) update() {
-	s.val = fmt.Sprintf(s.format, fmt.Sprintf(s.nfmt, s.v))
+	s.val = fmt.Sprintf(s.format, fmt.Sprintf(s.nfmt, s.i))
 }
 
 func (s *CounterByteSequence) Value() string { return s.val }
 func (s *CounterByteSequence) Count() int    { return s.end - s.s }
 
-type ConstantStringSequence string
+type StringArraySequence struct {
+	vals []string
+	c    int
+	i    int
+}
 
-func (s ConstantStringSequence) Next() bool    { return true }
-func (s ConstantStringSequence) Value() string { return string(s) }
-func (s ConstantStringSequence) Count() int    { return 1 }
+func NewStringArraySequence(vals []string) *StringArraySequence {
+	return &StringArraySequence{vals: sortDedupStrings(vals)}
+}
+
+func (s *StringArraySequence) Next() bool {
+	s.i++
+	if s.i == len(s.vals) {
+		s.i = 0
+	}
+	s.c = s.i
+	return true
+}
+
+func (s *StringArraySequence) Value() string {
+	return s.vals[s.c]
+}
+
+func (s *StringArraySequence) Count() int {
+	return len(s.vals)
+}
