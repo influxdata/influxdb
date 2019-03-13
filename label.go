@@ -104,7 +104,6 @@ type LabelUpdate struct {
 
 // LabelFilter represents a set of filters that restrict the returned results.
 type LabelFilter struct {
-	ID   ID
 	Name string
 }
 
