@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/iocounter"
+	influxdbcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
@@ -69,6 +71,11 @@ func (h *ProxyQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Reque
 		EncodeError(ctx, err, w)
 		return
 	}
+	if req.Request.Authorization == nil {
+		EncodeError(ctx, errors.New("authorization is missing in the query request"), w)
+		return
+	}
+	ctx = influxdbcontext.SetAuthorizer(ctx, req.Request.Authorization)
 
 	w.Header().Set("Trailer", QueryStatsTrailer)
 
