@@ -151,3 +151,15 @@ func (c *Coordinator) DeleteOrg(ctx context.Context, orgID platform.ID) error {
 func (c *Coordinator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
 	return c.sch.CancelRun(ctx, taskID, runID)
 }
+
+func (c *Coordinator) ManuallyRunTimeRange(ctx context.Context, taskID platform.ID, start, end, requestedAt int64) (*backend.StoreTaskMetaManualRun, error) {
+	r, err := c.Store.ManuallyRunTimeRange(ctx, taskID, start, end, requestedAt)
+	if err != nil {
+		return r, err
+	}
+	t, m, err := c.Store.FindTaskByIDWithMeta(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return r, c.sch.UpdateTask(t, m)
+}

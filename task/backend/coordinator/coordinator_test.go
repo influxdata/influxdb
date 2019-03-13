@@ -192,3 +192,40 @@ func TestCoordinator_ClaimExistingTasks(t *testing.T) {
 		}
 	}
 }
+
+func TestCoordinator_ManuallyRunTimeRange(t *testing.T) {
+	st := backend.NewInMemStore()
+	sched := mock.NewScheduler()
+
+	coord := coordinator.New(zaptest.NewLogger(t), sched, st)
+
+	// Create an isolated task directly through the store so the coordinator doesn't know about it.
+	id, err := coord.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ch := sched.TaskUpdateChan()
+	manualRunTime := time.Now().Unix()
+	// Deleting the task through the coordinator should succeed.
+	if _, err := coord.ManuallyRunTimeRange(context.Background(), id, manualRunTime, manualRunTime, manualRunTime); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-ch:
+		// great!
+	case <-time.After(time.Second):
+		t.Fatal("didnt receive task update in time")
+	}
+
+	_, meta, err := st.FindTaskByIDWithMeta(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(meta.ManualRuns) != 1 {
+		t.Fatal("failed to update store")
+	}
+
+}
