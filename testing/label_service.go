@@ -341,6 +341,31 @@ func UpdateLabel(
 		wants  wants
 	}{
 		{
+			name: "update label name",
+			fields: LabelFields{
+				Labels: []*influxdb.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag1",
+					},
+				},
+			},
+			args: args{
+				labelID: MustIDBase16(labelOneID),
+				update: influxdb.LabelUpdate{
+					Name: "NotTag1",
+				},
+			},
+			wants: wants{
+				labels: []*influxdb.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "NotTag1",
+					},
+				},
+			},
+		},
+		{
 			name: "update label properties",
 			fields: LabelFields{
 				Labels: []*influxdb.Label{

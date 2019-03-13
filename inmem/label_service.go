@@ -164,7 +164,7 @@ func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.
 		}
 	}
 
-	if label.Properties == nil {
+	if len(upd.Properties) > 0 && label.Properties == nil {
 		label.Properties = make(map[string]string)
 	}
 
@@ -174,6 +174,10 @@ func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.
 		} else {
 			label.Properties[k] = v
 		}
+	}
+
+	if upd.Name != "" {
+		label.Name = upd.Name
 	}
 
 	if err := label.Validate(); err != nil {
