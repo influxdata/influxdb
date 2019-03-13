@@ -130,34 +130,6 @@ func CreateLabel(
 				},
 			},
 		},
-		// {
-		// 	name: "duplicate labels fail",
-		// 	fields: LabelFields{
-		// 		IDGenerator: mock.NewIDGenerator(labelTwoID, t),
-		// 		Labels: []*influxdb.Label{
-		// 			{
-		// 				Name: "Tag1",
-		// 			},
-		// 		},
-		// 	},
-		// 	args: args{
-		// 		label: &influxdb.Label{
-		// 			Name: "Tag1",
-		// 		},
-		// 	},
-		// 	wants: wants{
-		// 		labels: []*influxdb.Label{
-		// 			{
-		// 				Name: "Tag1",
-		// 			},
-		// 		},
-		// 		err: &influxdb.Error{
-		// 			Code: influxdb.EConflict,
-		// 			Op:   influxdb.OpCreateLabel,
-		// 			Msg:  "label Tag1 already exists",
-		// 		},
-		// 	},
-		// },
 	}
 
 	for _, tt := range tests {
@@ -467,44 +439,6 @@ func UpdateLabel(
 				},
 			},
 		},
-		// {
-		// 	name: "label update proliferation",
-		// 	fields: LabelFields{
-		// 		Labels: []*influxdb.Label{
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketOneID),
-		// 				Name:       "Tag1",
-		// 			},
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketTwoID),
-		// 				Name:       "Tag1",
-		// 			},
-		// 		},
-		// 	},
-		// 	args: args{
-		// 		label: influxdb.Label{
-		// 			ResourceID: MustIDBase16(bucketOneID),
-		// 			Name:       "Tag1",
-		// 		},
-		// 		update: influxdb.LabelUpdate{
-		// 			Color: &validColor,
-		// 		},
-		// 	},
-		// 	wants: wants{
-		// 		labels: []*influxdb.Label{
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketOneID),
-		// 				Name:       "Tag1",
-		// 				Color:      "fff000",
-		// 			},
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketTwoID),
-		// 				Name:       "Tag1",
-		// 				Color:      "fff000",
-		// 			},
-		// 		},
-		// 	},
-		// },
 		{
 			name: "updating a non-existent label",
 			fields: LabelFields{
