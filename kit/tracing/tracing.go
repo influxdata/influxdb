@@ -3,11 +3,12 @@ package tracing
 import (
 	"context"
 	"errors"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/log"
 	"net/http"
 	"runtime"
 	"strings"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 // LogError adds a span log for an error.
