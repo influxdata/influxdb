@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"runtime"
+	"strings"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
@@ -83,6 +84,9 @@ func StartSpanFromContext(ctx context.Context) (opentracing.Span, context.Contex
 	}
 	fn := runtime.FuncForPC(pcs[0])
 	name := fn.Name()
+	if lastPeriod := strings.LastIndexByte(name, '/'); lastPeriod > 0 {
+		name = name[lastPeriod+1:]
+	}
 
 	var span opentracing.Span
 	if parentSpan := opentracing.SpanFromContext(ctx); parentSpan != nil {

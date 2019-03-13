@@ -120,7 +120,7 @@ func TestStartSpanFromContext(t *testing.T) {
 }
 
 /*
-BenchmarkLocal_StartSpanFromContext-8                          2000000     659 ns/op     224 B/op     4 allocs/op
+BenchmarkLocal_StartSpanFromContext-8                          2000000     681 ns/op     224 B/op     4 allocs/op
 BenchmarkLocal_StartSpanFromContext_runtimeCaller-8            3000000     534 ns/op
 BenchmarkLocal_StartSpanFromContext_runtimeCallers-8          10000000     196 ns/op
 BenchmarkLocal_StartSpanFromContext_runtimeFuncForPC-8       200000000       7.28 ns/op
