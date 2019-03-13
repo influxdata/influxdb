@@ -60,7 +60,7 @@ const getVariableAssignmentsMemoized = memoizeOne(
     valuesState: ValuesState,
     variablesState: VariablesState
   ): VariableAssignment[] => {
-    if (!valuesState) {
+    if (!valuesState || !valuesState.values) {
       return []
     }
 
