@@ -69,10 +69,9 @@ $inline-labels--popover-caret: 12px;
   display: flex;
   align-items: flex-start;
   padding: $ix-marg-a $ix-marg-b;
-  transition: background-color 0.25s ease;
 
   &.active {
-    background-color: $g6-smoke;
+    background-color: $c-pool;
   }
 
   &.active,
@@ -94,10 +93,10 @@ $inline-labels--popover-caret: 12px;
   }
 
   &.active {
-    color: $g15-platinum;
+    color: $c-neutrino;
 
     strong {
-      color: $g18-cloud;
+      color: $g20-white;
     }
   }
 }
