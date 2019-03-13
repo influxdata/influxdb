@@ -1,41 +1,23 @@
-import {
-  Variable,
-  Telegraf,
-  ScraperTargetResponse,
-  Bucket,
-  ITask as Task,
-} from '@influxdata/influx'
-import {Dashboard} from 'src/types'
+import {ITask as Task} from '@influxdata/influx'
+import {Dashboard} from 'src/types/v2'
 import {Actions, ActionTypes} from 'src/organizations/actions/orgView'
 
 export interface OrgViewState {
   tasks: Task[]
-  telegrafs: Telegraf[]
-  scrapers: ScraperTargetResponse[]
-  variables: Variable[]
   dashboards: Dashboard[]
-  buckets: Bucket[]
 }
 
 const defaultState: OrgViewState = {
   tasks: [],
-  telegrafs: [],
-  scrapers: [],
-  variables: [],
   dashboards: [],
-  buckets: [],
 }
 
 export default (state = defaultState, action: Actions): OrgViewState => {
   switch (action.type) {
     case ActionTypes.PopulateTasks:
       return {...state, tasks: action.payload.tasks}
-    case ActionTypes.UpdateTask: {
-      const {task} = action.payload
-      const tasks = state.tasks.map(t => (t.id === task.id ? task : t))
-
-      return {...state, tasks}
-    }
+    case ActionTypes.PopulateDashboards:
+      return {...state, dashboards: action.payload.dashboards}
     default:
       return state
   }

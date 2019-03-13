@@ -11,12 +11,11 @@ import GetLabels from 'src/configuration/components/GetLabels'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Dashboard, Organization} from 'src/types/v2'
+import {Dashboard} from 'src/types/v2'
 import {Notification} from 'src/types/notifications'
 
 interface Props {
   dashboards: Dashboard[]
-  orgs: Organization[]
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onDeleteDashboard: (dashboard: Dashboard) => void
@@ -37,7 +36,6 @@ export default class DashboardsIndexContents extends Component<Props> {
       onCreateDashboard,
       onUpdateDashboard,
       searchTerm,
-      orgs,
       showOwnerColumn,
       dashboards,
       filterComponent,
@@ -61,7 +59,6 @@ export default class DashboardsIndexContents extends Component<Props> {
               onCreateDashboard={onCreateDashboard}
               onCloneDashboard={onCloneDashboard}
               onUpdateDashboard={onUpdateDashboard}
-              orgs={orgs}
               showOwnerColumn={showOwnerColumn}
               onFilterChange={onFilterChange}
             />

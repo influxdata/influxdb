@@ -15,58 +15,38 @@ import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
 
 // Actions
 import {
-  getDashboardsAsync,
-  importDashboardAsync,
   deleteDashboardAsync,
   updateDashboardAsync,
-  addDashboardLabelsAsync,
-  removeDashboardLabelsAsync,
 } from 'src/dashboards/actions/v2'
-import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/v2/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import {dashboardCreateFailed} from 'src/shared/copy/notifications'
-
 // Constants
+import {dashboardCreateFailed} from 'src/shared/copy/notifications'
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {Links, Dashboard, AppState, Organization} from 'src/types/v2'
+import {Dashboard} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface DispatchProps {
-  handleGetDashboards: typeof getDashboardsAsync
   handleDeleteDashboard: typeof deleteDashboardAsync
-  handleImportDashboard: typeof importDashboardAsync
   handleUpdateDashboard: typeof updateDashboardAsync
   notify: (message: Notification) => void
-  retainRangesDashTimeV1: (dashboardIDs: string[]) => void
-  onAddDashboardLabels: typeof addDashboardLabelsAsync
-  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
-}
-
-interface StateProps {
-  links: Links
-  dashboards: Dashboard[]
-  orgs: Organization[]
 }
 
 interface OwnProps {
   dashboards: Dashboard[]
   onChange: () => void
-  orgName: string
   orgID: string
 }
 
-type Props = DispatchProps & StateProps & OwnProps & WithRouterProps
+type Props = DispatchProps & OwnProps & WithRouterProps
 
 interface State {
   searchTerm: string
-  isEditingDashboardLabels: boolean
-  dashboardLabelsEdit: Dashboard
 }
 
 @ErrorHandling
@@ -76,20 +56,11 @@ class Dashboards extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
-      isEditingDashboardLabels: false,
-      dashboardLabelsEdit: null,
     }
   }
 
-  public async componentDidMount() {
-    const {handleGetDashboards, dashboards} = this.props
-    await handleGetDashboards()
-    const dashboardIDs = dashboards.map(d => d.id)
-    this.props.retainRangesDashTimeV1(dashboardIDs)
-  }
-
   public render() {
-    const {dashboards, notify, links, handleUpdateDashboard, orgs} = this.props
+    const {dashboards, notify, handleUpdateDashboard} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -107,13 +78,12 @@ class Dashboards extends PureComponent<Props, State> {
           />
           <AddResourceDropdown
             onSelectNew={this.handleCreateDashboard}
-            onSelectImport={this.handleImport}
+            onSelectImport={this.summonImportOverlay}
             resourceName="Dashboard"
           />
         </Tabs.TabContentsHeader>
         <DashboardsIndexContents
           dashboards={dashboards}
-          orgs={orgs}
           onDeleteDashboard={this.handleDeleteDashboard}
           onCreateDashboard={this.handleCreateDashboard}
           onCloneDashboard={this.handleCloneDashboard}
@@ -139,18 +109,18 @@ class Dashboards extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 
-  private handleImport = (): void => {
+  private summonImportOverlay = (): void => {
     const {router, params} = this.props
     router.push(`/organizations/${params.orgID}/dashboards/import`)
   }
 
   private handleCreateDashboard = async (): Promise<void> => {
-    const {router, notify, orgs} = this.props
+    const {router, notify, orgID} = this.props
     try {
       const newDashboard = {
         name: DEFAULT_DASHBOARD_NAME,
         cells: [],
-        orgID: orgs[0].id,
+        orgID: orgID,
       }
       const data = await createDashboard(newDashboard)
       router.push(`/dashboards/${data.id}`)
@@ -162,15 +132,9 @@ class Dashboards extends PureComponent<Props, State> {
   private handleCloneDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
-    const {router, notify, orgs, dashboards} = this.props
+    const {router, notify, dashboards} = this.props
     try {
-      const data = await cloneDashboard(
-        {
-          ...dashboard,
-          orgID: orgs[0].id,
-        },
-        dashboards
-      )
+      const data = await cloneDashboard(dashboard, dashboards)
       router.push(`/dashboards/${data.id}`)
     } catch (error) {
       console.error(error)
@@ -183,27 +147,13 @@ class Dashboards extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {dashboards, links, orgs} = state
-
-  return {
-    orgs,
-    dashboards,
-    links,
-  }
-}
-
 const mdtp: DispatchProps = {
   notify: notifyAction,
-  handleGetDashboards: getDashboardsAsync,
   handleDeleteDashboard: deleteDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
-  retainRangesDashTimeV1: retainRangesDashTimeV1Action,
-  onAddDashboardLabels: addDashboardLabelsAsync,
-  onRemoveDashboardLabels: removeDashboardLabelsAsync,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
   mdtp
 )(withRouter(Dashboards))

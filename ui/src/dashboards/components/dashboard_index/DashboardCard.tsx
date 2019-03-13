@@ -17,24 +17,24 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Types
 import {Organization} from 'src/types/v2'
-import {IDashboard, ILabel} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {ILabel} from '@influxdata/influx'
+import {AppState, Dashboard} from 'src/types/v2'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 
 interface PassedProps {
-  dashboard: IDashboard
-  orgs: Organization[]
-  onDeleteDashboard: (dashboard: IDashboard) => void
-  onCloneDashboard: (dashboard: IDashboard) => void
-  onUpdateDashboard: (dashboard: IDashboard) => void
+  dashboard: Dashboard
+  onDeleteDashboard: (dashboard: Dashboard) => void
+  onCloneDashboard: (dashboard: Dashboard) => void
+  onUpdateDashboard: (dashboard: Dashboard) => void
   showOwnerColumn: boolean
   onFilterChange: (searchTerm: string) => void
 }
 
 interface StateProps {
   labels: ILabel[]
+  orgs: Organization[]
 }
 
 interface DispatchProps {
@@ -181,9 +181,10 @@ class DashboardCard extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = ({labels, orgs}: AppState): StateProps => {
   return {
     labels: labels.list,
+    orgs,
   }
 }
 

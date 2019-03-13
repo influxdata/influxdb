@@ -5,14 +5,13 @@ import React, {PureComponent} from 'react'
 import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCard'
 
 // Types
-import {Dashboard, Organization} from 'src/types/v2'
+import {Dashboard} from 'src/types/v2'
 
 interface Props {
   dashboards: Dashboard[]
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  orgs: Organization[]
   showOwnerColumn: boolean
   onFilterChange: (searchTerm: string) => void
 }
@@ -24,7 +23,6 @@ export default class DashboardCards extends PureComponent<Props> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
-      orgs,
       showOwnerColumn,
       onFilterChange,
     } = this.props
@@ -36,7 +34,6 @@ export default class DashboardCards extends PureComponent<Props> {
         onCloneDashboard={onCloneDashboard}
         onDeleteDashboard={onDeleteDashboard}
         onUpdateDashboard={onUpdateDashboard}
-        orgs={orgs}
         showOwnerColumn={showOwnerColumn}
         onFilterChange={onFilterChange}
       />

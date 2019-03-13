@@ -106,7 +106,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                     searchTerm={searchTerm}
                   />
                 )}
-                orgs={orgs}
                 dashboards={dashboards}
                 onDeleteDashboard={this.handleDeleteDashboard}
                 onCreateDashboard={this.handleCreateDashboard}

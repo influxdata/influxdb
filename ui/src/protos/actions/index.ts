@@ -12,8 +12,8 @@ import {loadDashboard} from 'src/dashboards/actions/v2/'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types
-import {Proto, IDashboard} from '@influxdata/influx'
-import {GetState} from 'src/types/v2'
+import {Proto} from '@influxdata/influx'
+import {GetState, Dashboard} from 'src/types/v2'
 import {ConfigurationState} from 'src/types/v2/dataLoaders'
 
 // Const
@@ -59,7 +59,7 @@ export const createDashFromProto = (
   try {
     const dashboards = await client.dashboards.createFromProto(protoID, orgID)
 
-    dashboards.forEach((d: IDashboard) => {
+    dashboards.forEach((d: Dashboard) => {
       const updatedDashboard = {
         ...d,
         labels: d.labels.map(addLabelDefaults),
