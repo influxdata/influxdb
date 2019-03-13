@@ -336,16 +336,19 @@ func (s *TickScheduler) UpdateTask(task *StoreTask, meta *StoreTaskMeta) error {
 	if !ok {
 		return ErrTaskNotClaimed
 	}
-	ts.Cancel()
+	ts.task = task
 
-	nts, err := newTaskScheduler(s.ctx, s.wg, s, task, meta, s.metrics)
+	next, err := meta.NextDueRun()
 	if err != nil {
 		return err
 	}
+	hasQueue := len(meta.ManualRuns) > 0
+	// update the queued information
+	ts.nextDueMu.Lock()
+	ts.hasQueue = hasQueue
+	ts.nextDue = next
+	ts.nextDueMu.Unlock()
 
-	s.taskSchedulers[task.ID] = nts
-
-	next, hasQueue := ts.NextDue()
 	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {
 		ts.Work()
 	}
