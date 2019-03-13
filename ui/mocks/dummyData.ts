@@ -1,6 +1,7 @@
 import {Template, SourceLinks, TemplateType, TemplateValueType} from 'src/types'
 import {Source} from '@influxdata/influx'
-import {Cell, Dashboard, Label, Task} from 'src/types/v2'
+import {Cell, Dashboard, Task} from 'src/types/v2'
+import {ILabel} from '@influxdata/influx'
 import {Links} from 'src/types/v2/links'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {WithRouterProps} from 'react-router'
@@ -210,7 +211,7 @@ export const dashboard: Dashboard = {
   labels: [],
 }
 
-export const labels: Label[] = [
+export const labels: ILabel[] = [
   {
     id: '0001',
     name: 'Trogdor',
