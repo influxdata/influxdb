@@ -7,6 +7,7 @@ import {connect} from 'react-redux'
 import {getLabels} from 'src/labels/actions'
 import {getBuckets} from 'src/buckets/actions'
 import {getTelegrafs} from 'src/telegrafs/actions'
+import {getVariables} from 'src/variables/actions'
 
 // Types
 import {AppState} from 'src/types/v2'
@@ -20,12 +21,14 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
 import {getAuthorizations} from 'src/authorizations/actions'
 import {AuthorizationsState} from 'src/authorizations/reducers'
+import {VariablesState} from 'src/variables/reducers'
 
 interface StateProps {
   org: Organization
   labels: LabelsState
   buckets: BucketsState
   telegrafs: TelegrafsState
+  variables: VariablesState
   tokens: AuthorizationsState
 }
 
@@ -33,6 +36,7 @@ interface DispatchProps {
   getLabels: typeof getLabels
   getBuckets: typeof getBuckets
   getTelegrafs: typeof getTelegrafs
+  getVariables: typeof getVariables
   getAuthorizations: typeof getAuthorizations
 }
 
@@ -46,6 +50,7 @@ export enum ResourceTypes {
   Labels = 'labels',
   Buckets = 'buckets',
   Telegrafs = 'telegrafs',
+  Variables = 'variables',
   Authorizations = 'tokens',
 }
 
@@ -63,6 +68,10 @@ class GetResources extends PureComponent<Props, StateProps> {
 
       case ResourceTypes.Telegrafs: {
         return await this.props.getTelegrafs()
+      }
+
+      case ResourceTypes.Variables: {
+        return await this.props.getVariables()
       }
 
       case ResourceTypes.Authorizations: {
@@ -94,6 +103,7 @@ const mstp = ({
   labels,
   buckets,
   telegrafs,
+  variables,
   tokens,
 }: AppState): StateProps => {
   const org = orgs[0]
@@ -102,6 +112,7 @@ const mstp = ({
     labels,
     buckets,
     telegrafs,
+    variables,
     tokens,
     org,
   }
@@ -111,6 +122,7 @@ const mdtp = {
   getLabels: getLabels,
   getBuckets: getBuckets,
   getTelegrafs: getTelegrafs,
+  getVariables: getVariables,
   getAuthorizations: getAuthorizations,
 }
 

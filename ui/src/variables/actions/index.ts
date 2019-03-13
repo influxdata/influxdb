@@ -95,7 +95,7 @@ export const getVariables = () => async (dispatch: Dispatch<Action>) => {
 
     dispatch(setVariables(RemoteDataState.Done, variables))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(setVariables(RemoteDataState.Error))
     dispatch(notify(getVariablesFailed()))
   }
@@ -111,7 +111,7 @@ export const getVariable = (id: string) => async (
 
     dispatch(setVariable(id, RemoteDataState.Done, variable))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
     dispatch(notify(getVariableFailed()))
   }
@@ -128,7 +128,7 @@ export const createVariable = (variable: Variable) => async (
     )
     dispatch(notify(createVariableSuccess(variable.name)))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(createVariableFailed()))
   }
 }
@@ -143,7 +143,7 @@ export const updateVariable = (id: string, props: Partial<Variable>) => async (
 
     dispatch(setVariable(id, RemoteDataState.Done, variable))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
     dispatch(notify(updateVariableFailed()))
   }
@@ -159,7 +159,7 @@ export const deleteVariable = (id: string) => async (
 
     dispatch(removeVariable(id))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(setVariable(id, RemoteDataState.Done))
     dispatch(notify(deleteVariableFailed()))
   }
