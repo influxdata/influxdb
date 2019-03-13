@@ -40,28 +40,28 @@
   text-align: left;
 }
 .index-list--align-left .index-list--cell {
- justify-content: flex-start;
+  justify-content: flex-start;
 }
 
 .index-list--align-right {
   text-align: right;
 }
 .index-list--align-right .index-list--cell {
- justify-content: flex-end;
+  justify-content: flex-end;
 }
 
 .index-list--align-center {
   text-align: center;
 }
 .index-list--align-center .index-list--cell {
- justify-content: center;
+  justify-content: center;
 }
 
 // TD Style
 .index-list--row-cell {
   position: relative;
   height: 52px;
-  
+
   &:first-child .index-list--cell {
     border-radius: $radius 0 0 $radius;
   }
@@ -86,8 +86,10 @@
   opacity: 1;
 }
 
-// Row Disabled State 
-.index-list--row.index-list--row-disabled .index-list--row-cell .index-list--cell {
+// Row Disabled State
+.index-list--row.index-list--row-disabled
+  .index-list--row-cell
+  .index-list--cell {
   background-color: rgba($g3-castle, 0.5);
   color: $g9-mountain;
   font-style: italic;
@@ -101,8 +103,10 @@
   }
 }
 
-// Row Disabled Hover State 
-.index-list--row.index-list--row-disabled:hover .index-list--row-cell .index-list--cell {
+// Row Disabled Hover State
+.index-list--row.index-list--row-disabled:hover
+  .index-list--row-cell
+  .index-list--cell {
   background-color: rgba($g3-castle, 0.7);
   color: $g15-platinum;
 
@@ -129,7 +133,9 @@
   ------------------------------------------------------------------------------
 */
 
-.tabs--contents {
+.tabs--contents,
+// TODO: Remove this .tabbed-page rule when the component is phased out
+.tabbed-page {
   .index-list--cell {
     background-color: $g4-onyx;
   }
@@ -139,7 +145,9 @@
   .index-list--row-cell.index-list--row-disabled .index-list--cell {
     background-color: rgba($g4-onyx, 0.5);
   }
-  .index-list--row:hover .index-list--row-cell.index-list--row-disabled .index-list--cell {
+  .index-list--row:hover
+    .index-list--row-cell.index-list--row-disabled
+    .index-list--cell {
     background-color: rgba($g4-onyx, 0.7);
   }
   .index-list--empty-cell {

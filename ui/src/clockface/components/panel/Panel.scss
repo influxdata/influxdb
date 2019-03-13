@@ -59,7 +59,9 @@ $panel-nested-background: $g4-onyx;
 
 //  Panels Nested inside Tabbed Pages
 //  ----------------------------------------------------------------------------
-.tabs--contents .panel {
+.tabs--contents .panel,
+// TODO: Remove this .tabbed-page rule when the component is phased out
+.tabbed-page .panel {
   background-color: $panel-nested-background;
 
   .panel-footer {
