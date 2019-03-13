@@ -103,6 +103,12 @@ class SideNav extends PureComponent<Props> {
             highlightPaths={['telegrafs_tab']}
           />
           <NavMenu.SubItem
+            title="Variables"
+            link="/configuration/variables_tab"
+            location={location.pathname}
+            highlightPaths={['variables_tab']}
+          />
+          <NavMenu.SubItem
             title="Profile"
             link="/configuration/settings_tab"
             location={location.pathname}
