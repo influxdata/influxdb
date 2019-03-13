@@ -775,12 +775,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -3055,12 +3050,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -3505,12 +3495,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -4265,12 +4250,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
