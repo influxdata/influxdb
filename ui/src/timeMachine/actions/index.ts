@@ -35,7 +35,7 @@ export type Action =
   | SetTimeRangeAction
   | SetTypeAction
   | SetActiveQueryText
-  | SubmitScriptAction
+  | SubmitQueriesAction
   | SetIsViewingRawDataAction
   | SetGeomAction
   | SetDecimalPlaces
@@ -140,12 +140,12 @@ export const setActiveQueryText = (text: string): SetActiveQueryText => ({
   payload: {text},
 })
 
-interface SubmitScriptAction {
-  type: 'SUBMIT_SCRIPT'
+interface SubmitQueriesAction {
+  type: 'SUBMIT_QUERIES'
 }
 
-export const submitScript = (): SubmitScriptAction => ({
-  type: 'SUBMIT_SCRIPT',
+export const submitQueries = (): SubmitQueriesAction => ({
+  type: 'SUBMIT_QUERIES',
 })
 
 interface SetIsViewingRawDataAction {
@@ -405,7 +405,7 @@ export const toggleQuery = (queryIndex: number) => (
   dispatch: Dispatch<Action>
 ) => {
   dispatch(toggleQuerySync(queryIndex))
-  dispatch(submitScript())
+  dispatch(submitQueries())
 }
 
 interface UpdateActiveQueryNameAction {
