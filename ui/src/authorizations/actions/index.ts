@@ -83,7 +83,7 @@ export const getAuthorizations = () => async (dispatch: Dispatch<Action>) => {
 
     dispatch(setAuthorizations(RemoteDataState.Done, authorizations))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(setAuthorizations(RemoteDataState.Error))
     dispatch(notify(authorizationsGetFailed()))
   }
@@ -96,7 +96,7 @@ export const createAuthorization = (auth: Authorization) => async (
     const createdAuthorization = await authAPI.createAuthorization(auth)
     dispatch(addAuthorization(createdAuthorization))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(authorizationCreateFailed()))
     throw e
   }
@@ -113,7 +113,7 @@ export const updateAuthorization = (authorization: Authorization) => async (
 
     dispatch(editLabel(label))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(authorizationUpdateFailed(authorization.id)))
   }
 }
@@ -126,7 +126,7 @@ export const deleteAuthorization = (id: string, name: string = '') => async (
 
     dispatch(removeAuthorization(id))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(authorizationDeleteFailed(name)))
   }
 }

@@ -2,12 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {
-  IndexList,
-  EmptyState,
-  ComponentSize,
-  Overlay,
-} from 'src/clockface'
+import {IndexList, EmptyState, ComponentSize, Overlay} from 'src/clockface'
 import TokenRow from 'src/me/components/account/TokenRow'
 
 // Types

@@ -1,5 +1,5 @@
 export const signin = (): Cypress.Chainable<Cypress.Response> => {
-  return cy.fixture('user').then(({username, password, org, bucket}) => {
+  return cy.fixture('user').then(({username, password}) => {
     return cy.setupUser().then(body => {
       return cy
         .request({

@@ -76,7 +76,7 @@ export const getTelegrafs = () => async (dispatch: Dispatch<Action>) => {
 
     dispatch(setTelegrafs(RemoteDataState.Done, telegrafs))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(setTelegrafs(RemoteDataState.Error))
     dispatch(notify(telegrafGetFailed()))
   }
@@ -89,7 +89,7 @@ export const createTelegraf = (telegraf: Telegraf) => async (
     const createdTelegraf = await client.telegrafConfigs.create(telegraf)
     dispatch(addTelegraf(createdTelegraf))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(telegrafCreateFailed()))
     throw e
   }
@@ -103,7 +103,7 @@ export const updateTelegraf = (telegraf: Telegraf) => async (
 
     dispatch(editTelegraf(t))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(telegrafUpdateFailed(telegraf.name)))
   }
 }
@@ -116,7 +116,7 @@ export const deleteTelegraf = (id: string, name: string) => async (
 
     dispatch(removeTelegraf(id))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(telegrafDeleteFailed(name)))
   }
 }
