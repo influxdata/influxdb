@@ -1116,6 +1116,103 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 	}
 }
 
+// Test that org name to org ID translation happens properly in the HTTP layer.
+// Regression test for https://github.com/influxdata/influxdb/issues/12089.
+func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
+	i := inmem.NewService()
+	ctx := context.Background()
+
+	// Set up user and org.
+	u := &platform.User{Name: "u"}
+	if err := i.CreateUser(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	o := &platform.Organization{Name: "o"}
+	if err := i.CreateOrganization(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+
+	// Source and destination buckets for use in task.
+	bSrc := platform.Bucket{OrganizationID: o.ID, Name: "b-src"}
+	if err := i.CreateBucket(ctx, &bSrc); err != nil {
+		t.Fatal(err)
+	}
+	bDst := platform.Bucket{OrganizationID: o.ID, Name: "b-dst"}
+	if err := i.CreateBucket(ctx, &bDst); err != nil {
+		t.Fatal(err)
+	}
+
+	authz := platform.Authorization{OrgID: o.ID, UserID: u.ID, Permissions: platform.OperPermissions()}
+	if err := i.CreateAuthorization(ctx, &authz); err != nil {
+		t.Fatal(err)
+	}
+
+	ts := &mock.TaskService{
+		CreateTaskFn: func(_ context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+			if tc.OrganizationID != o.ID {
+				t.Fatalf("expected task to be created with org ID %s, got %s", o.ID, tc.OrganizationID)
+			}
+			if tc.Token != authz.Token {
+				t.Fatalf("expected task to be created with previous token %s, got %s", authz.Token, tc.Token)
+			}
+
+			return &platform.Task{ID: 9, OrganizationID: o.ID, AuthorizationID: authz.ID, Name: "x", Flux: tc.Flux}, nil
+		},
+	}
+
+	h := NewTaskHandler(&TaskBackend{
+		Logger: zaptest.NewLogger(t),
+
+		TaskService:                ts,
+		AuthorizationService:       i,
+		OrganizationService:        i,
+		UserResourceMappingService: i,
+		LabelService:               i,
+		UserService:                i,
+		BucketService:              i,
+	})
+
+	const script = `option task = {name:"x", every:1m} from(bucket:"b-src") |> range(start:-1m) |> to(bucket:"b-dst", org:"o")`
+
+	url := "http://localhost:9999/api/v2/tasks"
+
+	b, err := json.Marshal(platform.TaskCreate{
+		Flux:         script,
+		Organization: o.Name,
+		Token:        authz.Token,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := httptest.NewRequest("POST", url, bytes.NewReader(b)).WithContext(
+		pcontext.SetAuthorizer(ctx, &authz),
+	)
+	w := httptest.NewRecorder()
+
+	h.handlePostTask(w, r)
+
+	res := w.Result()
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusCreated {
+		t.Logf("response body: %s", body)
+		t.Fatalf("expected status created, got %v", res.StatusCode)
+	}
+
+	// The task should have been created with a valid token.
+	var createdTask platform.Task
+	if err := json.Unmarshal([]byte(body), &createdTask); err != nil {
+		t.Fatal(err)
+	}
+	if createdTask.Flux != script {
+		t.Fatalf("Unexpected script returned:\n got: %s\nwant: %s", createdTask.Flux, script)
+	}
+}
+
 func TestTaskHandler_Sessions(t *testing.T) {
 	// Common setup to get a working base for using tasks.
 	i := inmem.NewService()

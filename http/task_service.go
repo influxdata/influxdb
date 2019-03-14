@@ -14,9 +14,6 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	pcontext "github.com/influxdata/influxdb/context"
@@ -25,6 +22,8 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
+	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 // TaskBackend is all services and associated parameters required to construct
