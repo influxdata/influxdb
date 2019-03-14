@@ -1,18 +1,23 @@
 // Libraries
 import React, {SFC} from 'react'
+import {connect} from 'react-redux'
+
+// Utils
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Styles
 import 'src/timeMachine/components/QueriesTimer.scss'
 
 // Types
 import {RemoteDataState} from 'src/types'
+import {AppState} from 'src/types/v2'
 
-interface Props {
+interface StateProps {
   status: RemoteDataState
   duration: number
 }
 
-const TimeMachineQueriesTimer: SFC<Props> = ({duration, status}) => {
+const TimeMachineQueriesTimer: SFC<StateProps> = ({duration, status}) => {
   const visibleClass = status === RemoteDataState.Done ? 'visible' : ''
 
   return (
@@ -22,4 +27,10 @@ const TimeMachineQueriesTimer: SFC<Props> = ({duration, status}) => {
   )
 }
 
-export default TimeMachineQueriesTimer
+const mstp = (state: AppState) => {
+  const {status, fetchDuration} = getActiveTimeMachine(state).queryResults
+
+  return {status, duration: fetchDuration}
+}
+
+export default connect<StateProps>(mstp)(TimeMachineQueriesTimer)

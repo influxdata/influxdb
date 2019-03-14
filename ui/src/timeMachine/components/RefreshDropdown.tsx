@@ -8,11 +8,11 @@ import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/Aut
 // Utils
 import {AutoRefresher} from 'src/utils/AutoRefresher'
 
-// Types
-import {incrementSubmitToken} from 'src/timeMachine/actions'
+// Actions
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
 interface DispatchProps {
-  onIncrementSubmitToken: typeof incrementSubmitToken
+  onExecuteQueries: typeof executeQueries
 }
 
 interface State {
@@ -27,7 +27,7 @@ class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
     const {autoRefreshInterval} = this.state
 
     this.autoRefresher.poll(autoRefreshInterval)
-    this.autoRefresher.subscribe(this.incrementSubmitToken)
+    this.autoRefresher.subscribe(this.executeQueries)
   }
 
   public componentDidUpdate(__, prevState) {
@@ -39,7 +39,7 @@ class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
   }
 
   public componentWillUnmount() {
-    this.autoRefresher.unsubscribe(this.incrementSubmitToken)
+    this.autoRefresher.unsubscribe(this.executeQueries)
     this.autoRefresher.stopPolling()
   }
 
@@ -50,7 +50,7 @@ class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
       <AutoRefreshDropdown
         selected={autoRefreshInterval}
         onChoose={this.handleChooseInterval}
-        onManualRefresh={this.incrementSubmitToken}
+        onManualRefresh={this.executeQueries}
       />
     )
   }
@@ -59,15 +59,13 @@ class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
     this.setState({autoRefreshInterval})
   }
 
-  private incrementSubmitToken = () => {
-    const {onIncrementSubmitToken} = this.props
-
-    onIncrementSubmitToken()
+  private executeQueries = () => {
+    this.props.onExecuteQueries()
   }
 }
 
 const mdtp: DispatchProps = {
-  onIncrementSubmitToken: incrementSubmitToken,
+  onExecuteQueries: executeQueries,
 }
 
 export default connect<{}, DispatchProps>(

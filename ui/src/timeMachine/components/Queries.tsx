@@ -35,7 +35,6 @@ import 'src/timeMachine/components/Queries.scss'
 // Types
 import {AppState, DashboardQuery, QueryEditMode, TimeRange} from 'src/types/v2'
 import {DashboardDraftQuery} from 'src/types/v2/dashboards'
-import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   activeQuery: DashboardQuery
@@ -50,22 +49,16 @@ interface DispatchProps {
   onSetIsViewingRawData: typeof setIsViewingRawData
 }
 
-interface OwnProps {
-  queriesState: QueriesState
-}
-
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & DispatchProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
     const {
-      queriesState,
       draftQueries,
       onAddQuery,
       timeRange,
       onSetTimeRange,
       isViewingRawData,
-      queriesState: {files},
     } = this.props
 
     return (
@@ -77,7 +70,6 @@ class TimeMachineQueries extends PureComponent<Props> {
                 key={queryIndex}
                 queryIndex={queryIndex}
                 query={query}
-                queriesState={queriesState}
               />
             ))}
             <Button
@@ -97,14 +89,14 @@ class TimeMachineQueries extends PureComponent<Props> {
                 onChange={this.handleToggleIsViewingRawData}
                 size={ComponentSize.ExtraSmall}
               />
-              <CSVExportButton files={files} />
+              <CSVExportButton />
               <TimeMachineRefreshDropdown />
               <TimeRangeDropdown
                 timeRange={timeRange}
                 onSetTimeRange={onSetTimeRange}
               />
               <TimeMachineQueriesSwitcher />
-              <SubmitQueryButton queryStatus={queriesState.loading} />
+              <SubmitQueryButton />
             </ComponentSpacer>
           </div>
         </div>
@@ -148,7 +140,7 @@ const mdtp = {
   onSetIsViewingRawData: setIsViewingRawData,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
 )(TimeMachineQueries)

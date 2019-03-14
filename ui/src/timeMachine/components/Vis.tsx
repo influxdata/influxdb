@@ -1,7 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
 import {AutoSizer} from 'react-virtualized'
 
 // Components
@@ -13,38 +12,46 @@ import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
 import {setType} from 'src/timeMachine/actions'
 
 // Utils
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {getActiveTimeMachine, getTables} from 'src/timeMachine/selectors'
 
 // Types
+import {FluxTable, RemoteDataState} from 'src/types'
 import {View, NewView, TimeRange, DashboardQuery, AppState} from 'src/types/v2'
 import {QueryViewProperties} from 'src/types/v2/dashboards'
-import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   view: View | NewView
   timeRange: TimeRange
   queries: DashboardQuery[]
   isViewingRawData: boolean
+  files: string[]
+  tables: FluxTable[]
+  loading: RemoteDataState
+  errorMessage: string
+  isInitialFetch: boolean
 }
 
 interface DispatchProps {
   onUpdateType: typeof setType
 }
 
-interface OwnProps {
-  queriesState: QueriesState
-}
+type Props = StateProps & DispatchProps
 
-type Props = StateProps & DispatchProps & OwnProps
-
-const TimeMachineVis: SFC<Props> = props => {
-  const {view, timeRange, queries, isViewingRawData} = props
-  const {tables, loading, error, isInitialFetch, files} = props.queriesState
-
+const TimeMachineVis: SFC<Props> = ({
+  view,
+  timeRange,
+  queries,
+  isViewingRawData,
+  tables,
+  loading,
+  errorMessage,
+  isInitialFetch,
+  files,
+}) => {
   return (
     <div className="time-machine--view">
       <EmptyQueryView
-        error={error}
+        errorMessage={errorMessage}
         tables={tables}
         loading={loading}
         isInitialFetch={isInitialFetch}
@@ -71,14 +78,27 @@ const TimeMachineVis: SFC<Props> = props => {
 }
 
 const mstp = (state: AppState) => {
-  const timeMachine = getActiveTimeMachine(state)
-  const queries = get(timeMachine, 'view.properties.queries', [])
+  const {
+    view,
+    timeRange,
+    isViewingRawData,
+    queryResults: {status: loading, errorMessage, isInitialFetch, files},
+  } = getActiveTimeMachine(state)
+
+  const {queries} = view.properties
+
+  const tables = getTables(state)
 
   return {
-    view: timeMachine.view,
-    timeRange: timeMachine.timeRange,
-    isViewingRawData: timeMachine.isViewingRawData,
+    view,
+    timeRange,
+    isViewingRawData,
     queries,
+    tables,
+    files,
+    loading,
+    errorMessage,
+    isInitialFetch,
   }
 }
 
@@ -86,7 +106,7 @@ const mdtp = {
   onUpdateType: setType,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
 )(TimeMachineVis)

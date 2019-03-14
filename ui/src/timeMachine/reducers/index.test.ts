@@ -10,11 +10,10 @@ import {
 
 // Actions
 import {
-  submitQueries,
   setActiveTab,
   setActiveTimeMachine,
   setActiveQueryIndexSync,
-  editActiveQueryWithBuilder,
+  editActiveQueryWithBuilderSync,
   editActiveQueryAsFlux,
   addQuerySync,
   removeQuerySync,
@@ -36,7 +35,6 @@ import {
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {
   DashboardDraftQuery,
-  DashboardQuery,
   QueryViewProperties,
   QueryEditMode,
 } from 'src/types/v2/dashboards'
@@ -108,40 +106,6 @@ describe('timeMachinesReducer', () => {
 })
 
 describe('timeMachineReducer', () => {
-  describe('SUBMIT_QUERIES', () => {
-    test('replaces each queries text', () => {
-      const state = initialStateHelper()
-
-      const queryA: DashboardDraftQuery = {
-        name: '',
-        text: 'foo',
-        editMode: QueryEditMode.Builder,
-        builderConfig: {buckets: [], tags: [], functions: []},
-        hidden: false,
-      }
-
-      const queryB: DashboardQuery = {
-        name: '',
-        text: 'bar',
-        editMode: QueryEditMode.Builder,
-        builderConfig: {buckets: [], tags: [], functions: []},
-      }
-
-      state.view.properties.queries = [queryA, queryB]
-      state.draftQueries = [
-        {...queryA, text: 'baz', hidden: false},
-        {...queryB, text: 'buzz', hidden: false},
-      ]
-
-      const actual = timeMachineReducer(state, submitQueries()).view.properties
-        .queries
-
-      const expected = state.draftQueries
-
-      expect(actual).toEqual(expected)
-    })
-  })
-
   describe('EDIT_ACTIVE_QUERY_WITH_BUILDER', () => {
     test('changes the activeQueryEditor and editMode for the currently active query', () => {
       const state = initialStateHelper()
@@ -164,7 +128,10 @@ describe('timeMachineReducer', () => {
         },
       ]
 
-      const nextState = timeMachineReducer(state, editActiveQueryWithBuilder())
+      const nextState = timeMachineReducer(
+        state,
+        editActiveQueryWithBuilderSync()
+      )
 
       expect(nextState.activeQueryIndex).toEqual(1)
       expect(nextState.draftQueries).toEqual([

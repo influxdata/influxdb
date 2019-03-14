@@ -13,7 +13,7 @@ import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/v2'
 
 interface Props {
-  error: Error
+  errorMessage: string
   isInitialFetch: boolean
   loading: RemoteDataState
   tables: FluxTable[]
@@ -24,7 +24,7 @@ interface Props {
 export default class EmptyQueryView extends PureComponent<Props> {
   public render() {
     const {
-      error,
+      errorMessage,
       isInitialFetch,
       loading,
       tables,
@@ -41,10 +41,10 @@ export default class EmptyQueryView extends PureComponent<Props> {
       )
     }
 
-    if (error) {
+    if (errorMessage) {
       return (
         <EmptyGraphMessage
-          message={`Error: ${error.message}`}
+          message={`Error: ${errorMessage}`}
           testID="empty-graph--error"
         />
       )
