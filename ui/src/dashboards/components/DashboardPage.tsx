@@ -10,8 +10,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
-import VEO from 'src/dashboards/components/VEO'
-import {Overlay} from 'src/clockface'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import NoteEditorContainer from 'src/dashboards/components/NoteEditorContainer'
 
@@ -25,25 +23,13 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 // Utils
 import {getDeep} from 'src/utils/wrappers'
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
-import {createView} from 'src/shared/utils/view'
-import {cellAddFailed} from 'src/shared/copy/notifications'
 
 // Constants
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
-import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 
 // Types
-import {
-  Links,
-  Dashboard,
-  Cell,
-  View,
-  ViewType,
-  TimeRange,
-  AppState,
-} from 'src/types/v2'
-import {NewView, XYView, QueryViewProperties} from 'src/types/v2/dashboards'
+import {Links, Dashboard, Cell, View, TimeRange, AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
@@ -162,8 +148,8 @@ class DashboardPage extends Component<Props, State> {
       inPresentationMode,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
+      children,
     } = this.props
-    const {isShowingVEO} = this.state
 
     return (
       <Page titleTag={this.pageTitle}>
@@ -200,9 +186,7 @@ class DashboardPage extends Component<Props, State> {
               onAddCell={this.handleAddCell}
             />
           )}
-          <Overlay visible={isShowingVEO} className="veo-overlay">
-            <VEO onHide={this.handleHideVEO} onSave={this.handleSaveVEO} />
-          </Overlay>
+          {children}
         </HoverTimeProvider>
         <NoteEditorContainer />
       </Page>
@@ -244,50 +228,19 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleAddCell = async (): Promise<void> => {
-    const newView = createView<XYView>(ViewType.XY)
-
-    this.showVEO(newView)
-  }
-
-  private handleHideVEO = (): void => {
-    this.setState({isShowingVEO: false})
-  }
-
-  private handleSaveVEO = async (view: View): Promise<void> => {
-    this.setState({isShowingVEO: false})
-
-    const {dashboard, onCreateCellWithView, onUpdateView, notify} = this.props
-
-    try {
-      if (view.id) {
-        onUpdateView(dashboard, view)
-      } else {
-        await onCreateCellWithView(dashboard, view)
-      }
-    } catch (error) {
-      console.error(error)
-      notify(cellAddFailed())
-    }
+    this.showVEO()
   }
 
   private handleEditView = (cellID: string): void => {
-    const entry = this.props.views[cellID]
-
-    if (!entry || !entry.view) {
-      throw new Error(`Can't edit non-existent view with ID "${cellID}"`)
-    }
-
-    this.showVEO(entry.view as View<QueryViewProperties>)
+    this.showVEO(cellID)
   }
 
-  private showVEO = (
-    view: View<QueryViewProperties> | NewView<QueryViewProperties>
-  ): void => {
-    const {onSetActiveTimeMachine} = this.props
-
-    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
-
-    this.setState({isShowingVEO: true})
+  private showVEO = (id?: string): void => {
+    if (id) {
+      this.props.router.push(`${this.props.location.pathname}/cells/${id}/edit`)
+    } else {
+      this.props.router.push(`${this.props.location.pathname}/cells/new`)
+    }
   }
 
   private handleCloneCell = async (cell: Cell): Promise<void> => {

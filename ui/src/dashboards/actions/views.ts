@@ -63,7 +63,7 @@ export const updateView = (dashboardID: string, view: View) => async (
 ): Promise<View> => {
   const viewID = view.cellID
 
-  dispatch(setView(viewID, null, RemoteDataState.Loading))
+  dispatch(setView(viewID, view, RemoteDataState.Loading))
 
   try {
     const newView = await updateViewAJAX(dashboardID, viewID, view)

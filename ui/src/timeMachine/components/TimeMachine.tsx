@@ -50,7 +50,6 @@ const TimeMachine: FunctionComponent<StateProps> = ({activeTab}) => {
               className="time-machine--bottom"
               data-testid="time-machine--bottom"
             >
-              {/* TODO: Is this div needed? */}
               <div className="time-machine--bottom-contents">
                 <TimeMachineQueries />
               </div>
