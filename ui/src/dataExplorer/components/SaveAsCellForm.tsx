@@ -20,7 +20,7 @@ import DashboardsDropdown from 'src/dataExplorer/components/DashboardsDropdown'
 import {cellAddFailed, cellAdded} from 'src/shared/copy/notifications'
 
 // actions
-import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions/v2'
+import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions'
 import {createDashboard} from 'src/dashboards/apis'
 import {notify} from 'src/shared/actions/notifications'
 

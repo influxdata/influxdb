@@ -1,4 +1,4 @@
-import {Action, ActionTypes} from 'src/dashboards/actions/v2'
+import {Action, ActionTypes} from 'src/dashboards/actions'
 import {Dashboard} from 'src/types/v2'
 import _ from 'lodash'
 

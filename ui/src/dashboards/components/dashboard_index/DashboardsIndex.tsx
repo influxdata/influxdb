@@ -19,8 +19,8 @@ import {
   updateDashboardAsync,
   addDashboardLabelsAsync,
   removeDashboardLabelsAsync,
-} from 'src/dashboards/actions/v2'
-import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/v2/ranges'
+} from 'src/dashboards/actions'
+import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants

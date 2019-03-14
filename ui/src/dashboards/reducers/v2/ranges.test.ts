@@ -1,6 +1,6 @@
 import reducer from 'src/dashboards/reducers/v2/ranges'
 
-import {setDashTimeV1, deleteTimeRange} from 'src/dashboards/actions/v2/ranges'
+import {setDashTimeV1, deleteTimeRange} from 'src/dashboards/actions/ranges'
 
 const emptyState = undefined
 const dashboardID = '1'

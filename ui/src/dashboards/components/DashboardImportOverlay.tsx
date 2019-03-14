@@ -5,8 +5,8 @@ import _ from 'lodash'
 import {connect} from 'react-redux'
 
 // Actions
-import {getDashboardsAsync} from 'src/dashboards/actions/v2'
-import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions/v2'
+import {getDashboardsAsync} from 'src/dashboards/actions'
+import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
 
 // Types
 import ImportOverlay from 'src/shared/components/ImportOverlay'

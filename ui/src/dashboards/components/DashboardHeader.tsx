@@ -22,7 +22,7 @@ import {
 } from 'src/dashboards/constants/index'
 
 // Actions
-import {addNote} from 'src/dashboards/actions/v2/notes'
+import {addNote} from 'src/dashboards/actions/notes'
 
 // Types
 import * as AppActions from 'src/types/actions/app'

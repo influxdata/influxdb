@@ -17,7 +17,7 @@ import {createDashboard, cloneDashboard} from 'src/dashboards/apis/'
 import {
   deleteDashboardAsync,
   updateDashboardAsync,
-} from 'src/dashboards/actions/v2'
+} from 'src/dashboards/actions/'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants

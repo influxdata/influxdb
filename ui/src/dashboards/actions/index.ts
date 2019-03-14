@@ -25,12 +25,12 @@ import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
   DeleteTimeRangeAction,
-} from 'src/dashboards/actions/v2/ranges'
+} from 'src/dashboards/actions/ranges'
 import {
   importDashboardSucceeded,
   importDashboardFailed,
 } from 'src/shared/copy/notifications'
-import {setView, SetViewAction, setViews} from 'src/dashboards/actions/v2/views'
+import {setView, SetViewAction, setViews} from 'src/dashboards/actions/views'
 import {getVariables, refreshVariableValues} from 'src/variables/actions'
 
 // Utils

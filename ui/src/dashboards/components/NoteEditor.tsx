@@ -18,7 +18,7 @@ import {
   setIsPreviewing,
   toggleShowNoteWhenEmpty,
   setNote,
-} from 'src/dashboards/actions/v2/notes'
+} from 'src/dashboards/actions/notes'
 
 // Styles
 import 'src/dashboards/components/NoteEditor.scss'

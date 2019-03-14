@@ -13,7 +13,7 @@ import {
   closeNoteEditor,
   createNoteCell,
   updateViewNote,
-} from 'src/dashboards/actions/v2/notes'
+} from 'src/dashboards/actions/notes'
 import {notify} from 'src/shared/actions/notifications'
 
 // Utils
