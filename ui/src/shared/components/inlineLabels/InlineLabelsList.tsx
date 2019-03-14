@@ -7,6 +7,10 @@ import {EmptyState} from 'src/clockface'
 import {ComponentSize} from '@influxdata/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import InlineLabelsListItem from 'src/shared/components/inlineLabels/InlineLabelsListItem'
+import InlineLabelsCreateLabelButton from 'src/shared/components/inlineLabels/InlineLabelsCreateLabelButton'
+
+// Constants
+import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -17,9 +21,9 @@ import {ILabel} from '@influxdata/influx'
 interface Props {
   searchTerm: string
   selectedItemID: string
+  onUpdateSelectedItemID: (labelID: string) => void
   filteredLabels: ILabel[]
   onItemClick: (labelID: string) => void
-  onUpdateSelectedItem: (labelID: string) => void
   allLabelsUsed: boolean
   onStartCreatingLabel: () => void
 }
@@ -30,10 +34,7 @@ class InlineLabelsList extends Component<Props> {
     return (
       <div className="inline-labels--list-container">
         <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={250}>
-          <div className="inline-labels--list">
-            {this.createNewLabelButton}
-            {this.menuItems}
-          </div>
+          <div className="inline-labels--list">{this.menuItems}</div>
         </FancyScrollbar>
       </div>
     )
@@ -43,71 +44,64 @@ class InlineLabelsList extends Component<Props> {
     const {
       filteredLabels,
       onItemClick,
-      onUpdateSelectedItem,
+      onUpdateSelectedItemID,
       selectedItemID,
       allLabelsUsed,
       searchTerm,
+      onStartCreatingLabel,
     } = this.props
 
     if (filteredLabels.length) {
-      return filteredLabels.map(label => (
-        <InlineLabelsListItem
-          active={selectedItemID === label.id}
-          key={label.id}
-          name={label.name}
-          id={label.id}
-          description={label.properties.description}
-          colorHex={label.properties.color}
-          onClick={onItemClick}
-          onMouseOver={onUpdateSelectedItem}
-        />
-      ))
+      return filteredLabels.map(label => {
+        if (label.id === ADD_NEW_LABEL_ITEM_ID) {
+          return (
+            <InlineLabelsCreateLabelButton
+              active={selectedItemID === label.id}
+              key={label.id}
+              name={label.name}
+              id={label.id}
+              onClick={onStartCreatingLabel}
+              onMouseOver={onUpdateSelectedItemID}
+            />
+          )
+        }
+
+        return (
+          <InlineLabelsListItem
+            active={selectedItemID === label.id}
+            key={label.id}
+            name={label.name}
+            id={label.id}
+            description={label.properties.description}
+            colorHex={label.properties.color}
+            onClick={onItemClick}
+            onMouseOver={onUpdateSelectedItemID}
+          />
+        )
+      })
     }
 
     if (allLabelsUsed) {
       return (
-        <EmptyState size={ComponentSize.Small}>
-          <EmptyState.Text text="This resource uses all available labels" />
+        <EmptyState
+          size={ComponentSize.Small}
+          testID="inline-labels-list--used-all"
+        >
+          <EmptyState.Text text="This resource has all available labels, LINEBREAK start typing to create a new label" />
         </EmptyState>
       )
     }
 
     if (!searchTerm) {
       return (
-        <EmptyState size={ComponentSize.Small}>
-          <EmptyState.Text text="Type to create your first label" />
+        <EmptyState
+          size={ComponentSize.Small}
+          testID="inline-labels-list--none-exist"
+        >
+          <EmptyState.Text text="Start typing to create a new label" />
         </EmptyState>
       )
     }
-  }
-
-  private get createNewLabelButton(): JSX.Element {
-    const {searchTerm, filteredLabels, onStartCreatingLabel} = this.props
-
-    if (!searchTerm) {
-      return null
-    }
-
-    const searchTermHasExactMatch = filteredLabels.reduce(
-      (acc: boolean, current: ILabel) => {
-        return acc === true || current.name === searchTerm
-      },
-      false
-    )
-
-    if (searchTermHasExactMatch) {
-      return null
-    }
-
-    return (
-      <div
-        className="inline-labels--list-item inline-labels--create-new"
-        onClick={onStartCreatingLabel}
-        data-testid="inline-labels--create-new"
-      >
-        Create new label "<strong>{`${searchTerm}`}</strong>"
-      </div>
-    )
   }
 }
 

@@ -7,6 +7,9 @@ import {Input} from 'src/clockface'
 import InlineLabelsList from 'src/shared/components/inlineLabels/InlineLabelsList'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
+// Constants
+import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
+
 // Types
 import {IconFont} from 'src/clockface/types'
 import {ILabel} from '@influxdata/influx'
@@ -21,13 +24,13 @@ enum ArrowDirection {
 interface Props {
   searchTerm: string
   selectedItemID: string
+  onUpdateSelectedItemID: (highlightedID: string) => void
   allLabelsUsed: boolean
   onDismiss: () => void
   onStartCreatingLabel: () => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
   filteredLabels: ILabel[]
   onAddLabel: (labelID: string) => void
-  onUpdateSelectedItem: (highlightedID: string) => void
 }
 
 @ErrorHandling
@@ -40,7 +43,7 @@ export default class InlineLabelPopover extends Component<Props> {
       onAddLabel,
       onDismiss,
       onStartCreatingLabel,
-      onUpdateSelectedItem,
+      onUpdateSelectedItemID,
       onInputChange,
       filteredLabels,
     } = this.props
@@ -59,6 +62,7 @@ export default class InlineLabelPopover extends Component<Props> {
             onChange={onInputChange}
             autoFocus={true}
             onBlur={this.handleRefocusInput}
+            testID="inline-labels--popover-field"
           />
           <InlineLabelsList
             searchTerm={searchTerm}
@@ -66,7 +70,7 @@ export default class InlineLabelPopover extends Component<Props> {
             filteredLabels={filteredLabels}
             selectedItemID={selectedItemID}
             onItemClick={onAddLabel}
-            onUpdateSelectedItem={onUpdateSelectedItem}
+            onUpdateSelectedItemID={onUpdateSelectedItemID}
             onStartCreatingLabel={onStartCreatingLabel}
           />
         </div>
@@ -75,46 +79,60 @@ export default class InlineLabelPopover extends Component<Props> {
   }
 
   private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
-    const {selectedItemID, onDismiss, onAddLabel} = this.props
-
-    if (!selectedItemID) {
-      return
-    }
+    const {
+      selectedItemID,
+      onDismiss,
+      onAddLabel,
+      onStartCreatingLabel,
+    } = this.props
 
     switch (e.key) {
       case 'Escape':
-        return onDismiss()
+        onDismiss()
+        break
       case 'Enter':
-        return onAddLabel(selectedItemID)
+        e.preventDefault()
+        e.stopPropagation()
+        if (selectedItemID === ADD_NEW_LABEL_ITEM_ID) {
+          onStartCreatingLabel()
+          break
+        }
+
+        if (selectedItemID) {
+          onAddLabel(selectedItemID)
+          break
+        }
       case 'ArrowUp':
-        return this.handleHighlightAdjacentItem(ArrowDirection.Up)
+        this.handleHighlightAdjacentItem(ArrowDirection.Up)
+        break
       case 'ArrowDown':
-        return this.handleHighlightAdjacentItem(ArrowDirection.Down)
+        this.handleHighlightAdjacentItem(ArrowDirection.Down)
+        break
       default:
         break
     }
   }
 
   private handleHighlightAdjacentItem = (direction: ArrowDirection): void => {
-    const {selectedItemID, filteredLabels, onUpdateSelectedItem} = this.props
+    const {selectedItemID, filteredLabels, onUpdateSelectedItemID} = this.props
 
     if (!filteredLabels.length || !selectedItemID) {
       return null
     }
 
-    const highlightedIndex = _.findIndex(
+    const selectedItemIndex = _.findIndex(
       filteredLabels,
-      label => label.name === selectedItemID
+      label => label.id === selectedItemID
     )
 
     const adjacentIndex = Math.min(
-      Math.max(highlightedIndex + direction, 0),
+      Math.max(selectedItemIndex + direction, 0),
       filteredLabels.length - 1
     )
 
     const adjacentID = filteredLabels[adjacentIndex].id
 
-    onUpdateSelectedItem(adjacentID)
+    onUpdateSelectedItemID(adjacentID)
   }
 
   private handleRefocusInput = (e: ChangeEvent<HTMLInputElement>): void => {

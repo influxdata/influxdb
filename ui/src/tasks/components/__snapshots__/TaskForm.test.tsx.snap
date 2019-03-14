@@ -1,7 +1,9 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`TaskForm rendering renders 1`] = `
-<Form>
+<Form
+  testID="form-container"
+>
   <Grid>
     <GridRow>
       <GridColumn

@@ -19,6 +19,17 @@ import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 import {ILabel} from '@influxdata/influx'
 import {OverlayState} from 'src/types/overlay'
 
+// Constants
+export const ADD_NEW_LABEL_ITEM_ID = 'add-new-label'
+export const ADD_NEW_LABEL_LABEL: ILabel = {
+  id: ADD_NEW_LABEL_ITEM_ID,
+  name: '',
+  properties: {
+    color: '#000000',
+    description: '',
+  },
+}
+
 // Styles
 import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss'
 
@@ -93,13 +104,13 @@ class InlineLabelsEditor extends Component<Props, State> {
         <InlineLabelPopover
           searchTerm={searchTerm}
           selectedItemID={selectedItemID}
+          onUpdateSelectedItemID={this.handleUpdateSelectedItemID}
           allLabelsUsed={labelsUsed}
           onDismiss={this.handleDismissPopover}
           onStartCreatingLabel={this.handleStartCreatingLabel}
           onInputChange={this.handleInputChange}
-          filteredLabels={this.filteredLabels}
+          filteredLabels={this.filterLabels(searchTerm)}
           onAddLabel={this.handleAddLabel}
-          onUpdateSelectedItem={this.handleUpdateSelectedItem}
         />
       )
     }
@@ -129,11 +140,22 @@ class InlineLabelsEditor extends Component<Props, State> {
     const label = labels.find(label => label.id === labelID)
 
     if (label) {
+      this.selectAvailableItem()
       onAddLabel(label)
     }
   }
 
-  private handleUpdateSelectedItem = (selectedItemID: string): void => {
+  private selectAvailableItem = (): void => {
+    const {searchTerm} = this.state
+
+    const filteredLabels = this.filterLabels(searchTerm)
+
+    if (filteredLabels.length) {
+      this.handleUpdateSelectedItemID(filteredLabels[0].id)
+    }
+  }
+
+  private handleUpdateSelectedItemID = (selectedItemID: string): void => {
     this.setState({selectedItemID})
   }
 
@@ -149,7 +171,7 @@ class InlineLabelsEditor extends Component<Props, State> {
       })
     }
 
-    const selectedItemID = this.availableLabels[0].name
+    const selectedItemID = this.availableLabels[0].id
     this.setState({isPopoverVisible: true, selectedItemID, searchTerm: ''})
   }
 
@@ -160,35 +182,63 @@ class InlineLabelsEditor extends Component<Props, State> {
   private handleInputChange = async (
     e: ChangeEvent<HTMLInputElement>
   ): Promise<void> => {
-    const {availableLabels} = this
-    let selectedItemID = this.state.selectedItemID
     const searchTerm = e.target.value
+    const filteredLabels = this.filterLabels(searchTerm)
 
-    const selectedItemIDAvailable = availableLabels.find(
-      al => al.name === selectedItemID
-    )
-
-    const matchingLabels = availableLabels.filter(label => {
-      return label.name.includes(searchTerm)
-    })
-
-    if (!selectedItemIDAvailable && matchingLabels.length) {
-      selectedItemID = matchingLabels[0].name
+    if (filteredLabels.length) {
+      const selectedItemID = filteredLabels[0].id
+      this.setState({searchTerm, selectedItemID})
+    } else {
+      this.setState({searchTerm})
     }
-
-    if (searchTerm.length === 0) {
-      selectedItemID = null
-    }
-
-    this.setState({searchTerm, selectedItemID})
   }
 
-  private get filteredLabels(): ILabel[] {
+  private filterLabels = (searchTerm: string): ILabel[] => {
+    const filteredLabels = this.availableLabels.filter(label => {
+      const lowercaseName = label.name.toLowerCase()
+      const lowercaseSearchTerm = searchTerm.toLowerCase()
+
+      return lowercaseName.includes(lowercaseSearchTerm)
+    })
+
+    const searchTermHasExactMatch = filteredLabels.reduce(
+      (acc: boolean, current: ILabel) => {
+        return acc === true || current.name === searchTerm
+      },
+      false
+    )
+
+    if (!searchTermHasExactMatch && searchTerm) {
+      return this.filteredLabelsWithAddButton(filteredLabels)
+    }
+
+    return this.filteredLabelsWithoutAddButton(filteredLabels)
+  }
+
+  private filteredLabelsWithAddButton = (
+    filteredLabels: ILabel[]
+  ): ILabel[] => {
     const {searchTerm} = this.state
 
-    return this.availableLabels.filter(label => {
-      return label.name.includes(searchTerm)
-    })
+    const updatedAddButton = {...ADD_NEW_LABEL_LABEL, name: searchTerm}
+
+    const addButton = filteredLabels.find(
+      label => label.id === updatedAddButton.id
+    )
+
+    if (addButton) {
+      return filteredLabels.map(fl => {
+        return fl.id === updatedAddButton.id ? updatedAddButton : fl
+      })
+    }
+
+    return [updatedAddButton, ...filteredLabels]
+  }
+
+  private filteredLabelsWithoutAddButton = (
+    filteredLabels: ILabel[]
+  ): ILabel[] => {
+    return filteredLabels.filter(label => label.id !== ADD_NEW_LABEL_ITEM_ID)
   }
 
   private get availableLabels(): ILabel[] {

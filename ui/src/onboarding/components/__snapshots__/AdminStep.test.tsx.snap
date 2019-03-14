@@ -6,6 +6,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
 >
   <Form
     onSubmit={[Function]}
+    testID="form-container"
   >
     <div
       className="wizard-step--scroll-area"
