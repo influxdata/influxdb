@@ -21,7 +21,7 @@ import {OverlayState} from 'src/types/overlay'
 
 // Constants
 export const ADD_NEW_LABEL_ITEM_ID = 'add-new-label'
-const ADD_NEW_LABEL_LABEL: ILabel = {
+export const ADD_NEW_LABEL_LABEL: ILabel = {
   id: ADD_NEW_LABEL_ITEM_ID,
   name: '',
   properties: {

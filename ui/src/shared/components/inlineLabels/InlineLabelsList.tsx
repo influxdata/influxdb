@@ -83,7 +83,10 @@ class InlineLabelsList extends Component<Props> {
 
     if (allLabelsUsed) {
       return (
-        <EmptyState size={ComponentSize.Small}>
+        <EmptyState
+          size={ComponentSize.Small}
+          testID="inline-labels-list--used-all"
+        >
           <EmptyState.Text text="This resource has all available labels, LINEBREAK start typing to create a new label" />
         </EmptyState>
       )
@@ -91,7 +94,10 @@ class InlineLabelsList extends Component<Props> {
 
     if (!searchTerm) {
       return (
-        <EmptyState size={ComponentSize.Small}>
+        <EmptyState
+          size={ComponentSize.Small}
+          testID="inline-labels-list--none-exist"
+        >
           <EmptyState.Text text="Start typing to create a new label" />
         </EmptyState>
       )
