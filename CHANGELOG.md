@@ -10,6 +10,7 @@
 1. [12523](https://github.com/influxdata/influxdb/pull/12523): Add ability to save a query as a variable from the Data Explorer.
 
 ### Bug Fixes
+1. [12641l](https://github.com/influxdata/influxdb/pull/12641): Stop scrollbars from covering text in flux editor
 
 ### UI Improvements
 
