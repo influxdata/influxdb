@@ -16,7 +16,7 @@ import {
   removeDashboardLabels as removeDashboardLabelsAJAX,
   getView as getViewAJAX,
   updateView as updateViewAJAX,
-} from 'src/dashboards/apis/v2'
+} from 'src/dashboards/apis'
 import {client} from 'src/utils/api'
 
 // Actions

@@ -21,7 +21,7 @@ import {cellAddFailed, cellAdded} from 'src/shared/copy/notifications'
 
 // actions
 import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions/v2'
-import {createDashboard} from 'src/dashboards/apis/v2'
+import {createDashboard} from 'src/dashboards/apis'
 import {notify} from 'src/shared/actions/notifications'
 
 // types

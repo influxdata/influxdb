@@ -11,7 +11,7 @@ import {IconFont} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 // APIs
-import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
+import {createDashboard, cloneDashboard} from 'src/dashboards/apis/'
 
 // Actions
 import {

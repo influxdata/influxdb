@@ -10,7 +10,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 // APIs
-import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
+import {createDashboard, cloneDashboard} from 'src/dashboards/apis/'
 
 // Actions
 import {

@@ -2,7 +2,7 @@
 import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
-} from 'src/dashboards/apis/v2/'
+} from 'src/dashboards/apis/'
 
 // Types
 import {RemoteDataState} from 'src/types'
