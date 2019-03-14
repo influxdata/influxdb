@@ -1,4 +1,4 @@
-import reducer from 'src/dashboards/reducers/v2/ranges'
+import reducer from 'src/dashboards/reducers/ranges'
 
 import {setDashTimeV1, deleteTimeRange} from 'src/dashboards/actions/ranges'
 

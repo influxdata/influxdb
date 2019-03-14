@@ -1,5 +1,5 @@
 // Reducer
-import reducer from 'src/dashboards/reducers/v2/dashboards'
+import reducer from 'src/dashboards/reducers/dashboards'
 
 // Actions
 import {
