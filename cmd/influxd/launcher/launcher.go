@@ -122,7 +122,7 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		{
 			DestP:   &l.logLevel,
 			Flag:    "log-level",
-			Default: "info",
+			Default: zapcore.InfoLevel.String(),
 			Desc:    "supported log levels are debug, info, and error",
 		},
 		{
