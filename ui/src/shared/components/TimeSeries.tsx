@@ -20,7 +20,7 @@ import {AppState, Organization} from 'src/types/v2'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
-export interface QueriesState {
+interface QueriesState {
   tables: FluxTable[]
   files: string[] | null
   loading: RemoteDataState

@@ -11,10 +11,10 @@ import {
 } from '@influxdata/clockface'
 
 // Actions
-import {submitQueriesWithVars} from 'src/timeMachine/actions'
+import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
-import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -22,17 +22,14 @@ import {AppState} from 'src/types/v2'
 
 interface StateProps {
   submitButtonDisabled: boolean
-}
-
-interface DispatchProps {
-  onSubmitQueries: typeof submitQueriesWithVars
-}
-
-interface OwnProps {
   queryStatus: RemoteDataState
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+interface DispatchProps {
+  onSubmit: typeof saveAndExecuteQueries
+}
+
+type Props = StateProps & DispatchProps
 
 interface State {
   didClick: boolean
@@ -80,22 +77,23 @@ class SubmitQueryButton extends PureComponent<Props, State> {
   }
 
   private handleClick = (): void => {
-    this.props.onSubmitQueries()
+    this.props.onSubmit()
     this.setState({didClick: true})
   }
 }
 
 const mstp = (state: AppState) => {
   const submitButtonDisabled = getActiveQuery(state).text === ''
+  const queryStatus = getActiveTimeMachine(state).queryResults.status
 
-  return {submitButtonDisabled}
+  return {submitButtonDisabled, queryStatus}
 }
 
 const mdtp = {
-  onSubmitQueries: submitQueriesWithVars,
+  onSubmit: saveAndExecuteQueries,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
 )(SubmitQueryButton)

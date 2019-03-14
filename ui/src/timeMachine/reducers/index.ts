@@ -1,5 +1,5 @@
 // Libraries
-import {get, cloneDeep} from 'lodash'
+import {get, cloneDeep, isNumber} from 'lodash'
 import {produce} from 'immer'
 import _ from 'lodash'
 
@@ -42,6 +42,14 @@ interface QueryBuilderState {
   }>
 }
 
+interface QueryResultsState {
+  files: string[] | null
+  status: RemoteDataState
+  isInitialFetch: boolean
+  fetchDuration: number
+  errorMessage: string
+}
+
 export interface TimeMachineState {
   view: QueryView
   timeRange: TimeRange
@@ -49,10 +57,10 @@ export interface TimeMachineState {
   isViewingRawData: boolean
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
-  submitToken: number
   availableXColumns: string[]
   availableGroupColumns: string[]
   queryBuilder: QueryBuilderState
+  queryResults: QueryResultsState
 }
 
 export interface TimeMachinesState {
@@ -69,9 +77,15 @@ export const initialStateHelper = (): TimeMachineState => ({
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
-  submitToken: 0,
   availableXColumns: [],
   availableGroupColumns: [],
+  queryResults: {
+    files: null,
+    status: RemoteDataState.NotStarted,
+    isInitialFetch: true,
+    fetchDuration: null,
+    errorMessage: null,
+  },
   queryBuilder: {
     buckets: [],
     bucketsStatus: RemoteDataState.NotStarted,
@@ -167,7 +181,7 @@ export const timeMachineReducer = (
       return produce(state, draftState => {
         draftState.timeRange = action.payload.timeRange
 
-        buildAndSubmitAllQueries(draftState)
+        buildAllQueries(draftState)
       })
     }
 
@@ -190,9 +204,21 @@ export const timeMachineReducer = (
       return {...state, draftQueries}
     }
 
-    case 'SUBMIT_QUERIES': {
+    case 'SET_QUERY_RESULTS': {
       return produce(state, draftState => {
-        submitQueries(draftState)
+        const {status, files, fetchDuration, errorMessage} = action.payload
+
+        draftState.queryResults.status = status
+        draftState.queryResults.errorMessage = errorMessage
+
+        if (files) {
+          draftState.queryResults.files = files
+          draftState.queryResults.isInitialFetch = false
+        }
+
+        if (isNumber(fetchDuration)) {
+          draftState.queryResults.fetchDuration = fetchDuration
+        }
       })
     }
 
@@ -423,13 +449,6 @@ export const timeMachineReducer = (
       return setViewProperties(state, {staticLegend})
     }
 
-    case 'INCREMENT_SUBMIT_TOKEN': {
-      return {
-        ...state,
-        submitToken: Date.now(),
-      }
-    }
-
     case 'EDIT_ACTIVE_QUERY_WITH_BUILDER': {
       return produce(state, draftState => {
         const query = draftState.draftQueries[draftState.activeQueryIndex]
@@ -437,7 +456,7 @@ export const timeMachineReducer = (
         query.editMode = QueryEditMode.Builder
         query.hidden = false
 
-        buildAndSubmitAllQueries(draftState)
+        buildAllQueries(draftState)
       })
     }
 
@@ -499,7 +518,6 @@ export const timeMachineReducer = (
         draftState.activeQueryIndex = activeQueryIndex
 
         resetBuilderState(draftState)
-        submitQueries(draftState)
       })
     }
 
@@ -718,6 +736,14 @@ export const timeMachineReducer = (
 
       return {...state, view}
     }
+
+    case 'SAVE_DRAFT_QUERIES': {
+      return produce(state, draftState => {
+        draftState.view.properties.queries = draftState.draftQueries.filter(
+          q => !q.hidden
+        )
+      })
+    }
   }
 
   return state
@@ -810,7 +836,7 @@ const buildActiveQuery = (draftState: TimeMachineState) => {
   }
 }
 
-const buildAndSubmitAllQueries = (draftState: TimeMachineState) => {
+const buildAllQueries = (draftState: TimeMachineState) => {
   draftState.draftQueries
     .filter(query => query.editMode === QueryEditMode.Builder)
     .forEach(query => {
@@ -820,8 +846,6 @@ const buildAndSubmitAllQueries = (draftState: TimeMachineState) => {
         query.text = ''
       }
     })
-
-  submitQueries(draftState)
 }
 
 const resetBuilderState = (draftState: TimeMachineState) => {
@@ -829,12 +853,4 @@ const resetBuilderState = (draftState: TimeMachineState) => {
     draftState.draftQueries[draftState.activeQueryIndex].builderConfig
 
   draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
-}
-
-const submitQueries = (draftState: TimeMachineState) => {
-  draftState.submitToken = Date.now()
-  draftState.view.properties.queries = _.filter(
-    draftState.draftQueries,
-    q => !q.hidden
-  )
 }

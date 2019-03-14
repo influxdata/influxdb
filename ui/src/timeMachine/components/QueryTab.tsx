@@ -24,7 +24,6 @@ import 'src/timeMachine/components/QueryTab.scss'
 // Types
 import {AppState} from 'src/types/v2'
 import {DashboardDraftQuery} from 'src/types/v2/dashboards'
-import {QueriesState} from 'src/shared/components/TimeSeries'
 
 interface StateProps {
   activeQueryIndex: number
@@ -41,7 +40,6 @@ interface DispatchProps {
 interface OwnProps {
   queryIndex: number
   query: DashboardDraftQuery
-  queriesState: QueriesState
 }
 
 type Props = StateProps & DispatchProps & OwnProps
@@ -49,6 +47,7 @@ type Props = StateProps & DispatchProps & OwnProps
 interface State {
   isEditingName: boolean
 }
+
 class TimeMachineQueryTab extends PureComponent<Props, State> {
   public static getDerivedStateFromProps(props: Props): Partial<State> {
     if (props.queryIndex !== props.activeQueryIndex) {
@@ -135,15 +134,10 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
   }
 
   private get queriesTimer(): JSX.Element {
-    const {queriesState, queryIndex, activeQueryIndex} = this.props
+    const {queryIndex, activeQueryIndex} = this.props
 
     if (queryIndex === activeQueryIndex) {
-      return (
-        <TimeMachineQueriesTimer
-          status={queriesState.loading}
-          duration={queriesState.duration}
-        />
-      )
+      return <TimeMachineQueriesTimer />
     }
   }
 

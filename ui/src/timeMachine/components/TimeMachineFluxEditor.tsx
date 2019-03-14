@@ -10,10 +10,8 @@ import VariablesToolbar from 'src/timeMachine/components/variableToolbar/Variabl
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
 
 // Actions
-import {
-  setActiveQueryText,
-  submitQueriesWithVars,
-} from 'src/timeMachine/actions'
+import {setActiveQueryText} from 'src/timeMachine/actions'
+import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
@@ -34,7 +32,7 @@ interface StateProps {
 
 interface DispatchProps {
   onSetActiveQueryText: typeof setActiveQueryText
-  onSubmitQueries: typeof submitQueriesWithVars
+  onSubmitQueries: typeof saveAndExecuteQueries
 }
 
 interface State {
@@ -127,7 +125,7 @@ const mstp = (state: AppState) => {
 
 const mdtp = {
   onSetActiveQueryText: setActiveQueryText,
-  onSubmitQueries: submitQueriesWithVars,
+  onSubmitQueries: saveAndExecuteQueries,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
