@@ -62,6 +62,24 @@ export const MEAN: FluxToolbarFunction = {
     'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/aggregates/mean',
 }
 
+export const UNION: FluxToolbarFunction = {
+  name: 'union',
+  args: [
+    {
+      name: 'tables',
+      desc:
+        'Specifies the streams to union together. There must be at least two streams.',
+      type: 'Array of Strings',
+    },
+  ],
+  desc:
+    'Concatenates two or more input streams into a single output stream. The output schemas of the `union()` function is the union of all input schemas. A sort operation may be added if a specific sort order is needed.',
+  example: 'union(tables: [table1, table2])',
+  category: 'Transformations',
+  link:
+    'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/union',
+}
+
 export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'aggregateWindow',
@@ -1524,23 +1542,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/type-conversions/touint',
   },
-  {
-    name: 'union',
-    args: [
-      {
-        name: 'tables',
-        desc:
-          'Specifies the streams to union together. There must be at least two streams.',
-        type: 'Array of Strings',
-      },
-    ],
-    desc:
-      'Concatenates two or more input streams into a single output stream. The output schemas of the `union()` function is the union of all input schemas. A sort operation may be added if a specific sort order is needed.',
-    example: 'union(tables: ["table1", "table2"])',
-    category: 'Transformations',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/union',
-  },
+  UNION,
   {
     name: 'unique',
     args: [

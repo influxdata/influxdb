@@ -22,6 +22,7 @@ class ToolbarFunction extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     testID: 'toolbar-function',
   }
+
   public state: State = {isActive: false, hoverPosition: undefined}
   private functionRef = createRef<HTMLDivElement>()
 

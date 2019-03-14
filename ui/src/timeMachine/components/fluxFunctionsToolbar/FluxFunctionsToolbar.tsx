@@ -16,7 +16,7 @@ import {setActiveQueryText} from 'src/timeMachine/actions'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Constants
-import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
+import {FLUX_FUNCTIONS, FROM, UNION} from 'src/shared/constants/fluxFunctions'
 
 // Styles
 import 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar.scss'
@@ -77,10 +77,17 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
   private handleUpdateScript = (funcName: string, funcExample: string) => {
     const {activeQueryText, onSetActiveQueryText} = this.props
 
-    if (funcName.startsWith('from')) {
-      onSetActiveQueryText(`${activeQueryText}\n${funcExample}`)
-    } else {
-      onSetActiveQueryText(`${activeQueryText}\n  |> ${funcExample}`)
+    switch (funcName) {
+      case FROM.name: {
+        onSetActiveQueryText(`${activeQueryText}\n${funcExample}`)
+        return
+      }
+      case UNION.name: {
+        onSetActiveQueryText(`${activeQueryText.trimRight()}\n\n${funcExample}`)
+        return
+      }
+      default:
+        onSetActiveQueryText(`${activeQueryText}\n  |> ${funcExample}`)
     }
   }
 }
