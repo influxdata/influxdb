@@ -2,7 +2,6 @@
 import _ from 'lodash'
 
 // Utils
-import {addLabelDefaults} from 'src/shared/utils/labels'
 import {incrementCloneName} from 'src/utils/naming'
 
 // Types
@@ -27,7 +26,6 @@ export const getDashboards = async (): Promise<Dashboard[]> => {
 
   return dashboards.map(d => ({
     ...d,
-    labels: d.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(d.cells, d.id),
   }))
 }
@@ -40,7 +38,7 @@ export const getDashboardsByOrgID = async (
   return dashboards.map(d => ({
     ...d,
     cells: addDashboardIDToCells(d.cells, d.id),
-  }))
+  })) as Dashboard[]
 }
 
 export const getDashboard = async (id: string): Promise<Dashboard> => {
@@ -48,7 +46,6 @@ export const getDashboard = async (id: string): Promise<Dashboard> => {
 
   return {
     ...dashboard,
-    labels: dashboard.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(dashboard.cells, dashboard.id),
   }
 }
@@ -60,7 +57,6 @@ export const createDashboard = async (
 
   return {
     ...dashboard,
-    labels: dashboard.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(dashboard.cells, dashboard.id),
   }
 }
@@ -76,7 +72,6 @@ export const updateDashboard = async (
 
   return {
     ...updated,
-    labels: updated.labels.map(addLabelDefaults),
     cells: addDashboardIDToCells(updated.cells, updated.id),
   }
 }
