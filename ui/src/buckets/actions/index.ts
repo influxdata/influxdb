@@ -76,7 +76,7 @@ export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(setBuckets(RemoteDataState.Error))
     dispatch(notify(getBucketsFailed()))
   }
@@ -89,7 +89,7 @@ export const createBucket = (bucket: Bucket) => async (
     const createdBucket = await client.buckets.create(bucket)
     dispatch(addBucket(createdBucket))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(bucketCreateFailed()))
     throw e
   }
@@ -103,7 +103,7 @@ export const updateBucket = (bucket: Bucket) => async (
 
     dispatch(editLabel(label))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(bucketUpdateFailed(bucket.name)))
   }
 }
@@ -116,7 +116,7 @@ export const deleteBucket = (id: string, name: string) => async (
 
     dispatch(removeBucket(id))
   } catch (e) {
-    console.log(e)
+    console.error(e)
     dispatch(notify(bucketDeleteFailed(name)))
   }
 }

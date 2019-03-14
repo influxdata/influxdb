@@ -6,7 +6,7 @@ describe('Buckets', () => {
 
     cy.signin().then(({body}) => {
       const {
-        org: {id, name},
+        org: {id},
         bucket,
       } = body
       cy.wrap(body.org).as('org')

@@ -398,7 +398,11 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   const permissions = [
     {
       action: Permission.ActionEnum.Write,
-      resource: {type: PermissionResource.TypeEnum.Buckets, id: bucketID, orgID},
+      resource: {
+        type: PermissionResource.TypeEnum.Buckets,
+        id: bucketID,
+        orgID,
+      },
     },
     {
       action: Permission.ActionEnum.Read,
