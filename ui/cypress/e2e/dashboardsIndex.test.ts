@@ -143,12 +143,12 @@ describe('Dashboards', () => {
           .click()
 
         cy.getByTestID('inline-labels--popover').within(() => {
-          cy.getByTestID('input-field').type(label)
+          cy.getByTestID('inline-labels--popover-field').type(label)
           cy.getByTestID('inline-labels--create-new').click()
         })
 
         cy.getByTestID('overlay--container').within(() => {
-          cy.getByInputName('name').should('have.value', label)
+          cy.getByTestID('create-label-form--name').should('have.value', label)
           cy.getByTestID('create-label-form--submit').click()
         })
 
