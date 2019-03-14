@@ -7,17 +7,11 @@ import {get} from 'lodash'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 
 // Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/organizations/actions/orgView'
 import {getTasks as getTasksAction} from 'src/organizations/actions/orgView'
 import {populateTasks as populateTasksAction} from 'src/tasks/actions/v2'
-import {
-  importTaskFailed,
-  importTaskSucceeded,
-} from 'src/shared/copy/notifications'
 
 interface DispatchProps {
-  notify: typeof notifyAction
   createTaskFromTemplate: typeof createTaskFromTemplateAction
   getTasks: typeof getTasksAction
   populateTasks: typeof populateTasksAction
@@ -50,7 +44,7 @@ class TaskImportOverlay extends PureComponent<Props> {
     importString: string,
     orgID: string
   ): Promise<void> => {
-    const {createTaskFromTemplate, getTasks, populateTasks, notify} = this.props
+    const {createTaskFromTemplate, getTasks, populateTasks} = this.props
 
     try {
       const template = JSON.parse(importString)
@@ -64,17 +58,13 @@ class TaskImportOverlay extends PureComponent<Props> {
         // import overlay is in tasks view
         populateTasks()
       }
+    } catch (error) {}
 
-      this.onDismiss()
-      notify(importTaskSucceeded())
-    } catch (error) {
-      notify(importTaskFailed(error))
-    }
+    this.onDismiss()
   }
 }
 
 const mdtp: DispatchProps = {
-  notify: notifyAction,
   createTaskFromTemplate: createTaskFromTemplateAction,
   getTasks: getTasksAction,
   populateTasks: populateTasksAction,

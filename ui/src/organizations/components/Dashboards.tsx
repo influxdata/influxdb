@@ -8,7 +8,6 @@ import _ from 'lodash'
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
 import {Input, Tabs} from 'src/clockface'
 import {IconFont} from '@influxdata/clockface'
-import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 // APIs
@@ -71,7 +70,6 @@ type Props = DispatchProps & StateProps & OwnProps & WithRouterProps
 
 interface State {
   searchTerm: string
-  isImportingDashboard: boolean
   isEditingDashboardLabels: boolean
   dashboardLabelsEdit: Dashboard
 }
@@ -83,7 +81,6 @@ class Dashboards extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
-      isImportingDashboard: false,
       isEditingDashboardLabels: false,
       dashboardLabelsEdit: null,
     }
@@ -115,7 +112,7 @@ class Dashboards extends PureComponent<Props, State> {
           />
           <AddResourceDropdown
             onSelectNew={this.handleCreateDashboard}
-            onSelectImport={this.handleToggleOverlay}
+            onSelectImport={this.handleImport}
             resourceName="Dashboard"
           />
         </Tabs.TabContentsHeader>
@@ -133,7 +130,6 @@ class Dashboards extends PureComponent<Props, State> {
           showOwnerColumn={false}
           onFilterChange={this.handleFilterUpdate}
         />
-        {this.renderImportOverlay}
       </>
     )
   }
@@ -149,6 +145,12 @@ class Dashboards extends PureComponent<Props, State> {
   private handleFilterUpdate = (searchTerm: string): void => {
     this.setState({searchTerm})
   }
+
+  private handleImport = (): void => {
+    const {router, params} = this.props
+    router.push(`/organizations/${params.orgID}/dashboards/import`)
+  }
+
   private handleSetDefaultDashboard = async (
     defaultDashboardLink: string
   ): Promise<void> => {
@@ -200,21 +202,6 @@ class Dashboards extends PureComponent<Props, State> {
   private handleDeleteDashboard = (dashboard: Dashboard) => {
     this.props.handleDeleteDashboard(dashboard)
   }
-
-  private handleToggleOverlay = (): void => {
-    this.setState({isImportingDashboard: !this.state.isImportingDashboard})
-  }
-
-  private get renderImportOverlay(): JSX.Element {
-    const {isImportingDashboard} = this.state
-
-    return (
-      <ImportDashboardOverlay
-        onDismissOverlay={this.handleToggleOverlay}
-        isVisible={isImportingDashboard}
-      />
-    )
-  }
 }
 
 const mstp = (state: AppState): StateProps => {
@@ -242,4 +229,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<OwnProps>(Dashboards))
+)(withRouter(Dashboards))

@@ -30,6 +30,7 @@ import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
+import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {MePage, Account} from 'src/me'
 import NotFound from 'src/shared/components/NotFound'
@@ -114,11 +115,17 @@ class Root extends PureComponent {
                           <IndexRoute component={OrganizationsIndex} />
                           <Route path=":orgID">
                             <Route path="buckets" component={OrgBucketIndex} />
-                            <Route path="dashboards">
-                              <IndexRoute component={OrgDashboardsIndex} />
+                            <Route
+                              path="dashboards"
+                              component={OrgDashboardsIndex}
+                            >
                               <Route
                                 path=":dashboardID/export"
                                 component={DashboardExportOverlay}
+                              />
+                              <Route
+                                path="import"
+                                component={DashboardImportOverlay}
                               />
                             </Route>
                             <Route path="members" component={OrgMembersIndex} />
@@ -165,17 +172,20 @@ class Root extends PureComponent {
                           path="data-explorer"
                           component={DataExplorerPage}
                         />
-                        <Route path="dashboards">
-                          <IndexRoute component={DashboardsIndex} />
-                          <Route
-                            path=":dashboardID"
-                            component={DashboardPage}
-                          />
+                        <Route path="dashboards" component={DashboardsIndex}>
                           <Route
                             path=":dashboardID/export"
                             component={DashboardExportOverlay}
                           />
+                          <Route
+                            path="import"
+                            component={DashboardImportOverlay}
+                          />
                         </Route>
+                        <Route
+                          path="dashboards/:dashboardID"
+                          component={DashboardPage}
+                        />
                         <Route path="me" component={MePage} />
                         <Route path="account/:tab" component={Account} />
                         <Route

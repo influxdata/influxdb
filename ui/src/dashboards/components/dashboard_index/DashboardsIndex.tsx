@@ -8,7 +8,6 @@ import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/D
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 
 // APIs
 import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
@@ -64,7 +63,6 @@ type Props = DispatchProps & StateProps & OwnProps
 
 interface State {
   searchTerm: string
-  isImportingDashboard: boolean
 }
 
 @ErrorHandling
@@ -74,7 +72,6 @@ class DashboardIndex extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
-      isImportingDashboard: false,
     }
   }
 
@@ -99,7 +96,7 @@ class DashboardIndex extends PureComponent<Props, State> {
             <Page.Header.Right>
               <AddResourceDropdown
                 onSelectNew={this.handleCreateDashboard}
-                onSelectImport={this.handleToggleImportOverlay}
+                onSelectImport={this.summonImportOverlay}
                 resourceName="Dashboard"
               />
             </Page.Header.Right>
@@ -130,7 +127,7 @@ class DashboardIndex extends PureComponent<Props, State> {
             </div>
           </Page.Contents>
         </Page>
-        {this.importOverlay}
+        {this.props.children}
       </>
     )
   }
@@ -191,19 +188,9 @@ class DashboardIndex extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 
-  private handleToggleImportOverlay = (): void => {
-    this.setState({isImportingDashboard: !this.state.isImportingDashboard})
-  }
-
-  private get importOverlay(): JSX.Element {
-    const {isImportingDashboard} = this.state
-
-    return (
-      <ImportDashboardOverlay
-        onDismissOverlay={this.handleToggleImportOverlay}
-        isVisible={isImportingDashboard}
-      />
-    )
+  private summonImportOverlay = (): void => {
+    const {router} = this.props
+    router.push(`/dashboards/import`)
   }
 }
 
