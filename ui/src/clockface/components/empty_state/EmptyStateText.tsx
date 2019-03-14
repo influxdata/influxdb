@@ -20,7 +20,7 @@ const highlighter = (
     }
 
     if (word === 'LINEBREAK') {
-      return <br />
+      return <br key={uuid.v4()} />
     }
 
     if (word === 'SPACECHAR') {
