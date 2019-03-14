@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
-
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
+	"go.uber.org/zap"
 )
 
 type authError struct {
@@ -29,12 +29,16 @@ var ErrFailedPermission = errors.New("unauthorized")
 type taskServiceValidator struct {
 	platform.TaskService
 	preAuth query.PreAuthorizer
+	logger  *zap.Logger
 }
 
-func NewValidator(ts platform.TaskService, bs platform.BucketService) platform.TaskService {
+// TaskValidator wraps ts and checks appropriate permissions before calling requested methods on ts.
+// Authorization failures are logged to the logger.
+func NewValidator(logger *zap.Logger, ts platform.TaskService, bs platform.BucketService) platform.TaskService {
 	return &taskServiceValidator{
 		TaskService: ts,
 		preAuth:     query.NewPreAuthorizer(bs),
+		logger:      logger,
 	}
 }
 
@@ -53,7 +57,9 @@ func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID
 		return nil, err
 	}
 
-	if err := validatePermission(ctx, *perm); err != nil {
+	if err := ts.validatePermission(ctx, *perm,
+		zap.String("method", "FindTaskByID"), zap.Stringer("task_id", id),
+	); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +70,15 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.T
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// First, get the tasks in the organization, without authentication.
+	// Get the authorizer first.
+	// We are getting a list of tasks that may be a superset of what the user is allowed to view.
+	auth, err := platcontext.GetAuthorizer(ctx)
+	if err != nil {
+		ts.logger.Info("Failed to retrieve authorizer from context", zap.String("method", "FindTasks"))
+		return nil, 0, err
+	}
+
+	// Get the tasks in the organization, without authentication.
 	unauthenticatedTasks, _, err := ts.TaskService.FindTasks(ctx, filter)
 	if err != nil {
 		return nil, 0, err
@@ -78,7 +92,8 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.T
 			continue
 		}
 
-		if err := validatePermission(ctx, *perm); err != nil {
+		// We don't want to log authorization errors on this one.
+		if !auth.Allowed(*perm) {
 			continue
 		}
 
@@ -98,11 +113,12 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 		return nil, err
 	}
 
-	if err := validatePermission(ctx, *p); err != nil {
+	loggerFields := []zap.Field{zap.String("method", "CreateTask")}
+	if err := ts.validatePermission(ctx, *p, loggerFields...); err != nil {
 		return nil, err
 	}
 
-	if err := validateBucket(ctx, t.Flux, ts.preAuth, t.OrganizationID); err != nil {
+	if err := ts.validateBucket(ctx, t.Flux, t.OrganizationID, loggerFields...); err != nil {
 		return nil, err
 	}
 
@@ -124,11 +140,12 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, 
 		return nil, err
 	}
 
-	if err := validatePermission(ctx, *p); err != nil {
+	loggerFields := []zap.Field{zap.String("method", "UpdateTask"), zap.Stringer("task_id", id)}
+	if err := ts.validatePermission(ctx, *p, loggerFields...); err != nil {
 		return nil, err
 	}
 
-	if err := validateBucket(ctx, task.Flux, ts.preAuth, task.OrganizationID); err != nil {
+	if err := ts.validateBucket(ctx, task.Flux, task.OrganizationID, loggerFields...); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +167,9 @@ func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) 
 		return err
 	}
 
-	if err := validatePermission(ctx, *p); err != nil {
+	if err := ts.validatePermission(ctx, *p,
+		zap.String("method", "DeleteTask"), zap.Stringer("task_id", id),
+	); err != nil {
 		return err
 	}
 
@@ -185,7 +204,9 @@ func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.Ru
 		return nil, -1, err
 	}
 
-	if err := validatePermission(ctx, *perm); err != nil {
+	if err := ts.validatePermission(ctx, *perm,
+		zap.String("method", "FindRuns"), zap.Stringer("task_id", task.ID),
+	); err != nil {
 		return nil, -1, err
 	}
 
@@ -208,7 +229,9 @@ func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID p
 		return nil, err
 	}
 
-	if err := validatePermission(ctx, *p); err != nil {
+	if err := ts.validatePermission(ctx, *p,
+		zap.String("method", "FindRunByID"), zap.Stringer("task_id", taskID), zap.Stringer("run_id", runID),
+	); err != nil {
 		return nil, err
 	}
 
@@ -230,7 +253,9 @@ func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID pla
 		return err
 	}
 
-	if err := validatePermission(ctx, *p); err != nil {
+	if err := ts.validatePermission(ctx, *p,
+		zap.String("method", "CancelRun"), zap.Stringer("task_id", taskID), zap.Stringer("run_id", runID),
+	); err != nil {
 		return err
 	}
 
@@ -252,7 +277,9 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID plat
 		return nil, err
 	}
 
-	if err := validatePermission(ctx, *p); err != nil {
+	if err := ts.validatePermission(ctx, *p,
+		zap.String("method", "RetryRun"), zap.Stringer("task_id", taskID), zap.Stringer("run_id", runID),
+	); err != nil {
 		return nil, err
 	}
 
@@ -274,29 +301,39 @@ func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID
 		return nil, err
 	}
 
-	if err := validatePermission(ctx, *p); err != nil {
+	if err := ts.validatePermission(ctx, *p,
+		zap.String("method", "ForceRun"), zap.Stringer("task_id", taskID),
+	); err != nil {
 		return nil, err
 	}
 
 	return ts.TaskService.ForceRun(ctx, taskID, scheduledFor)
 }
 
-func validatePermission(ctx context.Context, perm platform.Permission) error {
+func (ts *taskServiceValidator) validatePermission(ctx context.Context, perm platform.Permission, loggerFields ...zap.Field) error {
 	auth, err := platcontext.GetAuthorizer(ctx)
 	if err != nil {
+		ts.logger.With(loggerFields...).Info("Failed to retrieve authorizer from context")
 		return err
 	}
 
 	if !auth.Allowed(perm) {
+		ts.logger.With(loggerFields...).Info("Authorization failed",
+			zap.String("user_id", auth.GetUserID().String()),
+			zap.String("auth_kind", auth.Kind()),
+			zap.String("auth_id", auth.Identifier().String()),
+			zap.String("disallowed_permission", perm.String()),
+		)
 		return authError{error: ErrFailedPermission, perm: perm, auth: auth}
 	}
 
 	return nil
 }
 
-func validateBucket(ctx context.Context, script string, preAuth query.PreAuthorizer, orgID platform.ID) error {
+func (ts *taskServiceValidator) validateBucket(ctx context.Context, script string, orgID platform.ID, loggerFields ...zap.Field) error {
 	auth, err := platcontext.GetAuthorizer(ctx)
 	if err != nil {
+		ts.logger.With(loggerFields...).Info("Failed to retrieve authorizer from context")
 		return err
 	}
 
@@ -308,7 +345,13 @@ func validateBucket(ctx context.Context, script string, preAuth query.PreAuthori
 			platform.WithErrorCode(platform.EInvalid))
 	}
 
-	if err := preAuth.PreAuthorize(ctx, spec, auth, &orgID); err != nil {
+	if err := ts.preAuth.PreAuthorize(ctx, spec, auth, &orgID); err != nil {
+		ts.logger.With(loggerFields...).Info("Task failed preauthorization check",
+			zap.String("user_id", auth.GetUserID().String()),
+			zap.String("org_id", orgID.String()),
+			zap.String("auth_kind", auth.Kind()),
+			zap.String("auth_id", auth.Identifier().String()),
+		)
 		return platform.NewError(
 			platform.WithErrorErr(err),
 			platform.WithErrorMsg("Failed to authorize."),
