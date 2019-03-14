@@ -3,10 +3,10 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"time"
 )
 
 // Opt is a single command-line option
@@ -57,49 +57,66 @@ func NewCommand(p *Program) *cobra.Command {
 	// This normalizes "-" to an underscore in env names.
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
-	for _, o := range p.Opts {
-		switch o.DestP.(type) {
+	BindOptions(cmd, p.Opts)
+
+	return cmd
+}
+
+// BindOptions adds opts to the specified command and automatically
+// registers those options with viper.
+func BindOptions(cmd *cobra.Command, opts []Opt) {
+	for _, o := range opts {
+		switch destP := o.DestP.(type) {
 		case *string:
-			if o.Default == nil {
-				o.Default = ""
+			var d string
+			if o.Default != nil {
+				d = o.Default.(string)
 			}
-			cmd.Flags().StringVar(o.DestP.(*string), o.Flag, o.Default.(string), o.Desc)
-			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
-			*o.DestP.(*string) = viper.GetString(o.Flag)
+			cmd.Flags().StringVar(destP, o.Flag, d, o.Desc)
+			mustBindPFlag(o.Flag, cmd)
+			*destP = viper.GetString(o.Flag)
 		case *int:
-			if o.Default == nil {
-				o.Default = 0
+			var d int
+			if o.Default != nil {
+				d = o.Default.(int)
 			}
-			cmd.Flags().IntVar(o.DestP.(*int), o.Flag, o.Default.(int), o.Desc)
-			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
-			*o.DestP.(*int) = viper.GetInt(o.Flag)
+			cmd.Flags().IntVar(destP, o.Flag, d, o.Desc)
+			mustBindPFlag(o.Flag, cmd)
+			*destP = viper.GetInt(o.Flag)
 		case *bool:
-			if o.Default == nil {
-				o.Default = false
+			var d bool
+			if o.Default != nil {
+				d = o.Default.(bool)
 			}
-			cmd.Flags().BoolVar(o.DestP.(*bool), o.Flag, o.Default.(bool), o.Desc)
-			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
-			*o.DestP.(*bool) = viper.GetBool(o.Flag)
+			cmd.Flags().BoolVar(destP, o.Flag, d, o.Desc)
+			mustBindPFlag(o.Flag, cmd)
+			*destP = viper.GetBool(o.Flag)
 		case *time.Duration:
-			if o.Default == nil {
-				o.Default = time.Duration(0)
+			var d time.Duration
+			if o.Default != nil {
+				d = o.Default.(time.Duration)
 			}
-			cmd.Flags().DurationVar(o.DestP.(*time.Duration), o.Flag, o.Default.(time.Duration), o.Desc)
-			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
-			*o.DestP.(*time.Duration) = viper.GetDuration(o.Flag)
+			cmd.Flags().DurationVar(destP, o.Flag, d, o.Desc)
+			mustBindPFlag(o.Flag, cmd)
+			*destP = viper.GetDuration(o.Flag)
 		case *[]string:
-			if o.Default == nil {
-				o.Default = []string{}
+			var d []string
+			if o.Default != nil {
+				d = o.Default.([]string)
 			}
-			cmd.Flags().StringSliceVar(o.DestP.(*[]string), o.Flag, o.Default.([]string), o.Desc)
-			viper.BindPFlag(o.Flag, cmd.Flags().Lookup(o.Flag))
-			*o.DestP.(*[]string) = viper.GetStringSlice(o.Flag)
+			cmd.Flags().StringSliceVar(destP, o.Flag, d, o.Desc)
+			mustBindPFlag(o.Flag, cmd)
+			*destP = viper.GetStringSlice(o.Flag)
 		default:
 			// if you get a panic here, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
 			panic(fmt.Errorf("unknown destination type %t", o.DestP))
 		}
 	}
+}
 
-	return cmd
+func mustBindPFlag(key string, cmd *cobra.Command) {
+	if err := viper.BindPFlag(key, cmd.Flags().Lookup(key)); err != nil {
+		panic(err)
+	}
 }
