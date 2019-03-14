@@ -16,19 +16,16 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort} from 'src/clockface'
-import {Dashboard, Organization} from 'src/types/v2'
+import {Dashboard} from 'src/types/v2'
 
 interface Props {
   searchTerm: string
   dashboards: Dashboard[]
-  defaultDashboardLink: string
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  onSetDefaultDashboard: (dashboardLink: string) => void
   onFilterChange: (searchTerm: string) => void
-  orgs: Organization[]
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
 }
@@ -111,7 +108,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
-      orgs,
       showOwnerColumn,
       onFilterChange,
     } = this.props
@@ -131,7 +127,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
               onCloneDashboard={onCloneDashboard}
               onDeleteDashboard={onDeleteDashboard}
               onUpdateDashboard={onUpdateDashboard}
-              orgs={orgs}
               showOwnerColumn={showOwnerColumn}
               onFilterChange={onFilterChange}
             />

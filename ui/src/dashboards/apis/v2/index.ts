@@ -32,6 +32,18 @@ export const getDashboards = async (): Promise<Dashboard[]> => {
   }))
 }
 
+export const getDashboardsByOrgID = async (
+  orgID: string
+): Promise<Dashboard[]> => {
+  const dashboards = await client.dashboards.getAllByOrgID(orgID)
+
+  return dashboards.map(d => ({
+    ...d,
+    labels: d.labels.map(addLabelDefaults),
+    cells: addDashboardIDToCells(d.cells, d.id),
+  }))
+}
+
 export const getDashboard = async (id: string): Promise<Dashboard> => {
   const dashboard = await client.dashboards.get(id)
 
@@ -155,7 +167,10 @@ export const cloneDashboard = async (
     dashboardToClone.name
   )
 
-  if (dashboardToClone.id) {
-    return client.dashboards.clone(dashboardToClone.id, clonedName)
-  }
+  const clonedDashboard = await client.dashboards.clone(
+    dashboardToClone.id,
+    clonedName
+  )
+
+  return clonedDashboard
 }

@@ -9,26 +9,9 @@ export enum ActionTypes {
   LinksGetRequested = 'LINKS_GET_REQUESTED',
   LinksGetCompleted = 'LINKS_GET_COMPLETED',
   LinksGetFailed = 'LINKS_GET_FAILED',
-  SetDefaultDashboardLink = 'SET_DEFAULT_DASHBOARD_LINK',
 }
 
-export type Action = LinksGetCompletedAction | SetDefaultDashboardAction
-
-export interface SetDefaultDashboardAction {
-  type: ActionTypes.SetDefaultDashboardLink
-  payload: {
-    defaultDashboard: string
-  }
-}
-
-export const setDefaultDashboard = (
-  defaultDashboard: string
-): SetDefaultDashboardAction => ({
-  type: ActionTypes.SetDefaultDashboardLink,
-  payload: {
-    defaultDashboard,
-  },
-})
+export type Action = LinksGetCompletedAction
 
 export interface LinksGetRequestedAction {
   type: ActionTypes.LinksGetRequested
