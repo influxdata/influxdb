@@ -86,9 +86,12 @@ exports[`Account rendering renders! 1`] = `
                       <div
                         className="panel-body"
                       >
-                        <Form>
+                        <Form
+                          testID="form-container"
+                        >
                           <form
                             className="form--wrapper"
+                            data-testid="form-container"
                             onSubmit={[Function]}
                           >
                             <FormElement

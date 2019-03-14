@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {render} from 'react-testing-library'
+import {render, fireEvent} from 'react-testing-library'
 
 // Components
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
@@ -50,6 +50,29 @@ describe('Shared.Components.InlineLabelsEditor', () => {
       const popover = getAllByTestId('inline-labels--popover')
 
       expect(popover).toHaveLength(1)
+    })
+
+    it('clicking the suggestion item shows create label overlay with the name field correctly populated', () => {
+      const {getByTestId, getAllByTestId} = setup()
+
+      const plusButton = getByTestId('inline-labels--add')
+      plusButton.click()
+
+      const inputValue = 'yodelling is rad'
+
+      const input = getByTestId('inline-labels--popover-field')
+      fireEvent.change(input, {target: {value: inputValue}})
+
+      const suggestionItem = getByTestId('inline-labels--create-new')
+      fireEvent.click(suggestionItem)
+
+      const labelOverlayForm = getAllByTestId('label-overlay-form')
+
+      expect(labelOverlayForm).toHaveLength(1)
+
+      const labelOverlayNameField = getByTestId('create-label-form--name')
+
+      expect(labelOverlayNameField.getAttribute('value')).toEqual(inputValue)
     })
   })
 })

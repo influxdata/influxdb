@@ -149,7 +149,7 @@ describe('Dashboards', () => {
 
         cy.getByTestID('overlay--container').within(() => {
           cy.getByInputName('name').should('have.value', label)
-          cy.getByTestID('create-label--button').click()
+          cy.getByTestID('create-label-form--submit').click()
         })
 
         cy.getByTestID('dashboard-card')

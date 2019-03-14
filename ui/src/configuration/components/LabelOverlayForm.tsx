@@ -56,7 +56,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
     } = this.props
 
     return (
-      <Form onSubmit={onSubmit}>
+      <Form onSubmit={onSubmit} testID="label-overlay-form">
         <Grid>
           <Grid.Row>
             <Grid.Column widthXS={Columns.Twelve}>
@@ -89,6 +89,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                     onChange={onInputChange}
                     status={status}
                     maxLength={MAX_LABEL_CHARS}
+                    testID="create-label-form--name"
                   />
                 )}
               </Form.ValidationElement>
@@ -101,6 +102,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                   name="description"
                   value={description}
                   onChange={onInputChange}
+                  testID="create-label-form--description"
                 />
               </Form.Element>
             </Grid.Column>
@@ -116,12 +118,13 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                   onClick={onCloseModal}
                   titleText="Cancel creation of Label and return to list"
                   type={ButtonType.Button}
+                  testID="create-label-form--cancel"
                 />
                 <Button
                   text={buttonText}
                   color={ComponentColor.Success}
                   type={ButtonType.Submit}
-                  testID="create-label--button"
+                  testID="create-label-form--submit"
                   status={
                     isFormValid
                       ? ComponentStatus.Default
