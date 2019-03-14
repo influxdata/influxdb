@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/query"
@@ -36,4 +37,80 @@ type AsyncQueryService struct {
 // Query writes the results of the query request.
 func (s *AsyncQueryService) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
 	return s.QueryF(ctx, req)
+}
+
+// Query is a mock implementation of a flux.Query.
+// It contains controls to ensure that the flux.Query object is used correctly.
+type Query struct {
+	Metadata flux.Metadata
+
+	spec  *flux.Spec
+	ready chan map[string]flux.Result
+	once  sync.Once
+	err   error
+	mu    sync.Mutex
+	done  bool
+}
+
+var _ flux.Query = &Query{}
+
+// NewQuery constructs a new asynchronous query.
+func NewQuery(spec *flux.Spec) *Query {
+	return &Query{
+		Metadata: make(flux.Metadata),
+		spec:     spec,
+		ready:    make(chan map[string]flux.Result, 1),
+	}
+}
+
+func (q *Query) SetResults(results map[string]flux.Result) *Query {
+	q.ready <- results
+	return q
+}
+
+func (q *Query) SetErr(err error) *Query {
+	q.err = err
+	q.Cancel()
+	return q
+}
+
+func (q *Query) Spec() *flux.Spec {
+	return q.spec
+}
+
+func (q *Query) Ready() <-chan map[string]flux.Result {
+	return q.ready
+}
+
+func (q *Query) Done() {
+	q.Cancel()
+
+	q.mu.Lock()
+	q.done = true
+	q.mu.Unlock()
+}
+
+// Cancel closes the ready channel.
+func (q *Query) Cancel() {
+	q.once.Do(func() {
+		close(q.ready)
+	})
+}
+
+// Err will return an error if one was set.
+func (q *Query) Err() error {
+	return q.err
+}
+
+// Statistics will return Statistics. Unlike the normal flux.Query, this
+// will panic if it is called before Done.
+func (q *Query) Statistics() flux.Statistics {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if !q.done {
+		panic("call to query.Statistics() before the query has been finished")
+	}
+	return flux.Statistics{
+		Metadata: q.Metadata,
+	}
 }
