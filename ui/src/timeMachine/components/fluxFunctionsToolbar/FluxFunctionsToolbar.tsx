@@ -16,13 +16,17 @@ import {setActiveQueryText} from 'src/timeMachine/actions'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Constants
-import {FLUX_FUNCTIONS, FROM, UNION} from 'src/shared/constants/fluxFunctions'
+import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
 
 // Styles
 import 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar.scss'
 
 // Types
 import {AppState} from 'src/types/v2'
+
+interface OwnProps {
+  onInsertFluxFunction: (functionName: string, text: string) => void
+}
 
 interface StateProps {
   activeQueryText: string
@@ -32,7 +36,7 @@ interface DispatchProps {
   onSetActiveQueryText: (script: string) => void
 }
 
-type Props = StateProps & DispatchProps
+type Props = OwnProps & StateProps & DispatchProps
 
 interface State {
   searchTerm: string
@@ -59,7 +63,7 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
                     key={category}
                     category={category}
                     funcs={funcs}
-                    onClickFunction={this.handleUpdateScript}
+                    onClickFunction={this.handleClickFunction}
                   />
                 ))
               }
@@ -74,21 +78,8 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 
-  private handleUpdateScript = (funcName: string, funcExample: string) => {
-    const {activeQueryText, onSetActiveQueryText} = this.props
-
-    switch (funcName) {
-      case FROM.name: {
-        onSetActiveQueryText(`${activeQueryText}\n${funcExample}`)
-        return
-      }
-      case UNION.name: {
-        onSetActiveQueryText(`${activeQueryText.trimRight()}\n\n${funcExample}`)
-        return
-      }
-      default:
-        onSetActiveQueryText(`${activeQueryText}\n  |> ${funcExample}`)
-    }
+  private handleClickFunction = (funcName: string, funcExample: string) => {
+    this.props.onInsertFluxFunction(funcName, funcExample)
   }
 }
 

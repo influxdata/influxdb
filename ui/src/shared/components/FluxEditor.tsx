@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {Controlled as ReactCodeMirror, IInstance} from 'react-codemirror2'
-import {EditorChange, LineWidget} from 'codemirror'
+import {EditorChange, LineWidget, Position} from 'codemirror'
 import {ShowHintOptions} from 'src/types/codemirror'
 import 'src/external/codemirror'
 
@@ -34,6 +34,7 @@ interface Props {
   onSubmitScript?: () => void
   suggestions: Suggestion[]
   visibility?: string
+  onCursorChange?: (position: Position) => void
 }
 
 interface Widget extends LineWidget {
@@ -108,9 +109,18 @@ class FluxEditor extends PureComponent<Props, State> {
           onTouchStart={this.onTouchStart}
           editorDidMount={this.handleMount}
           onKeyUp={this.handleKeyUp}
+          onCursor={this.handleCursorChange}
         />
       </div>
     )
+  }
+
+  private handleCursorChange = (__: IInstance, position: Position) => {
+    const {onCursorChange} = this.props
+
+    if (onCursorChange) {
+      onCursorChange(position)
+    }
   }
 
   private makeError(): void {
