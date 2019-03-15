@@ -39,6 +39,7 @@ exports[`TasksList rendering renders 1`] = `
       emptyState={
         <EmptyTasksLists
           onCreate={[Function]}
+          onImportTask={[Function]}
           searchTerm=""
         />
       }

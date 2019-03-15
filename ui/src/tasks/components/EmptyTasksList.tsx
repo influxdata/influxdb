@@ -2,23 +2,20 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  IconFont,
-} from '@influxdata/clockface'
+import {ComponentSize} from '@influxdata/clockface'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import {EmptyState} from 'src/clockface'
 
 interface Props {
   searchTerm: string
   onCreate: () => void
   totalCount: number
+  onImportTask: () => void
 }
 
 export default class EmptyTasksLists extends PureComponent<Props> {
   public render() {
-    const {searchTerm, onCreate, totalCount} = this.props
+    const {searchTerm, onCreate, totalCount, onImportTask} = this.props
 
     if (totalCount && searchTerm === '') {
       return (
@@ -37,12 +34,10 @@ export default class EmptyTasksLists extends PureComponent<Props> {
             text={"Looks like you don't have any Tasks , why not create one?"}
             highlightWords={['Tasks']}
           />
-          <Button
-            size={ComponentSize.Medium}
-            color={ComponentColor.Primary}
-            icon={IconFont.Plus}
-            text="Create Task"
-            onClick={onCreate}
+          <AddResourceDropdown
+            onSelectNew={onCreate}
+            onSelectImport={onImportTask}
+            resourceName="Task"
           />
         </EmptyState>
       )

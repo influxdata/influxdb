@@ -22,6 +22,8 @@ describe('Dashboards', () => {
       .contains('Create')
       .click()
 
+    cy.getByTestID('dropdown--item New Dashboard').click()
+
     cy.visit('/dashboards')
 
     cy.getByTestID('dashboard-card').should('have.length', 1)

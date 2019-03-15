@@ -38,7 +38,13 @@
     margin-top: ceil($fontSize * 0.75);
   }
 
-  .button {
+  .empty-state--text + .button,
+  .empty-state--text + .dropdown {
+    margin-top: $padding;
+  }
+
+  .empty-state--sub-text + .button,
+  .empty-state--sub-text + .dropdown {
     margin-top: $padding;
   }
 

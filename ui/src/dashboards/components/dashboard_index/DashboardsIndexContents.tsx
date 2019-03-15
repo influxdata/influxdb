@@ -25,6 +25,7 @@ interface Props {
   searchTerm: string
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
+  onImportDashboard: () => void
 }
 
 @ErrorHandling
@@ -40,6 +41,7 @@ export default class DashboardsIndexContents extends Component<Props> {
       dashboards,
       filterComponent,
       onFilterChange,
+      onImportDashboard,
     } = this.props
 
     return (
@@ -61,6 +63,7 @@ export default class DashboardsIndexContents extends Component<Props> {
               onUpdateDashboard={onUpdateDashboard}
               showOwnerColumn={showOwnerColumn}
               onFilterChange={onFilterChange}
+              onImportDashboard={onImportDashboard}
             />
           )}
         </FilterList>
