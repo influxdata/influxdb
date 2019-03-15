@@ -9,24 +9,14 @@
 ## v2.0.0-alpha.6 [2019-03-15]
 
 ### Release Notes
-We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. In order to get this functionality, you will need to remove your existing data and start from scratch. 
+We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. In order to get this functionality, remove your existing data and start from scratch. 
 
 **NOTE: This will remove all data from your InfluxDB v2.0 instance including timeseries data.**
 
-On most `linux` systems:
+On most `linux` systems including `macOS`:
 
 ```sh
-# Replace <username> with your actual username.
-
-$ rm -r /home/<username>/.influxdbv2
-```
-
-On `macOS`:
-
-```sh
-# Replace <username> with your actual username.
-
-$ rm -r /Users/<username>/.influxdbv2
+$ rm -r ~/.influxdbv2
 ```
 
 Once completed, `v2.0.0-alpha.6` can be started.
