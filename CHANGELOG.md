@@ -1,4 +1,33 @@
-## v2.0.0-alpha.6 [unreleased]
+## v2.0.0-alpha.7 [unreleased]
+
+### Features
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.6 [2019-03-15]
+
+### Release Notes
+We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. You will need to remove your bolt db and go through onboarding again. This will **delete your tokens, dashboards, tasks, and other non-time series data**, but will not impact you existing time series data. You will need to provide a new token to anything writing data into the system.
+
+On most `linux` systems:
+
+```sh
+# Replace <username> with your actual username.
+
+$ rm /home/<username>/.influxdbv2/influxd.bolt
+```
+
+On `macOS`:
+
+```sh
+# Replace <username> with your actual username.
+
+$ rm /Users/<username>/.influxdbv2/influxd.bolt
+```
+
+Once completed, `v2.0.0-alpha.6` can be started.
 
 ### Features
 
@@ -6,11 +35,11 @@
 1. [12524](https://github.com/influxdata/influxdb/pull/12524): Add ability to import a dashboard from org view
 1. [12531](https://github.com/influxdata/influxdb/pull/12531): Add ability to export a dashboard and a task
 1. [12615](https://github.com/influxdata/influxdb/pull/12615): Add `run` subcommand to influxd binary. This is also the default when no subcommand is specified.
-
 1. [12523](https://github.com/influxdata/influxdb/pull/12523): Add ability to save a query as a variable from the Data Explorer.
+1. [12532](https://github.com/influxdata/influxdb/pull/12532): Add System template on onboarding
 
 ### Bug Fixes
-1. [12641l](https://github.com/influxdata/influxdb/pull/12641): Stop scrollbars from covering text in flux editor
+1. [12641](https://github.com/influxdata/influxdb/pull/12641): Stop scrollbars from covering text in flux editor
 
 ### UI Improvements
 
