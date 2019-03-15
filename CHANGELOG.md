@@ -9,7 +9,7 @@
 ## v2.0.0-alpha.6 [2019-03-15]
 
 ### Release Notes
-We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. You will need to remove your bolt db and go through onboarding again. This will **delete your tokens and dashboards**, but will not impact you existing time series data.
+We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. You will need to remove your bolt db and go through onboarding again. This will **delete your tokens, dashboards, tasks, and other non-time series data**, but will not impact you existing time series data. You will need to provide a new token to anything writing data into the system.
 
 On most `linux` systems:
 
@@ -39,7 +39,7 @@ Once completed, `v2.0.0-alpha.6` can be started.
 1. [12532](https://github.com/influxdata/influxdb/pull/12532): Add System template on onboarding
 
 ### Bug Fixes
-1. [12641l](https://github.com/influxdata/influxdb/pull/12641): Stop scrollbars from covering text in flux editor
+1. [12641](https://github.com/influxdata/influxdb/pull/12641): Stop scrollbars from covering text in flux editor
 
 ### UI Improvements
 
