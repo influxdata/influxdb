@@ -341,6 +341,10 @@ func (c *Client) updateLabel(ctx context.Context, tx *bolt.Tx, id influxdb.ID, u
 		}
 	}
 
+	if upd.Name != "" {
+		label.Name = upd.Name
+	}
+
 	if err := label.Validate(); err != nil {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,

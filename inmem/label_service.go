@@ -96,14 +96,6 @@ func (s *Service) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.
 
 // FindLabels will retrieve a list of labels from storage.
 func (s *Service) FindLabels(ctx context.Context, filter influxdb.LabelFilter, opt ...influxdb.FindOptions) ([]*influxdb.Label, error) {
-	if filter.ID.Valid() {
-		l, err := s.FindLabelByID(ctx, filter.ID)
-		if err != nil {
-			return nil, err
-		}
-		return []*influxdb.Label{l}, nil
-	}
-
 	filterFunc := func(label *influxdb.Label) bool {
 		return (filter.Name == "" || (filter.Name == label.Name))
 	}
@@ -172,7 +164,7 @@ func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.
 		}
 	}
 
-	if label.Properties == nil {
+	if len(upd.Properties) > 0 && label.Properties == nil {
 		label.Properties = make(map[string]string)
 	}
 
@@ -182,6 +174,10 @@ func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.
 		} else {
 			label.Properties[k] = v
 		}
+	}
+
+	if upd.Name != "" {
+		label.Name = upd.Name
 	}
 
 	if err := label.Validate(); err != nil {

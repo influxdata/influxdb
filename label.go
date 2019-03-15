@@ -97,14 +97,14 @@ func (l *LabelMapping) Validate() error {
 }
 
 // LabelUpdate represents a changeset for a label.
-// Only fields which are set are updated.
+// Only the properties specified are updated.
 type LabelUpdate struct {
+	Name       string            `json:"name,omitempty"`
 	Properties map[string]string `json:"properties,omitempty"`
 }
 
 // LabelFilter represents a set of filters that restrict the returned results.
 type LabelFilter struct {
-	ID   ID
 	Name string
 }
 
