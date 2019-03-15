@@ -433,8 +433,5 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusNoContent, nil); err != nil {
-		logEncodingError(h.Logger, r, err)
-		return
-	}
+	w.WriteHeader(http.StatusNoContent)
 }
