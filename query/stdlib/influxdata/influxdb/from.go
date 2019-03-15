@@ -43,6 +43,7 @@ func init() {
 		FromDistinctRule{},
 		MergeFromGroupRule{},
 		FromKeysRule{},
+		MergeFromWindowRule{},
 	)
 	execute.RegisterSource(PhysicalFromKind, createFromSource)
 }
@@ -618,6 +619,39 @@ func (MergeFromGroupRule) Rewrite(groupNode plan.PlanNode) (plan.PlanNode, bool,
 	return merged, true, nil
 }
 
+type MergeFromWindowRule struct {
+}
+
+func (MergeFromWindowRule) Name() string {
+	return "MergeFromWindowRule"
+}
+
+func (MergeFromWindowRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.WindowKind, plan.Pat(PhysicalFromKind))
+}
+
+func (MergeFromWindowRule) Rewrite(windowNode plan.PlanNode) (plan.PlanNode, bool, error) {
+	fromNode := windowNode.Predecessors()[0]
+	windowSpec := windowNode.ProcedureSpec().(*universe.WindowProcedureSpec)
+	fromSpec := fromNode.ProcedureSpec().(*PhysicalFromProcedureSpec)
+
+	// push windowing only if it uses default columns
+	if windowSpec.StartColumn != execute.DefaultStartColLabel ||
+		windowSpec.StopColumn != execute.DefaultStopColLabel ||
+		windowSpec.TimeColumn != execute.DefaultTimeColLabel {
+		return windowNode, false, nil
+	}
+
+	newFromSpec := fromSpec.Copy().(*PhysicalFromProcedureSpec)
+	newFromSpec.WindowSet = true
+	newFromSpec.Window = windowSpec.Window
+	merged, err := plan.MergeToPhysicalPlanNode(windowNode, fromNode, newFromSpec)
+	if err != nil {
+		return nil, false, err
+	}
+	return merged, true, nil
+}
+
 type FromKeysRule struct {
 }
 
@@ -656,8 +690,6 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 		return nil, errors.New("nil bounds passed to from")
 	}
 
-	// Note: currently no planner rules will push a window() into from()
-	// so the following is dead code.
 	if spec.WindowSet {
 		w = execute.Window{
 			Every:  execute.Duration(spec.Window.Every),
