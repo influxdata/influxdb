@@ -5753,10 +5753,6 @@ components:
             labels:
               $ref: "#/components/schemas/Link"
       required: [id, name, orgID, flux]
-    Tasks:
-      type: array
-      items:
-        $ref: "#/components/schemas/Task"
     User:
       properties:
         id:
