@@ -16,8 +16,8 @@ import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import NoteEditorContainer from 'src/dashboards/components/NoteEditorContainer'
 
 // Actions
-import * as dashboardActions from 'src/dashboards/actions/v2'
-import * as rangesActions from 'src/dashboards/actions/v2/ranges'
+import * as dashboardActions from 'src/dashboards/actions'
+import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
 import * as notifyActions from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'

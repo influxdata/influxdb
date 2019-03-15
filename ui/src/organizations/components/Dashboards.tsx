@@ -11,13 +11,13 @@ import {IconFont} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 // APIs
-import {createDashboard, cloneDashboard} from 'src/dashboards/apis/v2/'
+import {createDashboard, cloneDashboard} from 'src/dashboards/apis/'
 
 // Actions
 import {
   deleteDashboardAsync,
   updateDashboardAsync,
-} from 'src/dashboards/actions/v2'
+} from 'src/dashboards/actions/'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants

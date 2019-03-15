@@ -4,11 +4,11 @@ import {Dispatch} from 'redux'
 import {client} from 'src/utils/api'
 
 // Utils
-import {addDashboardIDToCells} from 'src/dashboards/apis/v2/'
+import {addDashboardIDToCells} from 'src/dashboards/apis/'
 import {addLabelDefaults} from 'src/shared/utils/labels'
 
 // Actions
-import {loadDashboard} from 'src/dashboards/actions/v2/'
+import {loadDashboard} from 'src/dashboards/actions/'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types

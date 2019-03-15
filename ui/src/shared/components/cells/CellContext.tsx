@@ -8,7 +8,7 @@ import {Context} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
-import {openNoteEditor} from 'src/dashboards/actions/v2/notes'
+import {openNoteEditor} from 'src/dashboards/actions/notes'
 
 // Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'

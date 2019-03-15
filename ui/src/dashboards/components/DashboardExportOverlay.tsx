@@ -8,7 +8,7 @@ import ExportOverlay from 'src/shared/components/ExportOverlay'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 
 // APIs
-import {getDashboard, getView} from 'src/dashboards/apis/v2'
+import {getDashboard, getView} from 'src/dashboards/apis'
 
 // Types
 import {ITemplate} from '@influxdata/influx'

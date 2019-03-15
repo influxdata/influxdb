@@ -1,5 +1,5 @@
 // Reducer
-import reducer from 'src/dashboards/reducers/v2/dashboards'
+import reducer from 'src/dashboards/reducers/dashboards'
 
 // Actions
 import {
@@ -10,7 +10,7 @@ import {
   deleteCell,
   addDashboardLabels,
   removeDashboardLabels,
-} from 'src/dashboards/actions/v2/'
+} from 'src/dashboards/actions/'
 
 // Resources
 import {dashboard} from 'src/dashboards/resources'

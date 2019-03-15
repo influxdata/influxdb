@@ -12,7 +12,7 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import {
   addDashboardLabelsAsync,
   removeDashboardLabelsAsync,
-} from 'src/dashboards/actions/v2'
+} from 'src/dashboards/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Types

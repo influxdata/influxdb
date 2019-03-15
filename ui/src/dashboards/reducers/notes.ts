@@ -1,4 +1,4 @@
-import {Action} from 'src/dashboards/actions/v2/notes'
+import {Action} from 'src/dashboards/actions/notes'
 import {NoteEditorMode} from 'src/types/v2/dashboards'
 
 export interface NoteEditorState {

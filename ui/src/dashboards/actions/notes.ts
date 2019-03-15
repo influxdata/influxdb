@@ -2,8 +2,8 @@
 import {get, isUndefined} from 'lodash'
 
 // Actions
-import {createCellWithView} from 'src/dashboards/actions/v2'
-import {updateView} from 'src/dashboards/actions/v2/views'
+import {createCellWithView} from 'src/dashboards/actions'
+import {updateView} from 'src/dashboards/actions/views'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
@@ -11,7 +11,7 @@ import {createView} from 'src/shared/utils/view'
 // Types
 import {GetState} from 'src/types/v2'
 import {NoteEditorMode, MarkdownView, ViewType} from 'src/types/v2/dashboards'
-import {NoteEditorState} from 'src/dashboards/reducers/v2/notes'
+import {NoteEditorState} from 'src/dashboards/reducers/notes'
 
 export type Action =
   | OpenNoteEditorAction

@@ -1,7 +1,7 @@
 import {SourceType} from 'src/types/v2/sources'
 import {Bucket, RetentionRule, RetentionRuleTypes} from 'src/types/v2/buckets'
-import {RangeState} from 'src/dashboards/reducers/v2/ranges'
-import {ViewsState} from 'src/dashboards/reducers/v2/views'
+import {RangeState} from 'src/dashboards/reducers/ranges'
+import {ViewsState} from 'src/dashboards/reducers/views'
 import {
   DashboardSwitcherLinks,
   NewCell,
@@ -30,7 +30,7 @@ import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {State as TaskState} from 'src/tasks/reducers/v2'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
-import {NoteEditorState} from 'src/dashboards/reducers/v2/notes'
+import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
 import {ProtosState} from 'src/protos/reducers'
