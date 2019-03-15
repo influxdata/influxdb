@@ -10,10 +10,11 @@ import TaskRunsList from 'src/tasks/components/TaskRunsList'
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
 import {Run} from '@influxdata/influx'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
 
 // Actions
-import {getRuns} from 'src/tasks/actions/v2'
+import {getRuns, runTask} from 'src/tasks/actions/v2'
+import {IconFont} from 'src/clockface'
 
 interface OwnProps {
   params: {id: string}
@@ -21,6 +22,7 @@ interface OwnProps {
 
 interface DispatchProps {
   getRuns: typeof getRuns
+  onRunTask: typeof runTask
 }
 
 interface StateProps {
@@ -43,7 +45,13 @@ class TaskRunsPage extends PureComponent<Props> {
             <Page.Header.Left>
               <Page.Title title="Runs" />
             </Page.Header.Left>
-            <Page.Header.Right />
+            <Page.Header.Right>
+              <Button
+                onClick={this.handleRunTask}
+                text="Run Task"
+                icon={IconFont.Play}
+              />
+            </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
@@ -58,6 +66,12 @@ class TaskRunsPage extends PureComponent<Props> {
   public componentDidMount() {
     this.props.getRuns(this.props.params.id)
   }
+
+  private handleRunTask = async () => {
+    const {onRunTask, params, getRuns} = this.props
+    await onRunTask(params.id)
+    getRuns(params.id)
+  }
 }
 
 const mstp = (state: AppState): StateProps => {
@@ -67,7 +81,7 @@ const mstp = (state: AppState): StateProps => {
   return {runs, runStatus}
 }
 
-const mdtp: DispatchProps = {getRuns: getRuns}
+const mdtp: DispatchProps = {getRuns: getRuns, onRunTask: runTask}
 
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
