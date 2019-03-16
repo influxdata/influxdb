@@ -36,18 +36,17 @@ func (qlr *QueryLogReader) ListLogs(ctx context.Context, orgID platform.ID, logF
 
 	filterPart := ""
 	if logFilter.Run != nil {
-		filterPart = fmt.Sprintf(`|> filter(fn: (r) => r._measurement == "logs" and r.runID == %q)`, logFilter.Run.String())
-	} else {
-		filterPart = fmt.Sprintf(`|> filter(fn: (r) => r._measurement == "logs" and r.taskID == %q)`, logFilter.Task.String())
+		filterPart = fmt.Sprintf(`|> filter(fn: (r) => r.runID == %q)`, logFilter.Run.String())
 	}
 
 	// TODO(lh): Change the range to something more reasonable. Not sure what that range will be.
 	listScript := fmt.Sprintf(`from(bucketID: "000000000000000a")
   |> range(start: -100h)
+  |> filter(fn: (r) => r._measurement == "logs" and r.taskID == %q)
   |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
   %s
   |> group(columns: ["taskID", "runID", "_measurement"])
-  `, filterPart)
+  `, logFilter.Task.String(), filterPart)
 
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
