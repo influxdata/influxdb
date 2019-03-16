@@ -26,11 +26,11 @@ import {addOrgIDToTemplate} from 'src/shared/utils/resourceToTemplate'
 import 'src/shared/components/ExportOverlay.scss'
 
 // Types
-import {ITemplate} from '@influxdata/influx'
+import {DocumentCreate} from '@influxdata/influx'
 
 interface OwnProps extends DefaultProps {
   onDismissOverlay: () => void
-  resource: ITemplate
+  resource: DocumentCreate
   resourceName: string
   orgID: string
 }
