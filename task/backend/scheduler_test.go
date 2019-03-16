@@ -260,6 +260,7 @@ func TestScheduler_Release(t *testing.T) {
 }
 
 func TestScheduler_UpdateTask(t *testing.T) {
+	t.Skip("flaky test: https://github.com/influxdata/influxdb/issues/12667")
 	t.Parallel()
 
 	d := mock.NewDesiredState()
