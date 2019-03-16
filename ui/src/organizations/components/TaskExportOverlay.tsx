@@ -9,10 +9,10 @@ import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 
 // APIs
 import {client} from 'src/utils/api'
-import {ITemplate} from '@influxdata/influx'
+import {DocumentCreate} from '@influxdata/influx'
 
 interface State {
-  taskTemplate: ITemplate
+  taskTemplate: DocumentCreate
   orgID: string
 }
 

@@ -11,10 +11,10 @@ import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {getDashboard, getView} from 'src/dashboards/apis'
 
 // Types
-import {ITemplate} from '@influxdata/influx'
+import {DocumentCreate} from '@influxdata/influx'
 
 interface State {
-  dashboardTemplate: ITemplate
+  dashboardTemplate: DocumentCreate
   orgID: string
 }
 

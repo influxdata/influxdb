@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 import {Task, Label, Dashboard, Cell, View} from 'src/types/v2'
-import {ITemplate, TemplateType, DocumentCreate} from '@influxdata/influx'
+import {TemplateType, DocumentCreate} from '@influxdata/influx'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 
@@ -53,7 +53,7 @@ export const labelToIncluded = (l: Label) => {
 export const taskToTemplate = (
   task: Task,
   baseTemplate = blankTaskTemplate()
-): ITemplate => {
+): DocumentCreate => {
   const taskName = _.get(task, 'name', '')
   const templateName = `${taskName}-Template`
 
@@ -136,7 +136,7 @@ export const dashboardToTemplate = (
   dashboard: Dashboard,
   views: View[],
   baseTemplate = blankDashboardTemplate()
-): ITemplate => {
+): DocumentCreate => {
   const dashboardName = _.get(dashboard, 'name', '')
   const templateName = `${dashboardName}-Template`
 
@@ -183,7 +183,7 @@ export const dashboardToTemplate = (
 }
 
 export const addOrgIDToTemplate = (
-  template: ITemplate,
+  template: DocumentCreate,
   orgID: string
 ): DocumentCreate => {
   return {...template, orgID}
