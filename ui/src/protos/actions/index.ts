@@ -5,7 +5,6 @@ import {client} from 'src/utils/api'
 
 // Utils
 import {addDashboardIDToCells} from 'src/dashboards/apis/'
-import {addLabelDefaults} from 'src/shared/utils/labels'
 
 // Actions
 import {loadDashboard} from 'src/dashboards/actions/'
@@ -62,7 +61,6 @@ export const createDashFromProto = (
     dashboards.forEach((d: Dashboard) => {
       const updatedDashboard = {
         ...d,
-        labels: d.labels.map(addLabelDefaults),
         cells: addDashboardIDToCells(d.cells, d.id),
       }
       dispatch(loadDashboard(updatedDashboard))
