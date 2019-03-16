@@ -17,7 +17,7 @@ type TaskControlService interface {
 	CreateNextRun(ctx context.Context, taskID influxdb.ID, now int64) (RunCreation, error)
 
 	// FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
-	FinishRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error)
+	FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error)
 
 	// NextDueRun returns the Unix timestamp of when the next call to CreateNextRun will be ready.
 	// The returned timestamp reflects the task's delay, so it does not necessarily exactly match the schedule time.
