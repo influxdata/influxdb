@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {Position} from 'codemirror'
 
 // Components
 import FluxEditor from 'src/shared/components/FluxEditor'
@@ -15,6 +16,7 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
+import {insertFluxFunction} from 'src/timeMachine/utils/scriptInsertion'
 
 // Constants
 import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
@@ -42,6 +44,8 @@ interface State {
 type Props = StateProps & DispatchProps
 
 class TimeMachineFluxEditor extends PureComponent<Props, State> {
+  private cursorPosition: Position = {line: 0, ch: 0}
+
   public state: State = {
     displayFluxFunctions: true,
   }
@@ -60,6 +64,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
             onChangeScript={onSetActiveQueryText}
             onSubmitScript={onSubmitQueries}
             suggestions={[]}
+            onCursorChange={this.handleCursorPosition}
           />
         ),
       },
@@ -102,10 +107,36 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
     const {displayFluxFunctions} = this.state
 
     if (displayFluxFunctions) {
-      return <FluxFunctionsToolbar />
+      return (
+        <FluxFunctionsToolbar
+          onInsertFluxFunction={this.handleInsertFluxFunction}
+        />
+      )
     }
 
     return <VariablesToolbar />
+  }
+
+  private handleCursorPosition = (position: Position): void => {
+    this.cursorPosition = position
+  }
+
+  private handleInsertFluxFunction = async (
+    functionName: string,
+    fluxFunction: string
+  ): Promise<void> => {
+    const {activeQueryText} = this.props
+    const {line} = this.cursorPosition
+
+    const {updatedScript, cursorPosition} = insertFluxFunction(
+      line,
+      activeQueryText,
+      functionName,
+      fluxFunction
+    )
+    await this.props.onSetActiveQueryText(updatedScript)
+
+    this.handleCursorPosition(cursorPosition)
   }
 
   private showFluxFunctions = () => {

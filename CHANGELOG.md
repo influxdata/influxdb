@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.7 [unreleased]
 
 ### Features
+1. [12663](https://github.com/influxdata/influxdb/pull/12663): Insert flux function near cursor in flux editor
 
 ### Bug Fixes
 
