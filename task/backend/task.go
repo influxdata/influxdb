@@ -7,9 +7,9 @@ import (
 	"github.com/influxdata/influxdb"
 )
 
-// TaskControlService is a task service with control functions.
+// TaskControlService is a low-level controller interface, intended to be passed to
+// task executors and schedulers, which allows creation, completion, and status updates of runs.
 type TaskControlService interface {
-
 	// CreateNextRun attempts to create a new run.
 	// The new run's now is assigned the earliest possible time according to task's cron,
 	// that is later than any in-progress run and LatestCompleted run.
