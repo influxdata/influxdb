@@ -31,6 +31,7 @@ import {AppState, Label} from 'src/types/v2'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
+import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
 import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
@@ -415,9 +416,9 @@ export const saveNewScript = (
     dispatch(populateTasks())
     dispatch(goToTasks(route))
     dispatch(notify(taskCreatedSuccess()))
-  } catch (e) {
-    console.error(e)
-    const message = _.get(e, 'response.data.error.message', '')
+  } catch (error) {
+    console.error(error)
+    const message = getErrorMessage(error)
     dispatch(notify(taskNotCreated(message)))
   }
 }
@@ -442,17 +443,9 @@ export const importTask = (script: string) => async (
     dispatch(notify(taskImportSuccess()))
   } catch (error) {
     console.error(error)
-    const message = _.get(error, 'response.data.error.message', '')
+    const message = getErrorMessage(error)
     dispatch(notify(taskImportFailed(message)))
   }
-}
-
-export const getErrorMessage = (e: any) => {
-  let message = _.get(e, 'response.data.error.message', '')
-  if (message === '') {
-    message = _.get(e, 'response.headers.x-influx-error', '')
-  }
-  return message
 }
 
 export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
@@ -464,7 +457,8 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
     dispatch(setRuns(runs, RemoteDataState.Done))
   } catch (error) {
     console.error(error)
-    dispatch(notify(taskGetFailed(error.response.data.message)))
+    const message = getErrorMessage(error)
+    dispatch(notify(taskGetFailed(message)))
     dispatch(setRuns([], RemoteDataState.Error))
   }
 }
@@ -473,8 +467,8 @@ export const runTask = (taskID: string) => async dispatch => {
   try {
     await client.tasks.startRunByTaskID(taskID)
     dispatch(notify(taskRunSuccess()))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -484,8 +478,8 @@ export const getLogs = (taskID: string, runID: string) => async (
   try {
     const logs = await client.tasks.getLogEventsByRunID(taskID, runID)
     dispatch(setLogs(logs))
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     dispatch(setLogs([]))
   }
 }
