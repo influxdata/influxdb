@@ -79,9 +79,10 @@ func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 type SourceBackend struct {
 	Logger *zap.Logger
 
-	SourceService    platform.SourceService
-	NewBucketService func(s *platform.Source) (platform.BucketService, error)
-	NewQueryService  func(s *platform.Source) (query.ProxyQueryService, error)
+	SourceService   platform.SourceService
+	LabelService    platform.LabelService
+	BucketService   platform.BucketService
+	NewQueryService func(s *platform.Source) (query.ProxyQueryService, error)
 }
 
 // NewSourceBackend returns a new instance of SourceBackend.
@@ -89,9 +90,10 @@ func NewSourceBackend(b *APIBackend) *SourceBackend {
 	return &SourceBackend{
 		Logger: b.Logger.With(zap.String("handler", "source")),
 
-		SourceService:    b.SourceService,
-		NewBucketService: b.NewBucketService,
-		NewQueryService:  b.NewQueryService,
+		SourceService:   b.SourceService,
+		LabelService:    b.LabelService,
+		BucketService:   b.BucketService,
+		NewQueryService: b.NewQueryService,
 	}
 }
 
@@ -100,11 +102,12 @@ type SourceHandler struct {
 	*httprouter.Router
 	Logger        *zap.Logger
 	SourceService platform.SourceService
+	LabelService  platform.LabelService
+	BucketService platform.BucketService
 
 	// TODO(desa): this was done so in order to remove an import cycle and to allow
 	// for http mocking.
-	NewBucketService func(s *platform.Source) (platform.BucketService, error)
-	NewQueryService  func(s *platform.Source) (query.ProxyQueryService, error)
+	NewQueryService func(s *platform.Source) (query.ProxyQueryService, error)
 }
 
 // NewSourceHandler returns a new instance of SourceHandler.
@@ -113,9 +116,10 @@ func NewSourceHandler(b *SourceBackend) *SourceHandler {
 		Router: NewRouter(),
 		Logger: b.Logger,
 
-		SourceService:    b.SourceService,
-		NewBucketService: b.NewBucketService,
-		NewQueryService:  b.NewQueryService,
+		SourceService:   b.SourceService,
+		LabelService:    b.LabelService,
+		BucketService:   b.BucketService,
+		NewQueryService: b.NewQueryService,
 	}
 
 	h.HandlerFunc("POST", "/api/v2/sources", h.handlePostSource)
@@ -222,24 +226,13 @@ func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	s, err := h.SourceService.FindSourceByID(ctx, req.SourceID)
+	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	bucketSvc, err := h.NewBucketService(s)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-	bs, _, err := bucketSvc.FindBuckets(ctx, req.filter)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	if err := encodeResponse(ctx, w, http.StatusOK, bs); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(ctx, req.opts, req.filter, bs, h.LabelService)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
