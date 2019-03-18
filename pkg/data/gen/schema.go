@@ -200,7 +200,7 @@ func walk(v Visitor, node SchemaNode, up bool) Visitor {
 	case *Measurement:
 		v := v
 		v = walk(v, n.Tags, up)
-		v = walk(v, n.Fields, up)
+		walk(v, n.Fields, up)
 
 	case Fields:
 		v := v

@@ -10,7 +10,6 @@ import (
 type mergedSeriesGenerator struct {
 	heap  seriesGeneratorHeap
 	last  constSeries
-	err   error
 	n     int64
 	first bool
 }
@@ -80,8 +79,8 @@ func (s *mergedSeriesGenerator) Key() []byte {
 	return s.heap.items[0].Key()
 }
 
-func (s *mergedSeriesGenerator) Name() []byte {
-	return s.heap.items[0].Name()
+func (s *mergedSeriesGenerator) ID() []byte {
+	return s.heap.items[0].ID()
 }
 
 func (s *mergedSeriesGenerator) Tags() models.Tags {
@@ -90,6 +89,10 @@ func (s *mergedSeriesGenerator) Tags() models.Tags {
 
 func (s *mergedSeriesGenerator) Field() []byte {
 	return s.heap.items[0].Field()
+}
+
+func (s *mergedSeriesGenerator) FieldType() models.FieldType {
+	return s.heap.items[0].FieldType()
 }
 
 func (s *mergedSeriesGenerator) TimeValuesGenerator() TimeValuesSequence {

@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -51,5 +52,9 @@ func (s *time{{.Name}}ValuesSequence) Next() bool {
 
 func (s *time{{.Name}}ValuesSequence) Values() Values {
 	return &s.vals
+}
+
+func (s *time{{.Name}}ValuesSequence) ValueType() models.FieldType {
+	return models.{{.Name}}
 }
 {{end}}

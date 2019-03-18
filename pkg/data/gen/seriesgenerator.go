@@ -15,9 +15,8 @@ type SeriesGenerator interface {
 	// The returned value may be cached.
 	Key() []byte
 
-	// Name returns the name of the measurement.
-	// The returned value may be modified by a subsequent call to Next.
-	Name() []byte
+	// ID returns the org and bucket identifier for the series.
+	ID() []byte
 
 	// Tags returns the tag set.
 	// The returned value may be modified by a subsequent call to Next.
@@ -26,6 +25,9 @@ type SeriesGenerator interface {
 	// Field returns the name of the field.
 	// The returned value may be modified by a subsequent call to Next.
 	Field() []byte
+
+	// FieldType returns the data type for the field.
+	FieldType() models.FieldType
 
 	// TimeValuesGenerator returns a values sequence for the current series.
 	TimeValuesGenerator() TimeValuesSequence
@@ -54,6 +56,7 @@ type TimeValuesSequence interface {
 	Reset()
 	Next() bool
 	Values() Values
+	ValueType() models.FieldType
 }
 
 type Values interface {
@@ -68,7 +71,7 @@ type cache struct {
 }
 
 type seriesGenerator struct {
-	name  []byte
+	id    idType
 	tags  TagsSequence
 	field []byte
 	vg    TimeValuesSequence
@@ -77,13 +80,13 @@ type seriesGenerator struct {
 	c cache
 }
 
-func NewSeriesGenerator(name []byte, field []byte, vg TimeValuesSequence, tags TagsSequence) SeriesGenerator {
-	return NewSeriesGeneratorLimit(name, field, vg, tags, math.MaxInt64)
+func NewSeriesGenerator(id idType, field []byte, vg TimeValuesSequence, tags TagsSequence) SeriesGenerator {
+	return NewSeriesGeneratorLimit(id, field, vg, tags, math.MaxInt64)
 }
 
-func NewSeriesGeneratorLimit(name []byte, field []byte, vg TimeValuesSequence, tags TagsSequence, n int64) SeriesGenerator {
+func NewSeriesGeneratorLimit(id idType, field []byte, vg TimeValuesSequence, tags TagsSequence, n int64) SeriesGenerator {
 	return &seriesGenerator{
-		name:  name,
+		id:    id,
 		field: field,
 		tags:  tags,
 		vg:    vg,
@@ -107,13 +110,13 @@ func (g *seriesGenerator) Next() bool {
 
 func (g *seriesGenerator) Key() []byte {
 	if len(g.c.key) == 0 {
-		g.c.key = models.MakeKey(g.name, g.tags.Value())
+		g.c.key = models.MakeKey(g.id[:], g.tags.Value())
 	}
 	return g.c.key
 }
 
-func (g *seriesGenerator) Name() []byte {
-	return g.name
+func (g *seriesGenerator) ID() []byte {
+	return g.id[:]
 }
 
 func (g *seriesGenerator) Tags() models.Tags {
@@ -125,6 +128,10 @@ func (g *seriesGenerator) Tags() models.Tags {
 
 func (g *seriesGenerator) Field() []byte {
 	return g.field
+}
+
+func (g *seriesGenerator) FieldType() models.FieldType {
+	return g.vg.ValueType()
 }
 
 func (g *seriesGenerator) TimeValuesGenerator() TimeValuesSequence {

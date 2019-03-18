@@ -78,23 +78,33 @@ func NewTagsValuesSequenceKeysValues(keys []string, vals []CountableSequence, op
 	return s
 }
 
-func NewTagsValuesSequenceValues(prefix string, vals []CountableSequence) TagsSequence {
-	keys := make([]string, len(vals))
+func NewTagsValuesSequenceValues(m, f, prefix string, tv []CountableSequence) TagsSequence {
+	keys := make([]string, 0, len(tv)+2)
+	vals := make([]CountableSequence, 0, len(keys))
+
+	keys = append(keys, models.MeasurementTagKey)
+	vals = append(vals, NewStringConstantSequence(m))
+
 	// max tag width
-	tw := int(math.Ceil(math.Log10(float64(len(vals)))))
+	tw := int(math.Ceil(math.Log10(float64(len(tv)))))
 	tf := fmt.Sprintf("%s%%0%dd", prefix, tw)
-	for i := range vals {
-		keys[i] = fmt.Sprintf(tf, i)
+	for i := range tv {
+		keys = append(keys, fmt.Sprintf(tf, i))
+		vals = append(vals, tv[i])
 	}
+
+	keys = append(keys, models.FieldKeyTagKey)
+	vals = append(vals, NewStringConstantSequence(f))
+
 	return NewTagsValuesSequenceKeysValues(keys, vals)
 }
 
-func NewTagsValuesSequenceCounts(prefix string, counts []int) TagsSequence {
+func NewTagsValuesSequenceCounts(m, f, prefix string, counts []int) TagsSequence {
 	tv := make([]CountableSequence, len(counts))
 	for i := range counts {
 		tv[i] = NewCounterByteSequenceCount(counts[i])
 	}
-	return NewTagsValuesSequenceValues(prefix, tv)
+	return NewTagsValuesSequenceValues(m, f, prefix, tv)
 }
 
 func (s *tagsValuesSequence) next() bool {

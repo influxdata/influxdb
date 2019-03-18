@@ -7,6 +7,7 @@
 package gen
 
 import (
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -58,6 +59,10 @@ func (s *timeFloatValuesSequence) Values() Values {
 	return &s.vals
 }
 
+func (s *timeFloatValuesSequence) ValueType() models.FieldType {
+	return models.Float
+}
+
 type IntegerValuesSequence interface {
 	Reset()
 	Write(v []int64)
@@ -104,6 +109,10 @@ func (s *timeIntegerValuesSequence) Next() bool {
 
 func (s *timeIntegerValuesSequence) Values() Values {
 	return &s.vals
+}
+
+func (s *timeIntegerValuesSequence) ValueType() models.FieldType {
+	return models.Integer
 }
 
 type UnsignedValuesSequence interface {
@@ -154,6 +163,10 @@ func (s *timeUnsignedValuesSequence) Values() Values {
 	return &s.vals
 }
 
+func (s *timeUnsignedValuesSequence) ValueType() models.FieldType {
+	return models.Unsigned
+}
+
 type StringValuesSequence interface {
 	Reset()
 	Write(v []string)
@@ -202,6 +215,10 @@ func (s *timeStringValuesSequence) Values() Values {
 	return &s.vals
 }
 
+func (s *timeStringValuesSequence) ValueType() models.FieldType {
+	return models.String
+}
+
 type BooleanValuesSequence interface {
 	Reset()
 	Write(v []bool)
@@ -248,4 +265,8 @@ func (s *timeBooleanValuesSequence) Next() bool {
 
 func (s *timeBooleanValuesSequence) Values() Values {
 	return &s.vals
+}
+
+func (s *timeBooleanValuesSequence) ValueType() models.FieldType {
+	return models.Boolean
 }
