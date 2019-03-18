@@ -150,8 +150,8 @@ type telegrafPluginEncode struct {
 	// Name of the telegraf plugin, exp "docker"
 	Name    string         `json:"name"`
 	Type    plugins.Type   `json:"type"`
-	Comment string         `json:"comment"`
-	Config  plugins.Config `json:"config"`
+	Comment string         `json:"comment,omitempty"`
+	Config  plugins.Config `json:"config,omitempty"`
 }
 
 // telegrafConfigDecode is the helper struct for json decoding.
@@ -171,14 +171,14 @@ type telegrafPluginDecode struct {
 	// Name of the telegraf plugin, exp "docker"
 	Name    string          `json:"name"`
 	Type    plugins.Type    `json:"type"`
-	Comment string          `json:"comment"`
-	Config  json.RawMessage `json:"config"`
+	Comment string          `json:"comment,omitempty"`
+	Config  json.RawMessage `json:"config,omitempty"`
 }
 
 // TelegrafPlugin is the general wrapper of the telegraf plugin config
 type TelegrafPlugin struct {
-	Comment string         `json:"comment"`
-	Config  plugins.Config `json:"config"`
+	Comment string         `json:"comment,omitempty"`
+	Config  plugins.Config `json:"config,omitempty"`
 }
 
 // TelegrafAgentConfig is based telegraf/internal/config AgentConfig.
@@ -336,6 +336,11 @@ func decodePluginRaw(tcd *telegrafConfigDecode, tc *TelegrafConfig) (err error) 
 		}
 		if ok {
 			config = tpFn()
+			// if pr.Config if empty, make it a blank obj,
+			// so it will still go to the unmarshalling process to validate.
+			if len(string(pr.Config)) == 0 {
+				pr.Config = []byte("{}")
+			}
 			if err = json.Unmarshal(pr.Config, config); err != nil {
 				return &Error{
 					Code: EInvalid,
