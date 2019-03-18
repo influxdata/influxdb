@@ -507,7 +507,7 @@ func TestFromFilterRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreateLogicalNode("from", physFrom),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{Fn: makeFilterFn(unpushableExpr)}),
 				},
 				Edges: [][2]int{
@@ -522,7 +522,7 @@ func TestFromFilterRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromFilterRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreateLogicalNode("from", physFrom),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{Fn: statementFn}),
 				},
 				Edges: [][2]int{
@@ -749,7 +749,7 @@ func TestFromGroupRule(t *testing.T) {
 			Rules: []plan.Rule{influxdb.MergeFromGroupRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.PlanNode{
-					plan.CreateLogicalNode("from", physFrom),
+					plan.CreatePhysicalNode("from", physFrom),
 					plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
 						GroupMode: flux.GroupModeExcept,
 						GroupKeys: []string{"_time", "_value"},
