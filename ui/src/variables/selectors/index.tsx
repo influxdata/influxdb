@@ -86,3 +86,47 @@ export const getVariableAssignments = (
     state.variables.values[contextID],
     state.variables.variables
   )
+
+export const getTimeMachineValues = (
+  state: AppState,
+  variableID: string
+): VariableValues => {
+  const activeTimeMachineID = state.timeMachines.activeTimeMachineID
+  const values = get(
+    state,
+    `variables.values.${activeTimeMachineID}.values.${variableID}`
+  )
+
+  return values
+}
+
+export const getTimeMachineValuesStatus = (
+  state: AppState
+): RemoteDataState => {
+  const activeTimeMachineID = state.timeMachines.activeTimeMachineID
+  const valuesStatus = get(
+    state,
+    `variables.values.${activeTimeMachineID}.status`
+  )
+
+  return valuesStatus
+}
+
+export const getVariable = (state: AppState, variableID: string): Variable => {
+  return get(state, `variables.variables.${variableID}.variable`)
+}
+
+export const getHydratedVariables = (
+  state: AppState,
+  contextID: string
+): Variable[] => {
+  const hydratedVariableIDs: string[] = Object.keys(
+    get(state, `variables.values.${contextID}.values`, {})
+  )
+
+  const hydratedVariables = Object.values(state.variables.variables)
+    .map(d => d.variable)
+    .filter(v => hydratedVariableIDs.includes(v.id))
+
+  return hydratedVariables
+}

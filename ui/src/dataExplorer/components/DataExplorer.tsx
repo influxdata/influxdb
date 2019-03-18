@@ -4,7 +4,9 @@ import {connect} from 'react-redux'
 
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
-import GetVariables from 'src/shared/components/GetVariables'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
@@ -33,9 +35,9 @@ class DataExplorer extends PureComponent<DispatchProps, {}> {
     return (
       <div className="data-explorer">
         <HoverTimeProvider>
-          <GetVariables>
+          <GetResources resource={ResourceTypes.Variables}>
             <TimeMachine />
-          </GetVariables>
+          </GetResources>
         </HoverTimeProvider>
       </div>
     )

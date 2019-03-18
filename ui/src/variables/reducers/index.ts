@@ -1,5 +1,6 @@
 // Libraries
 import {produce} from 'immer'
+import {get} from 'lodash'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -88,6 +89,27 @@ export const variablesReducer = (
         } else {
           draftState.values[contextID] = {status, values: null}
         }
+
+        return
+      }
+
+      case 'SELECT_VARIABLE_VALUE': {
+        const {contextID, variableID, selectedValue} = action.payload
+
+        const valuesExist = !!get(
+          draftState,
+          `values.${contextID}.values.${variableID}`
+        )
+
+        if (!valuesExist) {
+          return
+        }
+
+        draftState.values[contextID].values[
+          variableID
+        ].selectedValue = selectedValue
+
+        return
       }
     }
   })
