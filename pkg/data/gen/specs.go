@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
-	"time"
 	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
@@ -111,12 +110,7 @@ type FieldValuesSpec struct {
 }
 
 func newTimeValuesSequenceFromFieldValuesSpec(fs *FieldValuesSpec, tr TimeRange) TimeValuesSequence {
-	ts := fs.TimeSequenceSpec
-	ts.Start = tr.Start
-	ts.Delta = tr.End.Sub(tr.Start) / time.Duration(ts.Count)
-	ts.Delta = ts.Delta.Round(ts.Precision)
-
-	return fs.Values(ts)
+	return fs.Values(fs.TimeSequenceSpec.ForTimeRange(tr))
 }
 
 func NewSpecFromToml(s string) (*Spec, error) {
@@ -335,10 +329,7 @@ func (s *schemaToSpec) visit(node SchemaNode) bool {
 			panic(fmt.Sprintf("unexpected type %T", fs))
 		}
 
-		fs.TimeSequenceSpec = TimeSequenceSpec{
-			Count:     int(n.Count),
-			Precision: n.TimePrecision.ToDuration(),
-		}
+		fs.TimeSequenceSpec = n.TimeSequenceSpec()
 		fs.Name = n.Name
 
 	case *FieldConstantValue:

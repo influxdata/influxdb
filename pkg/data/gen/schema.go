@@ -100,8 +100,27 @@ type FieldSource interface {
 type Field struct {
 	Name          string
 	Count         int64
-	TimePrecision precision `toml:"time-precision"` // TimePrecision determines the precision for generated timestamp values
+	TimePrecision *precision `toml:"time-precision"` // TimePrecision determines the precision for generated timestamp values
+	TimeInterval  *duration  `toml:"time-interval"`  // TimeInterval determines the duration between timestamp values
 	Source        FieldSource
+}
+
+func (t *Field) TimeSequenceSpec() TimeSequenceSpec {
+	if t.TimeInterval != nil {
+		return TimeSequenceSpec{
+			Count: int(t.Count),
+			Delta: t.TimeInterval.Duration,
+		}
+	}
+
+	if t.TimePrecision != nil {
+		return TimeSequenceSpec{
+			Count:     int(t.Count),
+			Precision: t.TimePrecision.ToDuration(),
+		}
+	}
+
+	panic("TimeInterval and TimePrecision are nil")
 }
 
 func (*Field) node() {}

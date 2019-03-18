@@ -30,7 +30,12 @@ func visit(root *Schema) string {
 			fmt.Fprintln(w, "  Fields:")
 
 		case *Field:
-			fmt.Fprintf(w, "    %s: %s, count=%d, time-precision=%s\n", n.Name, n.Source, n.Count, n.TimePrecision)
+			if n.TimePrecision != nil {
+				fmt.Fprintf(w, "    %s: %s, count=%d, time-precision=%s\n", n.Name, n.Source, n.Count, *n.TimePrecision)
+			} else {
+				fmt.Fprintf(w, "    %s: %s, count=%d, time-interval=%s\n", n.Name, n.Source, n.Count, n.TimeInterval)
+			}
+
 
 		case *Tag:
 			fmt.Fprintf(w, "    %s: %s\n", n.Name, n.Source)
@@ -78,6 +83,7 @@ series-limit = 10
         name   = "stringC"
         count  = 5000
         source = "hello"
+        time-interval = "60s"
 
     [[measurements.fields]]
         name   = "stringA"
@@ -123,7 +129,7 @@ name = "array"
         name   = "integerA"
         count  = 1000
         source = [5, 6, 7]
-        time-precision = "us"
+        time-interval = "90s"
 `
 	var out Schema
 	_, err := toml.Decode(in, &out)
@@ -140,7 +146,7 @@ name = "array"
   Fields:
     floatC: constant, source=0.5, count=5000, time-precision=Microsecond
     integerC: constant, source=3, count=5000, time-precision=Hour
-    stringC: constant, source="hello", count=5000, time-precision=Millisecond
+    stringC: constant, source="hello", count=5000, time-interval=1m0s
     stringA: array, source=[]string{"hello", "world"}, count=5000, time-precision=Millisecond
     boolf: constant, source=false, count=5000, time-precision=Millisecond
 
@@ -156,7 +162,7 @@ name = "array"
     tagFile: file, path=foo.txt
   Fields:
     stringA: array, source=[]string{"this", "that"}, count=1000, time-precision=Microsecond
-    integerA: array, source=[]int64{5, 6, 7}, count=1000, time-precision=Microsecond
+    integerA: array, source=[]int64{5, 6, 7}, count=1000, time-interval=1m30s
 `
 	if got := visit(&out); !cmp.Equal(got, exp) {
 		t.Errorf("unexpected value, -got/+exp\n%s", cmp.Diff(got, exp))
