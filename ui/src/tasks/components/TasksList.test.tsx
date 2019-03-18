@@ -19,6 +19,7 @@ const setup = (override?) => {
     onDelete: oneTestFunction,
     onCreate: secondTestFunction,
     onSelect: oneTestFunction,
+    onImportTask: oneTestFunction,
     ...override,
   }
 

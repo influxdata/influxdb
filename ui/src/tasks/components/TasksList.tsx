@@ -33,6 +33,7 @@ interface Props {
   onRunTask: typeof runTask
   onUpdate: (task: Task) => void
   filterComponent?: () => JSX.Element
+  onImportTask: () => void
 }
 
 type SortKey = keyof Task | 'organization.name'
@@ -56,7 +57,13 @@ export default class TasksList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {searchTerm, onCreate, totalCount, filterComponent} = this.props
+    const {
+      searchTerm,
+      onCreate,
+      totalCount,
+      filterComponent,
+      onImportTask,
+    } = this.props
     const {sortKey, sortDirection} = this.state
 
     const headerKeys: SortKey[] = [
@@ -108,6 +115,7 @@ export default class TasksList extends PureComponent<Props, State> {
                 searchTerm={searchTerm}
                 onCreate={onCreate}
                 totalCount={totalCount}
+                onImportTask={onImportTask}
               />
             }
           >

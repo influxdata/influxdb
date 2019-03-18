@@ -18,6 +18,8 @@ describe('Tasks', () => {
       cy.contains('Create').click()
     })
 
+    cy.getByTestID('dropdown--item New Task').click()
+
     cy.getByInputName('name').type(taskName)
     cy.getByInputName('interval').type('1d')
     cy.getByInputName('offset').type('20m')
@@ -97,6 +99,8 @@ describe('Tasks', () => {
     cy.get('.empty-state').within(() => {
       cy.contains('Create').click()
     })
+
+    cy.getByTestID('dropdown--item New Task').click()
 
     cy.getByInputName('name').type('🦄ask')
     cy.getByInputName('interval').type('1d')

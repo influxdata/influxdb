@@ -123,6 +123,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
                 onUpdate={this.handleUpdateTask}
                 onRunTask={onRunTask}
                 onFilterChange={setSearchTerm}
+                onImportTask={this.handleImportTask}
               />
             )}
           </FilterList>

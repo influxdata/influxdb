@@ -115,6 +115,7 @@ class DashboardIndex extends PureComponent<Props, State> {
                 searchTerm={searchTerm}
                 showOwnerColumn={true}
                 onFilterChange={this.handleFilterDashboards}
+                onImportDashboard={this.summonImportOverlay}
               />
             </div>
           </Page.Contents>

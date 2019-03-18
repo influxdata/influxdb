@@ -137,6 +137,7 @@ class TasksPage extends PureComponent<Props, State> {
                       onFilterChange={setSearchTerm}
                       filterComponent={() => this.search}
                       onUpdate={updateTaskName}
+                      onImportTask={this.summonOverlay}
                     />
                   )}
                 </FilterList>
