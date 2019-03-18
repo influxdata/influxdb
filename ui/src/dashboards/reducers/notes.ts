@@ -2,20 +2,14 @@ import {Action} from 'src/dashboards/actions/notes'
 import {NoteEditorMode} from 'src/types/v2/dashboards'
 
 export interface NoteEditorState {
-  overlayVisible: boolean
   mode: NoteEditorMode
-  viewID: string
-  toggleVisible: boolean
   note: string
   showNoteWhenEmpty: boolean
   isPreviewing: boolean
 }
 
 const initialState = (): NoteEditorState => ({
-  overlayVisible: false,
   mode: NoteEditorMode.Adding,
-  viewID: null,
-  toggleVisible: false,
   note: '',
   showNoteWhenEmpty: false,
   isPreviewing: false,
@@ -26,13 +20,15 @@ const noteEditorReducer = (
   action: Action
 ) => {
   switch (action.type) {
-    case 'OPEN_NOTE_EDITOR': {
-      const {initialState} = action.payload
+    case 'RESET_NOTE_STATE': {
+      return initialState()
+    }
+    case 'SET_NOTE_STATE': {
+      const initialState = action.payload
 
       return {
         ...state,
         ...initialState,
-        overlayVisible: true,
         isPreviewing: false,
       }
     }

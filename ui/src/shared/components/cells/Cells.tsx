@@ -39,6 +39,7 @@ interface Props {
   onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
+  onEditNote: (id: string) => void
 }
 
 interface State {
@@ -64,6 +65,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
       timeRange,
       autoRefresh,
       manualRefresh,
+      onEditNote,
     } = this.props
     const {rowHeight} = this.state
 
@@ -91,6 +93,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
               onCloneCell={onCloneCell}
               onDeleteCell={onDeleteCell}
               onEditCell={this.handleEditCell(cell)}
+              onEditNote={onEditNote}
             />
             {this.cellBorder}
           </div>

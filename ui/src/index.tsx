@@ -48,6 +48,7 @@ import OrgTasksIndex from 'src/organizations/containers/OrgTasksIndex'
 import TaskExportOverlay from 'src/organizations/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/organizations/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
+import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -181,6 +182,13 @@ class Root extends PureComponent {
                             <Route path="cells">
                               <Route path="new" component={VEO} />
                               <Route path=":cellID/edit" component={VEO} />
+                            </Route>
+                            <Route path="notes">
+                              <Route path="new" component={NoteEditorOverlay} />
+                              <Route
+                                path=":cellID/edit"
+                                component={NoteEditorOverlay}
+                              />
                             </Route>
                           </Route>
                           <Route

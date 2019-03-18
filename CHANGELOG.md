@@ -9,6 +9,7 @@
 ### Bug Fixes
 
 1. [12684](https://github.com/influxdata/influxdb/pull/12684): Fix mismatch in bucket row and header
+1. [12703](https://github.com/influxdata/influxdb/pull/12703): Allows user to edit note on cell
 
 ### UI Improvements
 
