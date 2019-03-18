@@ -119,8 +119,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	sourceBackend := NewSourceBackend(b)
 	sourceBackend.SourceService = authorizer.NewSourceService(b.SourceService)
-	sourceBackend.NewBucketService = b.NewBucketService
-	sourceBackend.NewQueryService = b.NewQueryService
+	sourceBackend.BucketService = authorizer.NewBucketService(b.BucketService)
 	h.SourceHandler = NewSourceHandler(sourceBackend)
 
 	setupBackend := NewSetupBackend(b)
