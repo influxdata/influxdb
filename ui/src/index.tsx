@@ -32,6 +32,7 @@ import DashboardsIndex from 'src/dashboards/components/dashboard_index/Dashboard
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
+import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import {MePage, Account} from 'src/me'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
@@ -171,7 +172,9 @@ class Root extends PureComponent {
                         <Route
                           path="data-explorer"
                           component={DataExplorerPage}
-                        />
+                        >
+                          <Route path="save" component={SaveAsOverlay} />
+                        </Route>
                         <Route path="dashboards">
                           <IndexRoute component={DashboardsIndex} />
                           <Route path=":dashboardID" component={DashboardPage}>

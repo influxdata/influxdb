@@ -8,9 +8,10 @@ import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 
-const DataExplorerPage: SFC<{}> = () => {
+const DataExplorerPage: SFC = ({children}) => {
   return (
     <Page titleTag="Data Explorer">
+      {children}
       <Page.Header fullWidth={true}>
         <Page.Header.Left>
           <Page.Title title="Data Explorer" />
