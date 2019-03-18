@@ -1,7 +1,6 @@
 // Libraries
 import React, {Component, CSSProperties, MouseEvent} from 'react'
 import classnames from 'classnames'
-import {isUndefined, isNull} from 'lodash'
 
 // Components
 import {ClickOutside} from 'src/shared/components/ClickOutside'
@@ -80,9 +79,6 @@ class Dropdown extends Component<Props, State> {
     const {widthPixels} = this.props
     const width = widthPixels ? `${widthPixels}px` : '100%'
 
-    this.validateChildCount()
-    this.validateMode()
-
     return (
       <ClickOutside onClickOutside={this.collapseMenu}>
         <div className={this.containerClassName} style={{width}}>
@@ -130,23 +126,29 @@ class Dropdown extends Component<Props, State> {
       buttonColor,
       buttonSize,
       icon,
+      mode,
       titleText,
       buttonTestID,
     } = this.props
+
     const {expanded} = this.state
     const children: JSX.Element[] = this.props.children
 
     const selectedChild = children.find(child => child.props.id === selectedID)
     const isLoading = status === ComponentStatus.Loading
 
+    let resolvedStatus = status
     let dropdownLabel
 
     if (isLoading) {
       dropdownLabel = <WaitingText text="Loading" />
     } else if (selectedChild) {
       dropdownLabel = selectedChild.props.children
+    } else if (mode === DropdownMode.ActionList) {
+      dropdownLabel = titleText
     } else {
       dropdownLabel = titleText
+      resolvedStatus = ComponentStatus.Disabled
     }
 
     return (
@@ -156,7 +158,7 @@ class Dropdown extends Component<Props, State> {
         size={buttonSize}
         icon={icon}
         onClick={this.toggleMenu}
-        status={status}
+        status={resolvedStatus}
         title={titleText}
         testID={buttonTestID}
       >
@@ -174,55 +176,52 @@ class Dropdown extends Component<Props, State> {
       children,
       testID,
     } = this.props
+
     const {expanded} = this.state
 
-    if (expanded) {
-      return (
-        <div
-          className={`dropdown--menu-container dropdown--${menuColor}`}
-          style={this.menuStyle}
-        >
-          <FancyScrollbar
-            autoHide={false}
-            autoHeight={true}
-            maxHeight={maxMenuHeight}
-          >
-            <div
-              className="dropdown--menu"
-              data-testid={`dropdown--menu ${testID}`}
-            >
-              {menuHeader && menuHeader}
-              {React.Children.map(children, (child: JSX.Element) => {
-                if (this.childTypeIsValid(child)) {
-                  if (child.type === DropdownItem) {
-                    return (
-                      <DropdownItem
-                        {...child.props}
-                        key={child.props.id}
-                        selected={child.props.id === selectedID}
-                        onClick={this.handleItemClick}
-                      >
-                        {child.props.children}
-                      </DropdownItem>
-                    )
-                  }
-
-                  return (
-                    <DropdownDivider {...child.props} key={child.props.id} />
-                  )
-                } else {
-                  throw new Error(
-                    'Expected children of type <Dropdown.Item /> or <Dropdown.Divider />'
-                  )
-                }
-              })}
-            </div>
-          </FancyScrollbar>
-        </div>
-      )
+    if (!expanded) {
+      return null
     }
 
-    return null
+    return (
+      <div
+        className={`dropdown--menu-container dropdown--${menuColor}`}
+        style={this.menuStyle}
+      >
+        <FancyScrollbar
+          autoHide={false}
+          autoHeight={true}
+          maxHeight={maxMenuHeight}
+        >
+          <div
+            className="dropdown--menu"
+            data-testid={`dropdown--menu ${testID}`}
+          >
+            {menuHeader && menuHeader}
+            {React.Children.map(children, (child: JSX.Element) => {
+              if (child.type === DropdownItem) {
+                return (
+                  <DropdownItem
+                    {...child.props}
+                    key={child.props.id}
+                    selected={child.props.id === selectedID}
+                    onClick={this.handleItemClick}
+                  >
+                    {child.props.children}
+                  </DropdownItem>
+                )
+              } else if (child.type === DropdownDivider) {
+                return <DropdownDivider {...child.props} key={child.props.id} />
+              } else {
+                throw new Error(
+                  'Expected children of type <Dropdown.Item /> or <Dropdown.Divider />'
+                )
+              }
+            })}
+          </div>
+        </FancyScrollbar>
+      </div>
+    )
   }
 
   private get menuStyle(): CSSProperties {
@@ -245,48 +244,11 @@ class Dropdown extends Component<Props, State> {
     }
   }
 
-  private get shouldHaveChildren(): boolean {
-    const {status} = this.props
-
-    return (
-      status === ComponentStatus.Default || status === ComponentStatus.Valid
-    )
-  }
-
   private handleItemClick = (value: any): void => {
     const {onChange} = this.props
     onChange(value)
     this.collapseMenu()
   }
-
-  private validateChildCount = (): void => {
-    const {children} = this.props
-
-    if (this.shouldHaveChildren && React.Children.count(children) === 0) {
-      throw new Error(
-        'Dropdowns require at least 1 child element. We recommend using Dropdown.Item and/or Dropdown.Divider.'
-      )
-    }
-  }
-
-  private validateMode = (): void => {
-    const {mode, selectedID, titleText} = this.props
-
-    if (mode === DropdownMode.ActionList && titleText === '') {
-      throw new Error('Dropdowns in ActionList mode require a titleText prop.')
-    }
-
-    if (
-      mode === DropdownMode.Radio &&
-      this.shouldHaveChildren &&
-      (isUndefined(selectedID) || isNull(selectedID))
-    ) {
-      throw new Error('Dropdowns in Radio mode require a selectedID prop.')
-    }
-  }
-
-  private childTypeIsValid = (child: JSX.Element): boolean =>
-    child.type === DropdownItem || child.type === DropdownDivider
 }
 
 export default Dropdown

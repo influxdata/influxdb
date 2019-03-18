@@ -2,7 +2,8 @@
 import React, {PureComponent, createRef} from 'react'
 
 // Component
-import FunctionTooltip from 'src/timeMachine/components/fluxFunctionsToolbar/FunctionTooltip'
+import FunctionTooltipContents from 'src/timeMachine/components/fluxFunctionsToolbar/FunctionTooltipContents'
+import BoxTooltip from 'src/shared/components/BoxTooltip'
 
 // Types
 import {FluxToolbarFunction} from 'src/types/shared'
@@ -15,7 +16,6 @@ interface Props {
 
 interface State {
   isActive: boolean
-  hoverPosition: {top: number; right: number}
 }
 
 class ToolbarFunction extends PureComponent<Props, State> {
@@ -23,11 +23,13 @@ class ToolbarFunction extends PureComponent<Props, State> {
     testID: 'toolbar-function',
   }
 
-  public state: State = {isActive: false, hoverPosition: undefined}
+  public state: State = {isActive: false}
+
   private functionRef = createRef<HTMLDivElement>()
 
   public render() {
     const {func, testID} = this.props
+    const {isActive} = this.state
 
     return (
       <div
@@ -37,7 +39,11 @@ class ToolbarFunction extends PureComponent<Props, State> {
         onMouseLeave={this.handleStopHover}
         data-testid={testID}
       >
-        {this.tooltip}
+        {isActive && (
+          <BoxTooltip triggerRect={this.domRect}>
+            <FunctionTooltipContents func={func} />
+          </BoxTooltip>
+        )}
         <dd
           onClick={this.handleClickFunction}
           data-testid={`flux-function ${func.name}`}
@@ -48,18 +54,12 @@ class ToolbarFunction extends PureComponent<Props, State> {
     )
   }
 
-  private get tooltip(): JSX.Element | null {
-    if (this.state.isActive) {
-      return (
-        <FunctionTooltip
-          func={this.props.func}
-          onDismiss={this.handleStopHover}
-          tipPosition={this.state.hoverPosition}
-        />
-      )
+  private get domRect(): DOMRect {
+    if (!this.functionRef.current) {
+      return null
     }
 
-    return null
+    return this.functionRef.current.getBoundingClientRect() as DOMRect
   }
 
   private get helperText(): JSX.Element | null {
@@ -73,10 +73,7 @@ class ToolbarFunction extends PureComponent<Props, State> {
   }
 
   private handleHover = () => {
-    const {top, left} = this.functionRef.current.getBoundingClientRect()
-    const right = window.innerWidth - left
-
-    this.setState({isActive: true, hoverPosition: {top, right}})
+    this.setState({isActive: true})
   }
 
   private handleStopHover = () => {

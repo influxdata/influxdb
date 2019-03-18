@@ -1,7 +1,9 @@
 ## v2.0.0-alpha.7 [unreleased]
 
 ### Features
+
 1. [12663](https://github.com/influxdata/influxdb/pull/12663): Insert flux function near cursor in flux editor
+1. [12678](https://github.com/influxdata/influxdb/pull/12678): Enable the use of variables in the Data Explorer and Cell Editor Overlay
 
 ### Bug Fixes
 

@@ -1,6 +1,3 @@
-// Libraries
-import {get} from 'lodash'
-
 // API
 import {
   executeQueryWithVars,
@@ -8,7 +5,7 @@ import {
 } from 'src/shared/apis/query'
 
 // Actions
-import {refreshVariableValues} from 'src/variables/actions'
+import {refreshVariableValues, selectValue} from 'src/variables/actions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -16,7 +13,11 @@ import {getActiveOrg} from 'src/organizations/selectors'
 import {getVariableAssignments} from 'src/variables/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {getVariablesForOrg} from 'src/variables/selectors'
+import {
+  getVariablesForOrg,
+  getVariable,
+  getHydratedVariables,
+} from 'src/variables/selectors'
 
 // Types
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
@@ -68,13 +69,11 @@ export const refreshTimeMachineVariableValues = () => async (
 
   // Find variables whose values have already been loaded by the TimeMachine
   // (regardless of whether these variables are currently being used)
-  const existingVariableIDs = Object.keys(
-    get(getState(), `variables.values.${contextID}.values`, {})
-  )
+  const hydratedVariables = getHydratedVariables(getState(), contextID)
 
   // Refresh values for all variables with existing values and in use variables
   const variablesToRefresh = variables.filter(
-    v => variablesInUse.includes(v) || existingVariableIDs.includes(v.id)
+    v => variablesInUse.includes(v) || hydratedVariables.includes(v)
   )
 
   await dispatch(refreshVariableValues(contextID, orgID, variablesToRefresh))
@@ -138,5 +137,32 @@ const saveDraftQueries = (): SaveDraftQueriesAction => ({
 
 export const saveAndExecuteQueries = () => async dispatch => {
   dispatch(saveDraftQueries())
+  dispatch(executeQueries())
+}
+
+export const addVariableToTimeMachine = (variableID: string) => async (
+  dispatch,
+  getState: GetState
+) => {
+  const contextID = getState().timeMachines.activeTimeMachineID
+  const orgID = getActiveOrg(getState()).id
+
+  const variable = getVariable(getState(), variableID)
+  const variables = getHydratedVariables(getState(), contextID)
+
+  if (!variables.includes(variable)) {
+    variables.push(variable)
+  }
+
+  await dispatch(refreshVariableValues(contextID, orgID, variables))
+}
+
+export const selectVariableValue = (
+  variableID: string,
+  selectedValue: string
+) => async (dispatch, getState: GetState) => {
+  const contextID = getState().timeMachines.activeTimeMachineID
+
+  dispatch(selectValue(contextID, variableID, selectedValue))
   dispatch(executeQueries())
 }

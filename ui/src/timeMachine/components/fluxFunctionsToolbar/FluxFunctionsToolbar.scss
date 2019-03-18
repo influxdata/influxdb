@@ -46,36 +46,11 @@
   padding: 15px;
 }
 
-.flux-functions-toolbar--tooltip {
-  padding-right: 8px;
-  max-width: 600px;
-  position: fixed;
-  transform: translateY(50%);
-  z-index: 10;
-}
-
-.flux-functions-toolbar--tooltip-caret {
-  content: "";
-  width: 0;
-  height: 0;
-  position: fixed;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-left: 6px solid $c-pool;
-  margin-top: 9px;
-  margin-left: -8px;
-  z-index: 9999;
-}
-
 .flux-functions-toolbar--tooltip-contents {
-  border: $ix-border solid $c-pool;
-  border-radius: $radius;
   width: 100%;
   max-width: 600px;
   display: inline-flex;
   align-items: center;
-  background-color: $g1-raven;
-  padding: 10px;
 
   article {
     margin-bottom: $ix-marg-c;
@@ -110,46 +85,5 @@
 
   div {
     margin: $ix-marg-a 0 $ix-marg-c 0;
-  }
-}
-
-
-.flux-functions-toolbar--tooltip-dismiss {
-  position: absolute;
-  z-index: 5000;
-  top: 0;
-  right: 0;
-  transform: translate(0,-50%);
-  width: 24px;
-  height: 24px;
-  outline: none;
-  border-radius: 50%;
-  background-color: $c-pool;
-  transition: background-color 0.25s ease;
-  border: 0;
-
-  &:before,
-  &:after {
-    content: '';
-    position: absolute;
-    width: 13px;
-    height: 3px;
-    top: 50%;
-    left: 50%;
-    border-radius: 1px;
-    background-color: $g20-white;
-  }
-
-  &:before {
-    transform: translate(-50%, -50%) rotate(45deg);
-  }
-
-  &:after {
-    transform: translate(-50%, -50%) rotate(-45deg);
-  }
-
-  &:hover {
-    background-color: $c-laser;
-    cursor: pointer;
   }
 }

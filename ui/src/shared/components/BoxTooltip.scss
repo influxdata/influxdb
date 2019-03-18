@@ -1,0 +1,25 @@
+@import 'src/style/modules';
+
+$box-tooltip--caret-size: 6px;
+
+.box-tooltip {
+  position: fixed;
+  visibility: hidden;
+  z-index: $z--dygraph-legend;
+  border: $ix-border solid $c-pool;
+  background-color: $g1-raven;
+  border-radius: $radius;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.box-tooltip.left .box-tooltip--caret {
+  position: absolute;
+  right: -$box-tooltip--caret-size;
+  transform: translate(0,-50%);
+  width: 0;
+  height: 0;
+  border-top: $box-tooltip--caret-size solid transparent;
+  border-bottom: $box-tooltip--caret-size solid transparent;
+  border-left: $box-tooltip--caret-size solid $c-pool;
+}

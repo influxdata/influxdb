@@ -55,6 +55,10 @@
   }
 }
 
+.dropdown--button.button-disabled {
+  font-style: italic;
+}
+
 .dropdown--button.button-xs {
   @include buttonSizing($form-xs-padding, $form-xs-font);
 }

@@ -23,7 +23,12 @@ import {GetState} from 'src/types/v2'
 import {Variable} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
 
-export type Action = SetVariables | SetVariable | RemoveVariable | SetValues
+export type Action =
+  | SetVariables
+  | SetVariable
+  | RemoveVariable
+  | SetValues
+  | SelectValue
 
 interface SetVariables {
   type: 'SET_VARIABLES'
@@ -85,6 +90,24 @@ const setValues = (
 ): SetValues => ({
   type: 'SET_VARIABLE_VALUES',
   payload: {contextID, status, values},
+})
+
+interface SelectValue {
+  type: 'SELECT_VARIABLE_VALUE'
+  payload: {
+    contextID: string
+    variableID: string
+    selectedValue: string
+  }
+}
+
+export const selectValue = (
+  contextID: string,
+  variableID: string,
+  selectedValue: string
+): SelectValue => ({
+  type: 'SELECT_VARIABLE_VALUE',
+  payload: {contextID, variableID, selectedValue},
 })
 
 export const getVariables = () => async (dispatch: Dispatch<Action>) => {

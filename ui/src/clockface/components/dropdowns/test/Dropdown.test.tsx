@@ -79,24 +79,4 @@ describe('Dropdown', () => {
       expect(actualProps).toEqual(expectedProps)
     })
   })
-
-  describe('when no children are present', () => {
-    const errorLog = console.error
-
-    beforeEach(() => {
-      console.error = jest.fn(() => {})
-    })
-
-    afterEach(() => {
-      console.error = errorLog
-    })
-
-    it('throws error', () => {
-      expect(() => {
-        wrapperSetup({children: null})
-      }).toThrow(
-        'Dropdowns require at least 1 child element. We recommend using Dropdown.Item and/or Dropdown.Divider.'
-      )
-    })
-  })
 })
