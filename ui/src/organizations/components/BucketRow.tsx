@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {IndexList, ConfirmationButton, Context} from 'src/clockface'
@@ -33,7 +34,7 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-export default class BucketRow extends PureComponent<Props> {
+class BucketRow extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {bucket, onDeleteBucket} = this.props
     return (
@@ -47,7 +48,7 @@ export default class BucketRow extends PureComponent<Props> {
               noNameString={DEFAULT_BUCKET_NAME}
             />
           </IndexList.Cell>
-          <IndexList.Cell>{bucket.organization}</IndexList.Cell>
+          {this.organization}
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
@@ -91,6 +92,12 @@ export default class BucketRow extends PureComponent<Props> {
     )
   }
 
+  private get organization(): JSX.Element {
+    if (!this.props.params.orgID) {
+      return <IndexList.Cell>{this.props.bucket.organization}</IndexList.Cell>
+    }
+  }
+
   private handleUpdateBucketName = async (value: string) => {
     await this.props.onUpdateBucket({...this.props.bucket, name: value})
   }
@@ -111,3 +118,5 @@ export default class BucketRow extends PureComponent<Props> {
     this.props.onAddData(this.props.bucket, DataLoaderType.Scraping)
   }
 }
+
+export default withRouter<Props>(BucketRow)
