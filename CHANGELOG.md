@@ -4,6 +4,7 @@
 1. [12663](https://github.com/influxdata/influxdb/pull/12663): Insert flux function near cursor in flux editor
 
 ### Bug Fixes
+1. [12684](https://github.com/influxdata/influxdb/pull/12684): Fix mismatch in bucket row and header  
 
 ### UI Improvements
 
