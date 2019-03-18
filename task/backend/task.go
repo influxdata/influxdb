@@ -16,14 +16,14 @@ type TaskControlService interface {
 	// If the run's ScheduledFor would be later than the passed-in now, CreateNextRun returns a RunNotYetDueError.
 	CreateNextRun(ctx context.Context, taskID influxdb.ID, now int64) (RunCreation, error)
 
-	// FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
+	// FinishRun removes runID from the list of running tasks and if its `ScheduledFor` is later then last completed update it.
 	FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error)
 
 	// NextDueRun returns the Unix timestamp of when the next call to CreateNextRun will be ready.
 	// The returned timestamp reflects the task's offset, so it does not necessarily exactly match the schedule time.
 	NextDueRun() (int64, error)
 
-	// UpdateRunState sets the run state and the respective time.
+	// UpdateRunState sets the run state at the respective time.
 	UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state RunStatus) error
 
 	// AddRunLog adds a log line to the run.
