@@ -5313,6 +5313,12 @@ components:
                 - tasks
                 - telegrafs
                 - users
+                - variables
+                - scrapers
+                - secrets
+                - labels
+                - views
+                - documents
             id:
               type: string
               nullable: true

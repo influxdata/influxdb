@@ -140,6 +140,7 @@ var AllResourceTypes = []ResourceType{
 	LabelsResourceType,         // 11
 	ViewsResourceType,          // 12
 	DocumentsResourceType,      // 13
+	// NOTE: when modifying this list, please update the swagger for components.schemas.Permission resource enum.
 }
 
 // OrgResourceTypes is the list of all known resource types that belong to an organization.
