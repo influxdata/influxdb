@@ -28,7 +28,6 @@ import {AppState} from 'src/types/v2'
 
 interface StateProps {
   note: string
-  toggleVisible: boolean
   showNoteWhenEmpty: boolean
 }
 
@@ -69,36 +68,25 @@ class NoteEditor extends PureComponent<Props> {
   }
 
   private get visibilityToggle(): JSX.Element {
-    const {
-      toggleVisible,
-      showNoteWhenEmpty,
-      onToggleShowNoteWhenEmpty,
-    } = this.props
+    const {showNoteWhenEmpty, onToggleShowNoteWhenEmpty} = this.props
 
-    if (toggleVisible) {
-      return (
-        <ComponentSpacer stackChildren={Stack.Columns} align={Alignment.Right}>
-          <SlideToggle.Label text="Show note when query returns no data" />
-          <SlideToggle
-            active={showNoteWhenEmpty}
-            size={ComponentSize.ExtraSmall}
-            onChange={onToggleShowNoteWhenEmpty}
-          />
-        </ComponentSpacer>
-      )
-    }
+    return (
+      <ComponentSpacer stackChildren={Stack.Columns} align={Alignment.Right}>
+        <SlideToggle.Label text="Show note when query returns no data" />
+        <SlideToggle
+          active={showNoteWhenEmpty}
+          size={ComponentSize.ExtraSmall}
+          onChange={onToggleShowNoteWhenEmpty}
+        />
+      </ComponentSpacer>
+    )
   }
 }
 
 const mstp = (state: AppState) => {
-  const {
-    note,
-    isPreviewing,
-    toggleVisible,
-    showNoteWhenEmpty,
-  } = state.noteEditor
+  const {note, isPreviewing, showNoteWhenEmpty} = state.noteEditor
 
-  return {note, isPreviewing, toggleVisible, showNoteWhenEmpty}
+  return {note, isPreviewing, showNoteWhenEmpty}
 }
 
 const mdtp = {

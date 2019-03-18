@@ -10,9 +10,10 @@ import {Overlay} from 'src/clockface'
 
 // Actions
 import {
-  closeNoteEditor,
   createNoteCell,
   updateViewNote,
+  loadNote,
+  resetNoteState,
 } from 'src/dashboards/actions/notes'
 import {notify} from 'src/shared/actions/notifications'
 
@@ -26,41 +27,43 @@ import {NoteEditorMode} from 'src/types/v2/dashboards'
 
 interface StateProps {
   mode: NoteEditorMode
-  overlayVisible: boolean
-  viewID: string
 }
 
 interface DispatchProps {
-  onHide: typeof closeNoteEditor
-  onCreateNoteCell: (dashboardID: string) => Promise<void>
-  onUpdateViewNote: () => Promise<void>
+  onCreateNoteCell: typeof createNoteCell
+  onUpdateViewNote: typeof updateViewNote
+  resetNote: typeof resetNoteState
   onNotify: typeof notify
+  loadNote: typeof loadNote
 }
 
-interface OwnProps {}
+interface RouterProps extends WithRouterProps {
+  params: {
+    dashboardID: string
+    cellID?: string
+  }
+}
 
-type Props = StateProps & DispatchProps & OwnProps & WithRouterProps
+type Props = StateProps & DispatchProps & RouterProps
 
 interface State {
   savingStatus: RemoteDataState
 }
 
-class NoteEditorContainer extends PureComponent<Props, State> {
+class NoteEditorOverlay extends PureComponent<Props, State> {
   public state: State = {savingStatus: RemoteDataState.NotStarted}
 
   public render() {
-    const {onHide, overlayVisible} = this.props
-
     return (
       <div className="note-editor-container">
-        <Overlay visible={overlayVisible}>
+        <Overlay visible={true}>
           <Overlay.Container maxWidth={900}>
-            <Overlay.Heading title={this.overlayTitle} onDismiss={onHide} />
+            <Overlay.Heading title={this.overlayTitle} onDismiss={this.close} />
             <Overlay.Body>
               <NoteEditor />
             </Overlay.Body>
             <Overlay.Footer>
-              <Button text="Cancel" onClick={onHide} />
+              <Button text="Cancel" onClick={this.close} />
               <Button
                 text="Save"
                 color={ComponentColor.Success}
@@ -72,6 +75,17 @@ class NoteEditorContainer extends PureComponent<Props, State> {
         </Overlay>
       </div>
     )
+  }
+
+  componentDidMount() {
+    const {
+      params: {cellID},
+    } = this.props
+    if (cellID) {
+      this.props.loadNote(cellID)
+    } else {
+      this.props.resetNote()
+    }
   }
 
   private get overlayTitle(): string {
@@ -100,47 +114,48 @@ class NoteEditorContainer extends PureComponent<Props, State> {
 
   private handleSave = async () => {
     const {
-      viewID,
+      params: {cellID, dashboardID},
       onCreateNoteCell,
       onUpdateViewNote,
-      onHide,
       onNotify,
     } = this.props
-
-    const dashboardID = this.props.params.dashboardID
 
     this.setState({savingStatus: RemoteDataState.Loading})
 
     try {
-      if (viewID) {
-        await onUpdateViewNote()
+      if (cellID) {
+        await onUpdateViewNote(cellID)
       } else {
         await onCreateNoteCell(dashboardID)
       }
-
-      this.setState({savingStatus: RemoteDataState.NotStarted}, onHide)
+      this.close()
     } catch (error) {
       onNotify(savingNoteFailed(error.message))
       console.error(error)
       this.setState({savingStatus: RemoteDataState.Error})
     }
   }
+
+  private close = () => {
+    this.props.router.goBack()
+  }
 }
 
-const mstp = (state: AppState) => {
-  const {mode, overlayVisible, viewID} = state.noteEditor
+const mstp = (state: AppState): StateProps => {
+  const {mode} = state.noteEditor
 
-  return {mode, overlayVisible, viewID}
+  return {mode}
 }
 
 const mdtp = {
-  onHide: closeNoteEditor,
   onNotify: notify,
-  onCreateNoteCell: createNoteCell as any,
-  onUpdateViewNote: updateViewNote as any,
+  onCreateNoteCell: createNoteCell,
+  onUpdateViewNote: updateViewNote,
+  resetNote: resetNoteState,
+  loadNote,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<StateProps & DispatchProps & OwnProps>(NoteEditorContainer))
+)(withRouter<StateProps & DispatchProps>(NoteEditorOverlay))

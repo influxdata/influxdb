@@ -1,37 +1,27 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
 import {Context} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Actions
-import {openNoteEditor} from 'src/dashboards/actions/notes'
-
 // Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 import {Cell, View, ViewType} from 'src/types/v2'
-import {NoteEditorMode} from 'src/types/v2/dashboards'
 
-interface OwnProps {
+interface Props {
   cell: Cell
   view: View
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
   onCSVDownload: () => void
   onEditCell: () => void
+  onEditNote: (id: string) => void
 }
-
-interface DispatchProps {
-  onOpenNoteEditor: typeof openNoteEditor
-}
-
-type Props = DispatchProps & OwnProps
 
 @ErrorHandling
-class CellContext extends PureComponent<Props> {
+export default class CellContext extends PureComponent<Props> {
   public render() {
     const {cell, onDeleteCell, onCloneCell} = this.props
 
@@ -77,32 +67,11 @@ class CellContext extends PureComponent<Props> {
   }
 
   private handleEditNote = () => {
-    const {onOpenNoteEditor, view} = this.props
+    const {
+      view: {id},
+      onEditNote,
+    } = this.props
 
-    const note: string = get(view, 'properties.note', '')
-    const showNoteWhenEmpty: boolean = get(
-      view,
-      'properties.showNoteWhenEmpty',
-      false
-    )
-
-    const initialState = {
-      viewID: view.id,
-      toggleVisible: view.properties.type !== ViewType.Markdown,
-      note,
-      showNoteWhenEmpty,
-      mode: note === '' ? NoteEditorMode.Adding : NoteEditorMode.Editing,
-    }
-
-    onOpenNoteEditor(initialState)
+    onEditNote(id)
   }
 }
-
-const mdtp = {
-  onOpenNoteEditor: openNoteEditor,
-}
-
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(CellContext)

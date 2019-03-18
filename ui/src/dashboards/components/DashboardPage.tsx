@@ -11,7 +11,6 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
-import NoteEditorContainer from 'src/dashboards/components/NoteEditorContainer'
 import VariablesControlBar from 'src/dashboards/components/variablesControlBar/VariablesControlBar'
 
 // Actions
@@ -164,6 +163,7 @@ class DashboardPage extends Component<Props, State> {
             autoRefresh={autoRefresh}
             isHidden={inPresentationMode}
             onAddCell={this.handleAddCell}
+            onAddNote={this.showNoteOverlay}
             onManualRefresh={onManualRefresh}
             zoomedTimeRange={zoomedTimeRange}
             onRenameDashboard={this.handleRenameDashboard}
@@ -193,11 +193,11 @@ class DashboardPage extends Component<Props, State> {
               onDeleteCell={this.handleDeleteDashboardCell}
               onEditView={this.handleEditView}
               onAddCell={this.handleAddCell}
+              onEditNote={this.showNoteOverlay}
             />
           )}
           {children}
         </HoverTimeProvider>
-        <NoteEditorContainer />
       </Page>
     )
   }
@@ -238,6 +238,14 @@ class DashboardPage extends Component<Props, State> {
 
   private handleAddCell = async (): Promise<void> => {
     this.showVEO()
+  }
+
+  private showNoteOverlay = async (id?: string): Promise<void> => {
+    if (id) {
+      this.props.router.push(`${this.props.location.pathname}/notes/${id}/edit`)
+    } else {
+      this.props.router.push(`${this.props.location.pathname}/notes/new`)
+    }
   }
 
   private handleEditView = (cellID: string): void => {

@@ -31,6 +31,7 @@ interface OwnProps {
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
   onEditCell: () => void
+  onEditNote: (id: string) => void
   onZoom: (range: TimeRange) => void
 }
 
@@ -39,7 +40,14 @@ type Props = StateProps & OwnProps
 @ErrorHandling
 class CellComponent extends Component<Props> {
   public render() {
-    const {onEditCell, onDeleteCell, onCloneCell, cell, view} = this.props
+    const {
+      onEditCell,
+      onEditNote,
+      onDeleteCell,
+      onCloneCell,
+      cell,
+      view,
+    } = this.props
 
     return (
       <>
@@ -51,6 +59,7 @@ class CellComponent extends Component<Props> {
             onDeleteCell={onDeleteCell}
             onCloneCell={onCloneCell}
             onEditCell={onEditCell}
+            onEditNote={onEditNote}
             onCSVDownload={this.handleCSVDownload}
           />
         )}

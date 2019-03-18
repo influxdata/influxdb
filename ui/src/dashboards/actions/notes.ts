@@ -7,42 +7,21 @@ import {updateView} from 'src/dashboards/actions/views'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
+import {getView} from 'src/dashboards/selectors'
 
 // Types
 import {GetState} from 'src/types/v2'
 import {NoteEditorMode, MarkdownView, ViewType} from 'src/types/v2/dashboards'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
+import {Dispatch} from 'redux-thunk'
 
 export type Action =
-  | OpenNoteEditorAction
   | CloseNoteEditorAction
   | SetIsPreviewingAction
   | ToggleShowNoteWhenEmptyAction
   | SetNoteAction
-
-interface OpenNoteEditorAction {
-  type: 'OPEN_NOTE_EDITOR'
-  payload: {initialState: Partial<NoteEditorState>}
-}
-
-export const openNoteEditor = (
-  initialState: Partial<NoteEditorState>
-): OpenNoteEditorAction => ({
-  type: 'OPEN_NOTE_EDITOR',
-  payload: {initialState},
-})
-
-export const addNote = (): OpenNoteEditorAction => ({
-  type: 'OPEN_NOTE_EDITOR',
-  payload: {
-    initialState: {
-      mode: NoteEditorMode.Adding,
-      viewID: null,
-      toggleVisible: false,
-      note: '',
-    },
-  },
-})
+  | SetNoteStateAction
+  | ResetNoteStateAction
 
 interface CloseNoteEditorAction {
   type: 'CLOSE_NOTE_EDITOR'
@@ -83,7 +62,7 @@ export const setNote = (note: string): SetNoteAction => ({
 })
 
 export const createNoteCell = (dashboardID: string) => async (
-  dispatch,
+  dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
   const dashboard = getState().dashboards.find(d => d.id === dashboardID)
@@ -100,13 +79,68 @@ export const createNoteCell = (dashboardID: string) => async (
   return dispatch(createCellWithView(dashboard, view))
 }
 
-export const updateViewNote = () => async (dispatch, getState: GetState) => {
+export interface ResetNoteStateAction {
+  type: 'RESET_NOTE_STATE'
+}
+
+export const resetNoteState = (): ResetNoteStateAction => ({
+  type: 'RESET_NOTE_STATE',
+})
+
+export interface SetNoteStateAction {
+  type: 'SET_NOTE_STATE'
+  payload: Partial<NoteEditorState>
+}
+
+export const setNoteState = (
+  noteState: Partial<NoteEditorState>
+): SetNoteStateAction => ({
+  type: 'SET_NOTE_STATE',
+  payload: noteState,
+})
+
+export const loadNote = (id: string) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const {
+    views: {views},
+  } = getState()
+  const currentViewState = views[id]
+
+  if (!currentViewState) {
+    return
+  }
+
+  const view = currentViewState.view
+
+  const note: string = get(view, 'properties.note', '')
+  const showNoteWhenEmpty: boolean = get(
+    view,
+    'properties.showNoteWhenEmpty',
+    false
+  )
+
+  const initialState = {
+    viewID: view.id,
+    note,
+    showNoteWhenEmpty,
+    mode: NoteEditorMode.Editing,
+  }
+
+  dispatch(setNoteState(initialState))
+}
+
+export const updateViewNote = (id: string) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
   const state = getState()
-  const {note, showNoteWhenEmpty, viewID} = state.noteEditor
-  const view: any = get(state, `views.${viewID}.view`)
+  const {note, showNoteWhenEmpty} = state.noteEditor
+  const view: any = getView(state, id)
 
   if (!view) {
-    throw new Error(`could not find view with id "${viewID}"`)
+    throw new Error(`could not find view with id "${id}"`)
   }
 
   if (isUndefined(view.properties.note)) {
