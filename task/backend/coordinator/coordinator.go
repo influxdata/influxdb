@@ -53,6 +53,11 @@ func (c *Coordinator) claimExistingTasks() {
 
 	for len(tasks) > 0 {
 		for _, task := range tasks {
+			if task.Meta.Status != string(backend.TaskActive) {
+				// Don't claim inactive tasks at startup.
+				continue
+			}
+
 			t := task // Copy to avoid mistaken closure around task value.
 			if err := c.sch.ClaimTask(&t.Task, &t.Meta); err != nil {
 				c.logger.Error("failed claim task", zap.Error(err))
