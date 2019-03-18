@@ -18,11 +18,18 @@ import 'src/timeMachine/components/variableToolbar/VariableToolbar.scss'
 import {Variable} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
 
+interface OwnProps {
+  onClickVariable: (variableName: string) => void
+}
+
 interface StateProps {
   variables: Variable[]
 }
 
-const VariableToolbar: FunctionComponent<StateProps> = ({variables}) => {
+const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
+  variables,
+  onClickVariable,
+}) => {
   const [searchTerm, setSearchTerm] = useState('')
 
   return (
@@ -33,7 +40,11 @@ const VariableToolbar: FunctionComponent<StateProps> = ({variables}) => {
           {variables
             .filter(v => v.name.includes(searchTerm))
             .map(v => (
-              <VariableItem variable={v} key={v.id} />
+              <VariableItem
+                variable={v}
+                key={v.id}
+                onClickVariable={onClickVariable}
+              />
             ))}
         </div>
       </FancyScrollbar>

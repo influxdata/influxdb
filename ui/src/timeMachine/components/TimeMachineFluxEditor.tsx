@@ -7,7 +7,7 @@ import {Position} from 'codemirror'
 import FluxEditor from 'src/shared/components/FluxEditor'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
-import VariablesToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
+import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
 
 // Actions
@@ -16,7 +16,8 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
-import {insertFluxFunction} from 'src/timeMachine/utils/scriptInsertion'
+import {insertFluxFunction} from 'src/timeMachine/utils/insertFunction'
+import {insertVariable} from 'src/timeMachine/utils/insertVariable'
 
 // Constants
 import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
@@ -114,11 +115,29 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
       )
     }
 
-    return <VariablesToolbar />
+    return <VariableToolbar onClickVariable={this.handleInsertVariable} />
   }
 
   private handleCursorPosition = (position: Position): void => {
     this.cursorPosition = position
+  }
+
+  private handleInsertVariable = async (
+    variableName: string
+  ): Promise<void> => {
+    const {activeQueryText} = this.props
+    const {line, ch} = this.cursorPosition
+
+    const {updatedScript, cursorPosition} = insertVariable(
+      line,
+      ch,
+      activeQueryText,
+      variableName
+    )
+
+    await this.props.onSetActiveQueryText(updatedScript)
+
+    this.handleCursorPosition(cursorPosition)
   }
 
   private handleInsertFluxFunction = async (
