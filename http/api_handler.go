@@ -143,7 +143,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.ProtoHandler = NewProtoHandler(NewProtoBackend(b))
 	h.ChronografHandler = NewChronografHandler(b.ChronografService)
 	h.SwaggerHandler = newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")))
-	h.LabelHandler = NewLabelHandler(b.LabelService)
+	h.LabelHandler = NewLabelHandler(authorizer.NewLabelService(b.LabelService))
 
 	return h
 }
