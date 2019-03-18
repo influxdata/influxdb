@@ -62,15 +62,15 @@ class CreateLabelOverlay extends Component<Props, State> {
             <LabelOverlayForm
               id={label.id}
               name={label.name}
-              description={label.properties.description}
-              color={label.properties.color}
-              onColorChange={this.handleColorChange}
-              onSubmit={this.handleSubmit}
               onCloseModal={onDismiss}
-              onInputChange={this.handleInputChange}
               buttonText="Create Label"
+              onSubmit={this.handleSubmit}
               isFormValid={this.isFormValid}
+              color={label.properties.color}
               onNameValidation={onNameValidation}
+              onInputChange={this.handleInputChange}
+              onColorChange={this.handleColorChange}
+              description={label.properties.description}
             />
           </Overlay.Body>
         </Overlay.Container>

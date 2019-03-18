@@ -94,11 +94,11 @@ export const createLabel = (
   }
 }
 
-export const updateLabel = (id: string, properties: LabelProperties) => async (
+export const updateLabel = (id: string, l: ILabel) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const label = await client.labels.update(id, properties)
+    const label = await client.labels.update(id, l)
 
     dispatch(editLabel(label))
   } catch (e) {
