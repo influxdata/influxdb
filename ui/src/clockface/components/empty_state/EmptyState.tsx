@@ -1,5 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
+import classnames from 'classnames'
 
 // Components
 import EmptyStateText from 'src/clockface/components/empty_state/EmptyStateText'
@@ -16,6 +17,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface PassedProps {
   children: JSX.Element | JSX.Element[]
+  customClass?: string
 }
 
 interface DefaultProps {
@@ -36,15 +38,22 @@ class EmptyState extends Component<Props> {
   public static SubText = EmptyStateSubText
 
   public render() {
-    const {children, size, testID} = this.props
-
-    const className = `empty-state empty-state--${size}`
+    const {children, testID} = this.props
 
     return (
-      <div className={className} data-testid={testID}>
+      <div className={this.className} data-testid={testID}>
         {children}
       </div>
     )
+  }
+
+  private get className(): string {
+    const {customClass, size} = this.props
+
+    return classnames('empty-state', {
+      [`empty-state--${size}`]: size,
+      [customClass]: customClass,
+    })
   }
 }
 

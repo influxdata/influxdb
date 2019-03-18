@@ -12,6 +12,7 @@ import DashboardComponent from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import NoteEditorContainer from 'src/dashboards/components/NoteEditorContainer'
+import VariablesControlBar from 'src/dashboards/components/variablesControlBar/VariablesControlBar'
 
 // Actions
 import * as dashboardActions from 'src/dashboards/actions'
@@ -91,6 +92,7 @@ interface State {
   scrollTop: number
   windowHeight: number
   isShowingVEO: boolean
+  isShowingVariablesControlBar: boolean
 }
 
 @ErrorHandling
@@ -102,6 +104,7 @@ class DashboardPage extends Component<Props, State> {
       scrollTop: 0,
       windowHeight: window.innerHeight,
       isShowingVEO: false,
+      isShowingVariablesControlBar: false,
     }
   }
 
@@ -150,6 +153,7 @@ class DashboardPage extends Component<Props, State> {
       handleClickPresentationButton,
       children,
     } = this.props
+    const {isShowingVariablesControlBar} = this.state
 
     return (
       <Page titleTag={this.pageTitle}>
@@ -168,7 +172,12 @@ class DashboardPage extends Component<Props, State> {
             handleChooseAutoRefresh={handleChooseAutoRefresh}
             handleChooseTimeRange={this.handleChooseTimeRange}
             handleClickPresentationButton={handleClickPresentationButton}
+            toggleVariablesControlBar={this.toggleVariablesControlBar}
+            isShowingVariablesControlBar={isShowingVariablesControlBar}
           />
+          {isShowingVariablesControlBar && (
+            <VariablesControlBar dashboardID={dashboard.id} />
+          )}
           {!!dashboard && (
             <DashboardComponent
               inView={this.inView}
@@ -273,6 +282,12 @@ class DashboardPage extends Component<Props, State> {
 
   private handleWindowResize = (): void => {
     this.setState({windowHeight: window.innerHeight})
+  }
+
+  private toggleVariablesControlBar = (): void => {
+    this.setState({
+      isShowingVariablesControlBar: !this.state.isShowingVariablesControlBar,
+    })
   }
 
   private get pageTitle(): string {
