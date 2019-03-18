@@ -166,11 +166,16 @@ func TestCoordinator_ClaimExistingTasks(t *testing.T) {
 
 	createChan := sched.TaskCreateChan()
 
-	const numTasks = 110 // One page of listed tasks should be 100, so pick more than that.
+	const numTasks = 110         // One page of listed tasks should be 100, so pick more than that.
+	const inactiveTaskIndex = 13 // One arbitrary task is set to inactive.
 
 	createdIDs := make([]platform.ID, numTasks)
 	for i := 0; i < numTasks; i++ {
-		id, err := st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script})
+		ctr := backend.CreateTaskRequest{Org: 1, AuthorizationID: 3, Script: script}
+		if i == inactiveTaskIndex {
+			ctr.Status = backend.TaskInactive
+		}
+		id, err := st.CreateTask(context.Background(), ctr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -179,15 +184,21 @@ func TestCoordinator_ClaimExistingTasks(t *testing.T) {
 
 	coordinator.New(zaptest.NewLogger(t), sched, st)
 
-	for i := 0; i < numTasks; i++ {
+	const expectedCreatedTasks = numTasks - 1 // -1 to skip the single inactive task.
+	for i := 0; i < expectedCreatedTasks; i++ {
 		_, err := timeoutSelector(createChan)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	for _, id := range createdIDs {
-		if task := sched.TaskFor(id); task == nil {
+	for i, id := range createdIDs {
+		task := sched.TaskFor(id)
+		if i == inactiveTaskIndex {
+			if task != nil {
+				t.Fatalf("inactive task with id %s claimed by coordinator at startup", id)
+			}
+		} else if task == nil {
 			t.Fatalf("did not find created task with ID %s", id)
 		}
 	}
