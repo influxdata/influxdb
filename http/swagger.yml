@@ -3136,7 +3136,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ResourceOwners"
+                $ref: "#/components/schemas/ResourceMembers"
         default:
           description: unexpected error
           content:
