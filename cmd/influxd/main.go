@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1"
@@ -31,7 +32,9 @@ func init() {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	rootCmd.InitDefaultHelpCmd()
+
 	rootCmd.AddCommand(launcher.NewCommand())
+	rootCmd.AddCommand(inspect.NewCommand())
 }
 
 // find determines the default behavior when running influxd.

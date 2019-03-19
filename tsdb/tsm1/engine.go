@@ -39,7 +39,7 @@ import (
 
 var (
 	// Static objects to prevent small allocs.
-	keyFieldSeparatorBytes = []byte(keyFieldSeparator)
+	KeyFieldSeparatorBytes = []byte(keyFieldSeparator)
 )
 
 var (
@@ -1281,7 +1281,7 @@ func SeriesFieldKey(seriesKey, field string) string {
 func SeriesFieldKeyBytes(seriesKey, field string) []byte {
 	b := make([]byte, len(seriesKey)+len(keyFieldSeparator)+len(field))
 	i := copy(b[:], seriesKey)
-	i += copy(b[i:], keyFieldSeparatorBytes)
+	i += copy(b[i:], KeyFieldSeparatorBytes)
 	copy(b[i:], field)
 	return b
 }
@@ -1303,7 +1303,7 @@ func BlockTypeToInfluxQLDataType(typ byte) influxql.DataType { return blockToFie
 
 // SeriesAndFieldFromCompositeKey returns the series key and the field key extracted from the composite key.
 func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {
-	sep := bytes.Index(key, keyFieldSeparatorBytes)
+	sep := bytes.Index(key, KeyFieldSeparatorBytes)
 	if sep == -1 {
 		// No field???
 		return key, nil
