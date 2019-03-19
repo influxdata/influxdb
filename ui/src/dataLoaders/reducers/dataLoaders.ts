@@ -137,8 +137,14 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           if (tp.name === action.payload.pluginName) {
             const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
 
+            const config = _.get(
+              plugin,
+              ['config', action.payload.fieldName],
+              []
+            )
+
             const updatedConfigFieldValue: string[] = [
-              ...plugin.config[action.payload.fieldName],
+              ...config,
               action.payload.value,
             ]
 
@@ -225,11 +231,8 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
               return {...tp, configured: ConfigurationState.Configured}
             }
 
-            const {config} = getDeep<Plugin>(
-              tp,
-              'plugin',
-              createNewPlugin(name)
-            )
+            const plugin = getDeep<Plugin>(tp, 'plugin', createNewPlugin(name))
+            const config = _.get(plugin, 'config', {})
 
             let isValidConfig = true
 
