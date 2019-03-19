@@ -14,6 +14,10 @@ import (
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 )
 
+const (
+	orgOneID = "020f755c3c083000"
+)
+
 var labelCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -483,9 +487,10 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			},
 			args: args{
 				permission: influxdb.Permission{
-					Action: "write",
+					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.LabelsResourceType,
+						ID:   influxdbtesting.IDPtr(influxdbtesting.MustIDBase16(orgOneID)),
+						Type: influxdb.OrgsResourceType,
 					},
 				},
 			},
@@ -512,7 +517,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:labels is unauthorized",
+					Msg:  "read:orgs/020f755c3c083000 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -526,7 +531,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateLabel(ctx, &influxdb.Label{Name: "name"})
+			err := s.CreateLabel(ctx, &influxdb.Label{Name: "name", OrganizationID: influxdbtesting.MustIDBase16(orgOneID)})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
