@@ -137,7 +137,7 @@
   },
   "dependencies": {
     "@influxdata/clockface": "0.0.5",
-    "@influxdata/influx": "0.2.45",
+    "@influxdata/influx": "0.2.46",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",

@@ -117,6 +117,7 @@ export const createLabel = (
 
 export const createAndAddLabel = (
   resource: string,
+  orgID: string = '',
   resourceID: string,
   name?: string
 ): Cypress.Chainable<Cypress.Response> => {
@@ -126,6 +127,7 @@ export const createAndAddLabel = (
       url: '/api/v2/labels',
       body: {
         name,
+        orgID,
         properties: {
           description: `test ${name}`,
           color: '#ff00ff',

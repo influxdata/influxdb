@@ -22,7 +22,6 @@ import {
   TelegrafPluginInputTail,
   TelegrafPluginOutputFile,
   TelegrafPluginOutputInfluxDBV2,
-  TelegrafPluginConfig,
   TelegrafPluginInputDockerConfig,
   TelegrafPluginInputFileConfig,
   TelegrafPluginInputKubernetesConfig,
@@ -89,7 +88,6 @@ export enum DataLoaderType {
 }
 
 export type PluginConfig =
-  | TelegrafPluginConfig
   | TelegrafPluginInputDockerConfig
   | TelegrafPluginInputFileConfig
   | TelegrafPluginInputKubernetesConfig

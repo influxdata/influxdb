@@ -434,10 +434,11 @@ const createTelegraf = async (dispatch, getState, plugins) => {
     tokenID: createdToken.id,
   } as ILabelProperties // hack to make compiler work
 
-  const createdLabel = await client.labels.create(
-    '@influxdata.token',
-    tokenLabel
-  )
+  const createdLabel = await client.labels.create({
+    orgID,
+    name: '@influxdata.token',
+    properties: tokenLabel,
+  })
 
   // add label to telegraf config
   const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)

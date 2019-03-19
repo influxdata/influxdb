@@ -121,11 +121,11 @@ describe('Tasks', () => {
 
       cy.get<Organization>('@org').then(({id}) => {
         cy.createTask(id).then(({body}) => {
-          cy.createAndAddLabel('tasks', body.id, newLabelName)
+          cy.createAndAddLabel('tasks', id, body.id, newLabelName)
         })
 
         cy.createTask(id).then(({body}) => {
-          cy.createAndAddLabel('tasks', body.id, 'bar')
+          cy.createAndAddLabel('tasks', id, body.id, 'bar')
         })
       })
 

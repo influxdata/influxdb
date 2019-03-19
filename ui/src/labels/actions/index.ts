@@ -81,11 +81,12 @@ export const getLabels = () => async (dispatch: Dispatch<Action>) => {
 }
 
 export const createLabel = (
+  orgID: string,
   name: string,
   properties: LabelProperties
 ) => async (dispatch: Dispatch<Action>) => {
   try {
-    const createdLabel = await client.labels.create(name, properties)
+    const createdLabel = await client.labels.create({orgID, name, properties})
 
     dispatch(addLabel(createdLabel))
   } catch (e) {

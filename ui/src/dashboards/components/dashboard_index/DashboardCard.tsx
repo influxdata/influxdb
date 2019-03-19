@@ -160,7 +160,7 @@ class DashboardCard extends PureComponent<Props> {
 
   private handleCreateLabel = async (label: ILabel): Promise<void> => {
     try {
-      await this.props.onCreateLabel(label.name, label.properties)
+      await this.props.onCreateLabel(label.orgID, label.name, label.properties)
 
       // notify success
     } catch (err) {
