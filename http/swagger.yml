@@ -6949,27 +6949,25 @@ components:
         organizationID:
           type: string
     TelegrafRequestPlugin:
-      type: object
-      discriminator:
-        propertyName: "name"
-      required:
-        - name
-        - type
-      properties:
-        name:
-          type: string
-          example: cpu
-        type:
-          type: string
-          enum:
-            - input
-            - output
+        oneOf:
+        - $ref: '#/components/schemas/TelegrafPluginInputCpu'
+        - $ref: '#/components/schemas/TelegrafPluginInputDisk'
+        - $ref: '#/components/schemas/TelegrafPluginInputDiskio'
+        - $ref: '#/components/schemas/TelegrafPluginInputDocker'
+        - $ref: '#/components/schemas/TelegrafPluginInputFile'
+        - $ref: '#/components/schemas/TelegrafPluginInputKubernetes'
+        - $ref: '#/components/schemas/TelegrafPluginInputLogParser'
+        - $ref: '#/components/schemas/TelegrafPluginInputProcstat'
+        - $ref: '#/components/schemas/TelegrafPluginInputPrometheus'
+        - $ref: '#/components/schemas/TelegrafPluginInputRedis'
+        - $ref: '#/components/schemas/TelegrafPluginInputSyslog'
+        - $ref: '#/components/schemas/TelegrafPluginOutputFile'
+        - $ref: '#/components/schemas/TelegrafPluginOutputInfluxDBV2'
     TelegrafPluginInputCpu:
       type: object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -6979,19 +6977,11 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputCpuRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputCpu"
     TelegrafPluginInputDisk:
       type: object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7001,20 +6991,12 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputDiskRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputDisk"
     TelegrafPluginInputDiskio:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7024,13 +7006,6 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputDiskioRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputDiskio"
     TelegrafPluginInputDocker:
       type:
         object
@@ -7049,11 +7024,6 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginInputDockerConfig'
-    TelegrafPluginInputDockerRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputDocker"
     TelegrafPluginInputFile:
       type:
         object
@@ -7072,18 +7042,12 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginInputFileConfig'
-    TelegrafPluginInputFileRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputFile"
     TelegrafPluginInputKernel:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7093,13 +7057,6 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputKernelRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputKernel"
     TelegrafPluginInputKubernetes:
       type:
         object
@@ -7118,11 +7075,6 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginInputKubernetesConfig'
-    TelegrafPluginInputKubernetesRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputKubernetes"
     TelegrafPluginInputLogParser:
       type:
         object
@@ -7141,18 +7093,12 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginInputLogParserConfig'
-    TelegrafPluginInputLogParserRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputLogParser"
     TelegrafPluginInputMem:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7162,20 +7108,12 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputMemRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputMem"
     TelegrafPluginInputNetResponse:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7185,20 +7123,12 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputNetResponseRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputNetResponse"
     TelegrafPluginInputNet:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7208,20 +7138,12 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputNetRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputNet"
     TelegrafPluginInputNginx:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7231,20 +7153,12 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputNginxRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputNginx"
     TelegrafPluginInputProcesses:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7254,13 +7168,6 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: "#/components/schemas/TelegrafPluginConfig"
-    TelegrafPluginInputProcessesRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputProcesses"
     TelegrafPluginInputProcstat:
       type:
         object
@@ -7279,11 +7186,6 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginInputProcstatConfig'
-    TelegrafPluginInputProcstatRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputProcstat"
     TelegrafPluginInputPrometheus:
       type:
         object
@@ -7302,11 +7204,6 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginInputPrometheusConfig'
-    TelegrafPluginInputPrometheusRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputPrometheus"
     TelegrafPluginInputRedis:
       type:
         object
@@ -7325,11 +7222,6 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginInputRedisConfig'
-    TelegrafPluginInputRedisRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputRedis"
     TelegrafPluginInputSyslog:
       type:
         object
@@ -7348,18 +7240,12 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginInputSyslogConfig'
-    TelegrafPluginInputSyslogRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputSyslog"
     TelegrafPluginInputSwap:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7369,20 +7255,12 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: '#/components/schemas/TelegrafPluginConfig'
-    TelegrafPluginInputSwapRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputSwap"
     TelegrafPluginInputSystem:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7392,20 +7270,12 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: '#/components/schemas/TelegrafPluginConfig'
-    TelegrafPluginInputSystemRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputSystem"
     TelegrafPluginInputTail:
       type:
         object
       required:
         - name
         - type
-        - config
       properties:
         name:
           type: string
@@ -7415,13 +7285,6 @@ components:
           enum: ["input"]
         comment:
           type: string
-        config:
-          $ref: '#/components/schemas/TelegrafPluginConfig'
-    TelegrafPluginInputTailRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginInputTail"
     TelegrafPluginOutputFile:
       type:
         object
@@ -7440,11 +7303,6 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginOutputFileConfig'
-    TelegrafPluginOutputFileRequest:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginOutputFile"
     TelegrafPluginOutputInfluxDBV2:
       type:
         object
@@ -7463,24 +7321,6 @@ components:
           type: string
         config:
           $ref: '#/components/schemas/TelegrafPluginOutputInfluxDBV2Config'
-    TelegrafPluginOutputInfluxDBV2Request:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/TelegrafRequestPlugin"
-        - $ref: "#/components/schemas/TelegrafPluginOutputInfluxDBV2"
-    TelegrafRequestConfig:
-      oneOf:
-        - $ref: '#/components/schemas/TelegrafPluginConfig'
-        - $ref: '#/components/schemas/TelegrafPluginInputDockerConfig'
-        - $ref: '#/components/schemas/TelegrafPluginInputFileConfig'
-        - $ref: '#/components/schemas/TelegrafPluginInputKubernetesConfig'
-        - $ref: '#/components/schemas/TelegrafPluginInputLogParserConfig'
-        - $ref: '#/components/schemas/TelegrafPluginInputProcstatConfig'
-        - $ref: '#/components/schemas/TelegrafPluginInputPrometheusConfig'
-        - $ref: '#/components/schemas/TelegrafPluginInputRedisConfig'
-        - $ref: '#/components/schemas/TelegrafPluginInputSyslogConfig'
-        - $ref: '#/components/schemas/TelegrafPluginOutputFileConfig'
-        - $ref: '#/components/schemas/TelegrafPluginOutputInfluxDBV2Config'
     Telegraf:
       type: object
       allOf:
@@ -7489,8 +7329,10 @@ components:
           properties:
             id:
               type: string
+              readOnly: true
             links:
               type: object
+              readOnly: true
               example:
                 self: "/api/v2/telegrafs/1"
                 lables: "/api/v2/telegrafs/1/labels"
@@ -7506,6 +7348,7 @@ components:
                 owners:
                   $ref: "#/components/schemas/Link"
             labels:
+              readOnly: true
               $ref: "#/components/schemas/Labels"
     Telegrafs:
       type: object
@@ -7514,8 +7357,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Telegraf"
-    TelegrafPluginConfig:
-      type: object
     TelegrafPluginInputDockerConfig:
       type: object
       required:
