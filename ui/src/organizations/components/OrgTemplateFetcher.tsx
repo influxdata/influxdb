@@ -48,11 +48,11 @@ const OrgTemplateFetcher: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState) => {
+const mstp = (state: AppState): StateProps => {
   return {templatesStatus: state.templates.status}
 }
 
-const mdtp = {
+const mdtp: DispatchProps = {
   onGetTemplatesForOrg: getTemplatesForOrg,
 }
 

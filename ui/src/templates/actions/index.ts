@@ -17,14 +17,14 @@ export type Actions = PopulateTemplateSummaries | SetTemplatesStatus
 
 export interface PopulateTemplateSummaries {
   type: ActionTypes.PopulateTemplateSummaries
-  payload: {items: TemplateSummary[]}
+  payload: {items: TemplateSummary[]; status: RemoteDataState}
 }
 
 export const populateTemplateSummaries = (
   items: TemplateSummary[]
 ): PopulateTemplateSummaries => ({
   type: ActionTypes.PopulateTemplateSummaries,
-  payload: {items},
+  payload: {items, status: RemoteDataState.Done},
 })
 
 export interface SetTemplatesStatus {

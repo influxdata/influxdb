@@ -26,11 +26,13 @@ class TemplateExportOverlay extends PureComponent<Props, State> {
     const {
       params: {id},
     } = this.props
-
-    const templateDocument = await client.templates.get(id)
-    const template = templateToExport(templateDocument)
-
-    this.setState({template})
+    try {
+      const templateDocument = await client.templates.get(id)
+      const template = templateToExport(templateDocument)
+      this.setState({template})
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   public render() {

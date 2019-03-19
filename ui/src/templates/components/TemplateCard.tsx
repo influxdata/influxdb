@@ -25,7 +25,6 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
     return (
       <ResourceList.Card
         testID="template-card"
-        labels={() => null}
         contextMenu={() => this.contextMenu}
         name={() => (
           <ResourceList.Name

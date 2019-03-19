@@ -21,7 +21,7 @@ const templatesReducer = (
       return {
         ...state,
         items: action.payload.items,
-        status: RemoteDataState.Done,
+        status: action.payload.status,
       }
     case ActionTypes.SetTemplatesStatus:
       return {
