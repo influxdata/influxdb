@@ -42,66 +42,66 @@ class ConfigurationPage extends Component<Props> {
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
-            <TabbedPage
-              name={'Configuration'}
-              parentUrl={`/configuration`}
-              activeTabUrl={tab}
-            >
-              <TabbedPageSection
-                id="labels_tab"
-                url="labels_tab"
-                title="Labels"
+            <GetResources resource={ResourceTypes.Authorizations}>
+              <TabbedPage
+                name={'Configuration'}
+                parentUrl={`/configuration`}
+                activeTabUrl={tab}
               >
-                <GetResources resource={ResourceTypes.Labels}>
-                  <Labels />
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="buckets_tab"
-                url="buckets_tab"
-                title="Buckets"
-              >
-                <GetResources resource={ResourceTypes.Buckets}>
-                  <Buckets />
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="telegrafs_tab"
-                url="telegrafs_tab"
-                title="Telegraf"
-              >
-                <GetResources resource={ResourceTypes.Buckets}>
-                  <GetResources resource={ResourceTypes.Telegrafs}>
-                    <Telegrafs />
+                <TabbedPageSection
+                  id="labels_tab"
+                  url="labels_tab"
+                  title="Labels"
+                >
+                  <GetResources resource={ResourceTypes.Labels}>
+                    <Labels />
                   </GetResources>
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="variables_tab"
-                url="variables_tab"
-                title="Variables"
-              >
-                <GetResources resource={ResourceTypes.Variables}>
-                  <Variables />
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="tokens_tab"
-                url="tokens_tab"
-                title="Tokens"
-              >
-                <GetResources resource={ResourceTypes.Authorizations}>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="buckets_tab"
+                  url="buckets_tab"
+                  title="Buckets"
+                >
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <Buckets />
+                  </GetResources>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="telegrafs_tab"
+                  url="telegrafs_tab"
+                  title="Telegraf"
+                >
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <GetResources resource={ResourceTypes.Telegrafs}>
+                      <Telegrafs />
+                    </GetResources>
+                  </GetResources>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="variables_tab"
+                  url="variables_tab"
+                  title="Variables"
+                >
+                  <GetResources resource={ResourceTypes.Variables}>
+                    <Variables />
+                  </GetResources>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="tokens_tab"
+                  url="tokens_tab"
+                  title="Tokens"
+                >
                   <Tokens />
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="settings_tab"
-                url="settings_tab"
-                title="Profile"
-              >
-                <Settings />
-              </TabbedPageSection>
-            </TabbedPage>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="settings_tab"
+                  url="settings_tab"
+                  title="Profile"
+                >
+                  <Settings />
+                </TabbedPageSection>
+              </TabbedPage>
+            </GetResources>
           </div>
         </Page.Contents>
       </Page>

@@ -39,6 +39,7 @@ import {
 } from '@influxdata/influx'
 import {Dispatch} from 'redux'
 import {addTelegraf} from 'src/telegrafs/actions'
+import {addAuthorization} from 'src/authorizations/actions'
 
 type GetState = () => AppState
 
@@ -420,17 +421,23 @@ const createTelegraf = async (dispatch, getState, plugins) => {
   // create token
   const createdToken = await createAuthorization(token)
 
+  // add token to data loader state
   dispatch(setToken(createdToken.token))
+
+  // add token to authorizations state
+  dispatch(addAuthorization(createdToken))
 
   // create label
   const tokenLabel = {
     color: '#FFFFFF',
     description: `token for telegraf config: ${telegrafConfigName}`,
     tokenID: createdToken.id,
-    token: createdToken.token,
   } as ILabelProperties // hack to make compiler work
 
-  const createdLabel = await client.labels.create('token', tokenLabel)
+  const createdLabel = await client.labels.create(
+    '@influxdata.token',
+    tokenLabel
+  )
 
   // add label to telegraf config
   const label = await client.telegrafConfigs.addLabel(tc.id, createdLabel)
