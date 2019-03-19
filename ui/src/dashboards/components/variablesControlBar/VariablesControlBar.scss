@@ -8,11 +8,10 @@ $variables-control-bar--gutter: $ix-marg-a;
 .variables-control-bar {
   min-height: $variables-control-bar--height;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
   padding: 0 ($page-gutter - ($variables-control-bar--gutter / 2));
-  padding-bottom: (($page-header-size - $form-sm-height) / 2) -
-    $variables-control-bar--gutter;
+  padding-bottom: (($page-header-size - $form-sm-height) / 2);
 
   /* Adjust height of Page Contents when control bar is present */
   & + .page-contents {
@@ -23,7 +22,6 @@ $variables-control-bar--gutter: $ix-marg-a;
 
   .variable-dropdown {
     margin: 0 $variables-control-bar--gutter / 2;
-    margin-bottom: $variables-control-bar--gutter;
   }
 }
 
@@ -32,4 +30,8 @@ $variables-control-bar--gutter: $ix-marg-a;
   border-radius: $radius;
   height: 100%;
   justify-content: center;
+}
+
+.variables-control-bar > .techno-spinner {
+  margin-left: 10px;
 }

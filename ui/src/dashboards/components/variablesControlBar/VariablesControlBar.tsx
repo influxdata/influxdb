@@ -6,15 +6,16 @@ import _ from 'lodash'
 // Components
 import VariableDropdown from 'src/dashboards/components/variablesControlBar/VariableDropdown'
 import {EmptyState, ComponentSize} from 'src/clockface'
+import {TechnoSpinner} from '@influxdata/clockface'
 
 // Utils
-import {getVariablesForDashboard} from 'src/variables/selectors'
+import {
+  getVariablesForDashboard,
+  getDashboardValuesStatus,
+} from 'src/variables/selectors'
 
 // Styles
 import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss'
-
-// Actions
-import {selectValue} from 'src/variables/actions'
 
 // Types
 import {AppState} from 'src/types/v2'
@@ -22,6 +23,7 @@ import {Variable} from '@influxdata/influx'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
   dashboardID: string
@@ -29,18 +31,15 @@ interface OwnProps {
 
 interface StateProps {
   variables: Variable[]
+  valuesStatus: RemoteDataState
 }
 
-interface DispatchProps {
-  selectValue: typeof selectValue
-}
-
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & OwnProps
 
 @ErrorHandling
 class VariablesControlBar extends PureComponent<Props> {
   render() {
-    const {dashboardID, variables} = this.props
+    const {dashboardID, variables, valuesStatus} = this.props
 
     if (_.isEmpty(variables)) {
       return (
@@ -57,36 +56,27 @@ class VariablesControlBar extends PureComponent<Props> {
 
     return (
       <div className="variables-control-bar">
-        {variables.map(v => {
-          return (
-            <VariableDropdown
-              key={v.id}
-              name={v.name}
-              variableID={v.id}
-              dashboardID={dashboardID}
-              onSelect={this.handleSelectValue}
-            />
-          )
-        })}
+        {variables.map(v => (
+          <VariableDropdown
+            key={v.id}
+            name={v.name}
+            variableID={v.id}
+            dashboardID={dashboardID}
+          />
+        ))}
+        {valuesStatus === RemoteDataState.Loading && (
+          <TechnoSpinner diameterPixels={18} />
+        )}
       </div>
     )
   }
-
-  private handleSelectValue = (variableID: string, value: string) => {
-    const {selectValue, dashboardID} = this.props
-    selectValue(dashboardID, variableID, value)
-  }
-}
-
-const mdtp = {
-  selectValue: selectValue,
 }
 
 const mstp = (state: AppState, props: OwnProps): StateProps => {
-  return {variables: getVariablesForDashboard(state, props.dashboardID)}
+  const variables = getVariablesForDashboard(state, props.dashboardID)
+  const valuesStatus = getDashboardValuesStatus(state, props.dashboardID)
+
+  return {variables, valuesStatus}
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
-  mdtp
-)(VariablesControlBar)
+export default connect<StateProps, {}, OwnProps>(mstp)(VariablesControlBar)

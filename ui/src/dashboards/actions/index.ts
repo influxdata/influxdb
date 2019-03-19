@@ -31,11 +31,15 @@ import {
   importDashboardFailed,
 } from 'src/shared/copy/notifications'
 import {setView, SetViewAction, setViews} from 'src/dashboards/actions/views'
-import {getVariables, refreshVariableValues} from 'src/variables/actions'
+import {
+  getVariables,
+  refreshVariableValues,
+  selectValue,
+} from 'src/variables/actions'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {getVariablesForOrg} from 'src/variables/selectors'
+import {getVariablesForOrg, getHydratedVariables} from 'src/variables/selectors'
 import {getViewsForDashboard} from 'src/dashboards/selectors'
 import {
   getNewDashboardCell,
@@ -450,4 +454,19 @@ export const removeDashboardLabelsAsync = (
     console.error(error)
     dispatch(notify(copy.removedDashboardLabelFailed()))
   }
+}
+
+export const selectVariableValue = (
+  dashboardID: string,
+  variableID: string,
+  value: string
+) => async (dispatch, getState: GetState): Promise<void> => {
+  const variables = getHydratedVariables(getState(), dashboardID)
+  const dashboard = getState().dashboards.find(d => d.id === dashboardID)
+
+  dispatch(selectValue(dashboardID, variableID, value))
+
+  await dispatch(
+    refreshVariableValues(dashboard.id, dashboard.orgID, variables)
+  )
 }
