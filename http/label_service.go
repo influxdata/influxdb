@@ -78,9 +78,16 @@ func (b postLabelRequest) Validate() error {
 			Msg:  "label requires a name",
 		}
 	}
+	if !b.Label.OrganizationID.Valid() {
+		return &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "label requires a valid orgID",
+		}
+	}
 	return nil
 }
 
+// TODO(jm): ensure that the specified org actually exists
 func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelRequest, error) {
 	l := &platform.Label{}
 	if err := json.NewDecoder(r.Body).Decode(l); err != nil {
