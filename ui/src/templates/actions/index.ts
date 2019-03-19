@@ -2,17 +2,18 @@ import _ from 'lodash'
 
 //Types
 import {TemplateSummary, DocumentCreate} from '@influxdata/influx'
+import {RemoteDataState} from 'src/types'
 
 // API
 import {client} from 'src/utils/api'
 
 export enum ActionTypes {
-  getTemplateSummariesForOrg = 'GET_TEMPLATE_SUMMARIES_FOR_ORG',
+  GetTemplateSummariesForOrg = 'GET_TEMPLATE_SUMMARIES_FOR_ORG',
   PopulateTemplateSummaries = 'POPULATE_TEMPLATE_SUMMARIES',
-  SetStatusToLoading = 'SET_STATUS_TO_LOADING',
+  SetTemplatesStatus = 'SET_TEMPLATES_STATUS',
 }
 
-export type Actions = PopulateTemplateSummaries | SetStatusToLoading
+export type Actions = PopulateTemplateSummaries | SetTemplatesStatus
 
 export interface PopulateTemplateSummaries {
   type: ActionTypes.PopulateTemplateSummaries
@@ -26,18 +27,20 @@ export const populateTemplateSummaries = (
   payload: {items},
 })
 
-export interface SetStatusToLoading {
-  type: ActionTypes.SetStatusToLoading
-  payload: {}
+export interface SetTemplatesStatus {
+  type: ActionTypes.SetTemplatesStatus
+  payload: {status: RemoteDataState}
 }
 
-export const setStatusToLoading = (): SetStatusToLoading => ({
-  type: ActionTypes.SetStatusToLoading,
-  payload: {},
+export const setTemplatesStatus = (
+  status: RemoteDataState
+): SetTemplatesStatus => ({
+  type: ActionTypes.SetTemplatesStatus,
+  payload: {status},
 })
 
 export const getTemplatesForOrg = (orgName: string) => async dispatch => {
-  dispatch(setStatusToLoading)
+  dispatch(setTemplatesStatus(RemoteDataState.Loading))
   const items = await client.templates.getAll(orgName)
   dispatch(populateTemplateSummaries(items))
 }

@@ -51,12 +51,6 @@ export default class OrgTemplatesList extends PureComponent<Props, State> {
               sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
-            <ResourceList.Sorter
-              name="Type"
-              sortKey={headerKeys[1]}
-              sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
-            />
           </ResourceList.Header>
           <ResourceList.Body
             emptyState={

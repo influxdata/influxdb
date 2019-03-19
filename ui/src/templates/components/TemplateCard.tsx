@@ -42,6 +42,7 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
+  //TODO handle rename template
   private doNothing = () => {}
 
   private get contextMenu(): JSX.Element {

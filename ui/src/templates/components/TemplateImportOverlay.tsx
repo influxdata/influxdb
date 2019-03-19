@@ -8,13 +8,16 @@ import ImportOverlay from 'src/shared/components/ImportOverlay'
 // Actions
 import {
   createTemplate as createTemplateAction,
-  getTemplatesForOrg as getTemplatesForOrgAction,
+  setTemplatesStatus as setTemplatesStatusAction,
 } from 'src/templates/actions'
+
+// Types
 import {AppState, Organization} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
 
 interface DispatchProps {
   createTemplate: typeof createTemplateAction
-  getTemplatesForOrg: typeof getTemplatesForOrgAction
+  setTemplatesStatus: typeof setTemplatesStatusAction
 }
 
 interface StateProps {
@@ -29,12 +32,11 @@ type Props = DispatchProps & OwnProps & StateProps
 
 class TemplateImportOverlay extends PureComponent<Props> {
   public render() {
-    const {org} = this.props
     return (
       <ImportOverlay
         onDismissOverlay={this.onDismiss}
         resourceName="Template"
-        onSubmit={this.handleImportTemplate(org.name)}
+        onSubmit={this.handleImportTemplate}
       />
     )
   }
@@ -45,17 +47,15 @@ class TemplateImportOverlay extends PureComponent<Props> {
     router.goBack()
   }
 
-  private handleImportTemplate = (orgName: string) => async (
+  private handleImportTemplate = () => async (
     importString: string
   ): Promise<void> => {
-    const {createTemplate, getTemplatesForOrg} = this.props
-
+    const {createTemplate} = this.props
+    const {setTemplatesStatus} = this.props
     try {
       const template = JSON.parse(importString)
-
       await createTemplate(template)
-
-      getTemplatesForOrg(orgName)
+      setTemplatesStatus(RemoteDataState.NotStarted)
     } catch (error) {}
 
     this.onDismiss()
@@ -72,7 +72,7 @@ const mstp = (state: AppState, props: Props): StateProps => {
 
 const mdtp: DispatchProps = {
   createTemplate: createTemplateAction,
-  getTemplatesForOrg: getTemplatesForOrgAction,
+  setTemplatesStatus: setTemplatesStatusAction,
 }
 
 export default connect<StateProps, DispatchProps, Props>(

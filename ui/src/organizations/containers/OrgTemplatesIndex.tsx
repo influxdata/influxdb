@@ -12,9 +12,13 @@ import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSecti
 import OrgTemplateFetcher from 'src/organizations/components/OrgTemplateFetcher'
 import OrgTemplatesPage from 'src/organizations/components/OrgTemplatesPage'
 
+//Actions
+import {setTemplatesStatus as setTemplatesStatusAction} from 'src/templates/actions/index'
+
 // Types
 import {Organization, TemplateSummary} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
 
 interface RouterProps {
   params: {
@@ -27,10 +31,19 @@ interface StateProps {
   templates: TemplateSummary[]
 }
 
-type Props = WithRouterProps & RouterProps & StateProps
+interface DispatchProps {
+  setTemplatesStatus: typeof setTemplatesStatusAction
+}
+
+type Props = WithRouterProps & RouterProps & StateProps & DispatchProps
 
 @ErrorHandling
 class OrgTemplatesIndex extends Component<Props> {
+  public componentWillUnmount() {
+    const {setTemplatesStatus} = this.props
+    setTemplatesStatus(RemoteDataState.NotStarted)
+  }
+
   public render() {
     const {org, templates} = this.props
     return (
@@ -83,6 +96,11 @@ const mstp = (state: AppState, props: Props): StateProps => {
   }
 }
 
-export default connect<StateProps, {}, {}>(mstp)(
-  withRouter<{}>(OrgTemplatesIndex)
-)
+const mdtp = {
+  setTemplatesStatus: setTemplatesStatusAction,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(withRouter<{}>(OrgTemplatesIndex))
