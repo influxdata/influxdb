@@ -36,34 +36,38 @@ func (b QueryServiceProxyBridge) Query(ctx context.Context, req *Request) (flux.
 	}
 
 	r, w := io.Pipe()
-	statsChan := make(chan flux.Statistics, 1)
+	asri := &asyncStatsResultIterator{statsReady: make(chan struct{})}
 
 	go func() {
 		stats, err := b.ProxyQueryService.Query(ctx, w, preq)
 		_ = w.CloseWithError(err)
-		statsChan <- stats
+		asri.stats = stats
+		close(asri.statsReady)
 	}()
 
 	dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
 	ri, err := dec.Decode(r)
-	return asyncStatsResultIterator{
-		ResultIterator: ri,
-		statsChan:      statsChan,
-	}, err
+	asri.ResultIterator = ri
+	return asri, err
 }
 
 type asyncStatsResultIterator struct {
 	flux.ResultIterator
-	statsChan chan flux.Statistics
-	stats     flux.Statistics
+
+	// Channel that is closed when stats have been written.
+	statsReady chan struct{}
+
+	// Statistics gathered from calling the proxy query service.
+	// This field must not be read until statsReady is closed.
+	stats flux.Statistics
 }
 
-func (i asyncStatsResultIterator) Release() {
+func (i *asyncStatsResultIterator) Release() {
 	i.ResultIterator.Release()
-	i.stats = <-i.statsChan
 }
 
-func (i asyncStatsResultIterator) Statistics() flux.Statistics {
+func (i *asyncStatsResultIterator) Statistics() flux.Statistics {
+	<-i.statsReady
 	return i.stats
 }
 
