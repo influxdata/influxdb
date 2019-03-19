@@ -55,7 +55,8 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: id,
+							ID:             id,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 				},
@@ -80,7 +81,8 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: id,
+							ID:             id,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 				},
@@ -97,7 +99,7 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:labels/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/020f755c3c083000/labels/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -142,13 +144,16 @@ func TestLabelService_FindLabels(t *testing.T) {
 					FindLabelsFn: func(ctx context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID: 1,
+								ID:             1,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 2,
+								ID:             2,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 3,
+								ID:             3,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -165,13 +170,16 @@ func TestLabelService_FindLabels(t *testing.T) {
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID: 1,
+						ID:             1,
+						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 					{
-						ID: 2,
+						ID:             2,
+						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 					{
-						ID: 3,
+						ID:             3,
+						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -183,13 +191,16 @@ func TestLabelService_FindLabels(t *testing.T) {
 					FindLabelsFn: func(ctx context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID: 1,
+								ID:             1,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 2,
+								ID:             2,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 3,
+								ID:             3,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -207,7 +218,8 @@ func TestLabelService_FindLabels(t *testing.T) {
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID: 1,
+						ID:             1,
+						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -219,13 +231,16 @@ func TestLabelService_FindLabels(t *testing.T) {
 					FindLabelsFn: func(ctx context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID: 1,
+								ID:             1,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 2,
+								ID:             2,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 3,
+								ID:             3,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -287,12 +302,14 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					UpdateLabelFn: func(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 				},
@@ -319,12 +336,14 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					UpdateLabelFn: func(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 				},
@@ -343,7 +362,7 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:labels/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/020f755c3c083000/labels/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -387,7 +406,8 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelFn: func(ctx context.Context, id influxdb.ID) error {
@@ -401,8 +421,9 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.LabelsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.LabelsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(influxdbtesting.MustIDBase16(orgOneID)),
 						},
 					},
 				},
@@ -417,7 +438,8 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelFn: func(ctx context.Context, id influxdb.ID) error {
@@ -431,15 +453,16 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.LabelsResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type:  influxdb.LabelsResourceType,
+							ID:    influxdbtesting.IDPtr(1),
+							OrgID: influxdbtesting.IDPtr(influxdbtesting.MustIDBase16(orgOneID)),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:labels/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/020f755c3c083000/labels/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -562,13 +585,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID: 1,
+								ID:             1,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 2,
+								ID:             2,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 3,
+								ID:             3,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -599,13 +625,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				err: nil,
 				labels: []*influxdb.Label{
 					{
-						ID: 1,
+						ID:             1,
+						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 					{
-						ID: 2,
+						ID:             2,
+						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 					{
-						ID: 3,
+						ID:             3,
+						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -617,13 +646,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID: 1,
+								ID:             1,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 2,
+								ID:             2,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 3,
+								ID:             3,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -655,7 +687,8 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				err: nil,
 				labels: []*influxdb.Label{
 					{
-						ID: 3,
+						ID:             3,
+						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -667,13 +700,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID: 1,
+								ID:             1,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 2,
+								ID:             2,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 3,
+								ID:             3,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -705,13 +741,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID: 1,
+								ID:             1,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 2,
+								ID:             2,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID: 3,
+								ID:             3,
+								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
