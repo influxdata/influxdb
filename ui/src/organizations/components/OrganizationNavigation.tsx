@@ -61,12 +61,17 @@ class OrganizationNavigation extends PureComponent<Props> {
             active={'scrapers' === tab}
           />
         </CloudFeatureFlag>
-
         <Tabs.Tab
           title={'Variables'}
           id={'variables'}
           url={`${route}/variables`}
           active={'variables' === tab}
+        />
+        <Tabs.Tab
+          title={'Templates'}
+          id={'templates'}
+          url={`${route}/templates`}
+          active={'templates' === tab}
         />
       </Tabs.Nav>
     )

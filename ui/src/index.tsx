@@ -49,6 +49,9 @@ import TaskExportOverlay from 'src/organizations/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/organizations/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
+import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
+import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
+import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -136,6 +139,19 @@ class Root extends PureComponent {
                               path="telegrafs"
                               component={OrgTelegrafsIndex}
                             />
+                            <Route
+                              path="templates"
+                              component={OrgTemplatesIndex}
+                            >
+                              <Route
+                                path="import"
+                                component={TemplateImportOverlay}
+                              />
+                              <Route
+                                path=":id/export"
+                                component={TemplateExportOverlay}
+                              />
+                            </Route>
                             <Route
                               path="variables"
                               component={OrgVariablesIndex}
