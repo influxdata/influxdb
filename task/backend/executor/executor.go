@@ -63,7 +63,7 @@ type syncRunPromise struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	logger *zap.Logger
-	logEnd func()
+	logEnd func() // Called to log the end of the run operation.
 
 	finishOnce sync.Once     // Ensure we set the values only once.
 	ready      chan struct{} // Closed inside finish. Indicates Wait will no longer block.
@@ -169,6 +169,10 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 		}
 	}
 
+	// Must call Release to ensure Statistics are ready.
+	// It's safe for Release to be called multiple times.
+	it.Release()
+
 	// Is it okay to assume it.Err will be set if the query context is canceled?
 	p.finish(&runResult{err: it.Err(), statistics: it.Statistics()}, nil)
 }
@@ -245,7 +249,7 @@ type asyncRunPromise struct {
 	q  flux.Query
 
 	logger *zap.Logger
-	logEnd func()
+	logEnd func() // Called to log the end of the run operation.
 
 	finishOnce sync.Once     // Ensure we set the values only once.
 	ready      chan struct{} // Closed inside finish. Indicates Wait will no longer block.
@@ -327,8 +331,9 @@ func (p *asyncRunPromise) followQuery(wg *sync.WaitGroup) {
 		wg.Wait()
 
 		// Otherwise, query was successful.
-		// TODO(mr): collect query statistics, once RunResult interface supports them?
-		p.finish(new(runResult), nil)
+		// Must call query.Done before collecting statistics. It's safe to call multiple times.
+		p.q.Done()
+		p.finish(&runResult{statistics: p.q.Statistics()}, nil)
 	}
 }
 
