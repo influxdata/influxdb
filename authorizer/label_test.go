@@ -818,6 +818,12 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 			name: "authorized to create label mapping",
 			fields: fields{
 				LabelService: &mock.LabelService{
+					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+						return &influxdb.Label{
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						}, nil
+					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
 						return nil
 					},
@@ -853,6 +859,12 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 			name: "unauthorized to create label mapping for resources on which the user does not have write access",
 			fields: fields{
 				LabelService: &mock.LabelService{
+					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+						return &influxdb.Label{
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						}, nil
+					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
 						return nil
 					},
@@ -884,6 +896,12 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 			name: "unauthorized to create label mapping",
 			fields: fields{
 				LabelService: &mock.LabelService{
+					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+						return &influxdb.Label{
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						}, nil
+					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
 						return nil
 					},
@@ -906,7 +924,7 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:labels/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/020f755c3c083000/labels/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -950,7 +968,8 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
@@ -990,7 +1009,8 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
@@ -1026,7 +1046,8 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID: 1,
+							ID:             1,
+							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
@@ -1051,7 +1072,7 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:labels/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/020f755c3c083000/labels/0000000000000001 is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
