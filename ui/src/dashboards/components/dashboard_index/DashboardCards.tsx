@@ -1,14 +1,20 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCard'
 
-// Types
-import {Dashboard} from 'src/types'
+// Selectors
+import {getSortedResource} from 'src/shared/selectors/sort'
 
-interface Props {
-  dashboards: Dashboard[]
+// Types
+import {Dashboard, AppState} from 'src/types'
+import {Sort} from 'src/clockface'
+
+interface OwnProps {
+  sortDirection: Sort
+  sortKey: string
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
@@ -16,7 +22,13 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-export default class DashboardCards extends PureComponent<Props> {
+interface StateProps {
+  dashboards: Dashboard[]
+}
+
+type Props = OwnProps & StateProps
+
+class DashboardCards extends PureComponent<Props> {
   public render() {
     const {
       dashboards,
@@ -40,3 +52,11 @@ export default class DashboardCards extends PureComponent<Props> {
     ))
   }
 }
+
+const mstp = (state: AppState, props: OwnProps) => {
+  return {
+    dashboards: getSortedResource(state.dashboards, props),
+  }
+}
+
+export default connect<StateProps, {}, OwnProps>(mstp)(DashboardCards)

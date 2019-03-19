@@ -27,10 +27,6 @@ interface Props {
   onImportDashboard: () => void
 }
 
-interface DatedDashboard extends Dashboard {
-  modified: Date
-}
-
 interface State {
   sortKey: SortKey
   sortDirection: Sort
@@ -48,7 +44,14 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   }
 
   public render() {
-    const {filterComponent} = this.props
+    const {
+      filterComponent,
+      onCloneDashboard,
+      onDeleteDashboard,
+      onUpdateDashboard,
+      showOwnerColumn,
+      onFilterChange,
+    } = this.props
     const {sortKey, sortDirection} = this.state
 
     return (
@@ -69,7 +72,15 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
           />
         </ResourceList.Header>
         <ResourceList.Body emptyState={this.emptyState}>
-          {this.sortedCards}
+          <DashboardCards
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onCloneDashboard={onCloneDashboard}
+            onDeleteDashboard={onDeleteDashboard}
+            onUpdateDashboard={onUpdateDashboard}
+            showOwnerColumn={showOwnerColumn}
+            onFilterChange={onFilterChange}
+          />
         </ResourceList.Body>
       </ResourceList>
     )
@@ -97,49 +108,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
     this.setState({sortKey, sortDirection: nextSort})
-  }
-
-  private get sortedCards(): JSX.Element {
-    const {
-      dashboards,
-      onCloneDashboard,
-      onDeleteDashboard,
-      onUpdateDashboard,
-      showOwnerColumn,
-      onFilterChange,
-    } = this.props
-
-    const {sortKey, sortDirection} = this.state
-
-    if (dashboards.length) {
-      return (
-        <SortingHat<DatedDashboard>
-          list={this.datedDashboards}
-          sortKey={sortKey}
-          direction={sortDirection}
-        >
-          {ds => (
-            <DashboardCards
-              dashboards={ds}
-              onCloneDashboard={onCloneDashboard}
-              onDeleteDashboard={onDeleteDashboard}
-              onUpdateDashboard={onUpdateDashboard}
-              showOwnerColumn={showOwnerColumn}
-              onFilterChange={onFilterChange}
-            />
-          )}
-        </SortingHat>
-      )
-    }
-
-    return null
-  }
-
-  private get datedDashboards(): DatedDashboard[] {
-    return this.props.dashboards.map(d => ({
-      ...d,
-      modified: new Date(d.meta.updatedAt),
-    }))
   }
 
   private get emptyState(): JSX.Element {

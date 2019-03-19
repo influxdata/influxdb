@@ -182,6 +182,7 @@
     "redux": "^4.0.0",
     "redux-auth-wrapper": "^1.0.0",
     "redux-thunk": "^1.0.3",
+    "reselect": "^4.0.0",
     "rome": "^2.1.22",
     "ui": "^0.2.4",
     "uuid": "^3.2.1"
