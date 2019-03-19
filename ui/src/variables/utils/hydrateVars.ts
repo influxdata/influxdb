@@ -33,10 +33,7 @@ interface HydrateVarsOptions {
   fetcher?: ValueFetcher
 }
 
-const createVariableGraph = (
-  variables: Variable[],
-  allVariables: Variable[]
-): VariableNode[] => {
+const createVariableGraph = (allVariables: Variable[]): VariableNode[] => {
   const nodesByID: {[variableID: string]: VariableNode} = {}
 
   // First initialize all the nodes
@@ -68,15 +65,64 @@ const createVariableGraph = (
     }
   }
 
-  // Only return a graph containing nodes for the variables we care about and
-  // their dependencies
-  const relevantSubGraph = Object.values(nodesByID).filter(
-    node =>
-      variables.includes(node.variable) ||
-      node.parents.some(parent => variables.includes(parent.variable))
-  )
+  return Object.values(nodesByID)
+}
 
-  return relevantSubGraph
+/*
+  Collect all ancestors of a node.
+
+  A node `a` is an ancestor of `b` if there exists a path from `a` to `b`.
+
+  This function is safe to call on a node within a graph with cycles.
+*/
+const collectAncestors = (
+  node: VariableNode,
+  acc = new Set()
+): VariableNode[] => {
+  for (const parent of node.parents) {
+    if (!acc.has(parent)) {
+      acc.add(parent)
+      collectAncestors(parent, acc)
+    }
+  }
+
+  return [...acc]
+}
+
+/*
+  Given a variable graph, return the minimal subgraph containing only the nodes
+  needed to hydrate the values for variables in the passed `variables` argument.
+
+  We discard all nodes in the graph unless:
+
+  - It is the node for one of the passed variables
+  - The node for one of the passed variables depends on this node
+
+*/
+const findSubgraph = (
+  graph: VariableNode[],
+  variables: Variable[]
+): VariableNode[] => {
+  const subgraph = new Set()
+
+  for (const node of graph) {
+    const shouldKeep =
+      variables.includes(node.variable) ||
+      collectAncestors(node).some(ancestor =>
+        variables.includes(ancestor.variable)
+      )
+
+    if (shouldKeep) {
+      subgraph.add(node)
+    }
+  }
+
+  for (const node of subgraph) {
+    node.parents = node.parents.filter(node => subgraph.has(node))
+    node.children = node.children.filter(node => subgraph.has(node))
+  }
+
+  return [...subgraph]
 }
 
 /*
@@ -260,21 +306,12 @@ const invalidateCycles = (graph: VariableNode[]): void => {
 
 /*
   Given a node, mark all ancestors of that node as `Error`.
-
-  A node `a` is an ancestor of `b` if there exists a path from `a` to `b`.
-
-  Traversing the ancestors of a node stops at `Error` nodes. In this case it is
-  assumed that every ancestor of the `Error` node has also been marked as
-  `Error`; this is to avoid getting caught in cycles. Nodes within cycles and
-  nodes leading to cycles should have already been invalidated at this point by
-  `invalidateCycles`.
 */
 const invalidateAncestors = (node: VariableNode): void => {
-  for (const parent of node.parents) {
-    if (parent.status !== RemoteDataState.Error) {
-      parent.status = RemoteDataState.Error
-      invalidateAncestors(parent)
-    }
+  const ancestors = collectAncestors(node)
+
+  for (const ancestor of ancestors) {
+    ancestor.status = RemoteDataState.Error
   }
 }
 
@@ -336,7 +373,7 @@ export const hydrateVars = (
   allVariables: Variable[],
   options: HydrateVarsOptions
 ): WrappedCancelablePromise<VariableValuesByID> => {
-  const graph = createVariableGraph(variables, allVariables)
+  const graph = findSubgraph(createVariableGraph(allVariables), variables)
 
   invalidateCycles(graph)
 
