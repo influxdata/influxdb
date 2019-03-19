@@ -6,8 +6,6 @@ import {Page} from 'src/pageLayout'
 import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
-import 'src/tasks/components/TasksPage.scss'
-
 interface Props {
   onCreateTemplate: () => void
   onImportTemplate: () => void

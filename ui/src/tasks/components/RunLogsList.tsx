@@ -10,9 +10,6 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 // Types
 import {LogEvent} from '@influxdata/influx'
 
-// Stylesheet
-import './RunLogsList.scss'
-
 interface Props {
   onDismissOverlay: () => void
   logs: LogEvent[]

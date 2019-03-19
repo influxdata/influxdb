@@ -3,15 +3,11 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
+// Components
+import {Grid, Columns} from 'src/clockface'
 import PrecisionDropdown from 'src/dataLoaders/components/lineProtocolWizard/configure/PrecisionDropdown'
 import TabSelector from 'src/dataLoaders/components/lineProtocolWizard/configure/TabSelector'
 import TabBody from 'src/dataLoaders/components/lineProtocolWizard/configure/TabBody'
-
-// Types
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
-
-// Components
-import {Grid, Columns} from 'src/clockface'
 
 // Actions
 import {
@@ -21,10 +17,9 @@ import {
   setPrecision,
 } from 'src/dataLoaders/actions/dataLoaders'
 
+// Types
+import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2/index'
-
-// Styles
-import 'src/clockface/components/auto_input/AutoInput.scss'
 import {WritePrecision} from '@influxdata/influx'
 
 interface OwnProps {

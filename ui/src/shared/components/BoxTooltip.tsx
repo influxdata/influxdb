@@ -5,9 +5,6 @@ import {createPortal} from 'react-dom'
 // Constants
 import {TOOLTIP_PORTAL_ID} from 'src/shared/components/TooltipPortal'
 
-// Styles
-import 'src/shared/components/BoxTooltip.scss'
-
 interface Props {
   triggerRect: DOMRect
   children: JSX.Element

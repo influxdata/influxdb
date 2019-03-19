@@ -11,9 +11,6 @@ import VariableItem from 'src/timeMachine/components/variableToolbar/VariableIte
 import {getVariablesForOrg} from 'src/variables/selectors'
 import {getActiveOrg} from 'src/organizations/selectors'
 
-// Styles
-import 'src/timeMachine/components/variableToolbar/VariableToolbar.scss'
-
 // Types
 import {Variable} from '@influxdata/influx'
 import {AppState} from 'src/types/v2'

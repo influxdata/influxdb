@@ -8,8 +8,6 @@ import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
 import TaskOrgDropdown from 'src/tasks/components/TasksOrgDropdown'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
-import 'src/tasks/components/TasksPage.scss'
-
 interface Props {
   onCreateTask: () => void
   setShowInactive: () => void

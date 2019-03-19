@@ -14,9 +14,6 @@ import {
   getDashboardValuesStatus,
 } from 'src/variables/selectors'
 
-// Styles
-import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss'
-
 // Types
 import {AppState} from 'src/types/v2'
 import {Variable} from '@influxdata/influx'

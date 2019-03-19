@@ -3,9 +3,6 @@ import React, {SFC, CSSProperties} from 'react'
 import {createPortal} from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 
-// Styles
-import 'src/shared/components/cells/CellHeaderNoteTooltip.scss'
-
 interface Props {
   note: string
   containerStyle: CSSProperties

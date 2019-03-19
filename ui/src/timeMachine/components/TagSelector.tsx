@@ -28,9 +28,6 @@ import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 import DefaultDebouncer from 'src/shared/utils/debouncer'
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-// Styles
-import 'src/timeMachine/components/TagSelector.scss'
-
 // Types
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'

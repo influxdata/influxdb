@@ -29,9 +29,6 @@ import {
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-// Styles
-import 'src/timeMachine/components/view_options/HistogramOptions.scss'
-
 // Types
 import {HistogramPosition} from 'src/minard'
 import {Color} from 'src/types/colors'

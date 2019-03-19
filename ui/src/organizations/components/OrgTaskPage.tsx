@@ -35,9 +35,6 @@ import {
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
 
-// Styles
-import 'src/tasks/components/TaskForm.scss'
-
 interface PassedInProps {
   router: InjectedRouter
   params: {orgID: string}

@@ -5,9 +5,6 @@ import {connect} from 'react-redux'
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-// Styles
-import 'src/timeMachine/components/QueriesTimer.scss'
-
 // Types
 import {RemoteDataState} from 'src/types'
 import {AppState} from 'src/types/v2'

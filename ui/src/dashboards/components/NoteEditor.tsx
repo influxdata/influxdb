@@ -20,9 +20,6 @@ import {
   setNote,
 } from 'src/dashboards/actions/notes'
 
-// Styles
-import 'src/dashboards/components/NoteEditor.scss'
-
 // Types
 import {AppState} from 'src/types/v2'
 

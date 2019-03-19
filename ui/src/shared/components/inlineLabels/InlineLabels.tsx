@@ -9,9 +9,6 @@ import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsE
 // Types
 import {ILabel} from '@influxdata/influx'
 
-// Styles
-import 'src/shared/components/inlineLabels/InlineLabels.scss'
-
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

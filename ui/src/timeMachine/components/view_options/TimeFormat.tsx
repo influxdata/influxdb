@@ -21,9 +21,6 @@ import {
   TIME_FORMAT_TOOLTIP_LINK,
 } from 'src/dashboards/constants'
 
-// Styles
-import 'src/timeMachine/components/view_options/TimeFormat.scss'
-
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

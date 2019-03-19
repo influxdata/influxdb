@@ -10,9 +10,6 @@ import {
   DEFAULT_LINE_COLORS,
 } from 'src/shared/constants/graphColorPalettes'
 
-// Styles
-import 'src/shared/components/ColorSchemeDropdown.scss'
-
 // Types
 import {Color} from 'src/types/colors'
 

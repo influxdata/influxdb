@@ -9,9 +9,6 @@ import TabbedPageTab from 'src/shared/components/tabbed_page/TabbedPageTab'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/shared/components/tabbed_page/TabbedPage.scss'
-
 interface OwnProps {
   name: string
   avatar?: string

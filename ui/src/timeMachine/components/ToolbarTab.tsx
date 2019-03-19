@@ -1,9 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-// Styles
-import 'src/timeMachine/components/ToolbarTab.scss'
-
 interface PassedProps {
   onSetActive: () => void
   name: string

@@ -30,9 +30,6 @@ export const ADD_NEW_LABEL_LABEL: ILabel = {
   },
 }
 
-// Styles
-import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

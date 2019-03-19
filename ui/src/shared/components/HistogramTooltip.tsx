@@ -6,8 +6,6 @@ import {format} from 'd3-format'
 
 import {TOOLTIP_PORTAL_ID} from 'src/shared/components/TooltipPortal'
 
-import 'src/shared/components/HistogramTooltip.scss'
-
 const formatLarge = format('.4~s')
 const formatSmall = format('.4~g')
 const formatBin = n => (n < 1 && n > -1 ? formatSmall(n) : formatLarge(n))

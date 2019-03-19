@@ -22,9 +22,6 @@ import {
 import {downloadTextFile} from 'src/shared/utils/download'
 import {addOrgIDToTemplate} from 'src/shared/utils/resourceToTemplate'
 
-// Styles
-import 'src/shared/components/ExportOverlay.scss'
-
 // Types
 import {DocumentCreate} from '@influxdata/influx'
 

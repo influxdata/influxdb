@@ -20,9 +20,6 @@ import {client} from 'src/utils/api'
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-// Styles
-import 'src/organizations/components/TelegrafConfigOverlay.scss'
-
 // Types
 import {AppState} from 'src/types/v2'
 

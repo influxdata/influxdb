@@ -6,9 +6,6 @@ import PermissionsWidgetSection from 'src/shared/components/permissionsWidget/Pe
 import PermissionsWidgetItem from 'src/shared/components/permissionsWidget/PermissionsWidgetItem'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
-// Styles
-import './PermissionsWidget.scss'
-
 export enum PermissionsWidgetMode {
   Read = 'read',
   Write = 'write',

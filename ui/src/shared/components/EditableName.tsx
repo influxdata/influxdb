@@ -13,9 +13,6 @@ import {RemoteDataState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/shared/components/EditableName.scss'
-
 interface PassedProps {
   onUpdate: (name: string) => void
   name: string
