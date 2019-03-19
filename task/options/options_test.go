@@ -3,6 +3,7 @@ package options_test
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +75,32 @@ func TestFromScript(t *testing.T) {
 		}
 		if !cmp.Equal(o, c.exp) {
 			t.Fatalf("script %q got unexpected result -got/+exp\n%s", c.script, cmp.Diff(o, c.exp))
+		}
+	}
+}
+
+func TestFromScriptWithUnknownOptions(t *testing.T) {
+	const optPrefix = `option task = { name: "x", every: 1m`
+	const bodySuffix = `} from(bucket:"b") |> range(start:-1m)`
+
+	// Script without unknown option should be good.
+	if _, err := options.FromScript(optPrefix + bodySuffix); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := options.FromScript(optPrefix + `, Offset: 2s, foo: "bar"` + bodySuffix)
+	if err == nil {
+		t.Fatal("expected error from unknown option but got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "Offset") || !strings.Contains(msg, "foo") {
+		t.Errorf("expected error to mention unrecognized options, but it said: %v", err)
+	}
+
+	validOpts := []string{"name", "cron", "every", "offset", "concurrency", "retry"}
+	for _, o := range validOpts {
+		if !strings.Contains(msg, o) {
+			t.Errorf("expected error to mention valid option %q but it said: %v", o, err)
 		}
 	}
 }

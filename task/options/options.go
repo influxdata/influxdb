@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/pkg/pointer"
 	cron "gopkg.in/robfig/cron.v2"
 )
@@ -69,6 +70,16 @@ func (o *Options) IsZero() bool {
 		o.Retry == nil
 }
 
+// All the task option names we accept.
+const (
+	optName        = "name"
+	optCron        = "cron"
+	optEvery       = "every"
+	optOffset      = "offset"
+	optConcurrency = "concurrency"
+	optRetry       = "retry"
+)
+
 // FromScript extracts Options from a Flux script.
 func FromScript(script string) (Options, error) {
 	if optionCache != nil {
@@ -93,7 +104,11 @@ func FromScript(script string) (Options, error) {
 		return opt, errors.New("missing required option: 'task'")
 	}
 	optObject := task.Object()
-	nameVal, ok := optObject.Get("name")
+	if err := validateOptionNames(optObject); err != nil {
+		return opt, err
+	}
+
+	nameVal, ok := optObject.Get(optName)
 	if !ok {
 		return opt, errors.New("missing name in task options")
 	}
@@ -102,8 +117,8 @@ func FromScript(script string) (Options, error) {
 		return opt, err
 	}
 	opt.Name = nameVal.Str()
-	crVal, cronOK := optObject.Get("cron")
-	everyVal, everyOK := optObject.Get("every")
+	crVal, cronOK := optObject.Get(optCron)
+	everyVal, everyOK := optObject.Get(optEvery)
 	if cronOK && everyOK {
 		return opt, errors.New("cannot use both cron and every in task options")
 	}
@@ -126,21 +141,21 @@ func FromScript(script string) (Options, error) {
 		opt.Every = everyVal.Duration().Duration()
 	}
 
-	if offsetVal, ok := optObject.Get("offset"); ok {
+	if offsetVal, ok := optObject.Get(optOffset); ok {
 		if err := checkNature(offsetVal.PolyType().Nature(), semantic.Duration); err != nil {
 			return opt, err
 		}
 		opt.Offset = pointer.Duration(offsetVal.Duration().Duration())
 	}
 
-	if concurrencyVal, ok := optObject.Get("concurrency"); ok {
+	if concurrencyVal, ok := optObject.Get(optConcurrency); ok {
 		if err := checkNature(concurrencyVal.PolyType().Nature(), semantic.Int); err != nil {
 			return opt, err
 		}
 		opt.Concurrency = pointer.Int64(concurrencyVal.Int())
 	}
 
-	if retryVal, ok := optObject.Get("retry"); ok {
+	if retryVal, ok := optObject.Get(optRetry); ok {
 		if err := checkNature(retryVal.PolyType().Nature(), semantic.Int); err != nil {
 			return opt, err
 		}
@@ -231,5 +246,27 @@ func checkNature(got, exp semantic.Nature) error {
 	if got != exp {
 		return fmt.Errorf("unexpected kind: got %q expected %q", got, exp)
 	}
+	return nil
+}
+
+// validateOptionNames returns an error if any keys in the option object o
+// do not match an expected option name.
+func validateOptionNames(o values.Object) error {
+	var unexpected []string
+	o.Range(func(name string, _ values.Value) {
+		switch name {
+		case optName, optCron, optEvery, optOffset, optConcurrency, optRetry:
+			// Known option. Nothing to do.
+		default:
+			unexpected = append(unexpected, name)
+		}
+	})
+
+	if len(unexpected) > 0 {
+		u := strings.Join(unexpected, ", ")
+		v := strings.Join([]string{optName, optCron, optEvery, optOffset, optConcurrency, optRetry}, ", ")
+		return fmt.Errorf("unknown task option(s): %s. valid options are %s", u, v)
+	}
+
 	return nil
 }
