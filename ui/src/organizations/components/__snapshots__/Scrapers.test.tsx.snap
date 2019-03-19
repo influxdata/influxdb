@@ -26,7 +26,7 @@ exports[`ScraperList rendering renders 1`] = `
       />
     </IndexListHeader>
     <IndexListBody
-      columnCount={3}
+      columnCount={4}
       emptyState={<React.Fragment />}
     >
       <ScraperRow

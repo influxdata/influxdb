@@ -131,7 +131,6 @@ class Variables extends PureComponent<Props, State> {
             highlightWords={['Variables']}
           />
           <Button
-            size={ComponentSize.Medium}
             text="Create Variable"
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
