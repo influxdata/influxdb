@@ -7551,6 +7551,7 @@ components:
           example: {"color": "ffb3b3", "description": "this is a description"}
     LabelCreateRequest:
       type: object
+      required: [orgID]
       properties:
         orgID:
           type: string
