@@ -16,9 +16,6 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {TimeMachineTab} from 'src/types/v2/timeMachine'
 import {AppState} from 'src/types/v2'
 
-// Styles
-import 'src/timeMachine/components/TimeMachine.scss'
-
 const INITIAL_RESIZER_HANDLE = 0.5
 
 interface StateProps {

@@ -10,9 +10,6 @@ import NavMenu from 'src/pageLayout/components/NavMenu'
 import {MeState, AppState} from 'src/types/v2'
 import {IconFont} from 'src/clockface'
 
-// Styles
-import '../PageLayout.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props extends WithRouterProps {

@@ -16,9 +16,6 @@ import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-// Styles
-import 'src/timeMachine/components/QueryBuilder.scss'
-
 // Types
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'

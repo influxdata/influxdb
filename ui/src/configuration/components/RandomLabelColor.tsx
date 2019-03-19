@@ -6,9 +6,6 @@ import {randomPresetColor} from 'src/configuration/utils/labels'
 import {IconFont} from 'src/clockface'
 import {validateHexCode} from 'src/configuration/utils/labels'
 
-// Styles
-import 'src/configuration/components/RandomLabelColor.scss'
-
 // Constants
 import {INPUT_ERROR_COLOR} from 'src/configuration/constants/LabelColors'
 

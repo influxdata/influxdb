@@ -1,9 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 
-// Styles
-import 'src/organizations/components/CreateVariableOverlay.scss'
-
 // Components
 import {Form, Input, Grid} from 'src/clockface'
 import {Button} from '@influxdata/clockface'

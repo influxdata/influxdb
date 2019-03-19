@@ -18,9 +18,6 @@ import {
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-// Styles
-import 'src/timeMachine/components/QueryTab.scss'
-
 // Types
 import {AppState} from 'src/types/v2'
 import {DashboardDraftQuery} from 'src/types/v2/dashboards'

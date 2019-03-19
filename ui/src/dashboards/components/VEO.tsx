@@ -33,9 +33,6 @@ import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 // Nofication Messages
 import {cellAddFailed} from 'src/shared/copy/notifications'
 
-// Styles
-import './VEO.scss'
-
 interface StateProps {
   draftView: QueryView
   existingView?: QueryView

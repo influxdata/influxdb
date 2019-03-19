@@ -15,9 +15,6 @@ import {getActiveQuery} from 'src/timeMachine/selectors'
 // Constants
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 
-// Styles
-import 'src/timeMachine/components/FunctionSelector.scss'
-
 // Types
 import {AppState, BuilderConfig} from 'src/types/v2'
 

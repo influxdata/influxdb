@@ -9,6 +9,7 @@ import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
+import FeatureFlag from 'src/shared/components/FeatureFlag'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -24,10 +25,6 @@ import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
 
 // Types
 import {AppState} from 'src/types/v2'
-
-// Styles
-import 'src/timeMachine/components/TimeMachineFluxEditor.scss'
-import FeatureFlag from 'src/shared/components/FeatureFlag'
 
 interface StateProps {
   activeQueryText: string

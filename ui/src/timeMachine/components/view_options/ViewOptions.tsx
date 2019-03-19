@@ -16,9 +16,6 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 // Types
 import {View, NewView, AppState} from 'src/types/v2'
 
-// Styles
-import './ViewOptions.scss'
-
 interface DispatchProps {
   onUpdateType: typeof setType
 }

@@ -24,9 +24,6 @@ import {
 import {Cell} from 'src/types/v2'
 import {TimeRange} from 'src/types'
 
-// Styles
-import './react-grid-layout.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

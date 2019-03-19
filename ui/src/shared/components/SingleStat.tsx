@@ -8,9 +8,6 @@ import {formatStatValue} from 'src/shared/utils/formatStatValue'
 // Types
 import {ViewType, SingleStatView} from 'src/types/v2/dashboards'
 
-// Styles
-import 'src/shared/components/SingleStat.scss'
-
 interface Props {
   properties: SingleStatView
   stat: number

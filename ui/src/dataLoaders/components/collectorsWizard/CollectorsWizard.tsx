@@ -24,9 +24,6 @@ import {
   setPluginConfiguration,
 } from 'src/dataLoaders/actions/dataLoaders'
 
-// Styles
-import 'src/dataLoaders/components/DataLoadersOverlay.scss'
-
 // Types
 import {Links} from 'src/types/v2/links'
 import {Substep, TelegrafPlugin} from 'src/types/v2/dataLoaders'

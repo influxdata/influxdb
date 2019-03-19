@@ -9,9 +9,6 @@ import {ComponentStatus, FormElement, Form, Overlay} from 'src/clockface'
 import {Button, ComponentColor, Radio, ButtonType} from '@influxdata/clockface'
 import OrgDropdown from 'src/shared/components/OrgDropdown'
 
-// Styles
-import 'src/shared/components/ImportOverlay.scss'
-
 // Types
 import TextArea from 'src/clockface/components/inputs/TextArea'
 import {AppState, Organization} from 'src/types/v2'

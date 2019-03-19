@@ -12,9 +12,6 @@ import {selectVariableValue} from 'src/dashboards/actions/index'
 // Utils
 import {getValuesForVariable} from 'src/variables/selectors'
 
-// Styles
-import 'src/dashboards/components/variablesControlBar/VariableDropdown.scss'
-
 // Types
 import {AppState} from 'src/types/v2'
 

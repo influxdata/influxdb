@@ -1,6 +1,5 @@
 import React, {ChangeEvent, KeyboardEvent, PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import './InputClickToEdit.scss'
 
 interface Props {
   wrapperClass: string

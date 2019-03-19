@@ -26,9 +26,6 @@ import {
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Style
-import 'src/shared/components/ResourceLabelForm.scss'
-
 interface Props {
   labelName: string
   onSubmit: (label: Label) => void

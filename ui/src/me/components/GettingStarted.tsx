@@ -12,9 +12,6 @@ import CollectorGraphic from 'src/me/graphics/CollectorGraphic'
 // Types
 import {Organization} from 'src/types/v2'
 
-// Styles
-import 'src/me/components/GettingStarted.scss'
-
 interface StateProps {
   orgs: Organization[]
 }

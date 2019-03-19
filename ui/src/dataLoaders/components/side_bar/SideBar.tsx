@@ -7,9 +7,6 @@ import SideBarTab from 'src/dataLoaders/components/side_bar/SideBarTab'
 import SideBarButton from 'src/dataLoaders/components/side_bar/SideBarButton'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
-// Styles
-import './SideBar.scss'
-
 export enum SideBarTabStatus {
   Default = 'default',
   Error = 'error',
