@@ -26,11 +26,14 @@ import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 import {AppState} from 'src/types/v2'
 import {ILabel} from '@influxdata/influx'
 
+// Constants
+import {TOKEN_LABEL} from 'src/labels/constants'
+
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface StateProps {
-  labels: ILabel[]
+  labels: AppState['labels']['list']
 }
 
 interface State {
@@ -167,9 +170,11 @@ class Labels extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
+  const labels = state.labels.list.filter(l => l.name !== TOKEN_LABEL)
+
   return {
-    labels: labels.list,
+    labels,
   }
 }
 
