@@ -18,16 +18,15 @@ import GetOrgResources from 'src/organizations/components/GetOrgResources'
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
 import * as notifyActions from 'src/shared/actions/notifications'
+import {getOrgTelegrafs} from 'src/telegrafs/actions'
 
 // Types
 import {Bucket, Organization, Telegraf} from '@influxdata/influx'
 import {client} from 'src/utils/api'
+import {RemoteDataState} from 'src/types'
 
 const getBuckets = async (org: Organization) => {
   return client.buckets.getAllByOrg(org.name)
-}
-const getCollectors = async (org: Organization) => {
-  return client.telegrafConfigs.getAllByOrg(org)
 }
 
 interface RouterProps {
@@ -38,22 +37,44 @@ interface RouterProps {
 
 interface DispatchProps {
   notify: NotificationsActions.PublishNotificationActionCreator
+  getOrgTelegrafs: typeof getOrgTelegrafs
 }
 
 interface StateProps {
   org: Organization
+  telegrafs: Telegraf[]
 }
 
 type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
 
+interface State {
+  loading: RemoteDataState
+}
+
 @ErrorHandling
-class OrgTelegrafsIndex extends Component<Props> {
-  constructor(props) {
+class OrgTelegrafsIndex extends Component<Props, State> {
+  constructor(props: Props) {
     super(props)
+
+    this.state = {loading: RemoteDataState.NotStarted}
+  }
+
+  public async componentDidMount() {
+    const {org} = this.props
+
+    this.setState({loading: RemoteDataState.Loading})
+    try {
+      await this.props.getOrgTelegrafs(org)
+      this.setState({loading: RemoteDataState.Done})
+    } catch (error) {
+      //TODO: notify of errors
+      this.setState({loading: RemoteDataState.Error})
+    }
   }
 
   public render() {
-    const {org, notify} = this.props
+    const {org, telegrafs} = this.props
+    const {loading: loadingTelegrafs} = this.state
 
     return (
       <Page titleTag={org.name}>
@@ -68,37 +89,28 @@ class OrgTelegrafsIndex extends Component<Props> {
                   url="telegrafs"
                   title="Telegraf"
                 >
-                  <GetOrgResources<Telegraf>
-                    organization={org}
-                    fetcher={getCollectors}
+                  <SpinnerContainer
+                    loading={loadingTelegrafs}
+                    spinnerComponent={<TechnoSpinner />}
                   >
-                    {(collectors, loading, fetch) => (
-                      <SpinnerContainer
-                        loading={loading}
-                        spinnerComponent={<TechnoSpinner />}
-                      >
-                        <GetOrgResources<Bucket>
-                          organization={org}
-                          fetcher={getBuckets}
+                    <GetOrgResources<Bucket>
+                      organization={org}
+                      fetcher={getBuckets}
+                    >
+                      {(buckets, loadingBuckets) => (
+                        <SpinnerContainer
+                          loading={loadingBuckets}
+                          spinnerComponent={<TechnoSpinner />}
                         >
-                          {(buckets, loading) => (
-                            <SpinnerContainer
-                              loading={loading}
-                              spinnerComponent={<TechnoSpinner />}
-                            >
-                              <Collectors
-                                collectors={collectors}
-                                onChange={fetch}
-                                notify={notify}
-                                buckets={buckets}
-                                orgName={org.name}
-                              />
-                            </SpinnerContainer>
-                          )}
-                        </GetOrgResources>
-                      </SpinnerContainer>
-                    )}
-                  </GetOrgResources>
+                          <Collectors
+                            collectors={telegrafs}
+                            buckets={buckets}
+                            orgName={org.name}
+                          />
+                        </SpinnerContainer>
+                      )}
+                    </GetOrgResources>
+                  </SpinnerContainer>
                 </TabbedPageSection>
               </Tabs.TabContents>
             </Tabs>
@@ -109,16 +121,21 @@ class OrgTelegrafsIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: WithRouterProps) => {
-  const {orgs} = state
+const mstp = (state: AppState, props: WithRouterProps): StateProps => {
+  const {
+    orgs,
+    telegrafs: {list},
+  } = state
   const org = orgs.find(o => o.id === props.params.orgID)
   return {
     org,
+    telegrafs: list,
   }
 }
 
 const mdtp: DispatchProps = {
   notify: notifyActions.notify,
+  getOrgTelegrafs,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

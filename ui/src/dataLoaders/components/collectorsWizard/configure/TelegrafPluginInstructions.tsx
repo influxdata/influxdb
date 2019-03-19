@@ -26,7 +26,6 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
 import {
-  TelegrafConfigCreationSuccess,
   TelegrafDashboardCreated,
   TelegrafDashboardFailed,
 } from 'src/shared/copy/notifications'
@@ -127,11 +126,9 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
   }
 
   private handleFormSubmit = async () => {
-    const {onSaveTelegrafConfig, telegrafConfigID, notify} = this.props
+    const {onSaveTelegrafConfig, telegrafConfigID} = this.props
 
     await onSaveTelegrafConfig()
-
-    notify(TelegrafConfigCreationSuccess)
 
     if (!telegrafConfigID) {
       this.handleCreateDashboardsForPlugins()

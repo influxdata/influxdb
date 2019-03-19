@@ -20,12 +20,11 @@ import {EmptyState, Grid, Input, InputType, Tabs} from 'src/clockface'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
-// APIS
-import {client} from 'src/utils/api'
+import GetLabels from 'src/configuration/components/GetLabels'
 
 // Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
+import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -40,17 +39,9 @@ import {
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
-import {
-  telegrafUpdateSuccess,
-  telegrafUpdateFailed,
-  telegrafDeleteSuccess,
-  telegrafDeleteFailed,
-} from 'src/shared/copy/v2/notifications'
 
 interface OwnProps {
   collectors: Telegraf[]
-  onChange: () => void
-  notify: NotificationsActions.PublishNotificationActionCreator
   orgName: string
   buckets: Bucket[]
 }
@@ -61,6 +52,8 @@ interface DispatchProps {
   onSetTelegrafConfigID: typeof setTelegrafConfigID
   onSetTelegrafConfigName: typeof setTelegrafConfigName
   onClearDataLoaders: typeof clearDataLoaders
+  onUpdateTelegraf: typeof updateTelegraf
+  onDeleteTelegraf: typeof deleteTelegraf
 }
 
 type Props = OwnProps & DispatchProps
@@ -112,23 +105,25 @@ export class Collectors extends PureComponent<Props, State> {
                 visible={this.hasNoBuckets}
                 resourceName="Telegraf Configurations"
               />
-              <FilterList<Telegraf>
-                searchTerm={searchTerm}
-                searchKeys={['plugins.0.config.bucket', 'labels[].name']}
-                list={collectors}
-              >
-                {cs => (
-                  <CollectorList
-                    collectors={cs}
-                    emptyState={this.emptyState}
-                    onDelete={this.handleDeleteTelegraf}
-                    onUpdate={this.handleUpdateTelegraf}
-                    onOpenInstructions={this.handleOpenInstructions}
-                    onOpenTelegrafConfig={this.handleOpenTelegrafConfig}
-                    onFilterChange={this.handleFilterUpdate}
-                  />
-                )}
-              </FilterList>
+              <GetLabels>
+                <FilterList<Telegraf>
+                  searchTerm={searchTerm}
+                  searchKeys={['plugins.0.config.bucket', 'labels[].name']}
+                  list={collectors}
+                >
+                  {cs => (
+                    <CollectorList
+                      collectors={cs}
+                      emptyState={this.emptyState}
+                      onDelete={this.handleDeleteTelegraf}
+                      onUpdate={this.handleUpdateTelegraf}
+                      onOpenInstructions={this.handleOpenInstructions}
+                      onOpenTelegrafConfig={this.handleOpenTelegrafConfig}
+                      onFilterChange={this.handleFilterUpdate}
+                    />
+                  )}
+                </FilterList>
+              </GetLabels>
             </Grid.Column>
             <Grid.Column
               widthSM={Columns.Six}
@@ -266,7 +261,6 @@ export class Collectors extends PureComponent<Props, State> {
 
   private handleDismissDataLoaders = () => {
     this.setState({dataLoaderOverlay: OverlayState.Closed})
-    this.props.onChange()
   }
 
   private get emptyState(): JSX.Element {
@@ -293,27 +287,11 @@ export class Collectors extends PureComponent<Props, State> {
   }
 
   private handleDeleteTelegraf = async (telegraf: Telegraf) => {
-    const {onChange, notify} = this.props
-    try {
-      await client.telegrafConfigs.delete(telegraf.id)
-      onChange()
-      notify(telegrafDeleteSuccess(telegraf.name))
-    } catch (e) {
-      console.error(e)
-      notify(telegrafDeleteFailed(telegraf.name))
-    }
+    await this.props.onDeleteTelegraf(telegraf.id, telegraf.name)
   }
 
   private handleUpdateTelegraf = async (telegraf: Telegraf) => {
-    const {onChange, notify} = this.props
-    try {
-      await client.telegrafConfigs.update(telegraf.id, telegraf)
-      onChange()
-      notify(telegrafUpdateSuccess(telegraf.name))
-    } catch (e) {
-      console.error(e)
-      notify(telegrafUpdateFailed(telegraf.name))
-    }
+    await this.props.onUpdateTelegraf(telegraf)
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -335,6 +313,8 @@ const mdtp: DispatchProps = {
   onSetTelegrafConfigID: setTelegrafConfigID,
   onSetTelegrafConfigName: setTelegrafConfigName,
   onClearDataLoaders: clearDataLoaders,
+  onUpdateTelegraf: updateTelegraf,
+  onDeleteTelegraf: deleteTelegraf,
 }
 
 export default connect<null, DispatchProps, OwnProps>(

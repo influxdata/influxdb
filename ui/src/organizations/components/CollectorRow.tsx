@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {
@@ -21,7 +22,11 @@ import EditableDescription from 'src/shared/components/editable_description/Edit
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
-interface Props {
+// Types
+import {AppState} from 'src/types/v2'
+import {ILabel} from '@influxdata/influx'
+
+interface OwnProps {
   collector: Telegraf
   bucket: string
   onDelete: (telegraf: Telegraf) => void
@@ -31,7 +36,13 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-export default class CollectorRow extends PureComponent<Props> {
+interface StateProps {
+  labels: ILabel[]
+}
+
+type Props = OwnProps & StateProps
+
+class CollectorRow extends PureComponent<Props> {
   public render() {
     const {collector, bucket} = this.props
 
@@ -106,3 +117,12 @@ export default class CollectorRow extends PureComponent<Props> {
     this.props.onOpenInstructions(this.props.collector.id)
   }
 }
+
+const mstp = ({labels: {list}}: AppState): StateProps => {
+  return {labels: list}
+}
+
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(CollectorRow)
