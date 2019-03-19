@@ -45,6 +45,7 @@ import {Telegraf, Bucket, Organization} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
 import {DataLoaderType} from 'src/types/v2/dataLoaders'
 import {AppState} from 'src/types/v2'
+import {TOKEN_LABEL} from 'src/labels/constants'
 
 interface StateProps {
   org: Organization
@@ -298,11 +299,10 @@ export class Telegrafs extends PureComponent<Props, State> {
   private handleDeleteTelegraf = async (telegraf: Telegraf) => {
     this.props.deleteTelegraf(telegraf.id, telegraf.name)
 
-    // hack to remove stale tokens from system when telegraf is deleted
-    const label = telegraf.labels.find(l => l.name == 'token')
+    // stale tokens from system when telegraf is deleted
+    const label = telegraf.labels.find(l => l.name === TOKEN_LABEL)
 
     if (label) {
-      this.props.deleteLabel(label.id)
       this.props.deleteAuthorization(label.properties.tokenID)
     }
   }
