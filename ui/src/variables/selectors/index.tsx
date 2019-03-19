@@ -37,12 +37,10 @@ export const getVariablesForOrg = (
 }
 
 const getVariablesForDashboardMemoized = memoizeOne(
-  (variables: VariablesState, values: VariableValuesByID): Variable[] => {
+  (variables: VariablesState, variableIDs: string[]): Variable[] => {
     let variablesForDash = []
 
-    const variablesIDs = Object.keys(values)
-
-    variablesIDs.forEach(variableID => {
+    variableIDs.forEach(variableID => {
       const variable = get(variables, `${variableID}.variable`)
 
       if (variable) {
@@ -58,9 +56,12 @@ export const getVariablesForDashboard = (
   state: AppState,
   dashboardID: string
 ): Variable[] => {
-  const values = get(state, `variables.values.${dashboardID}.values`, {})
+  const variableIDs = get(state, `variables.values.${dashboardID}.order`, [])
 
-  return getVariablesForDashboardMemoized(state.variables.variables, values)
+  return getVariablesForDashboardMemoized(
+    state.variables.variables,
+    variableIDs
+  )
 }
 
 export const getValuesForVariable = (

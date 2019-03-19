@@ -1,10 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
+import {DragDropContext} from 'react-dnd'
+import HTML5Backend from 'react-dnd-html5-backend'
 
 // Components
-import VariableDropdown from 'src/dashboards/components/variablesControlBar/VariableDropdown'
 import {EmptyState, ComponentSize} from 'src/clockface'
 import {TechnoSpinner} from '@influxdata/clockface'
 
@@ -14,6 +15,12 @@ import {
   getDashboardValuesStatus,
 } from 'src/variables/selectors'
 
+// Styles
+import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss'
+
+// Actions
+import {moveVariable} from 'src/variables/actions'
+
 // Types
 import {AppState} from 'src/types/v2'
 import {Variable} from '@influxdata/influx'
@@ -21,6 +28,7 @@ import {Variable} from '@influxdata/influx'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {RemoteDataState} from 'src/types'
+import DraggableDropdown from 'src/dashboards/components/variablesControlBar/DraggableDropdown'
 
 interface OwnProps {
   dashboardID: string
@@ -31,14 +39,18 @@ interface StateProps {
   valuesStatus: RemoteDataState
 }
 
-type Props = StateProps & OwnProps
+interface DispatchProps {
+  moveVariable: typeof moveVariable
+}
+
+type Props = StateProps & DispatchProps & OwnProps
 
 @ErrorHandling
 class VariablesControlBar extends PureComponent<Props> {
   render() {
     const {dashboardID, variables, valuesStatus} = this.props
 
-    if (_.isEmpty(variables)) {
+    if (isEmpty(variables)) {
       return (
         <div className="variables-control-bar">
           <EmptyState
@@ -53,12 +65,14 @@ class VariablesControlBar extends PureComponent<Props> {
 
     return (
       <div className="variables-control-bar">
-        {variables.map(v => (
-          <VariableDropdown
+        {variables.map((v, i) => (
+          <DraggableDropdown
             key={v.id}
             name={v.name}
-            variableID={v.id}
+            id={v.id}
+            index={i}
             dashboardID={dashboardID}
+            moveDropdown={this.handleMoveDropdown}
           />
         ))}
         {valuesStatus === RemoteDataState.Loading && (
@@ -67,6 +81,18 @@ class VariablesControlBar extends PureComponent<Props> {
       </div>
     )
   }
+
+  private handleMoveDropdown = (
+    originalIndex: number,
+    newIndex: number
+  ): void => {
+    const {dashboardID, moveVariable} = this.props
+    moveVariable(originalIndex, newIndex, dashboardID)
+  }
+}
+
+const mdtp = {
+  moveVariable,
 }
 
 const mstp = (state: AppState, props: OwnProps): StateProps => {
@@ -76,4 +102,9 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   return {variables, valuesStatus}
 }
 
-export default connect<StateProps, {}, OwnProps>(mstp)(VariablesControlBar)
+export default DragDropContext(HTML5Backend)(
+  connect<StateProps, DispatchProps, OwnProps>(
+    mstp,
+    mdtp
+  )(VariablesControlBar)
+)
