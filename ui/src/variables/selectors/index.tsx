@@ -9,7 +9,11 @@ import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
 import {RemoteDataState} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
 import {AppState} from 'src/types/v2'
-import {VariableValues, ValueSelections} from 'src/variables/types'
+import {
+  VariableValues,
+  VariableValuesByID,
+  ValueSelections,
+} from 'src/variables/types'
 import {Variable} from '@influxdata/influx'
 
 type VariablesState = AppState['variables']['variables']
@@ -32,55 +36,46 @@ export const getVariablesForOrg = (
   return getVariablesForOrgMemoized(state.variables.variables, orgID)
 }
 
+const getVariablesForDashboardMemoized = memoizeOne(
+  (variables: VariablesState, values: VariableValuesByID): Variable[] => {
+    let variablesForDash = []
+
+    const variablesIDs = Object.keys(values)
+
+    variablesIDs.forEach(variableID => {
+      const variable = get(variables, `${variableID}.variable`)
+
+      if (variable) {
+        variablesForDash.push(variable)
+      }
+    })
+
+    return variablesForDash
+  }
+)
+
 export const getVariablesForDashboard = (
   state: AppState,
   dashboardID: string
 ): Variable[] => {
-  const {
-    variables: {variables, values},
-  } = state
+  const values = get(state, `variables.values.${dashboardID}.values`, {})
 
-  let variablesForDash = []
-
-  const variablesIDs = Object.keys(get(values, `${dashboardID}.values`))
-
-  variablesIDs.forEach(variableID => {
-    const variable = get(variables, `${variableID}.variable`)
-
-    if (variable) {
-      variablesForDash.push(variable)
-    }
-  })
-
-  return variablesForDash
+  return getVariablesForDashboardMemoized(state.variables.variables, values)
 }
 
 export const getValuesForVariable = (
   state: AppState,
   variableID: string,
   contextID: string
-): string[] => {
-  const {variables} = state
-  return get(variables, `values.${contextID}.values.${variableID}.values`)
-}
-
-export const getSelectedValueForVariable = (
-  state: AppState,
-  variableID: string,
-  contextID: string
-): string => {
-  const {variables} = state
-  return get(
-    variables,
-    `values.${contextID}.values.${variableID}.selectedValue`
-  )
+): VariableValues => {
+  return get(state, `variables.values.${contextID}.values.${variableID}`)
 }
 
 export const getValueSelections = (
   state: AppState,
   contextID: string
 ): ValueSelections => {
-  const contextValues: VariableValues =
+  const contextValues: VariableValuesByID =
     get(state, `variables.values.${contextID}.values`) || {}
 
   const selections: ValueSelections = Object.keys(contextValues).reduce(
@@ -108,15 +103,17 @@ const getVariableAssignmentsMemoized = memoizeOne(
       return []
     }
 
-    const result = []
-
-    for (const [variableID, values] of Object.entries(valuesState.values)) {
+    const result: VariableAssignment[] = Object.entries(
+      valuesState.values
+    ).reduce((acc, [variableID, values]) => {
       const variableName = get(variablesState, [variableID, 'variable', 'name'])
 
-      if (variableName) {
-        result.push(getVarAssignment(variableName, values))
+      if (!variableName || !values || !values.selectedValue) {
+        return acc
       }
-    }
+
+      return [...acc, getVarAssignment(variableName, values)]
+    }, [])
 
     return result
   }
@@ -154,6 +151,13 @@ export const getTimeMachineValuesStatus = (
   )
 
   return valuesStatus
+}
+
+export const getDashboardValuesStatus = (
+  state: AppState,
+  dashboardID: string
+): RemoteDataState => {
+  return get(state, `variables.values.${dashboardID}.status`)
 }
 
 export const getVariable = (state: AppState, variableID: string): Variable => {
