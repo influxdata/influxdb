@@ -159,14 +159,9 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 	return labels, nil
 }
 
-// CreateLabel checks to see if the authorizer on context has write access to the global labels resource.
+// CreateLabel checks to see if the authorizer on context has read access to the new label's org.
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
-	p, err := influxdb.NewGlobalPermission(influxdb.WriteAction, influxdb.LabelsResourceType)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
+	if err := authorizeReadOrg(ctx, l.OrganizationID); err != nil {
 		return err
 	}
 

@@ -62,7 +62,7 @@ func (l *Label) Validate() error {
 		}
 	}
 
-	if l.OrganizationID == 0 {
+	if !l.OrganizationID.Valid() {
 		return &Error{
 			Code: EInvalid,
 			Msg:  "organization ID is required",
