@@ -2,8 +2,10 @@ package launcher_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	nethttp "net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -225,5 +227,28 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	}
 	if len(logs) < 1 {
 		t.Fatalf("expected logs for run, got %d", len(logs))
+	}
+
+	// One of the log lines must be query statistics.
+	// For now, assume it's the first line that begins with "{" (beginning of a JSON object).
+	// That might change in the future.
+	var statJSON string
+	for _, log := range logs {
+		if len(log.Message) > 0 && log.Message[0] == '{' {
+			statJSON = log.Message
+			break
+		}
+	}
+	if statJSON == "" {
+		t.Fatalf("no stats JSON found in run logs")
+	}
+
+	var stats flux.Statistics
+	if err := json.Unmarshal([]byte(statJSON), &stats); err != nil {
+		t.Fatal(err)
+	}
+
+	if reflect.DeepEqual(stats, flux.Statistics{}) {
+		t.Fatalf("unmarshalled query statistics are zero; they should be non-zero. JSON: %s", statJSON)
 	}
 }
