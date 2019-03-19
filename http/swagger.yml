@@ -6876,7 +6876,6 @@ components:
         - id
         - meta
         - content
-        - labels
     DocumentCreate:
       type: object
       properties:
@@ -6918,7 +6917,6 @@ components:
       required:
         - id
         - meta
-        - labels
     Documents:
       type: object
       properties:
