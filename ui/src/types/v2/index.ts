@@ -40,6 +40,7 @@ import {OrgViewState} from 'src/organizations/reducers/orgView'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
+import {TemplatesState} from 'src/templates/reducers'
 import {AuthorizationsState} from 'src/authorizations/reducers'
 
 export interface AppState {
@@ -66,6 +67,7 @@ export interface AppState {
   protos: ProtosState
   variables: VariablesState
   tokens: AuthorizationsState
+  templates: TemplatesState
 }
 
 export type GetState = () => AppState

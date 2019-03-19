@@ -819,6 +819,7 @@ export const importTaskFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to import task: ${error}`,
 })
+
 export const importDashboardSucceeded = (): Notification => ({
   ...defaultSuccessNotification,
   message: `Successfully imported dashboard.`,
@@ -827,6 +828,16 @@ export const importDashboardSucceeded = (): Notification => ({
 export const importDashboardFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to import dashboard: ${error}`,
+})
+
+export const importTemplateSucceeded = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully imported template.`,
+})
+
+export const importTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to import template: ${error}`,
 })
 
 export const resourceSavedAsTemplate = (

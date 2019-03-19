@@ -16,7 +16,6 @@ import LabelList from 'src/configuration/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
 // Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
 
 // Utils
@@ -42,7 +41,6 @@ interface State {
 }
 
 interface DispatchProps {
-  notify: typeof notifyAction
   createLabel: typeof createLabel
   updateLabel: typeof updateLabel
   deleteLabel: typeof deleteLabel
@@ -179,7 +177,6 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  notify: notifyAction,
   createLabel: createLabel,
   updateLabel: updateLabel,
   deleteLabel: deleteLabel,

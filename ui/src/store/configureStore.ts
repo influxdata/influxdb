@@ -27,6 +27,7 @@ import {labelsReducer} from 'src/labels/reducers'
 import {bucketsReducer} from 'src/buckets/reducers'
 import {telegrafsReducer} from 'src/telegrafs/reducers'
 import {authorizationsReducer} from 'src/authorizations/reducers'
+import templatesReducer from 'src/templates/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -54,6 +55,7 @@ export const rootReducer = combineReducers<ReducerState>({
   buckets: bucketsReducer,
   telegrafs: telegrafsReducer,
   tokens: authorizationsReducer,
+  templates: templatesReducer,
   VERSION: () => '',
 })
 
