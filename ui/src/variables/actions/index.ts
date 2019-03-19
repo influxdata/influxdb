@@ -15,6 +15,7 @@ import {
 
 // Utils
 import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
+import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 
 // Types
 import {Dispatch} from 'redux-thunk'
@@ -188,6 +189,12 @@ export const deleteVariable = (id: string) => async (
   }
 }
 
+interface PendingValueRequests {
+  [contextID: string]: WrappedCancelablePromise<VariableValuesByID>
+}
+
+let pendingValueRequests: PendingValueRequests = {}
+
 export const refreshVariableValues = (
   contextID: string,
   orgID: string,
@@ -200,14 +207,24 @@ export const refreshVariableValues = (
     const selections = getValueSelections(getState(), contextID)
     const allVariables = getVariablesForOrg(getState(), orgID)
 
-    const values = await hydrateVars(variables, allVariables, {
+    if (pendingValueRequests[contextID]) {
+      pendingValueRequests[contextID].cancel()
+    }
+
+    pendingValueRequests[contextID] = hydrateVars(variables, allVariables, {
       url,
       orgID,
       selections,
-    }).promise
+    })
+
+    const values = await pendingValueRequests[contextID].promise
 
     dispatch(setValues(contextID, RemoteDataState.Done, values))
   } catch (e) {
+    if (e instanceof CancellationError) {
+      return
+    }
+
     console.error(e)
     dispatch(setValues(contextID, RemoteDataState.Error))
   }
