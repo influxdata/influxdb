@@ -179,7 +179,7 @@ func (r *Report) Run(print bool) (*ReportSummary, error) {
 				for _, t := range tagBuf {
 					tk := string(t.Key)
 					switch tk {
-					case tsdb.MeasurementTagKey:
+					case models.MeasurementTagKey:
 						mname := string(t.Value)
 						// Total series cardinality segmented by measurement name.
 						mCount := mCardinalities[mname] // measurement name.
@@ -188,8 +188,8 @@ func (r *Report) Run(print bool) (*ReportSummary, error) {
 							mCardinalities[mname] = mCount
 						}
 						mCount.Add(key) // full series keys associated with measurement name.
-					case tsdb.FieldKeyTagKey:
-						mname := tagBuf.GetString(tsdb.MeasurementTagKey)
+					case models.FieldKeyTagKey:
+						mname := tagBuf.GetString(models.MeasurementTagKey)
 						fCount := fCardinalities[mname]
 						if fCount == nil {
 							fCount = newCounterFn()

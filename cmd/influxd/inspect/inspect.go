@@ -22,37 +22,63 @@ func NewCommand() *cobra.Command {
 	reportTSMCommand := &cobra.Command{
 		Use:   "report-tsm",
 		Short: "Run TSM report",
-		Run:   inspectReportTSMF,
+		Long: `
+This command will analyze TSM files within a storage engine directory, reporting 
+the cardinality within the files as well as the time range that the point data 
+covers.
+
+This command only interrogates the index within each file, and does not read any
+block data. To reduce heap requirements, by default report-tsm estimates the 
+overall cardinality in the file set by using the HLL++ algorithm. Exact 
+cardinalities can be determined by using the --exact flag.
+
+For each file, the following is output:
+
+	* The full filename;
+	* The series cardinality within the file;
+	* The number of series first encountered within the file;
+	* The min and max timestamp associated with TSM data in the file; and
+	* The time taken to load the TSM index and apply any tombstones.
+
+The summary section then outputs the total time range and series cardinality for 
+the fileset. Depending on the --detailed flag, series cardinality is segmented 
+in the following ways:
+
+	* Series cardinality for each organization;
+	* Series cardinality for each bucket;
+	* Series cardinality for each measurement;
+	* Number of field keys for each measurement; and
+	* Number of tag values for each tag key.`,
+		RunE: inspectReportTSMF,
 	}
 
 	reportTSMCommand.Flags().StringVarP(&reportTSMFlags.pattern, "pattern", "", "", "only process TSM files containing pattern")
 	reportTSMCommand.Flags().BoolVarP(&reportTSMFlags.exact, "exact", "", false, "calculate and exact cardinality count. Warning, may use significant memory...")
-	reportTSMCommand.Flags().BoolVarP(&reportTSMFlags.detailed, "detailed", "", false, "emit series cardinality segmented by measurements, tag keys and fields. Warning, may take a while...")
+	reportTSMCommand.Flags().BoolVarP(&reportTSMFlags.detailed, "detailed", "", false, "emit series cardinality segmented by measurements, tag keys and fields. Warning, may take a while.")
 
-	reportTSMCommand.Flags().StringVarP(&reportTSMFlags.orgName, "org", "o", "", "process only data belonging to organization")
-	reportTSMCommand.Flags().StringVarP(&reportTSMFlags.bucketName, "bucket", "b", "", "process only data belonging to bucket. Requires org flag to be set.")
+	reportTSMCommand.Flags().StringVarP(&reportTSMFlags.orgID, "org-id", "", "", "process only data belonging to organization ID.")
+	reportTSMCommand.Flags().StringVarP(&reportTSMFlags.bucketID, "bucket-id", "", "", "process only data belonging to bucket ID. Requires org flag to be set.")
 
 	dir, err := fs.InfluxDir()
 	if err != nil {
 		panic(err)
 	}
-	reportTSMCommand.Flags().StringVarP(&reportTSMFlags.dataDir, "data-dir", "", "", fmt.Sprintf("use provided data directory (defaults to %s).", filepath.Join(dir, "engine/data")))
+	dir = filepath.Join(dir, "engine/data")
+	reportTSMCommand.Flags().StringVarP(&reportTSMFlags.dataDir, "data-dir", "", dir, fmt.Sprintf("use provided data directory (defaults to %s).", dir))
 
 	base.AddCommand(reportTSMCommand)
 	return base
 }
 
 // reportTSMFlags defines the `report-tsm` Command.
-type reportTSMFlags struct {
+var reportTSMFlags = struct {
 	pattern  string
 	exact    bool
 	detailed bool
 
-	orgName, bucketName string
-	dataDir             string
-}
-
-var reportTSMFlags = &reportTSMFlags{}
+	orgID, bucketID string
+	dataDir         string
+}{}
 
 // inspectReportTSMF runs the report-tsm tool.
 func inspectReportTSMF(cmd *cobra.Command, args []string) error {
@@ -85,9 +111,6 @@ func inspectReportTSMF(cmd *cobra.Command, args []string) error {
 		report.BucketID = bucketID
 	}
 
-	err := report.Run()
-	if err != nil {
-		panic(err)
-	}
+	_, err := report.Run(true)
 	return err
 }
