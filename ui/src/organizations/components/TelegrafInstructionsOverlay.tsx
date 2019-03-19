@@ -11,6 +11,9 @@ import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/Telegraf
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
+// Constants
+import {TOKEN_LABEL} from 'src/labels/constants'
+
 // Types
 import {AppState} from 'src/types/v2'
 import {Telegraf} from '@influxdata/influx'
@@ -27,7 +30,8 @@ interface DispatchProps {
 
 interface StateProps {
   username: string
-  telegrafs: Telegraf[]
+  telegrafs: AppState['telegrafs']['list']
+  tokens: AppState['tokens']['list']
 }
 
 type Props = StateProps & DispatchProps & OwnProps
@@ -53,29 +57,31 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
   }
 
   private get token(): string {
-    const {collector, telegrafs} = this.props
+    const {collector, telegrafs, tokens} = this.props
     const config =
       telegrafs.find(t => get(collector, 'id', '') === t.id) || collector
 
     if (!config) {
-      return ''
+      return 'no config found'
     }
 
     const labels = get(config, 'labels', [])
 
-    const label = labels.find(l => l.name === 'token')
+    const label = labels.find(l => l.name === TOKEN_LABEL)
+    const auth = tokens.find(t => t.id === get(label, 'properties.tokenID'))
 
-    if (!label) {
-      return ''
+    if (!label || !auth) {
+      return 'unknown token'
     }
 
-    return label.properties.token
+    return auth.token
   }
 }
 
-const mstp = ({me: {name}, telegrafs}: AppState): StateProps => ({
+const mstp = ({me: {name}, telegrafs, tokens}: AppState): StateProps => ({
   username: name,
   telegrafs: telegrafs.list,
+  tokens: tokens.list,
 })
 
 const mdtp: DispatchProps = {
