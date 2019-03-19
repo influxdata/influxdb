@@ -12,6 +12,7 @@ const localState = {
     },
     persisted: {autoRefresh: 0, showTemplateControlBar: false},
   },
+  orgs: [{orgID: 'orgid'}],
   VERSION: '2.0.0',
   ranges: [
     {
@@ -32,10 +33,8 @@ export function renderWithRedux(ui, initialState = s => s) {
   const seedState = seedStore.getState()
   const store = configureStore(initialState(seedState), history)
 
-  const provider = <Provider store={store}>{ui}</Provider>
-
   return {
-    ...render(provider),
+    ...render(<Provider store={store}>{ui}</Provider>),
     store,
   }
 }

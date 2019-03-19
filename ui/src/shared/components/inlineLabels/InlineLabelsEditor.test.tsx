@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {render, fireEvent} from 'react-testing-library'
+import {fireEvent} from 'react-testing-library'
 
 // Components
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
@@ -8,6 +8,8 @@ import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsE
 // Constants
 import {labels} from 'mocks/dummyData'
 const selectedLabels = [labels[0]]
+
+import {renderWithRedux} from 'src/mockState'
 
 const setup = (override = {}) => {
   const props = {
@@ -18,7 +20,7 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  return render(<InlineLabelsEditor {...props} />)
+  return renderWithRedux(<InlineLabelsEditor {...props} />)
 }
 
 describe('Shared.Components.InlineLabelsEditor', () => {

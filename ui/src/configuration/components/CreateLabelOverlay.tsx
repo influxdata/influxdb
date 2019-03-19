@@ -1,5 +1,7 @@
 // Libraries
 import React, {Component, ChangeEvent} from 'react'
+import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Components
 import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
@@ -13,14 +15,21 @@ import {EMPTY_LABEL} from 'src/configuration/constants/LabelColors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {AppState} from 'src/types/v2'
 
-interface Props {
+interface OwnProps {
   isVisible: boolean
   onDismiss: () => void
   onCreateLabel: (label: ILabel) => void
   onNameValidation: (name: string) => string | null
   overrideDefaultName?: string
 }
+
+interface StateProps {
+  orgID: string
+}
+
+type Props = OwnProps & StateProps
 
 interface State {
   label: ILabel
@@ -93,7 +102,7 @@ class CreateLabelOverlay extends Component<Props, State> {
     const {onCreateLabel, onDismiss} = this.props
 
     try {
-      onCreateLabel(this.state.label)
+      onCreateLabel({...this.state.label, orgID: this.props.orgID})
       // clear form on successful submit
       this.resetForm()
     } finally {
@@ -138,4 +147,10 @@ class CreateLabelOverlay extends Component<Props, State> {
   }
 }
 
-export default CreateLabelOverlay
+const mstp = (state: AppState) => {
+  const {orgs} = state
+
+  return {orgID: _.get(orgs, '0.id', '')}
+}
+
+export default connect<StateProps, {}, OwnProps>(mstp)(CreateLabelOverlay)
