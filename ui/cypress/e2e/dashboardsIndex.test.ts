@@ -45,30 +45,32 @@ describe('Dashboards', () => {
     beforeEach(() => {
       cy.get<Organization>('@org').then(({id}) => {
         cy.createDashboard(id, dashboardName).then(({body}) => {
-          cy.createAndAddLabel('dashboards', body.id, newLabelName)
+          cy.createAndAddLabel('dashboards', id, body.id, newLabelName)
         })
 
         cy.createDashboard(id).then(({body}) => {
-          cy.createAndAddLabel('dashboards', body.id, 'bar')
+          cy.createAndAddLabel('dashboards', id, body.id, 'bar')
         })
       })
 
       cy.visit('/dashboards')
     })
 
-    it('can delete a dashboard', () => {
-      cy.getByTestID('dashboard-card').should('have.length', 2)
+    for (let i = 0; i < 100; i++) {
+      it.only('can delete a dashboard', () => {
+        cy.getByTestID('dashboard-card').should('have.length', 2)
 
-      cy.getByTestID('dashboard-card')
-        .first()
-        .trigger('mouseover')
-        .within(() => {
-          cy.getByTestID('context-delete-menu').click()
-          cy.getByTestID('context-delete-dashboard').click()
-        })
+        cy.getByTestID('dashboard-card')
+          .first()
+          .trigger('mouseover')
+          .within(() => {
+            cy.getByTestID('context-delete-menu').click()
+            cy.getByTestID('context-delete-dashboard').click()
+          })
 
-      cy.getByTestID('dashboard-card').should('have.length', 1)
-    })
+        cy.getByTestID('dashboard-card').should('have.length', 1)
+      })
+    }
 
     it('can edit a dashboards name', () => {
       const newName = 'new 🅱️ashboard'
