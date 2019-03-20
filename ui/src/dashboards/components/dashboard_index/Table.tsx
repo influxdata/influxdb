@@ -151,4 +151,4 @@ class DashboardsTable extends PureComponent<Props, State> {
   }
 }
 
-export default withRouter<Props>(DashboardsTable)
+export default withRouter<OwnProps>(DashboardsTable)

@@ -54,8 +54,8 @@ export default class DashboardsIndexContents extends Component<Props> {
         >
           {filteredDashboards => (
             <Table
-              filterComponent={filterComponent}
               searchTerm={searchTerm}
+              filterComponent={filterComponent}
               dashboards={filteredDashboards}
               onDeleteDashboard={onDeleteDashboard}
               onCreateDashboard={onCreateDashboard}
