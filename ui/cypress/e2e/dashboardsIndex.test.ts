@@ -121,20 +121,22 @@ describe('Dashboards', () => {
       it('can add an existing label to a dashboard', () => {
         const labelName = 'swogglez'
 
-        cy.createLabel(labelName).then(() => {
-          cy.getByTestID(`inline-labels--add`)
-            .first()
-            .click()
+        cy.get<Organization>('@org').then(({id}) => {
+          cy.createLabel(labelName, id).then(() => {
+            cy.getByTestID(`inline-labels--add`)
+              .first()
+              .click()
 
-          cy.getByTestID('inline-labels--popover').within(() => {
-            cy.getByTestID(`label--pill ${labelName}`).click()
-          })
-
-          cy.getByTestID('dashboard-card')
-            .first()
-            .within(() => {
-              cy.getByTestID(`label--pill ${labelName}`).should('be.visible')
+            cy.getByTestID('inline-labels--popover').within(() => {
+              cy.getByTestID(`label--pill ${labelName}`).click()
             })
+
+            cy.getByTestID('dashboard-card')
+              .first()
+              .within(() => {
+                cy.getByTestID(`label--pill ${labelName}`).should('be.visible')
+              })
+          })
         })
       })
 
