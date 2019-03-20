@@ -2,7 +2,7 @@ import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {Run, LogEvent} from '@influxdata/influx'
 
 //Types
-import {Action} from 'src/tasks/actions/v2'
+import {Action} from 'src/tasks/actions'
 import {ITask as Task} from '@influxdata/influx'
 import {RemoteDataState} from '@influxdata/clockface'
 
@@ -31,7 +31,7 @@ export const defaultTaskOptions: TaskOptions = {
   toOrgName: '',
 }
 
-const defaultState: State = {
+export const defaultState: State = {
   newScript: '',
   currentScript: '',
   tasks: [],
@@ -74,6 +74,21 @@ export default (state: State = defaultState, action: Action): State => {
       }
     case 'SET_TASK_OPTION':
       const {key, value} = action.payload
+
+      if (key === 'taskScheduleType') {
+        if (value === TaskSchedule.cron) {
+          return {
+            ...state,
+            taskOptions: {...state.taskOptions, interval: '', [key]: value},
+          }
+        }
+        if (value === TaskSchedule.interval) {
+          return {
+            ...state,
+            taskOptions: {...state.taskOptions, cron: '', [key]: value},
+          }
+        }
+      }
 
       return {
         ...state,

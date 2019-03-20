@@ -23,7 +23,7 @@ import {
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
-} from 'src/tasks/actions/v2'
+} from 'src/tasks/actions'
 
 // Types
 import {Organization, ITask as Task} from '@influxdata/influx'
