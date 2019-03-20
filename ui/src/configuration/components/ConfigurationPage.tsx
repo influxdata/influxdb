@@ -9,7 +9,6 @@ import GetResources, {
 } from 'src/configuration/components/GetResources'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
-import Labels from 'src/configuration/components/Labels'
 import Settings from 'src/me/components/account/Settings'
 import Tokens from 'src/me/components/account/Tokens'
 import Buckets from 'src/configuration/components/Buckets'
@@ -48,15 +47,6 @@ class ConfigurationPage extends Component<Props> {
                 parentUrl={`/configuration`}
                 activeTabUrl={tab}
               >
-                <TabbedPageSection
-                  id="labels_tab"
-                  url="labels_tab"
-                  title="Labels"
-                >
-                  <GetResources resource={ResourceTypes.Labels}>
-                    <Labels />
-                  </GetResources>
-                </TabbedPageSection>
                 <TabbedPageSection
                   id="buckets_tab"
                   url="buckets_tab"

@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {render} from 'react-testing-library'
+import {renderWithRedux} from 'src/mockState'
 
 // Components
 import {TaskCard} from 'src/tasks/components/TaskCard'
@@ -28,7 +28,7 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  return render(<TaskCard {...props} />)
+  return renderWithRedux(<TaskCard {...props} />)
 }
 
 describe('Tasks.Components.TaskCard', () => {

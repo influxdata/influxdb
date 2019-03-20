@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {render} from 'react-testing-library'
+import {renderWithRedux} from 'src/mockState'
 
 // Components
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
@@ -20,7 +20,7 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  return render(<InlineLabels {...props} />)
+  return renderWithRedux(<InlineLabels {...props} />)
 }
 
 describe('Shared.Components.InlineLabels', () => {
