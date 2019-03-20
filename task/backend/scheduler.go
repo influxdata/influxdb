@@ -352,6 +352,7 @@ func (s *TickScheduler) UpdateTask(task *StoreTask, meta *StoreTaskMeta) error {
 	// todo(lh): In the near future we may not be using the scheduler to manage concurrency.
 	maxC := int(meta.MaxConcurrency)
 	if maxC != len(ts.runners) {
+		ts.runningMu.Lock()
 		if maxC < len(ts.runners) {
 			ts.runners = ts.runners[:maxC]
 		}
@@ -362,6 +363,7 @@ func (s *TickScheduler) UpdateTask(task *StoreTask, meta *StoreTaskMeta) error {
 				ts.runners = append(ts.runners, newRunner(s.ctx, ts.wg, s.logger, task, s.desiredState, s.executor, s.logWriter, ts))
 			}
 		}
+		ts.runningMu.Unlock()
 	}
 	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {
 		ts.Work()
