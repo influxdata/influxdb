@@ -1,0 +1,26 @@
+.empty-graph-error {
+  border-radius: $radius;
+  background: $g2-kevlar;
+  position: relative;
+  color: $c-dreamsicle;
+  border: $ix-border solid $g5-pepper;
+
+  pre {
+    font-size: 14px;
+    padding: $ix-marg-c;
+    user-select: text !important;
+    cursor: text;
+  }
+}
+
+.empty-graph-error--icon {
+  display: inline-block;
+  margin-right: $ix-marg-b;
+}
+
+.empty-graph-error--copy {
+  position: absolute;
+  top: $ix-marg-b;
+  right: $ix-marg-b;
+  opacity: 0.9;
+}
