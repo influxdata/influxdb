@@ -32,7 +32,7 @@ type SeriesGenerator interface {
 }
 
 type TimeSequenceSpec struct {
-	// Count specifies the number of values to generate.
+	// Count specifies the maximum number of values to generate.
 	Count int
 
 	// Start specifies the starting time for the values.
@@ -45,9 +45,50 @@ type TimeSequenceSpec struct {
 	Precision time.Duration
 }
 
+func (ts TimeSequenceSpec) ForTimeRange(tr TimeRange) TimeSequenceSpec {
+	// Truncate time range
+	if ts.Delta > 0 {
+		tr = tr.Truncate(ts.Delta)
+	} else {
+		tr = tr.Truncate(ts.Precision)
+	}
+
+	ts.Start = tr.Start
+
+	if ts.Delta > 0 {
+		intervals := int(tr.End.Sub(tr.Start) / ts.Delta)
+		if intervals > ts.Count {
+			// if the number of intervals in the specified time range exceeds
+			// the maximum count, move the start forward to limit the number of values
+			ts.Start = tr.End.Add(-time.Duration(ts.Count) * ts.Delta)
+		} else {
+			ts.Count = intervals
+		}
+	} else {
+		ts.Delta = tr.End.Sub(tr.Start) / time.Duration(ts.Count)
+		if ts.Delta < ts.Precision {
+			// count is too high for the range of time and precision
+			ts.Count = int(tr.End.Sub(tr.Start) / ts.Precision)
+			ts.Delta = ts.Precision
+		} else {
+			ts.Delta = ts.Delta.Round(ts.Precision)
+		}
+		ts.Precision = 0
+	}
+
+	return ts
+}
+
 type TimeRange struct {
 	Start time.Time
 	End   time.Time
+}
+
+func (t TimeRange) Truncate(d time.Duration) TimeRange {
+	return TimeRange{
+		Start: t.Start.Truncate(d),
+		End:   t.End.Truncate(d),
+	}
 }
 
 type TimeValuesSequence interface {

@@ -42,6 +42,41 @@ func (s *sample) UnmarshalTOML(data interface{}) error {
 	return nil
 }
 
+type duration struct {
+	time.Duration
+}
+
+func (d *duration) UnmarshalTOML(data interface{}) error {
+	text, ok := data.(string)
+	if !ok {
+		return fmt.Errorf("invalid duration, expect a Go duration as a string: %T", data)
+	}
+
+	return d.UnmarshalText([]byte(text))
+}
+
+func (d *duration) UnmarshalText(text []byte) error {
+	s := string(text)
+
+	var err error
+	d.Duration, err = time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+
+	if d.Duration == 0 {
+		d.Duration, err = time.ParseDuration("1" + s)
+		if err != nil {
+			return err
+		}
+	}
+
+	if d.Duration <= 0 {
+		return fmt.Errorf("invalid duration, must be > 0: %s", d.Duration)
+	}
+	return nil
+}
+
 type precision byte
 
 const (
@@ -249,9 +284,25 @@ func (t *Field) UnmarshalTOML(data interface{}) error {
 	}
 
 	if n, ok := d["time-precision"]; ok {
-		if err := t.TimePrecision.UnmarshalTOML(n); err != nil {
+		var tp precision
+		if err := tp.UnmarshalTOML(n); err != nil {
 			return err
 		}
+		t.TimePrecision = &tp
+	}
+
+	if n, ok := d["time-interval"]; ok {
+		var ti duration
+		if err := ti.UnmarshalTOML(n); err != nil {
+			return err
+		}
+		t.TimeInterval = &ti
+		t.TimePrecision = nil
+	}
+
+	if t.TimePrecision == nil && t.TimeInterval == nil {
+		var tp precision
+		t.TimePrecision = &tp
 	}
 
 	// infer source

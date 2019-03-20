@@ -10,7 +10,6 @@ import (
 type mergedSeriesGenerator struct {
 	heap  seriesGeneratorHeap
 	last  constSeries
-	err   error
 	n     int64
 	first bool
 }
