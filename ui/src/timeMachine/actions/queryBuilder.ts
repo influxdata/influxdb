@@ -206,7 +206,11 @@ export const loadBuckets = () => async (
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    const buckets = await queryBuilderFetcher.findBuckets(queryURL, orgID)
+    const buckets = await queryBuilderFetcher.findBuckets({
+      url: queryURL,
+      orgID,
+    })
+
     const selectedBucket = getActiveQuery(getState()).builderConfig.buckets[0]
 
     dispatch(setBuilderBuckets(buckets))
@@ -244,7 +248,7 @@ export const loadTagSelector = (index: number) => async (
     return
   }
 
-  const tagPredicates = tags.slice(0, index)
+  const tagsSelections = tags.slice(0, index)
   const queryURL = getState().links.query.self
   const orgID = getActiveOrg(getState()).id
 
@@ -254,14 +258,13 @@ export const loadTagSelector = (index: number) => async (
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .keysSearchTerm
 
-    const keys = await queryBuilderFetcher.findKeys(
-      index,
-      queryURL,
+    const keys = await queryBuilderFetcher.findKeys(index, {
+      url: queryURL,
       orgID,
-      buckets[0],
-      tagPredicates,
-      searchTerm
-    )
+      bucket: buckets[0],
+      tagsSelections,
+      searchTerm,
+    })
 
     const {key} = tags[index]
 
@@ -299,7 +302,7 @@ const loadTagSelectorValues = (index: number) => async (
 ) => {
   const state = getState()
   const {buckets, tags} = getActiveQuery(state).builderConfig
-  const tagPredicates = tags.slice(0, index)
+  const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
   const orgID = getActiveOrg(state).id
 
@@ -309,15 +312,15 @@ const loadTagSelectorValues = (index: number) => async (
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm
-    const values = await queryBuilderFetcher.findValues(
-      index,
-      queryURL,
+
+    const values = await queryBuilderFetcher.findValues(index, {
+      url: queryURL,
       orgID,
-      buckets[0],
-      tagPredicates,
+      bucket: buckets[0],
+      tagsSelections,
       key,
-      searchTerm
-    )
+      searchTerm,
+    })
 
     const {values: selectedValues} = tags[index]
 

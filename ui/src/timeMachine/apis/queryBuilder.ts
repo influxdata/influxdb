@@ -14,7 +14,12 @@ export const LIMIT = 200
 
 type CancelableQuery = WrappedCancelablePromise<string[]>
 
-export function findBuckets(url: string, orgID: string): CancelableQuery {
+export interface FindBucketsOptions {
+  url: string
+  orgID: string
+}
+
+export function findBuckets({url, orgID}: FindBucketsOptions): CancelableQuery {
   const query = `buckets()
   |> sort(columns: ["name"])
   |> limit(n: ${LIMIT})`
@@ -27,13 +32,21 @@ export function findBuckets(url: string, orgID: string): CancelableQuery {
   }
 }
 
-export function findKeys(
-  url: string,
-  orgID: string,
-  bucket: string,
-  tagsSelections: BuilderConfig['tags'],
-  searchTerm: string = ''
-): CancelableQuery {
+export interface FindKeysOptions {
+  url: string
+  orgID: string
+  bucket: string
+  tagsSelections: BuilderConfig['tags']
+  searchTerm?: string
+}
+
+export function findKeys({
+  url,
+  orgID,
+  bucket,
+  tagsSelections,
+  searchTerm = '',
+}: FindKeysOptions): CancelableQuery {
   const tagFilters = formatTagFilterPredicate(tagsSelections)
   const searchFilter = formatSearchFilterCall(searchTerm)
   const previousKeyFilter = formatTagKeyFilterCall(tagsSelections)
@@ -58,14 +71,23 @@ v1.tagKeys(bucket: "${bucket}", predicate: ${tagFilters}, start: -${SEARCH_DURAT
   }
 }
 
-export function findValues(
-  url: string,
-  orgID: string,
-  bucket: string,
-  tagsSelections: BuilderConfig['tags'],
-  key: string,
-  searchTerm: string = ''
-): CancelableQuery {
+export interface FindValuesOptions {
+  url: string
+  orgID: string
+  bucket: string
+  tagsSelections: BuilderConfig['tags']
+  key: string
+  searchTerm: string
+}
+
+export function findValues({
+  url,
+  orgID,
+  bucket,
+  tagsSelections,
+  key,
+  searchTerm = '',
+}: FindValuesOptions): CancelableQuery {
   const tagFilters = formatTagFilterPredicate(tagsSelections)
   const searchFilter = formatSearchFilterCall(searchTerm)
 
