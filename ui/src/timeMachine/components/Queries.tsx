@@ -11,12 +11,12 @@ import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import TimeMachineQueryTab from 'src/timeMachine/components/QueryTab'
 import TimeMachineQueryBuilder from 'src/timeMachine/components/QueryBuilder'
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
+import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import {
   Button,
   IconFont,
   Alignment,
   ButtonShape,
-  SlideToggle,
   ComponentSize,
   ComponentColor,
   ComponentSpacer,
@@ -24,7 +24,7 @@ import {
 
 // Actions
 import {addQuery} from 'src/timeMachine/actions'
-import {setTimeRange, setIsViewingRawData} from 'src/timeMachine/actions'
+import {setTimeRange} from 'src/timeMachine/actions'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
@@ -40,26 +40,18 @@ interface StateProps {
   activeQuery: DashboardQuery
   draftQueries: DashboardDraftQuery[]
   timeRange: TimeRange
-  isViewingRawData: boolean
 }
 
 interface DispatchProps {
   onAddQuery: typeof addQuery
   onSetTimeRange: typeof setTimeRange
-  onSetIsViewingRawData: typeof setIsViewingRawData
 }
 
 type Props = StateProps & DispatchProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
-    const {
-      draftQueries,
-      onAddQuery,
-      timeRange,
-      onSetTimeRange,
-      isViewingRawData,
-    } = this.props
+    const {draftQueries, onAddQuery, timeRange, onSetTimeRange} = this.props
 
     return (
       <div className="time-machine-queries">
@@ -83,12 +75,7 @@ class TimeMachineQueries extends PureComponent<Props> {
           </div>
           <div className="time-machine-queries--buttons">
             <ComponentSpacer align={Alignment.Right}>
-              <SlideToggle.Label text="View Raw Data" />
-              <SlideToggle
-                active={isViewingRawData}
-                onChange={this.handleToggleIsViewingRawData}
-                size={ComponentSize.ExtraSmall}
-              />
+              <RawDataToggle />
               <CSVExportButton />
               <TimeMachineRefreshDropdown />
               <TimeRangeDropdown
@@ -116,28 +103,19 @@ class TimeMachineQueries extends PureComponent<Props> {
       return null
     }
   }
-
-  private handleToggleIsViewingRawData = () => {
-    const {isViewingRawData, onSetIsViewingRawData} = this.props
-
-    onSetIsViewingRawData(!isViewingRawData)
-  }
 }
 
 const mstp = (state: AppState) => {
-  const {draftQueries, timeRange, isViewingRawData} = getActiveTimeMachine(
-    state
-  )
+  const {draftQueries, timeRange} = getActiveTimeMachine(state)
 
   const activeQuery = getActiveQuery(state)
 
-  return {timeRange, activeQuery, draftQueries, isViewingRawData}
+  return {timeRange, activeQuery, draftQueries}
 }
 
 const mdtp = {
   onAddQuery: addQuery,
   onSetTimeRange: setTimeRange,
-  onSetIsViewingRawData: setIsViewingRawData,
 }
 
 export default connect<StateProps, DispatchProps>(

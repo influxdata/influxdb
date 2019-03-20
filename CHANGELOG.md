@@ -15,6 +15,8 @@
 
 ### UI Improvements
 
+1. [12782](https://github.com/influxdata/influxdb/pull/12782): Move bucket selection in the query builder to the first card in the list
+
 ## v2.0.0-alpha.6 [2019-03-15]
 
 ### Release Notes
