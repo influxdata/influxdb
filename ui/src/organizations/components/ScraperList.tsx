@@ -28,7 +28,7 @@ export default class ScraperList extends PureComponent<Props> {
             <IndexList.HeaderCell columnName="Bucket" width="15%" />
             <IndexList.HeaderCell columnName="" width="15%" />
           </IndexList.Header>
-          <IndexList.Body columnCount={3} emptyState={emptyState}>
+          <IndexList.Body columnCount={4} emptyState={emptyState}>
             {this.scrapersList}
           </IndexList.Body>
         </IndexList>
