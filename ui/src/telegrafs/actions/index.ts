@@ -3,7 +3,11 @@ import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Telegraf, Organization} from '@influxdata/influx'
+import {
+  ITelegraf as Telegraf,
+  Organization,
+  ILabel as Label,
+} from '@influxdata/influx'
 import {Dispatch} from 'redux-thunk'
 
 // Actions
@@ -14,6 +18,8 @@ import {
   telegrafCreateFailed,
   telegrafUpdateFailed,
   telegrafDeleteFailed,
+  addTelelgrafLabelFailed,
+  removeTelelgrafLabelFailed,
 } from 'src/shared/copy/v2/notifications'
 
 export type Action = SetTelegrafs | AddTelegraf | EditTelegraf | RemoveTelegraf
@@ -132,5 +138,35 @@ export const deleteTelegraf = (id: string, name: string) => async (
   } catch (e) {
     console.error(e)
     dispatch(notify(telegrafDeleteFailed(name)))
+  }
+}
+
+export const addTelelgrafLabelsAsync = (
+  telegrafID: string,
+  labels: Label[]
+) => async (dispatch): Promise<void> => {
+  try {
+    await client.telegrafConfigs.addLabels(telegrafID, labels)
+    const telegraf = await client.telegrafConfigs.get(telegrafID)
+
+    dispatch(editTelegraf(telegraf))
+  } catch (error) {
+    console.error(error)
+    dispatch(addTelelgrafLabelFailed())
+  }
+}
+
+export const removeTelelgrafLabelsAsync = (
+  telegrafID: string,
+  labels: Label[]
+) => async (dispatch): Promise<void> => {
+  try {
+    await client.telegrafConfigs.addLabels(telegrafID, labels)
+    const telegraf = await client.telegrafConfigs.get(telegrafID)
+
+    dispatch(editTelegraf(telegraf))
+  } catch (error) {
+    console.error(error)
+    dispatch(removeTelelgrafLabelFailed())
   }
 }
