@@ -16,13 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// ringShards specifies the number of partitions that the hash ring used to
-// store the entry mappings contains. It must be a power of 2. From empirical
-// testing, a value above the number of cores on the machine does not provide
-// any additional benefit. For now we'll set it to the number of cores on the
-// largest box we could imagine running influx.
-const ringShards = 16
-
 var (
 	// ErrSnapshotInProgress is returned if a snapshot is attempted while one is already running.
 	ErrSnapshotInProgress = fmt.Errorf("snapshot in progress")
@@ -203,7 +196,7 @@ func (c *Cache) init() {
 	}
 
 	c.mu.Lock()
-	c.store, _ = newring(ringShards)
+	c.store = newRing()
 	c.mu.Unlock()
 }
 
@@ -334,13 +327,8 @@ func (c *Cache) Snapshot() (*Cache, error) {
 
 	// If no snapshot exists, create a new one, otherwise update the existing snapshot
 	if c.snapshot == nil {
-		store, err := newring(ringShards)
-		if err != nil {
-			return nil, err
-		}
-
 		c.snapshot = &Cache{
-			store:   store,
+			store:   newRing(),
 			tracker: newCacheTracker(c.tracker.metrics, c.tracker.labels),
 		}
 	}
