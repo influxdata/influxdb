@@ -12,7 +12,7 @@ export const getSortedResource = createSelector(
   resourceList,
   sortSelector,
   (resourceList, sort) => {
-    if (sort) {
+    if (sort.key && sort.direction) {
       return orderBy(resourceList, [sort.key], [sort.direction])
     }
 

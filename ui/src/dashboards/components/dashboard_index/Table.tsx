@@ -8,7 +8,6 @@ import {ComponentSize} from '@influxdata/clockface'
 import {EmptyState, ResourceList} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
-import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort} from 'src/clockface'
@@ -30,6 +29,7 @@ interface Props {
 interface State {
   sortKey: SortKey
   sortDirection: Sort
+  shouldSort: boolean
 }
 
 type SortKey = keyof Dashboard | 'modified' | 'owner' | 'default' // owner and modified are currently hardcoded
@@ -38,8 +38,9 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
     this.state = {
-      sortKey: null,
-      sortDirection: Sort.Descending,
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      shouldSort: true,
     }
   }
 
