@@ -48,7 +48,7 @@ $overlay--container-padding: $ix-marg-c + $ix-marg-d;
     pointer-events: all;
   }
 
-  .fancy-scroll--track-h {
+  & > .fancy-scroll--track-h {
     display: none;
   }
 }
