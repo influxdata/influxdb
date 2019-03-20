@@ -93,24 +93,13 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 // handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
 func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	username, err := h.putPassword(ctx, w, r)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-	filter := influxdb.UserFilter{
-		Name: &username,
-	}
-	b, err := h.UserService.FindUser(ctx, filter)
+	_, err := h.putPassword(ctx, w, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type passwordResetRequest struct {

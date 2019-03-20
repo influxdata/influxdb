@@ -4356,7 +4356,7 @@ paths:
               $ref: "#/components/schemas/PasswordResetBody"
       responses:
         '204':
-          description: password succesfully updated
+          description: password successfully updated
         default:
           description: unsuccessful authentication
           content:
