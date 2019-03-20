@@ -699,6 +699,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}':
+    get:
+      tags:
+        - ScraperTargets
+      summary: get a scraper target by id
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          required: true
+          schema:
+            type: string
+          description: id of the scraper target
+      responses:
+        '200':
+          description: scraper target updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScraperTargetResponse"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     delete:
       tags:
         - ScraperTargets
