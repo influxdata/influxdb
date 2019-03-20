@@ -1,19 +1,20 @@
 package gen
 
 import (
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
-	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 {{range .}}
-{{ $typename := print .Name "Array" }}
+{{ $typename := print .name "Array" }}
+{{ $tsdbname := print .Name "Array" }}
 type {{$typename}} struct {
-	cursors.{{$typename}}
+	tsdb.{{$tsdbname}}
 }
 
-func New{{$typename}}Len(sz int) *{{$typename}} {
+func new{{$tsdbname}}Len(sz int) *{{$typename}} {
 	return &{{$typename}}{
-		{{$typename}}: cursors.{{$typename}}{
+		{{$tsdbname}}: tsdb.{{$tsdbname}}{
 			Timestamps: make([]int64, sz),
 			Values: make([]{{.Type}}, sz),
 		},
@@ -21,6 +22,6 @@ func New{{$typename}}Len(sz int) *{{$typename}} {
 }
 
 func (a *{{$typename}}) Encode(b []byte) ([]byte, error) {
-	return tsm1.Encode{{$typename}}Block(&a.{{$typename}}, b)
+	return tsm1.Encode{{$tsdbname}}Block(&a.{{$tsdbname}}, b)
 }
 {{end}}

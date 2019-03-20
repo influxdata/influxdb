@@ -7,91 +7,91 @@
 package gen
 
 import (
-	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
-type FloatArray struct {
-	cursors.FloatArray
+type floatArray struct {
+	tsdb.FloatArray
 }
 
-func NewFloatArrayLen(sz int) *FloatArray {
-	return &FloatArray{
-		FloatArray: cursors.FloatArray{
+func newFloatArrayLen(sz int) *floatArray {
+	return &floatArray{
+		FloatArray: tsdb.FloatArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]float64, sz),
 		},
 	}
 }
 
-func (a *FloatArray) Encode(b []byte) ([]byte, error) {
+func (a *floatArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeFloatArrayBlock(&a.FloatArray, b)
 }
 
-type IntegerArray struct {
-	cursors.IntegerArray
+type integerArray struct {
+	tsdb.IntegerArray
 }
 
-func NewIntegerArrayLen(sz int) *IntegerArray {
-	return &IntegerArray{
-		IntegerArray: cursors.IntegerArray{
+func newIntegerArrayLen(sz int) *integerArray {
+	return &integerArray{
+		IntegerArray: tsdb.IntegerArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]int64, sz),
 		},
 	}
 }
 
-func (a *IntegerArray) Encode(b []byte) ([]byte, error) {
+func (a *integerArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeIntegerArrayBlock(&a.IntegerArray, b)
 }
 
-type UnsignedArray struct {
-	cursors.UnsignedArray
+type unsignedArray struct {
+	tsdb.UnsignedArray
 }
 
-func NewUnsignedArrayLen(sz int) *UnsignedArray {
-	return &UnsignedArray{
-		UnsignedArray: cursors.UnsignedArray{
+func newUnsignedArrayLen(sz int) *unsignedArray {
+	return &unsignedArray{
+		UnsignedArray: tsdb.UnsignedArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]uint64, sz),
 		},
 	}
 }
 
-func (a *UnsignedArray) Encode(b []byte) ([]byte, error) {
+func (a *unsignedArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeUnsignedArrayBlock(&a.UnsignedArray, b)
 }
 
-type StringArray struct {
-	cursors.StringArray
+type stringArray struct {
+	tsdb.StringArray
 }
 
-func NewStringArrayLen(sz int) *StringArray {
-	return &StringArray{
-		StringArray: cursors.StringArray{
+func newStringArrayLen(sz int) *stringArray {
+	return &stringArray{
+		StringArray: tsdb.StringArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]string, sz),
 		},
 	}
 }
 
-func (a *StringArray) Encode(b []byte) ([]byte, error) {
+func (a *stringArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeStringArrayBlock(&a.StringArray, b)
 }
 
-type BooleanArray struct {
-	cursors.BooleanArray
+type booleanArray struct {
+	tsdb.BooleanArray
 }
 
-func NewBooleanArrayLen(sz int) *BooleanArray {
-	return &BooleanArray{
-		BooleanArray: cursors.BooleanArray{
+func newBooleanArrayLen(sz int) *booleanArray {
+	return &booleanArray{
+		BooleanArray: tsdb.BooleanArray{
 			Timestamps: make([]int64, sz),
 			Values:     make([]bool, sz),
 		},
 	}
 }
 
-func (a *BooleanArray) Encode(b []byte) ([]byte, error) {
+func (a *booleanArray) Encode(b []byte) ([]byte, error) {
 	return tsm1.EncodeBooleanArrayBlock(&a.BooleanArray, b)
 }
