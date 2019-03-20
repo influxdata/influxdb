@@ -85,6 +85,12 @@ func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *{{.name}}Table) advance() bool {
+	for _, cb := range t.colBufs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+
 	a := t.cur.Next()
 	t.l = a.Len()
 	if t.l == 0 {
