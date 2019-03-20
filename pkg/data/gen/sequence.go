@@ -82,3 +82,15 @@ func (s *StringArraySequence) Value() string {
 func (s *StringArraySequence) Count() int {
 	return len(s.vals)
 }
+
+type StringConstantSequence struct {
+	val string
+}
+
+func NewStringConstantSequence(val string) *StringConstantSequence {
+	return &StringConstantSequence{val: val}
+}
+
+func (s *StringConstantSequence) Next() bool    { return true }
+func (s *StringConstantSequence) Value() string { return s.val }
+func (s *StringConstantSequence) Count() int    { return 1 }

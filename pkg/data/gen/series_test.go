@@ -7,14 +7,14 @@ import (
 )
 
 func TestCompareSeries(t *testing.T) {
-	mk := func(k, f string) Series {
+	mk := func(k, f string) seriesKeyField {
 		return &constSeries{key: []byte(k), field: []byte(f)}
 	}
 
 	tests := []struct {
 		name string
-		a    Series
-		b    Series
+		a    seriesKeyField
+		b    seriesKeyField
 		exp  int
 	}{
 		{

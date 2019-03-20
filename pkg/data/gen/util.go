@@ -28,32 +28,6 @@ func sortDedupStrings(in []string) []string {
 	return in[:j+1]
 }
 
-func sortDedupInts(in []int) []int {
-	sort.Ints(in)
-	j := 0
-	for i := 1; i < len(in); i++ {
-		if in[j] == in[i] {
-			continue
-		}
-		j++
-		in[j] = in[i]
-	}
-	return in[:j+1]
-}
-
-func sortDedupFloats(in []float64) []float64 {
-	sort.Float64s(in)
-	j := 0
-	for i := 1; i < len(in); i++ {
-		if in[j] == in[i] {
-			continue
-		}
-		j++
-		in[j] = in[i]
-	}
-	return in[:j+1]
-}
-
 // ToInt64SliceE casts an interface to a []int64 type.
 func toInt64SliceE(i interface{}) ([]int64, error) {
 	if i == nil {
