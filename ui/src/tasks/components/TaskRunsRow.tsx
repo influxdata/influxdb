@@ -8,7 +8,7 @@ import {IndexList, Overlay} from 'src/clockface'
 import RunLogsOverlay from 'src/tasks/components/RunLogsList'
 
 // Actions
-import {getLogs} from 'src/tasks/actions/v2'
+import {getLogs} from 'src/tasks/actions'
 
 // Types
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'

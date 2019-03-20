@@ -13,7 +13,7 @@ import {Run} from '@influxdata/influx'
 import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
 
 // Actions
-import {getRuns, runTask} from 'src/tasks/actions/v2'
+import {getRuns, runTask} from 'src/tasks/actions'
 import {IconFont} from 'src/clockface'
 
 interface OwnProps {

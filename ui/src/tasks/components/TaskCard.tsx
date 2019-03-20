@@ -9,7 +9,7 @@ import {ResourceList, Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
-import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions/v2'
+import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Types

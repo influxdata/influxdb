@@ -13,6 +13,7 @@
 1. [12703](https://github.com/influxdata/influxdb/pull/12703): Allows user to edit note on cell
 1. [12764](https://github.com/influxdata/influxdb/pull/12764): Fix empty state styles in scrapers in org view
 1. [12790](https://github.com/influxdata/influxdb/pull/12790): Fix bucket creation error when changing rentention rules types.
+1. [12793](https://github.com/influxdata/influxdb/pull/12793): Fix task creation error when switching schedule types.
 
 ### UI Improvements
 
