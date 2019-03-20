@@ -2,6 +2,7 @@ Closes #
 
 _Briefly describe your proposed changes:_
 
+  - [ ] CHANGELOG.md updated with a link to the PR (not the Issue)
   - [ ] Rebased/mergeable
   - [ ] Tests pass
   - [ ] http/swagger.yml updated (if modified Go structs or API)
