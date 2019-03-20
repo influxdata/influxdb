@@ -26,6 +26,7 @@ export type Action =
   | SelectFunctionAction
   | SetValuesSearchTermAction
   | SetKeysSearchTermAction
+  | SetBuilderTagsStatusAction
 
 interface SetBuilderBucketsStatusAction {
   type: 'SET_BUILDER_BUCKETS_STATUS'
@@ -62,6 +63,18 @@ const setBuilderBucket = (
 ): SetBuilderBucketSelectionAction => ({
   type: 'SET_BUILDER_BUCKET_SELECTION',
   payload: {bucket, resetSelections},
+})
+
+interface SetBuilderTagsStatusAction {
+  type: 'SET_BUILDER_TAGS_STATUS'
+  payload: {status: RemoteDataState}
+}
+
+export const setBuilderTagsStatus = (
+  status: RemoteDataState
+): SetBuilderTagsStatusAction => ({
+  type: 'SET_BUILDER_TAGS_STATUS',
+  payload: {status},
 })
 
 interface SetBuilderTagKeysAction {
@@ -255,6 +268,7 @@ export const loadTagSelector = (index: number) => async (
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
   try {
+    const timeRange = getActiveTimeMachine(getState()).timeRange
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .keysSearchTerm
 
@@ -264,6 +278,7 @@ export const loadTagSelector = (index: number) => async (
       bucket: buckets[0],
       tagsSelections,
       searchTerm,
+      timeRange,
     })
 
     const {key} = tags[index]
@@ -309,6 +324,7 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
   try {
+    const timeRange = getActiveTimeMachine(getState()).timeRange
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm
@@ -320,6 +336,7 @@ const loadTagSelectorValues = (index: number) => async (
       tagsSelections,
       key,
       searchTerm,
+      timeRange,
     })
 
     const {values: selectedValues} = tags[index]
@@ -406,4 +423,9 @@ export const removeTagSelector = (index: number) => async (
 
   dispatch(removeTagSelectorSync(index))
   dispatch(loadTagSelector(index))
+}
+
+export const reloadTagSelectors = () => async (dispatch: Dispatch<Action>) => {
+  dispatch(setBuilderTagsStatus(RemoteDataState.Loading))
+  dispatch(loadTagSelector(0))
 }

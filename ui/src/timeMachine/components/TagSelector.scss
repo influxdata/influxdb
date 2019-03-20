@@ -52,12 +52,20 @@ button.tag-selector--remove,
   pointer-events: none;
   flex: 1 1 0;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  padding: $ix-marg-c $ix-marg-c $ix-marg-d $ix-marg-c;
   color: $g8-storm;
   font-weight: 500;
   font-size: 16px;
-  text-transform: uppercase;
   text-align: center;
-  padding: 12px 12px 36px 12px;
+  text-transform: uppercase;
+
+  small {
+    display: block;
+    font-size: 14px;
+    text-transform: none;
+    margin-top: $ix-marg-b;
+  }
 }
