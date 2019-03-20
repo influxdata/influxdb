@@ -15,6 +15,7 @@
 1. [12764](https://github.com/influxdata/influxdb/pull/12764): Fix empty state styles in scrapers in org view
 1. [12790](https://github.com/influxdata/influxdb/pull/12790): Fix bucket creation error when changing rentention rules types.
 1. [12793](https://github.com/influxdata/influxdb/pull/12793): Fix task creation error when switching schedule types.
+1. [12805](https://github.com/influxdata/influxdb/pull/12805): Fix hidden horizonal scrollbars in flux raw data view
 
 ### UI Improvements
 
