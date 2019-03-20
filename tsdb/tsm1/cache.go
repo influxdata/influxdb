@@ -138,25 +138,10 @@ func (e *entry) InfluxQLType() (influxql.DataType, error) {
 	return e.values.InfluxQLType()
 }
 
-// storer is the interface that descibes a cache's store.
-type storer interface {
-	entry(key []byte) *entry                        // Get an entry by its key.
-	write(key []byte, values Values) (bool, error)  // Write an entry to the store.
-	add(key []byte, entry *entry)                   // Add a new entry to the store.
-	remove(key []byte)                              // Remove an entry from the store.
-	keys(sorted bool) [][]byte                      // Return an optionally sorted slice of entry keys.
-	apply(f func([]byte, *entry) error) error       // Apply f to all entries in the store in parallel.
-	applySerial(f func([]byte, *entry) error) error // Apply f to all entries in serial.
-	reset()                                         // Reset the store to an initial unused state.
-	split(n int) []storer                           // Split splits the store into n stores
-	count() int                                     // Count returns the number of keys in the store
-}
-
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
-	_       uint64 // Padding for 32 bit struct alignment
 	mu      sync.RWMutex
-	store   storer
+	store   *ring
 	maxSize uint64
 
 	// snapshots are the cache objects that are currently being written to tsm files
@@ -168,53 +153,22 @@ type Cache struct {
 	tracker       *cacheTracker
 	lastSnapshot  time.Time
 	lastWriteTime time.Time
-
-	// A one time synchronization used to initial the cache with a store.  Since the store can allocate a
-	// a large amount memory across shards, we lazily create it.
-	initialize       atomic.Value
-	initializedCount uint32
 }
 
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
 // Only used for engine caches, never for snapshots.
 func NewCache(maxSize uint64) *Cache {
-	c := &Cache{
+	return &Cache{
 		maxSize:      maxSize,
-		store:        emptyStore{},
+		store:        newRing(),
 		lastSnapshot: time.Now(),
 		tracker:      newCacheTracker(newCacheMetrics(nil), nil),
 	}
-	c.initialize.Store(&sync.Once{})
-	return c
-}
-
-// init initializes the cache and allocates the underlying store.  Once initialized,
-// the store re-used until Freed.
-func (c *Cache) init() {
-	if !atomic.CompareAndSwapUint32(&c.initializedCount, 0, 1) {
-		return
-	}
-
-	c.mu.Lock()
-	c.store = newRing()
-	c.mu.Unlock()
-}
-
-// Free releases the underlying store and memory held by the Cache.
-func (c *Cache) Free() {
-	if !atomic.CompareAndSwapUint32(&c.initializedCount, 1, 0) {
-		return
-	}
-
-	c.mu.Lock()
-	c.store = emptyStore{}
-	c.mu.Unlock()
 }
 
 // Write writes the set of values for the key to the cache. This function is goroutine-safe.
 // It returns an error if the cache will exceed its max size by adding the new values.
 func (c *Cache) Write(key []byte, values []Value) error {
-	c.init()
 	addedSize := uint64(Values(values).Size())
 
 	// Enough room in the cache?
@@ -252,7 +206,6 @@ func (c *Cache) Write(key []byte, values []Value) error {
 // values as possible.  If one key fails, the others can still succeed and an
 // error will be returned.
 func (c *Cache) WriteMulti(values map[string][]Value) error {
-	c.init()
 	var addedSize uint64
 	for _, v := range values {
 		addedSize += uint64(Values(v).Size())
@@ -313,8 +266,6 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 // Snapshot takes a snapshot of the current cache, adds it to the slice of caches that
 // are being flushed, and resets the current cache with new values.
 func (c *Cache) Snapshot() (*Cache, error) {
-	c.init()
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -372,8 +323,6 @@ func (c *Cache) Deduplicate() {
 // ClearSnapshot removes the snapshot cache from the list of flushing caches and
 // adjusts the size.
 func (c *Cache) ClearSnapshot(success bool) {
-	c.init()
-
 	c.mu.RLock()
 	snapStore := c.snapshot.store
 	c.mu.RUnlock()
@@ -538,8 +487,6 @@ func (c *Cache) Values(key []byte) Values {
 // with timestamps between min and max contained in the bucket identified
 // by name from the cache.
 func (c *Cache) DeleteBucketRange(name []byte, min, max int64) {
-	c.init()
-
 	// TODO(edd/jeff): find a way to optimize lock usage
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -847,16 +794,3 @@ func valueType(v Value) byte {
 		return 0
 	}
 }
-
-type emptyStore struct{}
-
-func (e emptyStore) entry(key []byte) *entry                        { return nil }
-func (e emptyStore) write(key []byte, values Values) (bool, error)  { return false, nil }
-func (e emptyStore) add(key []byte, entry *entry)                   {}
-func (e emptyStore) remove(key []byte)                              {}
-func (e emptyStore) keys(sorted bool) [][]byte                      { return nil }
-func (e emptyStore) apply(f func([]byte, *entry) error) error       { return nil }
-func (e emptyStore) applySerial(f func([]byte, *entry) error) error { return nil }
-func (e emptyStore) reset()                                         {}
-func (e emptyStore) split(n int) []storer                           { return nil }
-func (e emptyStore) count() int                                     { return 0 }
