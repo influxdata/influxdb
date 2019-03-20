@@ -56,21 +56,19 @@ describe('Dashboards', () => {
       cy.visit('/dashboards')
     })
 
-    for (let i = 0; i < 100; i++) {
-      it.only('can delete a dashboard', () => {
-        cy.getByTestID('dashboard-card').should('have.length', 2)
+    it('can delete a dashboard', () => {
+      cy.getByTestID('dashboard-card').should('have.length', 2)
 
-        cy.getByTestID('dashboard-card')
-          .first()
-          .trigger('mouseover')
-          .within(() => {
-            cy.getByTestID('context-delete-menu').click()
-            cy.getByTestID('context-delete-dashboard').click()
-          })
+      cy.getByTestID('dashboard-card')
+        .first()
+        .trigger('mouseover')
+        .within(() => {
+          cy.getByTestID('context-delete-menu').click()
+          cy.getByTestID('context-delete-dashboard').click()
+        })
 
-        cy.getByTestID('dashboard-card').should('have.length', 1)
-      })
-    }
+      cy.getByTestID('dashboard-card').should('have.length', 1)
+    })
 
     it('can edit a dashboards name', () => {
       const newName = 'new 🅱️ashboard'
