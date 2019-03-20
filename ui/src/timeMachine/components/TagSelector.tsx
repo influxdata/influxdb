@@ -102,7 +102,7 @@ class TagSelector extends PureComponent<Props> {
         <>
           <div className="tag-selector--top">{this.removeButton}</div>
           <div className="tag-selector--empty" data-testid="empty-tag-keys">
-            No more tag keys found
+            No tag keys found <small>in the current time range</small>
           </div>
         </>
       )
@@ -181,7 +181,11 @@ class TagSelector extends PureComponent<Props> {
     }
 
     if (valuesStatus === RemoteDataState.Done && !values.length) {
-      return <div className="tag-selector--empty">Nothing found</div>
+      return (
+        <div className="tag-selector--empty">
+          No values found <small>in the current time range</small>
+        </div>
+      )
     }
 
     return (
