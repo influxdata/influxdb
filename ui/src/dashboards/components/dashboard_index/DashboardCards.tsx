@@ -13,8 +13,10 @@ import {Dashboard, AppState} from 'src/types'
 import {Sort} from 'src/clockface'
 
 interface OwnProps {
-  sortDirection: Sort
+  dashboards: Dashboard[]
   sortKey: string
+  sortDirection: Sort
+  sortType: SortTypes
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
@@ -23,12 +25,32 @@ interface OwnProps {
 }
 
 interface StateProps {
-  dashboards: Dashboard[]
+  sortedIDs: string[]
+}
+
+export enum SortTypes {
+  String = 'string',
+  Date = 'date',
 }
 
 type Props = OwnProps & StateProps
 
 class DashboardCards extends PureComponent<Props> {
+  public state = {
+    sortedIDs: this.props.sortedIDs,
+  }
+
+  componentDidUpdate(prevProps) {
+    const {sortDirection, sortKey, sortedIDs} = this.props
+
+    if (
+      prevProps.sortDirection !== sortDirection ||
+      prevProps.sortKey !== sortKey
+    ) {
+      this.setState({sortedIDs})
+    }
+  }
+
   public render() {
     const {
       dashboards,
@@ -39,23 +61,30 @@ class DashboardCards extends PureComponent<Props> {
       onFilterChange,
     } = this.props
 
-    return dashboards.map(d => (
-      <DashboardCard
-        key={d.id}
-        dashboard={d}
-        onCloneDashboard={onCloneDashboard}
-        onDeleteDashboard={onDeleteDashboard}
-        onUpdateDashboard={onUpdateDashboard}
-        showOwnerColumn={showOwnerColumn}
-        onFilterChange={onFilterChange}
-      />
-    ))
+    const {sortedIDs} = this.state
+
+    return sortedIDs.map(id => {
+      const dashboard = dashboards.find(d => d.id === id)
+      return (
+        dashboard && (
+          <DashboardCard
+            key={id}
+            dashboard={dashboard}
+            onCloneDashboard={onCloneDashboard}
+            onDeleteDashboard={onDeleteDashboard}
+            onUpdateDashboard={onUpdateDashboard}
+            showOwnerColumn={showOwnerColumn}
+            onFilterChange={onFilterChange}
+          />
+        )
+      )
+    })
   }
 }
 
 const mstp = (state: AppState, props: OwnProps) => {
   return {
-    dashboards: getSortedResource(state.dashboards, props),
+    sortedIDs: getSortedResource(state.dashboards, props),
   }
 }
 
