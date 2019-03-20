@@ -796,7 +796,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Label"
+              $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
           description: a list of all labels for a scraper target
