@@ -19,6 +19,9 @@ import {Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
 
+// Selectors
+import {viewableLabels} from 'src/labels/selectors'
+
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
@@ -118,8 +121,8 @@ class CollectorRow extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels: {list}}: AppState): StateProps => {
-  return {labels: list}
+const mstp = ({labels}: AppState): StateProps => {
+  return {labels: viewableLabels(labels.list)}
 }
 
 export default connect<StateProps, {}, OwnProps>(
