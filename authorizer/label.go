@@ -108,11 +108,14 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 	labels := ls[:0]
 	for _, l := range ls {
 		err := authorizeReadLabel(ctx, l.OrganizationID, l.ID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil &&
+			influxdb.ErrorCode(err) != influxdb.EUnauthorized &&
+			influxdb.ErrorCode(err) != influxdb.EInvalid {
 			return nil, err
 		}
 
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if influxdb.ErrorCode(err) == influxdb.EUnauthorized ||
+			influxdb.ErrorCode(err) == influxdb.EInvalid {
 			continue
 		}
 
