@@ -35,6 +35,8 @@ describe('Onboarding', () => {
 
     cy.location('pathname').should('include', 'onboarding/1')
 
+    cy.location('pathname').should('include', 'onboarding/1')
+
     //Check navigation bar
     cy.getByTestID('nav-step--welcome').click()
 
@@ -236,6 +238,7 @@ describe('Onboarding', () => {
     cy.getByTestID('input-field--orgname').type(user.org)
     cy.getByTestID('input-field--bucketname').type(user.bucket)
 
+
     cy.getByTestID('next').click()
 
     cy.wait('@orgSetup')
@@ -364,5 +367,185 @@ describe('Onboarding', () => {
       .should('be.enabled')
       .children('.button--label')
       .contains('Continue')
+
+  })
+
+  it('Can onboard to advanced', () => {
+
+    cy.server()
+
+    cy.route('POST', 'api/v2/setup').as('orgSetup')
+
+    //Check splash page
+    cy.location('pathname').should('include', 'onboarding/0')
+
+    //Continue
+    cy.getByTestID('button').click()
+    cy.location('pathname').should('include', 'onboarding/1')
+
+    //Input fields
+    cy.getByTestID('input-field--username').type(user.username)
+    cy.getByTestID('input-field--password').type(user.password)
+    cy.getByTestID('input-field--password-chk').type(user.password)
+    cy.getByTestID('input-field--orgname').type(user.org)
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
+
+    cy.getByTestID('button').click()
+
+    cy.wait('@orgSetup')
+
+    cy.get('@orgSetup').then(xhr => {
+      let orgId: string = xhr.responseBody.org.id
+
+      //wait for new page to load
+      cy.location('pathname').should('include', 'onboarding/2')
+
+      //advance to Advanced
+      cy.getByTestID('button--advanced').click()
+
+      //wait for new page to load
+      cy.location('pathname').should('match', /orgs\/.*\/buckets/)
+
+      cy.location('pathname').should('include', orgId)
+    })
+  })
+
+  it('Can onboard to configure later', () => {
+    cy.server()
+
+    cy.route('POST', 'api/v2/setup').as('orgSetup')
+
+    //Check splash page
+    cy.location('pathname').should('include', 'onboarding/0')
+
+    //Continue
+    cy.getByTestID('button').click()
+    cy.location('pathname').should('include', 'onboarding/1')
+
+    //Input fields
+    cy.getByTestID('input-field--username').type(user.username)
+    cy.getByTestID('input-field--password').type(user.password)
+    cy.getByTestID('input-field--password-chk').type(user.password)
+    cy.getByTestID('input-field--orgname').type(user.org)
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
+
+    cy.getByTestID('button').click()
+
+    cy.wait('@orgSetup')
+
+    cy.get('@orgSetup').then(xhr => {
+      let orgId: string = xhr.responseBody.org.id
+      //wait for new page to load
+
+      cy.location('pathname').should('include', 'onboarding/2')
+
+      //advance to Advanced
+      cy.getByTestID('button--conf-later').click()
+
+      cy.location('pathname').should('include', orgId)
+    })
+  })
+
+  it('respects field requirements', () => {
+    //Continue
+    cy.getByTestID('button').click()
+
+    cy.getByTestID('input-field--username').type(user.username)
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.getByTestID('input-field--password').type(user.password)
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.getByTestID('input-field--password-chk').type('drowssap')
+
+    //check password mismatch
+    cy.getByTestID('form--element-error').should(
+      'have.text',
+      'Passwords do not match'
+    )
+
+    cy.getByTestID('input-error').should('have.class', 'alert-triangle')
+
+    cy.getByTestID('input-field--orgname').type(user.org)
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.getByTestID('input-field--password-chk')
+      .clear()
+      .type(user.password)
+
+    cy.getByTestID('input-error').should('not.exist')
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.enabled')
+
+    //check cleared username
+    cy.getByTestID('input-field--username').clear()
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.getByTestID('input-field--username').type(user.username)
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.enabled')
+
+    //check cleared password
+    cy.getByTestID('input-field--password').clear()
+
+    cy.getByTestID('form--element-error').should(
+      'have.text',
+      'Passwords do not match'
+    )
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.getByTestID('input-field--password').type(user.password)
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.enabled')
+
+    //check cleared org name
+    cy.getByTestID('input-field--orgname').clear()
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.getByTestID('input-field--orgname').type(user.org)
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.enabled')
+
+    //check cleared bucket name
+    cy.getByTestID('input-field--bucketname').clear()
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
+
+    cy.getByTestID('button')
+      .contains('Continue')
+      .should('be.enabled')
   })
 })
+
+
