@@ -11,6 +11,7 @@ import (
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
 	boltstore "github.com/influxdata/influxdb/task/backend/bolt"
+	"github.com/influxdata/influxdb/task/mock"
 	"github.com/influxdata/influxdb/task/servicetest"
 )
 
@@ -24,7 +25,13 @@ func inMemFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 		st.Close()
 	}()
 
-	return &servicetest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx, I: inmem.NewService()}, cancel
+	i := inmem.NewService()
+	return &servicetest.System{
+		TaskControlService: servicetest.TaskControlAdaptor(st, lrw, lrw),
+		Ctx:                ctx,
+		I:                  i,
+		TaskService:        servicetest.UsePlatformAdaptor(st, lrw, mock.NewScheduler(), i),
+	}, cancel
 }
 
 func boltFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
@@ -54,7 +61,13 @@ func boltFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 		}
 	}()
 
-	return &servicetest.System{S: st, LR: lrw, LW: lrw, Ctx: ctx, I: inmem.NewService()}, cancel
+	i := inmem.NewService()
+	return &servicetest.System{
+		TaskControlService: servicetest.TaskControlAdaptor(st, lrw, lrw),
+		TaskService:        servicetest.UsePlatformAdaptor(st, lrw, mock.NewScheduler(), i),
+		Ctx:                ctx,
+		I:                  i,
+	}, cancel
 }
 
 func TestTaskService(t *testing.T) {
