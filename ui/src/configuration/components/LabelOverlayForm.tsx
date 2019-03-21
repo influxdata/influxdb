@@ -2,15 +2,17 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
+import {Button, ColorPicker} from '@influxdata/clockface'
+import {Grid, Form, Input, Label, InputType} from 'src/clockface'
+
+// Types
 import {
-  Button,
   Columns,
   ButtonType,
   ComponentSize,
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {Grid, Form, Input, Label, InputType, ColorPicker} from 'src/clockface'
 
 // Constants
 import {INPUT_ERROR_COLOR} from 'src/configuration/constants/LabelColors'
