@@ -1,28 +1,19 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import CopyToClipboard from 'react-copy-to-clipboard'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Components
-import {Button, ComponentSize, ComponentColor} from '@influxdata/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
-
-// Actions
-import {NotificationAction} from 'src/types'
-import {
-  copyToClipboardSuccess,
-  copyToClipboardFailed,
-} from 'src/shared/copy/notifications'
+import CopyButton from 'src/shared/components/CopyButton'
 
 // Styles
 import 'src/shared/components/CodeSnippet.scss'
 
 export interface PassedProps {
   copyText: string
-  notify: NotificationAction
 }
 
 interface DefaultProps {
@@ -54,40 +45,11 @@ class CodeSnippet extends PureComponent<Props> {
           </div>
         </FancyScrollbar>
         <div className="code-snippet--footer">
-          <CopyToClipboard text={copyText} onCopy={this.handleCopyAttempt}>
-            <Button
-              size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Secondary}
-              titleText="Copy to Clipboard"
-              text="Copy to Clipboard"
-              onClick={this.handleClickCopy}
-            />
-          </CopyToClipboard>
+          <CopyButton textToCopy={copyText} contentName={'Script'} />
           <label className="code-snippet--label">{label}</label>
         </div>
       </div>
     )
-  }
-
-  private handleClickCopy = (e: MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation()
-    e.preventDefault()
-  }
-
-  private handleCopyAttempt = (
-    copiedText: string,
-    isSuccessful: boolean
-  ): void => {
-    const {notify} = this.props
-    const text = copiedText.slice(0, 30).trimRight()
-    const truncatedText = `${text}...`
-    const title = 'Script '
-
-    if (isSuccessful) {
-      notify(copyToClipboardSuccess(truncatedText, title))
-    } else {
-      notify(copyToClipboardFailed(truncatedText, title))
-    }
   }
 }
 
