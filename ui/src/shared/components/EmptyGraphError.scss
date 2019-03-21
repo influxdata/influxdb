@@ -23,4 +23,9 @@
   top: $ix-marg-b;
   right: $ix-marg-b;
   opacity: 0.9;
+  display: none;
+
+  .empty-graph-error:hover & {
+    display: inherit;
+  }
 }
