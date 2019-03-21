@@ -21,10 +21,21 @@ var (
 	ErrSnapshotInProgress = fmt.Errorf("snapshot in progress")
 )
 
+// CacheMemorySizeLimitExceededError is the type of error returned from the cache when
+// a write would place it over its size limit.
+type CacheMemorySizeLimitExceededError struct {
+	Size  uint64
+	Limit uint64
+}
+
+func (c CacheMemorySizeLimitExceededError) Error() string {
+	return fmt.Sprintf("cache-max-memory-size exceeded: (%d/%d)", c.Size, c.Limit)
+}
+
 // ErrCacheMemorySizeLimitExceeded returns an error indicating an operation
 // could not be completed due to exceeding the cache-max-memory-size setting.
 func ErrCacheMemorySizeLimitExceeded(n, limit uint64) error {
-	return fmt.Errorf("cache-max-memory-size exceeded: (%d/%d)", n, limit)
+	return CacheMemorySizeLimitExceededError{Size: n, Limit: limit}
 }
 
 // Cache maintains an in-memory store of Values for a set of keys.
