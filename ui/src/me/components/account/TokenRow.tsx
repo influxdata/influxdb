@@ -6,13 +6,8 @@ import {connect} from 'react-redux'
 import {deleteAuthorization} from 'src/authorizations/actions'
 
 // Components
-import {
-  Alignment,
-  Button,
-  ComponentSize,
-  ComponentColor,
-} from '@influxdata/clockface'
-import {IndexList, ComponentSpacer} from 'src/clockface'
+import {Alignment, ComponentSize} from '@influxdata/clockface'
+import {IndexList, ComponentSpacer, ConfirmationButton} from 'src/clockface'
 
 // Types
 import {Authorization} from '@influxdata/influx'
@@ -46,11 +41,11 @@ class TokenRow extends PureComponent<Props> {
         <IndexList.Cell>{status}</IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
-            <Button
+            <ConfirmationButton
               size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Danger}
               text="Delete"
-              onClick={this.handleDelete}
+              confirmText="Confirm"
+              onConfirm={this.handleDelete}
             />
           </ComponentSpacer>
         </IndexList.Cell>
