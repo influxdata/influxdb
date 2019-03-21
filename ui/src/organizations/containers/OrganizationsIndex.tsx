@@ -1,19 +1,17 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {WithRouterProps} from 'react-router'
+import {WithRouterProps, withRouter} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
 import {Page} from 'src/pageLayout'
-import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import OrganizationsIndexContents from 'src/organizations/components/OrganizationsIndexContents'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
 
 // Actions
-import {createOrg, deleteOrg} from 'src/organizations/actions/orgs'
+import {deleteOrg} from 'src/organizations/actions/orgs'
 
 // Types
 import {Organization, Links} from 'src/types/v2'
@@ -28,18 +26,11 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onCreateOrg: typeof createOrg
   onDeleteOrg: typeof deleteOrg
 }
 
 interface State {
-  modalState: ModalState
   searchTerm: string
-}
-
-enum ModalState {
-  Open = 'open',
-  Closed = 'closed',
 }
 
 type Props = StateProps & DispatchProps & WithRouterProps
@@ -47,13 +38,12 @@ type Props = StateProps & DispatchProps & WithRouterProps
 @ErrorHandling
 class OrganizationsIndex extends PureComponent<Props, State> {
   public state: State = {
-    modalState: ModalState.Closed,
     searchTerm: '',
   }
 
   public render() {
-    const {links, onCreateOrg, onDeleteOrg, orgs} = this.props
-    const {modalState, searchTerm} = this.state
+    const {onDeleteOrg, orgs, children} = this.props
+    const {searchTerm} = this.state
 
     return (
       <>
@@ -93,27 +83,17 @@ class OrganizationsIndex extends PureComponent<Props, State> {
             </FilterList>
           </Page.Contents>
         </Page>
-        <Overlay visible={modalState === ModalState.Open}>
-          <CreateOrgOverlay
-            link={links.orgs}
-            onCloseModal={this.handleCloseModal}
-            onCreateOrg={onCreateOrg}
-          />
-        </Overlay>
+        {children}
       </>
     )
   }
 
-  private handleOpenModal = (): void => {
-    this.setState({modalState: ModalState.Open})
-  }
-
-  private handleCloseModal = (): void => {
-    this.setState({modalState: ModalState.Closed})
-  }
-
   private handleChangeSearchTerm = (searchTerm: string): void => {
     this.setState({searchTerm})
+  }
+
+  private handleOpenModal = () => {
+    this.props.router.push(`${this.props.location.pathname}/new`)
   }
 }
 
@@ -127,11 +107,12 @@ const mstp = (state): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onCreateOrg: createOrg,
   onDeleteOrg: deleteOrg,
 }
 
-export default connect<StateProps, DispatchProps>(
-  mstp,
-  mdtp
-)(OrganizationsIndex)
+export default withRouter(
+  connect<StateProps, DispatchProps>(
+    mstp,
+    mdtp
+  )(OrganizationsIndex)
+)

@@ -52,6 +52,7 @@ import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
+import CreateOrgOverlay from './organizations/components/CreateOrgOverlay'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -117,8 +118,19 @@ class Root extends PureComponent {
                     <Route component={GetOrganizations}>
                       <Route component={App}>
                         <IndexRoute component={MePage} />
+
+                        <Route
+                          path="organizations"
+                          component={OrganizationsIndex}
+                        >
+                          <Route path="new" component={CreateOrgOverlay} />
+                        </Route>
+
                         <Route path="organizations">
                           <IndexRoute component={OrganizationsIndex} />
+                          <Route component={OrganizationsIndex}>
+                            <Route path="new" component={CreateOrgOverlay} />
+                          </Route>
                           <Route path=":orgID">
                             <Route path="buckets" component={OrgBucketIndex} />
                             <Route
