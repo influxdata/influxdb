@@ -51,6 +51,73 @@ export const createCell = (
   })
 }
 
+export const createView = (
+  dbID: string,
+  cellID: string,
+  query: {
+    text: string
+    editMode: string
+    name: string
+    builderConfig: {
+      buckets: string[]
+      tags: {key: string; values: string[]}[]
+      functions: string[]
+      aggregateWindow: {period: string}
+    }
+  } = {
+    text:
+      'from(bucket: "defbuck") |> range(start: -6h, stop: now()) |> filter(fn: (r) => r._measurement == "mymeas") |> filter(fn: (r) => r._field == "hodnota")',
+    editMode: 'builder',
+    name: '',
+    builderConfig: {
+      buckets: ['defbuck'],
+      tags: [
+        {key: '_measurement', values: ['mymeas']},
+        {key: '_field', values: ['hodnota']},
+        {key: '', values: ['']},
+      ],
+      functions: [],
+      aggregateWindow: {period: 'auto'},
+    },
+  }
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'PATCH',
+    url: `/api/v2/dashboards/${dbID}/cells/${cellID}/view`,
+    body: {
+      name: 'TEST CELL',
+      properties: {
+        shape: 'chronograf-v2',
+        axes: {
+          x: {
+            base: '10',
+            bounds: ['', ''],
+            scale: 'linear',
+            label: '',
+            prefix: '',
+            suffix: '',
+          },
+          y: {
+            base: '10',
+            bounds: ['', ''],
+            scale: 'linear',
+            label: '',
+            prefix: '',
+            suffix: '',
+          },
+        },
+        colors: [],
+        geom: 'line',
+        legend: {},
+        type: 'xy',
+        note: 'TEST',
+        showNoteWhenEmpty: false,
+        queries: [query],
+      },
+    },
+  })
+}
+
 export const createDashboardTemplate = (
   orgID?: string,
   name: string = 'Bashboard'
@@ -376,6 +443,7 @@ Cypress.Commands.add('setupUser', setupUser)
 Cypress.Commands.add('createDashboard', createDashboard)
 Cypress.Commands.add('createDashboardTemplate', createDashboardTemplate)
 Cypress.Commands.add('createCell', createCell)
+Cypress.Commands.add('createView', createView)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)

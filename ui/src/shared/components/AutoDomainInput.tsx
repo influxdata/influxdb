@@ -69,6 +69,7 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
             onChange={e => setMinInput(e.target.value)}
             onBlur={emitIfValid}
             onKeyPress={handleKeyPress}
+            testID="input--min-val"
           />
         </Form.Element>
       </Grid.Column>
@@ -79,6 +80,7 @@ const MinMaxInputs: SFC<MinMaxInputsProps> = ({
             onChange={e => setMaxInput(e.target.value)}
             onBlur={emitIfValid}
             onKeyPress={handleKeyPress}
+            testID="input--max-val"
           />
         </Form.Element>
       </Grid.Column>
@@ -130,6 +132,7 @@ const AutoDomainInput: SFC<AutoDomainInputProps> = ({
                 active={!showInputs}
                 onClick={handleChooseAuto}
                 value="Auto"
+                testID="radio-button--auto"
               >
                 Auto
               </Radio.Button>
@@ -139,6 +142,7 @@ const AutoDomainInput: SFC<AutoDomainInputProps> = ({
                 active={showInputs}
                 onClick={handleChooseCustom}
                 value="Custom"
+                testID="radio-button--custom"
               >
                 Custom
               </Radio.Button>

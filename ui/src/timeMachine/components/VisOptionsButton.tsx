@@ -39,6 +39,7 @@ class VisOptionsButton extends Component<Props> {
         color={color}
         icon={IconFont.CogThick}
         onClick={this.handleClick}
+        testID="button--vis-opts"
       />
     )
   }

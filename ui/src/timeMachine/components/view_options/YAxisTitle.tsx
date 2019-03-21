@@ -18,7 +18,11 @@ class YAxisTitle extends PureComponent<Props> {
     return (
       <Grid.Column widthXS={Columns.Twelve}>
         <Form.Element label="Y Axis Label">
-          <Input value={label} onChange={this.handleChange} />
+          <Input
+            value={label}
+            onChange={this.handleChange}
+            testID="input--y-axis-label"
+          />
         </Form.Element>
       </Grid.Column>
     )
