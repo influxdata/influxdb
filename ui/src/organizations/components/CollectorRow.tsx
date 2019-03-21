@@ -32,7 +32,6 @@ import {viewableLabels} from 'src/labels/selectors'
 
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
-import {TOKEN_LABEL} from 'src/labels/constants'
 
 // Types
 import {AppState} from 'src/types/v2'
@@ -122,10 +121,7 @@ class CollectorRow extends PureComponent<Props> {
 
   private get labels(): JSX.Element {
     const {collector, labels, onFilterChange} = this.props
-
-    const collectorLabels = collector.labels.filter(
-      l => !l.name.startsWith('@influxdata')
-    )
+    const collectorLabels = viewableLabels(collector.labels)
 
     return (
       <InlineLabels
@@ -153,7 +149,8 @@ class CollectorRow extends PureComponent<Props> {
 
   private handleCreateLabel = async (label: ILabel): Promise<void> => {
     try {
-      await this.props.onCreateLabel(label.orgID, label.name, label.properties)
+      const {orgID, name, properties} = label
+      await this.props.onCreateLabel(orgID, name, properties)
     } catch (err) {
       throw err
     }
