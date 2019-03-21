@@ -173,7 +173,7 @@ class Buckets extends PureComponent<Props, State> {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text
-            text="Looks like your don't own any Buckets , why not create one?"
+            text="Looks like you don't own any Buckets , why not create one?"
             highlightWords={['Buckets']}
           />
           <Button

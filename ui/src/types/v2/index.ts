@@ -42,6 +42,7 @@ import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
 import {TemplatesState} from 'src/templates/reducers'
 import {AuthorizationsState} from 'src/authorizations/reducers'
+import {ScrapersState} from 'src/scrapers/reducers'
 
 export interface AppState {
   VERSION: string
@@ -68,6 +69,7 @@ export interface AppState {
   variables: VariablesState
   tokens: AuthorizationsState
   templates: TemplatesState
+  scrapers: ScrapersState
 }
 
 export type GetState = () => AppState
