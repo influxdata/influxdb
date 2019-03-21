@@ -32,6 +32,7 @@ import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 
 // Nofication Messages
 import {cellAddFailed} from 'src/shared/copy/notifications'
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
 interface StateProps {
   draftView: QueryView
@@ -46,6 +47,7 @@ interface DispatchProps {
   onUpdateView: typeof viewActions.updateView
   notify: typeof notify
   setActiveTimeMachine: typeof setActiveTimeMachine
+  executeQueries: typeof executeQueries
 }
 
 interface OwnProps extends WithRouterProps {
@@ -58,6 +60,15 @@ interface OwnProps extends WithRouterProps {
 type Props = OwnProps & StateProps & DispatchProps
 
 class VEO extends PureComponent<Props, {}> {
+  public componentDidMount() {
+    const {existingView} = this.props
+    const view = existingView || createView<XYView>(ViewType.XY)
+
+    this.props.setActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
+
+    this.props.executeQueries()
+  }
+
   public render() {
     const {draftView, onSetName} = this.props
 
@@ -77,13 +88,6 @@ class VEO extends PureComponent<Props, {}> {
         </div>
       </Overlay>
     )
-  }
-
-  public async componentDidMount() {
-    const {existingView} = this.props
-    const view = existingView || createView<XYView>(ViewType.XY)
-
-    this.props.setActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
   }
 
   private handleSave = async (): Promise<void> => {
@@ -144,6 +148,7 @@ const mdtp: DispatchProps = {
   onUpdateView: viewActions.updateView,
   setActiveTimeMachine,
   notify,
+  executeQueries,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
