@@ -9,7 +9,6 @@ import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
-import FeatureFlag from 'src/shared/components/FeatureFlag'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -71,13 +70,11 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           return (
             <>
               <div className="toolbar-tab-container">
-                <FeatureFlag>
-                  <ToolbarTab
-                    onSetActive={this.hideFluxFunctions}
-                    name="Variables"
-                    active={!this.state.displayFluxFunctions}
-                  />
-                </FeatureFlag>
+                <ToolbarTab
+                  onSetActive={this.hideFluxFunctions}
+                  name="Variables"
+                  active={!this.state.displayFluxFunctions}
+                />
                 <ToolbarTab
                   onSetActive={this.showFluxFunctions}
                   name="Functions"
