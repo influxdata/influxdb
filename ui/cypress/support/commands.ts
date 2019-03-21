@@ -224,6 +224,26 @@ export const flush = () => {
   })
 }
 
+export const writeData = (lines: string[]): Cypress.Chainable<Cypress.Response> => {
+
+  return cy.fixture('user').then(({org, bucket}) => {
+
+    var date = new Date()
+
+    for(var line in lines){
+      console.log("DEBUG line: " + lines[line] )
+      cy.request({
+        method: 'POST',
+        url: '/api/v2/write?org=' + org + '&bucket=' + bucket,
+        body: lines[line]
+      })
+
+    }
+
+  })
+
+}
+
 // DOM node getters
 export const getByTestID = (dataTest: string): Cypress.Chainable => {
   return cy.get(`[data-testid="${dataTest}"]`)
@@ -295,3 +315,6 @@ Cypress.Commands.add('createVariable', createVariable)
 // Labels
 Cypress.Commands.add('createLabel', createLabel)
 Cypress.Commands.add('createAndAddLabel', createAndAddLabel)
+
+//Test
+Cypress.Commands.add('writeData', writeData)

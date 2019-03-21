@@ -118,7 +118,7 @@ describe('Dashboards', () => {
           })
       })
 
-      it('can add an existing label to a dashboard', () => {
+      it.only('can add an existing label to a dashboard', () => {
         const labelName = 'swogglez'
 
         cy.get<Organization>('@org').then(({id}) => {
@@ -138,6 +138,8 @@ describe('Dashboards', () => {
               })
           })
         })
+
+
       })
 
       it('can create a label and add to a dashboard', () => {

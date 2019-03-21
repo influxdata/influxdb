@@ -17,6 +17,7 @@ import {
   createScraper,
   fluxEqual,
   createTelegraf,
+  writeData
 } from './support/commands'
 
 declare global {
@@ -39,6 +40,7 @@ declare global {
       createScraper: typeof createScraper
       fluxEqual: typeof fluxEqual
       createTelegraf: typeof createTelegraf
+      writeData: typeof writeData
     }
   }
 }
