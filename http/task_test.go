@@ -55,11 +55,9 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 		server.Close()
 	}()
 
-	tsFunc := func() platform.TaskService {
-		return http.TaskService{
-			Addr:  server.URL,
-			Token: auth.Token,
-		}
+	taskService := http.TaskService{
+		Addr:  server.URL,
+		Token: auth.Token,
 	}
 
 	cFunc := func() (servicetest.TestCreds, error) {
@@ -73,13 +71,11 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 	}
 
 	return &servicetest.System{
-		S:               store,
-		LR:              rrw,
-		LW:              rrw,
-		I:               i,
-		Ctx:             ctx,
-		TaskServiceFunc: tsFunc,
-		CredsFunc:       cFunc,
+		TaskControlService: servicetest.TaskControlAdaptor(store, rrw, rrw),
+		TaskService:        taskService,
+		Ctx:                ctx,
+		I:                  i,
+		CredsFunc:          cFunc,
 	}, cancel
 }
 

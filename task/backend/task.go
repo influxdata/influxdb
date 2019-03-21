@@ -21,7 +21,7 @@ type TaskControlService interface {
 
 	// NextDueRun returns the Unix timestamp of when the next call to CreateNextRun will be ready.
 	// The returned timestamp reflects the task's offset, so it does not necessarily exactly match the schedule time.
-	NextDueRun() (int64, error)
+	NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error)
 
 	// UpdateRunState sets the run state at the respective time.
 	UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state RunStatus) error
