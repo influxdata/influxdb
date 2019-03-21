@@ -182,8 +182,13 @@ func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.P
 
 	data := []byte(resp.Trailer.Get(QueryStatsTrailer))
 	var stats flux.Statistics
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return stats, tracing.LogError(span, err)
+	if len(data) > 0 {
+		// FIXME(jsternberg): The queryd service always sends these,
+		// but envoy does not currently return them properly.
+		// https://github.com/influxdata/idpe/issues/2841
+		if err := json.Unmarshal(data, &stats); err != nil {
+			return stats, tracing.LogError(span, err)
+		}
 	}
 
 	return stats, nil
