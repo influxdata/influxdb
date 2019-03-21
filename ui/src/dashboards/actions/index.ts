@@ -488,7 +488,9 @@ export const convertToTemplate = (dashboardID: string) => async (
     const variables = filterUnusedVars(allVariables, views)
     const dashboardTemplate = dashboardToTemplate(dashboard, views, variables)
 
-    dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate))
+    const orgID = dashboard.orgID // TODO remove when org is implicit app state
+
+    dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate, orgID))
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))

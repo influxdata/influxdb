@@ -26,6 +26,7 @@ interface DispatchProps {
 interface StateProps {
   taskTemplate: DocumentCreate
   status: RemoteDataState
+  orgID: string
 }
 
 type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
@@ -36,25 +37,28 @@ class TaskExportOverlay extends PureComponent<Props> {
       params: {id},
       convertToTemplate,
     } = this.props
+
     convertToTemplate(id)
   }
 
   public render() {
-    const {
-      taskTemplate,
-      params: {orgID},
-      status,
-    } = this.props
+    const {taskTemplate, status} = this.props
 
     return (
       <ExportOverlay
         resourceName="Task"
         resource={taskTemplate}
         onDismissOverlay={this.onDismiss}
-        orgID={orgID}
+        orgID={this.orgID}
         status={status}
       />
     )
+  }
+
+  private get orgID() {
+    const orgFromExistingResource = this.props.orgID
+    const orgInRoutes = this.props.params.orgID
+    return orgFromExistingResource || orgInRoutes
   }
 
   private onDismiss = () => {
@@ -68,6 +72,7 @@ class TaskExportOverlay extends PureComponent<Props> {
 const mstp = (state: AppState): StateProps => ({
   taskTemplate: state.templates.exportTemplate.item,
   status: state.templates.exportTemplate.status,
+  orgID: state.templates.exportTemplate.orgID,
 })
 
 const mdtp: DispatchProps = {

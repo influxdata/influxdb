@@ -54,15 +54,16 @@ export const setTemplatesStatus = (
 
 export interface SetExportTemplate {
   type: ActionTypes.SetExportTemplate
-  payload: {status: RemoteDataState; item?: DocumentCreate}
+  payload: {status: RemoteDataState; item?: DocumentCreate; orgID: string}
 }
 
 export const setExportTemplate = (
   status: RemoteDataState,
-  item?: DocumentCreate
+  item?: DocumentCreate,
+  orgID?: string
 ): SetExportTemplate => ({
   type: ActionTypes.SetExportTemplate,
-  payload: {status, item},
+  payload: {status, item, orgID},
 })
 
 export const getTemplatesForOrg = (orgName: string) => async dispatch => {
@@ -91,6 +92,6 @@ export const convertToTemplate = (id: string) => async (
   }
 }
 
-export const clearExportTemplate = async () => async dispatch => {
+export const clearExportTemplate = () => async dispatch => {
   dispatch(setExportTemplate(RemoteDataState.NotStarted, null))
 }

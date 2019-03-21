@@ -496,8 +496,9 @@ export const convertToTemplate = (taskID: string) => async (
 
     const task = await client.tasks.get(taskID)
     const taskTemplate = taskToTemplate(task)
+    const orgID = task.orgID // TODO remove when org is implicit app state
 
-    dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate))
+    dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate, orgID))
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))

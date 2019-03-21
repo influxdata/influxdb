@@ -139,7 +139,6 @@ class ExportOverlay extends PureComponent<Props> {
 
   private handleConvertToTemplate = async (): Promise<void> => {
     const {resource, onDismissOverlay, orgID, notify, resourceName} = this.props
-
     const template = addOrgIDToTemplate(resource, orgID)
 
     try {

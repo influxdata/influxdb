@@ -6,13 +6,17 @@ import {RemoteDataState} from 'src/types'
 export interface TemplatesState {
   status: RemoteDataState
   items: TemplateSummary[]
-  exportTemplate: {status: RemoteDataState; item: DocumentCreate}
+  exportTemplate: {status: RemoteDataState; item: DocumentCreate; orgID: string}
 }
 
 const defaultState = (): TemplatesState => ({
   status: RemoteDataState.NotStarted,
   items: [],
-  exportTemplate: {status: RemoteDataState.NotStarted, item: null},
+  exportTemplate: {
+    status: RemoteDataState.NotStarted,
+    item: null,
+    orgID: null,
+  },
 })
 
 const templatesReducer = (
@@ -39,10 +43,19 @@ const templatesReducer = (
       }
 
       case ActionTypes.SetExportTemplate: {
-        const {status, item} = action.payload
+        const {status, item, orgID} = action.payload
         draftState.exportTemplate.status = status
+
         if (item) {
           draftState.exportTemplate.item = item
+        } else {
+          draftState.exportTemplate.item = null
+        }
+
+        if (orgID) {
+          draftState.exportTemplate.orgID = orgID
+        } else {
+          draftState.exportTemplate.orgID = null
         }
         return
       }

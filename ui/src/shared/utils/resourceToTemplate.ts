@@ -7,6 +7,7 @@ import {
   ITemplate,
   Variable,
 } from '@influxdata/influx'
+import {viewableLabels} from 'src/labels/selectors'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 
@@ -71,7 +72,7 @@ export const taskToTemplate = (
     'offset',
   ])
 
-  const labels = getDeep<Label[]>(task, 'labels', [])
+  const labels = viewableLabels(task.labels)
   const includedLabels = labels.map(l => labelToIncluded(l))
   const relationshipsLabels = labels.map(l => labelToRelationship(l))
 

@@ -42,8 +42,9 @@ class TemplateExportOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    const {exportTemplate, status} = this.props
     const {
+      exportTemplate,
+      status,
       params: {orgID},
     } = this.props
 
