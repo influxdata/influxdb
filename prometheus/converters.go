@@ -30,7 +30,18 @@ const (
 	measurementTagKey = "_measurement"
 )
 
-var ErrNaNDropped = errors.New("dropped NaN from Prometheus since they are not supported")
+// A DroppedValuesError is returned when the prometheus write request contains
+// unsupported float64 values.
+type DroppedValuesError struct {
+	nan  uint64
+	ninf uint64
+	inf  uint64
+}
+
+// Error returns a descriptive error of the values dropped.
+func (e DroppedValuesError) Error() string {
+	return fmt.Sprintf("dropped unsupported Prometheus values: [NaN = %d, +Inf = %d, -Inf = %d]", e.nan, e.inf, e.ninf)
+}
 
 // WriteRequestToPoints converts a Prometheus remote write request of time series and their
 // samples into Points that can be written into Influx
@@ -41,7 +52,8 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 	}
 	points := make([]models.Point, 0, maxPoints)
 
-	var droppedNaN error
+	// Track any dropped values.
+	var nan, inf, ninf uint64
 
 	for _, ts := range req.Timeseries {
 		measurement := measurementName
@@ -55,9 +67,14 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 		}
 
 		for _, s := range ts.Samples {
-			// skip NaN values, which are valid in Prometheus
-			if math.IsNaN(s.Value) {
-				droppedNaN = ErrNaNDropped
+			if v := s.Value; math.IsNaN(v) {
+				nan++
+				continue
+			} else if math.IsInf(v, -1) {
+				ninf++
+				continue
+			} else if math.IsInf(v, 1) {
+				inf++
 				continue
 			}
 
@@ -68,11 +85,14 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 			if err != nil {
 				return nil, err
 			}
-
 			points = append(points, p)
 		}
 	}
-	return points, droppedNaN
+
+	if nan+inf+ninf > 0 {
+		return points, DroppedValuesError{nan: nan, inf: inf, ninf: ninf}
+	}
+	return points, nil
 }
 
 // ReadRequestToInfluxStorageRequest converts a Prometheus remote read request into one using the
