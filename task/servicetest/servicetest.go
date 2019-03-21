@@ -57,11 +57,13 @@ type taskControlAdaptor struct {
 func (tcs *taskControlAdaptor) CreateNextRun(ctx context.Context, taskID influxdb.ID, now int64) (backend.RunCreation, error) {
 	return tcs.s.CreateNextRun(ctx, taskID, now)
 }
+
 func (tcs *taskControlAdaptor) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
-	// the tests arent looking for a returned Run because the old system didn't return one
+	// the tests aren't looking for a returned Run because the old system didn't return one
 	// Once we completely switch over to the new system we can look at the returned run in the tests.
 	return nil, tcs.s.FinishRun(ctx, taskID, runID)
 }
+
 func (tcs *taskControlAdaptor) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error) {
 	_, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
 	if err != nil {
@@ -69,6 +71,7 @@ func (tcs *taskControlAdaptor) NextDueRun(ctx context.Context, taskID influxdb.I
 	}
 	return m.NextDueRun()
 }
+
 func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
 	st, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
 	if err != nil {
@@ -86,8 +89,7 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 
 	// in the old system the log store may not have the run until after the first
 	// state update, so we will need to pull the currently running.
-	tt := time.Time{}
-	if schedFor == tt {
+	if schedFor.IsZero() {
 		for _, cr := range m.CurrentlyRunning {
 			if influxdb.ID(cr.RunID) == runID {
 				schedFor = time.Unix(cr.Now, 0)
@@ -97,7 +99,6 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 
 	}
 
-	// Update the run state to Started; normally the scheduler would do this.
 	rlb := backend.RunLogBase{
 		Task:            st,
 		RunID:           runID,
@@ -110,6 +111,7 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 	}
 	return nil
 }
+
 func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when time.Time, log string) error {
 	st, err := tcs.s.FindTaskByID(ctx, taskID)
 	if err != nil {
@@ -123,7 +125,6 @@ func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID infl
 	schFor, _ := time.Parse(time.RFC3339, r.ScheduledFor)
 	reqAt, _ := time.Parse(time.RFC3339, r.RequestedAt)
 
-	// Update the run state to Started; normally the scheduler would do this.
 	rlb := backend.RunLogBase{
 		Task:            st,
 		RunID:           runID,
