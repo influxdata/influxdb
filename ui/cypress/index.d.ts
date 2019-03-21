@@ -17,7 +17,7 @@ import {
   createScraper,
   fluxEqual,
   createTelegraf,
-  writeData
+  writeData,
 } from './support/commands'
 
 declare global {
