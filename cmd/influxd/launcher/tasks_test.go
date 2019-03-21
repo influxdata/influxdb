@@ -13,12 +13,13 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/task/backend"
 )
 
 func TestLauncher_Task(t *testing.T) {
-	be := RunLauncherOrFail(t, ctx)
+	be := launcher.RunTestLauncherOrFail(t, ctx)
 	be.SetupOrFail(t)
 	defer be.ShutdownOrFail(t, ctx)
 
@@ -160,7 +161,7 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	// Explicitly set the now option so want and got have the same _start and _end values.
 	nowOpt := fmt.Sprintf("option now = () => %s\n", time.Unix(now, 0).UTC().Format(time.RFC3339))
 
-	res := be.MustExecuteQuery(org.ID, nowOpt+`from(bucket:"my_bucket_in") |> range(start:-5m)`, be.Auth)
+	res := be.MustExecuteQuery(nowOpt + `from(bucket:"my_bucket_in") |> range(start:-5m)`)
 	defer res.Done()
 	if len(res.Results) < 1 {
 		t.Fail()
@@ -185,7 +186,7 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	for _, w := range want {
 		executetest.NormalizeTables(w)
 	}
-	res = be.MustExecuteQuery(org.ID, nowOpt+`from(bucket:"my_bucket_out") |> range(start:-5m)`, be.Auth)
+	res = be.MustExecuteQuery(nowOpt + `from(bucket:"my_bucket_out") |> range(start:-5m)`)
 	defer res.Done()
 	got := make(map[string][]*executetest.Table)
 	for k, v := range res.Results {
