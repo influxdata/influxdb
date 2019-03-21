@@ -55,6 +55,7 @@ class RawFluxDataTable extends PureComponent<Props, State> {
             height={tableHeight}
             maxColumnCount={maxColumnCount}
             data={data}
+            key={files[0]}
           />
         </FancyScrollbar>
       </div>
