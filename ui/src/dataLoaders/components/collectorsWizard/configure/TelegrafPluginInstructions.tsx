@@ -24,6 +24,9 @@ import {
 import {createDashboardsForPlugins as createDashboardsForPluginsAction} from 'src/protos/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
+// APIs
+import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
+
 // Constants
 import {
   TelegrafDashboardCreated,
@@ -31,10 +34,9 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {AppState} from 'src/types/v2/index'
+import {AppState, DashboardTemplate} from 'src/types/v2/index'
 import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
 import {client} from 'src/utils/api'
-import {IDashboardTemplate} from '@influxdata/influx'
 
 interface DispatchProps {
   onSetTelegrafConfigName: typeof setTelegrafConfigName
@@ -165,7 +167,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
       const templates = await Promise.all(pendingTemplates)
 
       const pendingDashboards = templates.map(t =>
-        client.dashboards.createFromTemplate(t as IDashboardTemplate, orgID)
+        createDashboardFromTemplateAJAX(t as DashboardTemplate, orgID)
       )
 
       const dashboards = await Promise.all(pendingDashboards)
