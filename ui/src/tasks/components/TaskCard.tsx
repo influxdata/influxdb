@@ -12,6 +12,9 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
+// Selectors
+import {viewableLabels} from 'src/labels/selectors'
+
 // Types
 import {ComponentColor} from '@influxdata/clockface'
 import {ITask as Task, ILabel} from '@influxdata/influx'
@@ -209,7 +212,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
 const mstp = ({labels}: AppState): StateProps => {
   return {
-    labels: labels.list,
+    labels: viewableLabels(labels.list),
   }
 }
 
