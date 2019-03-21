@@ -23,6 +23,9 @@ import {
   taskGetFailed,
 } from 'src/shared/copy/v2/notifications'
 
+// Actions
+import {setExportTemplate} from 'src/templates/actions'
+
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 
@@ -34,6 +37,7 @@ import {getDeep} from 'src/utils/wrappers'
 import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
 import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
+import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
@@ -481,5 +485,21 @@ export const getLogs = (taskID: string, runID: string) => async (
   } catch (error) {
     console.error(error)
     dispatch(setLogs([]))
+  }
+}
+
+export const convertToTemplate = (taskID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    dispatch(setExportTemplate(RemoteDataState.Loading))
+
+    const task = await client.tasks.get(taskID)
+    const taskTemplate = taskToTemplate(task)
+
+    dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate))
+  } catch (error) {
+    dispatch(setExportTemplate(RemoteDataState.Error))
+    dispatch(notify(copy.createTemplateFailed(error)))
   }
 }

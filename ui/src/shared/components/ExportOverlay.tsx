@@ -6,7 +6,12 @@ import {client} from 'src/utils/api'
 // Components
 import {Overlay} from 'src/clockface'
 import {Form} from 'src/clockface'
-import {Button, ComponentColor} from '@influxdata/clockface'
+import {
+  Button,
+  ComponentColor,
+  SpinnerContainer,
+  TechnoSpinner,
+} from '@influxdata/clockface'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 
 // Actions
@@ -24,12 +29,14 @@ import {addOrgIDToTemplate} from 'src/shared/utils/resourceToTemplate'
 
 // Types
 import {DocumentCreate} from '@influxdata/influx'
+import {RemoteDataState} from 'src/types'
 
 interface OwnProps extends DefaultProps {
   onDismissOverlay: () => void
   resource: DocumentCreate
   resourceName: string
   orgID: string
+  status: RemoteDataState
 }
 
 interface DefaultProps {
@@ -48,16 +55,8 @@ class ExportOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    const {isVisible, resourceName, onDismissOverlay, resource} = this.props
-    const options = {
-      tabIndex: 1,
-      mode: 'json',
-      readonly: true,
-      lineNumbers: true,
-      autoRefresh: true,
-      theme: 'time-machine',
-      completeSingle: false,
-    }
+    const {isVisible, resourceName, onDismissOverlay, status} = this.props
+
     return (
       <Overlay visible={isVisible}>
         <Overlay.Container maxWidth={800}>
@@ -67,16 +66,12 @@ class ExportOverlay extends PureComponent<Props> {
               onDismiss={onDismissOverlay}
             />
             <Overlay.Body>
-              <div className="export-overlay--text-area">
-                <ReactCodeMirror
-                  autoFocus={false}
-                  autoCursor={true}
-                  value={JSON.stringify(resource, null, 1)}
-                  options={options}
-                  onBeforeChange={this.doNothing}
-                  onTouchStart={this.doNothing}
-                />
-              </div>
+              <SpinnerContainer
+                loading={status}
+                spinnerComponent={<TechnoSpinner />}
+              >
+                {this.overlayBody}
+              </SpinnerContainer>
             </Overlay.Body>
             <Overlay.Footer>
               {this.downloadButton}
@@ -89,6 +84,31 @@ class ExportOverlay extends PureComponent<Props> {
   }
 
   private doNothing = () => {}
+
+  private get overlayBody(): JSX.Element {
+    const {resource} = this.props
+    const options = {
+      tabIndex: 1,
+      mode: 'json',
+      readonly: true,
+      lineNumbers: true,
+      autoRefresh: true,
+      theme: 'time-machine',
+      completeSingle: false,
+    }
+    return (
+      <div className="export-overlay--text-area">
+        <ReactCodeMirror
+          autoFocus={false}
+          autoCursor={true}
+          value={JSON.stringify(resource, null, 1)}
+          options={options}
+          onBeforeChange={this.doNothing}
+          onTouchStart={this.doNothing}
+        />
+      </div>
+    )
+  }
 
   private get downloadButton(): JSX.Element {
     return (

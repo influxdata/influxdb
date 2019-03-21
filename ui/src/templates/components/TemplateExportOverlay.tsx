@@ -1,65 +1,82 @@
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import ExportOverlay from 'src/shared/components/ExportOverlay'
 
-// Utils
-import {templateToExport} from 'src/shared/utils/resourceToTemplate'
+// Actions
+import {
+  convertToTemplate as convertToTemplateAction,
+  clearExportTemplate as clearExportTemplateAction,
+} from 'src/templates/actions'
 
-// APIs
-import {client} from 'src/utils/api'
+// Types
 import {DocumentCreate} from '@influxdata/influx'
+import {AppState} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
 
-interface State {
-  template: DocumentCreate
+interface OwnProps {
+  params: {id: string; orgID: string}
 }
 
-interface Props extends WithRouterProps {
-  params: {orgID: string; id: string}
+interface DispatchProps {
+  convertToTemplate: typeof convertToTemplateAction
+  clearExportTemplate: typeof clearExportTemplateAction
 }
 
-class TemplateExportOverlay extends PureComponent<Props, State> {
-  public state: State = {template: null}
+interface StateProps {
+  exportTemplate: DocumentCreate
+  status: RemoteDataState
+}
 
-  public async componentDidMount() {
+type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+
+class TemplateExportOverlay extends PureComponent<Props> {
+  public componentDidMount() {
     const {
       params: {id},
+      convertToTemplate,
     } = this.props
-    try {
-      const templateDocument = await client.templates.get(id)
-      const template = templateToExport(templateDocument)
-      this.setState({template})
-    } catch (error) {
-      console.error(error)
-    }
+    convertToTemplate(id)
   }
 
   public render() {
-    const {template} = this.state
+    const {exportTemplate, status} = this.props
     const {
       params: {orgID},
     } = this.props
 
-    if (!template) {
-      return null
-    }
-
     return (
       <ExportOverlay
         resourceName="Template"
-        resource={template}
+        resource={exportTemplate}
         onDismissOverlay={this.onDismiss}
         orgID={orgID}
+        status={status}
       />
     )
   }
 
   private onDismiss = () => {
-    const {router} = this.props
+    const {router, clearExportTemplate} = this.props
 
     router.goBack()
+    clearExportTemplate()
   }
 }
 
-export default withRouter(TemplateExportOverlay)
+const mstp = (state: AppState): StateProps => ({
+  exportTemplate: state.templates.exportTemplate.item,
+  status: state.templates.exportTemplate.status,
+})
+
+const mdtp: DispatchProps = {
+  convertToTemplate: convertToTemplateAction,
+  clearExportTemplate: clearExportTemplateAction,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(withRouter<Props>(TemplateExportOverlay))

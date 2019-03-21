@@ -1,63 +1,82 @@
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import ExportOverlay from 'src/shared/components/ExportOverlay'
 
-// Utils
-import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
-
-// APIs
-import {getDashboard, getView} from 'src/dashboards/apis'
+// Actions
+import {convertToTemplate as convertToTemplateAction} from 'src/dashboards/actions/index'
+import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/actions'
 
 // Types
 import {DocumentCreate} from '@influxdata/influx'
+import {AppState} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
 
-interface State {
-  dashboardTemplate: DocumentCreate
-  orgID: string
-}
-
-interface Props extends WithRouterProps {
+interface OwnProps {
   params: {dashboardID: string; orgID: string}
 }
 
-class DashboardExportOverlay extends PureComponent<Props, State> {
-  public state: State = {dashboardTemplate: null, orgID: null}
+interface DispatchProps {
+  convertToTemplate: typeof convertToTemplateAction
+  clearExportTemplate: typeof clearExportTemplateAction
+}
 
+interface StateProps {
+  dashboardTemplate: DocumentCreate
+  status: RemoteDataState
+}
+
+type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+
+class DashboardExportOverlay extends PureComponent<Props> {
   public async componentDidMount() {
     const {
       params: {dashboardID},
+      convertToTemplate,
     } = this.props
 
-    const dashboard = await getDashboard(dashboardID)
-    const pendingViews = dashboard.cells.map(c => getView(dashboardID, c.id))
-    const views = await Promise.all(pendingViews)
-    const dashboardTemplate = dashboardToTemplate(dashboard, views)
-
-    this.setState({dashboardTemplate, orgID: dashboard.orgID})
+    convertToTemplate(dashboardID)
   }
 
   public render() {
-    const {dashboardTemplate, orgID} = this.state
-    if (!dashboardTemplate) {
-      return null
-    }
+    const {
+      status,
+      dashboardTemplate,
+      params: {orgID},
+    } = this.props
+
     return (
       <ExportOverlay
         resourceName="Dashboard"
         resource={dashboardTemplate}
         onDismissOverlay={this.onDismiss}
         orgID={orgID}
+        status={status}
       />
     )
   }
 
   private onDismiss = () => {
-    const {router} = this.props
+    const {router, clearExportTemplate} = this.props
 
     router.goBack()
+    clearExportTemplate()
   }
 }
 
-export default withRouter(DashboardExportOverlay)
+const mstp = (state: AppState): StateProps => ({
+  dashboardTemplate: state.templates.exportTemplate.item,
+  status: state.templates.exportTemplate.status,
+})
+
+const mdtp: DispatchProps = {
+  convertToTemplate: convertToTemplateAction,
+  clearExportTemplate: clearExportTemplateAction,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(withRouter<Props>(DashboardExportOverlay))
