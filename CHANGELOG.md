@@ -22,6 +22,7 @@
 ### UI Improvements
 
 1. [12782](https://github.com/influxdata/influxdb/pull/12782): Move bucket selection in the query builder to the first card in the list
+1. [12850](https://github.com/influxdata/influxdb/pull/12850): Ensure editor is automatically focused in note editor
 
 ## v2.0.0-alpha.6 [2019-03-15]
 
