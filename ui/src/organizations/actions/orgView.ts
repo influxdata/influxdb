@@ -7,6 +7,12 @@ import {
 } from '@influxdata/influx'
 import {Dashboard} from 'src/types/v2'
 
+// Actions
+import {
+  RemoveDashboardLabelsAction,
+  AddDashboardLabelsAction,
+} from 'src/dashboards/actions'
+
 // API
 import {client} from 'src/utils/api'
 import {getDashboardsByOrgID} from 'src/dashboards/apis/v2/index'
@@ -18,7 +24,11 @@ export enum ActionTypes {
   PopulateDashboards = 'POPULATE_DASHBOARDS',
 }
 
-export type Actions = PopulateTasks | PopulateDashboards
+export type Actions =
+  | PopulateTasks
+  | PopulateDashboards
+  | RemoveDashboardLabelsAction
+  | AddDashboardLabelsAction
 
 export interface PopulateTasks {
   type: ActionTypes.PopulateTasks

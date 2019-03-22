@@ -20,6 +20,33 @@ export default (state = defaultState, action: Actions): OrgViewState => {
       return {...state, tasks: action.payload.tasks}
     case ActionTypes.PopulateDashboards:
       return {...state, dashboards: action.payload.dashboards}
+    case 'ADD_DASHBOARD_LABELS': {
+      const {dashboardID, labels} = action.payload
+
+      const dashboards = state.dashboards.map(d => {
+        if (d.id === dashboardID) {
+          return {...d, labels: [...d.labels, ...labels]}
+        }
+        return d
+      })
+
+      return {...state, dashboards}
+    }
+    case 'REMOVE_DASHBOARD_LABELS': {
+      const {dashboardID, labels} = action.payload
+
+      const dashboards = state.dashboards.map(d => {
+        if (d.id === dashboardID) {
+          const updatedLabels = d.labels.filter(l => {
+            return !labels.includes(l)
+          })
+          return {...d, labels: updatedLabels}
+        }
+        return d
+      })
+
+      return {...state, dashboards}
+    }
     default:
       return state
   }

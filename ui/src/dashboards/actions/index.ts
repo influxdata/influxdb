@@ -125,7 +125,7 @@ interface LoadDashboardAction {
   }
 }
 
-interface AddDashboardLabelsAction {
+export interface AddDashboardLabelsAction {
   type: ActionTypes.AddDashboardLabels
   payload: {
     dashboardID: string
@@ -133,7 +133,7 @@ interface AddDashboardLabelsAction {
   }
 }
 
-interface RemoveDashboardLabelsAction {
+export interface RemoveDashboardLabelsAction {
   type: ActionTypes.RemoveDashboardLabels
   payload: {
     dashboardID: string
