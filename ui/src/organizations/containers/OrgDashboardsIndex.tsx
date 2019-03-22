@@ -74,25 +74,28 @@ class OrgDashboardsIndex extends Component<Props, State> {
     const {org} = this.props
 
     return (
-      <Page titleTag={org.name}>
-        <OrgHeader orgID={org.id} />
-        <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-12">
-            <Tabs>
-              <OrganizationNavigation tab={'dashboards'} orgID={org.id} />
-              <Tabs.TabContents>
-                <TabbedPageSection
-                  id="org-view-tab--dashboards"
-                  url="dashboards"
-                  title="Dashboards"
-                >
-                  {this.orgsDashboardsPage}
-                </TabbedPageSection>
-              </Tabs.TabContents>
-            </Tabs>
-          </div>
-        </Page.Contents>
-      </Page>
+      <>
+        <Page titleTag={org.name}>
+          <OrgHeader orgID={org.id} />
+          <Page.Contents fullWidth={false} scrollable={true}>
+            <div className="col-xs-12">
+              <Tabs>
+                <OrganizationNavigation tab={'dashboards'} orgID={org.id} />
+                <Tabs.TabContents>
+                  <TabbedPageSection
+                    id="org-view-tab--dashboards"
+                    url="dashboards"
+                    title="Dashboards"
+                  >
+                    {this.orgsDashboardsPage}
+                  </TabbedPageSection>
+                </Tabs.TabContents>
+              </Tabs>
+            </div>
+          </Page.Contents>
+        </Page>
+        {this.props.children}
+      </>
     )
   }
 
