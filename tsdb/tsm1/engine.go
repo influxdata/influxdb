@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -26,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -852,7 +852,8 @@ func (e *Engine) writeSnapshotAndCommit(ctx context.Context, log *zap.Logger, sn
 	})
 }
 
-// compactCache continually checks if the WAL cache should be written to disk.
+// compactCache checks once per second if the in-memory cache should be
+// snapshotted to a TSM file.
 func (e *Engine) compactCache() {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
@@ -866,39 +867,61 @@ func (e *Engine) compactCache() {
 			return
 
 		case <-t.C:
-
 			e.Cache.UpdateAge()
-			if e.ShouldCompactCache(time.Now()) {
-				span, ctx := opentracing.StartSpanFromContext(context.Background(), "Engine.compactCache <-t.C")
-				span.LogKV("path", e.path)
-
-				start := time.Now()
-				err := e.WriteSnapshot(ctx)
-				if err != nil && err != errCompactionsDisabled {
-					e.logger.Info("Error writing snapshot", zap.Error(err))
-				}
-				e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
-
-				span.Finish()
+			status := e.ShouldCompactCache(time.Now())
+			if status == CacheStatusOkay {
+				continue
 			}
+
+			span, ctx := opentracing.StartSpanFromContext(context.Background(), "Engine.compactCache <-t.C")
+			span.LogKV("path", e.path)
+
+			start := time.Now()
+			err := e.WriteSnapshot(ctx)
+			if err != nil && err != errCompactionsDisabled {
+				e.logger.Info("Error writing snapshot", zap.Error(err))
+			}
+			e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
+
+			span.Finish()
 		}
 	}
 }
 
-// ShouldCompactCache returns true if the Cache is over its flush threshold
-// or if the passed in lastWriteTime is older than the write cold threshold.
-func (e *Engine) ShouldCompactCache(t time.Time) bool {
+// CacheStatus describes the current state of the cache, with respect to whether
+// it is ready to be snapshotted or not.
+type CacheStatus int
+
+// Possible types of Cache status
+const (
+	CacheStatusOkay         CacheStatus = iota // Cache is Okay - do not snapshot.
+	CacheStatusSizeExceeded                    // The cache is large enough to be snapshotted.
+	CacheStatusColdNoWrites                    // The cache has not been written to for long enough that it should be snapshotted.
+)
+
+// ShouldCompactCache returns a status indicating if the Cache should be
+// snapshotted. There are three situations when the cache should be snapshotted:
+//
+// - the Cache size is over its flush size threshold;
+// - the Cache has not been snapshotted for longer than its flush time threshold; or
+// - the Cache has not been written since the write cold threshold.
+//
+func (e *Engine) ShouldCompactCache(t time.Time) CacheStatus {
 	sz := e.Cache.Size()
-
 	if sz == 0 {
-		return false
+		return 0
 	}
 
+	// Cache is now big enough to snapshot.
 	if sz > e.CacheFlushMemorySizeThreshold {
-		return true
+		return CacheStatusSizeExceeded
 	}
 
-	return t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration
+	// Cache has not been written to for a long time.
+	if t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration {
+		return CacheStatusColdNoWrites
+	}
+	return 0
 }
 
 func (e *Engine) compact(wg *sync.WaitGroup) {
