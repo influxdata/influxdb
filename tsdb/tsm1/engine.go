@@ -139,6 +139,10 @@ type Engine struct {
 	// the cache when the engine should write a snapshot to a TSM file
 	CacheFlushMemorySizeThreshold uint64
 
+	// CacheFlushAgeDurationThreshold specified the maximum age a cache can reach
+	// before it is snapshotted, regardless of its size.
+	CacheFlushAgeDurationThreshold time.Duration
+
 	// CacheFlushWriteColdDuration specifies the length of time after which if
 	// no writes have been committed to the WAL, the engine will write
 	// a snapshot of the cache to a TSM file
@@ -896,6 +900,7 @@ type CacheStatus int
 const (
 	CacheStatusOkay         CacheStatus = iota // Cache is Okay - do not snapshot.
 	CacheStatusSizeExceeded                    // The cache is large enough to be snapshotted.
+	CacheStatusAgeExceeded                     // The cache is past the age threshold to be snapshotted.
 	CacheStatusColdNoWrites                    // The cache has not been written to for long enough that it should be snapshotted.
 )
 
@@ -917,10 +922,16 @@ func (e *Engine) ShouldCompactCache(t time.Time) CacheStatus {
 		return CacheStatusSizeExceeded
 	}
 
+	// Cache is now old enough to snapshot, regardless of last write or age.
+	if e.CacheFlushAgeDurationThreshold > 0 && e.Cache.Age() > e.CacheFlushAgeDurationThreshold {
+		return CacheStatusAgeExceeded
+	}
+
 	// Cache has not been written to for a long time.
 	if t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration {
 		return CacheStatusColdNoWrites
 	}
+
 	return 0
 }
 

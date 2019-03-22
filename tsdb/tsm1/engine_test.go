@@ -145,9 +145,6 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 	}
 	defer e.Close()
 
-	e.CacheFlushMemorySizeThreshold = 1024
-	e.CacheFlushWriteColdDuration = time.Minute
-
 	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusOkay; got != exp {
 		t.Fatalf("got status %v, exp status %v - nothing written to cache, so should not compact", got, exp)
 	}
@@ -167,6 +164,17 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 	e.CacheFlushMemorySizeThreshold = 1
 	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusSizeExceeded; got != exp {
 		t.Fatalf("got status %v, exp status %v - cache size > flush threshold, so should compact", got, exp)
+	}
+
+	e.CacheFlushMemorySizeThreshold = 1024 // Reset.
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusOkay; got != exp {
+		t.Fatalf("got status %v, exp status %v - nothing written to cache, so should not compact", got, exp)
+	}
+
+	e.CacheFlushAgeDurationThreshold = 100 * time.Millisecond
+	time.Sleep(250 * time.Millisecond)
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusAgeExceeded; got != exp {
+		t.Fatalf("got status %v, exp status %v - cache age > max age threshold, so should compact", got, exp)
 	}
 }
 
