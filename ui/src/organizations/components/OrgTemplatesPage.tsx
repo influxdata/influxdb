@@ -40,7 +40,6 @@ class OrgTemplatesPage extends PureComponent<Props, State> {
     return (
       <>
         <TemplatesHeader
-          onCreateTemplate={onImport}
           onImportTemplate={onImport}
           showOrgDropdown={false}
           isFullPage={false}

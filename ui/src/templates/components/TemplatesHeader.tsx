@@ -4,10 +4,9 @@ import {Page} from 'src/pageLayout'
 
 // Components
 import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
-import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
-  onCreateTemplate: () => void
   onImportTemplate: () => void
   showOrgDropdown?: boolean
   isFullPage?: boolean
@@ -24,12 +23,7 @@ export default class TemplatesHeader extends PureComponent<Props> {
   }
 
   public render() {
-    const {
-      onCreateTemplate,
-      onImportTemplate,
-      isFullPage,
-      filterComponent,
-    } = this.props
+    const {isFullPage, filterComponent} = this.props
 
     if (isFullPage) {
       return (
@@ -37,13 +31,7 @@ export default class TemplatesHeader extends PureComponent<Props> {
           <Page.Header.Left>
             <Page.Title title={this.pageTitle} />
           </Page.Header.Left>
-          <Page.Header.Right>
-            <AddResourceDropdown
-              onSelectNew={onCreateTemplate}
-              onSelectImport={onImportTemplate}
-              resourceName="Template"
-            />
-          </Page.Header.Right>
+          <Page.Header.Right>{this.importButton}</Page.Header.Right>
         </Page.Header>
       )
     }
@@ -52,11 +40,7 @@ export default class TemplatesHeader extends PureComponent<Props> {
       <Tabs.TabContentsHeader>
         {filterComponent()}
         <ComponentSpacer align={Alignment.Right} stackChildren={Stack.Columns}>
-          <AddResourceDropdown
-            onSelectNew={onCreateTemplate}
-            onSelectImport={onImportTemplate}
-            resourceName="Template"
-          />
+          {this.importButton}
         </ComponentSpacer>
       </Tabs.TabContentsHeader>
     )
@@ -70,5 +54,16 @@ export default class TemplatesHeader extends PureComponent<Props> {
     }
 
     return ''
+  }
+
+  private get importButton(): JSX.Element {
+    return (
+      <Button
+        text="Import Template"
+        icon={IconFont.Plus}
+        color={ComponentColor.Primary}
+        onClick={this.props.onImportTemplate}
+      />
+    )
   }
 }
