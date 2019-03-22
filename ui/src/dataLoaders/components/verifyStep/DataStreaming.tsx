@@ -9,11 +9,7 @@ import DataListening from 'src/dataLoaders/components/verifyStep/DataListening'
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Types
-import {NotificationAction} from 'src/types'
-
 interface Props {
-  notify: NotificationAction
   bucket: string
   org: string
   configID: string
@@ -23,15 +19,11 @@ interface Props {
 @ErrorHandling
 class DataStreaming extends PureComponent<Props> {
   public render() {
-    const {token, configID, bucket, notify} = this.props
+    const {token, configID, bucket} = this.props
 
     return (
       <div className="streaming">
-        <TelegrafInstructions
-          notify={notify}
-          token={token}
-          configID={configID}
-        />
+        <TelegrafInstructions token={token} configID={configID} />
 
         <DataListening bucket={bucket} />
       </div>

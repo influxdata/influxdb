@@ -8,11 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Components
 import CodeSnippet from 'src/shared/components/CodeSnippet'
 
-// Types
-import {NotificationAction} from 'src/types'
-
 export interface Props {
-  notify: NotificationAction
   token: string
   configID: string
 }
@@ -20,7 +16,7 @@ export interface Props {
 @ErrorHandling
 class TelegrafInstructions extends PureComponent<Props> {
   public render() {
-    const {notify, token, configID} = this.props
+    const {token, configID} = this.props
     const exportToken = `export INFLUX_TOKEN=${token || ''}`
     const configScript = `telegraf --config ${
       this.origin
@@ -46,13 +42,13 @@ class TelegrafInstructions extends PureComponent<Props> {
           copy the following command to your terminal window to set an
           environment variable with your token.
         </p>
-        <CodeSnippet copyText={exportToken} notify={notify} label="CLI" />
+        <CodeSnippet copyText={exportToken} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>
           Finally, you can run the following command to start the Telegraf agent
           running on your machine.
         </p>
-        <CodeSnippet copyText={configScript} notify={notify} label="CLI" />
+        <CodeSnippet copyText={configScript} label="CLI" />
       </div>
     )
   }
