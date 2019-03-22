@@ -213,13 +213,14 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		CompactionPlan: NewDefaultPlanner(fs,
 			time.Duration(config.Compaction.FullWriteColdDuration)),
 
-		CacheFlushMemorySizeThreshold: uint64(config.Cache.SnapshotMemorySize),
-		CacheFlushWriteColdDuration:   time.Duration(config.Cache.SnapshotWriteColdDuration),
-		enableCompactionsOnOpen:       true,
-		formatFileName:                DefaultFormatFileName,
-		compactionLimiter:             limiter.NewFixed(maxCompactions),
-		scheduler:                     newScheduler(maxCompactions),
-		snapshotter:                   new(noSnapshotter),
+		CacheFlushMemorySizeThreshold:  uint64(config.Cache.SnapshotMemorySize),
+		CacheFlushWriteColdDuration:    time.Duration(config.Cache.SnapshotWriteColdDuration),
+		CacheFlushAgeDurationThreshold: time.Duration(config.Cache.SnapshotAgeDuration),
+		enableCompactionsOnOpen:        true,
+		formatFileName:                 DefaultFormatFileName,
+		compactionLimiter:              limiter.NewFixed(maxCompactions),
+		scheduler:                      newScheduler(maxCompactions),
+		snapshotter:                    new(noSnapshotter),
 	}
 
 	for _, option := range options {
