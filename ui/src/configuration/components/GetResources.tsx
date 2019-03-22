@@ -8,6 +8,7 @@ import {getLabels} from 'src/labels/actions'
 import {getBuckets} from 'src/buckets/actions'
 import {getTelegrafs} from 'src/telegrafs/actions'
 import {getVariables} from 'src/variables/actions'
+import {getScrapers} from 'src/scrapers/actions'
 
 // Types
 import {AppState} from 'src/types/v2'
@@ -15,6 +16,7 @@ import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
 import {Organization} from '@influxdata/influx'
+import {ScrapersState} from 'src/scrapers/reducers'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -29,6 +31,7 @@ interface StateProps {
   buckets: BucketsState
   telegrafs: TelegrafsState
   variables: VariablesState
+  scrapers: ScrapersState
   tokens: AuthorizationsState
 }
 
@@ -37,6 +40,7 @@ interface DispatchProps {
   getBuckets: typeof getBuckets
   getTelegrafs: typeof getTelegrafs
   getVariables: typeof getVariables
+  getScrapers: typeof getScrapers
   getAuthorizations: typeof getAuthorizations
 }
 
@@ -52,6 +56,7 @@ export enum ResourceTypes {
   Telegrafs = 'telegrafs',
   Variables = 'variables',
   Authorizations = 'tokens',
+  Scrapers = 'scrapers',
 }
 
 @ErrorHandling
@@ -68,6 +73,10 @@ class GetResources extends PureComponent<Props, StateProps> {
 
       case ResourceTypes.Telegrafs: {
         return await this.props.getTelegrafs()
+      }
+
+      case ResourceTypes.Scrapers: {
+        return await this.props.getScrapers()
       }
 
       case ResourceTypes.Variables: {
@@ -104,6 +113,7 @@ const mstp = ({
   buckets,
   telegrafs,
   variables,
+  scrapers,
   tokens,
 }: AppState): StateProps => {
   const org = orgs[0]
@@ -113,6 +123,7 @@ const mstp = ({
     buckets,
     telegrafs,
     variables,
+    scrapers,
     tokens,
     org,
   }
@@ -123,6 +134,7 @@ const mdtp = {
   getBuckets: getBuckets,
   getTelegrafs: getTelegrafs,
   getVariables: getVariables,
+  getScrapers: getScrapers,
   getAuthorizations: getAuthorizations,
 }
 

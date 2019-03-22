@@ -840,6 +840,11 @@ export const importTemplateFailed = (error: string): Notification => ({
   message: `Failed to import template: ${error}`,
 })
 
+export const createTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to export resource as template: ${error}`,
+})
+
 export const resourceSavedAsTemplate = (
   resourceName: string
 ): Notification => ({

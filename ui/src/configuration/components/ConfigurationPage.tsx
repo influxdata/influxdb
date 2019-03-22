@@ -14,6 +14,7 @@ import Tokens from 'src/me/components/account/Tokens'
 import Buckets from 'src/configuration/components/Buckets'
 import Telegrafs from 'src/configuration/components/Telegrafs'
 import Variables from 'src/configuration/components/Variables'
+import Scrapers from 'src/configuration/components/Scrapers'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -64,6 +65,17 @@ class ConfigurationPage extends Component<Props> {
                   <GetResources resource={ResourceTypes.Buckets}>
                     <GetResources resource={ResourceTypes.Telegrafs}>
                       <Telegrafs />
+                    </GetResources>
+                  </GetResources>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="scrapers_tab"
+                  url="scrapers_tab"
+                  title="Scrapers"
+                >
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <GetResources resource={ResourceTypes.Scrapers}>
+                      <Scrapers />
                     </GetResources>
                   </GetResources>
                 </TabbedPageSection>

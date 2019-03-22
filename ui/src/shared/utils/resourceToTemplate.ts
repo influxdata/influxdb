@@ -1,7 +1,13 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 import {Task, Label, Dashboard, Cell, View} from 'src/types/v2'
-import {TemplateType, DocumentCreate, ITemplate} from '@influxdata/influx'
+import {
+  TemplateType,
+  DocumentCreate,
+  ITemplate,
+  Variable,
+} from '@influxdata/influx'
+import {viewableLabels} from 'src/labels/selectors'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 
@@ -66,7 +72,7 @@ export const taskToTemplate = (
     'offset',
   ])
 
-  const labels = getDeep<Label[]>(task, 'labels', [])
+  const labels = viewableLabels(task.labels)
   const includedLabels = labels.map(l => labelToIncluded(l))
   const relationshipsLabels = labels.map(l => labelToRelationship(l))
 
@@ -132,9 +138,24 @@ const cellToRelationship = (cell: Cell) => ({
   id: cell.id,
 })
 
+const variableToIncluded = (v: Variable) => {
+  const variableAttributes = _.pick(v, ['name', 'arguments', 'selected'])
+  return {
+    id: v.id,
+    type: TemplateType.Variable,
+    attributes: variableAttributes,
+  }
+}
+
+const variableToRelationship = (v: Variable) => ({
+  type: TemplateType.Variable,
+  id: v.id,
+})
+
 export const dashboardToTemplate = (
   dashboard: Dashboard,
   views: View[],
+  variables: Variable[],
   baseTemplate = blankDashboardTemplate()
 ): DocumentCreate => {
   const dashboardName = _.get(dashboard, 'name', '')
@@ -149,6 +170,9 @@ export const dashboardToTemplate = (
   const cells = getDeep<Cell[]>(dashboard, 'cells', [])
   const includedCells = cells.map(c => cellToIncluded(c, views))
   const relationshipsCells = cells.map(c => cellToRelationship(c))
+
+  const includedVariables = variables.map(v => variableToIncluded(v))
+  const relationshipsVariables = variables.map(v => variableToRelationship(v))
 
   const includedViews = views.map(v => viewToIncluded(v))
 
@@ -168,6 +192,7 @@ export const dashboardToTemplate = (
         relationships: {
           [TemplateType.Label]: {data: relationshipsLabels},
           [TemplateType.Cell]: {data: relationshipsCells},
+          [TemplateType.Variable]: {data: relationshipsVariables},
         },
       },
       included: [
@@ -175,6 +200,7 @@ export const dashboardToTemplate = (
         ...includedLabels,
         ...includedCells,
         ...includedViews,
+        ...includedVariables,
       ],
     },
   }
