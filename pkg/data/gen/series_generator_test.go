@@ -86,9 +86,9 @@ func TestTimeSequenceSpec_ForTimeRange(t *testing.T) {
 				End:   secs(100),
 			},
 			exp: TimeSequenceSpec{
-				Count:     10,
-				Start:     secs(0),
-				Delta:     10 * time.Second,
+				Count: 10,
+				Start: secs(0),
+				Delta: 10 * time.Second,
 			},
 		},
 
@@ -106,9 +106,9 @@ func TestTimeSequenceSpec_ForTimeRange(t *testing.T) {
 				End:   secs(2000),
 			},
 			exp: TimeSequenceSpec{
-				Count:     100,
-				Start:     secs(0),
-				Delta:     20 * time.Second,
+				Count: 100,
+				Start: secs(0),
+				Delta: 20 * time.Second,
 			},
 		},
 
@@ -126,9 +126,9 @@ func TestTimeSequenceSpec_ForTimeRange(t *testing.T) {
 				End:   secs(1000),
 			},
 			exp: TimeSequenceSpec{
-				Count:     100,
-				Start:     secs(0),
-				Delta:     10 * time.Second,
+				Count: 100,
+				Start: secs(0),
+				Delta: 10 * time.Second,
 			},
 		},
 
@@ -150,7 +150,6 @@ func TestTimeSequenceSpec_ForTimeRange(t *testing.T) {
 				Delta: 10 * time.Second,
 			},
 		},
-
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
