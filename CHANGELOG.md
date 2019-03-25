@@ -10,6 +10,7 @@
 1. [12827](https://github.com/influxdata/influxdb/pull/12827): Fix screen tearing bug in Raw Data View
 1. [12843](https://github.com/influxdata/influxdb/pull/12843): Add copy to clipboard button to export overlays
 1. [12826](https://github.com/influxdata/influxdb/pull/12826): Enable copying error messages to the clipboard from dashboard cells
+1. [12876](https://github.com/influxdata/influxdb/pull/12876): Add the ability to update token's status in Token list
 
 ### Bug Fixes
 

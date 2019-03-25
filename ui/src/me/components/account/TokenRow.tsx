@@ -3,10 +3,13 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Actions
-import {deleteAuthorization} from 'src/authorizations/actions'
+import {
+  deleteAuthorization,
+  updateAuthorization,
+} from 'src/authorizations/actions'
 
 // Components
-import {Alignment, ComponentSize} from '@influxdata/clockface'
+import {Alignment, ComponentSize, SlideToggle} from '@influxdata/clockface'
 import {IndexList, ComponentSpacer, ConfirmationButton} from 'src/clockface'
 
 // Types
@@ -19,13 +22,14 @@ interface OwnProps {
 
 interface DispatchProps {
   onDelete: typeof deleteAuthorization
+  onUpdate: typeof updateAuthorization
 }
 
 type Props = DispatchProps & OwnProps
 
 class TokenRow extends PureComponent<Props> {
   public render() {
-    const {description, status, id} = this.props.auth
+    const {description, id} = this.props.auth
 
     return (
       <IndexList.Row>
@@ -38,7 +42,13 @@ class TokenRow extends PureComponent<Props> {
             {description}
           </a>
         </IndexList.Cell>
-        <IndexList.Cell>{status}</IndexList.Cell>
+        <IndexList.Cell>
+          <SlideToggle
+            active={this.isTokenEnbled}
+            size={ComponentSize.ExtraSmall}
+            onChange={this.changeToggle}
+          />
+        </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ComponentSpacer align={Alignment.Right}>
             <ConfirmationButton
@@ -51,6 +61,21 @@ class TokenRow extends PureComponent<Props> {
         </IndexList.Cell>
       </IndexList.Row>
     )
+  }
+
+  private get isTokenEnbled(): boolean {
+    const {auth} = this.props
+    return auth.status === Authorization.StatusEnum.Active
+  }
+
+  private changeToggle = () => {
+    const {auth, onUpdate} = this.props
+    if (auth.status === Authorization.StatusEnum.Active) {
+      auth.status = Authorization.StatusEnum.Inactive
+    } else {
+      auth.status = Authorization.StatusEnum.Active
+    }
+    onUpdate(auth)
   }
 
   private handleDelete = () => {
@@ -66,6 +91,7 @@ class TokenRow extends PureComponent<Props> {
 
 const mdtp = {
   onDelete: deleteAuthorization,
+  onUpdate: updateAuthorization,
 }
 
 export default connect<{}, DispatchProps, OwnProps>(
