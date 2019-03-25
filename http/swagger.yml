@@ -7614,7 +7614,6 @@ components:
         - ms
         - s
         - us
-        - u
         - ns
     TaskCreateRequest:
       type: object
