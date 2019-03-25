@@ -3,14 +3,12 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Types
+import {Form, Button} from '@influxdata/clockface'
+import {Input, Panel, Grid} from 'src/clockface'
+
+// Types
+import {Columns, ComponentSize, ComponentStatus} from '@influxdata/clockface'
 import {MeState} from 'src/types/v2'
-import {
-  Button,
-  ComponentSize,
-  ComponentStatus,
-  Columns,
-} from '@influxdata/clockface'
-import {Form, Input, Panel, Grid} from 'src/clockface'
 
 interface StateProps {
   me: MeState

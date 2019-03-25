@@ -1,30 +1,31 @@
+// Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
-// utils
+// Utils
 import _ from 'lodash'
 
-// components
-import {
-  Button,
-  ComponentColor,
-  ButtonType,
-  Columns,
-  ComponentStatus,
-} from '@influxdata/clockface'
-import {Grid, Form, Input, InputType} from 'src/clockface'
+// Components
+import {Form, Button} from '@influxdata/clockface'
+import {Grid, Input, InputType} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardsDropdown from 'src/dataExplorer/components/DashboardsDropdown'
 
-// constants
+// Constants
 import {cellAddFailed, cellAdded} from 'src/shared/copy/notifications'
 
-// actions
+// Actions
 import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions'
 import {createDashboard} from 'src/dashboards/apis'
 import {notify} from 'src/shared/actions/notifications'
 
-// types
+// Types
+import {
+  Columns,
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import {AppState, Dashboard, View, Organization} from 'src/types/v2'
 import {
   DashboardTemplate,

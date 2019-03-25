@@ -5,14 +5,8 @@ import uuid from 'uuid'
 
 // Components
 import ThresholdItem from 'src/timeMachine/components/view_options/ThresholdItem'
-import {
-  Button,
-  ComponentSize,
-  IconFont,
-  ButtonType,
-  ComponentStatus,
-} from '@influxdata/clockface'
-import {Form, Grid} from 'src/clockface'
+import {Form, Button} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 
 // Constants
 import {
@@ -23,6 +17,12 @@ import {
 } from 'src/shared/constants/thresholds'
 
 // Types
+import {
+  IconFont,
+  ButtonType,
+  ComponentSize,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import {Color, ThresholdConfig} from 'src/types/colors'
 
 interface Props {

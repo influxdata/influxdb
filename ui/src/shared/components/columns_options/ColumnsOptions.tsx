@@ -1,10 +1,11 @@
+// Libraries
 import React, {Component} from 'react'
 import {DragDropContext} from 'react-dnd'
 import HTML5Backend from 'react-dnd-html5-backend'
 
 // Components
-import {EmptyState} from '@influxdata/clockface'
-import {Grid, Form} from 'src/clockface'
+import {Form, EmptyState} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import DraggableColumn from 'src/shared/components/draggable_column/DraggableColumn'
 
 // Types

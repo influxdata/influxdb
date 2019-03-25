@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import {Form, Radio, ButtonShape} from 'src/clockface'
+import {Form, Radio} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -16,6 +16,7 @@ import {
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
+import {ButtonShape} from '@influxdata/clockface'
 import {AppState} from 'src/types/v2'
 import {Color} from 'src/types/colors'
 
@@ -41,6 +42,8 @@ class ThresholdColoring extends PureComponent<Props> {
       <Form.Element label="Colorization">
         <Radio shape={ButtonShape.StretchToFit}>
           <Radio.Button
+            id={ThresholdColoringSetting.Background}
+            titleText={ThresholdColoringSetting.Background}
             active={this.activeSetting === ThresholdColoringSetting.Background}
             onClick={this.handleClick}
             value={ThresholdColoringSetting.Background}
@@ -48,6 +51,8 @@ class ThresholdColoring extends PureComponent<Props> {
             Background
           </Radio.Button>
           <Radio.Button
+            id={ThresholdColoringSetting.Text}
+            titleText={ThresholdColoringSetting.Text}
             active={this.activeSetting === ThresholdColoringSetting.Text}
             onClick={this.handleClick}
             value={ThresholdColoringSetting.Text}
@@ -94,3 +99,8 @@ export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
 )(ThresholdColoring)
+
+// Type
+// '{ children: string; active: boolean; onClick: (setting: ThresholdColoringSetting) => void; value: ThresholdColoringSetting; }'
+// is missing the following properties from type
+// 'Pick<Readonly<Props> & Readonly<{ children?: ReactNode; }>, "children" | "value" | "id" | "titleText" | "onClick" | "active">': id, titleText

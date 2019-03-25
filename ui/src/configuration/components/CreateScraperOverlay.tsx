@@ -3,12 +3,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
-import {Form, Overlay} from 'src/clockface'
+import {Form, Button} from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 import CreateScraperForm from 'src/organizations/components/CreateScraperForm'
 
 // Types
 import {Bucket, ScraperTargetRequest} from '@influxdata/influx'
+import {ComponentColor, ComponentStatus} from '@influxdata/clockface'
 
 interface Props {
   visible: boolean

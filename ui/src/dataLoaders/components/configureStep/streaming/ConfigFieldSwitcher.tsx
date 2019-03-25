@@ -3,11 +3,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form, Input, ComponentSize, Grid, Columns} from 'src/clockface'
+import {Form} from '@influxdata/clockface'
+import {Input, Grid} from 'src/clockface'
 import URIFormElement from 'src/shared/components/URIFormElement'
 import ArrayFormElement from 'src/dataLoaders/components/configureStep/streaming/ArrayFormElement'
 
 // Types
+import {Columns, ComponentSize} from '@influxdata/clockface'
 import {ConfigFieldType, TelegrafPluginName} from 'src/types/v2/dataLoaders'
 
 // Actions

@@ -3,15 +3,9 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  ButtonType,
-  ComponentStatus,
-} from '@influxdata/clockface'
-import {Form, Input, InputType, ComponentSpacer, Alignment} from 'src/clockface'
+import {Form, Button, ComponentSpacer} from '@influxdata/clockface'
+import {Input, InputType} from 'src/clockface'
 import RandomLabelColorButton from 'src/configuration/components/RandomLabelColor'
-import {Label, LabelProperties} from 'src/types/v2/labels'
 
 // Constants
 import {HEX_CODE_CHAR_LENGTH} from 'src/configuration/constants/LabelColors'
@@ -22,6 +16,15 @@ import {
   validateHexCode,
   randomPresetColor,
 } from 'src/configuration/utils/labels'
+
+// Types
+import {
+  Alignment,
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
+import {Label, LabelProperties} from 'src/types/v2/labels'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

@@ -1,8 +1,12 @@
+// Libraries
 import _ from 'lodash'
 import React from 'react'
 
+// Component
+import {Form} from '@influxdata/clockface'
+import {Grid, Dropdown, DropdownMode} from 'src/clockface'
+
 // Types
-import {Grid, Dropdown, Form, DropdownMode} from 'src/clockface'
 import {FieldOption} from 'src/types/v2/dashboards'
 
 interface Props {

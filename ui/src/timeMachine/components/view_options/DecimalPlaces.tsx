@@ -2,12 +2,14 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Form, Grid, Columns, AutoInput} from 'src/clockface'
+import {Form} from '@influxdata/clockface'
+import {Grid, AutoInput} from 'src/clockface'
 
 // Constants
 import {MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
 
 // Types
+import {Columns} from '@influxdata/clockface'
 import {DecimalPlaces} from 'src/types/v2/dashboards'
 
 // Decorators

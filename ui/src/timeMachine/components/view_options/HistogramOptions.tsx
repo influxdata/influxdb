@@ -3,14 +3,13 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
+import {Form} from '@influxdata/clockface'
 import {
-  Dropdown,
-  MultiSelectDropdown,
-  ComponentStatus,
-  Form,
   Grid,
-  AutoInput,
   Input,
+  Dropdown,
+  AutoInput,
+  MultiSelectDropdown,
 } from 'src/clockface'
 import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
@@ -30,6 +29,7 @@ import {
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
+import {ComponentStatus} from '@influxdata/clockface'
 import {HistogramPosition} from 'src/minard'
 import {Color} from 'src/types/colors'
 import {AppState} from 'src/types/v2'

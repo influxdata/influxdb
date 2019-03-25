@@ -3,8 +3,8 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
+import {Form} from '@influxdata/clockface'
 import TaskForm from 'src/tasks/components/TaskForm'
-import {Form} from 'src/clockface'
 
 // Constants
 import defaultTaskOptions from 'src/tasks/reducers'

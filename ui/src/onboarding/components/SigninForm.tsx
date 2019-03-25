@@ -5,15 +5,8 @@ import {connect} from 'react-redux'
 import _, {get} from 'lodash'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  ButtonType,
-} from '@influxdata/clockface'
-import {Input, InputType, Form, Grid, Columns} from 'src/clockface'
+import {Form, Button} from '@influxdata/clockface'
+import {Input, InputType, Grid} from 'src/clockface'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -25,8 +18,17 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
+import {
+  Columns,
+  ButtonType,
+  ComponentSize,
+  ComponentColor,
+} from '@influxdata/clockface'
 import {Links} from 'src/types/v2/links'
 import {Notification, NotificationFunc} from 'src/types'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export interface OwnProps {
   links: Links

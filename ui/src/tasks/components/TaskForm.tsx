@@ -6,14 +6,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {client} from 'src/utils/api'
 
 // Components
-import {
-  Columns,
-  Button,
-  ButtonShape,
-  ComponentColor,
-  ButtonType,
-} from '@influxdata/clockface'
-import {ComponentSpacer, Form, Grid, Input, Radio} from 'src/clockface'
+import {Form, Radio, Button, ComponentSpacer} from '@influxdata/clockface'
+import {Grid, Input} from 'src/clockface'
 import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown'
 import TaskOptionsOrgIDDropdown from 'src/tasks/components/TasksOptionsOrgIDDropdown'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
@@ -21,9 +15,17 @@ import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDr
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
 
 // Types
-import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Alignment, Stack, ComponentStatus} from 'src/clockface/types'
 import {Organization, Bucket} from '@influxdata/influx'
+import {
+  Stack,
+  Columns,
+  Alignment,
+  ButtonType,
+  ButtonShape,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
+import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
 interface Props {
   orgs: Organization[]
