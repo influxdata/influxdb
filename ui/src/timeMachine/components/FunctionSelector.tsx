@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Input} from 'src/clockface'
+import {Input} from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 
 // Actions

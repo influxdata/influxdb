@@ -2,14 +2,14 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form} from '@influxdata/clockface'
-import {Input, InputType, Grid} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 
 // Types
 import {WritePrecision} from '@influxdata/influx'
-import {Columns, ComponentSize} from '@influxdata/clockface'
+import {Columns, InputType, ComponentSize} from '@influxdata/clockface'
 import {LineProtocolTab} from 'src/types/v2/dataLoaders'
 import {setLineProtocolBody} from 'src/dataLoaders/actions/dataLoaders'
 

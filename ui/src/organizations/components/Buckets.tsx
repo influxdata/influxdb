@@ -3,8 +3,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Button, EmptyState} from '@influxdata/clockface'
-import {Input, Overlay, Tabs} from 'src/clockface'
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Overlay, Tabs} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/organizations/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'

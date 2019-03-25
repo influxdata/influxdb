@@ -12,8 +12,7 @@ import {
 } from 'src/variables/actions'
 
 // Components
-import {Button, EmptyState} from '@influxdata/clockface'
-import {Input} from 'src/clockface'
+import {Input, Button, EmptyState} from '@influxdata/clockface'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CreateVariableOverlay from 'src/configuration/components/CreateVariableOverlay'
 import VariableList from 'src/organizations/components/VariableList'

@@ -3,15 +3,14 @@ import React from 'react'
 import {shallow, mount} from 'enzyme'
 
 // Components
-import {FormElement} from '@influxdata/clockface'
-import {Input} from 'src/clockface'
+import {Input, FormElement} from '@influxdata/clockface'
 import ConfigFieldSwitcher from 'src/dataLoaders/components/configureStep/streaming/ConfigFieldSwitcher'
 import ArrayFormElement from 'src/dataLoaders/components/configureStep/streaming/ArrayFormElement'
 import URIFormElement from 'src/shared/components/URIFormElement'
 
 // Types
-import {ConfigFieldType} from 'src/types/v2/dataLoaders'
 import {TelegrafPluginInputCpu} from '@influxdata/influx'
+import {ConfigFieldType} from 'src/types/v2/dataLoaders'
 
 const setup = (override = {}, shouldMount = false) => {
   const props = {

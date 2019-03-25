@@ -5,8 +5,8 @@ import {connect} from 'react-redux'
 import _, {get} from 'lodash'
 
 // Components
-import {Form, Button} from '@influxdata/clockface'
-import {Input, InputType, Grid} from 'src/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -20,6 +20,7 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {
   Columns,
+  InputType,
   ButtonType,
   ComponentSize,
   ComponentColor,

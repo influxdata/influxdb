@@ -2,12 +2,13 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Button, ColorPicker} from '@influxdata/clockface'
-import {Grid, Form, Input, Label, InputType} from 'src/clockface'
+import {Input, Button, ColorPicker} from '@influxdata/clockface'
+import {Grid, Form, Label} from 'src/clockface'
 
 // Types
 import {
   Columns,
+  InputType,
   ButtonType,
   ComponentSize,
   ComponentColor,

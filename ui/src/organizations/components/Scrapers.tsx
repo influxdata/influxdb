@@ -6,8 +6,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {client} from 'src/utils/api'
 
 // Components
-import {Button, EmptyState} from '@influxdata/clockface'
-import {Input, InputType, Tabs} from 'src/clockface'
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Tabs} from 'src/clockface'
 import ScraperList from 'src/organizations/components/ScraperList'
 import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
@@ -22,6 +22,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ScraperTargetResponse, Bucket} from '@influxdata/influx'
 import {
   IconFont,
+  InputType,
   ComponentSize,
   ComponentColor,
   ComponentStatus,

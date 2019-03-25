@@ -13,8 +13,8 @@ import {
 } from 'src/variables/actions'
 
 // Components
-import {Button, EmptyState, TechnoSpinner} from '@influxdata/clockface'
-import {Input, Overlay} from 'src/clockface'
+import {Input, Button, EmptyState, TechnoSpinner} from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CreateVariableOverlay from 'src/organizations/components/CreateVariableOverlay'
 import VariableList from 'src/organizations/components/VariableList'

@@ -3,10 +3,9 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form} from '@influxdata/clockface'
-import {Input, InputType, Grid} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import Rows from 'src/clockface/components/inputs/multipleInput/MultipleRows'
-import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Utils
 import {validateURI} from 'src/shared/utils/validateURI'
@@ -14,10 +13,14 @@ import {validateURI} from 'src/shared/utils/validateURI'
 // Types
 import {
   Columns,
+  InputType,
   AutoComplete,
   ComponentSize,
   ComponentStatus,
 } from '@influxdata/clockface'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const VALIDATE_DEBOUNCE_MS = 350
 

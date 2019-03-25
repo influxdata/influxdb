@@ -3,8 +3,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form} from '@influxdata/clockface'
-import {Input, Grid} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
 
 // Types

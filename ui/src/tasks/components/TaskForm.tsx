@@ -6,8 +6,14 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {client} from 'src/utils/api'
 
 // Components
-import {Form, Radio, Button, ComponentSpacer} from '@influxdata/clockface'
-import {Grid, Input} from 'src/clockface'
+import {
+  Form,
+  Radio,
+  Input,
+  Button,
+  ComponentSpacer,
+} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown'
 import TaskOptionsOrgIDDropdown from 'src/tasks/components/TasksOptionsOrgIDDropdown'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'

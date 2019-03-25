@@ -3,8 +3,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {getDeep} from 'src/utils/wrappers'
 
 // Components
-import {Form} from '@influxdata/clockface'
-import {Input, InputType, Grid, QuestionMarkTooltip} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
+import {Grid, QuestionMarkTooltip} from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
@@ -16,6 +16,7 @@ import {ISetupParams} from '@influxdata/influx'
 import {
   Columns,
   IconFont,
+  InputType,
   ComponentSize,
   ComponentStatus,
 } from '@influxdata/clockface'

@@ -3,8 +3,8 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import moment from 'moment'
 
 // Components
-import {Form, Button} from '@influxdata/clockface'
-import {Input, Grid} from 'src/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import Retention from 'src/organizations/components/Retention'
 
 // Constants

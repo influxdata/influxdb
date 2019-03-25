@@ -3,8 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, EmptyState} from '@influxdata/clockface'
-import {Input, InputType} from 'src/clockface'
+import {Input, Button, EmptyState} from '@influxdata/clockface'
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import LabelList from 'src/configuration/components/LabelList'
@@ -21,7 +20,12 @@ import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Types
 import {ILabel} from '@influxdata/influx'
-import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
+import {
+  IconFont,
+  InputType,
+  ComponentSize,
+  ComponentColor,
+} from '@influxdata/clockface'
 import {AppState} from 'src/types/v2'
 
 // Decorators

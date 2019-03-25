@@ -3,8 +3,8 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form, Button} from '@influxdata/clockface'
-import {Overlay, Input} from 'src/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Types

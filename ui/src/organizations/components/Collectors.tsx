@@ -4,8 +4,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, EmptyState} from '@influxdata/clockface'
-import {Grid, Input, InputType, Tabs} from 'src/clockface'
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Grid, Tabs} from 'src/clockface'
 import CollectorList from 'src/organizations/components/CollectorList'
 import TelegrafExplainer from 'src/organizations/components/TelegrafExplainer'
 import TelegrafInstructionsOverlay from 'src/organizations/components/TelegrafInstructionsOverlay'
@@ -27,6 +27,7 @@ import {ITelegraf as Telegraf, Bucket} from '@influxdata/influx'
 import {
   Columns,
   IconFont,
+  InputType,
   ComponentSize,
   ComponentColor,
   ComponentStatus,

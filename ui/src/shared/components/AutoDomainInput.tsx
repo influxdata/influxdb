@@ -2,8 +2,8 @@
 import React, {useState, SFC, KeyboardEvent} from 'react'
 
 // Components
-import {Form, Radio} from '@influxdata/clockface'
-import {Input, Grid} from 'src/clockface'
+import {Form, Input, Radio} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 
 // Utils
 import {useOneWayState} from 'src/shared/utils/useOneWayState'

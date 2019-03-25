@@ -4,8 +4,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, EmptyState} from '@influxdata/clockface'
-import {Input, InputType, Tabs} from 'src/clockface'
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Tabs} from 'src/clockface'
 import ScraperList from 'src/organizations/components/ScraperList'
 import CreateScraperOverlay from 'src/configuration/components/CreateScraperOverlay'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
@@ -16,12 +16,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {
-  ScraperTargetResponse,
   Bucket,
   ScraperTargetRequest,
+  ScraperTargetResponse,
 } from '@influxdata/influx'
 import {
   IconFont,
+  InputType,
   ComponentSize,
   ComponentColor,
   ComponentStatus,

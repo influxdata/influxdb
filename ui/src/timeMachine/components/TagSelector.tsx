@@ -3,8 +3,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, ButtonShape, IconFont} from '@influxdata/clockface'
-import {Dropdown, Input} from 'src/clockface'
+import {Input, Button} from '@influxdata/clockface'
+import {Dropdown} from 'src/clockface'
 import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 import WaitingText from 'src/shared/components/WaitingText'
 import SelectorList from 'src/timeMachine/components/SelectorList'
@@ -29,6 +29,7 @@ import DefaultDebouncer from 'src/shared/utils/debouncer'
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
+import {IconFont, ButtonShape} from '@influxdata/clockface'
 import {AppState} from 'src/types/v2'
 import {RemoteDataState} from 'src/types'
 
