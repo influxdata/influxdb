@@ -3,10 +3,11 @@ import React from 'react'
 import {shallow, mount} from 'enzyme'
 
 // Components
+import {FormElement} from '@influxdata/clockface'
+import {Input} from 'src/clockface'
 import ConfigFieldSwitcher from 'src/dataLoaders/components/configureStep/streaming/ConfigFieldSwitcher'
 import ArrayFormElement from 'src/dataLoaders/components/configureStep/streaming/ArrayFormElement'
 import URIFormElement from 'src/shared/components/URIFormElement'
-import {Input, FormElement} from 'src/clockface'
 
 // Types
 import {ConfigFieldType} from 'src/types/v2/dataLoaders'
