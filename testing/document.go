@@ -34,6 +34,7 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 		l1 := &influxdb.Label{Name: "l1"}
 		l2 := &influxdb.Label{Name: "l2"}
 		mustCreateLabels(ctx, svc, l1, l2)
+		lBad := &influxdb.Label{Name: "bad"}
 
 		o1 := &influxdb.Organization{Name: "foo"}
 		o2 := &influxdb.Organization{Name: "bar"}
@@ -107,6 +108,22 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 			if err := s.CreateDocument(ctx, d3); err != nil {
 				t.Fatalf("should have been able to create document: %v", err)
 			}
+		})
+
+		t.Run("can't create document with unexisted label", func(t *testing.T) {
+			d4 := &influxdb.Document{
+				Meta: influxdb.DocumentMeta{
+					Name: "i4",
+				},
+				Content: map[string]interface{}{
+					"k4": "v4",
+				},
+			}
+			err = s.CreateDocument(ctx, d4, influxdb.WithLabel(lBad.Name))
+			ErrorsEqual(t, err, &influxdb.Error{
+				Code: influxdb.ENotFound,
+				Msg:  "label not found",
+			})
 		})
 
 		dl1 := new(influxdb.Document)
