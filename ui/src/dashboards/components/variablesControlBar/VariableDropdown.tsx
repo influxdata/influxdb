@@ -29,7 +29,6 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  name: string
   variableID: string
   dashboardID: string
 }
@@ -38,15 +37,12 @@ type Props = StateProps & DispatchProps & OwnProps
 
 class VariableDropdown extends PureComponent<Props> {
   render() {
-    const {name, selectedValue} = this.props
+    const {selectedValue} = this.props
     const dropdownValues = this.props.values || []
 
     return (
       <div className="variable-dropdown">
         {/* TODO: Add variable description to title attribute when it is ready */}
-        <div className="variable-dropdown--label">
-          <span>{name}</span>
-        </div>
         <Dropdown
           selectedID={selectedValue}
           onChange={this.handleSelect}
