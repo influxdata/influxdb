@@ -10,11 +10,16 @@ import {client} from 'src/utils/api'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Components
+import {
+  Button,
+  EmptyState,
+  TechnoSpinner,
+  SpinnerContainer,
+} from '@influxdata/clockface'
+import {WizardFullScreen} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OnboardingWizard from 'src/onboarding/containers/OnboardingWizard'
 import Notifications from 'src/shared/components/notifications/Notifications'
-import {WizardFullScreen, EmptyState} from 'src/clockface'
-import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
 
 // Types
 import {ComponentColor, ComponentSize} from '@influxdata/clockface'

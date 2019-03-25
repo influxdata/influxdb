@@ -4,18 +4,10 @@ import uuid from 'uuid'
 import _ from 'lodash'
 
 // Components
+import {EmptyState} from '@influxdata/clockface'
+import {ResponsiveGridSizer, Input, FormElement, Grid} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import {
-  ResponsiveGridSizer,
-  Input,
-  IconFont,
-  ComponentSize,
-  FormElement,
-  Grid,
-  Columns,
-  EmptyState,
-} from 'src/clockface'
 
 // Constants
 import {
@@ -25,8 +17,9 @@ import {
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
 
 // Types
-import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
 import {Bucket} from '@influxdata/influx'
+import {IconFont, Columns, ComponentSize} from '@influxdata/clockface'
+import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
 
 export interface Props {
   buckets: Bucket[]

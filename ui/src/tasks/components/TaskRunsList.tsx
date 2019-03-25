@@ -2,14 +2,14 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {IndexList, EmptyState} from 'src/clockface'
+import {EmptyState} from '@influxdata/clockface'
+import {IndexList} from 'src/clockface'
 import TaskRunsRow from 'src/tasks/components/TaskRunsRow'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Run} from '@influxdata/influx'
-import {ComponentSize} from '@influxdata/clockface'
-import {Sort} from 'src/clockface'
+import {Sort, ComponentSize} from '@influxdata/clockface'
 
 interface Props {
   taskID: string

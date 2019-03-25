@@ -3,8 +3,7 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 
 // Components
-import {EmptyState} from 'src/clockface'
-import {ComponentSize} from '@influxdata/clockface'
+import {EmptyState} from '@influxdata/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import InlineLabelsListItem from 'src/shared/components/inlineLabels/InlineLabelsListItem'
 import InlineLabelsCreateLabelButton from 'src/shared/components/inlineLabels/InlineLabelsCreateLabelButton'
@@ -17,6 +16,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {ILabel} from '@influxdata/influx'
+import {ComponentSize} from '@influxdata/clockface'
 
 interface Props {
   searchTerm: string

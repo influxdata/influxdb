@@ -4,14 +4,14 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {ComponentSize} from '@influxdata/clockface'
-import {EmptyState, ResourceList} from 'src/clockface'
+import {EmptyState} from '@influxdata/clockface'
+import {ResourceList} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
-import {Sort} from 'src/clockface'
+import {Sort, ComponentSize} from '@influxdata/clockface'
 import {Dashboard} from 'src/types/v2'
 
 interface Props {

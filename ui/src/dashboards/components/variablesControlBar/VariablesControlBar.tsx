@@ -6,8 +6,7 @@ import {DragDropContext} from 'react-dnd'
 import HTML5Backend from 'react-dnd-html5-backend'
 
 // Components
-import {EmptyState, ComponentSize} from 'src/clockface'
-import {TechnoSpinner} from '@influxdata/clockface'
+import {EmptyState, TechnoSpinner} from '@influxdata/clockface'
 
 // Utils
 import {
@@ -22,8 +21,9 @@ import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss'
 import {moveVariable} from 'src/variables/actions'
 
 // Types
-import {AppState} from 'src/types/v2'
 import {Variable} from '@influxdata/influx'
+import {ComponentSize} from '@influxdata/clockface'
+import {AppState} from 'src/types/v2'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
