@@ -168,5 +168,5 @@ func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, 
 }
 
 func (s *SourceProxyQueryService) Check(context.Context) check.Response {
-	return platformhttp.QueryHealthCheck(s.URL)
+	return platformhttp.QueryHealthCheck(s.URL, s.InsecureSkipVerify)
 }

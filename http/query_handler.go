@@ -379,7 +379,7 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 }
 
 func (s FluxService) Check(ctx context.Context) check.Response {
-	return QueryHealthCheck(s.Addr)
+	return QueryHealthCheck(s.Addr, s.InsecureSkipVerify)
 }
 
 var _ query.QueryService = (*FluxQueryService)(nil)
@@ -450,7 +450,7 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 }
 
 func (s FluxQueryService) Check(ctx context.Context) check.Response {
-	return QueryHealthCheck(s.Addr)
+	return QueryHealthCheck(s.Addr, s.InsecureSkipVerify)
 }
 
 // SimpleQuery runs a flux query with common parameters and returns CSV results.
@@ -505,7 +505,7 @@ func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
 	return ioutil.ReadAll(res.Body)
 }
 
-func QueryHealthCheck(url string) check.Response {
+func QueryHealthCheck(url string, insecureSkipVerify bool) check.Response {
 	u, err := newURL(url, "/health")
 	if err != nil {
 		return check.Response{
@@ -515,7 +515,6 @@ func QueryHealthCheck(url string) check.Response {
 		}
 	}
 
-	insecureSkipVerify := true
 	hc := newClient(u.Scheme, insecureSkipVerify)
 	resp, err := hc.Get(u.String())
 	if err != nil {

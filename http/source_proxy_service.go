@@ -119,5 +119,5 @@ func (s *SourceProxyQueryService) queryInfluxQL(ctx context.Context, w io.Writer
 }
 
 func (s *SourceProxyQueryService) Check(context.Context) check.Response {
-	return QueryHealthCheck(s.Addr)
+	return QueryHealthCheck(s.Addr, s.InsecureSkipVerify)
 }
