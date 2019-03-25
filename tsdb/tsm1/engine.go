@@ -36,6 +36,7 @@ import (
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
+//go:generate stringer -type=CacheStatus
 
 var (
 	// Static objects to prevent small allocs.
@@ -739,17 +740,17 @@ func (t *compactionTracker) DecActive(level compactionLevel) {
 func (t *compactionTracker) DecFullActive() { t.DecActive(5) }
 
 // Attempted updates the number of compactions attempted for the provided level.
-func (t *compactionTracker) Attempted(level compactionLevel, success bool, duration time.Duration) {
+func (t *compactionTracker) Attempted(level compactionLevel, success bool, reason string, duration time.Duration) {
 	if success {
 		atomic.AddUint64(&t.ok[level], 1)
 
 		labels := t.Labels(level)
-
 		t.metrics.CompactionDuration.With(labels).Observe(duration.Seconds())
 
+		// Total compactions metric has reason and status.
+		labels["reason"] = reason
 		labels["status"] = "ok"
 		t.metrics.Compactions.With(labels).Inc()
-
 		return
 	}
 
@@ -757,12 +758,13 @@ func (t *compactionTracker) Attempted(level compactionLevel, success bool, durat
 
 	labels := t.Labels(level)
 	labels["status"] = "error"
+	labels["reason"] = reason
 	t.metrics.Compactions.With(labels).Inc()
 }
 
 // SnapshotAttempted updates the number of snapshots attempted.
-func (t *compactionTracker) SnapshotAttempted(success bool, duration time.Duration) {
-	t.Attempted(0, success, duration)
+func (t *compactionTracker) SnapshotAttempted(success bool, reason CacheStatus, duration time.Duration) {
+	t.Attempted(0, success, reason.String(), duration)
 }
 
 // SetQueue sets the compaction queue depth for the provided level.
@@ -886,7 +888,7 @@ func (e *Engine) compactCache() {
 			if err != nil && err != errCompactionsDisabled {
 				e.logger.Info("Error writing snapshot", zap.Error(err))
 			}
-			e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
+			e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, status, time.Since(start))
 
 			span.Finish()
 		}
@@ -1140,14 +1142,14 @@ func (s *compactionStrategy) compactGroup() {
 		}
 
 		log.Info("Error compacting TSM files", zap.Error(err))
-		s.tracker.Attempted(s.level, false, 0)
+		s.tracker.Attempted(s.level, false, "", 0)
 		time.Sleep(time.Second)
 		return
 	}
 
 	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
 		log.Info("Error replacing new TSM files", zap.Error(err))
-		s.tracker.Attempted(s.level, false, 0)
+		s.tracker.Attempted(s.level, false, "", 0)
 		time.Sleep(time.Second)
 		return
 	}
@@ -1156,7 +1158,7 @@ func (s *compactionStrategy) compactGroup() {
 		log.Info("Compacted file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
 	}
 	log.Info("Finished compacting files", zap.Int("tsm1_files_n", len(files)))
-	s.tracker.Attempted(s.level, true, time.Since(now))
+	s.tracker.Attempted(s.level, true, "", time.Since(now))
 }
 
 // levelCompactionStrategy returns a compactionStrategy for the given level.
