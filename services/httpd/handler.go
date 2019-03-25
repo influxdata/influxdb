@@ -985,7 +985,8 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 			h.Logger.Info("Prom write handler", zap.Error(err))
 		}
 
-		if err != prometheus.ErrNaNDropped {
+		// Check if the error was from something other than dropping invalid values.
+		if _, ok := err.(prometheus.DroppedValuesError); !ok {
 			h.httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
