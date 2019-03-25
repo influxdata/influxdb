@@ -4,51 +4,23 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
-import {Overlay} from 'src/clockface'
-
 // Components
-import VEOHeader from 'src/dashboards/components/VEOHeader'
-import TimeMachine from 'src/timeMachine/components/TimeMachine'
-
-// Actions
-import {setName} from 'src/timeMachine/actions'
-import * as viewActions from 'src/dashboards/actions/views'
-import * as dashboardActions from 'src/dashboards/actions'
-import {notify} from 'src/shared/actions/notifications'
+import {Overlay} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import VEOContents from 'src/dashboards/components/VEOContents'
 
 // Utils
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {getView} from 'src/dashboards/selectors'
 import {createView} from 'src/shared/utils/view'
-
-// Types
-import {AppState, DashboardQuery, ViewType} from 'src/types/v2'
-import {QueryView} from 'src/types/v2/dashboards'
-import {Dashboard} from 'src/types'
-import {XYView} from 'src/types/v2/dashboards'
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Constants
 import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 
-// Nofication Messages
-import {cellAddFailed} from 'src/shared/copy/notifications'
-import {executeQueries} from 'src/timeMachine/actions/queries'
-
-interface StateProps {
-  draftView: QueryView
-  existingView?: QueryView
-  draftQueries: DashboardQuery[]
-  dashboard: Dashboard
-}
-
-interface DispatchProps {
-  onSetName: typeof setName
-  onCreateCellWithView: typeof dashboardActions.createCellWithView
-  onUpdateView: typeof viewActions.updateView
-  notify: typeof notify
-  setActiveTimeMachine: typeof setActiveTimeMachine
-  executeQueries: typeof executeQueries
-}
+// Types
+import {AppState, ViewType} from 'src/types/v2'
+import {setActiveTimeMachine} from 'src/timeMachine/actions'
+import {RemoteDataState} from 'src/types'
+import {QueryView, XYView} from 'src/types/v2/dashboards'
 
 interface OwnProps extends WithRouterProps {
   params: {
@@ -57,101 +29,103 @@ interface OwnProps extends WithRouterProps {
   }
 }
 
-type Props = OwnProps & StateProps & DispatchProps
+interface StateProps {
+  viewsStatus: RemoteDataState
+  view: QueryView
+}
 
-class VEO extends PureComponent<Props, {}> {
-  public componentDidMount() {
-    const {existingView} = this.props
-    const view = existingView || createView<XYView>(ViewType.XY)
+interface DispatchProps {
+  onSetActiveTimeMachine: typeof setActiveTimeMachine
+}
 
-    this.props.setActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
+type Props = StateProps & DispatchProps & OwnProps
 
-    this.props.executeQueries()
+interface State {
+  hasActivatedTimeMachine: boolean
+}
+
+class VEO extends PureComponent<Props, State> {
+  public state: State = {
+    hasActivatedTimeMachine: false,
+  }
+
+  public componentDidUpdate() {
+    if (
+      !this.state.hasActivatedTimeMachine &&
+      this.props.viewsStatus === RemoteDataState.Done
+    ) {
+      this.props.onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {
+        view: this.props.view,
+      })
+      this.setState({hasActivatedTimeMachine: true})
+    }
   }
 
   public render() {
-    const {draftView, onSetName} = this.props
+    const {hasActivatedTimeMachine} = this.state
+    const {params} = this.props
 
     return (
       <Overlay visible={true} className="veo-overlay">
         <div className="veo">
-          <VEOHeader
-            key={draftView.name}
-            name={draftView.name}
-            onSetName={onSetName}
-            onCancel={this.close}
-            onSave={this.handleSave}
-          />
-          <div className="veo-contents">
-            <TimeMachine />
-          </div>
+          <SpinnerContainer
+            spinnerComponent={<TechnoSpinner />}
+            loading={this.loading}
+          >
+            {hasActivatedTimeMachine && (
+              <VEOContents
+                dashboardID={params.dashboardID}
+                onClose={this.handleClose}
+              />
+            )}
+          </SpinnerContainer>
         </div>
       </Overlay>
     )
   }
 
-  private handleSave = async (): Promise<void> => {
-    const {
-      draftView,
-      draftQueries,
-      dashboard,
-      onCreateCellWithView,
-      onUpdateView,
-      notify,
-    } = this.props
+  private get loading(): RemoteDataState {
+    const {viewsStatus, view} = this.props
 
-    const view: QueryView & {id?: string} = {
-      ...draftView,
-      properties: {
-        ...draftView.properties,
-        queries: draftQueries,
-      },
+    if (viewsStatus === RemoteDataState.Done && view) {
+      return RemoteDataState.Done
+    } else if (viewsStatus === RemoteDataState.Done) {
+      return RemoteDataState.Error
     }
 
-    try {
-      if (view.id) {
-        await onUpdateView(dashboard.id, view)
-      } else {
-        await onCreateCellWithView(dashboard, view)
-      }
-      this.close()
-    } catch (error) {
-      console.error(error)
-      notify(cellAddFailed())
-    }
+    return viewsStatus
   }
 
-  private close = (): void => {
-    this.props.router.goBack()
+  private handleClose = () => {
+    const {
+      router,
+      params: {dashboardID},
+    } = this.props
+
+    router.push(`/dashboards/${dashboardID}`)
   }
 }
 
 const mstp = (state: AppState, {params}): StateProps => {
-  const {cellID, dashboardID} = params
+  const {cellID} = params
   const {
-    views: {views},
-    dashboards,
+    views: {status},
   } = state
-  const {view, draftQueries} = getActiveTimeMachine(state)
-  const dashboard = dashboards.find(d => d.id === dashboardID)
-  let existingView = null
+
   if (cellID) {
-    existingView = _.get(views, [cellID, 'view'])
+    const view = getView(state, cellID) as QueryView
+    return {view, viewsStatus: status}
   }
 
-  return {draftView: view, existingView, draftQueries, dashboard}
+  const view = createView<XYView>(ViewType.XY)
+  return {view, viewsStatus: status}
 }
 
 const mdtp: DispatchProps = {
-  onSetName: setName,
-  onCreateCellWithView: dashboardActions.createCellWithView,
-  onUpdateView: viewActions.updateView,
-  setActiveTimeMachine,
-  notify,
-  executeQueries,
+  onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect(
   mstp,
   mdtp
 )(withRouter<OwnProps, {}>(VEO))

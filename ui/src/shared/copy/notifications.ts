@@ -733,7 +733,7 @@ export const copyToClipboardSuccess = (
 ): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  message: `${title}'${text}' has been copied to clipboard.`,
+  message: `${title} '${text}' has been copied to clipboard.`,
 })
 
 export const copyToClipboardFailed = (

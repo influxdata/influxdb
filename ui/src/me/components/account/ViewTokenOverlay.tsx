@@ -25,7 +25,6 @@ interface Props {
 export default class ViewTokenOverlay extends PureComponent<Props> {
   public render() {
     const {description} = this.props.auth
-    const {onNotify} = this.props
 
     const permissions = this.permissions
 
@@ -33,7 +32,7 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
       <Overlay.Container>
         <Overlay.Heading title={description} onDismiss={this.handleDismiss} />
         <Overlay.Body>
-          <CodeSnippet copyText={this.props.auth.token} notify={onNotify} />
+          <CodeSnippet copyText={this.props.auth.token} />
           <PermissionsWidget
             mode={PermissionsWidgetMode.Read}
             heightPixels={500}

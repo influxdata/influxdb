@@ -28,7 +28,6 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
   <CodeSnippet
     copyText="export INFLUX_TOKEN="
     label="CLI"
-    notify={[MockFunction]}
   />
   <h6>
     3. Start Telegraf
@@ -39,7 +38,6 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
   <CodeSnippet
     copyText="telegraf --config http://localhost/api/v2/telegrafs/"
     label="CLI"
-    notify={[MockFunction]}
   />
 </div>
 `;

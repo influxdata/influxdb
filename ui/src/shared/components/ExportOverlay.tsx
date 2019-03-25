@@ -9,10 +9,12 @@ import {Form} from 'src/clockface'
 import {
   Button,
   ComponentColor,
+  ComponentSize,
   SpinnerContainer,
   TechnoSpinner,
 } from '@influxdata/clockface'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
+import CopyButton from 'src/shared/components/CopyButton'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -76,6 +78,7 @@ class ExportOverlay extends PureComponent<Props> {
             <Overlay.Footer>
               {this.downloadButton}
               {this.toTemplateButton}
+              {this.copyButton}
             </Overlay.Footer>
           </Form>
         </Overlay.Container>
@@ -86,7 +89,6 @@ class ExportOverlay extends PureComponent<Props> {
   private doNothing = () => {}
 
   private get overlayBody(): JSX.Element {
-    const {resource} = this.props
     const options = {
       tabIndex: 1,
       mode: 'json',
@@ -101,12 +103,27 @@ class ExportOverlay extends PureComponent<Props> {
         <ReactCodeMirror
           autoFocus={false}
           autoCursor={true}
-          value={JSON.stringify(resource, null, 1)}
+          value={this.resourceText}
           options={options}
           onBeforeChange={this.doNothing}
           onTouchStart={this.doNothing}
         />
       </div>
+    )
+  }
+
+  private get resourceText(): string {
+    return JSON.stringify(this.props.resource, null, 1)
+  }
+
+  private get copyButton(): JSX.Element {
+    return (
+      <CopyButton
+        textToCopy={this.resourceText}
+        contentName={this.props.resourceName}
+        size={ComponentSize.Small}
+        color={ComponentColor.Secondary}
+      />
     )
   }
 

@@ -7,6 +7,8 @@
 1. [12655](https://github.com/influxdata/influxdb/pull/12655): Add a variable control bar to dashboards to select values for variables.
 1. [12706](https://github.com/influxdata/influxdb/pull/12706): Add ability to add variable to script from the side menu.
 1. [12791](https://github.com/influxdata/influxdb/pull/12791): Use time range for metaqueries in Data Explorer and Cell Editor Overlay
+1. [12827](https://github.com/influxdata/influxdb/pull/12827): Fix screen tearing bug in Raw Data View
+1. [12843](https://github.com/influxdata/influxdb/pull/12843): Add copy to clipboard button to export overlays
 
 ### Bug Fixes
 
@@ -20,6 +22,7 @@
 ### UI Improvements
 
 1. [12782](https://github.com/influxdata/influxdb/pull/12782): Move bucket selection in the query builder to the first card in the list
+1. [12850](https://github.com/influxdata/influxdb/pull/12850): Ensure editor is automatically focused in note editor
 
 ## v2.0.0-alpha.6 [2019-03-15]
 
