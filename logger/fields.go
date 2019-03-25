@@ -9,9 +9,6 @@ import (
 )
 
 const (
-	// TraceIDKey is the logging context key used for identifying unique traces.
-	TraceIDKey = "trace_id"
-
 	// OperationNameKey is the logging context key used for identifying name of an operation.
 	OperationNameKey = "op_name"
 
@@ -45,11 +42,6 @@ var (
 
 func nextID() string {
 	return gen.NextString()
-}
-
-// TraceID returns a field for tracking the trace identifier.
-func TraceID(id string) zapcore.Field {
-	return zap.String(TraceIDKey, id)
 }
 
 // OperationName returns a field for tracking the name of an operation.
@@ -98,7 +90,7 @@ func Shard(id uint64) zapcore.Field {
 // called when the operation concludes in order to log a corresponding message which
 // includes an elapsed time and that the operation has ended.
 func NewOperation(log *zap.Logger, msg, name string, fields ...zapcore.Field) (*zap.Logger, func()) {
-	f := []zapcore.Field{TraceID(nextID()), OperationName(name)}
+	f := []zapcore.Field{OperationName(name)}
 	if len(fields) > 0 {
 		f = append(f, fields...)
 	}
