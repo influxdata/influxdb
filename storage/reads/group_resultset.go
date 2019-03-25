@@ -117,7 +117,9 @@ func (g *groupResultSet) sort() (int, error) {
 
 	n, err := g.sortFn(g)
 
-	span.LogKV("rows", n)
+	if err != nil {
+		span.LogKV("rows", n)
+	}
 
 	return n, err
 }
