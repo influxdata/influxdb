@@ -28,7 +28,7 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
         contextMenu={() => this.contextMenu}
         name={() => (
           <ResourceList.Name
-            onEditName={this.handleNameClick}
+            onClick={this.handleNameClick}
             onUpdate={this.doNothing}
             name={template.meta.name}
             noNameString={DEFAULT_TEMPLATE_NAME}

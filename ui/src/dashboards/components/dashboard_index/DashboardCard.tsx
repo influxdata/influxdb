@@ -60,8 +60,8 @@ class DashboardCard extends PureComponent<Props> {
         name={() => (
           <ResourceList.Name
             onUpdate={this.handleUpdateDashboard}
+            onClick={this.handleClickDashboard}
             name={dashboard.name}
-            hrefValue={`/dashboards/${dashboard.id}`}
             noNameString={DEFAULT_DASHBOARD_NAME}
             parentTestID="dashboard-card--name"
             buttonTestID="dashboard-card--name-button"
@@ -140,6 +140,12 @@ class DashboardCard extends PureComponent<Props> {
     if (showOwnerColumn) {
       return orgs.find(o => o.id === dashboard.orgID)
     }
+  }
+
+  private handleClickDashboard = () => {
+    const {router, dashboard} = this.props
+
+    router.push(`/dashboards/${dashboard.id}`)
   }
 
   private handleUpdateDescription = (description: string): void => {

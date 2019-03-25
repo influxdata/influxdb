@@ -8,15 +8,17 @@ import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Utils
 import {getView} from 'src/dashboards/selectors'
 
 // Types
-import {TimeRange} from 'src/types'
+import {TimeRange, RemoteDataState} from 'src/types'
 import {AppState, ViewType, View, Cell} from 'src/types/v2'
 
 interface StateProps {
+  viewsStatus: RemoteDataState
   view: View
 }
 
@@ -102,17 +104,23 @@ class CellComponent extends Component<Props> {
       onZoom,
       view,
       onEditCell,
+      viewsStatus,
     } = this.props
 
     return (
-      <ViewComponent
-        view={view}
-        onZoom={onZoom}
-        timeRange={timeRange}
-        autoRefresh={autoRefresh}
-        manualRefresh={manualRefresh}
-        onEditCell={onEditCell}
-      />
+      <SpinnerContainer
+        loading={viewsStatus}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        <ViewComponent
+          view={view}
+          onZoom={onZoom}
+          timeRange={timeRange}
+          autoRefresh={autoRefresh}
+          manualRefresh={manualRefresh}
+          onEditCell={onEditCell}
+        />
+      </SpinnerContainer>
     )
   }
 
@@ -121,9 +129,13 @@ class CellComponent extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, ownProps: OwnProps): StateProps => ({
-  view: getView(state, ownProps.cell.id),
-})
+const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+  const {
+    views: {status},
+  } = state
+
+  return {view: getView(state, ownProps.cell.id), viewsStatus: status}
+}
 
 export default connect<StateProps, {}, OwnProps>(
   mstp,
