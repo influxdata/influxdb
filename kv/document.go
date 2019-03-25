@@ -581,6 +581,13 @@ func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.Docu
 		return nil
 	})
 
+	if IsNotFound(err) {
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  influxdb.ErrDocumentNotFound,
+		}
+	}
+
 	if err != nil {
 		return nil, err
 	}

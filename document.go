@@ -4,6 +4,9 @@ import (
 	"context"
 )
 
+// ErrDocumentNotFound is the error msg for a missing document.
+const ErrDocumentNotFound = "document not found"
+
 // DocumentService is used to create/find instances of document stores.
 type DocumentService interface {
 	CreateDocumentStore(ctx context.Context, name string) (DocumentStore, error)
