@@ -11,6 +11,7 @@ import {
 // Components
 import {Alignment, ComponentSize, SlideToggle} from '@influxdata/clockface'
 import {IndexList, ComponentSpacer, ConfirmationButton} from 'src/clockface'
+import EditableName from 'src/shared/components/EditableName'
 
 // Types
 import {Authorization} from '@influxdata/influx'
@@ -29,18 +30,17 @@ type Props = DispatchProps & OwnProps
 
 class TokenRow extends PureComponent<Props> {
   public render() {
-    const {description, id} = this.props.auth
+    const {description} = this.props.auth
 
     return (
       <IndexList.Row>
         <IndexList.Cell>
-          <a
-            href="#"
-            onClick={this.handleClickDescription}
-            data-testid={`token-description-${id}`}
-          >
-            {description}
-          </a>
+          <EditableName
+            onUpdate={this.handleUpdateName}
+            name={description}
+            noNameString="DEFAULT_BUCKET_NAME"
+            onEditName={this.handleClickDescription}
+          />
         </IndexList.Cell>
         <IndexList.Cell>
           <SlideToggle
@@ -86,6 +86,11 @@ class TokenRow extends PureComponent<Props> {
   private handleClickDescription = () => {
     const {onClickDescription, auth} = this.props
     onClickDescription(auth.id)
+  }
+
+  private handleUpdateName = async (value: string) => {
+    const {auth, onUpdate} = this.props
+    await onUpdate({...auth, description: value})
   }
 }
 
