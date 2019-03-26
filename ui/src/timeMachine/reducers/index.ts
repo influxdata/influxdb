@@ -539,6 +539,7 @@ export const timeMachineReducer = (
         if (action.payload.resetSelections) {
           builderConfig.tags = [{key: '', values: []}]
           builderConfig.functions = []
+          buildActiveQuery(draftState)
         }
       })
     }
