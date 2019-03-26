@@ -113,6 +113,10 @@ func (s *DocumentStore) CreateDocument(ctx context.Context, d *influxdb.Document
 			}
 		}
 
+		if err := s.decorateDocumentWithLabels(ctx, tx, d); err != nil {
+			return err
+		}
+
 		return nil
 	})
 }
@@ -563,16 +567,9 @@ func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.Docu
 
 		if dd.labels {
 			for _, doc := range docs {
-				ls := []*influxdb.Label{}
-				f := influxdb.LabelMappingFilter{
-					ResourceID:   doc.ID,
-					ResourceType: influxdb.DocumentsResourceType,
-				}
-				if err := s.service.findResourceLabels(ctx, tx, f, &ls); err != nil {
+				if err := s.decorateDocumentWithLabels(ctx, tx, doc); err != nil {
 					return err
 				}
-
-				doc.Labels = append(doc.Labels, ls...)
 			}
 		}
 
@@ -722,8 +719,11 @@ func (s *DocumentStore) UpdateDocument(ctx context.Context, d *influxdb.Document
 			}
 		}
 
-		err := s.service.updateDocument(ctx, tx, s.namespace, d)
-		if err != nil {
+		if err := s.service.updateDocument(ctx, tx, s.namespace, d); err != nil {
+			return err
+		}
+
+		if err := s.decorateDocumentWithLabels(ctx, tx, d); err != nil {
 			return err
 		}
 
@@ -738,5 +738,19 @@ func (s *Service) updateDocument(ctx context.Context, tx Tx, ns string, d *influ
 		return err
 	}
 
+	return nil
+}
+
+func (s *DocumentStore) decorateDocumentWithLabels(ctx context.Context, tx Tx, d *influxdb.Document) error {
+	ls := []*influxdb.Label{}
+	f := influxdb.LabelMappingFilter{
+		ResourceID:   d.ID,
+		ResourceType: influxdb.DocumentsResourceType,
+	}
+	if err := s.service.findResourceLabels(ctx, tx, f, &ls); err != nil {
+		return err
+	}
+
+	d.Labels = append(d.Labels, ls...)
 	return nil
 }
