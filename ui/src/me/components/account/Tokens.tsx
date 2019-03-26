@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {IconFont, Input} from 'src/clockface'
+import {Input} from '@influxdata/clockface'
 import TokenList from 'src/me/components/account/TokensList'
 import FilterList from 'src/shared/components/Filter'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
@@ -13,6 +13,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 
 // Types
 import {Authorization} from '@influxdata/influx'
+import {IconFont} from '@influxdata/clockface'
 
 interface State {
   searchTerm: string

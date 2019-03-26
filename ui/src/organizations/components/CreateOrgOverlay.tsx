@@ -6,16 +6,16 @@ import {WithRouterProps, withRouter} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  ComponentStatus,
-  ButtonType,
-} from '@influxdata/clockface'
-import {Form, Overlay, Input} from 'src/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 
 // Types
 import {Organization} from '@influxdata/influx'
+import {
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 // Actions
 import {createOrg} from 'src/organizations/actions/orgs'

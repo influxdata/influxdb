@@ -2,10 +2,12 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Dropdown, Form, Grid, Columns} from 'src/clockface'
+import {Form} from '@influxdata/clockface'
+import {Dropdown, Grid} from 'src/clockface'
 
 // Types
 import {XYViewGeom} from 'src/types'
+import {Columns} from '@influxdata/clockface'
 
 interface Props {
   geom: XYViewGeom

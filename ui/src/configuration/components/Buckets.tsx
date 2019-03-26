@@ -4,18 +4,12 @@ import _ from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Overlay, Tabs} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/configuration/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
 import CreateBucketOverlay from 'src/configuration/components/CreateBucketOverlay'
-
-import {
-  ComponentSize,
-  Button,
-  ComponentColor,
-  IconFont,
-} from '@influxdata/clockface'
-import {Input, Overlay, EmptyState, Tabs} from 'src/clockface'
 
 // Actions
 import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
@@ -24,10 +18,10 @@ import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
 import {ruleToString} from 'src/utils/formatting'
 
 // Types
+import {Bucket, BucketRetentionRules, Organization} from '@influxdata/influx'
+import {IconFont, ComponentColor, ComponentSize} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
 import {AppState} from 'src/types'
-
-import {Bucket, BucketRetentionRules, Organization} from '@influxdata/influx'
 
 interface StateProps {
   orgs: Organization[]

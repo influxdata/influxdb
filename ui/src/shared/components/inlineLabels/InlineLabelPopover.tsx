@@ -3,7 +3,7 @@ import React, {Component, ChangeEvent, KeyboardEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Input} from 'src/clockface'
+import {Input} from '@influxdata/clockface'
 import InlineLabelsList from 'src/shared/components/inlineLabels/InlineLabelsList'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
@@ -11,9 +11,10 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
-import {IconFont} from 'src/clockface/types'
 import {ILabel} from '@influxdata/influx'
+import {IconFont} from '@influxdata/clockface'
 
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 enum ArrowDirection {

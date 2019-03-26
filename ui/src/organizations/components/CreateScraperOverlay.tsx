@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
-import {Form, Overlay} from 'src/clockface'
+import {Form, Button} from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 import CreateScraperForm from 'src/organizations/components/CreateScraperForm'
 
 // Actions
@@ -14,6 +14,7 @@ import {createScraper} from 'src/organizations/actions/orgView'
 
 // Types
 import {Bucket, ScraperTargetRequest} from '@influxdata/influx'
+import {ComponentColor, ComponentStatus} from '@influxdata/clockface'
 import {
   scraperCreateSuccess,
   scraperCreateFailed,

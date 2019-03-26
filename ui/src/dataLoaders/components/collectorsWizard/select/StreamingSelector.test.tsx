@@ -3,9 +3,9 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
+import {Input} from '@influxdata/clockface'
 import StreamingSelector from 'src/dataLoaders/components/collectorsWizard/select/StreamingSelector'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import {Input} from 'src/clockface'
 
 // Constants
 import {PLUGIN_BUNDLE_OPTIONS} from 'src/dataLoaders/constants/pluginConfigs'

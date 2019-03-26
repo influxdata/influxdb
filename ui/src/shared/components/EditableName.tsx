@@ -4,10 +4,11 @@ import classnames from 'classnames'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Components
-import {Input, ComponentSize} from 'src/clockface'
+import {Input} from '@influxdata/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
+import {ComponentSize} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 
 // Decorators

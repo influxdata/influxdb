@@ -2,11 +2,13 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {IndexList, EmptyState, ComponentSize, Overlay} from 'src/clockface'
+import {EmptyState} from '@influxdata/clockface'
+import {IndexList, Overlay} from 'src/clockface'
 import TokenRow from 'src/me/components/account/TokenRow'
 
 // Types
 import {Authorization} from '@influxdata/influx'
+import {ComponentSize} from '@influxdata/clockface'
 import ViewTokenOverlay from './ViewTokenOverlay'
 
 // Actions

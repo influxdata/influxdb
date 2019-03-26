@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import {Form, Radio, ButtonShape} from 'src/clockface'
+import {Form, Radio} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -17,6 +17,7 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {AppState} from 'src/types'
+import {ButtonShape} from '@influxdata/clockface'
 import {Color} from 'src/types/colors'
 
 enum ThresholdColoringSetting {
@@ -41,6 +42,8 @@ class ThresholdColoring extends PureComponent<Props> {
       <Form.Element label="Colorization">
         <Radio shape={ButtonShape.StretchToFit}>
           <Radio.Button
+            id={ThresholdColoringSetting.Background}
+            titleText={ThresholdColoringSetting.Background}
             active={this.activeSetting === ThresholdColoringSetting.Background}
             onClick={this.handleClick}
             value={ThresholdColoringSetting.Background}
@@ -48,6 +51,8 @@ class ThresholdColoring extends PureComponent<Props> {
             Background
           </Radio.Button>
           <Radio.Button
+            id={ThresholdColoringSetting.Text}
+            titleText={ThresholdColoringSetting.Text}
             active={this.activeSetting === ThresholdColoringSetting.Text}
             onClick={this.handleClick}
             value={ThresholdColoringSetting.Text}

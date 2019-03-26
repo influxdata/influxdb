@@ -2,7 +2,7 @@
 import React, {Component} from 'react'
 
 // Components
-import {Form} from 'src/clockface'
+import {Form} from '@influxdata/clockface'
 import QueryBuilderBucketDropdown from 'src/timeMachine/components/QueryBuilderBucketDropdown'
 
 export default class QueryBuilderDataCard extends Component<{}> {

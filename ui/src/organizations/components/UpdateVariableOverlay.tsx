@@ -3,12 +3,17 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Overlay, ComponentStatus, Form, Input} from 'src/clockface'
-import {Button, ButtonType, ComponentColor} from '@influxdata/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Types
 import {Variable} from '@influxdata/influx'
+import {
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 interface Props {
   variable: Variable

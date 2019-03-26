@@ -6,7 +6,11 @@ import {AXES_SCALE_OPTIONS} from 'src/dashboards/constants/cellEditor'
 const {LOG} = AXES_SCALE_OPTIONS
 
 // Components
-import {Form, Grid, Columns, AutoInput} from 'src/clockface'
+import {Form} from '@influxdata/clockface'
+import {Grid, AutoInput} from 'src/clockface'
+
+// Types
+import {Columns} from '@influxdata/clockface'
 
 interface Props {
   label: string

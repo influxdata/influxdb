@@ -4,7 +4,8 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import {Form, Dropdown} from 'src/clockface'
+import {Form} from '@influxdata/clockface'
+import {Dropdown} from 'src/clockface'
 
 // Actions
 import {
