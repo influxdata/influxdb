@@ -25,7 +25,7 @@ export const getSortedResource = createSelector(
   sortSelector,
   (resourceList, sort) => {
     if (sort.key && sort.direction) {
-      return orderBy<any>(
+      return orderBy<{id: string}>(
         resourceList,
         r => orderByType(get(r, sort.key), sort.type),
         [sort.direction]
