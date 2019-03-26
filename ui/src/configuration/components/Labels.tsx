@@ -25,7 +25,7 @@ import {viewableLabels} from 'src/labels/selectors'
 import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {ILabel} from '@influxdata/influx'
 
 // Decorators

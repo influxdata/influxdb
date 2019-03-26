@@ -11,7 +11,7 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   files: string[] | null

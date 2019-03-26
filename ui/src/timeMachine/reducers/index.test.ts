@@ -32,12 +32,12 @@ import {
 } from 'src/timeMachine/constants'
 
 // Types
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
+import {TimeMachineTab} from 'src/types/timeMachine'
 import {
   DashboardDraftQuery,
   QueryViewProperties,
   QueryEditMode,
-} from 'src/types/v2/dashboards'
+} from 'src/types/dashboards'
 
 describe('timeMachinesReducer', () => {
   test('it directs actions to the currently active timeMachine', () => {

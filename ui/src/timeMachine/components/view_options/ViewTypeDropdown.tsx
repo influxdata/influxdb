@@ -15,7 +15,7 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {VIS_GRAPHICS} from 'src/timeMachine/constants/visGraphics'
 
 // Types
-import {View, NewView, AppState, ViewType} from 'src/types/v2'
+import {View, NewView, AppState, ViewType} from 'src/types'
 
 interface DispatchProps {
   onUpdateType: typeof setType

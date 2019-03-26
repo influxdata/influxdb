@@ -1,5 +1,5 @@
 import {Action} from 'src/dashboards/actions/notes'
-import {NoteEditorMode} from 'src/types/v2/dashboards'
+import {NoteEditorMode} from 'src/types/dashboards'
 
 export interface NoteEditorState {
   mode: NoteEditorMode

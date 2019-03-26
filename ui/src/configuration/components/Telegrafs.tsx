@@ -43,8 +43,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {ITelegraf as Telegraf, Bucket, Organization} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
-import {AppState} from 'src/types/v2'
+import {DataLoaderType} from 'src/types/dataLoaders'
+import {AppState} from 'src/types'
 import {TOKEN_LABEL} from 'src/labels/constants'
 
 interface StateProps {

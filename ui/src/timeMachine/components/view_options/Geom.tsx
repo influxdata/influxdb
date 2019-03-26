@@ -5,7 +5,7 @@ import React, {SFC} from 'react'
 import {Dropdown, Form, Grid, Columns} from 'src/clockface'
 
 // Types
-import {XYViewGeom} from 'src/types/v2/dashboards'
+import {XYViewGeom} from 'src/types'
 
 interface Props {
   geom: XYViewGeom

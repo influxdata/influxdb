@@ -17,7 +17,7 @@ import {getTasks as getTasksAction} from 'src/organizations/actions/orgView'
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {AppState, Task} from 'src/types/v2'
+import {AppState, Task} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface RouterProps {

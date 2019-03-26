@@ -22,7 +22,7 @@ import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {Notification, NotificationFunc} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 
 export interface LineProtocolStepProps {

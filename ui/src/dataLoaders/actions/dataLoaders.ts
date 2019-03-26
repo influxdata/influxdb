@@ -28,8 +28,8 @@ import {
   Plugin,
   BundleName,
   ConfigurationState,
-} from 'src/types/v2/dataLoaders'
-import {AppState} from 'src/types/v2'
+} from 'src/types/dataLoaders'
+import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {
   WritePrecision,

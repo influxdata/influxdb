@@ -25,7 +25,7 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
 import {FluxTable} from 'src/types'
-import {HistogramView} from 'src/types/v2/dashboards'
+import {HistogramView} from 'src/types/dashboards'
 
 interface DispatchProps {
   onTableLoaded: typeof tableLoaded

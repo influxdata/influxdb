@@ -8,14 +8,14 @@ import NavMenu from 'src/pageLayout/components/NavMenu'
 import CloudNav from 'src/pageLayout/components/CloudNav'
 
 // Types
-import {MeState, AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface OwnProps {
   isHidden: boolean
-  me: MeState
+  me: AppState['me']
 }
 
 type Props = OwnProps & WithRouterProps

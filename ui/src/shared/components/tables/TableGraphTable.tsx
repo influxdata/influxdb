@@ -23,7 +23,7 @@ const COLUMN_MIN_WIDTH = 100
 const ROW_HEIGHT = 30
 
 // Types
-import {TableView} from 'src/types/v2/dashboards'
+import {TableView} from 'src/types'
 import {TransformTableDataReturnType} from 'src/dashboards/utils/tableGraph'
 
 export interface ColumnWidths {

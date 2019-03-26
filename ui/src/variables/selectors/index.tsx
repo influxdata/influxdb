@@ -8,7 +8,7 @@ import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
 // Types
 import {RemoteDataState} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {
   VariableValues,
   VariableValuesByID,

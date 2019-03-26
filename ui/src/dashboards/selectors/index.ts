@@ -1,6 +1,6 @@
 import {get} from 'lodash'
 
-import {AppState, View} from 'src/types/v2'
+import {AppState, View} from 'src/types'
 
 export const getView = (state: AppState, id: string): View => {
   return get(state, `views.views.${id}.view`)

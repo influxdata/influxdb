@@ -23,7 +23,7 @@ import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 // Types
 import {IconFont} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Variable, Organization} from '@influxdata/influx'
 import {VariablesState} from 'src/variables/reducers'
 

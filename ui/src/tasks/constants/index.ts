@@ -1,4 +1,4 @@
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/types'
 
 export const allOrganizationsID = 'All Organizations'
 

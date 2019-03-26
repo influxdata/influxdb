@@ -14,7 +14,7 @@ import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import {deleteOrg} from 'src/organizations/actions/orgs'
 
 // Types
-import {Organization, Links} from 'src/types/v2'
+import {Organization, Links} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

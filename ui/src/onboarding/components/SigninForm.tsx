@@ -25,7 +25,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {Links} from 'src/types/v2/links'
+import {Links} from 'src/types/links'
 import {Notification, NotificationFunc} from 'src/types'
 
 export interface OwnProps {

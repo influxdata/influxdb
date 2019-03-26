@@ -12,7 +12,7 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 // Types
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import {Form} from 'src/clockface'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 type OwnProps = CollectorsStepProps
 

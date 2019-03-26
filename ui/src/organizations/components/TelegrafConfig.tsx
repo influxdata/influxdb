@@ -11,7 +11,7 @@ import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {}
 

@@ -9,7 +9,7 @@ import {
 } from 'src/timeMachine/apis/queryBuilder'
 
 // Types
-import {WrappedCancelablePromise} from 'src/types/promises'
+import {WrappedCancelablePromise} from 'src/types'
 
 type CancelableQuery = WrappedCancelablePromise<string[]>
 

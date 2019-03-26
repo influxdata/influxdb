@@ -34,8 +34,12 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, DashboardTemplate} from 'src/types/v2/index'
-import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
+import {
+  AppState,
+  TelegrafPlugin,
+  ConfigurationState,
+  DashboardTemplate,
+} from 'src/types'
 import {client} from 'src/utils/api'
 
 interface DispatchProps {

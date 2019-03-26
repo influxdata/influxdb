@@ -21,7 +21,7 @@ import {
   ConfigurationState,
   ConfigFieldType,
   Plugin,
-} from 'src/types/v2/dataLoaders'
+} from 'src/types/dataLoaders'
 import {RemoteDataState} from 'src/types'
 import {WritePrecision} from '@influxdata/influx'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'

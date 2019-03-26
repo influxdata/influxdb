@@ -13,14 +13,12 @@ import VEOContents from 'src/dashboards/components/VEOContents'
 import {getView} from 'src/dashboards/selectors'
 import {createView} from 'src/shared/utils/view'
 
+// Types
+import {AppState, ViewType, QueryView, XYView, RemoteDataState} from 'src/types'
+import {setActiveTimeMachine} from 'src/timeMachine/actions'
+
 // Constants
 import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
-
-// Types
-import {AppState, ViewType} from 'src/types/v2'
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
-import {RemoteDataState} from 'src/types'
-import {QueryView, XYView} from 'src/types/v2/dashboards'
 
 interface OwnProps extends WithRouterProps {
   params: {

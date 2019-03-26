@@ -6,7 +6,7 @@ import {Link} from 'react-router'
 import {EmptyState, ComponentSize} from 'src/clockface'
 
 // Types
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 
 interface Props {
   dashboards: Dashboard[]

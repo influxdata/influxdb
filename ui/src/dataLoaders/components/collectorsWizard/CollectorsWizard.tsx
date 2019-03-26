@@ -25,10 +25,10 @@ import {
 } from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
-import {Links} from 'src/types/v2/links'
-import {Substep, TelegrafPlugin} from 'src/types/v2/dataLoaders'
+import {Links} from 'src/types/links'
+import {Substep, TelegrafPlugin} from 'src/types/dataLoaders'
 import {Notification, NotificationFunc} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 
 export interface CollectorsStepProps {

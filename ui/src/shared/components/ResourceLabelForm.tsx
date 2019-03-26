@@ -11,7 +11,7 @@ import {
 } from '@influxdata/clockface'
 import {Form, Input, InputType, ComponentSpacer, Alignment} from 'src/clockface'
 import RandomLabelColorButton from 'src/configuration/components/RandomLabelColor'
-import {Label, LabelProperties} from 'src/types/v2/labels'
+import {Label, LabelProperties} from 'src/types/labels'
 
 // Constants
 import {HEX_CODE_CHAR_LENGTH} from 'src/configuration/constants/LabelColors'

@@ -36,7 +36,7 @@ import {allOrganizationsID} from 'src/tasks/constants'
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {AppState, Task, TaskStatus} from 'src/types/v2'
+import {AppState, Task, TaskStatus} from 'src/types'
 
 interface PassedInProps {
   router: InjectedRouter

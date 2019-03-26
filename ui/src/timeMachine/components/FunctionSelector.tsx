@@ -16,7 +16,7 @@ import {getActiveQuery} from 'src/timeMachine/selectors'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
-import {AppState, BuilderConfig} from 'src/types/v2'
+import {AppState, BuilderConfig} from 'src/types'
 
 const FUNCTION_NAMES = FUNCTIONS.map(f => f.name)
 

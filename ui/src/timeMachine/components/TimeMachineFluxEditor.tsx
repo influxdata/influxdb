@@ -23,7 +23,7 @@ import {insertVariable} from 'src/timeMachine/utils/insertVariable'
 import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   activeQueryText: string

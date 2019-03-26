@@ -23,7 +23,7 @@ import {
 // Types
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {RemoteDataState} from 'src/types'
-import {GetState} from 'src/types/v2'
+import {GetState} from 'src/types'
 
 export type Action = SetQueryResults | SaveDraftQueriesAction
 

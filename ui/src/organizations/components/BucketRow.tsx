@@ -18,7 +18,7 @@ import {
   IconFont,
 } from '@influxdata/clockface'
 import {Bucket} from '@influxdata/influx'
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/dataLoaders'
 import EditableName from 'src/shared/components/EditableName'
 import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
 

@@ -27,8 +27,8 @@ import {
 } from 'src/timeMachine/actions'
 
 // Types
-import {ViewType} from 'src/types/v2'
-import {Axes, XYViewGeom} from 'src/types/v2/dashboards'
+import {ViewType} from 'src/types'
+import {Axes, XYViewGeom} from 'src/types/dashboards'
 import {Color} from 'src/types/colors'
 
 interface OwnProps {

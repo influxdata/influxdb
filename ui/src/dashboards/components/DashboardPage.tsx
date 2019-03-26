@@ -29,7 +29,7 @@ import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
-import {Links, Dashboard, Cell, View, TimeRange, AppState} from 'src/types/v2'
+import {Links, Dashboard, Cell, View, TimeRange, AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'

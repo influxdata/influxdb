@@ -1,4 +1,4 @@
-import {NewCell, Cell, Dashboard} from 'src/types/v2/'
+import {NewCell, Cell, Dashboard} from 'src/types/'
 
 import {UNTITLED_GRAPH} from 'src/dashboards/constants'
 

@@ -28,7 +28,7 @@ import {
 import {Axes, TimeRange} from 'src/types'
 import {DygraphData, Options, SeriesLegendData} from 'src/external/dygraph'
 import {Color} from 'src/types/colors'
-import {DashboardQuery} from 'src/types/v2/dashboards'
+import {DashboardQuery} from 'src/types/dashboards'
 import {SeriesDescription} from 'src/shared/parsing/flux/spreadTables'
 
 const getRangeMemoizedY = memoizeOne(getRange)

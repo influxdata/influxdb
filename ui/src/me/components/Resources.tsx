@@ -17,11 +17,11 @@ import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
 
 // Types
-import {Dashboard, MeState} from 'src/types/v2'
+import {Dashboard, AppState} from 'src/types'
 import {Organization} from '@influxdata/influx'
 
 interface Props {
-  me: MeState
+  me: AppState['me']
 }
 
 const getOrganizations = () => client.organizations.getAll()

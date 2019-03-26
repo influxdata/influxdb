@@ -21,7 +21,7 @@ import {
 } from 'src/dashboards/actions/notes'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   note: string

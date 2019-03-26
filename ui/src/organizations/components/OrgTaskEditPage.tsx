@@ -22,8 +22,7 @@ import {
 } from 'src/tasks/actions'
 
 // Types
-import {Organization, ITask as Task} from '@influxdata/influx'
-import {Links} from 'src/types/v2'
+import {Links, Organization, Task} from 'src/types'
 import {State as TasksState} from 'src/tasks/reducers'
 import {
   TaskOptions,

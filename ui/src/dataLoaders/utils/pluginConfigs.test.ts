@@ -5,7 +5,7 @@ import {
 } from 'src/dataLoaders/utils/pluginConfigs'
 
 // Types
-import {BundleName} from 'src/types/v2/dataLoaders'
+import {BundleName} from 'src/types/dataLoaders'
 import {
   TelegrafPluginInputCpu,
   TelegrafPluginInputSystem,

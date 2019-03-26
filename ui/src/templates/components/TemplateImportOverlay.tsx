@@ -13,8 +13,7 @@ import {
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
-import {AppState, Organization} from 'src/types/v2'
-import {RemoteDataState} from 'src/types'
+import {AppState, Organization, RemoteDataState} from 'src/types'
 
 interface DispatchProps {
   createTemplate: typeof createTemplateAction

@@ -12,7 +12,7 @@ import {
   ConfigFields,
   Plugin,
   BundleName,
-} from 'src/types/v2/dataLoaders'
+} from 'src/types/dataLoaders'
 
 export const getConfigFields = (
   pluginName: TelegrafPluginName

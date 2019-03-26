@@ -20,7 +20,7 @@ import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 // Types
 import {Dispatch} from 'redux-thunk'
 import {RemoteDataState} from 'src/types'
-import {GetState} from 'src/types/v2'
+import {GetState} from 'src/types'
 import {Variable} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
 

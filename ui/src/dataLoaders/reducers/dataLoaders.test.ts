@@ -56,7 +56,7 @@ import {
   ConfigurationState,
   TelegrafPlugin,
   BundleName,
-} from 'src/types/v2/dataLoaders'
+} from 'src/types/dataLoaders'
 
 jest.mock('src/utils/api', () => require('src/onboarding/apis/mocks'))
 jest.mock('src/authorizations/apis')

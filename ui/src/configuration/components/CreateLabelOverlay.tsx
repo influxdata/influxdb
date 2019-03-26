@@ -15,7 +15,7 @@ import {EMPTY_LABEL} from 'src/configuration/constants/LabelColors'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   isVisible: boolean

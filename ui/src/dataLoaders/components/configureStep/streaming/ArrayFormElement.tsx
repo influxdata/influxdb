@@ -9,7 +9,7 @@ import {MultipleInput, MultiInputType} from 'src/clockface'
 import {setConfigArrayValue} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
-import {TelegrafPluginName, ConfigFieldType} from 'src/types/v2/dataLoaders'
+import {TelegrafPluginName, ConfigFieldType} from 'src/types'
 
 interface Props {
   fieldName: string

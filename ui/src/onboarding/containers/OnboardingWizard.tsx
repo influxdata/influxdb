@@ -21,10 +21,10 @@ import {setSetupParams, setStepStatus, setupAdmin} from 'src/onboarding/actions'
 import {StepStatus} from 'src/clockface/constants/wizard'
 
 // Types
-import {Links} from 'src/types/v2/links'
+import {Links} from 'src/types/links'
 import {ISetupParams} from '@influxdata/influx'
 import {Notification, NotificationFunc} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 export interface OnboardingStepProps {
   links: Links

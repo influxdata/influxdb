@@ -19,7 +19,7 @@ import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
 // Types
 import {ComponentColor, ComponentSize} from '@influxdata/clockface'
 import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
-import {Links} from 'src/types/v2/links'
+import {Links} from 'src/types/links'
 
 interface State {
   loading: RemoteDataState

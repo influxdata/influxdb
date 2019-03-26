@@ -10,7 +10,7 @@ import ExploreGraphic from 'src/me/graphics/ExploreGraphic'
 import CollectorGraphic from 'src/me/graphics/CollectorGraphic'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/types'
 
 interface StateProps {
   orgs: Organization[]

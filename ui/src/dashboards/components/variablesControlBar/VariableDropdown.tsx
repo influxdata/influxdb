@@ -13,7 +13,7 @@ import {selectVariableValue} from 'src/dashboards/actions/index'
 import {getValuesForVariable} from 'src/variables/selectors'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   values: string[]

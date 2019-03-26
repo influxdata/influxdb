@@ -12,7 +12,7 @@ import {setDropdownOrgID as setDropdownOrgIDAction} from 'src/tasks/actions'
 import {defaultAllOrgs} from 'src/tasks/constants'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/types'
 
 interface ConnectedDispatchProps {
   setDropdownOrgID: typeof setDropdownOrgIDAction

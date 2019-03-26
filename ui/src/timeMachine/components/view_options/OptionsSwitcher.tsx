@@ -9,7 +9,7 @@ import TableOptions from 'src/timeMachine/components/view_options/TableOptions'
 import HistogramOptions from 'src/timeMachine/components/view_options/HistogramOptions'
 
 // Types
-import {ViewType, View, NewView} from 'src/types/v2'
+import {ViewType, View, NewView} from 'src/types'
 
 interface Props {
   view: View | NewView

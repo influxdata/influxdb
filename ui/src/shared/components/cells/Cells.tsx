@@ -21,7 +21,7 @@ import {
 } from 'src/shared/constants'
 
 // Types
-import {Cell} from 'src/types/v2'
+import {Cell} from 'src/types'
 import {TimeRange} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'

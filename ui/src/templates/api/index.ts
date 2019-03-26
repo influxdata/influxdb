@@ -5,7 +5,7 @@ import {
   CellIncluded,
   LabelIncluded,
   ViewIncluded,
-} from 'src/types/v2'
+} from 'src/types'
 import {IDashboard, Cell} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 

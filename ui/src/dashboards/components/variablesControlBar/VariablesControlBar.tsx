@@ -22,7 +22,7 @@ import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss'
 import {moveVariable} from 'src/variables/actions'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Variable} from '@influxdata/influx'
 
 // Decorators

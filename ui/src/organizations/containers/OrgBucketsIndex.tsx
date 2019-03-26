@@ -21,7 +21,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 // Types
 import {Bucket, Organization} from '@influxdata/influx'
 import {client} from 'src/utils/api'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 const getBuckets = async (org: Organization) => {
   return client.buckets.getAllByOrg(org.name)

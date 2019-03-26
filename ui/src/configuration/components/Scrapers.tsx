@@ -27,7 +27,7 @@ import {
   ScraperTargetRequest,
 } from '@influxdata/influx'
 import {OverlayState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 //Actions
 import {createScraper, updateScraper, deleteScraper} from 'src/scrapers/actions'

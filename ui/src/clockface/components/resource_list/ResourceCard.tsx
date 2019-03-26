@@ -4,16 +4,13 @@ import {Link} from 'react-router'
 import moment from 'moment'
 import classnames from 'classnames'
 
-// Types
-import {Organization} from 'src/types/v2'
-
 // Constants
 import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
 
 interface PassedProps {
   name: () => JSX.Element
   updatedAt?: string
-  owner?: Organization
+  owner?: {id: string; name: string}
   children?: JSX.Element[] | JSX.Element
   disabled?: boolean
 }

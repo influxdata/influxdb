@@ -23,7 +23,7 @@ import {
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {AppState, Dashboard} from 'src/types/v2'
+import {AppState, Dashboard} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface RouterProps {

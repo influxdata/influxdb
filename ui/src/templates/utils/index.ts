@@ -1,4 +1,4 @@
-import {TemplateType, LabelIncluded, VariableIncluded} from 'src/types/v2'
+import {TemplateType, LabelIncluded, VariableIncluded} from 'src/types'
 import {ILabel, Variable} from '@influxdata/influx'
 
 export function findIncludedsFromRelationships<

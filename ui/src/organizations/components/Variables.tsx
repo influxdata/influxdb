@@ -24,7 +24,7 @@ import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 // Types
 import {IconFont} from '@influxdata/clockface'
 import {OverlayState, RemoteDataState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Variable, Organization} from '@influxdata/influx'
 
 interface StateProps {

@@ -13,7 +13,7 @@ import {getActiveOrg} from 'src/organizations/selectors'
 
 // Types
 import {Variable} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   onClickVariable: (variableName: string) => void

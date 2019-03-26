@@ -10,8 +10,7 @@ import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {formatExpression} from 'src/variables/utils/formatExpression'
 
 // Types
-import {BuilderConfig} from 'src/types/v2'
-import {TimeRange} from 'src/types'
+import {TimeRange, BuilderConfig} from 'src/types'
 import {WrappedCancelablePromise} from 'src/types/promises'
 
 const DEFAULT_TIME_RANGE: TimeRange = {lower: 'now() - 30d'}

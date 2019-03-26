@@ -1,6 +1,6 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
-import {Task, Label, Dashboard, Cell, View} from 'src/types/v2'
+import {Task, Label, Dashboard, Cell, View} from 'src/types'
 import {
   TemplateType,
   DocumentCreate,

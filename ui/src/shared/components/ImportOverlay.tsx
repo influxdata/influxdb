@@ -11,7 +11,7 @@ import OrgDropdown from 'src/shared/components/OrgDropdown'
 
 // Types
 import TextArea from 'src/clockface/components/inputs/TextArea'
-import {AppState, Organization} from 'src/types/v2'
+import {AppState, Organization} from 'src/types'
 
 enum ImportOption {
   Upload = 'upload',

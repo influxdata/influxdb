@@ -9,6 +9,10 @@ import PrecisionDropdown from 'src/dataLoaders/components/lineProtocolWizard/con
 import TabSelector from 'src/dataLoaders/components/lineProtocolWizard/configure/TabSelector'
 import TabBody from 'src/dataLoaders/components/lineProtocolWizard/configure/TabBody'
 
+// Types
+import {AppState, LineProtocolTab} from 'src/types'
+import {WritePrecision} from '@influxdata/influx'
+
 // Actions
 import {
   setLineProtocolBody,
@@ -17,10 +21,8 @@ import {
   setPrecision,
 } from 'src/dataLoaders/actions/dataLoaders'
 
-// Types
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
-import {AppState} from 'src/types/v2/index'
-import {WritePrecision} from '@influxdata/influx'
+// Styles
+import 'src/clockface/components/auto_input/AutoInput.scss'
 
 interface OwnProps {
   tabs: LineProtocolTab[]

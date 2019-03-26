@@ -12,7 +12,7 @@ import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort} from 'src/clockface'
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 
 interface Props {
   searchTerm: string

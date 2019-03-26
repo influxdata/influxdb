@@ -5,7 +5,7 @@ import {
   DocumentListEntry,
   Document,
 } from '@influxdata/influx'
-import {View, Cell} from 'src/types/v2'
+import {View, Cell} from './index'
 
 export enum TemplateType {
   Label = 'label',

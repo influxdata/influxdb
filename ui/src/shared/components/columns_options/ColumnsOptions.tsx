@@ -7,7 +7,7 @@ import DraggableColumn from 'src/shared/components/draggable_column/DraggableCol
 import {ComponentSize, EmptyState, Grid, Form} from 'src/clockface'
 
 // Types
-import {FieldOption} from 'src/types/v2/dashboards'
+import {FieldOption} from 'src/types/dashboards'
 
 interface Props {
   className?: string

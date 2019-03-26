@@ -16,9 +16,9 @@ import {getVariableAssignments} from 'src/variables/selectors'
 // Types
 import {TimeRange} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
-import {AppState} from 'src/types/v2'
-import {DashboardQuery} from 'src/types/v2/dashboards'
-import {QueryViewProperties, ViewType} from 'src/types/v2/dashboards'
+import {AppState} from 'src/types'
+import {DashboardQuery} from 'src/types/dashboards'
+import {QueryViewProperties, ViewType} from 'src/types/dashboards'
 
 interface OwnProps {
   timeRange: TimeRange

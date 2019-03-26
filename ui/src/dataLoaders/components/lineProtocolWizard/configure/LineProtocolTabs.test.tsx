@@ -5,7 +5,7 @@ import {shallow} from 'enzyme'
 // Components
 import {LineProtocolTabs} from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocolTabs'
 
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
+import {LineProtocolTab} from 'src/types/dataLoaders'
 
 const setup = (override?) => {
   const props = {

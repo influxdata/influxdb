@@ -16,7 +16,7 @@ import {
   SingleStatView,
   XYView,
   XYViewGeom,
-} from 'src/types/v2/dashboards'
+} from 'src/types/dashboards'
 import {FluxTable, RemoteDataState, TimeRange} from 'src/types'
 
 interface Props {

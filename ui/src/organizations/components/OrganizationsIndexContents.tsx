@@ -16,7 +16,7 @@ import {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/types'
 import {deleteOrg} from 'src/organizations/actions/orgs'
 
 interface Props {

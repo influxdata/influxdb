@@ -15,9 +15,9 @@ import {
 } from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
-import {TelegrafPlugin, ConfigFields} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, ConfigFields} from 'src/types/dataLoaders'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   telegrafPlugin: TelegrafPlugin

@@ -7,7 +7,7 @@ import {
 // Types
 import {RemoteDataState} from 'src/types'
 import {Dispatch} from 'redux'
-import {View} from 'src/types/v2'
+import {View} from 'src/types'
 
 export type Action = SetViewAction | SetViewsAction
 
