@@ -622,40 +622,40 @@ export const getVariableFailed = (): Notification => ({
   message: 'Failed to fetch variable',
 })
 
-export const createVariableFailed = (): Notification => ({
+export const createVariableFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
-  message: `Failed to create variable.`,
+  message: `Failed to create variable: ${error}`,
 })
 
 export const createVariableSuccess = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'cube',
-  message: `Successfully created new variable ${name}.`,
+  message: `Successfully created new variable: ${name}.`,
 })
 
-export const deleteVariableFailed = (): Notification => ({
+export const deleteVariableFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
-  message: `Failed to delete variable.`,
+  message: `Failed to delete variable: ${error}`,
 })
 
-export const deleteVariableSuccess = (name: string): Notification => ({
+export const deleteVariableSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   icon: 'cube',
-  message: `Successfully deleted variable ${name}.`,
+  message: 'Successfully deleted the variable',
 })
 
-export const updateVariableFailed = (): Notification => ({
+export const updateVariableFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
-  message: `Failed to update variable.`,
+  message: `Failed to update variable: ${error}`,
 })
 
 export const updateVariableSuccess = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'cube',
-  message: `Successfully updated variable ${name}.`,
+  message: `Successfully updated variable: ${name}.`,
 })
 
 //  Rule Builder Notifications

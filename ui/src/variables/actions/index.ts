@@ -10,7 +10,9 @@ import {
   createVariableFailed,
   updateVariableFailed,
   deleteVariableFailed,
+  deleteVariableSuccess,
   createVariableSuccess,
+  updateVariableSuccess,
 } from 'src/shared/copy/notifications'
 
 // Utils
@@ -168,7 +170,7 @@ export const createVariable = (variable: Variable) => async (
     dispatch(notify(createVariableSuccess(variable.name)))
   } catch (e) {
     console.error(e)
-    dispatch(notify(createVariableFailed()))
+    dispatch(notify(createVariableFailed(e.response.data.message)))
   }
 }
 
@@ -181,10 +183,11 @@ export const updateVariable = (id: string, props: Partial<Variable>) => async (
     const variable = await client.variables.update(id, props)
 
     dispatch(setVariable(id, RemoteDataState.Done, variable))
+    dispatch(notify(updateVariableSuccess(variable.name)))
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Error))
-    dispatch(notify(updateVariableFailed()))
+    dispatch(notify(updateVariableFailed(e.response.data.message)))
   }
 }
 
@@ -193,14 +196,13 @@ export const deleteVariable = (id: string) => async (
 ) => {
   try {
     dispatch(setVariable(id, RemoteDataState.Loading))
-
     await client.variables.delete(id)
-
     dispatch(removeVariable(id))
+    dispatch(notify(deleteVariableSuccess()))
   } catch (e) {
     console.error(e)
     dispatch(setVariable(id, RemoteDataState.Done))
-    dispatch(notify(deleteVariableFailed()))
+    dispatch(notify(deleteVariableFailed(e.response.data.message)))
   }
 }
 
