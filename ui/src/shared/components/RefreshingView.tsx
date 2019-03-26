@@ -12,13 +12,15 @@ import QueryViewSwitcher from 'src/shared/components/QueryViewSwitcher'
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getVariableAssignments} from 'src/variables/selectors'
+import {getDashboardValuesStatus} from 'src/variables/selectors'
 
 // Types
-import {TimeRange} from 'src/types'
+import {TimeRange, RemoteDataState} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
 import {AppState} from 'src/types'
 import {DashboardQuery} from 'src/types/dashboards'
 import {QueryViewProperties, ViewType} from 'src/types/dashboards'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   timeRange: TimeRange
@@ -32,6 +34,7 @@ interface OwnProps {
 
 interface StateProps {
   variableAssignments: VariableAssignment[]
+  variablesStatus: RemoteDataState
 }
 
 interface State {
@@ -68,39 +71,45 @@ class RefreshingView extends PureComponent<Props, State> {
       timeRange,
       properties,
       manualRefresh,
+      variablesStatus,
     } = this.props
     const {submitToken} = this.state
 
     return (
-      <TimeSeries
-        inView={inView}
-        submitToken={submitToken}
-        queries={this.queries}
-        key={manualRefresh}
-        variables={this.variableAssignments}
+      <SpinnerContainer
+        loading={variablesStatus}
+        spinnerComponent={<TechnoSpinner />}
       >
-        {({tables, loading, error, isInitialFetch}) => {
-          return (
-            <EmptyQueryView
-              errorMessage={error ? error.message : null}
-              tables={tables}
-              loading={loading}
-              isInitialFetch={isInitialFetch}
-              queries={this.queries}
-              fallbackNote={this.fallbackNote}
-            >
-              <QueryViewSwitcher
+        <TimeSeries
+          inView={inView}
+          submitToken={submitToken}
+          queries={this.queries}
+          key={manualRefresh}
+          variables={this.variableAssignments}
+        >
+          {({tables, loading, error, isInitialFetch}) => {
+            return (
+              <EmptyQueryView
+                errorMessage={error ? error.message : null}
                 tables={tables}
-                viewID={viewID}
-                onZoom={onZoom}
                 loading={loading}
-                timeRange={timeRange}
-                properties={properties}
-              />
-            </EmptyQueryView>
-          )
-        }}
-      </TimeSeries>
+                isInitialFetch={isInitialFetch}
+                queries={this.queries}
+                fallbackNote={this.fallbackNote}
+              >
+                <QueryViewSwitcher
+                  tables={tables}
+                  viewID={viewID}
+                  onZoom={onZoom}
+                  loading={loading}
+                  timeRange={timeRange}
+                  properties={properties}
+                />
+              </EmptyQueryView>
+            )
+          }}
+        </TimeSeries>
+      </SpinnerContainer>
     )
   }
 
@@ -142,7 +151,9 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     ownProps.dashboardID
   )
 
-  return {variableAssignments}
+  const valuesStatus = getDashboardValuesStatus(state, ownProps.dashboardID)
+
+  return {variableAssignments, variablesStatus: valuesStatus}
 }
 
 export default connect<StateProps, {}, OwnProps>(mstp)(RefreshingView)

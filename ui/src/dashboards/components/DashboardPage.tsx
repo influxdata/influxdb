@@ -37,6 +37,7 @@ import {Location} from 'history'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
 import * as NotificationsActions from 'src/types/actions/notifications'
+import {toggleShowVariablesControls} from 'src/userSettings/actions'
 
 interface StateProps {
   links: Links
@@ -45,7 +46,7 @@ interface StateProps {
   dashboard: Dashboard
   autoRefresh: number
   inPresentationMode: boolean
-  showTemplateControlBar: boolean
+  showVariablesControls: boolean
   views: {[cellID: string]: {view: View; status: RemoteDataState}}
 }
 
@@ -64,6 +65,7 @@ interface DispatchProps {
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
   onSetActiveTimeMachine: typeof setActiveTimeMachine
+  onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
 
 interface PassedProps {
@@ -90,8 +92,6 @@ type Props = PassedProps &
 interface State {
   scrollTop: number
   windowHeight: number
-  isShowingVEO: boolean
-  isShowingVariablesControlBar: boolean
 }
 
 @ErrorHandling
@@ -102,8 +102,6 @@ class DashboardPage extends Component<Props, State> {
     this.state = {
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      isShowingVEO: false,
-      isShowingVariablesControlBar: false,
     }
   }
 
@@ -142,17 +140,17 @@ class DashboardPage extends Component<Props, State> {
     const {
       timeRange,
       zoomedTimeRange,
-      showTemplateControlBar,
       dashboard,
       autoRefresh,
       manualRefresh,
       onManualRefresh,
       inPresentationMode,
+      showVariablesControls,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
+      onToggleShowVariablesControls,
       children,
     } = this.props
-    const {isShowingVariablesControlBar} = this.state
 
     return (
       <Page titleTag={this.pageTitle}>
@@ -168,14 +166,13 @@ class DashboardPage extends Component<Props, State> {
             zoomedTimeRange={zoomedTimeRange}
             onRenameDashboard={this.handleRenameDashboard}
             activeDashboard={dashboard ? dashboard.name : ''}
-            showTemplateControlBar={showTemplateControlBar}
             handleChooseAutoRefresh={handleChooseAutoRefresh}
             handleChooseTimeRange={this.handleChooseTimeRange}
             handleClickPresentationButton={handleClickPresentationButton}
-            toggleVariablesControlBar={this.toggleVariablesControlBar}
-            isShowingVariablesControlBar={isShowingVariablesControlBar}
+            toggleVariablesControlBar={onToggleShowVariablesControls}
+            isShowingVariablesControlBar={showVariablesControls}
           />
-          {isShowingVariablesControlBar && (
+          {showVariablesControls && !!dashboard && (
             <VariablesControlBar dashboardID={dashboard.id} />
           )}
           {!!dashboard && (
@@ -292,12 +289,6 @@ class DashboardPage extends Component<Props, State> {
     this.setState({windowHeight: window.innerHeight})
   }
 
-  private toggleVariablesControlBar = (): void => {
-    this.setState({
-      isShowingVariablesControlBar: !this.state.isShowingVariablesControlBar,
-    })
-  }
-
   private get pageTitle(): string {
     const {dashboard} = this.props
 
@@ -310,11 +301,12 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     links,
     app: {
       ephemeral: {inPresentationMode},
-      persisted: {autoRefresh, showTemplateControlBar},
+      persisted: {autoRefresh},
     },
     ranges,
     dashboards,
     views: {views},
+    userSettings: {showVariablesControls},
   } = state
 
   const timeRange =
@@ -330,7 +322,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     dashboard,
     autoRefresh,
     inPresentationMode,
-    showTemplateControlBar,
+    showVariablesControls,
   }
 }
 
@@ -349,6 +341,7 @@ const mdtp: DispatchProps = {
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
   onSetActiveTimeMachine: setActiveTimeMachine,
+  onToggleShowVariablesControls: toggleShowVariablesControls,
 }
 
 export default connect(

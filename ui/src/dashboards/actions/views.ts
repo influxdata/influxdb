@@ -9,7 +9,7 @@ import {RemoteDataState} from 'src/types'
 import {Dispatch} from 'redux'
 import {View} from 'src/types'
 
-export type Action = SetViewAction | SetViewsAction
+export type Action = SetViewAction | SetViewsAction | ResetViewsAction
 
 export interface SetViewsAction {
   type: 'SET_VIEWS'
@@ -43,6 +43,14 @@ export const setView = (
 ): SetViewAction => ({
   type: 'SET_VIEW',
   payload: {id, view, status},
+})
+
+export interface ResetViewsAction {
+  type: 'RESET_VIEWS'
+}
+
+export const resetViews = (): ResetViewsAction => ({
+  type: 'RESET_VIEWS',
 })
 
 export const getView = (dashboardID: string, cellID: string) => async (

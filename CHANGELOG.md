@@ -13,6 +13,7 @@
 1. [12876](https://github.com/influxdata/influxdb/pull/12876): Add the ability to update token's status in Token list
 1. [12821](https://github.com/influxdata/influxdb/pull/12821): Allow variables to be re-ordered within control bar on a dashboard.
 1. [12888](https://github.com/influxdata/influxdb/pull/12888): Add the ability to delete a template
+1. [12901](https://github.com/influxdata/influxdb/pull/12901): Save user preference for variable control bar visibility and default to visible
 
 ### Bug Fixes
 

@@ -154,6 +154,12 @@ export const getTimeMachineValuesStatus = (
   return valuesStatus
 }
 
+export const getDashboardVariablesStatus = (
+  state: AppState
+): RemoteDataState => {
+  return get(state, 'variables.status')
+}
+
 export const getDashboardValuesStatus = (
   state: AppState,
   dashboardID: string

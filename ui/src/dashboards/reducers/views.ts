@@ -61,6 +61,10 @@ const viewsReducer = (
         },
       }
     }
+
+    case 'RESET_VIEWS': {
+      return initialState()
+    }
   }
 
   return state
