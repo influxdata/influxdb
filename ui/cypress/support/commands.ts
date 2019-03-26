@@ -229,7 +229,6 @@ export const writeData = (
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({org, bucket}) => {
     for (var line in lines) {
-      //console.log("DEBUG line: " + lines[line] )
       cy.request({
         method: 'POST',
         url: '/api/v2/write?org=' + org + '&bucket=' + bucket,
