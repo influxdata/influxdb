@@ -21,7 +21,7 @@ interface KeyValuePairs {
 }
 
 // Templates
-interface TemplateBase extends Document {
+export interface TemplateBase extends Document {
   content: {data: TemplateData; included: TemplateIncluded[]}
   labels?: ILabel[]
 }

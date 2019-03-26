@@ -5,6 +5,9 @@ import {
   CellIncluded,
   LabelIncluded,
   ViewIncluded,
+  TaskTemplate,
+  TemplateBase,
+  Task,
 } from 'src/types'
 import {IDashboard, Cell} from '@influxdata/influx'
 import {client} from 'src/utils/api'
@@ -43,7 +46,7 @@ export const createDashboardFromTemplate = async (
   }
 
   await Promise.all([
-    await createLabelsFromTemplate(template, createdDashboard),
+    await createDashboardLabelsFromTemplate(template, createdDashboard),
     await createCellsFromTemplate(template, createdDashboard),
   ])
   createVariablesFromTemplate(template, orgID)
@@ -52,9 +55,20 @@ export const createDashboardFromTemplate = async (
   return dashboard
 }
 
-const createLabelsFromTemplate = async (
+const createDashboardLabelsFromTemplate = async (
   template: DashboardTemplate,
   dashboard: IDashboard
+) => {
+  const templateLabels = await createLabelsFromTemplate(
+    template,
+    dashboard.orgID
+  )
+  await client.dashboards.addLabels(dashboard.id, templateLabels)
+}
+
+const createLabelsFromTemplate = async <T extends TemplateBase>(
+  template: T,
+  orgID: string
 ) => {
   const {
     content: {data, included},
@@ -75,9 +89,9 @@ const createLabelsFromTemplate = async (
 
   const labelsToCreate = findLabelsToCreate(existingLabels, labelsIncluded).map(
     l => ({
+      orgID,
       name: _.get(l, 'attributes.name', ''),
       properties: _.get(l, 'attributes.properties', {}),
-      orgID: dashboard.orgID,
     })
   )
 
@@ -89,10 +103,7 @@ const createLabelsFromTemplate = async (
   // IDs of existing labels that should be added to dashboard
   const existingLabelIDs = findLabelIDsToAdd(existingLabels, labelsIncluded)
 
-  await client.dashboards.addLabels(dashboard.id, [
-    ...createdLabelIDs,
-    ...existingLabelIDs,
-  ])
+  return [...createdLabelIDs, ...existingLabelIDs]
 }
 
 const createCellsFromTemplate = async (
@@ -181,4 +192,40 @@ const createVariablesFromTemplate = async (
   ).map(v => ({...v.attributes, orgID}))
 
   await client.variables.createAll(variablesToCreate)
+}
+
+export const createTaskFromTemplate = async (
+  template: TaskTemplate,
+  orgID: string
+): Promise<Task> => {
+  const {content} = template
+
+  if (
+    content.data.type !== TemplateType.Task ||
+    template.meta.version !== '1'
+  ) {
+    throw new Error('Can not create task from this template')
+  }
+
+  const flux = content.data.attributes.flux
+
+  const createdTask = await client.tasks.createByOrgID(orgID, flux)
+
+  if (!createdTask || !createdTask.id) {
+    throw new Error('Could not create task')
+  }
+
+  await createTaskLabelsFromTemplate(template, createdTask)
+
+  const task = await client.tasks.get(createdTask.id)
+
+  return task
+}
+
+const createTaskLabelsFromTemplate = async (
+  template: TaskTemplate,
+  task: Task
+) => {
+  const templateLabels = await createLabelsFromTemplate(template, task.orgID)
+  await client.tasks.addLabels(task.id, templateLabels)
 }
