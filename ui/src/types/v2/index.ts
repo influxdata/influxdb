@@ -43,6 +43,22 @@ import {TelegrafsState} from 'src/telegrafs/reducers'
 import {TemplatesState} from 'src/templates/reducers'
 import {AuthorizationsState} from 'src/authorizations/reducers'
 import {ScrapersState} from 'src/scrapers/reducers'
+import {
+  TemplateType,
+  LabelRelationship,
+  VariableRelationship,
+  CellRelationship,
+  ViewIncluded,
+  CellIncluded,
+  LabelIncluded,
+  VariableIncluded,
+  TaskTemplateIncluded,
+  DashboardTemplateIncluded,
+  TaskTemplate,
+  DashboardTemplate,
+  TemplateSummary,
+  Template,
+} from 'src/templates/types'
 
 export interface AppState {
   VERSION: string
@@ -101,4 +117,18 @@ export {
   TaskStatus,
   MeState,
   Label,
+  TemplateType,
+  LabelRelationship,
+  VariableRelationship,
+  CellRelationship,
+  ViewIncluded,
+  CellIncluded,
+  LabelIncluded,
+  VariableIncluded,
+  TaskTemplateIncluded,
+  DashboardTemplateIncluded,
+  TaskTemplate,
+  DashboardTemplate,
+  TemplateSummary,
+  Template,
 }
