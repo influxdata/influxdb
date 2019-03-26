@@ -12,19 +12,18 @@ import {
 } from 'src/variables/actions'
 
 // Components
+import {Input, EmptyState} from '@influxdata/clockface'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import CreateVariableOverlay from 'src/configuration/components/CreateVariableOverlay'
-import {ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import VariableList from 'src/organizations/components/VariableList'
-import {Input, EmptyState} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 // Types
-import {IconFont} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
 import {AppState} from 'src/types'
 import {Variable, Organization} from '@influxdata/influx'
+import {IconFont, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import {VariablesState} from 'src/variables/reducers'
 
 interface StateProps {

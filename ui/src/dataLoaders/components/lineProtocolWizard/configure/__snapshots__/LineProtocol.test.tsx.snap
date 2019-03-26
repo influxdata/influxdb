@@ -4,9 +4,8 @@ exports[`LineProtocol rendering renders! 1`] = `
 <div
   className="onboarding-step"
 >
-  <Form
+  <t
     onSubmit={[Function]}
-    testID="form-container"
   >
     <div
       className="wizard-step--scroll-area"
@@ -54,6 +53,6 @@ exports[`LineProtocol rendering renders! 1`] = `
       showSkip={false}
       skipButtonText="Skip"
     />
-  </Form>
+  </t>
 </div>
 `;

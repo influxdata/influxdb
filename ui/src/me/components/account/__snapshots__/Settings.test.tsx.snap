@@ -86,21 +86,18 @@ exports[`Account rendering renders! 1`] = `
                       <div
                         className="panel-body"
                       >
-                        <Form
-                          testID="form-container"
-                        >
+                        <t>
                           <form
                             className="form--wrapper"
-                            data-testid="form-container"
                             onSubmit={[Function]}
                           >
-                            <FormElement
+                            <t
                               label="Username"
                             >
                               <div
                                 className="form--element"
                               >
-                                <FormLabel
+                                <t
                                   label="Username"
                                 >
                                   <label
@@ -110,8 +107,8 @@ exports[`Account rendering renders! 1`] = `
                                       Username
                                     </span>
                                   </label>
-                                </FormLabel>
-                                <Input
+                                </t>
+                                <t
                                   autoFocus={false}
                                   autocomplete="off"
                                   disabledTitleText="This input is disabled"
@@ -152,11 +149,11 @@ exports[`Account rendering renders! 1`] = `
                                       className="input-shadow"
                                     />
                                   </div>
-                                </Input>
+                                </t>
                               </div>
-                            </FormElement>
+                            </t>
                           </form>
-                        </Form>
+                        </t>
                       </div>
                     </PanelBody>
                   </div>

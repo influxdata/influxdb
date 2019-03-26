@@ -4,16 +4,16 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {ComponentSize} from '@influxdata/clockface'
-import {EmptyState, ResourceList} from 'src/clockface'
+import {EmptyState} from '@influxdata/clockface'
+import {ResourceList} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import DashboardCards, {
   SortTypes,
 } from 'src/dashboards/components/dashboard_index/DashboardCards'
 
 // Types
-import {Sort} from 'src/clockface'
 import {Dashboard} from 'src/types'
+import {Sort, ComponentSize} from '@influxdata/clockface'
 
 interface OwnProps {
   searchTerm: string

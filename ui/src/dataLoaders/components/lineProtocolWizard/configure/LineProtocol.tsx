@@ -5,9 +5,9 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
+import {Form} from '@influxdata/clockface'
 import LineProtocolTabs from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocolTabs'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import {Form} from 'src/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions

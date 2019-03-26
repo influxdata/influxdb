@@ -3,18 +3,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {getDeep} from 'src/utils/wrappers'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  ComponentSize,
-  Input,
-  InputType,
-  Form,
-  Columns,
-  IconFont,
-  Grid,
-  ComponentStatus,
-  QuestionMarkTooltip,
-} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
+import {Grid, QuestionMarkTooltip} from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
@@ -22,9 +12,19 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {setupAdmin} from 'src/onboarding/actions'
 
 // Types
+import {ISetupParams} from '@influxdata/influx'
+import {
+  Columns,
+  IconFont,
+  InputType,
+  ComponentSize,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {ISetupParams} from '@influxdata/influx'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface State extends ISetupParams {
   confirmPassword: string

@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Form} from 'src/clockface'
+import {Form} from '@influxdata/clockface'
 import ConfigFieldHandler from 'src/dataLoaders/components/collectorsWizard/configure/ConfigFieldHandler'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 

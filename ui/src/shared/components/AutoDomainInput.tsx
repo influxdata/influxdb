@@ -2,10 +2,14 @@
 import React, {useState, SFC, KeyboardEvent} from 'react'
 
 // Components
-import {Radio, ButtonShape, Input, Grid, Columns, Form} from 'src/clockface'
+import {Form, Input, Radio} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 
 // Utils
 import {useOneWayState} from 'src/shared/utils/useOneWayState'
+
+// Types
+import {Columns, ButtonShape} from '@influxdata/clockface'
 
 interface MinMaxInputsProps {
   initialMin: string
@@ -117,10 +121,22 @@ const AutoDomainInput: SFC<AutoDomainInputProps> = ({
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <Radio shape={ButtonShape.StretchToFit}>
-              <Radio.Button active={!showInputs} onClick={handleChooseAuto}>
+              <Radio.Button
+                id="radio_auto"
+                titleText="Auto"
+                active={!showInputs}
+                onClick={handleChooseAuto}
+                value="Auto"
+              >
                 Auto
               </Radio.Button>
-              <Radio.Button active={showInputs} onClick={handleChooseCustom}>
+              <Radio.Button
+                id="radio_custom"
+                titleText="Custom"
+                active={showInputs}
+                onClick={handleChooseCustom}
+                value="Custom"
+              >
                 Custom
               </Radio.Button>
             </Radio>

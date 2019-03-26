@@ -3,13 +3,16 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Input} from '@influxdata/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import TableSidebarItem from 'src/shared/components/tables/TableSidebarItem'
-import {Input, IconFont} from 'src/clockface'
 
 // Types
+import {IconFont} from '@influxdata/clockface'
 import {FluxTable} from 'src/types'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   data: FluxTable[]

@@ -3,10 +3,11 @@ import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 
 // Components
-import {EmptyState, ComponentSize} from 'src/clockface'
+import {EmptyState} from '@influxdata/clockface'
 
 // Types
 import {Dashboard} from 'src/types'
+import {ComponentSize} from '@influxdata/clockface'
 
 interface Props {
   dashboards: Dashboard[]

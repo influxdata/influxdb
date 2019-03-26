@@ -1,17 +1,23 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {get} from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
+import {Form, Radio, Button} from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import {ComponentStatus, FormElement, Form, Overlay} from 'src/clockface'
-import {Button, ComponentColor, Radio, ButtonType} from '@influxdata/clockface'
 import OrgDropdown from 'src/shared/components/OrgDropdown'
+import TextArea from 'src/clockface/components/inputs/TextArea'
 
 // Types
-import TextArea from 'src/clockface/components/inputs/TextArea'
 import {AppState, Organization} from 'src/types'
+import {
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 enum ImportOption {
   Upload = 'upload',
@@ -85,12 +91,12 @@ class ImportOverlay extends PureComponent<Props, State> {
               </div>
               {this.importBody}
               <div className="import--dropdown">
-                <FormElement label="Destination Organization">
+                <Form.Element label="Destination Organization">
                   <OrgDropdown
                     selectedOrgID={orgID}
                     onSelectOrg={this.handleSelectOrg}
                   />
-                </FormElement>
+                </Form.Element>
               </div>
             </Overlay.Body>
             <Overlay.Footer>{this.submitButton}</Overlay.Footer>

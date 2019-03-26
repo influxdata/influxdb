@@ -4,19 +4,15 @@ import {Link} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {
-  Alignment,
-  ComponentSize,
-  EmptyState,
-  IndexList,
-  ConfirmationButton,
-} from 'src/clockface'
+import {EmptyState} from '@influxdata/clockface'
+import {IndexList, ConfirmationButton} from 'src/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Organization} from 'src/types'
+import {Alignment, ComponentSize} from '@influxdata/clockface'
 import {deleteOrg} from 'src/organizations/actions/orgs'
 
 interface Props {

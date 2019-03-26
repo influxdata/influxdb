@@ -1,20 +1,25 @@
+// Libraries
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
-import {
-  Button,
-  ButtonShape,
-  ButtonType,
-  IconFont,
-  ComponentStatus,
-  ComponentSize,
-} from '@influxdata/clockface'
-import {Input, InputType} from 'src/clockface'
+// Components
+import {Input, Button} from '@influxdata/clockface'
 
+// Types
+import {
+  IconFont,
+  InputType,
+  ButtonType,
+  ButtonShape,
+  ComponentSize,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 import {THRESHOLD_COLORS} from 'src/shared/constants/thresholds'
-import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Color, ColorLabel} from 'src/types/colors'
 import {SeverityColor, SeverityColorOptions} from 'src/types/logs'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   label?: string

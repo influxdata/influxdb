@@ -6,8 +6,11 @@ import {DragDropContext} from 'react-dnd'
 import HTML5Backend from 'react-dnd-html5-backend'
 
 // Components
-import {EmptyState, ComponentSize} from 'src/clockface'
-import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
+import {
+  EmptyState,
+  TechnoSpinner,
+  SpinnerContainer,
+} from '@influxdata/clockface'
 
 // Utils
 import {
@@ -25,6 +28,7 @@ import {moveVariable} from 'src/variables/actions'
 // Types
 import {AppState} from 'src/types'
 import {Variable} from '@influxdata/influx'
+import {ComponentSize} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

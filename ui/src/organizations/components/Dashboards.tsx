@@ -5,9 +5,9 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
+import {Input} from '@influxdata/clockface'
+import {Tabs} from 'src/clockface'
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
-import {Input, Tabs} from 'src/clockface'
-import {IconFont} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 // APIs
@@ -25,6 +25,7 @@ import {dashboardCreateFailed} from 'src/shared/copy/notifications'
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
+import {IconFont} from '@influxdata/clockface'
 import {Notification} from 'src/types/notifications'
 import {Dashboard} from 'src/types'
 
