@@ -6,7 +6,7 @@ import {Dropdown} from 'src/clockface'
 
 // Types
 import {WritePrecision} from '@influxdata/influx'
-import {Precision} from 'src/types/v2/dataLoaders'
+import {Precision} from 'src/types/dataLoaders'
 
 interface Props {
   setPrecision: (precision: WritePrecision) => void

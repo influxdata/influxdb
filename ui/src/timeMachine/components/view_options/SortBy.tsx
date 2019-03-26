@@ -3,7 +3,7 @@ import React from 'react'
 
 // Types
 import {Grid, Dropdown, Form, DropdownMode} from 'src/clockface'
-import {FieldOption} from 'src/types/v2/dashboards'
+import {FieldOption} from 'src/types/dashboards'
 
 interface Props {
   selected: FieldOption

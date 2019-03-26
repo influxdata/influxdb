@@ -53,7 +53,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {CreateCell, IDashboardTemplate} from '@influxdata/influx'
-import {Dashboard, NewView, Cell, GetState, View} from 'src/types/v2'
+import {Dashboard, NewView, Cell, GetState, View} from 'src/types'
 import {ILabel} from '@influxdata/influx'
 
 export enum ActionTypes {

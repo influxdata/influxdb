@@ -4,7 +4,7 @@ import {client} from 'src/utils/api'
 // Types
 import {RemoteDataState} from 'src/types'
 import {ILabel} from '@influxdata/influx'
-import {LabelProperties} from 'src/types/v2/labels'
+import {LabelProperties} from 'src/types/labels'
 import {Dispatch} from 'redux-thunk'
 
 // Actions

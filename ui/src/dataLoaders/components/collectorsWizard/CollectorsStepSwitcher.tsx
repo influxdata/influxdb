@@ -9,7 +9,7 @@ import VerifyCollectorsStep from 'src/dataLoaders/components/collectorsWizard/ve
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {CollectorsStep} from 'src/types/v2/dataLoaders'
+import {CollectorsStep} from 'src/types/dataLoaders'
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import {Bucket} from '@influxdata/influx'
 

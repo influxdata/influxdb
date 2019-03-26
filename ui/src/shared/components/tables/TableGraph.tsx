@@ -7,8 +7,7 @@ import {
   DESCENDING,
   DEFAULT_SORT_DIRECTION,
 } from 'src/shared/constants/tableGraph'
-import {FluxTable} from 'src/types'
-import {TableView, SortOptions} from 'src/types/v2/dashboards'
+import {TableView, SortOptions, FluxTable} from 'src/types'
 import TableGraphTransform from 'src/shared/components/tables/TableGraphTransform'
 import TableGraphTable from 'src/shared/components/tables/TableGraphTable'
 

@@ -10,7 +10,7 @@ import {emptyGraphCopy} from 'src/shared/copy/cell'
 
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
-import {DashboardQuery} from 'src/types/v2'
+import {DashboardQuery} from 'src/types'
 
 interface Props {
   errorMessage: string

@@ -17,7 +17,7 @@ import {setTemplatesStatus as setTemplatesStatusAction} from 'src/templates/acti
 
 // Types
 import {Organization, TemplateSummary} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface RouterProps {

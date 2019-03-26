@@ -20,7 +20,7 @@ import {hasQueryBeenEdited} from 'src/timeMachine/utils/queryBuilder'
 import 'src/timeMachine/components/QueriesSwitcher.scss'
 
 // Types
-import {AppState, QueryEditMode, DashboardQuery} from 'src/types/v2'
+import {AppState, QueryEditMode, DashboardQuery} from 'src/types'
 
 interface StateProps {
   activeQuery: DashboardQuery

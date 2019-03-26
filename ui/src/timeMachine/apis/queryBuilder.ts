@@ -6,7 +6,7 @@ import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
-import {BuilderConfig} from 'src/types/v2'
+import {BuilderConfig} from 'src/types'
 import {WrappedCancelablePromise} from 'src/types/promises'
 
 export const SEARCH_DURATION = '30d'

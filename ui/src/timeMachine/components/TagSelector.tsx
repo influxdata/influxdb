@@ -32,8 +32,7 @@ import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import 'src/timeMachine/components/TagSelector.scss'
 
 // Types
-import {AppState} from 'src/types/v2'
-import {RemoteDataState} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 
 const SEARCH_DEBOUNCE_MS = 500
 

@@ -14,7 +14,7 @@ import {getView} from 'src/dashboards/selectors'
 
 // Types
 import {TimeRange} from 'src/types'
-import {AppState, ViewType, View, Cell} from 'src/types/v2'
+import {AppState, ViewType, View, Cell} from 'src/types'
 
 // Styles
 import './Cell.scss'

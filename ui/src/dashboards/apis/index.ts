@@ -5,7 +5,7 @@ import _ from 'lodash'
 import {incrementCloneName} from 'src/utils/naming'
 
 // Types
-import {Cell, NewCell, Dashboard, View} from 'src/types/v2'
+import {Cell, NewCell, Dashboard, View} from 'src/types'
 import {ILabel} from '@influxdata/influx'
 
 import {Cell as CellAPI, CreateDashboardRequest} from '@influxdata/influx'

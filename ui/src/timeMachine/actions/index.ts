@@ -7,15 +7,16 @@ import {Dispatch} from 'redux-thunk'
 import {TimeMachineState} from 'src/timeMachine/reducers'
 import {Action as QueryBuilderAction} from 'src/timeMachine/actions/queryBuilder'
 import {Action as QueryResultsAction} from 'src/timeMachine/actions/queries'
-import {TimeRange, ViewType} from 'src/types/v2'
 import {
+  TimeRange,
+  ViewType,
   Axes,
   DecimalPlaces,
   XYViewGeom,
   FieldOption,
   TableOptions,
-} from 'src/types/v2/dashboards'
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
+  TimeMachineTab,
+} from 'src/types'
 import {Color} from 'src/types/colors'
 import {Table, HistogramPosition, isNumeric} from 'src/minard'
 

@@ -35,7 +35,7 @@ import 'src/timeMachine/components/view_options/HistogramOptions.scss'
 // Types
 import {HistogramPosition} from 'src/minard'
 import {Color} from 'src/types/colors'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   availableXColumns: string[]

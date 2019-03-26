@@ -20,8 +20,8 @@ import {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
-import {AppState} from 'src/types/v2/index'
+import {LineProtocolTab} from 'src/types/dataLoaders'
+import {AppState} from 'src/types/index'
 import {WritePrecision} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 import {LineProtocolStepProps} from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'

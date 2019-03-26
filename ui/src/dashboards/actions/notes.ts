@@ -10,8 +10,8 @@ import {createView} from 'src/shared/utils/view'
 import {getView} from 'src/dashboards/selectors'
 
 // Types
-import {GetState} from 'src/types/v2'
-import {NoteEditorMode, MarkdownView, ViewType} from 'src/types/v2/dashboards'
+import {GetState} from 'src/types'
+import {NoteEditorMode, MarkdownView, ViewType} from 'src/types/dashboards'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {Dispatch} from 'redux-thunk'
 

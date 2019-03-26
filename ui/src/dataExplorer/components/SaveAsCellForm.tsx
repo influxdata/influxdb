@@ -25,7 +25,7 @@ import {createDashboard} from 'src/dashboards/apis'
 import {notify} from 'src/shared/actions/notifications'
 
 // types
-import {AppState, Dashboard, View, Organization} from 'src/types/v2'
+import {AppState, Dashboard, View, Organization} from 'src/types'
 import {
   DashboardTemplate,
   DEFAULT_DASHBOARD_NAME,

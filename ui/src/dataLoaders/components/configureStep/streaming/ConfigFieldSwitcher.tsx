@@ -8,7 +8,7 @@ import URIFormElement from 'src/shared/components/URIFormElement'
 import ArrayFormElement from 'src/dataLoaders/components/configureStep/streaming/ArrayFormElement'
 
 // Types
-import {ConfigFieldType, TelegrafPluginName} from 'src/types/v2/dataLoaders'
+import {ConfigFieldType, TelegrafPluginName} from 'src/types/dataLoaders'
 
 // Actions
 import {setConfigArrayValue} from 'src/dataLoaders/actions/dataLoaders'

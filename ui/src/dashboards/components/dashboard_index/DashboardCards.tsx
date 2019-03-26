@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCard'
 
 // Types
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 
 interface Props {
   dashboards: Dashboard[]

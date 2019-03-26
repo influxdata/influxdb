@@ -19,7 +19,7 @@ import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import 'src/timeMachine/components/FunctionSelector.scss'
 
 // Types
-import {AppState, BuilderConfig} from 'src/types/v2'
+import {AppState, BuilderConfig} from 'src/types'
 
 const FUNCTION_NAMES = FUNCTIONS.map(f => f.name)
 

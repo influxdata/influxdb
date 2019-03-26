@@ -21,7 +21,7 @@ import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {VariableValues} from 'src/variables/types'
 
 interface StateProps {

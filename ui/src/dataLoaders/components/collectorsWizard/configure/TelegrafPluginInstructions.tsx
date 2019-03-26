@@ -31,8 +31,8 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {AppState} from 'src/types/v2/index'
-import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
+import {AppState} from 'src/types/index'
+import {TelegrafPlugin, ConfigurationState} from 'src/types/dataLoaders'
 import {client} from 'src/utils/api'
 import {IDashboardTemplate} from '@influxdata/influx'
 

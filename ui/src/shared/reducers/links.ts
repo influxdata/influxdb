@@ -1,5 +1,5 @@
 import {Action, ActionTypes} from 'src/shared/actions/links'
-import {Links} from 'src/types/v2/links'
+import {Links} from 'src/types/links'
 
 const initialState: Links = {
   authorizations: '',

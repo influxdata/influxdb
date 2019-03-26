@@ -2,7 +2,7 @@
 import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Types
-import {TimeRange} from 'src/types/v2'
+import {TimeRange} from 'src/types'
 import {VariableAssignment, Duration} from 'src/types/ast'
 import {parseDuration} from 'src/variables/utils/parseDuration'
 

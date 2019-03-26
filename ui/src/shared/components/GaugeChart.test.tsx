@@ -2,7 +2,7 @@ import {shallow} from 'enzyme'
 import React from 'react'
 import Gauge from 'src/shared/components/Gauge'
 import GaugeChart from 'src/shared/components/GaugeChart'
-import {ViewType, ViewShape, GaugeView} from 'src/types/v2/dashboards'
+import {ViewType, ViewShape, GaugeView} from 'src/types/dashboards'
 
 const tables = [
   {

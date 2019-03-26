@@ -24,7 +24,7 @@ import {
 import 'src/dashboards/components/NoteEditor.scss'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   note: string

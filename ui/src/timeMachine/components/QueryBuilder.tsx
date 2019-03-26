@@ -21,7 +21,7 @@ import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import 'src/timeMachine/components/QueryBuilder.scss'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface StateProps {

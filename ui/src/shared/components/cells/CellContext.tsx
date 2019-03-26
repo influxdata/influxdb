@@ -8,7 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'
-import {Cell, View, ViewType} from 'src/types/v2'
+import {Cell, View, ViewType} from 'src/types'
 
 interface Props {
   cell: Cell

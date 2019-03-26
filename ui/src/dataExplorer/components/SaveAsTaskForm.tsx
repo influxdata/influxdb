@@ -26,13 +26,13 @@ import {
 } from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {AppState, Organization, TimeRange} from 'src/types/v2'
+import {AppState, Organization, TimeRange} from 'src/types'
 import {
   TaskSchedule,
   TaskOptions,
   TaskOptionKeys,
 } from 'src/utils/taskOptionsToFluxScript'
-import {DashboardDraftQuery} from 'src/types/v2/dashboards'
+import {DashboardDraftQuery} from 'src/types/dashboards'
 
 interface OwnProps {
   dismiss: () => void

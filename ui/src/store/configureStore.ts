@@ -31,7 +31,7 @@ import templatesReducer from 'src/templates/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 

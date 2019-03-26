@@ -4,7 +4,7 @@ import {
   TelegrafPluginInfo,
   ConfigFieldType,
   BundleName,
-} from 'src/types/v2/dataLoaders'
+} from 'src/types'
 
 import {
   TelegrafPluginInputCpu,

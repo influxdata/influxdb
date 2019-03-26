@@ -15,9 +15,9 @@ import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
 import {OverlayState} from 'src/types'
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/dataLoaders'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   buckets: PrettyBucket[]

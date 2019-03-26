@@ -15,7 +15,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {TOKEN_LABEL} from 'src/labels/constants'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Telegraf} from '@influxdata/influx'
 
 interface OwnProps {

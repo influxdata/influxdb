@@ -5,7 +5,7 @@ import Cells from 'src/shared/components/cells/Cells'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import DashboardEmpty from 'src/dashboards/components/dashboard_empty/DashboardEmpty'
 
-import {Dashboard, Cell} from 'src/types/v2'
+import {Dashboard, Cell} from 'src/types'
 import {TimeRange} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'

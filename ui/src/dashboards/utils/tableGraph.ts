@@ -10,7 +10,7 @@ import {
   FieldOption,
   TableOptions,
   DecimalPlaces,
-} from 'src/types/v2/dashboards'
+} from 'src/types/dashboards'
 
 import {FluxTable} from 'src/types'
 

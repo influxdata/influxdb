@@ -8,7 +8,7 @@ import RefreshingView from 'src/shared/components/RefreshingView'
 
 // Types
 import {TimeRange} from 'src/types'
-import {ViewType, ViewShape, View} from 'src/types/v2'
+import {ViewType, ViewShape, View} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

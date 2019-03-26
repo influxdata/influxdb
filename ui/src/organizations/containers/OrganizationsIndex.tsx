@@ -16,7 +16,7 @@ import {Overlay} from 'src/clockface'
 import {createOrg, deleteOrg} from 'src/organizations/actions/orgs'
 
 // Types
-import {Organization, Links} from 'src/types/v2'
+import {Organization, Links} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

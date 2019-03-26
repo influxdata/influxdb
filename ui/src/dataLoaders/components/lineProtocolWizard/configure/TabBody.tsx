@@ -10,7 +10,7 @@ import {
 } from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
+import {LineProtocolTab} from 'src/types'
 import {setLineProtocolBody} from 'src/dataLoaders/actions/dataLoaders'
 import {WritePrecision} from '@influxdata/influx'
 

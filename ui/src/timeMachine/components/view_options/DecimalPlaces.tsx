@@ -8,7 +8,7 @@ import {Form, Grid, Columns, AutoInput} from 'src/clockface'
 import {MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
 
 // Types
-import {DecimalPlaces} from 'src/types/v2/dashboards'
+import {DecimalPlaces} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

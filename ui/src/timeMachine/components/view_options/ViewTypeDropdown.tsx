@@ -18,7 +18,7 @@ import {VIS_GRAPHICS} from 'src/timeMachine/constants/visGraphics'
 import 'src/timeMachine/components/view_options/ViewTypeDropdown.scss'
 
 // Types
-import {View, NewView, AppState, ViewType} from 'src/types/v2'
+import {View, NewView, AppState, ViewType} from 'src/types'
 
 interface DispatchProps {
   onUpdateType: typeof setType

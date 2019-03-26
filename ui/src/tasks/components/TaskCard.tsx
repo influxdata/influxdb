@@ -15,7 +15,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 // Types
 import {ComponentColor} from '@influxdata/clockface'
 import {ITask as Task, ILabel} from '@influxdata/influx'
-import {AppState, TaskStatus} from 'src/types/v2'
+import {AppState, TaskStatus} from 'src/types'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'

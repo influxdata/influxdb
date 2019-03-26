@@ -14,8 +14,8 @@ import {
   TableOptions,
   FieldOption,
   DecimalPlaces,
-} from 'src/types/v2/dashboards'
-import {Cell, Dashboard} from 'src/types/v2'
+} from 'src/types'
+import {Cell, Dashboard} from 'src/types'
 
 import {Color} from 'src/types/colors'
 

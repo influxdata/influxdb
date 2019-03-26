@@ -26,7 +26,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

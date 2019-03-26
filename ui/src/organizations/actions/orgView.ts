@@ -5,7 +5,7 @@ import {
   ITask as Task,
   ITaskTemplate,
 } from '@influxdata/influx'
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 
 // API
 import {client} from 'src/utils/api'

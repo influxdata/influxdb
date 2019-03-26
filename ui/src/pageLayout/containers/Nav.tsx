@@ -7,7 +7,7 @@ import {connect} from 'react-redux'
 import NavMenu from 'src/pageLayout/components/NavMenu'
 
 // Types
-import {MeState, AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
 
 // Styles
@@ -17,7 +17,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props extends WithRouterProps {
   isHidden: boolean
-  me: MeState
+  me: AppState['me']
 }
 
 @ErrorHandling

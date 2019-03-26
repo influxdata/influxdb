@@ -20,7 +20,7 @@ import ConnectionInformation, {
 } from 'src/dataLoaders/components/verifyStep/ConnectionInformation'
 
 // Types
-import {AppState, Organization} from 'src/types/v2'
+import {AppState, Organization} from 'src/types'
 
 interface OwnProps {
   bucket: string

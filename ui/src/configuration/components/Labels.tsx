@@ -22,7 +22,7 @@ import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
 import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {ILabel} from '@influxdata/influx'
 
 // Constants

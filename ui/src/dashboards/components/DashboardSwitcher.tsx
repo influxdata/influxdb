@@ -9,7 +9,7 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
-import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
+import {DashboardSwitcherLinks} from 'src/types/dashboards'
 
 interface Props {
   dashboardLinks: DashboardSwitcherLinks

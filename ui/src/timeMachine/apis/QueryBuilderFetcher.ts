@@ -6,7 +6,7 @@ import {
 } from 'src/timeMachine/apis/queryBuilder'
 
 // Types
-import {BuilderConfig} from 'src/types/v2'
+import {BuilderConfig} from 'src/types'
 import {WrappedCancelablePromise} from 'src/types/promises'
 
 type CancelableQuery = WrappedCancelablePromise<string[]>

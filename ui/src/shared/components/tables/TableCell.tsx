@@ -12,8 +12,8 @@ import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 
 // Types
-import {SortOptions, FieldOption} from 'src/types/v2/dashboards'
-import {TableView} from 'src/types/v2/dashboards'
+import {SortOptions, FieldOption} from 'src/types/dashboards'
+import {TableView} from 'src/types/dashboards'
 import {CellRendererProps} from 'src/shared/components/tables/TableGraphTable'
 
 interface Props extends CellRendererProps {

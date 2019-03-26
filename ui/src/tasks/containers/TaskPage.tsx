@@ -27,8 +27,8 @@ import {
 } from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {Links} from 'src/types/v2/links'
-import {Organization} from 'src/types/v2'
+import {Links} from 'src/types/links'
+import {Organization} from 'src/types'
 import {
   TaskOptions,
   TaskOptionKeys,

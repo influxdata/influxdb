@@ -6,7 +6,7 @@ import {Link} from 'react-router'
 import {EmptyState, ComponentSize} from 'src/clockface'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/types'
 
 interface Props {
   orgs: Organization[]

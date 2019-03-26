@@ -2,7 +2,7 @@
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'

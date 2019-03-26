@@ -25,7 +25,7 @@ import {ruleToString} from 'src/utils/formatting'
 
 // Types
 import {OverlayState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 import {Bucket, BucketRetentionRules, Organization} from '@influxdata/influx'
 

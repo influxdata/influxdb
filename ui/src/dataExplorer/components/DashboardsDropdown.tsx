@@ -8,7 +8,7 @@ import {MultiSelectDropdown} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // types
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 import {DashboardTemplate} from 'src/dashboards/constants'
 
 interface Props {

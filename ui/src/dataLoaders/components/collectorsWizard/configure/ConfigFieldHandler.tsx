@@ -19,7 +19,7 @@ import {
   TelegrafPlugin,
   ConfigFields,
   ConfigFieldType,
-} from 'src/types/v2/dataLoaders'
+} from 'src/types/dataLoaders'
 
 interface OwnProps {
   configFields: ConfigFields

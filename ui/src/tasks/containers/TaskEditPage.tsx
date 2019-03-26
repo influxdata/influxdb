@@ -29,7 +29,7 @@ import {
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {Links} from 'src/types/v2'
+import {Links} from 'src/types'
 
 interface PassedInProps {
   router: InjectedRouter

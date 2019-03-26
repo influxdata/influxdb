@@ -22,8 +22,8 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import 'src/timeMachine/components/QueryTab.scss'
 
 // Types
-import {AppState} from 'src/types/v2'
-import {DashboardDraftQuery} from 'src/types/v2/dashboards'
+import {AppState} from 'src/types'
+import {DashboardDraftQuery} from 'src/types/dashboards'
 
 interface StateProps {
   activeQueryIndex: number

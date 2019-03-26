@@ -1,12 +1,19 @@
-import {Template, SourceLinks, TemplateType, TemplateValueType} from 'src/types'
-import {Source} from '@influxdata/influx'
-import {Cell, Dashboard, Task} from 'src/types/v2'
-import {ILabel} from '@influxdata/influx'
-import {Links} from 'src/types/v2/links'
+import {
+  Template,
+  SourceLinks,
+  TemplateType,
+  TemplateValueType,
+  Cell,
+  Dashboard,
+  Task,
+  Links,
+  ConfigurationState,
+} from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {WithRouterProps} from 'react-router'
-import {ConfigurationState} from 'src/types/v2/dataLoaders'
 import {
+  Source,
+  ILabel,
   TelegrafPluginInputCpu,
   TelegrafPluginInputRedis,
   TelegrafPluginInputDisk,

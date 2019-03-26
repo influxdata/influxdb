@@ -21,10 +21,10 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {createView} from 'src/shared/utils/view'
 
 // Types
-import {AppState, DashboardQuery, ViewType} from 'src/types/v2'
-import {QueryView} from 'src/types/v2/dashboards'
+import {AppState, DashboardQuery, ViewType} from 'src/types'
+import {QueryView} from 'src/types'
 import {Dashboard} from 'src/types'
-import {XYView} from 'src/types/v2/dashboards'
+import {XYView} from 'src/types'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Constants

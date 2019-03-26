@@ -1,5 +1,5 @@
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
-import {TimeRange} from 'src/types/v2'
+import {TimeRange} from 'src/types'
 
 describe('getTimeRangeVars', () => {
   test('should handle relative lower dates', () => {

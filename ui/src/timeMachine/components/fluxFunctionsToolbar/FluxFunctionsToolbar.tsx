@@ -22,7 +22,7 @@ import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
 import 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar.scss'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   onInsertFluxFunction: (functionName: string, text: string) => void

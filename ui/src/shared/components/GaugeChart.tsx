@@ -11,7 +11,7 @@ import {lastValue} from 'src/shared/parsing/flux/lastValue'
 
 // Types
 import {FluxTable} from 'src/types'
-import {GaugeView} from 'src/types/v2/dashboards'
+import {GaugeView} from 'src/types/dashboards'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

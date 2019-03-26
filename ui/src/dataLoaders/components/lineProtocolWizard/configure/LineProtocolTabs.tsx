@@ -8,7 +8,7 @@ import TabSelector from 'src/dataLoaders/components/lineProtocolWizard/configure
 import TabBody from 'src/dataLoaders/components/lineProtocolWizard/configure/TabBody'
 
 // Types
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
+import {LineProtocolTab} from 'src/types/dataLoaders'
 
 // Components
 import {Grid, Columns} from 'src/clockface'
@@ -21,7 +21,7 @@ import {
   setPrecision,
 } from 'src/dataLoaders/actions/dataLoaders'
 
-import {AppState} from 'src/types/v2/index'
+import {AppState} from 'src/types/index'
 
 // Styles
 import 'src/clockface/components/auto_input/AutoInput.scss'

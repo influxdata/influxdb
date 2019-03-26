@@ -30,14 +30,16 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {AppState, NewView} from 'src/types/v2'
 import {
+  AppState,
+  NewView,
   DecimalPlaces,
   TableView,
   FieldOption,
   TableOptions as ViewTableOptions,
-} from 'src/types/v2/dashboards'
-import {Color, ThresholdConfig} from 'src/types/colors'
+  Color,
+  ThresholdConfig,
+} from 'src/types'
 import {move} from 'src/shared/utils/move'
 
 interface StateProps {
@@ -157,11 +159,6 @@ export class TableOptions extends Component<Props, {}> {
     const fixFirstColumn = !tableOptions.fixFirstColumn
     onSetTableOptions({...tableOptions, fixFirstColumn})
   }
-
-  // private handleToggleVerticalTimeAxis = (verticalTimeAxis: boolean): void => {
-  //   const {tableOptions, onSetTableOptions} = this.props
-  //   onSetTableOptions({...tableOptions, verticalTimeAxis})
-  // }
 
   private get colorConfigs(): ThresholdConfig[] {
     return this.props.colors.map(color => {

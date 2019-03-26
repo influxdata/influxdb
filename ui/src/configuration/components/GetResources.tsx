@@ -10,7 +10,7 @@ import {getTelegrafs} from 'src/telegrafs/actions'
 import {getVariables} from 'src/variables/actions'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'

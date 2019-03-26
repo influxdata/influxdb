@@ -38,7 +38,7 @@ import {
   setTelegrafConfigName,
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/dataLoaders'
 
 interface OwnProps {
   collectors: Telegraf[]

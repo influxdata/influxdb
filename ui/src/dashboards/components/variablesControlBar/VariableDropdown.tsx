@@ -16,7 +16,7 @@ import {getValuesForVariable} from 'src/variables/selectors'
 import 'src/dashboards/components/variablesControlBar/VariableDropdown.scss'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   values: string[]

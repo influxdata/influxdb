@@ -7,8 +7,8 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Types
 import {FluxTable} from 'src/types'
-import {AppState} from 'src/types/v2'
-import {DashboardDraftQuery} from 'src/types/v2/dashboards'
+import {AppState} from 'src/types'
+import {DashboardDraftQuery} from 'src/types/dashboards'
 
 export const getActiveTimeMachine = (state: AppState) => {
   const {activeTimeMachineID, timeMachines} = state.timeMachines

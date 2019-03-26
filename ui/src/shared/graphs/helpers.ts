@@ -1,7 +1,7 @@
 import {toRGB} from 'src/shared/graphs/toRGB'
 
 import {Options} from 'src/external/dygraph'
-import {XYViewGeom} from 'src/types/v2/dashboards'
+import {XYViewGeom} from 'src/types/dashboards'
 
 export const LINE_COLORS = [
   '#00C9FF',

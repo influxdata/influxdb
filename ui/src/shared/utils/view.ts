@@ -7,7 +7,7 @@ import {
 } from 'src/shared/constants/thresholds'
 
 // Types
-import {ViewType, ViewShape} from 'src/types/v2'
+import {ViewType, ViewShape} from 'src/types'
 import {HistogramPosition} from 'src/minard'
 import {
   XYView,
@@ -22,7 +22,7 @@ import {
   ViewProperties,
   DashboardQuery,
   QueryEditMode,
-} from 'src/types/v2/dashboards'
+} from 'src/types/dashboards'
 
 function defaultView() {
   return {

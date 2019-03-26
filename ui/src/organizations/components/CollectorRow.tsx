@@ -23,7 +23,7 @@ import EditableDescription from 'src/shared/components/editable_description/Edit
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {ILabel} from '@influxdata/influx'
 
 interface OwnProps {
