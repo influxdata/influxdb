@@ -40,7 +40,6 @@ import {
   ConfigurationState,
   DashboardTemplate,
 } from 'src/types'
-import {IDashboardTemplate} from '@influxdata/influx'
 import {InputType, ComponentSize} from '@influxdata/clockface'
 import {client} from 'src/utils/api'
 
