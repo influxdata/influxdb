@@ -1,3 +1,4 @@
+
 interface TestUser {
   username: string
   password: string
@@ -366,3 +367,4 @@ describe('Onboarding', () => {
       .contains('Continue')
   })
 })
+
