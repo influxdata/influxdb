@@ -1,9 +1,17 @@
-v1.7.5 [unreleased]
+v1.7.6 [unreleased]
+-------------------
+
+v1.7.5 [2019-03-26]
 -------------------
 
 ### Bugfixes
 
 -	[#11908](https://github.com/influxdata/influxdb/pull/11908): Update tagKeyValue mutex to write lock.
+-	[#11971](https://github.com/influxdata/influxdb/pull/11971): Fix some more shard epoch races.
+
+### Features
+
+-	[#12215](https://github.com/influxdata/influxdb/pull/12215): Add gen-init and gen-exec commands.Add support for describing data-generation schema via a TOML file.
 
 v1.7.4 [2019-02-13]
 -------------------
