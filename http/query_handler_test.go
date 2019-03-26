@@ -268,7 +268,7 @@ func TestFluxHandler_postFluxSpec(t *testing.T) {
 			w:    httptest.NewRecorder(),
 			r:    httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`{"query": "from(bucket:\"demo-bucket-in-1\") |> range(start:-2s) |> last()"}`)),
 			now:  func() time.Time { return time.Unix(0, 0).UTC() },
-			want: `{"spec":{"operations":[{"kind":"influxDBFrom","id":"influxDBFrom0","spec":{"bucket":"demo-bucket-in-1"}},{"kind":"range","id":"range1","spec":{"start":"-2s","stop":"now","timeColumn":"_time","startColumn":"_start","stopColumn":"_stop"}},{"kind":"last","id":"last2","spec":{"column":""}}],"edges":[{"parent":"influxDBFrom0","child":"range1"},{"parent":"range1","child":"last2"}],"resources":{"priority":"high","concurrency_quota":0,"memory_bytes_quota":0},"now":"1970-01-01T00:00:00Z"}}
+			want: `{"spec":{"operations":[{"kind":"influxDBFrom","id":"influxDBFrom0","spec":{"bucket":"demo-bucket-in-1"}},{"kind":"range","id":"range1","spec":{"start":"-2s","stop":"now","timeColumn":"_time","startColumn":"_start","stopColumn":"_stop"}},{"kind":"last","id":"last2","spec":{"column":"_value"}}],"edges":[{"parent":"influxDBFrom0","child":"range1"},{"parent":"range1","child":"last2"}],"resources":{"priority":"high","concurrency_quota":0,"memory_bytes_quota":0},"now":"1970-01-01T00:00:00Z"}}
 `,
 			status: http.StatusOK,
 		},
