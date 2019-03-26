@@ -36,7 +36,6 @@ func visit(root *Schema) string {
 				fmt.Fprintf(w, "    %s: %s, count=%d, time-interval=%s\n", n.Name, n.Source, n.Count, n.TimeInterval)
 			}
 
-
 		case *Tag:
 			fmt.Fprintf(w, "    %s: %s\n", n.Name, n.Source)
 
