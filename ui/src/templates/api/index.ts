@@ -59,13 +59,16 @@ const createDashboardLabelsFromTemplate = async (
   template: DashboardTemplate,
   dashboard: IDashboard
 ) => {
-  const templateLabels = await createLabelsFromTemplate(template, dashboard)
+  const templateLabels = await createLabelsFromTemplate(
+    template,
+    dashboard.orgID
+  )
   await client.dashboards.addLabels(dashboard.id, templateLabels)
 }
 
-const createLabelsFromTemplate = async <T extends TemplateBase, R>(
+const createLabelsFromTemplate = async <T extends TemplateBase>(
   template: T,
-  resource: R & {orgID: string}
+  orgID: string
 ) => {
   const {
     content: {data, included},
@@ -86,9 +89,9 @@ const createLabelsFromTemplate = async <T extends TemplateBase, R>(
 
   const labelsToCreate = findLabelsToCreate(existingLabels, labelsIncluded).map(
     l => ({
+      orgID,
       name: _.get(l, 'attributes.name', ''),
       properties: _.get(l, 'attributes.properties', {}),
-      orgID: resource.orgID,
     })
   )
 
@@ -223,6 +226,6 @@ const createTaskLabelsFromTemplate = async (
   template: TaskTemplate,
   task: Task
 ) => {
-  const templateLabels = await createLabelsFromTemplate(template, task)
+  const templateLabels = await createLabelsFromTemplate(template, task.orgID)
   await client.tasks.addLabels(task.id, templateLabels)
 }
