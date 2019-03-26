@@ -254,6 +254,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Templates
+      summary: delete a template document
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: templateID
+          schema:
+            type: string
+          required: true
+          description: ID of template
+      responses:
+        '204':
+          description: delete has been accepted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /telegrafs:
     get:
       tags:
@@ -796,19 +817,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Label"
+              $ref: "#/components/schemas/LabelMapping"
       responses:
         '200':
           description: a list of all labels for a scraper target
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -3070,12 +3086,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  labels:
-                    $ref: "#/components/schemas/Labels"
-                  links:
-                    $ref: "#/components/schemas/Links"
+                $ref: "#/components/schemas/LabelsResponse"
         default:
           description: unexpected error
           content:
@@ -7603,7 +7614,6 @@ components:
         - ms
         - s
         - us
-        - u
         - ns
     TaskCreateRequest:
       type: object

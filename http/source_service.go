@@ -226,7 +226,13 @@ func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter)
+	_, err = h.SourceService.FindSourceByID(ctx, req.getSourceRequest.SourceID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	bs, _, err := h.BucketService.FindBuckets(ctx, req.getBucketsRequest.filter)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return

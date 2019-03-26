@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -288,6 +289,42 @@ func TestFluxHandler_postFluxSpec(t *testing.T) {
 				t.Log(tt.w.Header())
 			}
 		})
+	}
+}
+
+func TestFluxService_Check(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(HealthHandler))
+	defer ts.Close()
+	s := &FluxService{
+		Addr: ts.URL,
+	}
+	got := s.Check(context.Background())
+	want := check.Response{
+		Name:    "influxdb",
+		Status:  "pass",
+		Message: "ready for queries and writes",
+		Checks:  check.Responses{},
+	}
+	if !cmp.Equal(want, got) {
+		t.Errorf("unexpected response -want/+got: " + cmp.Diff(want, got))
+	}
+}
+
+func TestFluxQueryService_Check(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(HealthHandler))
+	defer ts.Close()
+	s := &FluxQueryService{
+		Addr: ts.URL,
+	}
+	got := s.Check(context.Background())
+	want := check.Response{
+		Name:    "influxdb",
+		Status:  "pass",
+		Message: "ready for queries and writes",
+		Checks:  check.Responses{},
+	}
+	if !cmp.Equal(want, got) {
+		t.Errorf("unexpected response -want/+got: " + cmp.Diff(want, got))
 	}
 }
 

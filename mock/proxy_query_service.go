@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -27,4 +28,8 @@ func NewProxyQueryService() *ProxyQueryService {
 // Query performs the requested query and encodes the results into w.
 func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 	return s.QueryFn(ctx, w, req)
+}
+
+func (*ProxyQueryService) Check(ctx context.Context) check.Response {
+	return check.Response{Name: "Mock Query Service", Status: check.StatusPass}
 }

@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
+import EmptyGraphError from 'src/shared/components/EmptyGraphError'
 import Markdown from 'src/shared/components/views/Markdown'
 
 // Constants
@@ -43,10 +44,7 @@ export default class EmptyQueryView extends PureComponent<Props> {
 
     if (errorMessage) {
       return (
-        <EmptyGraphMessage
-          message={`Error: ${errorMessage}`}
-          testID="empty-graph--error"
-        />
+        <EmptyGraphError message={errorMessage} testID="empty-graph--error" />
       )
     }
 
