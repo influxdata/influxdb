@@ -91,7 +91,7 @@ class CollectorsWizard extends PureComponent<Props> {
     return (
       <WizardOverlay
         visible={visible}
-        title={'Create a Telegraf Config'}
+        title="Create a Telegraf Config"
         onDismiss={this.handleDismiss}
       >
         <CollectorsStepSwitcher stepProps={this.stepProps} buckets={buckets} />

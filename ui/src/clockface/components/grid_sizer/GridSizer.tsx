@@ -82,7 +82,7 @@ class GridSizer extends PureComponent<Props, State> {
         <div
           key={`grid_cell_${i}`}
           style={columnStyle}
-          className={`grid-sizer--cell`}
+          className="grid-sizer--cell"
         >
           <div className="grid-sizer--content">{child}</div>
         </div>

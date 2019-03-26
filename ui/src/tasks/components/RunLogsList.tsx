@@ -24,7 +24,7 @@ class RunLogsOverlay extends PureComponent<Props> {
     const {onDismissOverlay} = this.props
 
     return (
-      <Overlay.Container customClass={'run-logs--list'}>
+      <Overlay.Container customClass="run-logs--list">
         <Overlay.Heading title="Run Logs" onDismiss={onDismissOverlay} />
         <Overlay.Body>
           <FancyScrollbar autoHeight={true} maxHeight={700}>

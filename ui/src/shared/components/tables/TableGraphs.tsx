@@ -79,7 +79,7 @@ class TableGraphs extends PureComponent<Props, State> {
           />
         )}
         {!this.hasData && (
-          <EmptyGraphMessage message={'This table has no data'} />
+          <EmptyGraphMessage message="This table has no data" />
         )}
       </div>
     )

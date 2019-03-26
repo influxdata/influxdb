@@ -40,7 +40,7 @@ class SideNav extends PureComponent<Props> {
         >
           <NavMenu.SubItem
             title="Logout"
-            link={`/logout`}
+            link="/logout"
             location={location.pathname}
             highlightPaths={[]}
           />

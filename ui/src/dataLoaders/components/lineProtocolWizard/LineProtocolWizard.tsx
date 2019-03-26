@@ -80,7 +80,7 @@ class CollectorsWizard extends PureComponent<Props> {
     return (
       <WizardOverlay
         visible={visible}
-        title={'Add Line Protocol'}
+        title="Add Line Protocol"
         onDismiss={this.handleDismiss}
       >
         <div className="wizard-contents">

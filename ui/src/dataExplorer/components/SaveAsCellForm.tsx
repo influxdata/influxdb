@@ -108,7 +108,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
                   type={ButtonType.Button}
                 />
                 <Button
-                  text={'Save as Dashboard Cell'}
+                  text="Save as Dashboard Cell"
                   color={ComponentColor.Success}
                   type={ButtonType.Submit}
                   onClick={this.handleSubmit}

@@ -60,7 +60,7 @@ export class TelegrafConfigOverlay extends PureComponent<Props> {
           <Overlay.Footer>
             <Button
               color={ComponentColor.Secondary}
-              text={'Download Config'}
+              text="Download Config"
               onClick={this.handleDownloadConfig}
             />
           </Overlay.Footer>

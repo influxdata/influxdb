@@ -130,7 +130,7 @@ class ExportOverlay extends PureComponent<Props> {
   private get downloadButton(): JSX.Element {
     return (
       <Button
-        text={`Download JSON`}
+        text="Download JSON"
         onClick={this.handleExport}
         color={ComponentColor.Primary}
       />
@@ -140,7 +140,7 @@ class ExportOverlay extends PureComponent<Props> {
   private get toTemplateButton(): JSX.Element {
     return (
       <Button
-        text={`Save as template`}
+        text="Save as template"
         onClick={this.handleConvertToTemplate}
         color={ComponentColor.Primary}
       />

@@ -233,8 +233,8 @@ class AdminStep extends PureComponent<Props, State> {
     return (
       <QuestionMarkTooltip
         tipID="admin_org_tooltip"
-        tipContent={`An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
-        You can create organizations for different functional groups, teams, or projects.`}
+        tipContent="An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
+        You can create organizations for different functional groups, teams, or projects."
       />
     )
   }

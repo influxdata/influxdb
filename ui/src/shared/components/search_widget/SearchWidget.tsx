@@ -56,7 +56,7 @@ class SearchWidget extends Component<Props, State> {
         value={searchTerm}
         onChange={this.handleChange}
         onBlur={this.handleBlur}
-        testID={`search-widget`}
+        testID="search-widget"
       />
     )
   }

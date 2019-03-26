@@ -24,52 +24,52 @@ class OrganizationNavigation extends PureComponent<Props> {
     return (
       <Tabs.Nav>
         <Tabs.Tab
-          title={'Members'}
-          id={'members'}
+          title="Members"
+          id="members"
           url={`${route}/members`}
           active={'members' === tab}
         />
         <Tabs.Tab
-          title={'Buckets'}
-          id={'buckets'}
+          title="Buckets"
+          id="buckets"
           url={`${route}/buckets`}
           active={'buckets' === tab}
         />
         <Tabs.Tab
-          title={'Dashboards'}
-          id={'dashboards'}
+          title="Dashboards"
+          id="dashboards"
           url={`${route}/dashboards`}
           active={'dashboards' === tab}
         />
         <Tabs.Tab
-          title={'Tasks'}
-          id={'tasks'}
+          title="Tasks"
+          id="tasks"
           url={`${route}/tasks`}
           active={'tasks' === tab}
         />
         <Tabs.Tab
-          title={'Telegraf'}
-          id={'telegrafs'}
+          title="Telegraf"
+          id="telegrafs"
           url={`${route}/telegrafs`}
           active={'telegrafs' === tab}
         />
         <CloudFeatureFlag>
           <Tabs.Tab
-            title={'Scrapers'}
-            id={'scrapers'}
+            title="Scrapers"
+            id="scrapers"
             url={`${route}/scrapers`}
             active={'scrapers' === tab}
           />
         </CloudFeatureFlag>
         <Tabs.Tab
-          title={'Variables'}
-          id={'variables'}
+          title="Variables"
+          id="variables"
           url={`${route}/variables`}
           active={'variables' === tab}
         />
         <Tabs.Tab
-          title={'Templates'}
-          id={'templates'}
+          title="Templates"
+          id="templates"
           url={`${route}/templates`}
           active={'templates' === tab}
         />

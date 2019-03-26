@@ -31,7 +31,7 @@ class PrecisionDropdown extends PureComponent<Props> {
   public render() {
     const {setPrecision, precision} = this.props
     return (
-      <div className={'wizard-step--footer dropdown'}>
+      <div className="wizard-step--footer dropdown">
         <label>Time Precision </label>
         <Dropdown
           selectedID={precision}

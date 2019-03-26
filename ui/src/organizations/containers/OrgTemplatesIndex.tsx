@@ -53,7 +53,7 @@ class OrgTemplatesIndex extends Component<Props> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
-                <OrganizationNavigation tab={'templates'} orgID={org.id} />
+                <OrganizationNavigation tab="templates" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
                     id="org-view-tab--templates"

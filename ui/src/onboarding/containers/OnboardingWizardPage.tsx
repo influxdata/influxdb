@@ -90,7 +90,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
                     highlightWords={['Initial', 'User']}
                   />
                   <Button
-                    text={'Return to Home Page'}
+                    text="Return to Home Page"
                     onClick={this.redirectToHome}
                     color={ComponentColor.Primary}
                   />

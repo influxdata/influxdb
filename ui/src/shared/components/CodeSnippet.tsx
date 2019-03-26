@@ -45,7 +45,7 @@ class CodeSnippet extends PureComponent<Props> {
           </div>
         </FancyScrollbar>
         <div className="code-snippet--footer">
-          <CopyButton textToCopy={copyText} contentName={'Script'} />
+          <CopyButton textToCopy={copyText} contentName="Script" />
           <label className="code-snippet--label">{label}</label>
         </div>
       </div>

@@ -44,8 +44,8 @@ class ConfigurationPage extends Component<Props> {
           <div className="col-xs-12">
             <GetResources resource={ResourceTypes.Authorizations}>
               <TabbedPage
-                name={'Configuration'}
-                parentUrl={`/configuration`}
+                name="Configuration"
+                parentUrl="/configuration"
                 activeTabUrl={tab}
               >
                 <TabbedPageSection

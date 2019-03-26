@@ -65,7 +65,7 @@ class OrgMembersIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'members'} orgID={org.id} />
+              <OrganizationNavigation tab="members" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--members"
