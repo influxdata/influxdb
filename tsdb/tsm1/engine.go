@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -26,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -36,6 +36,7 @@ import (
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
+//go:generate stringer -type=CacheStatus
 
 var (
 	// Static objects to prevent small allocs.
@@ -139,6 +140,10 @@ type Engine struct {
 	// the cache when the engine should write a snapshot to a TSM file
 	CacheFlushMemorySizeThreshold uint64
 
+	// CacheFlushAgeDurationThreshold specified the maximum age a cache can reach
+	// before it is snapshotted, regardless of its size.
+	CacheFlushAgeDurationThreshold time.Duration
+
 	// CacheFlushWriteColdDuration specifies the length of time after which if
 	// no writes have been committed to the WAL, the engine will write
 	// a snapshot of the cache to a TSM file
@@ -209,13 +214,14 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		CompactionPlan: NewDefaultPlanner(fs,
 			time.Duration(config.Compaction.FullWriteColdDuration)),
 
-		CacheFlushMemorySizeThreshold: uint64(config.Cache.SnapshotMemorySize),
-		CacheFlushWriteColdDuration:   time.Duration(config.Cache.SnapshotWriteColdDuration),
-		enableCompactionsOnOpen:       true,
-		formatFileName:                DefaultFormatFileName,
-		compactionLimiter:             limiter.NewFixed(maxCompactions),
-		scheduler:                     newScheduler(maxCompactions),
-		snapshotter:                   new(noSnapshotter),
+		CacheFlushMemorySizeThreshold:  uint64(config.Cache.SnapshotMemorySize),
+		CacheFlushWriteColdDuration:    time.Duration(config.Cache.SnapshotWriteColdDuration),
+		CacheFlushAgeDurationThreshold: time.Duration(config.Cache.SnapshotAgeDuration),
+		enableCompactionsOnOpen:        true,
+		formatFileName:                 DefaultFormatFileName,
+		compactionLimiter:              limiter.NewFixed(maxCompactions),
+		scheduler:                      newScheduler(maxCompactions),
+		snapshotter:                    new(noSnapshotter),
 	}
 
 	for _, option := range options {
@@ -734,17 +740,17 @@ func (t *compactionTracker) DecActive(level compactionLevel) {
 func (t *compactionTracker) DecFullActive() { t.DecActive(5) }
 
 // Attempted updates the number of compactions attempted for the provided level.
-func (t *compactionTracker) Attempted(level compactionLevel, success bool, duration time.Duration) {
+func (t *compactionTracker) Attempted(level compactionLevel, success bool, reason string, duration time.Duration) {
 	if success {
 		atomic.AddUint64(&t.ok[level], 1)
 
 		labels := t.Labels(level)
-
 		t.metrics.CompactionDuration.With(labels).Observe(duration.Seconds())
 
+		// Total compactions metric has reason and status.
+		labels["reason"] = reason
 		labels["status"] = "ok"
 		t.metrics.Compactions.With(labels).Inc()
-
 		return
 	}
 
@@ -752,12 +758,13 @@ func (t *compactionTracker) Attempted(level compactionLevel, success bool, durat
 
 	labels := t.Labels(level)
 	labels["status"] = "error"
+	labels["reason"] = reason
 	t.metrics.Compactions.With(labels).Inc()
 }
 
 // SnapshotAttempted updates the number of snapshots attempted.
-func (t *compactionTracker) SnapshotAttempted(success bool, duration time.Duration) {
-	t.Attempted(0, success, duration)
+func (t *compactionTracker) SnapshotAttempted(success bool, reason CacheStatus, duration time.Duration) {
+	t.Attempted(0, success, reason.String(), duration)
 }
 
 // SetQueue sets the compaction queue depth for the provided level.
@@ -852,7 +859,8 @@ func (e *Engine) writeSnapshotAndCommit(ctx context.Context, log *zap.Logger, sn
 	})
 }
 
-// compactCache continually checks if the WAL cache should be written to disk.
+// compactCache checks once per second if the in-memory cache should be
+// snapshotted to a TSM file.
 func (e *Engine) compactCache() {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
@@ -866,39 +874,67 @@ func (e *Engine) compactCache() {
 			return
 
 		case <-t.C:
-
 			e.Cache.UpdateAge()
-			if e.ShouldCompactCache(time.Now()) {
-				span, ctx := opentracing.StartSpanFromContext(context.Background(), "Engine.compactCache <-t.C")
-				span.LogKV("path", e.path)
-
-				start := time.Now()
-				err := e.WriteSnapshot(ctx)
-				if err != nil && err != errCompactionsDisabled {
-					e.logger.Info("Error writing snapshot", zap.Error(err))
-				}
-				e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, time.Since(start))
-
-				span.Finish()
+			status := e.ShouldCompactCache(time.Now())
+			if status == CacheStatusOkay {
+				continue
 			}
+
+			span, ctx := opentracing.StartSpanFromContext(context.Background(), "Engine.compactCache <-t.C")
+			span.LogKV("path", e.path)
+
+			start := time.Now()
+			err := e.WriteSnapshot(ctx)
+			if err != nil && err != errCompactionsDisabled {
+				e.logger.Info("Error writing snapshot", zap.Error(err))
+			}
+			e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, status, time.Since(start))
+
+			span.Finish()
 		}
 	}
 }
 
-// ShouldCompactCache returns true if the Cache is over its flush threshold
-// or if the passed in lastWriteTime is older than the write cold threshold.
-func (e *Engine) ShouldCompactCache(t time.Time) bool {
+// CacheStatus describes the current state of the cache, with respect to whether
+// it is ready to be snapshotted or not.
+type CacheStatus int
+
+// Possible types of Cache status
+const (
+	CacheStatusOkay         CacheStatus = iota // Cache is Okay - do not snapshot.
+	CacheStatusSizeExceeded                    // The cache is large enough to be snapshotted.
+	CacheStatusAgeExceeded                     // The cache is past the age threshold to be snapshotted.
+	CacheStatusColdNoWrites                    // The cache has not been written to for long enough that it should be snapshotted.
+)
+
+// ShouldCompactCache returns a status indicating if the Cache should be
+// snapshotted. There are three situations when the cache should be snapshotted:
+//
+// - the Cache size is over its flush size threshold;
+// - the Cache has not been snapshotted for longer than its flush time threshold; or
+// - the Cache has not been written since the write cold threshold.
+//
+func (e *Engine) ShouldCompactCache(t time.Time) CacheStatus {
 	sz := e.Cache.Size()
-
 	if sz == 0 {
-		return false
+		return 0
 	}
 
+	// Cache is now big enough to snapshot.
 	if sz > e.CacheFlushMemorySizeThreshold {
-		return true
+		return CacheStatusSizeExceeded
 	}
 
-	return t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration
+	// Cache is now old enough to snapshot, regardless of last write or age.
+	if e.CacheFlushAgeDurationThreshold > 0 && e.Cache.Age() > e.CacheFlushAgeDurationThreshold {
+		return CacheStatusAgeExceeded
+	}
+
+	// Cache has not been written to for a long time.
+	if t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration {
+		return CacheStatusColdNoWrites
+	}
+	return CacheStatusOkay
 }
 
 func (e *Engine) compact(wg *sync.WaitGroup) {
@@ -1105,14 +1141,14 @@ func (s *compactionStrategy) compactGroup() {
 		}
 
 		log.Info("Error compacting TSM files", zap.Error(err))
-		s.tracker.Attempted(s.level, false, 0)
+		s.tracker.Attempted(s.level, false, "", 0)
 		time.Sleep(time.Second)
 		return
 	}
 
 	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
 		log.Info("Error replacing new TSM files", zap.Error(err))
-		s.tracker.Attempted(s.level, false, 0)
+		s.tracker.Attempted(s.level, false, "", 0)
 		time.Sleep(time.Second)
 		return
 	}
@@ -1121,7 +1157,7 @@ func (s *compactionStrategy) compactGroup() {
 		log.Info("Compacted file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
 	}
 	log.Info("Finished compacting files", zap.Int("tsm1_files_n", len(files)))
-	s.tracker.Attempted(s.level, true, time.Since(now))
+	s.tracker.Attempted(s.level, true, "", time.Since(now))
 }
 
 // levelCompactionStrategy returns a compactionStrategy for the given level.

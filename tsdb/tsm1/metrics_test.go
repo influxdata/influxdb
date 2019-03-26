@@ -159,6 +159,7 @@ func TestMetrics_Compactions(t *testing.T) {
 
 		labels = tracker.Labels(2)
 		labels["status"] = "ok"
+		labels["reason"] = CacheStatusAgeExceeded.String()
 		tracker.metrics.Compactions.With(labels).Add(float64(i + len(counters[0])))
 
 		labels = tracker.Labels(2)
@@ -197,6 +198,7 @@ func TestMetrics_Compactions(t *testing.T) {
 				l[k] = v
 			}
 			l["status"] = "ok"
+			l["reason"] = CacheStatusAgeExceeded.String()
 
 			metric := promtest.MustFindMetric(t, mfs, name, l)
 			if got := metric.GetCounter().GetValue(); got != exp {

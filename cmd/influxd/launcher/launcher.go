@@ -16,7 +16,7 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb/kit/signals"
 	"github.com/influxdata/influxdb/telemetry"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
@@ -209,9 +209,10 @@ type Launcher struct {
 	protosPath      string
 	secretStore     string
 
-	boltClient *bolt.Client
-	kvService  *kv.Service
-	engine     *storage.Engine
+	boltClient    *bolt.Client
+	kvService     *kv.Service
+	engine        *storage.Engine
+	StorageConfig storage.Config
 
 	queryController *pcontrol.Controller
 
@@ -236,9 +237,10 @@ type Launcher struct {
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
 func NewLauncher() *Launcher {
 	return &Launcher{
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdin:         os.Stdin,
+		Stdout:        os.Stdout,
+		Stderr:        os.Stderr,
+		StorageConfig: storage.NewConfig(),
 	}
 }
 
@@ -490,7 +492,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var pointsWriter storage.PointsWriter
 	{
-		m.engine = storage.NewEngine(m.enginePath, storage.NewConfig(), storage.WithRetentionEnforcer(bucketSvc))
+		m.engine = storage.NewEngine(m.enginePath, m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
 		m.engine.WithLogger(m.logger)
 
 		if err := m.engine.Open(ctx); err != nil {
