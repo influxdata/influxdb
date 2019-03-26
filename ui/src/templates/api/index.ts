@@ -214,7 +214,7 @@ export const createTaskFromTemplate = async (
 
   await createTaskLabelsFromTemplate(template, createdTask)
 
-  const task = await this.get(createdTask.id)
+  const task = await client.tasks.get(createdTask.id)
 
   return task
 }
