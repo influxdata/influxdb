@@ -82,7 +82,7 @@ class Dropdown extends React.Component<
 
     return connectDragSource(
       connectDropTarget(
-        <div style={{display: 'inline-block'}}>
+        <div className="variable-dropdown--container">
           <div className={className}>
             {/* TODO: Add variable description to title attribute when it is ready */}
             <div className="variable-dropdown--label">

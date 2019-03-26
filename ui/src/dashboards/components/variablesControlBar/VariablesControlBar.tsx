@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 import {isEmpty} from 'lodash'
 import {DragDropContext} from 'react-dnd'
 import HTML5Backend from 'react-dnd-html5-backend'
+import classnames from 'classnames'
 
 // Components
 import {EmptyState, ComponentSize} from 'src/clockface'
@@ -39,6 +40,7 @@ interface StateProps {
   variables: Variable[]
   valuesStatus: RemoteDataState
   variablesStatus: RemoteDataState
+  inPresentationMode: boolean
 }
 
 interface DispatchProps {
@@ -67,7 +69,11 @@ class VariablesControlBar extends PureComponent<Props, State> {
 
   render() {
     return (
-      <div className="variables-control-bar">
+      <div
+        className={classnames('variables-control-bar', {
+          'presentation-mode': this.props.inPresentationMode,
+        })}
+      >
         <SpinnerContainer
           loading={this.state.initialLoading}
           spinnerComponent={<TechnoSpinner diameterPixels={50} />}
@@ -139,7 +145,13 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   const valuesStatus = getDashboardValuesStatus(state, props.dashboardID)
   const variablesStatus = getDashboardVariablesStatus(state)
 
-  return {variables, valuesStatus, variablesStatus}
+  const {
+    app: {
+      ephemeral: {inPresentationMode},
+    },
+  } = state
+
+  return {variables, valuesStatus, variablesStatus, inPresentationMode}
 }
 
 export default DragDropContext(HTML5Backend)(
