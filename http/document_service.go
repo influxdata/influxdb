@@ -151,6 +151,13 @@ func decodePostDocumentRequest(ctx context.Context, r *http.Request) (*postDocum
 		return nil, err
 	}
 
+	if req.Document == nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "missing document body",
+		}
+	}
+
 	params := httprouter.ParamsFromContext(ctx)
 	req.Namespace = params.ByName("ns")
 	if req.Namespace == "" {
