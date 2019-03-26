@@ -9,7 +9,7 @@ export interface TemplatesState {
   exportTemplate: {status: RemoteDataState; item: DocumentCreate; orgID: string}
 }
 
-const defaultState = (): TemplatesState => ({
+export const defaultState = (): TemplatesState => ({
   status: RemoteDataState.NotStarted,
   items: [],
   exportTemplate: {
@@ -19,7 +19,7 @@ const defaultState = (): TemplatesState => ({
   },
 })
 
-const templatesReducer = (
+export const templatesReducer = (
   state: TemplatesState = defaultState(),
   action: Actions
 ): TemplatesState =>
@@ -39,6 +39,16 @@ const templatesReducer = (
       case ActionTypes.SetTemplatesStatus: {
         const {status} = action.payload
         draftState.status = status
+        return
+      }
+
+      case ActionTypes.SetTemplateSummary: {
+        const filtered = draftState.items.filter(t => {
+          return t.id !== action.payload.id
+        })
+
+        draftState.items = [...filtered, action.payload.templateSummary]
+
         return
       }
 
