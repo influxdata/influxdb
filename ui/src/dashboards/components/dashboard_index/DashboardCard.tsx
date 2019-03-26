@@ -25,6 +25,7 @@ import {AppState, Dashboard} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
+import {resetViews} from 'src/dashboards/actions/views'
 
 interface PassedProps {
   dashboard: Dashboard
@@ -44,6 +45,7 @@ interface DispatchProps {
   onAddDashboardLabels: typeof addDashboardLabelsAsync
   onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
   onCreateLabel: typeof createLabelAsync
+  onResetViews: typeof resetViews
 }
 
 type Props = PassedProps & DispatchProps & StateProps & WithRouterProps
@@ -145,7 +147,9 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleClickDashboard = () => {
-    const {router, dashboard} = this.props
+    const {router, dashboard, onResetViews} = this.props
+
+    onResetViews()
 
     router.push(`/dashboards/${dashboard.id}`)
   }
@@ -203,6 +207,7 @@ const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
   onAddDashboardLabels: addDashboardLabelsAsync,
   onRemoveDashboardLabels: removeDashboardLabelsAsync,
+  onResetViews: resetViews,
 }
 
 export default connect<StateProps, DispatchProps, PassedProps>(

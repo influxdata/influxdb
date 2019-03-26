@@ -23,7 +23,12 @@ $variables-control-bar--gutter: $ix-marg-a;
   .variable-dropdown {
     margin: 0 $variables-control-bar--gutter / 2;
   }
+
+  .variables-spinner-container {
+    height: $variables-control-bar--height;
+  }
 }
+
 
 .variables-control-bar--empty {
   background-color: $g3-castle;

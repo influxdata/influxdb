@@ -22,6 +22,7 @@ import {AuthorizationsState} from 'src/authorizations/reducers'
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {ViewsState} from 'src/dashboards/reducers/views'
 import {ScrapersState} from 'src/scrapers/reducers'
+import {UserSettingsState} from 'src/userSettings/reducers'
 
 export interface AppState {
   VERSION: string
@@ -49,6 +50,7 @@ export interface AppState {
   tokens: AuthorizationsState
   templates: TemplatesState
   scrapers: ScrapersState
+  userSettings: UserSettingsState
 }
 
 export type GetState = () => AppState
