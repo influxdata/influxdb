@@ -4,9 +4,8 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
 <div
   className="onboarding-step"
 >
-  <Form
+  <t
     onSubmit={[Function]}
-    testID="form-container"
   >
     <div
       className="wizard-step--scroll-area"
@@ -39,10 +38,10 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 widthMD={10}
                 widthXS={12}
               >
-                <FormElement
+                <t
                   label="Username"
                 >
-                  <Input
+                  <t
                     autoFocus={true}
                     autocomplete="off"
                     disabledTitleText="Username has been set"
@@ -58,17 +57,17 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="text"
                     value=""
                   />
-                </FormElement>
+                </t>
               </GridColumn>
               <GridColumn
                 offsetMD={1}
                 widthMD={5}
                 widthXS={6}
               >
-                <FormElement
+                <t
                   label="Password"
                 >
-                  <Input
+                  <t
                     autoFocus={false}
                     autocomplete="off"
                     disabledTitleText="Password has been set"
@@ -84,17 +83,17 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="password"
                     value=""
                   />
-                </FormElement>
+                </t>
               </GridColumn>
               <GridColumn
                 widthMD={5}
                 widthXS={6}
               >
-                <FormElement
+                <t
                   errorMessage={false}
                   label="Confirm Password"
                 >
-                  <Input
+                  <t
                     autoFocus={false}
                     autocomplete="off"
                     disabledTitleText="password has been set"
@@ -110,18 +109,18 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="password"
                     value=""
                   />
-                </FormElement>
+                </t>
               </GridColumn>
               <GridColumn
                 offsetMD={1}
                 widthMD={10}
                 widthXS={12}
               >
-                <FormElement
+                <t
                   label="Initial Organization Name"
                   labelAddOn={[Function]}
                 >
-                  <Input
+                  <t
                     autoFocus={false}
                     autocomplete="off"
                     disabledTitleText="Initial organization name has been set"
@@ -137,18 +136,18 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="text"
                     value=""
                   />
-                </FormElement>
+                </t>
               </GridColumn>
               <GridColumn
                 offsetMD={1}
                 widthMD={10}
                 widthXS={12}
               >
-                <FormElement
+                <t
                   label="Initial Bucket Name"
                   labelAddOn={[Function]}
                 >
-                  <Input
+                  <t
                     autoFocus={false}
                     autocomplete="off"
                     disabledTitleText="Initial bucket name has been set"
@@ -164,7 +163,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="text"
                     value=""
                   />
-                </FormElement>
+                </t>
               </GridColumn>
             </GridRow>
           </Grid>
@@ -179,6 +178,6 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
       showSkip={false}
       skipButtonText="Skip"
     />
-  </Form>
+  </t>
 </div>
 `;
