@@ -69,6 +69,15 @@ const templatesReducer = (
 
         return
       }
+
+      case ActionTypes.AddTemplateSummary: {
+        const {item} = action.payload
+        const {items} = draftState
+
+        draftState.items = [...items, item]
+
+        return
+      }
     }
   })
 

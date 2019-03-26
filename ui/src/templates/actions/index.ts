@@ -22,6 +22,7 @@ export enum ActionTypes {
   SetTemplatesStatus = 'SET_TEMPLATES_STATUS',
   SetExportTemplate = 'SET_EXPORT_TEMPLATE',
   RemoveTemplateSummary = 'REMOVE_TEMPLATE_SUMMARY',
+  AddTemplateSummary = 'ADD_TEMPLATE_SUMMARY',
 }
 
 export type Actions =
@@ -29,6 +30,19 @@ export type Actions =
   | SetTemplatesStatus
   | SetExportTemplate
   | RemoveTemplateSummary
+  | AddTemplateSummary
+
+export interface AddTemplateSummary {
+  type: ActionTypes.AddTemplateSummary
+  payload: {item: TemplateSummary}
+}
+
+export const addTemplateSummary = (
+  item: TemplateSummary
+): AddTemplateSummary => ({
+  type: ActionTypes.AddTemplateSummary,
+  payload: {item},
+})
 
 export interface PopulateTemplateSummaries {
   type: ActionTypes.PopulateTemplateSummaries
@@ -68,6 +82,16 @@ export const setExportTemplate = (
   payload: {status, item, orgID},
 })
 
+interface RemoveTemplateSummary {
+  type: ActionTypes.RemoveTemplateSummary
+  payload: {templateID: string}
+}
+
+const removeTemplateSummary = (templateID: string): RemoveTemplateSummary => ({
+  type: ActionTypes.RemoveTemplateSummary,
+  payload: {templateID},
+})
+
 export const getTemplatesForOrg = (orgName: string) => async dispatch => {
   dispatch(setTemplatesStatus(RemoteDataState.Loading))
   const items = await client.templates.getAll(orgName)
@@ -104,16 +128,6 @@ export const clearExportTemplate = () => async dispatch => {
   dispatch(setExportTemplate(RemoteDataState.NotStarted, null))
 }
 
-interface RemoveTemplateSummary {
-  type: ActionTypes.RemoveTemplateSummary
-  payload: {templateID: string}
-}
-
-const removeTemplateSummary = (templateID: string): RemoveTemplateSummary => ({
-  type: ActionTypes.RemoveTemplateSummary,
-  payload: {templateID},
-})
-
 export const deleteTemplate = (templateID: string) => async (
   dispatch
 ): Promise<void> => {
@@ -124,5 +138,24 @@ export const deleteTemplate = (templateID: string) => async (
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.deleteTemplateFailed(e)))
+  }
+}
+
+export const cloneTemplate = (templateID: string, orgID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    const createdTemplate = await client.templates.clone(templateID, orgID)
+
+    dispatch(
+      addTemplateSummary({
+        ...createdTemplate,
+        labels: createdTemplate.labels || [],
+      })
+    )
+    dispatch(notify(copy.cloneTemplateSuccess()))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.cloneTemplateFailed(e)))
   }
 }
