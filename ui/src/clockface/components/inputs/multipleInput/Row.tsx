@@ -48,8 +48,8 @@ class Row extends PureComponent<RowProps> {
             <IndexList.Cell alignment={Alignment.Right}>
               <ConfirmationButton
                 onConfirm={this.handleClickDelete(item)}
-                text={'Delete'}
-                confirmText={'Confirm'}
+                text="Delete"
+                confirmText="Confirm"
                 size={ComponentSize.ExtraSmall}
               />
             </IndexList.Cell>

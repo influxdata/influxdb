@@ -25,7 +25,7 @@ class DashboardsDropdown extends PureComponent<Props> {
       <MultiSelectDropdown
         selectedIDs={selectedIDs}
         onChange={onSelect}
-        emptyText={'Choose at least 1 dashboard'}
+        emptyText="Choose at least 1 dashboard"
       >
         {this.dropdownItems}
       </MultiSelectDropdown>

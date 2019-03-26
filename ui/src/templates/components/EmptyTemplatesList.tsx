@@ -35,7 +35,7 @@ const EmptyTemplatesList: FunctionComponent<Props> = ({
 
   return (
     <EmptyState size={ComponentSize.Large}>
-      <EmptyState.Text text={'No Templates match your search term'} />
+      <EmptyState.Text text="No Templates match your search term" />
     </EmptyState>
   )
 }

@@ -62,7 +62,7 @@ class OrgScrapersIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'scrapers'} orgID={org.id} />
+              <OrganizationNavigation tab="scrapers" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--scrapers"

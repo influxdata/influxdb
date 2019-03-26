@@ -31,7 +31,7 @@ const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
 
   return (
     <div className="variable-toolbar">
-      <SearchBar onSearch={setSearchTerm} resourceName={'Variables'} />
+      <SearchBar onSearch={setSearchTerm} resourceName="Variables" />
       <FancyScrollbar>
         <div className="variables-toolbar--list">
           {variables

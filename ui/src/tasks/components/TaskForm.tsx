@@ -198,7 +198,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             type={ButtonType.Button}
           />
           <Button
-            text={'Save as Task'}
+            text="Save as Task"
             color={ComponentColor.Success}
             type={ButtonType.Submit}
             onClick={onSubmit}

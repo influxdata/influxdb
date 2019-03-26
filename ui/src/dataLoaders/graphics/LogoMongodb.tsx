@@ -51,7 +51,7 @@ const LogoMongodb: SFC = () => {
           <stop offset={1} stopColor="#69b655" />
         </linearGradient>
       </defs>
-      <title>{'logo_mongodb'}</title>
+      <title>logo_mongodb</title>
       <path
         d="M24.7 100l-2.7-.89s.34-13.57-4.55-14.52c-3.23-3.74.49-159.8 12.22-.54 0 0-4 2-4.77 5.44S24.7 100 24.7 100z"
         fill="url(#mongodb_a)"

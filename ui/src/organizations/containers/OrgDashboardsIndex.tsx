@@ -80,7 +80,7 @@ class OrgDashboardsIndex extends Component<Props, State> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
-                <OrganizationNavigation tab={'dashboards'} orgID={org.id} />
+                <OrganizationNavigation tab="dashboards" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
                     id="org-view-tab--dashboards"

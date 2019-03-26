@@ -31,7 +31,7 @@ export class VerifyLineProtocolStep extends PureComponent<Props> {
           </div>
           <OnboardingButtons
             onClickBack={onDecrementCurrentStepIndex}
-            nextButtonText={'Finish'}
+            nextButtonText="Finish"
           />
         </Form>
       </div>

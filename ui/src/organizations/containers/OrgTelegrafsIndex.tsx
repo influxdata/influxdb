@@ -82,7 +82,7 @@ class OrgTelegrafsIndex extends Component<Props, State> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'telegrafs'} orgID={org.id} />
+              <OrganizationNavigation tab="telegrafs" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--telegrafs"

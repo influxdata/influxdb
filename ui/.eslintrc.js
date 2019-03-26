@@ -53,6 +53,7 @@ module.exports = {
     "@typescript-eslint/camelcase": "off",
     "@typescript-eslint/no-unused-vars": ["error", {"varsIgnorePattern": "^_", "argsIgnorePattern": "^_"}],
     "react/jsx-no-target-blank": "off",
+    "react/jsx-curly-brace-presence": ["error", {"props": "never", "children": "never" }],
     "react/display-name": "off",
     "react/no-unescaped-entities": "off",
     "react/prop-types": "off",

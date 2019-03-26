@@ -44,7 +44,7 @@ export class ConfigFieldHandler extends PureComponent<Props> {
     const {configFields, telegrafPlugin, onSetConfigArrayValue} = this.props
 
     if (!configFields) {
-      return <p data-testid={'no-config'}>No configuration required.</p>
+      return <p data-testid="no-config">No configuration required.</p>
     }
 
     return Object.entries(configFields).map(

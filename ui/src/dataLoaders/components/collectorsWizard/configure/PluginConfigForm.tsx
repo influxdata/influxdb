@@ -68,7 +68,7 @@ export class PluginConfigForm extends PureComponent<Props> {
         </FancyScrollbar>
         <OnboardingButtons
           autoFocusNext={this.autoFocus}
-          nextButtonText={'Done'}
+          nextButtonText="Done"
           className="data-loading--button-container"
         />
       </Form>

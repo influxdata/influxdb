@@ -34,7 +34,7 @@ class GettingStarted extends PureComponent<StateProps> {
           </Link>
         </div>
         <div className="getting-started--container">
-          <Link to={`/dashboards`} className="getting-started--card">
+          <Link to="/dashboards" className="getting-started--card">
             <GradientBorder />
             <DashboardingGraphic />
             <h3 className="getting-started--title">
@@ -45,7 +45,7 @@ class GettingStarted extends PureComponent<StateProps> {
           </Link>
         </div>
         <div className="getting-started--container">
-          <Link to={`/data-explorer`} className="getting-started--card">
+          <Link to="/data-explorer" className="getting-started--card">
             <GradientBorder />
             <ExploreGraphic />
             <h3 className="getting-started--title">

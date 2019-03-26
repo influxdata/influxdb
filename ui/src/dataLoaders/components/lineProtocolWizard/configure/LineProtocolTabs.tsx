@@ -90,7 +90,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
               offsetLG={Columns.Two}
             >
               <div className="onboarding--admin-user-form">
-                <div className={'wizard-step--lp-body'}>
+                <div className="wizard-step--lp-body">
                   <TabBody
                     onURLChange={this.handleURLChange}
                     activeLPTab={activeLPTab}

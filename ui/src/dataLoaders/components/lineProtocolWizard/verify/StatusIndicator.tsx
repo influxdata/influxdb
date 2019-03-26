@@ -21,12 +21,12 @@ export class StatusIndicator extends PureComponent<Props> {
     const {status} = this.props
     return (
       <>
-        <div className={'wizard-step--top-container'}>
-          <div className={'wizard-step--sparkle-container'}>
+        <div className="wizard-step--top-container">
+          <div className="wizard-step--sparkle-container">
             <SparkleSpinner loading={status} />
           </div>
         </div>
-        <div className={'wizard-step--footer'}>
+        <div className="wizard-step--footer">
           <div className={this.footerClass}>{this.footerText}</div>
         </div>
         <br />

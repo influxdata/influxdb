@@ -107,7 +107,7 @@ class DataListening extends PureComponent<Props, State> {
         size={ComponentSize.Medium}
         onClick={this.handleClick}
         status={ComponentStatus.Default}
-        titleText={'Listen for Data'}
+        titleText="Listen for Data"
       />
     )
   }

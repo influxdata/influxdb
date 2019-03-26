@@ -86,14 +86,14 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
           <RightClick.Menu>
             <RightClick.MenuItem
               onClick={this.handleEditActiveQueryName}
-              testID={'right-click--edit-tab'}
+              testID="right-click--edit-tab"
             >
               Edit
             </RightClick.MenuItem>
             <RightClick.MenuItem
               onClick={this.handleRemove}
               disabled={!this.isRemovable}
-              testID={'right-click--remove-tab'}
+              testID="right-click--remove-tab"
             >
               Remove
             </RightClick.MenuItem>

@@ -45,7 +45,7 @@ class FunctionSelector extends PureComponent<Props, State> {
       <div className="function-selector">
         <h3>Aggregate Functions</h3>
         <Input
-          customClass={'function-selector--search'}
+          customClass="function-selector--search"
           value={searchTerm}
           onChange={this.handleSetSearchTerm}
           placeholder="Search functions..."

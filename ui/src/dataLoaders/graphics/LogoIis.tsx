@@ -49,7 +49,7 @@ const LogoIis: SFC = () => {
           xlinkHref="#iis_a"
         />
       </defs>
-      <title>{'logo_iis'}</title>
+      <title>logo_iis</title>
       <path
         d="M0 67.57V32.43C0 4.05 4.05 0 32.4 0h35.2C96 0 100 4.05 100 32.43v35.14C100 96 96 100 67.6 100H32.4C4.05 100 0 96 0 67.57z"
         fill="url(#iis_b)"

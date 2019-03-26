@@ -12,17 +12,17 @@ const onClick = jest.fn(() => {})
 
 const childrenArray = [
   <SideBar.Tab
-    label={'a'}
-    key={'a'}
-    id={'a'}
+    label="a"
+    key="a"
+    id="a"
     active={true}
     status={TabStatus.Default}
     onClick={onClick}
   />,
   <SideBar.Tab
-    label={'b'}
-    key={'b'}
-    id={'b'}
+    label="b"
+    key="b"
+    id="b"
     active={false}
     status={TabStatus.Default}
     onClick={onClick}
