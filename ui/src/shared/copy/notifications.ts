@@ -855,6 +855,16 @@ export const deleteTemplateSuccess = (): Notification => ({
   message: 'Template was deleted successfully',
 })
 
+export const cloneTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to clone template: ${error}`,
+})
+
+export const cloneTemplateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Template cloned successfully',
+})
+
 export const resourceSavedAsTemplate = (
   resourceName: string
 ): Notification => ({

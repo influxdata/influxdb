@@ -7,7 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {ResourceList, Context, IconFont} from 'src/clockface'
 
 // Actions
-import {deleteTemplate} from 'src/templates/actions'
+import {deleteTemplate, cloneTemplate} from 'src/templates/actions'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
@@ -23,6 +23,7 @@ interface OwnProps {
 
 interface DispatchProps {
   onDelete: typeof deleteTemplate
+  onClone: typeof cloneTemplate
 }
 
 type Props = DispatchProps & OwnProps
@@ -61,6 +62,12 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
     return (
       <Context>
         <Context.Menu
+          icon={IconFont.Duplicate}
+          color={ComponentColor.Secondary}
+        >
+          <Context.Item label="Clone" action={this.handleClone} value={id} />
+        </Context.Menu>
+        <Context.Menu
           icon={IconFont.Trash}
           color={ComponentColor.Danger}
           testID="context-delete-menu"
@@ -74,6 +81,15 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
         </Context.Menu>
       </Context>
     )
+  }
+
+  private handleClone = () => {
+    const {
+      template: {id},
+      params: {orgID},
+      onClone,
+    } = this.props
+    onClone(id, orgID)
   }
 
   private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
@@ -93,6 +109,7 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
 const mdtp: DispatchProps = {
   onDelete: deleteTemplate,
+  onClone: cloneTemplate,
 }
 
 export default connect<{}, DispatchProps, OwnProps>(
