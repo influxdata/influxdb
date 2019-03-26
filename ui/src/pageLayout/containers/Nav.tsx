@@ -5,27 +5,23 @@ import {connect} from 'react-redux'
 
 // Components
 import NavMenu from 'src/pageLayout/components/NavMenu'
+import CloudNav from 'src/pageLayout/components/CloudNav'
 
 // Types
 import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
 
-// Styles
-import '../PageLayout.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props extends WithRouterProps {
+interface OwnProps {
   isHidden: boolean
   me: AppState['me']
 }
 
+type Props = OwnProps & WithRouterProps
+
 @ErrorHandling
 class SideNav extends PureComponent<Props> {
-  constructor(props) {
-    super(props)
-  }
-
   public render() {
     const {isHidden, me} = this.props
     const {location} = this.props
@@ -97,6 +93,12 @@ class SideNav extends PureComponent<Props> {
             highlightPaths={['telegrafs_tab']}
           />
           <NavMenu.SubItem
+            title="Scrapers"
+            link="/configuration/scrapers_tab"
+            location={location.pathname}
+            highlightPaths={['scrapers_tab']}
+          />
+          <NavMenu.SubItem
             title="Variables"
             link="/configuration/variables_tab"
             location={location.pathname}
@@ -115,6 +117,7 @@ class SideNav extends PureComponent<Props> {
             highlightPaths={['tokens_tab']}
           />
         </NavMenu.Item>
+        <CloudNav />
       </NavMenu>
     )
   }
@@ -127,4 +130,4 @@ const mstp = (state: AppState) => {
   return {isHidden, me}
 }
 
-export default connect(mstp)(withRouter(SideNav))
+export default connect(mstp)(withRouter<OwnProps>(SideNav))

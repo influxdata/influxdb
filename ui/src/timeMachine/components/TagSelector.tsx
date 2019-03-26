@@ -28,9 +28,6 @@ import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 import DefaultDebouncer from 'src/shared/utils/debouncer'
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-// Styles
-import 'src/timeMachine/components/TagSelector.scss'
-
 // Types
 import {AppState, RemoteDataState} from 'src/types'
 
@@ -101,7 +98,7 @@ class TagSelector extends PureComponent<Props> {
         <>
           <div className="tag-selector--top">{this.removeButton}</div>
           <div className="tag-selector--empty" data-testid="empty-tag-keys">
-            No more tag keys found
+            No tag keys found <small>in the current time range</small>
           </div>
         </>
       )
@@ -180,7 +177,11 @@ class TagSelector extends PureComponent<Props> {
     }
 
     if (valuesStatus === RemoteDataState.Done && !values.length) {
-      return <div className="tag-selector--empty">Nothing found</div>
+      return (
+        <div className="tag-selector--empty">
+          No values found <small>in the current time range</small>
+        </div>
+      )
     }
 
     return (

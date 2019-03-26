@@ -28,7 +28,7 @@ import {
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
-} from 'src/tasks/actions/v2'
+} from 'src/tasks/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants

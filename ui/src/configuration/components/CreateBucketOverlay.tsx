@@ -79,11 +79,20 @@ export default class BucketOverlay extends PureComponent<Props, State> {
   }
 
   private handleChangeRetentionRule = (everySeconds: number): void => {
-    const bucket = {
-      ...this.state.bucket,
-      retentionRules: [
-        {type: BucketRetentionRules.TypeEnum.Expire, everySeconds},
-      ],
+    let bucket
+
+    if (everySeconds === 0) {
+      bucket = {
+        ...this.state.bucket,
+        retentionRules: [],
+      }
+    } else {
+      bucket = {
+        ...this.state.bucket,
+        retentionRules: [
+          {type: BucketRetentionRules.TypeEnum.Expire, everySeconds},
+        ],
+      }
     }
 
     this.setState({bucket})

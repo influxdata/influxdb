@@ -1,9 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-// Styles
-import 'src/organizations/components/CreateVariableOverlay.scss'
-
 // Components
 import {Overlay} from 'src/clockface'
 import VariableForm from 'src/organizations/components/VariableForm'

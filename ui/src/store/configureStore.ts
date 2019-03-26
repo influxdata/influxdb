@@ -11,7 +11,7 @@ import persistStateEnhancer from './persistStateEnhancer'
 
 // v2 reducers
 import meReducer from 'src/shared/reducers/v2/me'
-import tasksReducer from 'src/tasks/reducers/v2'
+import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
 import dashboardsReducer from 'src/dashboards/reducers/dashboards'
 import viewsReducer from 'src/dashboards/reducers/views'
@@ -28,6 +28,7 @@ import {bucketsReducer} from 'src/buckets/reducers'
 import {telegrafsReducer} from 'src/telegrafs/reducers'
 import {authorizationsReducer} from 'src/authorizations/reducers'
 import templatesReducer from 'src/templates/reducers'
+import {scrapersReducer} from 'src/scrapers/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -55,6 +56,7 @@ export const rootReducer = combineReducers<ReducerState>({
   buckets: bucketsReducer,
   telegrafs: telegrafsReducer,
   tokens: authorizationsReducer,
+  scrapers: scrapersReducer,
   templates: templatesReducer,
   VERSION: () => '',
 })

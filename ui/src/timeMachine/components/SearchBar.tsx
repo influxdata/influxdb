@@ -8,9 +8,6 @@ import {Input, IconFont} from 'src/clockface'
 // Types
 import {InputType} from 'src/clockface/components/inputs/Input'
 
-// Styles
-import 'src/timeMachine/components/SearchBar.scss'
-
 interface Props {
   onSearch: (s: string) => void
   resourceName: string

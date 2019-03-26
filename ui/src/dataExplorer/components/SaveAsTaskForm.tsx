@@ -12,7 +12,7 @@ import {
   setTaskOption,
   clearTask,
   setNewScript,
-} from 'src/tasks/actions/v2'
+} from 'src/tasks/actions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'

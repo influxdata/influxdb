@@ -7,7 +7,7 @@ import TaskForm from 'src/tasks/components/TaskForm'
 import {Form} from 'src/clockface'
 
 // Constants
-import defaultTaskOptions from 'src/tasks/reducers/v2'
+import defaultTaskOptions from 'src/tasks/reducers'
 
 const setup = (override?) => {
   const props = {

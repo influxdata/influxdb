@@ -3,8 +3,6 @@ import React, {PureComponent} from 'react'
 import {Page} from 'src/pageLayout'
 import {ComponentColor, Button, ComponentStatus} from '@influxdata/clockface'
 
-import 'src/tasks/components/TasksPage.scss'
-
 interface Props {
   title: string
   canSubmit: boolean

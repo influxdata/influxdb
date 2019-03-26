@@ -11,9 +11,6 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {LEGEND_PORTAL_ID} from 'src/shared/components/LegendPortal'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
-// Styles
-import 'src/shared/components/Legend.scss'
-
 // Types
 import {SeriesDescription} from 'src/shared/parsing/flux/spreadTables'
 

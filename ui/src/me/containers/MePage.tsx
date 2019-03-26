@@ -2,9 +2,6 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-// Styles
-import 'src/me/containers/MePage.scss'
-
 // Components
 import {Grid, Columns} from 'src/clockface'
 import {Page} from 'src/pageLayout'

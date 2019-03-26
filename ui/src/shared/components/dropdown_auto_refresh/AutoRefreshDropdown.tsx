@@ -12,9 +12,6 @@ import autoRefreshOptions, {
   AutoRefreshOptionType,
 } from 'src/shared/data/autoRefreshes'
 
-// Styles
-import 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

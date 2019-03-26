@@ -56,21 +56,19 @@ describe('Dashboards', () => {
       cy.visit('/dashboards')
     })
 
-    for (let i = 0; i < 100; i++) {
-      it.only('can delete a dashboard', () => {
-        cy.getByTestID('dashboard-card').should('have.length', 2)
+    it('can delete a dashboard', () => {
+      cy.getByTestID('dashboard-card').should('have.length', 2)
 
-        cy.getByTestID('dashboard-card')
-          .first()
-          .trigger('mouseover')
-          .within(() => {
-            cy.getByTestID('context-delete-menu').click()
-            cy.getByTestID('context-delete-dashboard').click()
-          })
+      cy.getByTestID('dashboard-card')
+        .first()
+        .trigger('mouseover')
+        .within(() => {
+          cy.getByTestID('context-delete-menu').click()
+          cy.getByTestID('context-delete-dashboard').click()
+        })
 
-        cy.getByTestID('dashboard-card').should('have.length', 1)
-      })
-    }
+      cy.getByTestID('dashboard-card').should('have.length', 1)
+    })
 
     it('can edit a dashboards name', () => {
       const newName = 'new 🅱️ashboard'
@@ -123,20 +121,22 @@ describe('Dashboards', () => {
       it('can add an existing label to a dashboard', () => {
         const labelName = 'swogglez'
 
-        cy.createLabel(labelName).then(() => {
-          cy.getByTestID(`inline-labels--add`)
-            .first()
-            .click()
+        cy.get<Organization>('@org').then(({id}) => {
+          cy.createLabel(labelName, id).then(() => {
+            cy.getByTestID(`inline-labels--add`)
+              .first()
+              .click()
 
-          cy.getByTestID('inline-labels--popover').within(() => {
-            cy.getByTestID(`label--pill ${labelName}`).click()
-          })
-
-          cy.getByTestID('dashboard-card')
-            .first()
-            .within(() => {
-              cy.getByTestID(`label--pill ${labelName}`).should('be.visible')
+            cy.getByTestID('inline-labels--popover').within(() => {
+              cy.getByTestID(`label--pill ${labelName}`).click()
             })
+
+            cy.getByTestID('dashboard-card')
+              .first()
+              .within(() => {
+                cy.getByTestID(`label--pill ${labelName}`).should('be.visible')
+              })
+          })
         })
       })
 

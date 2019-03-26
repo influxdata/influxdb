@@ -5,7 +5,10 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 // Types
 import {Dispatch} from 'redux-thunk'
 import {TimeMachineState} from 'src/timeMachine/reducers'
-import {Action as QueryBuilderAction} from 'src/timeMachine/actions/queryBuilder'
+import {
+  reloadTagSelectors,
+  Action as QueryBuilderAction,
+} from 'src/timeMachine/actions/queryBuilder'
 import {Action as QueryResultsAction} from 'src/timeMachine/actions/queries'
 import {
   TimeRange,
@@ -115,6 +118,7 @@ const setTimeRangeSync = (timeRange: TimeRange): SetTimeRangeAction => ({
 export const setTimeRange = (timeRange: TimeRange) => dispatch => {
   dispatch(setTimeRangeSync(timeRange))
   dispatch(saveAndExecuteQueries())
+  dispatch(reloadTagSelectors())
 }
 
 interface SetTypeAction {

@@ -81,7 +81,7 @@ func newCompactionMetrics(labels prometheus.Labels) *compactionMetrics {
 	}
 	sort.Strings(names)
 
-	totalCompactionsNames := append(append([]string(nil), names...), "status")
+	totalCompactionsNames := append(append([]string(nil), names...), []string{"reason", "status"}...)
 	sort.Strings(totalCompactionsNames)
 
 	return &compactionMetrics{

@@ -28,6 +28,7 @@ export type Action =
   | SetVariables
   | SetVariable
   | RemoveVariable
+  | MoveVariable
   | SetValues
   | SelectValue
 
@@ -73,6 +74,20 @@ interface RemoveVariable {
 const removeVariable = (id: string): RemoveVariable => ({
   type: 'REMOVE_VARIABLE',
   payload: {id},
+})
+
+interface MoveVariable {
+  type: 'MOVE_VARIABLE'
+  payload: {originalIndex: number; newIndex: number; contextID: string}
+}
+
+export const moveVariable = (
+  originalIndex: number,
+  newIndex: number,
+  contextID: string
+): MoveVariable => ({
+  type: 'MOVE_VARIABLE',
+  payload: {originalIndex, newIndex, contextID},
 })
 
 interface SetValues {

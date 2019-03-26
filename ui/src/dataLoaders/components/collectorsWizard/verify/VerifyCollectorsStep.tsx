@@ -32,7 +32,6 @@ export class VerifyCollectorStep extends PureComponent<Props> {
     const {
       telegrafConfigID,
       bucket,
-      notify,
       org,
       onDecrementCurrentStepIndex,
       onExit,
@@ -53,7 +52,6 @@ export class VerifyCollectorStep extends PureComponent<Props> {
           </div>
           <DataStreaming
             org={org}
-            notify={notify}
             bucket={bucket}
             token={token}
             configID={telegrafConfigID}

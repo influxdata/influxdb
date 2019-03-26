@@ -733,7 +733,7 @@ export const copyToClipboardSuccess = (
 ): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  message: `${title}'${text}' has been copied to clipboard.`,
+  message: `${title} '${text}' has been copied to clipboard.`,
 })
 
 export const copyToClipboardFailed = (
@@ -838,6 +838,21 @@ export const importTemplateSucceeded = (): Notification => ({
 export const importTemplateFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to import template: ${error}`,
+})
+
+export const createTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to export resource as template: ${error}`,
+})
+
+export const deleteTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete template: ${error}`,
+})
+
+export const deleteTemplateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Template was deleted successfully',
 })
 
 export const resourceSavedAsTemplate = (

@@ -8,9 +8,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
 
-// Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
 // Constants
 import {TOKEN_LABEL} from 'src/labels/constants'
 
@@ -24,22 +21,18 @@ interface OwnProps {
   collector?: Telegraf
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-}
-
 interface StateProps {
   username: string
   telegrafs: AppState['telegrafs']['list']
   tokens: AppState['tokens']['list']
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & OwnProps
 
 @ErrorHandling
 export class TelegrafInstructionsOverlay extends PureComponent<Props> {
   public render() {
-    const {notify, collector, visible, onDismiss} = this.props
+    const {collector, visible, onDismiss} = this.props
 
     return (
       <WizardOverlay
@@ -48,7 +41,6 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
         onDismiss={onDismiss}
       >
         <TelegrafInstructions
-          notify={notify}
           token={this.token}
           configID={get(collector, 'id', '')}
         />
@@ -84,11 +76,7 @@ const mstp = ({me: {name}, telegrafs, tokens}: AppState): StateProps => ({
   tokens: tokens.list,
 })
 
-const mdtp: DispatchProps = {
-  notify: notifyAction,
-}
-
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, {}, OwnProps>(
   mstp,
-  mdtp
+  null
 )(TelegrafInstructionsOverlay)

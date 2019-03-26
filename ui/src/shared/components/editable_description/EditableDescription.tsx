@@ -9,9 +9,6 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/shared/components/editable_description/EditableDescription.scss'
-
 interface Props {
   onUpdate: (name: string) => void
   description: string

@@ -3,6 +3,7 @@ import {Provider} from 'react-redux'
 import {Router, createMemoryHistory} from 'react-router'
 
 import {render} from 'react-testing-library'
+import {initialState} from 'src/variables/reducers'
 import configureStore from 'src/store/configureStore'
 
 const localState = {
@@ -24,6 +25,7 @@ const localState = {
       duration: '15m',
     },
   ],
+  variables: initialState(),
 }
 
 const history = createMemoryHistory({entries: ['/']})

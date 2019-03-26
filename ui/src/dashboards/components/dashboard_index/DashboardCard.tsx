@@ -15,6 +15,9 @@ import {
 } from 'src/dashboards/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
+// Selectors
+import {viewableLabels} from 'src/labels/selectors'
+
 // Types
 import {Organization} from 'src/types'
 import {ILabel} from '@influxdata/influx'
@@ -57,8 +60,8 @@ class DashboardCard extends PureComponent<Props> {
         name={() => (
           <ResourceList.Name
             onUpdate={this.handleUpdateDashboard}
+            onClick={this.handleClickDashboard}
             name={dashboard.name}
-            hrefValue={`/dashboards/${dashboard.id}`}
             noNameString={DEFAULT_DASHBOARD_NAME}
             parentTestID="dashboard-card--name"
             buttonTestID="dashboard-card--name-button"
@@ -141,6 +144,12 @@ class DashboardCard extends PureComponent<Props> {
     }
   }
 
+  private handleClickDashboard = () => {
+    const {router, dashboard} = this.props
+
+    router.push(`/dashboards/${dashboard.id}`)
+  }
+
   private handleUpdateDescription = (description: string): void => {
     const {onUpdateDashboard} = this.props
     const dashboard = {...this.props.dashboard, description}
@@ -185,7 +194,7 @@ class DashboardCard extends PureComponent<Props> {
 
 const mstp = ({labels, orgs}: AppState): StateProps => {
   return {
-    labels: labels.list,
+    labels: viewableLabels(labels.list),
     orgs,
   }
 }

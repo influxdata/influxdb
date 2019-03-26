@@ -135,7 +135,7 @@ var skipTests = map[string]string{
 	"yield":                       "yield requires special test case (https://github.com/influxdata/flux/issues/535)",
 	"rowfn_with_import":           "imported libraries are not visible in user-defined functions (https://github.com/influxdata/flux/issues/1000)",
 
-	"window_group_mean_ungroup":   "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
+	"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
 }
 
 func TestFluxEndToEnd(t *testing.T) {

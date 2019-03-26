@@ -13,6 +13,7 @@ import {getActiveOrg} from 'src/organizations/selectors'
 import {getVariableAssignments} from 'src/variables/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
+import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {
   getVariablesForOrg,
   getVariable,
@@ -113,8 +114,9 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     const results = await Promise.all(pendingResults.map(r => r.promise))
 
     const duration = Date.now() - startTime
-
     const files = results.map(r => r.csv)
+
+    files.forEach(checkQueryResult)
 
     dispatch(setQueryResults(RemoteDataState.Done, files, duration))
   } catch (e) {

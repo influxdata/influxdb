@@ -4,9 +4,6 @@ import React, {PureComponent} from 'react'
 // Constants
 import {VERSION, GIT_SHA} from 'src/shared/constants'
 
-// Styles
-import 'src/shared/components/VersionInfo.scss'
-
 interface Props {
   widthPixels?: number
 }

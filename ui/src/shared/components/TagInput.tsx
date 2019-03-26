@@ -6,9 +6,6 @@ import _ from 'lodash'
 import Tags from 'src/shared/components/Tags'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/shared/components/TagInput.scss'
-
 export interface Item {
   text?: string
   name?: string

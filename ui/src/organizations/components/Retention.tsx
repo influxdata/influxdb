@@ -12,8 +12,6 @@ import {
   secondsToDuration,
 } from 'src/utils/formatting'
 
-import 'src/organizations/components/Retention.scss'
-
 import {BucketRetentionRules} from '@influxdata/influx'
 
 interface Props {

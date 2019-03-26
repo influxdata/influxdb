@@ -19,9 +19,6 @@ const MAX_LABEL_CHARS = 50
 // Utils
 import {validateHexCode} from 'src/configuration/utils/labels'
 
-// Styles
-import 'src/configuration/components/LabelOverlayForm.scss'
-
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

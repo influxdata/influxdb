@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Controlled as ReactCodeMirror} from 'react-codemirror2'
+import {Controlled as ReactCodeMirror, IInstance} from 'react-codemirror2'
 
 // Utils
 import {humanizeNote} from 'src/dashboards/utils/notes'
@@ -35,8 +35,13 @@ class NoteEditorText extends PureComponent<Props, {}> {
         options={OPTIONS}
         onBeforeChange={this.handleChange}
         onTouchStart={noOp}
+        editorDidMount={this.handleMount}
       />
     )
+  }
+
+  private handleMount = (instance: IInstance) => {
+    instance.focus()
   }
 
   private handleChange = (_, __, note: string) => {

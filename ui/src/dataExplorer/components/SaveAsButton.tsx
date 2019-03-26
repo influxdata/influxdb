@@ -5,9 +5,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {IconFont, Button, ComponentColor} from '@influxdata/clockface'
 
-// Styles
-import 'src/dataExplorer/components/SaveAsButton.scss'
-
 class SaveAsButton extends PureComponent<WithRouterProps, {}> {
   public render() {
     return (

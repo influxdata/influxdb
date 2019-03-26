@@ -25,9 +25,6 @@ import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {Alignment, Stack, ComponentStatus} from 'src/clockface/types'
 import {Organization, Bucket} from '@influxdata/influx'
 
-// Styles
-import './TaskForm.scss'
-
 interface Props {
   orgs: Organization[]
   taskOptions: TaskOptions

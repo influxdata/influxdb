@@ -5,7 +5,7 @@ import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'
 import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
-import {State as TaskState} from 'src/tasks/reducers/v2'
+import {State as TaskState} from 'src/tasks/reducers'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
@@ -21,6 +21,7 @@ import {TemplatesState} from 'src/templates/reducers'
 import {AuthorizationsState} from 'src/authorizations/reducers'
 import {RangeState} from 'src/dashboards/reducers/ranges'
 import {ViewsState} from 'src/dashboards/reducers/views'
+import {ScrapersState} from 'src/scrapers/reducers'
 
 export interface AppState {
   VERSION: string
@@ -47,6 +48,7 @@ export interface AppState {
   variables: VariablesState
   tokens: AuthorizationsState
   templates: TemplatesState
+  scrapers: ScrapersState
 }
 
 export type GetState = () => AppState

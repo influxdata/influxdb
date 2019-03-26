@@ -24,7 +24,7 @@ func Test_MountableRouter_MountsRoutesUnderPrefix(t *testing.T) {
 
 	expected := "Hello?! McFly?! Anybody in there?!"
 	mr.GET("/biff", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(rw, expected)
+		fmt.Fprint(rw, expected)
 	}))
 
 	ts := httptest.NewServer(mr)

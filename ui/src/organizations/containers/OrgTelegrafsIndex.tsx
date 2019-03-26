@@ -21,7 +21,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 import {getOrgTelegrafs} from 'src/telegrafs/actions'
 
 // Types
-import {Bucket, Organization, Telegraf} from '@influxdata/influx'
+import {Bucket, Organization, ITelegraf as Telegraf} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {RemoteDataState} from 'src/types'
 

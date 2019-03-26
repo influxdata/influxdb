@@ -556,6 +556,18 @@ export const timeMachineReducer = (
       })
     }
 
+    case 'SET_BUILDER_TAGS_STATUS': {
+      return produce(state, draftState => {
+        const {status} = action.payload
+        const tags = draftState.queryBuilder.tags
+
+        for (const tag of tags) {
+          tag.keysStatus = status
+          tag.valuesStatus = status
+        }
+      })
+    }
+
     case 'SET_BUILDER_TAG_KEYS': {
       return produce(state, draftState => {
         const {index, keys} = action.payload

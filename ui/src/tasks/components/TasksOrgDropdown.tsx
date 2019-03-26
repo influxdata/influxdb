@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Dropdown} from 'src/clockface'
 
 // Actions
-import {setDropdownOrgID as setDropdownOrgIDAction} from 'src/tasks/actions/v2'
+import {setDropdownOrgID as setDropdownOrgIDAction} from 'src/tasks/actions'
 
 // Constants
 import {defaultAllOrgs} from 'src/tasks/constants'

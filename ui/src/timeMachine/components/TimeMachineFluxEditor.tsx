@@ -25,10 +25,6 @@ import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
 // Types
 import {AppState} from 'src/types'
 
-// Styles
-import 'src/timeMachine/components/TimeMachineFluxEditor.scss'
-import FeatureFlag from 'src/shared/components/FeatureFlag'
-
 interface StateProps {
   activeQueryText: string
 }
@@ -74,13 +70,11 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           return (
             <>
               <div className="toolbar-tab-container">
-                <FeatureFlag>
-                  <ToolbarTab
-                    onSetActive={this.hideFluxFunctions}
-                    name="Variables"
-                    active={!this.state.displayFluxFunctions}
-                  />
-                </FeatureFlag>
+                <ToolbarTab
+                  onSetActive={this.hideFluxFunctions}
+                  name="Variables"
+                  active={!this.state.displayFluxFunctions}
+                />
                 <ToolbarTab
                   onSetActive={this.showFluxFunctions}
                   name="Functions"

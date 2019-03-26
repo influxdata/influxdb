@@ -17,7 +17,7 @@ import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
-import {client} from 'src/utils/api'
+import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -36,6 +36,7 @@ import {
   refreshVariableValues,
   selectValue,
 } from 'src/variables/actions'
+import {setExportTemplate} from 'src/templates/actions'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
@@ -45,6 +46,8 @@ import {
   getNewDashboardCell,
   getClonedDashboardCell,
 } from 'src/dashboards/utils/cellGetters'
+import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
+import {client} from 'src/utils/api'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -52,9 +55,15 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
-import {CreateCell, IDashboardTemplate} from '@influxdata/influx'
-import {Dashboard, NewView, Cell, GetState, View} from 'src/types'
-import {ILabel} from '@influxdata/influx'
+import {CreateCell, ILabel} from '@influxdata/influx'
+import {
+  Dashboard,
+  NewView,
+  Cell,
+  GetState,
+  View,
+  DashboardTemplate,
+} from 'src/types'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -216,11 +225,11 @@ export const getDashboardsAsync = () => async (
 }
 
 export const createDashboardFromTemplate = (
-  template: IDashboardTemplate,
+  template: DashboardTemplate,
   orgID: string
 ) => async dispatch => {
   try {
-    await client.dashboards.createFromTemplate(template, orgID)
+    await createDashboardFromTemplateAJAX(template, orgID)
 
     dispatch(notify(importDashboardSucceeded()))
   } catch (error) {
@@ -469,4 +478,28 @@ export const selectVariableValue = (
   await dispatch(
     refreshVariableValues(dashboard.id, dashboard.orgID, variables)
   )
+}
+
+export const convertToTemplate = (dashboardID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    dispatch(setExportTemplate(RemoteDataState.Loading))
+
+    const dashboard = await getDashboardAJAX(dashboardID)
+    const pendingViews = dashboard.cells.map(c =>
+      getViewAJAX(dashboardID, c.id)
+    )
+    const views = await Promise.all(pendingViews)
+    const allVariables = await client.variables.getAll()
+    const variables = filterUnusedVars(allVariables, views)
+    const dashboardTemplate = dashboardToTemplate(dashboard, views, variables)
+
+    const orgID = dashboard.orgID // TODO remove when org is implicit app state
+
+    dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate, orgID))
+  } catch (error) {
+    dispatch(setExportTemplate(RemoteDataState.Error))
+    dispatch(notify(copy.createTemplateFailed(error)))
+  }
 }

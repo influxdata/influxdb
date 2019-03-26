@@ -9,9 +9,6 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 // Utils
 import {parseFiles} from 'src/timeMachine/utils/rawFluxDataTable'
 
-// Styles
-import 'src/timeMachine/components/RawFluxDataTable.scss'
-
 interface Props {
   files: string[]
   width: number
@@ -58,6 +55,7 @@ class RawFluxDataTable extends PureComponent<Props, State> {
             height={tableHeight}
             maxColumnCount={maxColumnCount}
             data={data}
+            key={files[0]}
           />
         </FancyScrollbar>
       </div>

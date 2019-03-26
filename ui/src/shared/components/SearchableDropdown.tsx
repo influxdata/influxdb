@@ -9,9 +9,6 @@ import Dropdown, {
   Props as DropdownProps,
 } from 'src/clockface/components/dropdowns/Dropdown'
 
-// Styles
-import 'src/shared/components/SearchableDropdown.scss'
-
 // Types
 import {DropdownMenuColors} from 'src/clockface/types'
 
