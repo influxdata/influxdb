@@ -670,6 +670,14 @@ func (c *Cache) LastWriteTime() time.Time {
 	return c.lastWriteTime
 }
 
+// Age returns the age of the cache, which is the duration since it was last
+// snapshotted.
+func (c *Cache) Age() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return time.Since(c.lastSnapshot)
+}
+
 // UpdateAge updates the age statistic based on the current time.
 func (c *Cache) UpdateAge() {
 	c.mu.RLock()

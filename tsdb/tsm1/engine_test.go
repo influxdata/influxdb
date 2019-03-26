@@ -145,28 +145,36 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 	}
 	defer e.Close()
 
-	e.CacheFlushMemorySizeThreshold = 1024
-	e.CacheFlushWriteColdDuration = time.Minute
-
-	if e.ShouldCompactCache(nowTime) {
-		t.Fatal("nothing written to cache, so should not compact")
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusOkay; got != exp {
+		t.Fatalf("got status %v, exp status %v - nothing written to cache, so should not compact", got, exp)
 	}
 
 	if err := e.WritePointsString("m,k=v f=3i"); err != nil {
 		t.Fatal(err)
 	}
 
-	if e.ShouldCompactCache(nowTime) {
-		t.Fatal("cache size < flush threshold and nothing written to FileStore, so should not compact")
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusOkay; got != exp {
+		t.Fatalf("got status %v, exp status %v - cache size < flush threshold and nothing written to FileStore, so should not compact", got, exp)
 	}
 
-	if !e.ShouldCompactCache(nowTime.Add(time.Hour)) {
-		t.Fatal("last compaction was longer than flush write cold threshold, so should compact")
+	if got, exp := e.ShouldCompactCache(nowTime.Add(time.Hour)), tsm1.CacheStatusColdNoWrites; got != exp {
+		t.Fatalf("got status %v, exp status %v - last compaction was longer than flush write cold threshold, so should compact", got, exp)
 	}
 
 	e.CacheFlushMemorySizeThreshold = 1
-	if !e.ShouldCompactCache(nowTime) {
-		t.Fatal("cache size > flush threshold, so should compact")
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusSizeExceeded; got != exp {
+		t.Fatalf("got status %v, exp status %v - cache size > flush threshold, so should compact", got, exp)
+	}
+
+	e.CacheFlushMemorySizeThreshold = 1024 // Reset.
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusOkay; got != exp {
+		t.Fatalf("got status %v, exp status %v - nothing written to cache, so should not compact", got, exp)
+	}
+
+	e.CacheFlushAgeDurationThreshold = 100 * time.Millisecond
+	time.Sleep(250 * time.Millisecond)
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusAgeExceeded; got != exp {
+		t.Fatalf("got status %v, exp status %v - cache age > max age threshold, so should compact", got, exp)
 	}
 }
 
