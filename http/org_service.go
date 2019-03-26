@@ -524,7 +524,7 @@ func (h *OrgHandler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.SecretService.DeleteSecret(ctx, req.orgID, req.secrets...); err != nil {
+	if err := h.SecretService.DeleteSecret(ctx, req.orgID, req.Secrets...); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -534,7 +534,7 @@ func (h *OrgHandler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request)
 
 type deleteSecretsRequest struct {
 	orgID   influxdb.ID
-	secrets []string
+	Secrets []string `json:"secrets"`
 }
 
 func decodeDeleteSecretsRequest(ctx context.Context, r *http.Request) (*deleteSecretsRequest, error) {
@@ -552,13 +552,12 @@ func decodeDeleteSecretsRequest(ctx context.Context, r *http.Request) (*deleteSe
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
-	req.orgID = i
-	req.secrets = []string{}
+	req.Secrets = []string{}
 
-	if err := json.NewDecoder(r.Body).Decode(&req.secrets); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}
-
+	req.orgID = i
 	return req, nil
 }
 
