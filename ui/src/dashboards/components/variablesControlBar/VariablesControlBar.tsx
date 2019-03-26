@@ -6,7 +6,11 @@ import {DragDropContext} from 'react-dnd'
 import HTML5Backend from 'react-dnd-html5-backend'
 
 // Components
-import {EmptyState, TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
+import {
+  EmptyState,
+  TechnoSpinner,
+  SpinnerContainer,
+} from '@influxdata/clockface'
 
 // Utils
 import {
