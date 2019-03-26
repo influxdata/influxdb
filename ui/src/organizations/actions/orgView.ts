@@ -10,6 +10,7 @@ import {Dashboard} from 'src/types'
 // API
 import {client} from 'src/utils/api'
 import {getDashboardsByOrgID} from 'src/dashboards/apis/v2/index'
+import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/templates/api'
 
 export enum ActionTypes {
   GetTasks = 'GET_TASKS',
@@ -60,5 +61,5 @@ export const createTaskFromTemplate = (
   template: ITaskTemplate,
   orgID: string
 ) => async () => {
-  await client.tasks.createFromTemplate(template, orgID)
+  await createTaskFromTemplateAJAX(template, orgID)
 }
