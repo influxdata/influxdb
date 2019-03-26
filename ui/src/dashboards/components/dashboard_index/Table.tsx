@@ -7,16 +7,16 @@ import _ from 'lodash'
 import {ComponentSize} from '@influxdata/clockface'
 import {EmptyState, ResourceList} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
-import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
+import DashboardCards, {
+  SortTypes,
+} from 'src/dashboards/components/dashboard_index/DashboardCards'
 
 // Types
 import {Sort} from 'src/clockface'
 import {Dashboard} from 'src/types'
 
-interface Props {
+interface OwnProps {
   searchTerm: string
-  dashboards: Dashboard[]
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
@@ -25,31 +25,38 @@ interface Props {
   showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
   onImportDashboard: () => void
-}
-
-interface DatedDashboard extends Dashboard {
-  modified: Date
+  dashboards: Dashboard[]
 }
 
 interface State {
   sortKey: SortKey
   sortDirection: Sort
+  sortType: SortTypes
 }
 
 type SortKey = keyof Dashboard | 'modified' | 'owner' | 'default' // owner and modified are currently hardcoded
 
-class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      sortKey: null,
-      sortDirection: Sort.Descending,
-    }
+type Props = OwnProps & WithRouterProps
+
+class DashboardsTable extends PureComponent<Props, State> {
+  state: State = {
+    sortKey: 'name',
+    sortDirection: Sort.Ascending,
+    sortType: SortTypes.String,
   }
 
   public render() {
-    const {filterComponent} = this.props
-    const {sortKey, sortDirection} = this.state
+    const {
+      dashboards,
+      filterComponent,
+      onCloneDashboard,
+      onDeleteDashboard,
+      onUpdateDashboard,
+      showOwnerColumn,
+      onFilterChange,
+    } = this.props
+
+    const {sortKey, sortDirection, sortType} = this.state
 
     return (
       <ResourceList>
@@ -69,7 +76,19 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
           />
         </ResourceList.Header>
         <ResourceList.Body emptyState={this.emptyState}>
-          {this.sortedCards}
+          {!!dashboards.length && (
+            <DashboardCards
+              dashboards={dashboards}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onCloneDashboard={onCloneDashboard}
+              onDeleteDashboard={onDeleteDashboard}
+              onUpdateDashboard={onUpdateDashboard}
+              showOwnerColumn={showOwnerColumn}
+              onFilterChange={onFilterChange}
+            />
+          )}
         </ResourceList.Body>
       </ResourceList>
     )
@@ -96,50 +115,13 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    this.setState({sortKey, sortDirection: nextSort})
-  }
+    let sortType = SortTypes.String
 
-  private get sortedCards(): JSX.Element {
-    const {
-      dashboards,
-      onCloneDashboard,
-      onDeleteDashboard,
-      onUpdateDashboard,
-      showOwnerColumn,
-      onFilterChange,
-    } = this.props
-
-    const {sortKey, sortDirection} = this.state
-
-    if (dashboards.length) {
-      return (
-        <SortingHat<DatedDashboard>
-          list={this.datedDashboards}
-          sortKey={sortKey}
-          direction={sortDirection}
-        >
-          {ds => (
-            <DashboardCards
-              dashboards={ds}
-              onCloneDashboard={onCloneDashboard}
-              onDeleteDashboard={onDeleteDashboard}
-              onUpdateDashboard={onUpdateDashboard}
-              showOwnerColumn={showOwnerColumn}
-              onFilterChange={onFilterChange}
-            />
-          )}
-        </SortingHat>
-      )
+    if (sortKey === 'modified') {
+      sortType = SortTypes.Date
     }
 
-    return null
-  }
-
-  private get datedDashboards(): DatedDashboard[] {
-    return this.props.dashboards.map(d => ({
-      ...d,
-      modified: new Date(d.meta.updatedAt),
-    }))
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private get emptyState(): JSX.Element {
@@ -169,4 +151,4 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
   }
 }
 
-export default withRouter<Props>(DashboardsTable)
+export default withRouter<OwnProps>(DashboardsTable)
