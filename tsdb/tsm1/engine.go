@@ -934,8 +934,7 @@ func (e *Engine) ShouldCompactCache(t time.Time) CacheStatus {
 	if t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration {
 		return CacheStatusColdNoWrites
 	}
-
-	return 0
+	return CacheStatusOkay
 }
 
 func (e *Engine) compact(wg *sync.WaitGroup) {
