@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, CSSProperties} from 'react'
+import React, {Component, CSSProperties, ReactNode} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
 import Scrollbar from 'react-scrollbars-custom'
@@ -8,7 +8,7 @@ import Scrollbar from 'react-scrollbars-custom'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface PassedProps {
-  children: JSX.Element | JSX.Element[]
+  children: JSX.Element | JSX.Element[] | ReactNode
 }
 
 interface DefaultProps {
@@ -39,9 +39,10 @@ class DapperScrollbars extends Component<Props> {
     noScroll: false,
     thumbStartColor: '#00C9FF',
     thumbStopColor: '#9394FF',
-    autoHide: true,
+    autoHide: false,
     autoSize: true,
   }
+
   public render() {
     const {
       removeTracksWhenNotUsed,

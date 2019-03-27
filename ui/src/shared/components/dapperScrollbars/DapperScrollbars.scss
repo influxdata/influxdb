@@ -20,14 +20,15 @@ $dapper-scrollbars--size: 6px;
 .dapper-scrollbars--track-x {
   height: $dapper-scrollbars--size !important;
   width: calc(100% - #{$dapper-scrollbars--size}) !important;
+  bottom: $dapper-scrollbars--size / 2 !important;
   left: $dapper-scrollbars--size / 2 !important;
 }
 
 .dapper-scrollbars--track-y {
   width: $dapper-scrollbars--size !important;
   height: calc(100% - #{$dapper-scrollbars--size}) !important;
-  top: $dapper-scrollbars--size / 2 !important;
   right: $dapper-scrollbars--size / 2 !important;
+  top: $dapper-scrollbars--size / 2 !important;
 }
 
 .dapper-scrollbars--thumb-x,
