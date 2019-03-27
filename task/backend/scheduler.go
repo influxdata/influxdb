@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/task/options"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
-
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
@@ -29,21 +29,6 @@ var (
 	// ErrTaskAlreadyClaimed is returned when attempting to operate against a task that must not be claimed but is.
 	ErrTaskAlreadyClaimed = errors.New("task already claimed")
 )
-
-// DesiredState persists the desired state of a run.
-type DesiredState interface {
-	// CreateNextRun requests the next run from the desired state, delegating to (*StoreTaskMeta).CreateNextRun.
-	// This allows the scheduler to be "dumb" and just tell DesiredState what time the scheduler thinks it is,
-	// and the DesiredState will create the appropriate run according to the task's cron schedule,
-	// and according to what's in progress and what's been finished.
-	//
-	// If a Run is requested and the cron schedule says the schedule isn't ready, a RunNotYetDueError is returned.
-	CreateNextRun(ctx context.Context, taskID platform.ID, now int64) (RunCreation, error)
-
-	// FinishRun indicates that the given run is no longer intended to be executed.
-	// This may be called after a successful or failed execution, or upon cancellation.
-	FinishRun(ctx context.Context, taskID, runID platform.ID) error
-}
 
 // Executor handles execution of a run.
 type Executor interface {
@@ -114,10 +99,10 @@ type Scheduler interface {
 	Stop()
 
 	// ClaimTask begins control of task execution in this scheduler.
-	ClaimTask(task *StoreTask, meta *StoreTaskMeta) error
+	ClaimTask(authCtx context.Context, task *platform.Task) error
 
 	// UpdateTask will update the concurrency and the runners for a task
-	UpdateTask(task *StoreTask, meta *StoreTaskMeta) error
+	UpdateTask(authCtx context.Context, task *platform.Task) error
 
 	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
 	// and releases any resources related to management of that task.
@@ -166,16 +151,15 @@ func WithLogger(logger *zap.Logger) TickSchedulerOption {
 }
 
 // NewScheduler returns a new scheduler with the given desired state and the given now UTC timestamp.
-func NewScheduler(desiredState DesiredState, executor Executor, lw LogWriter, now int64, opts ...TickSchedulerOption) *TickScheduler {
+func NewScheduler(taskControlService TaskControlService, executor Executor, now int64, opts ...TickSchedulerOption) *TickScheduler {
 	o := &TickScheduler{
-		desiredState:   desiredState,
-		executor:       executor,
-		logWriter:      lw,
-		now:            now,
-		taskSchedulers: make(map[platform.ID]*taskScheduler),
-		logger:         zap.NewNop(),
-		wg:             &sync.WaitGroup{},
-		metrics:        newSchedulerMetrics(),
+		taskControlService: taskControlService,
+		executor:           executor,
+		now:                now,
+		taskSchedulers:     make(map[platform.ID]*taskScheduler),
+		logger:             zap.NewNop(),
+		wg:                 &sync.WaitGroup{},
+		metrics:            newSchedulerMetrics(),
 	}
 
 	for _, opt := range opts {
@@ -186,9 +170,8 @@ func NewScheduler(desiredState DesiredState, executor Executor, lw LogWriter, no
 }
 
 type TickScheduler struct {
-	desiredState DesiredState
-	executor     Executor
-	logWriter    LogWriter
+	taskControlService TaskControlService
+	executor           Executor
 
 	now    int64
 	logger *zap.Logger
@@ -286,7 +269,7 @@ func (s *TickScheduler) Stop() {
 	s.executor.Wait()
 }
 
-func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err error) {
+func (s *TickScheduler) ClaimTask(authCtx context.Context, task *platform.Task) (err error) {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 	if s.ctx == nil {
@@ -302,7 +285,7 @@ func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err err
 
 	defer s.metrics.ClaimTask(err == nil)
 
-	ts, err := newTaskScheduler(s.ctx, s.wg, s, task, meta, s.metrics)
+	ts, err := newTaskScheduler(s.ctx, authCtx, s.wg, s, task, s.metrics)
 	if err != nil {
 		return err
 	}
@@ -314,8 +297,13 @@ func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err err
 
 	s.taskSchedulers[task.ID] = ts
 
-	if len(meta.CurrentlyRunning) > 0 {
-		if err := ts.WorkCurrentlyRunning(meta); err != nil {
+	// pickup any runs that are still "running from a previous failure"
+	runs, err := s.taskControlService.CurrentlyRunning(authCtx, task.ID)
+	if err != nil {
+		return err
+	}
+	if len(runs) > 0 {
+		if err := ts.WorkCurrentlyRunning(runs); err != nil {
 			return err
 		}
 	}
@@ -327,7 +315,7 @@ func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err err
 	return nil
 }
 
-func (s *TickScheduler) UpdateTask(task *StoreTask, meta *StoreTaskMeta) error {
+func (s *TickScheduler) UpdateTask(authCtx context.Context, task *platform.Task) error {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 
@@ -337,20 +325,33 @@ func (s *TickScheduler) UpdateTask(task *StoreTask, meta *StoreTaskMeta) error {
 	}
 	ts.task = task
 
-	next, err := meta.NextDueRun()
+	next, err := s.taskControlService.NextDueRun(authCtx, task.ID)
 	if err != nil {
 		return err
 	}
-	hasQueue := len(meta.ManualRuns) > 0
+
+	runs, err := s.taskControlService.ManualRuns(authCtx, task.ID)
+	if err != nil {
+		return err
+	}
+
+	hasQueue := len(runs) > 0
 	// update the queued information
 	ts.nextDueMu.Lock()
 	ts.hasQueue = hasQueue
 	ts.nextDue = next
+	ts.authCtx = authCtx
 	ts.nextDueMu.Unlock()
-
 	// check the concurrency
 	// todo(lh): In the near future we may not be using the scheduler to manage concurrency.
-	maxC := int(meta.MaxConcurrency)
+	opt, err := options.FromScript(task.Flux)
+	if err != nil {
+		return err
+	}
+	maxC := len(ts.runners)
+	if opt.Concurrency != nil {
+		maxC = int(*opt.Concurrency)
+	}
 	if maxC != len(ts.runners) {
 		ts.runningMu.Lock()
 		if maxC < len(ts.runners) {
@@ -360,7 +361,7 @@ func (s *TickScheduler) UpdateTask(task *StoreTask, meta *StoreTaskMeta) error {
 		if maxC > len(ts.runners) {
 			delta := maxC - len(ts.runners)
 			for i := 0; i < delta; i++ {
-				ts.runners = append(ts.runners, newRunner(s.ctx, ts.wg, s.logger, task, s.desiredState, s.executor, s.logWriter, ts))
+				ts.runners = append(ts.runners, newRunner(s.ctx, ts.wg, s.logger, task, s.taskControlService, s.executor, ts))
 			}
 		}
 		ts.runningMu.Unlock()
@@ -404,7 +405,10 @@ type taskScheduler struct {
 	now *int64
 
 	// Task we are scheduling for.
-	task *StoreTask
+	task *platform.Task
+
+	// Authorization context for using the TaskControlService
+	authCtx context.Context
 
 	// CancelFunc for context passed to runners, to enable Cancel method.
 	cancel context.CancelFunc
@@ -427,13 +431,26 @@ type taskScheduler struct {
 
 func newTaskScheduler(
 	ctx context.Context,
+	authCtx context.Context,
 	wg *sync.WaitGroup,
 	s *TickScheduler,
-	task *StoreTask,
-	meta *StoreTaskMeta,
+	task *platform.Task,
 	metrics *schedulerMetrics,
 ) (*taskScheduler, error) {
-	firstDue, err := meta.NextDueRun()
+	firstDue, err := s.taskControlService.NextDueRun(authCtx, task.ID)
+	if err != nil {
+		return nil, err
+	}
+	opt, err := options.FromScript(task.Flux)
+	if err != nil {
+		return nil, err
+	}
+	maxC := 1
+	if opt.Concurrency != nil {
+		maxC = int(*opt.Concurrency)
+	}
+
+	runs, err := s.taskControlService.ManualRuns(authCtx, task.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -442,20 +459,21 @@ func newTaskScheduler(
 	ts := &taskScheduler{
 		now:           &s.now,
 		task:          task,
+		authCtx:       authCtx,
 		cancel:        cancel,
 		wg:            wg,
-		runners:       make([]*runner, meta.MaxConcurrency),
-		running:       make(map[platform.ID]runCtx, meta.MaxConcurrency),
+		runners:       make([]*runner, maxC),
+		running:       make(map[platform.ID]runCtx, maxC),
 		logger:        s.logger.With(zap.String("task_id", task.ID.String())),
 		metrics:       s.metrics,
 		nextDue:       firstDue,
 		nextDueSource: math.MinInt64,
-		hasQueue:      len(meta.ManualRuns) > 0,
+		hasQueue:      len(runs) > 0,
 	}
 
 	for i := range ts.runners {
 		logger := ts.logger.With(zap.Int("run_slot", i))
-		ts.runners[i] = newRunner(ctx, wg, logger, task, s.desiredState, s.executor, s.logWriter, ts)
+		ts.runners[i] = newRunner(ctx, wg, logger, task, s.taskControlService, s.executor, ts)
 	}
 
 	return ts, nil
@@ -473,11 +491,15 @@ func (ts *taskScheduler) Work() {
 	}
 }
 
-func (ts *taskScheduler) WorkCurrentlyRunning(meta *StoreTaskMeta) error {
-	for _, cr := range meta.CurrentlyRunning {
+func (ts *taskScheduler) WorkCurrentlyRunning(runs []*platform.Run) error {
+	for _, cr := range runs {
 		foundWorker := false
 		for _, r := range ts.runners {
-			qr := QueuedRun{TaskID: ts.task.ID, RunID: platform.ID(cr.RunID), Now: cr.Now}
+			time, err := time.Parse(time.RFC3339, cr.ScheduledFor)
+			if err != nil {
+				return err
+			}
+			qr := QueuedRun{TaskID: ts.task.ID, RunID: platform.ID(cr.ID), Now: time.Unix()}
 			if r.RestartRun(qr) {
 				foundWorker = true
 				break
@@ -523,11 +545,10 @@ type runner struct {
 	ctx context.Context
 	wg  *sync.WaitGroup
 
-	task *StoreTask
+	task *platform.Task
 
-	desiredState DesiredState
-	executor     Executor
-	logWriter    LogWriter
+	taskControlService TaskControlService
+	executor           Executor
 
 	// Parent taskScheduler.
 	ts *taskScheduler
@@ -539,22 +560,20 @@ func newRunner(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	logger *zap.Logger,
-	task *StoreTask,
-	desiredState DesiredState,
+	task *platform.Task,
+	taskControlService TaskControlService,
 	executor Executor,
-	logWriter LogWriter,
 	ts *taskScheduler,
 ) *runner {
 	return &runner{
-		ctx:          ctx,
-		wg:           wg,
-		state:        new(uint32),
-		task:         task,
-		desiredState: desiredState,
-		executor:     executor,
-		logWriter:    logWriter,
-		ts:           ts,
-		logger:       logger,
+		ctx:                ctx,
+		wg:                 wg,
+		state:              new(uint32),
+		task:               task,
+		taskControlService: taskControlService,
+		executor:           executor,
+		ts:                 ts,
+		logger:             logger,
 	}
 }
 
@@ -624,7 +643,7 @@ func (r *runner) startFromWorking(now int64) {
 	defer span.Finish()
 
 	ctx, cancel := context.WithCancel(ctx)
-	rc, err := r.desiredState.CreateNextRun(ctx, r.task.ID, now)
+	rc, err := r.taskControlService.CreateNextRun(ctx, r.task.ID, now)
 	if err != nil {
 		r.logger.Info("Failed to create run", zap.Error(err))
 		atomic.StoreUint32(r.state, runnerIdle)
@@ -658,13 +677,7 @@ func (r *runner) clearRunning(id platform.ID) {
 
 // fail sets r's state to failed, and marks this runner as idle.
 func (r *runner) fail(qr QueuedRun, runLogger *zap.Logger, stage string, reason error) {
-	rlb := RunLogBase{
-		Task:            r.task,
-		RunID:           qr.RunID,
-		RunScheduledFor: qr.Now,
-		RequestedAt:     qr.RequestedAt,
-	}
-	if err := r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), stage+": "+reason.Error()); err != nil {
+	if err := r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), stage+": "+reason.Error()); err != nil {
 		runLogger.Info("Failed to update run log", zap.Error(err))
 	}
 
@@ -675,16 +688,21 @@ func (r *runner) fail(qr QueuedRun, runLogger *zap.Logger, stage string, reason 
 func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *zap.Logger) {
 	defer r.wg.Done()
 
+	defer func() {
+		if _, err := r.taskControlService.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
+			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
+			runLogger.Error("Beginning run execution failed, and desired state update failed", zap.Error(err))
+
+			atomic.StoreUint32(r.state, runnerIdle)
+		}
+	}()
+
 	sp, spCtx := tracing.StartSpanFromContext(ctx)
 	defer sp.Finish()
 
 	rp, err := r.executor.Execute(spCtx, qr)
 	if err != nil {
 		runLogger.Info("Failed to begin run execution", zap.Error(err))
-		if err := r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
-			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
-			runLogger.Error("Beginning run execution failed, and desired state update failed", zap.Error(err))
-		}
 
 		// TODO(mr): retry?
 		r.fail(qr, runLogger, "Run failed to begin execution", err)
@@ -713,7 +731,6 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	close(ready)
 	if err != nil {
 		if err == ErrRunCanceled {
-			_ = r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID)
 			r.updateRunState(qr, RunCanceled, runLogger)
 
 			// Move on to the next execution, for a canceled run.
@@ -722,10 +739,6 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		}
 
 		runLogger.Info("Failed to wait for execution result", zap.Error(err))
-		if err := r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
-			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
-			runLogger.Error("Waiting for execution result failed, and desired state update failed", zap.Error(err))
-		}
 
 		// TODO(mr): retry?
 		r.fail(qr, runLogger, "Waiting for execution result", err)
@@ -733,34 +746,17 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	}
 	if err := rr.Err(); err != nil {
 		runLogger.Info("Run failed to execute", zap.Error(err))
-		if err := r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
-			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
-			runLogger.Error("Run failed to execute, and desired state update failed", zap.Error(err))
-		}
+
 		// TODO(mr): retry?
 		r.fail(qr, runLogger, "Run failed to execute", err)
 		return
 	}
 
-	if err := r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
-		runLogger.Info("Failed to finish run", zap.Error(err))
-		// TODO(mr): retry?
-		// Need to think about what it means if there was an error finishing a run.
-		atomic.StoreUint32(r.state, runnerIdle)
-		r.updateRunState(qr, RunFail, runLogger)
-		return
-	}
-	rlb := RunLogBase{
-		Task:            r.task,
-		RunID:           qr.RunID,
-		RunScheduledFor: qr.Now,
-		RequestedAt:     qr.RequestedAt,
-	}
 	stats := rr.Statistics()
 
 	b, err := json.Marshal(stats)
 	if err == nil {
-		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), string(b))
+		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), string(b))
 	}
 	r.updateRunState(qr, RunSuccess, runLogger)
 	runLogger.Info("Execution succeeded")
@@ -770,26 +766,19 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 }
 
 func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger) {
-	rlb := RunLogBase{
-		Task:            r.task,
-		RunID:           qr.RunID,
-		RunScheduledFor: qr.Now,
-		RequestedAt:     qr.RequestedAt,
-	}
-
 	switch s {
 	case RunStarted:
 		r.ts.metrics.StartRun(r.task.ID.String())
-		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Script))
+		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Flux))
 	case RunSuccess:
 		r.ts.metrics.FinishRun(r.task.ID.String(), true)
-		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Completed successfully")
+		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), "Completed successfully")
 	case RunFail:
 		r.ts.metrics.FinishRun(r.task.ID.String(), false)
-		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Failed")
+		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), "Failed")
 	case RunCanceled:
 		r.ts.metrics.FinishRun(r.task.ID.String(), false)
-		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Canceled")
+		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), "Canceled")
 	default: // We are deliberately not handling RunQueued yet.
 		// There is not really a notion of being queued in this runner architecture.
 		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
@@ -799,7 +788,7 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 	// If we start seeing errors from this, we know the time limit is too short or the system is overloaded.
 	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Millisecond)
 	defer cancel()
-	if err := r.logWriter.UpdateRunState(ctx, rlb, time.Now(), s); err != nil {
+	if err := r.taskControlService.UpdateRunState(ctx, r.task.ID, qr.RunID, time.Now(), s); err != nil {
 		runLogger.Info("Error updating run state", zap.Stringer("state", s), zap.Error(err))
 	}
 }
