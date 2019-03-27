@@ -25,6 +25,7 @@
 1. [12793](https://github.com/influxdata/influxdb/pull/12793): Fix task creation error when switching schedule types.
 1. [12805](https://github.com/influxdata/influxdb/pull/12805): Fix hidden horizonal scrollbars in flux raw data view
 1. [12827](https://github.com/influxdata/influxdb/pull/12827): Fix screen tearing bug in Raw Data View
+1. [12959](https://github.com/influxdata/influxdb/pull/12959): Fix routing loop
 
 ### UI Improvements
 
