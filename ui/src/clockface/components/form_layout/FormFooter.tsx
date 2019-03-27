@@ -7,12 +7,9 @@ import {Columns} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface OwnProps {
+interface Props {
   children: JSX.Element | JSX.Element[]
-}
-
-interface DefaultProps {
-  colsXS?: Columns
+  colsXS: Columns
   colsSM?: Columns
   colsMD?: Columns
   colsLG?: Columns
@@ -22,11 +19,9 @@ interface DefaultProps {
   offsetLG?: Columns
 }
 
-type Props = DefaultProps & OwnProps
-
 @ErrorHandling
 class FormFooter extends Component<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     colsXS: Columns.Twelve,
   }
 

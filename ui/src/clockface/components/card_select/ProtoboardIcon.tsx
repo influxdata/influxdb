@@ -1,14 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-interface DefaultProps {
-  displayText?: string
+interface Props {
+  displayText: string
 }
 
-type Props = DefaultProps
-
 class ProtoboardIcon extends PureComponent<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     displayText: '',
   }
 

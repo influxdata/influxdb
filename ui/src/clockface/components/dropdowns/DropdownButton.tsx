@@ -14,26 +14,21 @@ import {
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface OwnProps {
+interface Props {
   children: DropdownChild
   onClick: (e: MouseEvent<HTMLElement>) => void
-}
-
-interface DefaultProps {
-  status?: ComponentStatus
-  active?: boolean
-  color?: ComponentColor
-  size?: ComponentSize
+  status: ComponentStatus
+  color: ComponentColor
+  size: ComponentSize
+  active: boolean
   icon?: IconFont
   title?: string
   testID?: string
 }
 
-type Props = OwnProps & DefaultProps
-
 @ErrorHandling
 class DropdownButton extends Component<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     color: ComponentColor.Default,
     size: ComponentSize.Small,
     status: ComponentStatus.Default,

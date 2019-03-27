@@ -7,24 +7,19 @@ import {DropdownChild} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface OwnProps {
+interface Props {
   id: string
   children: DropdownChild
   value: any
-}
-
-interface DefaultProps {
-  selected?: boolean
-  checkbox?: boolean
+  selected: boolean
+  checkbox: boolean
   onClick?: (value: any) => void
   testID?: string
 }
 
-type Props = OwnProps & DefaultProps
-
 @ErrorHandling
 class DropdownItem extends Component<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     checkbox: false,
     selected: false,
   }

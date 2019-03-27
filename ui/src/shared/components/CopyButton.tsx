@@ -18,11 +18,6 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 interface OwnProps {
   textToCopy: string
   contentName: string // if copying a script, its "script"
-  size?: ComponentSize
-  color?: ComponentColor
-}
-
-interface DefaultProps {
   size: ComponentSize
   color: ComponentColor
 }
@@ -34,10 +29,11 @@ interface DispatchProps {
 type Props = OwnProps & DispatchProps
 
 class CopyButton extends PureComponent<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     size: ComponentSize.ExtraSmall,
     color: ComponentColor.Secondary,
   }
+
   public render() {
     const {textToCopy, color, size} = this.props
 

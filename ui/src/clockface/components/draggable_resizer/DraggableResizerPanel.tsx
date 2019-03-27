@@ -4,20 +4,15 @@ import React, {Component, CSSProperties} from 'react'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface OwnProps {
+interface Props {
   children: JSX.Element
-}
-
-interface DefaultProps {
-  minSizePixels?: number
+  minSizePixels: number
   sizePercent?: number
 }
 
-type Props = OwnProps & DefaultProps
-
 @ErrorHandling
 class DraggableResizerPanel extends Component<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     minSizePixels: 0,
   }
 

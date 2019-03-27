@@ -2,24 +2,19 @@
 import React, {Component} from 'react'
 import classnames from 'classnames'
 
-interface PassedProps {
+interface Props {
   label: string
   action: (value?: any) => void
+  description: string
+  testID: string
   value?: any
-  onCollapseMenu?: () => void
   disabled?: boolean
+  onCollapseMenu?: () => void
 }
-
-interface DefaultProps {
-  description?: string
-  testID?: string
-}
-
-type Props = PassedProps & DefaultProps
 
 class ContextMenuItem extends Component<Props> {
-  public static defaultProps: DefaultProps = {
-    description: null,
+  public static defaultProps = {
+    description: '',
     testID: 'context-menu-item',
   }
 

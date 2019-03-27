@@ -21,33 +21,28 @@ import 'src/clockface/components/confirmation_button/ConfirmationButton.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface OwnProps {
+interface Props {
   confirmText: string
   onConfirm: (returnValue?: any) => void
+  size: ComponentSize
+  shape: ButtonShape
+  testID: string
+  status: ComponentStatus
+  returnValue?: any
+  text?: string
+  icon?: IconFont
+  titleText?: string
+  tabIndex?: number
+  className?: string
 }
 
 interface State {
   isTooltipVisible: boolean
 }
 
-interface DefaultProps {
-  returnValue?: any
-  text?: string
-  size?: ComponentSize
-  shape?: ButtonShape
-  icon?: IconFont
-  status?: ComponentStatus
-  titleText?: string
-  tabIndex?: number
-  className?: string
-  testID?: string
-}
-
-type Props = OwnProps & DefaultProps
-
 @ErrorHandling
 class ConfirmationButton extends Component<Props, State> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     size: ComponentSize.Small,
     shape: ButtonShape.Default,
     status: ComponentStatus.Default,
