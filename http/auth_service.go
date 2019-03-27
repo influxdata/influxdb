@@ -65,7 +65,7 @@ func NewAuthorizationHandler(b *AuthorizationBackend) *AuthorizationHandler {
 	h.HandlerFunc("POST", "/api/v2/authorizations", h.handlePostAuthorization)
 	h.HandlerFunc("GET", "/api/v2/authorizations", h.handleGetAuthorizations)
 	h.HandlerFunc("GET", "/api/v2/authorizations/:id", h.handleGetAuthorization)
-	h.HandlerFunc("PATCH", "/api/v2/authorizations/:id", h.handleSetAuthorizationStatus)
+	h.HandlerFunc("PATCH", "/api/v2/authorizations/:id", h.handleUpdateAuthorization)
 	h.HandlerFunc("DELETE", "/api/v2/authorizations/:id", h.handleDeleteAuthorization)
 	return h
 }
@@ -459,11 +459,11 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 	}, nil
 }
 
-// handleSetAuthorizationStatus is the HTTP handler for the PATCH /api/v2/authorizations/:id route that updates the authorization's status.
-func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWriter, r *http.Request) {
+// handleUpdateAuthorization is the HTTP handler for the PATCH /api/v2/authorizations/:id route that updates the authorization's status and desc.
+func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeSetAuthorizationStatusRequest(ctx, r)
+	req, err := decodeUpdateAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
 		EncodeError(ctx, err, w)
@@ -476,12 +476,9 @@ func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWrite
 		return
 	}
 
-	if req.Status != a.Status {
-		a.Status = req.Status
-		if err := h.AuthorizationService.SetAuthorizationStatus(ctx, a.ID, a.Status); err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
+	if err := h.AuthorizationService.UpdateAuthorization(ctx, a.ID, req.AuthorizationUpdate); err != nil {
+		EncodeError(ctx, err, w)
+		return
 	}
 
 	o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
@@ -509,11 +506,11 @@ func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWrite
 }
 
 type updateAuthorizationRequest struct {
-	ID     platform.ID
-	Status platform.Status
+	ID platform.ID
+	*platform.AuthorizationUpdate
 }
 
-func decodeSetAuthorizationStatusRequest(ctx context.Context, r *http.Request) (*updateAuthorizationRequest, error) {
+func decodeUpdateAuthorizationRequest(ctx context.Context, r *http.Request) (*updateAuthorizationRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -528,14 +525,14 @@ func decodeSetAuthorizationStatusRequest(ctx context.Context, r *http.Request) (
 		return nil, err
 	}
 
-	a := &setAuthorizationStatusRequest{}
-	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
+	upd := &platform.AuthorizationUpdate{}
+	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
 		return nil, err
 	}
 
 	return &updateAuthorizationRequest{
-		ID:     i,
-		Status: a.Status,
+		ID:                  i,
+		AuthorizationUpdate: upd,
 	}, nil
 }
 
@@ -745,20 +742,14 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	return nil
 }
 
-type setAuthorizationStatusRequest struct {
-	Status platform.Status `json:"status"`
-}
-
-// SetAuthorizationStatus updates an authorization's status.
-func (s *AuthorizationService) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
+// UpdateAuthorization updates the status and description if available.
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) error {
 	u, err := newURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
 		return err
 	}
 
-	b, err := json.Marshal(setAuthorizationStatusRequest{
-		Status: status,
-	})
+	b, err := json.Marshal(upd)
 	if err != nil {
 		return err
 	}

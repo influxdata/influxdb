@@ -24,3 +24,8 @@ func (s Status) Valid() error {
 		}
 	}
 }
+
+// Ptr returns the pointer of that status.
+func (s Status) Ptr() *Status {
+	return &s
+}

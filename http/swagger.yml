@@ -2700,7 +2700,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Authorization"
+              $ref: "#/components/schemas/AuthorizationUpdateRequest"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5346,12 +5346,8 @@ components:
               type: string
               nullable: true
               description: optional name of the organization of the organization with orgID.
-    Authorization:
-      required: [orgID, permissions]
+    AuthorizationUpdateRequest:
       properties:
-        orgID:
-          type: string
-          description: ID of org that authorization is scoped to.
         status:
           description: if inactive the token is inactive and requests using the token will be rejected.
           default: active
@@ -5362,46 +5358,55 @@ components:
         description:
           type: string
           description: A description of the token.
-        permissions:
-          type: array
-          minLength: 1
-          description: List of permissions for an auth.  An auth must have at least one Permission.
-          items:
-            $ref: "#/components/schemas/Permission"
-        id:
-          readOnly: true
-          type: string
-        token:
-          readOnly: true
-          type: string
-          description: Passed via the Authorization Header and Token Authentication type.
-        userID:
-          readOnly: true
-          type: string
-          description: ID of user that created and owns the token.
-        user:
-          readOnly: true
-          type: string
-          description: Name of user that created and owns the token.
-        org:
-          readOnly: true
-          type: string
-          description: Name of the org token is scoped to.
-        links:
-          type: object
-          readOnly: true
-          example:
-            self: "/api/v2/authorizations/1"
-            user: "/api/v2/users/12"
+    Authorization:
+      required: [orgID, permissions]
+      allOf:
+        - $ref: "#/components/schemas/AuthorizationUpdateRequest"
+        - type: object
           properties:
-            self:
+            orgID:
+              type: string
+              description: ID of org that authorization is scoped to.
+            permissions:
+              type: array
+              minLength: 1
+              description: List of permissions for an auth.  An auth must have at least one Permission.
+              items:
+                $ref: "#/components/schemas/Permission"
+            id:
               readOnly: true
               type: string
-              format: uri
+            token:
+              readOnly: true
+              type: string
+              description: Passed via the Authorization Header and Token Authentication type.
+            userID:
+              readOnly: true
+              type: string
+              description: ID of user that created and owns the token.
             user:
               readOnly: true
               type: string
-              format: uri
+              description: Name of user that created and owns the token.
+            org:
+              readOnly: true
+              type: string
+              description: Name of the org token is scoped to.
+            links:
+              type: object
+              readOnly: true
+              example:
+                self: "/api/v2/authorizations/1"
+                user: "/api/v2/users/12"
+              properties:
+                self:
+                  readOnly: true
+                  type: string
+                  format: uri
+                user:
+                  readOnly: true
+                  type: string
+                  format: uri
     Authorizations:
       type: object
       properties:

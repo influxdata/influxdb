@@ -473,7 +473,9 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := s.SetAuthorizationStatus(context.Background(), id, platform.Active); err != nil {
+	if err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
+		Status: platform.Active.Ptr(),
+	}); err != nil {
 		return err
 	}
 
@@ -542,7 +544,9 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := s.SetAuthorizationStatus(ctx, id, platform.Inactive); err != nil {
+	if err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
+		Status: platform.Inactive.Ptr(),
+	}); err != nil {
 		return err
 	}
 
