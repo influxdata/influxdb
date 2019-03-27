@@ -136,8 +136,8 @@
     "webpack": "^4.29.0"
   },
   "dependencies": {
-    "@influxdata/influx": "0.2.52",
     "@influxdata/clockface": "0.0.8",
+    "@influxdata/influx": "0.2.52",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",

@@ -39,9 +39,6 @@ class ResourceLists extends PureComponent<Props> {
               <li>
                 <Link to="/configuration/settings_tab">Profile</Link>
               </li>
-              <li>
-                <Link to="/configuration/tokens_tab">Tokens</Link>
-              </li>
             </ul>
           </Panel.Body>
         </Panel>
