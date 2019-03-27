@@ -1,4 +1,3 @@
-
 interface TestUser {
   username: string
   password: string
@@ -36,6 +35,7 @@ describe('Onboarding', () => {
 
     cy.location('pathname').should('include', 'onboarding/1')
 
+    cy.location('pathname', {timeout: 3000}).should('include', 'onboarding/1')
     //Check navigation bar
     cy.getByTestID('nav-step--welcome').click()
 
@@ -367,4 +367,5 @@ describe('Onboarding', () => {
       .contains('Continue')
   })
 })
+
 
