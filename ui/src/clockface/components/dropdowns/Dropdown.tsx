@@ -55,7 +55,7 @@ export interface DefaultProps {
   wrapMenuText?: boolean
 }
 
-type Props = PassedProps & DefaultProps
+export type Props = PassedProps & DefaultProps
 
 interface State {
   expanded: boolean
