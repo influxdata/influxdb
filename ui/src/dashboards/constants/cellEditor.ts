@@ -1,7 +1,6 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
-import {ViewType, Axis, Axes} from 'src/types/dashboards'
-import {Color} from 'src/types/colors'
+import {ViewType, Axis, Axes, Color, Base, Scale} from 'src/types'
 
 export const initializeOptions = (type: ViewType) => {
   switch (type) {
@@ -13,10 +12,10 @@ export const initializeOptions = (type: ViewType) => {
 }
 
 export const AXES_SCALE_OPTIONS = {
-  LINEAR: 'linear',
-  LOG: 'log',
-  BASE_2: '2',
-  BASE_10: '10',
+  LINEAR: Scale.Linear,
+  LOG: Scale.Log,
+  BASE_2: Base.Two,
+  BASE_10: Base.Ten,
 }
 
 type DefaultAxis = Pick<Axis, Exclude<keyof Axis, 'bounds'>>
@@ -31,7 +30,7 @@ export const DEFAULT_AXIS: DefaultAxis = {
 
 export const FULL_DEFAULT_AXIS: Axis = {
   ...DEFAULT_AXIS,
-  bounds: ['', ''],
+  bounds: ['', ''] as [string, string],
 }
 
 export const DEFAULT_AXES: Axes = {
