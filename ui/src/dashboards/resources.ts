@@ -12,6 +12,8 @@ import {
   SourceLinks,
   TimeRange,
   QueryConfig,
+  Scale,
+  Base,
 } from 'src/types'
 
 export const dashboard: Dashboard = {
@@ -131,16 +133,16 @@ export const axes: Axes = {
     label: '',
     prefix: '',
     suffix: '',
-    base: '10',
-    scale: 'linear',
+    base: Base.Ten,
+    scale: Scale.Linear,
   },
   y: {
     bounds: ['', ''],
     label: '',
     prefix: '',
     suffix: '',
-    base: '10',
-    scale: 'linear',
+    base: Base.Ten,
+    scale: Scale.Linear,
   },
 }
 

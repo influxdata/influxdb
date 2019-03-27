@@ -26,9 +26,13 @@ export enum DropdownMode {
   Radio = 'radio',
 }
 
-export interface Props {
+interface OwnProps {
   children: JSX.Element[]
   onChange: (value: any) => void
+}
+
+interface DefaultProps {
+  buttonTestID?: string
   selectedID?: string
   buttonColor?: ComponentColor
   buttonSize?: ComponentSize
@@ -42,9 +46,10 @@ export interface Props {
   mode?: DropdownMode
   titleText?: string
   menuHeader?: JSX.Element
-  testID: string
-  buttonTestID: string
+  testID?: string
 }
+
+export type Props = OwnProps & DefaultProps
 
 interface State {
   expanded: boolean
@@ -52,7 +57,7 @@ interface State {
 
 @ErrorHandling
 class Dropdown extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     buttonColor: ComponentColor.Default,
     buttonSize: ComponentSize.Small,
     status: ComponentStatus.Default,
@@ -61,6 +66,8 @@ class Dropdown extends Component<Props, State> {
     menuColor: DropdownMenuColors.Sapphire,
     mode: DropdownMode.Radio,
     titleText: '',
+    testID: 'dropdown',
+    buttonTestID: 'dropdown-button',
   }
 
   public static Button = DropdownButton

@@ -17,13 +17,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   selected: number
   onChoose: (milliseconds: number) => void
-  showManualRefresh?: boolean
+  showManualRefresh: boolean
   onManualRefresh?: () => void
 }
 
 @ErrorHandling
 class AutoRefreshDropdown extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     showManualRefresh: true,
   }
 

@@ -3,12 +3,12 @@ import classnames from 'classnames'
 
 interface Props {
   children: ReactNode
-  maxWidth?: number
+  maxWidth: number
   customClass?: string
 }
 
 class OverlayContainer extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     maxWidth: 800,
   }
 

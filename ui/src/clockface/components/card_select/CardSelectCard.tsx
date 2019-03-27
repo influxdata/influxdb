@@ -4,19 +4,24 @@ import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import ProtoboardIcon from 'src/clockface/components/card_select/ProtoboardIcon'
 
-interface Props {
+interface OwnProps {
   id: string
-  name?: string
   label: string
-  image?: StatelessComponent
-  checked?: boolean
-  disabled?: boolean
   onClick: () => void
 }
 
+interface DefaultProps {
+  name?: string
+  image?: StatelessComponent
+  checked?: boolean
+  disabled?: boolean
+}
+
+type Props = OwnProps & DefaultProps
+
 @ErrorHandling
 class CardSelectCard extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     checked: false,
     disabled: false,
   }

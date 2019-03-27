@@ -14,19 +14,25 @@ import './ContextMenu.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface OwnProps {
   children: JSX.Element | JSX.Element[]
   align?: Alignment
   className?: string
+}
+
+interface DefaultProps {
+  align?: Alignment
 }
 
 interface State {
   boostZIndex: boolean
 }
 
+type Props = OwnProps & DefaultProps
+
 @ErrorHandling
 class Context extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     align: Alignment.Right,
   }
 

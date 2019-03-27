@@ -7,10 +7,10 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children?: JSX.Element[]
-  cellWidth?: number
-  recalculateFlag?: string
-  width?: number
-  wait?: number
+  cellWidth: number
+  recalculateFlag: string
+  width: number
+  wait: number
 }
 
 interface State {
@@ -22,7 +22,7 @@ interface State {
 }
 @ErrorHandling
 class GridSizer extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     cellWidth: 150,
     recalculateFlag: '',
     width: null,

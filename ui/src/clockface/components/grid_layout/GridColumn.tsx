@@ -5,8 +5,11 @@ import classnames from 'classnames'
 // Types
 import {Columns} from 'src/clockface/types'
 
-interface Props {
+interface OwnProps {
   children: JSX.Element[] | JSX.Element
+}
+
+interface DefaultProps {
   widthXS?: Columns
   widthSM?: Columns
   widthMD?: Columns
@@ -17,8 +20,10 @@ interface Props {
   offsetLG?: Columns
 }
 
+type Props = DefaultProps & OwnProps
+
 class GridColumn extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps: DefaultProps = {
     widthXS: Columns.Twelve,
   }
 

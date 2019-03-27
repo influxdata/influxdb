@@ -18,11 +18,12 @@ interface Props extends DropdownProps {
   searchTerm?: string
   searchPlaceholder?: string
   onChangeSearchTerm?: (value: string) => void
+  buttonSize: ComponentSize
 }
 
 @ErrorHandling
 export default class SearchableDropdown extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     buttonSize: ComponentSize.Small,
   }
 

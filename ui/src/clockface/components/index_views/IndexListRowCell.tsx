@@ -10,14 +10,14 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: any
-  alignment?: Alignment
-  revealOnHover?: boolean
-  testID?: string
+  alignment: Alignment
+  revealOnHover: boolean
+  testID: string
 }
 
 @ErrorHandling
 class IndexListRowCell extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     alignment: Alignment.Left,
     revealOnHover: false,
     testID: 'table-cell',
