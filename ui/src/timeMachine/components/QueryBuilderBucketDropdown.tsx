@@ -13,7 +13,7 @@ import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface StateProps {

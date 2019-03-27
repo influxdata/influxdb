@@ -16,13 +16,17 @@ import (
 // NewStoreTaskMeta returns a new StoreTaskMeta based on the given request and parsed options.
 func NewStoreTaskMeta(req CreateTaskRequest, o options.Options) StoreTaskMeta {
 	stm := StoreTaskMeta{
-		MaxConcurrency:  int32(o.Concurrency),
 		Status:          string(req.Status),
 		LatestCompleted: req.ScheduleAfter,
 		CreatedAt:       time.Now().Unix(),
 		EffectiveCron:   o.EffectiveCronString(),
-		Offset:          int32(o.Offset / time.Second),
 		AuthorizationID: uint64(req.AuthorizationID),
+	}
+	if o.Concurrency != nil {
+		stm.MaxConcurrency = int32(*o.Concurrency)
+	}
+	if o.Offset != nil {
+		stm.Offset = int32(*o.Offset / time.Second)
 	}
 
 	if stm.Status == "" {

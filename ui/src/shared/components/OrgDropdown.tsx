@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Dropdown} from 'src/clockface'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/types'
 
 interface OwnProps {
   selectedOrgID: string

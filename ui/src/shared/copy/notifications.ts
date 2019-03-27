@@ -622,40 +622,40 @@ export const getVariableFailed = (): Notification => ({
   message: 'Failed to fetch variable',
 })
 
-export const createVariableFailed = (): Notification => ({
+export const createVariableFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
-  message: `Failed to create variable.`,
+  message: `Failed to create variable: ${error}`,
 })
 
 export const createVariableSuccess = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'cube',
-  message: `Successfully created new variable ${name}.`,
+  message: `Successfully created new variable: ${name}.`,
 })
 
-export const deleteVariableFailed = (): Notification => ({
+export const deleteVariableFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
-  message: `Failed to delete variable.`,
+  message: `Failed to delete variable: ${error}`,
 })
 
-export const deleteVariableSuccess = (name: string): Notification => ({
+export const deleteVariableSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   icon: 'cube',
-  message: `Successfully deleted variable ${name}.`,
+  message: 'Successfully deleted the variable',
 })
 
-export const updateVariableFailed = (): Notification => ({
+export const updateVariableFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
-  message: `Failed to update variable.`,
+  message: `Failed to update variable: ${error}`,
 })
 
 export const updateVariableSuccess = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'cube',
-  message: `Successfully updated variable ${name}.`,
+  message: `Successfully updated variable: ${name}.`,
 })
 
 //  Rule Builder Notifications
@@ -733,7 +733,7 @@ export const copyToClipboardSuccess = (
 ): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  message: `${title}'${text}' has been copied to clipboard.`,
+  message: `${title} '${text}' has been copied to clipboard.`,
 })
 
 export const copyToClipboardFailed = (
@@ -819,6 +819,7 @@ export const importTaskFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to import task: ${error}`,
 })
+
 export const importDashboardSucceeded = (): Notification => ({
   ...defaultSuccessNotification,
   message: `Successfully imported dashboard.`,
@@ -827,6 +828,41 @@ export const importDashboardSucceeded = (): Notification => ({
 export const importDashboardFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to import dashboard: ${error}`,
+})
+
+export const importTemplateSucceeded = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully imported template.`,
+})
+
+export const importTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to import template: ${error}`,
+})
+
+export const createTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to export resource as template: ${error}`,
+})
+
+export const deleteTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete template: ${error}`,
+})
+
+export const deleteTemplateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Template was deleted successfully',
+})
+
+export const cloneTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to clone template: ${error}`,
+})
+
+export const cloneTemplateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Template cloned successfully',
 })
 
 export const resourceSavedAsTemplate = (

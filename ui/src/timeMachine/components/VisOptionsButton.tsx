@@ -17,8 +17,8 @@ import {setActiveTab} from 'src/timeMachine/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
-import {AppState} from 'src/types/v2'
+import {TimeMachineTab} from 'src/types/timeMachine'
+import {AppState} from 'src/types'
 
 interface StateProps {
   activeTab: TimeMachineTab

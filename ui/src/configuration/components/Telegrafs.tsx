@@ -4,19 +4,12 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Grid, Tabs} from 'src/clockface'
 import CollectorList from 'src/organizations/components/CollectorList'
 import TelegrafExplainer from 'src/organizations/components/TelegrafExplainer'
 import TelegrafInstructionsOverlay from 'src/organizations/components/TelegrafInstructionsOverlay'
 import TelegrafConfigOverlay from 'src/organizations/components/TelegrafConfigOverlay'
-import {
-  Button,
-  ComponentColor,
-  IconFont,
-  ComponentSize,
-  Columns,
-  ComponentStatus,
-} from '@influxdata/clockface'
-import {EmptyState, Grid, Input, InputType, Tabs} from 'src/clockface'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
@@ -41,10 +34,19 @@ import {deleteAuthorization} from 'src/authorizations/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Telegraf, Bucket, Organization} from '@influxdata/influx'
+import {ITelegraf as Telegraf, Bucket, Organization} from '@influxdata/influx'
+import {
+  Columns,
+  IconFont,
+  InputType,
+  ComponentSize,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
-import {AppState} from 'src/types/v2'
+import {DataLoaderType} from 'src/types/dataLoaders'
+import {AppState} from 'src/types'
+import {TOKEN_LABEL} from 'src/labels/constants'
 
 interface StateProps {
   org: Organization
@@ -298,11 +300,10 @@ export class Telegrafs extends PureComponent<Props, State> {
   private handleDeleteTelegraf = async (telegraf: Telegraf) => {
     this.props.deleteTelegraf(telegraf.id, telegraf.name)
 
-    // hack to remove stale tokens from system when telegraf is deleted
-    const label = telegraf.labels.find(l => l.name == 'token')
+    // stale tokens from system when telegraf is deleted
+    const label = telegraf.labels.find(l => l.name === TOKEN_LABEL)
 
     if (label) {
-      this.props.deleteLabel(label.id)
       this.props.deleteAuthorization(label.properties.tokenID)
     }
   }

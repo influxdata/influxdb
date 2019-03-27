@@ -8,7 +8,7 @@ import StreamingSelector from 'src/dataLoaders/components/collectorsWizard/selec
 import {ComponentStatus} from 'src/clockface'
 
 // Types
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/dataLoaders'
 
 // Dummy Data
 import {

@@ -18,6 +18,7 @@ import (
 var telegrafCmpOptions = cmp.Options{
 	cmpopts.IgnoreUnexported(
 		inputs.CPUStats{},
+		inputs.Kernel{},
 		inputs.Kubernetes{},
 		inputs.File{},
 		outputs.File{},
@@ -84,7 +85,11 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 				"name": "cpu",
 				"type": "input",
 				"comment": "cpu collect cpu metrics",
-				"config":{}
+				"config": {}
+			},
+			{
+				"name": "kernel",
+				"type": "input"
 			},
 			{
 				"name": "kubernetes",
@@ -117,6 +122,9 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 			{
 				Comment: "cpu collect cpu metrics",
 				Config:  &inputs.CPUStats{},
+			},
+			{
+				Config: &inputs.Kernel{},
 			},
 			{
 				Config: &inputs.Kubernetes{

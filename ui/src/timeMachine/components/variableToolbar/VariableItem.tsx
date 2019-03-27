@@ -7,12 +7,17 @@ import BoxTooltip from 'src/shared/components/BoxTooltip'
 
 // Types
 import {Variable} from '@influxdata/influx'
+import VariableLabel from 'src/timeMachine/components/variableToolbar/VariableLabel'
 
 interface Props {
   variable: Variable
+  onClickVariable: (variableName: string) => void
 }
 
-const VariableItem: FunctionComponent<Props> = ({variable}) => {
+const VariableItem: FunctionComponent<Props> = ({
+  variable,
+  onClickVariable,
+}) => {
   const trigger = useRef<HTMLDivElement>(null)
   const [tooltipVisible, setTooltipVisible] = useState(false)
 
@@ -29,7 +34,7 @@ const VariableItem: FunctionComponent<Props> = ({variable}) => {
       onMouseLeave={() => setTooltipVisible(false)}
       ref={trigger}
     >
-      <div className="variables-toolbar--label">{variable.name}</div>
+      <VariableLabel name={variable.name} onClickVariable={onClickVariable} />
       {tooltipVisible && (
         <BoxTooltip triggerRect={triggerRect as DOMRect}>
           <VariableTooltipContents variableID={variable.id} />

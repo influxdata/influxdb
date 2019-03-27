@@ -91,6 +91,12 @@ func (t *floatTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *floatTable) advance() bool {
+	for _, cb := range t.colBufs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+
 	a := t.cur.Next()
 	t.l = a.Len()
 	if t.l == 0 {
@@ -320,6 +326,12 @@ func (t *integerTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *integerTable) advance() bool {
+	for _, cb := range t.colBufs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+
 	a := t.cur.Next()
 	t.l = a.Len()
 	if t.l == 0 {
@@ -549,6 +561,12 @@ func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *unsignedTable) advance() bool {
+	for _, cb := range t.colBufs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+
 	a := t.cur.Next()
 	t.l = a.Len()
 	if t.l == 0 {
@@ -778,6 +796,12 @@ func (t *stringTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *stringTable) advance() bool {
+	for _, cb := range t.colBufs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+
 	a := t.cur.Next()
 	t.l = a.Len()
 	if t.l == 0 {
@@ -1007,6 +1031,12 @@ func (t *booleanTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *booleanTable) advance() bool {
+	for _, cb := range t.colBufs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+
 	a := t.cur.Next()
 	t.l = a.Len()
 	if t.l == 0 {

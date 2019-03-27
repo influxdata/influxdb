@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
@@ -248,7 +249,15 @@ func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		l.ID = s.IDGenerator.ID()
 
-		return s.putLabel(ctx, tx, l)
+		if err := s.putLabel(ctx, tx, l); err != nil {
+			return err
+		}
+
+		if err := s.createLabelUserResourceMappings(ctx, tx, l); err != nil {
+			return err
+		}
+
+		return nil
 	})
 
 	if err != nil {
@@ -269,6 +278,36 @@ func (s *Service) PutLabel(ctx context.Context, l *influxdb.Label) error {
 		}
 		return err
 	})
+}
+
+func (s *Service) createLabelUserResourceMappings(ctx context.Context, tx Tx, l *influxdb.Label) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	ms, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+		ResourceType: influxdb.OrgsResourceType,
+		ResourceID:   l.OrganizationID,
+	})
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	for _, m := range ms {
+		if err := s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
+			ResourceType: influxdb.LabelsResourceType,
+			ResourceID:   l.ID,
+			UserID:       m.UserID,
+			UserType:     m.UserType,
+		}); err != nil {
+			return &influxdb.Error{
+				Err: err,
+			}
+		}
+	}
+
+	return nil
 }
 
 func labelMappingKey(m *influxdb.LabelMapping) ([]byte, error) {
@@ -475,5 +514,18 @@ func (s *Service) deleteLabel(ctx context.Context, tx Tx, id influxdb.ID) error 
 		return err
 	}
 
-	return b.Delete(encodedID)
+	if err := b.Delete(encodedID); err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	if err := s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+		ResourceID:   id,
+		ResourceType: influxdb.LabelsResourceType,
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }

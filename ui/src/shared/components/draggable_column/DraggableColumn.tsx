@@ -14,12 +14,13 @@ import {
 } from 'react-dnd'
 
 // Components
-import {Input, ComponentStatus} from 'src/clockface'
+import {Input} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
+import {ComponentStatus} from '@influxdata/clockface'
 import {LogsTableColumn} from 'src/types/logs'
 
 // Constants

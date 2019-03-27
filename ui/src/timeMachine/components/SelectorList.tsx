@@ -2,8 +2,6 @@ import React, {SFC} from 'react'
 
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
-import 'src/timeMachine/components/SelectorList.scss'
-
 interface Props {
   items: string[]
   selectedItems: string[]

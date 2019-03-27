@@ -19,17 +19,17 @@ import {
   setTaskOption,
   clearTask,
   setAllTaskOptions,
-} from 'src/tasks/actions/v2'
+} from 'src/tasks/actions'
 
 // Types
 import {Organization, ITask as Task} from '@influxdata/influx'
-import {State as TasksState} from 'src/tasks/reducers/v2'
+import {State as TasksState} from 'src/tasks/reducers'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {Links} from 'src/types/v2'
+import {Links} from 'src/types'
 
 interface PassedInProps {
   router: InjectedRouter

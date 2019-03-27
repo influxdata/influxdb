@@ -9,12 +9,12 @@ import GetResources, {
 } from 'src/configuration/components/GetResources'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
-import Labels from 'src/configuration/components/Labels'
 import Settings from 'src/me/components/account/Settings'
 import Tokens from 'src/me/components/account/Tokens'
 import Buckets from 'src/configuration/components/Buckets'
 import Telegrafs from 'src/configuration/components/Telegrafs'
 import Variables from 'src/configuration/components/Variables'
+import Scrapers from 'src/configuration/components/Scrapers'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -42,66 +42,68 @@ class ConfigurationPage extends Component<Props> {
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
-            <TabbedPage
-              name={'Configuration'}
-              parentUrl={`/configuration`}
-              activeTabUrl={tab}
-            >
-              <TabbedPageSection
-                id="labels_tab"
-                url="labels_tab"
-                title="Labels"
+            <GetResources resource={ResourceTypes.Authorizations}>
+              <TabbedPage
+                name="Configuration"
+                parentUrl="/configuration"
+                activeTabUrl={tab}
               >
-                <GetResources resource={ResourceTypes.Labels}>
-                  <Labels />
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="buckets_tab"
-                url="buckets_tab"
-                title="Buckets"
-              >
-                <GetResources resource={ResourceTypes.Buckets}>
-                  <Buckets />
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="telegrafs_tab"
-                url="telegrafs_tab"
-                title="Telegraf"
-              >
-                <GetResources resource={ResourceTypes.Buckets}>
-                  <GetResources resource={ResourceTypes.Telegrafs}>
-                    <Telegrafs />
+                <TabbedPageSection
+                  id="buckets_tab"
+                  url="buckets_tab"
+                  title="Buckets"
+                >
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <Buckets />
                   </GetResources>
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="variables_tab"
-                url="variables_tab"
-                title="Variables"
-              >
-                <GetResources resource={ResourceTypes.Variables}>
-                  <Variables />
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="tokens_tab"
-                url="tokens_tab"
-                title="Tokens"
-              >
-                <GetResources resource={ResourceTypes.Authorizations}>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="telegrafs_tab"
+                  url="telegrafs_tab"
+                  title="Telegraf"
+                >
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <GetResources resource={ResourceTypes.Telegrafs}>
+                      <Telegrafs />
+                    </GetResources>
+                  </GetResources>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="scrapers_tab"
+                  url="scrapers_tab"
+                  title="Scrapers"
+                >
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <GetResources resource={ResourceTypes.Scrapers}>
+                      <Scrapers />
+                    </GetResources>
+                  </GetResources>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="variables_tab"
+                  url="variables_tab"
+                  title="Variables"
+                >
+                  <GetResources resource={ResourceTypes.Variables}>
+                    <Variables />
+                  </GetResources>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="tokens_tab"
+                  url="tokens_tab"
+                  title="Tokens"
+                >
                   <Tokens />
-                </GetResources>
-              </TabbedPageSection>
-              <TabbedPageSection
-                id="settings_tab"
-                url="settings_tab"
-                title="Profile"
-              >
-                <Settings />
-              </TabbedPageSection>
-            </TabbedPage>
+                </TabbedPageSection>
+                <TabbedPageSection
+                  id="settings_tab"
+                  url="settings_tab"
+                  title="Profile"
+                >
+                  <Settings />
+                </TabbedPageSection>
+              </TabbedPage>
+            </GetResources>
           </div>
         </Page.Contents>
       </Page>

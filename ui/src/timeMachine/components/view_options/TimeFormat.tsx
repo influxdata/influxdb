@@ -1,17 +1,8 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {
-  ComponentSpacer,
-  Stack,
-  Alignment,
-  Form,
-  Grid,
-  Input,
-  InputType,
-  Dropdown,
-  Columns,
-} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
+import {Grid, Dropdown} from 'src/clockface'
 
 // Constants
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
@@ -21,8 +12,14 @@ import {
   TIME_FORMAT_TOOLTIP_LINK,
 } from 'src/dashboards/constants'
 
-// Styles
-import 'src/timeMachine/components/view_options/TimeFormat.scss'
+// Types
+import {
+  Stack,
+  Columns,
+  Alignment,
+  InputType,
+  ComponentSpacer,
+} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

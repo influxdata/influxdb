@@ -1,6 +1,6 @@
 import {buildQuery} from 'src/timeMachine/utils/queryBuilder'
 
-import {BuilderConfig} from 'src/types/v2'
+import {BuilderConfig} from 'src/types'
 
 describe('buildQuery', () => {
   test('single tag', () => {

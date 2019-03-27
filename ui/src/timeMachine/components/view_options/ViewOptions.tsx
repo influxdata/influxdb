@@ -14,10 +14,7 @@ import {Grid} from 'src/clockface'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {View, NewView, AppState} from 'src/types/v2'
-
-// Styles
-import './ViewOptions.scss'
+import {View, NewView, AppState} from 'src/types'
 
 interface DispatchProps {
   onUpdateType: typeof setType

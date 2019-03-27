@@ -4,7 +4,7 @@ import {
   taskToTemplate,
 } from 'src/shared/utils/resourceToTemplate'
 import {TemplateType} from '@influxdata/influx'
-import {Label, Task, TaskStatus} from 'src/types/v2'
+import {Label, Task, TaskStatus} from 'src/types'
 
 const myfavelabel: Label = {
   id: '1',

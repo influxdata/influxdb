@@ -7,8 +7,6 @@ import {
   ButtonType,
 } from '@influxdata/clockface'
 
-import './DragAndDrop.scss'
-
 interface Props {
   fileTypesToAccept?: string
   containerClass?: string

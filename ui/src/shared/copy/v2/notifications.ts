@@ -213,6 +213,16 @@ export const telegrafUpdateFailed = (telegrafName: string): Notification => ({
   message: `Failed to update telegraf: "${telegrafName}"`,
 })
 
+export const addTelelgrafLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to add label to telegraf config`,
+})
+
+export const removeTelelgrafLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to remove label from telegraf config`,
+})
+
 export const authorizationsGetFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to get tokens',

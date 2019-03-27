@@ -1,9 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-// Styles
-import 'src/me/graphics/ExploreGraphic.scss'
-
 export default class GettingStarted extends PureComponent {
   public render() {
     return (

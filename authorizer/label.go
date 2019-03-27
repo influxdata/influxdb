@@ -21,16 +21,8 @@ func NewLabelService(s influxdb.LabelService) *LabelService {
 	}
 }
 
-func newLabelPermission(a influxdb.Action, id influxdb.ID) (*influxdb.Permission, error) {
-	p := &influxdb.Permission{
-		Action: a,
-		Resource: influxdb.Resource{
-			Type: influxdb.LabelsResourceType,
-			ID:   &id,
-		},
-	}
-
-	return p, p.Valid()
+func newLabelPermission(a influxdb.Action, orgID, id influxdb.ID) (*influxdb.Permission, error) {
+	return influxdb.NewPermissionAtID(id, a, influxdb.LabelsResourceType, orgID)
 }
 
 func newResourcePermission(a influxdb.Action, id influxdb.ID, resourceType influxdb.ResourceType) (*influxdb.Permission, error) {
@@ -62,8 +54,8 @@ func authorizeLabelMappingAction(ctx context.Context, action influxdb.Action, id
 	return nil
 }
 
-func authorizeReadLabel(ctx context.Context, id influxdb.ID) error {
-	p, err := newLabelPermission(influxdb.ReadAction, id)
+func authorizeReadLabel(ctx context.Context, orgID, id influxdb.ID) error {
+	p, err := newLabelPermission(influxdb.ReadAction, orgID, id)
 	if err != nil {
 		return err
 	}
@@ -75,8 +67,8 @@ func authorizeReadLabel(ctx context.Context, id influxdb.ID) error {
 	return nil
 }
 
-func authorizeWriteLabel(ctx context.Context, id influxdb.ID) error {
-	p, err := newLabelPermission(influxdb.WriteAction, id)
+func authorizeWriteLabel(ctx context.Context, orgID, id influxdb.ID) error {
+	p, err := newLabelPermission(influxdb.WriteAction, orgID, id)
 	if err != nil {
 		return err
 	}
@@ -90,12 +82,12 @@ func authorizeWriteLabel(ctx context.Context, id influxdb.ID) error {
 
 // FindLabelByID checks to see if the authorizer on context has read access to the label id provided.
 func (s *LabelService) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
-	if err := authorizeReadLabel(ctx, id); err != nil {
+	l, err := s.s.FindLabelByID(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 
-	l, err := s.s.FindLabelByID(ctx, id)
-	if err != nil {
+	if err := authorizeReadLabel(ctx, l.OrganizationID, id); err != nil {
 		return nil, err
 	}
 
@@ -115,12 +107,15 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	labels := ls[:0]
 	for _, l := range ls {
-		err := authorizeReadLabel(ctx, l.ID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		err := authorizeReadLabel(ctx, l.OrganizationID, l.ID)
+		if err != nil &&
+			influxdb.ErrorCode(err) != influxdb.EUnauthorized &&
+			influxdb.ErrorCode(err) != influxdb.EInvalid {
 			return nil, err
 		}
 
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if influxdb.ErrorCode(err) == influxdb.EUnauthorized ||
+			influxdb.ErrorCode(err) == influxdb.EInvalid {
 			continue
 		}
 
@@ -144,7 +139,7 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 
 	labels := ls[:0]
 	for _, l := range ls {
-		err := authorizeReadLabel(ctx, l.ID)
+		err := authorizeReadLabel(ctx, l.OrganizationID, l.ID)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, err
 		}
@@ -159,14 +154,9 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 	return labels, nil
 }
 
-// CreateLabel checks to see if the authorizer on context has write access to the global labels resource.
+// CreateLabel checks to see if the authorizer on context has read access to the new label's org.
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
-	p, err := influxdb.NewGlobalPermission(influxdb.WriteAction, influxdb.LabelsResourceType)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
+	if err := authorizeReadOrg(ctx, l.OrganizationID); err != nil {
 		return err
 	}
 
@@ -175,7 +165,12 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 
 // CreateLabelMapping checks to see if the authorizer on context has write access to the label and the resource contained by the label mapping in creation.
 func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	if err := authorizeWriteLabel(ctx, m.LabelID); err != nil {
+	l, err := s.s.FindLabelByID(ctx, m.LabelID)
+	if err != nil {
+		return err
+	}
+
+	if err := authorizeWriteLabel(ctx, l.OrganizationID, m.LabelID); err != nil {
 		return err
 	}
 
@@ -188,12 +183,12 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.Label
 
 // UpdateLabel checks to see if the authorizer on context has write access to the label provided.
 func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
-	_, err := s.s.FindLabelByID(ctx, id)
+	l, err := s.s.FindLabelByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := authorizeWriteLabel(ctx, id); err != nil {
+	if err := authorizeWriteLabel(ctx, l.OrganizationID, id); err != nil {
 		return nil, err
 	}
 
@@ -202,12 +197,12 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd infl
 
 // DeleteLabel checks to see if the authorizer on context has write access to the label provided.
 func (s *LabelService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
-	_, err := s.s.FindLabelByID(ctx, id)
+	l, err := s.s.FindLabelByID(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	if err := authorizeWriteLabel(ctx, id); err != nil {
+	if err := authorizeWriteLabel(ctx, l.OrganizationID, id); err != nil {
 		return err
 	}
 
@@ -216,12 +211,12 @@ func (s *LabelService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 
 // DeleteLabelMapping checks to see if the authorizer on context has write access to the label and the resource of the label mapping to delete.
 func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	_, err := s.s.FindLabelByID(ctx, m.LabelID)
+	l, err := s.s.FindLabelByID(ctx, m.LabelID)
 	if err != nil {
 		return err
 	}
 
-	if err := authorizeWriteLabel(ctx, m.LabelID); err != nil {
+	if err := authorizeWriteLabel(ctx, l.OrganizationID, m.LabelID); err != nil {
 		return err
 	}
 

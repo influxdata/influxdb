@@ -1,6 +1,6 @@
 import React from 'react'
 
-import {ViewType} from 'src/types/v2/dashboards'
+import {ViewType} from 'src/types/dashboards'
 
 const GRAPHIC_SVGS = {
   [ViewType.Histogram]: (

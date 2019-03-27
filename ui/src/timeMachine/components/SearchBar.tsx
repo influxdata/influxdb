@@ -3,13 +3,10 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {debounce} from 'lodash'
 
 // Components
-import {Input, IconFont} from 'src/clockface'
+import {Input} from '@influxdata/clockface'
 
 // Types
-import {InputType} from 'src/clockface/components/inputs/Input'
-
-// Styles
-import 'src/timeMachine/components/SearchBar.scss'
+import {InputType, IconFont} from '@influxdata/clockface'
 
 interface Props {
   onSearch: (s: string) => void

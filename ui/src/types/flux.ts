@@ -1,5 +1,5 @@
 // function definitions
-import {Source} from 'src/types/v2'
+import {Source} from 'src/types'
 export type OnDeleteFuncNode = (ids: DeleteFuncNodeArgs) => void
 export type OnChangeArg = (inputArg: InputArg) => void
 export type OnAddNode = (
@@ -144,7 +144,7 @@ export interface Suggestion {
   }
 }
 
-export interface Links {
+export interface FluxLinks {
   self: string
   suggestions: string
   ast: string

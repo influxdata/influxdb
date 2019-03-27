@@ -11,7 +11,7 @@ import persistStateEnhancer from './persistStateEnhancer'
 
 // v2 reducers
 import meReducer from 'src/shared/reducers/v2/me'
-import tasksReducer from 'src/tasks/reducers/v2'
+import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
 import dashboardsReducer from 'src/dashboards/reducers/dashboards'
 import viewsReducer from 'src/dashboards/reducers/views'
@@ -27,10 +27,13 @@ import {labelsReducer} from 'src/labels/reducers'
 import {bucketsReducer} from 'src/buckets/reducers'
 import {telegrafsReducer} from 'src/telegrafs/reducers'
 import {authorizationsReducer} from 'src/authorizations/reducers'
+import templatesReducer from 'src/templates/reducers'
+import {scrapersReducer} from 'src/scrapers/reducers'
+import {userSettingsReducer} from 'src/userSettings/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
@@ -54,6 +57,9 @@ export const rootReducer = combineReducers<ReducerState>({
   buckets: bucketsReducer,
   telegrafs: telegrafsReducer,
   tokens: authorizationsReducer,
+  scrapers: scrapersReducer,
+  templates: templatesReducer,
+  userSettings: userSettingsReducer,
   VERSION: () => '',
 })
 

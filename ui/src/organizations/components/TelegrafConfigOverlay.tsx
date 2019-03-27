@@ -20,11 +20,8 @@ import {client} from 'src/utils/api'
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-// Styles
-import 'src/organizations/components/TelegrafConfigOverlay.scss'
-
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   visible: boolean
@@ -63,7 +60,7 @@ export class TelegrafConfigOverlay extends PureComponent<Props> {
           <Overlay.Footer>
             <Button
               color={ComponentColor.Secondary}
-              text={'Download Config'}
+              text="Download Config"
               onClick={this.handleDownloadConfig}
             />
           </Overlay.Footer>

@@ -8,18 +8,23 @@ import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Utils
 import {getView} from 'src/dashboards/selectors'
 
 // Types
-import {TimeRange} from 'src/types'
-import {AppState, ViewType, View, Cell} from 'src/types/v2'
-
-// Styles
-import './Cell.scss'
+import {
+  AppState,
+  ViewType,
+  View,
+  Cell,
+  TimeRange,
+  RemoteDataState,
+} from 'src/types'
 
 interface StateProps {
+  viewsStatus: RemoteDataState
   view: View
 }
 
@@ -31,6 +36,7 @@ interface OwnProps {
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
   onEditCell: () => void
+  onEditNote: (id: string) => void
   onZoom: (range: TimeRange) => void
 }
 
@@ -39,7 +45,14 @@ type Props = StateProps & OwnProps
 @ErrorHandling
 class CellComponent extends Component<Props> {
   public render() {
-    const {onEditCell, onDeleteCell, onCloneCell, cell, view} = this.props
+    const {
+      onEditCell,
+      onEditNote,
+      onDeleteCell,
+      onCloneCell,
+      cell,
+      view,
+    } = this.props
 
     return (
       <>
@@ -51,6 +64,7 @@ class CellComponent extends Component<Props> {
             onDeleteCell={onDeleteCell}
             onCloneCell={onCloneCell}
             onEditCell={onEditCell}
+            onEditNote={onEditNote}
             onCSVDownload={this.handleCSVDownload}
           />
         )}
@@ -96,17 +110,23 @@ class CellComponent extends Component<Props> {
       onZoom,
       view,
       onEditCell,
+      viewsStatus,
     } = this.props
 
     return (
-      <ViewComponent
-        view={view}
-        onZoom={onZoom}
-        timeRange={timeRange}
-        autoRefresh={autoRefresh}
-        manualRefresh={manualRefresh}
-        onEditCell={onEditCell}
-      />
+      <SpinnerContainer
+        loading={viewsStatus}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        <ViewComponent
+          view={view}
+          onZoom={onZoom}
+          timeRange={timeRange}
+          autoRefresh={autoRefresh}
+          manualRefresh={manualRefresh}
+          onEditCell={onEditCell}
+        />
+      </SpinnerContainer>
     )
   }
 
@@ -115,9 +135,13 @@ class CellComponent extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, ownProps: OwnProps): StateProps => ({
-  view: getView(state, ownProps.cell.id),
-})
+const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+  const {
+    views: {status},
+  } = state
+
+  return {view: getView(state, ownProps.cell.id), viewsStatus: status}
+}
 
 export default connect<StateProps, {}, OwnProps>(
   mstp,

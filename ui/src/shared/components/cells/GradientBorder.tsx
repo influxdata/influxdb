@@ -1,9 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
 
-// Styles
-import './GradientBorder.scss'
-
 const GradientBorder: SFC = () => (
   <div className="gradient-border">
     <div className="gradient-border--top-left" />

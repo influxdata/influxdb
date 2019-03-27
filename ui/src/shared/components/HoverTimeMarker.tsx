@@ -1,7 +1,5 @@
 import React, {SFC} from 'react'
 
-import 'src/shared/components/HoverTimeMarker.scss'
-
 interface Props {
   x: number
 }

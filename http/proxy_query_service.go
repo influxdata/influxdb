@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/iocounter"
 	influxdbcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/julienschmidt/httprouter"
@@ -123,6 +124,18 @@ type ProxyQueryService struct {
 	InsecureSkipVerify bool
 }
 
+func (s *ProxyQueryService) Check(ctx context.Context) check.Response {
+	resp := check.Response{Name: "Query Service"}
+	if err := s.Ping(ctx); err != nil {
+		resp.Status = check.StatusFail
+		resp.Message = err.Error()
+	} else {
+		resp.Status = check.StatusPass
+	}
+
+	return resp
+}
+
 // Ping checks to see if the server is responding to a ping request.
 func (s *ProxyQueryService) Ping(ctx context.Context) error {
 	u, err := newURL(s.Addr, "/ping")
@@ -182,8 +195,13 @@ func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.P
 
 	data := []byte(resp.Trailer.Get(QueryStatsTrailer))
 	var stats flux.Statistics
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return stats, tracing.LogError(span, err)
+	if len(data) > 0 {
+		// FIXME(jsternberg): The queryd service always sends these,
+		// but envoy does not currently return them properly.
+		// https://github.com/influxdata/idpe/issues/2841
+		if err := json.Unmarshal(data, &stats); err != nil {
+			return stats, tracing.LogError(span, err)
+		}
 	}
 
 	return stats, nil

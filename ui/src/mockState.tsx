@@ -3,6 +3,8 @@ import {Provider} from 'react-redux'
 import {Router, createMemoryHistory} from 'react-router'
 
 import {render} from 'react-testing-library'
+import {initialState as initialVariablesState} from 'src/variables/reducers'
+import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
 import configureStore from 'src/store/configureStore'
 
 const localState = {
@@ -12,6 +14,7 @@ const localState = {
     },
     persisted: {autoRefresh: 0, showTemplateControlBar: false},
   },
+  orgs: [{orgID: 'orgid'}],
   VERSION: '2.0.0',
   ranges: [
     {
@@ -23,6 +26,8 @@ const localState = {
       duration: '15m',
     },
   ],
+  variables: initialVariablesState(),
+  userSettings: initialUserSettingsState(),
 }
 
 const history = createMemoryHistory({entries: ['/']})
@@ -32,10 +37,8 @@ export function renderWithRedux(ui, initialState = s => s) {
   const seedState = seedStore.getState()
   const store = configureStore(initialState(seedState), history)
 
-  const provider = <Provider store={store}>{ui}</Provider>
-
   return {
-    ...render(provider),
+    ...render(<Provider store={store}>{ui}</Provider>),
     store,
   }
 }

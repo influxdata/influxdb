@@ -282,7 +282,8 @@ func TestService_handlePostLabel(t *testing.T) {
 			},
 			args: args{
 				label: &platform.Label{
-					Name: "mylabel",
+					Name:           "mylabel",
+					OrganizationID: platformtesting.MustIDBase16("020f755c3c082008"),
 				},
 			},
 			wants: wants{
@@ -295,7 +296,8 @@ func TestService_handlePostLabel(t *testing.T) {
   },
   "label": {
     "id": "020f755c3c082000",
-    "name": "mylabel"
+    "name": "mylabel",
+		"orgID": "020f755c3c082008"
   }
 }
 `,

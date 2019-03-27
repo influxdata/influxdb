@@ -15,6 +15,8 @@ describe('Variables', () => {
       cy.contains('Create').click()
     })
 
+    cy.getByTestID('dropdown--item New Variable').click()
+
     cy.getByInputName('name').type('Little Variable')
     cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea').type('filter(fn: (r) => r._field == "cpu")', {

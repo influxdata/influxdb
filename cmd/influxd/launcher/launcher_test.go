@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	nethttp "net/http"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/http"
@@ -144,110 +142,6 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 	}
 	if len(exp.Users) != 2 {
 		t.Fatalf("unexpected 2 users: %#+v", exp)
-	}
-}
-
-func TestLauncher_WriteAndQuery(t *testing.T) {
-	l := RunLauncherOrFail(t, ctx)
-	l.SetupOrFail(t)
-	defer l.ShutdownOrFail(t, ctx)
-
-	// Execute single write against the server.
-	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := resp.Body.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if resp.StatusCode != nethttp.StatusNoContent {
-		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
-	}
-
-	// Query server to ensure write persists.
-	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
-	exp := `,result,table,_start,_stop,_time,_value,_measurement,k,_field` + "\r\n" +
-		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,m,v,f` + "\r\n\r\n"
-
-	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
-	if err != nil {
-		t.Fatalf("unexpected error querying server: %v", err)
-	}
-	if diff := cmp.Diff(string(buf), exp); diff != "" {
-		t.Fatal(diff)
-	}
-}
-
-func TestLauncher_BucketDelete(t *testing.T) {
-	l := RunLauncherOrFail(t, ctx)
-	l.SetupOrFail(t)
-	defer l.ShutdownOrFail(t, ctx)
-
-	// Execute single write against the server.
-	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := resp.Body.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if resp.StatusCode != nethttp.StatusNoContent {
-		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
-	}
-
-	// Query server to ensure write persists.
-	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
-	exp := `,result,table,_start,_stop,_time,_value,_measurement,k,_field` + "\r\n" +
-		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,100,m,v,f` + "\r\n\r\n"
-
-	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
-	if err != nil {
-		t.Fatalf("unexpected error querying server: %v", err)
-	}
-	if diff := cmp.Diff(string(buf), exp); diff != "" {
-		t.Fatal(diff)
-	}
-
-	// Verify the cardinality in the engine.
-	engine := l.Launcher.Engine()
-	if got, exp := engine.SeriesCardinality(), int64(1); got != exp {
-		t.Fatalf("got %d, exp %d", got, exp)
-	}
-
-	// Delete the bucket.
-	if resp, err = nethttp.DefaultClient.Do(l.MustNewHTTPRequest("DELETE", fmt.Sprintf("/api/v2/buckets/%s", l.Bucket.ID), "")); err != nil {
-		t.Fatal(err)
-	}
-
-	if body, err = ioutil.ReadAll(resp.Body); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := resp.Body.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if resp.StatusCode != nethttp.StatusNoContent {
-		t.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
-	}
-
-	// Verify that the data has been removed from the storage engine.
-	if got, exp := engine.SeriesCardinality(), int64(0); got != exp {
-		t.Fatalf("after bucket delete got %d, exp %d", got, exp)
 	}
 }
 

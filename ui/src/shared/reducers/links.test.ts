@@ -2,7 +2,7 @@ import _ from 'lodash'
 
 import linksReducer from 'src/shared/reducers/links'
 import {linksGetCompleted} from 'src/shared/actions/links'
-import {Links} from 'src/types/v2/links'
+import {Links} from 'src/types/links'
 
 const links: Links = {
   authorizations: '/api/v2/authorizations',

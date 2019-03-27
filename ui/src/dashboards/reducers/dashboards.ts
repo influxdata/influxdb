@@ -1,5 +1,5 @@
 import {Action, ActionTypes} from 'src/dashboards/actions'
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 import _ from 'lodash'
 
 type State = Dashboard[]

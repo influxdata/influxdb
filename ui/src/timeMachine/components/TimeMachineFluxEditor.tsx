@@ -7,7 +7,7 @@ import {Position} from 'codemirror'
 import FluxEditor from 'src/shared/components/FluxEditor'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
-import VariablesToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
+import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
 
 // Actions
@@ -16,17 +16,14 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
-import {insertFluxFunction} from 'src/timeMachine/utils/scriptInsertion'
+import {insertFluxFunction} from 'src/timeMachine/utils/insertFunction'
+import {insertVariable} from 'src/timeMachine/utils/insertVariable'
 
 // Constants
 import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
 
 // Types
-import {AppState} from 'src/types/v2'
-
-// Styles
-import 'src/timeMachine/components/TimeMachineFluxEditor.scss'
-import FeatureFlag from 'src/shared/components/FeatureFlag'
+import {AppState} from 'src/types'
 
 interface StateProps {
   activeQueryText: string
@@ -73,13 +70,11 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           return (
             <>
               <div className="toolbar-tab-container">
-                <FeatureFlag>
-                  <ToolbarTab
-                    onSetActive={this.hideFluxFunctions}
-                    name="Variables"
-                    active={!this.state.displayFluxFunctions}
-                  />
-                </FeatureFlag>
+                <ToolbarTab
+                  onSetActive={this.hideFluxFunctions}
+                  name="Variables"
+                  active={!this.state.displayFluxFunctions}
+                />
                 <ToolbarTab
                   onSetActive={this.showFluxFunctions}
                   name="Functions"
@@ -114,11 +109,29 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
       )
     }
 
-    return <VariablesToolbar />
+    return <VariableToolbar onClickVariable={this.handleInsertVariable} />
   }
 
   private handleCursorPosition = (position: Position): void => {
     this.cursorPosition = position
+  }
+
+  private handleInsertVariable = async (
+    variableName: string
+  ): Promise<void> => {
+    const {activeQueryText} = this.props
+    const {line, ch} = this.cursorPosition
+
+    const {updatedScript, cursorPosition} = insertVariable(
+      line,
+      ch,
+      activeQueryText,
+      variableName
+    )
+
+    await this.props.onSetActiveQueryText(updatedScript)
+
+    this.handleCursorPosition(cursorPosition)
   }
 
   private handleInsertFluxFunction = async (

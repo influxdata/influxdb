@@ -3,7 +3,7 @@ import {Dispatch} from 'redux'
 import {getLinks as getLinksAJAX} from 'src/shared/apis/links'
 
 // Types
-import {Links} from 'src/types/v2/links'
+import {Links} from 'src/types/links'
 
 export enum ActionTypes {
   LinksGetRequested = 'LINKS_GET_REQUESTED',

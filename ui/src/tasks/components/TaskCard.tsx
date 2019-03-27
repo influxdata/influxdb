@@ -9,13 +9,16 @@ import {ResourceList, Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
-import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions/v2'
+import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
+
+// Selectors
+import {viewableLabels} from 'src/labels/selectors'
 
 // Types
 import {ComponentColor} from '@influxdata/clockface'
 import {ITask as Task, ILabel} from '@influxdata/influx'
-import {AppState, TaskStatus} from 'src/types/v2'
+import {AppState, TaskStatus} from 'src/types'
 
 // Constants
 import {DEFAULT_TASK_NAME} from 'src/dashboards/constants'
@@ -57,7 +60,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         contextMenu={() => this.contextMenu}
         name={() => (
           <ResourceList.Name
-            onEditName={this.handleNameClick}
+            onClick={this.handleNameClick}
             onUpdate={this.handleRenameTask}
             name={task.name}
             noNameString={DEFAULT_TASK_NAME}
@@ -168,7 +171,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private handleCreateLabel = async (label: ILabel): Promise<void> => {
     try {
-      await this.props.onCreateLabel(label.name, label.properties)
+      await this.props.onCreateLabel(label.orgID, label.name, label.properties)
     } catch (err) {
       throw err
     }
@@ -209,7 +212,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
 const mstp = ({labels}: AppState): StateProps => {
   return {
-    labels: labels.list,
+    labels: viewableLabels(labels.list),
   }
 }
 

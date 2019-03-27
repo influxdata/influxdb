@@ -3,15 +3,15 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
+// Components
+import {Grid, Columns} from 'src/clockface'
 import PrecisionDropdown from 'src/dataLoaders/components/lineProtocolWizard/configure/PrecisionDropdown'
 import TabSelector from 'src/dataLoaders/components/lineProtocolWizard/configure/TabSelector'
 import TabBody from 'src/dataLoaders/components/lineProtocolWizard/configure/TabBody'
 
 // Types
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
-
-// Components
-import {Grid, Columns} from 'src/clockface'
+import {AppState, LineProtocolTab} from 'src/types'
+import {WritePrecision} from '@influxdata/influx'
 
 // Actions
 import {
@@ -21,11 +21,8 @@ import {
   setPrecision,
 } from 'src/dataLoaders/actions/dataLoaders'
 
-import {AppState} from 'src/types/v2/index'
-
 // Styles
 import 'src/clockface/components/auto_input/AutoInput.scss'
-import {WritePrecision} from '@influxdata/influx'
 
 interface OwnProps {
   tabs: LineProtocolTab[]
@@ -93,7 +90,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
               offsetLG={Columns.Two}
             >
               <div className="onboarding--admin-user-form">
-                <div className={'wizard-step--lp-body'}>
+                <div className="wizard-step--lp-body">
                   <TabBody
                     onURLChange={this.handleURLChange}
                     activeLPTab={activeLPTab}

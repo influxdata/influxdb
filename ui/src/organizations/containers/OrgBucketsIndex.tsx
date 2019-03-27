@@ -21,7 +21,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 // Types
 import {Bucket, Organization} from '@influxdata/influx'
 import {client} from 'src/utils/api'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 const getBuckets = async (org: Organization) => {
   return client.buckets.getAllByOrg(org.name)
@@ -58,7 +58,7 @@ class OrgBucketsIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'buckets'} orgID={org.id} />
+              <OrganizationNavigation tab="buckets" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--buckets"

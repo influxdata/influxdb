@@ -149,11 +149,11 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 
 		// Offset represents a delay before execution.
 		// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
-		Offset flux.Duration `json:"offset,omitempty"`
+		Offset *flux.Duration `json:"offset,omitempty"`
 
-		Concurrency int64 `json:"concurrency,omitempty"`
+		Concurrency *int64 `json:"concurrency,omitempty"`
 
-		Retry int64 `json:"retry,omitempty"`
+		Retry *int64 `json:"retry,omitempty"`
 
 		Token string `json:"token,omitempty"`
 	}{}
@@ -164,7 +164,10 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 	t.Options.Name = jo.Name
 	t.Options.Cron = jo.Cron
 	t.Options.Every = time.Duration(jo.Every)
-	t.Options.Offset = time.Duration(jo.Offset)
+	if jo.Offset != nil {
+		offset := time.Duration(*jo.Offset)
+		t.Options.Offset = &offset
+	}
 	t.Options.Concurrency = jo.Concurrency
 	t.Options.Retry = jo.Retry
 	t.Flux = jo.Flux
@@ -187,18 +190,21 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 		Every flux.Duration `json:"every,omitempty"`
 
 		// Offset represents a delay before execution.
-		Offset flux.Duration `json:"offset,omitempty"`
+		Offset *flux.Duration `json:"offset,omitempty"`
 
-		Concurrency int64 `json:"concurrency,omitempty"`
+		Concurrency *int64 `json:"concurrency,omitempty"`
 
-		Retry int64 `json:"retry,omitempty"`
+		Retry *int64 `json:"retry,omitempty"`
 
 		Token string `json:"token,omitempty"`
 	}{}
 	jo.Name = t.Options.Name
 	jo.Cron = t.Options.Cron
 	jo.Every = flux.Duration(t.Options.Every)
-	jo.Offset = flux.Duration(t.Options.Offset)
+	if t.Options.Offset != nil {
+		offset := flux.Duration(*t.Options.Offset)
+		jo.Offset = &offset
+	}
 	jo.Concurrency = t.Options.Concurrency
 	jo.Retry = t.Options.Retry
 	jo.Flux = t.Flux
@@ -225,6 +231,7 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 	if t.Flux != nil && *t.Flux != "" {
 		oldFlux = *t.Flux
 	}
+	toDelete := map[string]struct{}{}
 	parsedPKG := parser.ParseSource(oldFlux)
 	if ast.Check(parsedPKG) > 0 {
 		return ast.GetError(parsedPKG)
@@ -245,11 +252,15 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 	if t.Options.Cron != "" {
 		op["cron"] = &ast.StringLiteral{Value: t.Options.Cron}
 	}
-	if t.Options.Offset != 0 {
-		d := ast.Duration{Magnitude: int64(t.Options.Offset), Unit: "ns"}
-		op["offset"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
+	if t.Options.Offset != nil {
+		if *t.Options.Offset != 0 {
+			d := ast.Duration{Magnitude: int64(*t.Options.Offset), Unit: "ns"}
+			op["offset"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
+		} else {
+			toDelete["offset"] = struct{}{}
+		}
 	}
-	if len(op) > 0 {
+	if len(op) > 0 || len(toDelete) > 0 {
 		editFunc := func(opt *ast.OptionStatement) (ast.Expression, error) {
 			a, ok := opt.Assignment.(*ast.VariableAssignment)
 			if !ok {
@@ -260,8 +271,11 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 				return nil, fmt.Errorf("value is is %s, not an object expression", a.Init.Type())
 			}
 			// modify in the keys and values that already are in the ast
-			for _, p := range obj.Properties {
+			for i, p := range obj.Properties {
 				k := p.Key.Key()
+				if _, ok := toDelete[k]; ok {
+					obj.Properties = append(obj.Properties[:i], obj.Properties[i+1:]...)
+				}
 				switch k {
 				case "name":
 					if name, ok := op["name"]; ok && t.Options.Name != "" {
@@ -269,7 +283,7 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 						p.Value = name
 					}
 				case "offset":
-					if offset, ok := op["offset"]; ok && t.Options.Offset != 0 {
+					if offset, ok := op["offset"]; ok && t.Options.Offset != nil {
 						delete(op, "offset")
 						p.Value = offset
 					}

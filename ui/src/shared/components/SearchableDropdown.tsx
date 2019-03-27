@@ -3,17 +3,16 @@ import React, {Component, ChangeEvent} from 'react'
 import {omit} from 'lodash'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Input, ComponentSize} from 'src/clockface'
+import {Input} from '@influxdata/clockface'
 import Dropdown, {
   Props as DropdownProps,
 } from 'src/clockface/components/dropdowns/Dropdown'
 
-// Styles
-import 'src/shared/components/SearchableDropdown.scss'
-
 // Types
-import {DropdownMenuColors} from 'src/clockface/types'
+import {ComponentSize, DropdownMenuColors} from '@influxdata/clockface'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props extends DropdownProps {
   searchTerm?: string

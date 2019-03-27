@@ -48,6 +48,11 @@ import OrgTasksIndex from 'src/organizations/containers/OrgTasksIndex'
 import TaskExportOverlay from 'src/organizations/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/organizations/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
+import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
+import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
+import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
+import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
+import CreateOrgOverlay from './organizations/components/CreateOrgOverlay'
 
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 
@@ -113,8 +118,19 @@ class Root extends PureComponent {
                     <Route component={GetOrganizations}>
                       <Route component={App}>
                         <IndexRoute component={MePage} />
+
+                        <Route
+                          path="organizations"
+                          component={OrganizationsIndex}
+                        >
+                          <Route path="new" component={CreateOrgOverlay} />
+                        </Route>
+
                         <Route path="organizations">
                           <IndexRoute component={OrganizationsIndex} />
+                          <Route component={OrganizationsIndex}>
+                            <Route path="new" component={CreateOrgOverlay} />
+                          </Route>
                           <Route path=":orgID">
                             <Route path="buckets" component={OrgBucketIndex} />
                             <Route
@@ -122,12 +138,12 @@ class Root extends PureComponent {
                               component={OrgDashboardsIndex}
                             >
                               <Route
-                                path=":dashboardID/export"
-                                component={DashboardExportOverlay}
-                              />
-                              <Route
                                 path="import"
                                 component={DashboardImportOverlay}
+                              />
+                              <Route
+                                path=":dashboardID/export"
+                                component={DashboardExportOverlay}
                               />
                             </Route>
                             <Route path="members" component={OrgMembersIndex} />
@@ -136,6 +152,19 @@ class Root extends PureComponent {
                               component={OrgTelegrafsIndex}
                             />
                             <Route
+                              path="templates"
+                              component={OrgTemplatesIndex}
+                            >
+                              <Route
+                                path="import"
+                                component={TemplateImportOverlay}
+                              />
+                              <Route
+                                path=":id/export"
+                                component={TemplateExportOverlay}
+                              />
+                            </Route>
+                            <Route
                               path="variables"
                               component={OrgVariablesIndex}
                             />
@@ -143,20 +172,21 @@ class Root extends PureComponent {
                               path="scrapers"
                               component={OrgScrapersIndex}
                             />
-                            <Route path="tasks">
-                              <IndexRoute component={OrgTasksIndex}>
-                                <Route
-                                  path="import"
-                                  component={TaskImportOverlay}
-                                />
-                                <Route
-                                  path=":id/export"
-                                  component={TaskExportOverlay}
-                                />
-                              </IndexRoute>
-                              <Route path="new" component={OrgTaskPage} />
-                              <Route path=":id" component={OrgTaskEditPage} />
+                            <Route path="tasks/new" component={OrgTaskPage} />
+                            <Route path="tasks" component={OrgTasksIndex}>
+                              <Route
+                                path="import"
+                                component={TaskImportOverlay}
+                              />
+                              <Route
+                                path=":id/export"
+                                component={TaskExportOverlay}
+                              />
                             </Route>
+                            <Route
+                              path="tasks/:id"
+                              component={OrgTaskEditPage}
+                            />
                           </Route>
                         </Route>
                         <Route path="tasks" component={TasksPage}>
@@ -175,22 +205,31 @@ class Root extends PureComponent {
                         >
                           <Route path="save" component={SaveAsOverlay} />
                         </Route>
-                        <Route path="dashboards">
-                          <IndexRoute component={DashboardsIndex} />
-                          <Route path=":dashboardID" component={DashboardPage}>
-                            <Route path="cells">
-                              <Route path="new" component={VEO} />
-                              <Route path=":cellID/edit" component={VEO} />
-                            </Route>
-                          </Route>
-                          <Route
-                            path=":dashboardID/export"
-                            component={DashboardExportOverlay}
-                          />
+                        <Route path="dashboards" component={DashboardsIndex}>
                           <Route
                             path="import"
                             component={DashboardImportOverlay}
                           />
+                          <Route
+                            path=":dashboardID/export"
+                            component={DashboardExportOverlay}
+                          />
+                        </Route>
+                        <Route
+                          path="dashboards/:dashboardID"
+                          component={DashboardPage}
+                        >
+                          <Route path="cells">
+                            <Route path="new" component={VEO} />
+                            <Route path=":cellID/edit" component={VEO} />
+                          </Route>
+                          <Route path="notes">
+                            <Route path="new" component={NoteEditorOverlay} />
+                            <Route
+                              path=":cellID/edit"
+                              component={NoteEditorOverlay}
+                            />
+                          </Route>
                         </Route>
                         <Route path="me" component={MePage} />
                         <Route path="account/:tab" component={Account} />

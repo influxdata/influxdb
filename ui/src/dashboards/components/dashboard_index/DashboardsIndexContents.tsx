@@ -11,7 +11,7 @@ import GetLabels from 'src/configuration/components/GetLabels'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 import {Notification} from 'src/types/notifications'
 
 interface Props {
@@ -54,8 +54,8 @@ export default class DashboardsIndexContents extends Component<Props> {
         >
           {filteredDashboards => (
             <Table
-              filterComponent={filterComponent}
               searchTerm={searchTerm}
+              filterComponent={filterComponent}
               dashboards={filteredDashboards}
               onDeleteDashboard={onDeleteDashboard}
               onCreateDashboard={onCreateDashboard}

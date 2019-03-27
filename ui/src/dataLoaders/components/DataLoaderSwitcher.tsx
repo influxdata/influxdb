@@ -8,7 +8,7 @@ import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/Collec
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 
 // Types
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/dataLoaders'
 import {Bucket} from '@influxdata/influx'
 
 interface Props {

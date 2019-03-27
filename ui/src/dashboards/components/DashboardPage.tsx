@@ -11,7 +11,7 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
-import NoteEditorContainer from 'src/dashboards/components/NoteEditorContainer'
+import VariablesControlBar from 'src/dashboards/components/variablesControlBar/VariablesControlBar'
 
 // Actions
 import * as dashboardActions from 'src/dashboards/actions'
@@ -29,7 +29,7 @@ import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
-import {Links, Dashboard, Cell, View, TimeRange, AppState} from 'src/types/v2'
+import {Links, Dashboard, Cell, View, TimeRange, AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
@@ -37,6 +37,7 @@ import {Location} from 'history'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
 import * as NotificationsActions from 'src/types/actions/notifications'
+import {toggleShowVariablesControls} from 'src/userSettings/actions'
 
 interface StateProps {
   links: Links
@@ -45,7 +46,7 @@ interface StateProps {
   dashboard: Dashboard
   autoRefresh: number
   inPresentationMode: boolean
-  showTemplateControlBar: boolean
+  showVariablesControls: boolean
   views: {[cellID: string]: {view: View; status: RemoteDataState}}
 }
 
@@ -64,6 +65,7 @@ interface DispatchProps {
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
   onSetActiveTimeMachine: typeof setActiveTimeMachine
+  onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
 
 interface PassedProps {
@@ -90,7 +92,6 @@ type Props = PassedProps &
 interface State {
   scrollTop: number
   windowHeight: number
-  isShowingVEO: boolean
 }
 
 @ErrorHandling
@@ -101,7 +102,6 @@ class DashboardPage extends Component<Props, State> {
     this.state = {
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      isShowingVEO: false,
     }
   }
 
@@ -140,14 +140,15 @@ class DashboardPage extends Component<Props, State> {
     const {
       timeRange,
       zoomedTimeRange,
-      showTemplateControlBar,
       dashboard,
       autoRefresh,
       manualRefresh,
       onManualRefresh,
       inPresentationMode,
+      showVariablesControls,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
+      onToggleShowVariablesControls,
       children,
     } = this.props
 
@@ -160,15 +161,20 @@ class DashboardPage extends Component<Props, State> {
             autoRefresh={autoRefresh}
             isHidden={inPresentationMode}
             onAddCell={this.handleAddCell}
+            onAddNote={this.showNoteOverlay}
             onManualRefresh={onManualRefresh}
             zoomedTimeRange={zoomedTimeRange}
             onRenameDashboard={this.handleRenameDashboard}
             activeDashboard={dashboard ? dashboard.name : ''}
-            showTemplateControlBar={showTemplateControlBar}
             handleChooseAutoRefresh={handleChooseAutoRefresh}
             handleChooseTimeRange={this.handleChooseTimeRange}
             handleClickPresentationButton={handleClickPresentationButton}
+            toggleVariablesControlBar={onToggleShowVariablesControls}
+            isShowingVariablesControlBar={showVariablesControls}
           />
+          {showVariablesControls && !!dashboard && (
+            <VariablesControlBar dashboardID={dashboard.id} />
+          )}
           {!!dashboard && (
             <DashboardComponent
               inView={this.inView}
@@ -184,11 +190,11 @@ class DashboardPage extends Component<Props, State> {
               onDeleteCell={this.handleDeleteDashboardCell}
               onEditView={this.handleEditView}
               onAddCell={this.handleAddCell}
+              onEditNote={this.showNoteOverlay}
             />
           )}
           {children}
         </HoverTimeProvider>
-        <NoteEditorContainer />
       </Page>
     )
   }
@@ -229,6 +235,14 @@ class DashboardPage extends Component<Props, State> {
 
   private handleAddCell = async (): Promise<void> => {
     this.showVEO()
+  }
+
+  private showNoteOverlay = async (id?: string): Promise<void> => {
+    if (id) {
+      this.props.router.push(`${this.props.location.pathname}/notes/${id}/edit`)
+    } else {
+      this.props.router.push(`${this.props.location.pathname}/notes/new`)
+    }
   }
 
   private handleEditView = (cellID: string): void => {
@@ -287,11 +301,12 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     links,
     app: {
       ephemeral: {inPresentationMode},
-      persisted: {autoRefresh, showTemplateControlBar},
+      persisted: {autoRefresh},
     },
     ranges,
     dashboards,
     views: {views},
+    userSettings: {showVariablesControls},
   } = state
 
   const timeRange =
@@ -307,7 +322,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     dashboard,
     autoRefresh,
     inPresentationMode,
-    showTemplateControlBar,
+    showVariablesControls,
   }
 }
 
@@ -326,6 +341,7 @@ const mdtp: DispatchProps = {
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
   onSetActiveTimeMachine: setActiveTimeMachine,
+  onToggleShowVariablesControls: toggleShowVariablesControls,
 }
 
 export default connect(

@@ -21,11 +21,8 @@ import {
 } from 'src/shared/constants'
 
 // Types
-import {Cell} from 'src/types/v2'
+import {Cell} from 'src/types'
 import {TimeRange} from 'src/types'
-
-// Styles
-import './react-grid-layout.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -39,6 +36,7 @@ interface Props {
   onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
+  onEditNote: (id: string) => void
 }
 
 interface State {
@@ -64,6 +62,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
       timeRange,
       autoRefresh,
       manualRefresh,
+      onEditNote,
     } = this.props
     const {rowHeight} = this.state
 
@@ -76,7 +75,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
         containerPadding={[0, 0]}
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.cell--draggable'}
+        draggableHandle=".cell--draggable"
         isDraggable={this.isDashboard}
         isResizable={this.isDashboard}
       >
@@ -91,6 +90,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
               onCloneCell={onCloneCell}
               onDeleteCell={onDeleteCell}
               onEditCell={this.handleEditCell(cell)}
+              onEditNote={onEditNote}
             />
             {this.cellBorder}
           </div>

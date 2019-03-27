@@ -3,17 +3,12 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Overlay, Tabs} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/organizations/components/BucketList'
 import {PrettyBucket} from 'src/organizations/components/BucketRow'
 import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'
-import {
-  ComponentSize,
-  Button,
-  ComponentColor,
-  IconFont,
-} from '@influxdata/clockface'
-import {Input, Overlay, EmptyState, Tabs} from 'src/clockface'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -25,9 +20,9 @@ import {ruleToString} from 'src/utils/formatting'
 import {client} from 'src/utils/api'
 
 // Types
-import {OverlayState} from 'src/types'
-
 import {Bucket, Organization, BucketRetentionRules} from '@influxdata/influx'
+import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
+import {OverlayState} from 'src/types'
 
 interface Props {
   org: Organization

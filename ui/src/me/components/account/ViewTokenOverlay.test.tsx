@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {mount} from 'enzyme'
+import {shallow} from 'enzyme'
 
 // Components
 import ViewTokenOverlay from 'src/me/components/account/ViewTokenOverlay'
@@ -14,7 +14,7 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = mount(<ViewTokenOverlay {...props} />)
+  const wrapper = shallow(<ViewTokenOverlay {...props} />)
 
   return {wrapper}
 }

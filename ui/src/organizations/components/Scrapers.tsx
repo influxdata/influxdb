@@ -6,15 +6,9 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {client} from 'src/utils/api'
 
 // Components
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Tabs} from 'src/clockface'
 import ScraperList from 'src/organizations/components/ScraperList'
-import {
-  Button,
-  ComponentColor,
-  IconFont,
-  ComponentSize,
-  ComponentStatus,
-} from '@influxdata/clockface'
-import {EmptyState, Input, InputType, Tabs} from 'src/clockface'
 import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
 
@@ -26,6 +20,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {ScraperTargetResponse, Bucket} from '@influxdata/influx'
+import {
+  IconFont,
+  InputType,
+  ComponentSize,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
 import {
   scraperDeleteSuccess,
@@ -164,7 +165,7 @@ class Scrapers extends PureComponent<Props, State> {
 
     if (_.isEmpty(searchTerm)) {
       return (
-        <EmptyState size={ComponentSize.Medium}>
+        <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text
             text={`${orgName} does not own any Scrapers , why not create one?`}
             highlightWords={['Scrapers']}
@@ -175,7 +176,7 @@ class Scrapers extends PureComponent<Props, State> {
     }
 
     return (
-      <EmptyState size={ComponentSize.Medium}>
+      <EmptyState size={ComponentSize.Large}>
         <EmptyState.Text text="No Scrapers match your query" />
       </EmptyState>
     )

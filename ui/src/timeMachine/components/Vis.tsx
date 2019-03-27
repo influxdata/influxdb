@@ -16,8 +16,8 @@ import {getActiveTimeMachine, getTables} from 'src/timeMachine/selectors'
 
 // Types
 import {FluxTable, RemoteDataState} from 'src/types'
-import {View, NewView, TimeRange, DashboardQuery, AppState} from 'src/types/v2'
-import {QueryViewProperties} from 'src/types/v2/dashboards'
+import {View, NewView, TimeRange, DashboardQuery, AppState} from 'src/types'
+import {QueryViewProperties} from 'src/types/dashboards'
 
 interface StateProps {
   view: View | NewView

@@ -23,6 +23,7 @@ influxd.bolt
 
 # Project tools that you might install with go build.
 /editorconfig-checker
+/staticcheck
 
 ui/node_modules
 ui/npm-error.log

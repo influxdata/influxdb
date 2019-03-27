@@ -5,11 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/flux"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/task/backend"
 	scheduler "github.com/influxdata/influxdb/task/backend"
@@ -453,7 +453,10 @@ func (p *RunPromise) Finish(r backend.RunResult, err error) {
 type RunResult struct {
 	err         error
 	isRetryable bool
-	stats       flux.Statistics
+
+	// Most tests don't care about statistics.
+	// If your test does care, adjust it after the call to NewRunResult.
+	Stats flux.Statistics
 }
 
 var _ backend.RunResult = (*RunResult)(nil)
@@ -471,5 +474,5 @@ func (rr *RunResult) IsRetryable() bool {
 }
 
 func (rr *RunResult) Statistics() flux.Statistics {
-	return rr.stats
+	return rr.Stats
 }

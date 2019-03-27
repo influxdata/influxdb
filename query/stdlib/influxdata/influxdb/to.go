@@ -589,6 +589,9 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 			}
 		}
 		points, err = tsdb.ExplodePoints(*orgID, *bucketID, points)
+		if err != nil {
+			return err
+		}
 		return d.PointsWriter.WritePoints(context.TODO(), points)
 	})
 }

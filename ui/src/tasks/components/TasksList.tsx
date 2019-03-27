@@ -16,7 +16,7 @@ import {
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
-} from 'src/tasks/actions/v2'
+} from 'src/tasks/actions'
 
 interface Props {
   tasks: Task[]

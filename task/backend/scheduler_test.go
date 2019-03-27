@@ -2,12 +2,15 @@ package backend_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
@@ -221,6 +224,78 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	}
 }
 
+func TestScheduler_LogStatisticsOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	d := mock.NewDesiredState()
+	e := mock.NewExecutor()
+	rl := backend.NewInMemRunReaderWriter()
+
+	o := backend.NewScheduler(d, e, rl, 5, backend.WithLogger(zaptest.NewLogger(t)))
+	o.Start(context.Background())
+	defer o.Stop()
+
+	const taskID = 0x12345
+	const orgID = 0x54321
+	task := &backend.StoreTask{
+		ID:  taskID,
+		Org: orgID,
+	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency:  1,
+		EffectiveCron:   "@every 1s",
+		LatestCompleted: 5,
+	}
+
+	d.SetTaskMeta(taskID, *meta)
+	if err := o.ClaimTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	o.Tick(6)
+
+	p, err := e.PollForNumberRunning(taskID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := mock.NewRunResult(nil, false)
+	rr.Stats = flux.Statistics{Metadata: flux.Metadata{"foo": []interface{}{"bar"}}}
+	p[0].Finish(rr, nil)
+
+	runID := p[0].Run().RunID
+
+	if _, err := e.PollForNumberRunning(taskID, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	logs, err := rl.ListLogs(context.Background(), orgID, platform.LogFilter{Task: taskID, Run: &runID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// For now, assume the stats line is the only line beginning with "{".
+	var statJSON string
+	for _, log := range logs {
+		if len(log.Message) > 0 && log.Message[0] == '{' {
+			statJSON = log.Message
+			break
+		}
+	}
+
+	if statJSON == "" {
+		t.Fatal("could not find log message that looked like statistics")
+	}
+	var stats flux.Statistics
+	if err := json.Unmarshal([]byte(statJSON), &stats); err != nil {
+		t.Fatal(err)
+	}
+	foo := stats.Metadata["foo"]
+	if !reflect.DeepEqual(foo, []interface{}{"bar"}) {
+		t.Fatalf("query statistics were not encoded correctly into logs. expected metadata.foo=[bar], got: %#v", stats)
+	}
+}
+
 func TestScheduler_Release(t *testing.T) {
 	t.Parallel()
 
@@ -260,7 +335,6 @@ func TestScheduler_Release(t *testing.T) {
 }
 
 func TestScheduler_UpdateTask(t *testing.T) {
-	t.Skip("flaky test: https://github.com/influxdata/influxdb/issues/12667")
 	t.Parallel()
 
 	d := mock.NewDesiredState()
@@ -465,7 +539,7 @@ func pollForRunStatus(t *testing.T, r backend.LogReader, taskID, orgID platform.
 	t.FailNow()
 }
 
-func TestScheduler_RunLog(t *testing.T) {
+func TestScheduler_RunStatus(t *testing.T) {
 	t.Parallel()
 
 	d := mock.NewDesiredState()

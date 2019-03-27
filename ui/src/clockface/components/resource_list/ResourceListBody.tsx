@@ -13,8 +13,7 @@ export default class ResourceListBody extends PureComponent<Props> {
 
   private get children(): JSX.Element | JSX.Element[] {
     const {children, emptyState} = this.props
-
-    if (React.Children.count(children) === 0) {
+    if (React.Children.count(children) === 0 || children === false) {
       return emptyState
     }
 

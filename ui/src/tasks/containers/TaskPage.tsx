@@ -11,14 +11,14 @@ import FluxEditor from 'src/shared/components/FluxEditor'
 import {Page} from 'src/pageLayout'
 
 // Actions
-import {State as TasksState} from 'src/tasks/reducers/v2'
+import {State as TasksState} from 'src/tasks/reducers'
 import {
   setNewScript,
   saveNewScript,
   setTaskOption,
   clearTask,
   cancel,
-} from 'src/tasks/actions/v2'
+} from 'src/tasks/actions'
 
 // Utils
 import {
@@ -27,16 +27,13 @@ import {
 } from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {Links} from 'src/types/v2/links'
-import {Organization} from 'src/types/v2'
+import {Links} from 'src/types/links'
+import {Organization} from 'src/types'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-
-// Styles
-import 'src/tasks/components/TaskForm.scss'
 
 interface PassedInProps {
   router: InjectedRouter

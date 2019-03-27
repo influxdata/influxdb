@@ -12,11 +12,12 @@ import {
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {getActiveOrg} from 'src/organizations/selectors'
+import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
-import {DashboardQuery} from 'src/types/v2/dashboards'
-import {AppState, Organization} from 'src/types/v2'
+import {DashboardQuery} from 'src/types/dashboards'
+import {AppState, Organization} from 'src/types'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
@@ -136,6 +137,8 @@ class TimeSeries extends Component<Props, State> {
       const duration = Date.now() - startTime
       const tables = flatten(results.map(r => parseResponse(r.csv)))
       const files = results.map(r => r.csv)
+
+      files.forEach(checkQueryResult)
 
       this.setState({
         tables,

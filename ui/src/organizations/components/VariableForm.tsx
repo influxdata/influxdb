@@ -1,20 +1,17 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 
-// Styles
-import 'src/organizations/components/CreateVariableOverlay.scss'
-
 // Components
-import {Form, Input, Grid} from 'src/clockface'
-import {Button} from '@influxdata/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Types
 import {Variable} from '@influxdata/influx'
 import {
+  ButtonType,
   ComponentColor,
   ComponentStatus,
-  ButtonType,
 } from '@influxdata/clockface'
 
 interface Props {

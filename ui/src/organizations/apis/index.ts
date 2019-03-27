@@ -5,7 +5,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 
 // CRUD APIs for Organizations and Organization resources
 // i.e. Organization Members, Buckets, Dashboards etc

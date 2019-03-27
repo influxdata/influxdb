@@ -4,15 +4,17 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Form} from '@influxdata/clockface'
 import DataStreaming from 'src/dataLoaders/components/verifyStep/DataStreaming'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Types
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
-import {Form} from 'src/clockface'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 type OwnProps = CollectorsStepProps
 
@@ -32,7 +34,6 @@ export class VerifyCollectorStep extends PureComponent<Props> {
     const {
       telegrafConfigID,
       bucket,
-      notify,
       org,
       onDecrementCurrentStepIndex,
       onExit,
@@ -53,7 +54,6 @@ export class VerifyCollectorStep extends PureComponent<Props> {
           </div>
           <DataStreaming
             org={org}
-            notify={notify}
             bucket={bucket}
             token={token}
             configID={telegrafConfigID}

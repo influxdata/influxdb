@@ -3,9 +3,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form, Input, Columns, Grid} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
+
+// Types
 import {Bucket} from '@influxdata/influx'
+import {Columns} from '@influxdata/clockface'
 
 interface Props {
   buckets: Bucket[]

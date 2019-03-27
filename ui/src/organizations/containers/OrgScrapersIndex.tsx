@@ -25,7 +25,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 
 // Types
 import {Organization, ScraperTargetResponse, Bucket} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 const getScrapers = async (): Promise<ScraperTargetResponse[]> => {
   return await client.scrapers.getAll()
@@ -62,7 +62,7 @@ class OrgScrapersIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'scrapers'} orgID={org.id} />
+              <OrganizationNavigation tab="scrapers" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--scrapers"

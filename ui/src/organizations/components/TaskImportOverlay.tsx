@@ -9,7 +9,7 @@ import ImportOverlay from 'src/shared/components/ImportOverlay'
 // Actions
 import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/organizations/actions/orgView'
 import {getTasks as getTasksAction} from 'src/organizations/actions/orgView'
-import {populateTasks as populateTasksAction} from 'src/tasks/actions/v2'
+import {populateTasks as populateTasksAction} from 'src/tasks/actions'
 
 interface DispatchProps {
   createTaskFromTemplate: typeof createTaskFromTemplateAction

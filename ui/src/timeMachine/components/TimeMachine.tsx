@@ -13,11 +13,7 @@ import ViewOptions from 'src/timeMachine/components/view_options/ViewOptions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
-import {AppState} from 'src/types/v2'
-
-// Styles
-import 'src/timeMachine/components/TimeMachine.scss'
+import {AppState, TimeMachineTab} from 'src/types'
 
 const INITIAL_RESIZER_HANDLE = 0.5
 

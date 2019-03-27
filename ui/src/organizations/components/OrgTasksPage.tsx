@@ -23,11 +23,11 @@ import {
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
-} from 'src/tasks/actions/v2'
+} from 'src/tasks/actions'
 
 // Types
 import {Organization, ITask as Task} from '@influxdata/influx'
-import {AppState, TaskStatus} from 'src/types/v2'
+import {AppState, TaskStatus} from 'src/types'
 import {client} from 'src/utils/api'
 import GetLabels from 'src/configuration/components/GetLabels'
 

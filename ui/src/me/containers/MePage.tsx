@@ -2,9 +2,6 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-// Styles
-import 'src/me/containers/MePage.scss'
-
 // Components
 import {Grid, Columns} from 'src/clockface'
 import {Page} from 'src/pageLayout'
@@ -14,7 +11,7 @@ import Docs from 'src/me/components/Docs'
 import GettingStarted from 'src/me/components/GettingStarted'
 
 // Types
-import {MeState, AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -22,7 +19,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Panel} from 'src/clockface'
 
 interface StateProps {
-  me: MeState
+  me: AppState['me']
 }
 
 @ErrorHandling

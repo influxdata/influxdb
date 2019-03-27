@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Input} from 'src/clockface'
+import {Input} from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 
 // Actions
@@ -15,11 +15,8 @@ import {getActiveQuery} from 'src/timeMachine/selectors'
 // Constants
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 
-// Styles
-import 'src/timeMachine/components/FunctionSelector.scss'
-
 // Types
-import {AppState, BuilderConfig} from 'src/types/v2'
+import {AppState, BuilderConfig} from 'src/types'
 
 const FUNCTION_NAMES = FUNCTIONS.map(f => f.name)
 
@@ -48,7 +45,7 @@ class FunctionSelector extends PureComponent<Props, State> {
       <div className="function-selector">
         <h3>Aggregate Functions</h3>
         <Input
-          customClass={'function-selector--search'}
+          customClass="function-selector--search"
           value={searchTerm}
           onChange={this.handleSetSearchTerm}
           placeholder="Search functions..."

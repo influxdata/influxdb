@@ -10,9 +10,6 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 // Types
 import {LogEvent} from '@influxdata/influx'
 
-// Stylesheet
-import './RunLogsList.scss'
-
 interface Props {
   onDismissOverlay: () => void
   logs: LogEvent[]
@@ -27,7 +24,7 @@ class RunLogsOverlay extends PureComponent<Props> {
     const {onDismissOverlay} = this.props
 
     return (
-      <Overlay.Container customClass={'run-logs--list'}>
+      <Overlay.Container customClass="run-logs--list">
         <Overlay.Heading title="Run Logs" onDismiss={onDismissOverlay} />
         <Overlay.Body>
           <FancyScrollbar autoHeight={true} maxHeight={700}>

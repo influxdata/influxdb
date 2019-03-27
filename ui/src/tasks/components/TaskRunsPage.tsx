@@ -7,13 +7,13 @@ import {Page} from 'src/pageLayout'
 import TaskRunsList from 'src/tasks/components/TaskRunsList'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {Run} from '@influxdata/influx'
 import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
 
 // Actions
-import {getRuns, runTask} from 'src/tasks/actions/v2'
+import {getRuns, runTask} from 'src/tasks/actions'
 import {IconFont} from 'src/clockface'
 
 interface OwnProps {

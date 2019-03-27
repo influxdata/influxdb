@@ -4,7 +4,7 @@ import {client} from 'src/utils/api'
 // Types
 import {RemoteDataState} from 'src/types'
 import {ILabel} from '@influxdata/influx'
-import {LabelProperties} from 'src/types/v2/labels'
+import {LabelProperties} from 'src/types/labels'
 import {Dispatch} from 'redux-thunk'
 
 // Actions
@@ -81,11 +81,12 @@ export const getLabels = () => async (dispatch: Dispatch<Action>) => {
 }
 
 export const createLabel = (
+  orgID: string,
   name: string,
   properties: LabelProperties
 ) => async (dispatch: Dispatch<Action>) => {
   try {
-    const createdLabel = await client.labels.create(name, properties)
+    const createdLabel = await client.labels.create({orgID, name, properties})
 
     dispatch(addLabel(createdLabel))
   } catch (e) {
@@ -94,11 +95,11 @@ export const createLabel = (
   }
 }
 
-export const updateLabel = (id: string, properties: LabelProperties) => async (
+export const updateLabel = (id: string, l: ILabel) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const label = await client.labels.update(id, properties)
+    const label = await client.labels.update(id, l)
 
     dispatch(editLabel(label))
   } catch (e) {

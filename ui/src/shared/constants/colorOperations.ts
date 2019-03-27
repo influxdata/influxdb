@@ -7,7 +7,7 @@ import {
   THRESHOLD_TYPE_TEXT,
 } from 'src/shared/constants/thresholds'
 
-import {ViewType} from 'src/types/v2/dashboards'
+import {ViewType} from 'src/types/dashboards'
 import {Color} from 'src/types/colors'
 
 const getLegibleTextColor = bgColorHex => {

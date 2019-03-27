@@ -5,9 +5,6 @@ import React, {PureComponent, createRef, CSSProperties} from 'react'
 import DatePicker from 'src/shared/components/dateRangePicker/DatePicker'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
-// Styles
-import 'src/shared/components/dateRangePicker/DateRangePicker.scss'
-
 // Types
 import {TimeRange} from 'src/types'
 import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'

@@ -20,7 +20,7 @@ import ConnectionInformation, {
 } from 'src/dataLoaders/components/verifyStep/ConnectionInformation'
 
 // Types
-import {AppState, Organization} from 'src/types/v2'
+import {AppState, Organization} from 'src/types'
 
 interface OwnProps {
   bucket: string
@@ -107,7 +107,7 @@ class DataListening extends PureComponent<Props, State> {
         size={ComponentSize.Medium}
         onClick={this.handleClick}
         status={ComponentStatus.Default}
-        titleText={'Listen for Data'}
+        titleText="Listen for Data"
       />
     )
   }

@@ -1,13 +1,13 @@
 // Libraries
 import React, {Component, KeyboardEvent, ChangeEvent, MouseEvent} from 'react'
 import classnames from 'classnames'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Components
-import {Input, ComponentSize} from 'src/clockface'
+import {Input, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
+import {ComponentSize} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 
 // Decorators
@@ -19,7 +19,7 @@ import 'src/clockface/components/resource_list/ResourceName.scss'
 interface PassedProps {
   onUpdate: (name: string) => void
   name: string
-  onEditName?: (e?: MouseEvent<HTMLAnchorElement>) => void
+  onClick?: (e: MouseEvent<HTMLAnchorElement>) => void
   placeholder?: string
   noNameString: string
 }
@@ -29,7 +29,6 @@ interface DefaultProps {
   buttonTestID?: string
   inputTestID?: string
   hrefValue?: string
-  onClick?: () => void
 }
 
 type Props = PassedProps & DefaultProps
@@ -62,7 +61,6 @@ class ResourceName extends Component<Props, State> {
   public render() {
     const {
       name,
-      onEditName,
       hrefValue,
       noNameString,
       parentTestID,
@@ -75,7 +73,7 @@ class ResourceName extends Component<Props, State> {
           loading={this.state.loading}
           spinnerComponent={<TechnoSpinner diameterPixels={20} />}
         >
-          <a href={hrefValue} onClick={onEditName}>
+          <a href={hrefValue} onClick={this.handleClick}>
             <span>{name || noNameString}</span>
           </a>
         </SpinnerContainer>
@@ -113,6 +111,13 @@ class ResourceName extends Component<Props, State> {
           />
         </ClickOutside>
       )
+    }
+  }
+
+  private handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    const {onClick} = this.props
+    if (onClick) {
+      onClick(e)
     }
   }
 

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -19,6 +20,10 @@ func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.P
 	return s.QueryF(ctx, w, req)
 }
 
+func (s *ProxyQueryService) Check(ctx context.Context) check.Response {
+	return check.Response{Name: "Mock Proxy Query Service", Status: check.StatusPass}
+}
+
 // QueryService mocks the idep QueryService for testing.
 type QueryService struct {
 	QueryF func(ctx context.Context, req *query.Request) (flux.ResultIterator, error)
@@ -27,6 +32,10 @@ type QueryService struct {
 // Query writes the results of the query request.
 func (s *QueryService) Query(ctx context.Context, req *query.Request) (flux.ResultIterator, error) {
 	return s.QueryF(ctx, req)
+}
+
+func (s *QueryService) Check(ctx context.Context) check.Response {
+	return check.Response{Name: "Mock Query Service", Status: check.StatusPass}
 }
 
 // AsyncQueryService mocks the idep QueryService for testing.

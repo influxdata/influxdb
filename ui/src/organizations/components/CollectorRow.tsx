@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {
@@ -14,14 +15,29 @@ import {
   Button,
   ComponentColor,
 } from '@influxdata/clockface'
-import {Telegraf} from '@influxdata/influx'
+import {ITelegraf as Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+
+// Actions
+import {
+  addTelelgrafLabelsAsync,
+  removeTelelgrafLabelsAsync,
+} from 'src/telegrafs/actions'
+import {createLabel as createLabelAsync} from 'src/labels/actions'
+
+// Selectors
+import {viewableLabels} from 'src/labels/selectors'
 
 // Constants
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
-interface Props {
+// Types
+import {AppState} from 'src/types'
+import {ILabel} from '@influxdata/influx'
+
+interface OwnProps {
   collector: Telegraf
   bucket: string
   onDelete: (telegraf: Telegraf) => void
@@ -31,7 +47,18 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-export default class CollectorRow extends PureComponent<Props> {
+interface StateProps {
+  labels: ILabel[]
+}
+interface DispatchProps {
+  onAddLabels: typeof addTelelgrafLabelsAsync
+  onRemoveLabels: typeof removeTelelgrafLabelsAsync
+  onCreateLabel: typeof createLabelAsync
+}
+
+type Props = OwnProps & StateProps & DispatchProps
+
+class CollectorRow extends PureComponent<Props> {
   public render() {
     const {collector, bucket} = this.props
 
@@ -55,6 +82,7 @@ export default class CollectorRow extends PureComponent<Props> {
                 placeholder={`Describe ${collector.name}`}
                 onUpdate={this.handleUpdateDescription}
               />
+              {this.labels}
             </ComponentSpacer>
           </IndexList.Cell>
           <IndexList.Cell>{bucket}</IndexList.Cell>
@@ -91,6 +119,43 @@ export default class CollectorRow extends PureComponent<Props> {
     onUpdate({...collector, description})
   }
 
+  private get labels(): JSX.Element {
+    const {collector, labels, onFilterChange} = this.props
+    const collectorLabels = viewableLabels(collector.labels)
+
+    return (
+      <InlineLabels
+        selectedLabels={collectorLabels}
+        labels={labels}
+        onFilterChange={onFilterChange}
+        onAddLabel={this.handleAddLabel}
+        onRemoveLabel={this.handleRemoveLabel}
+        onCreateLabel={this.handleCreateLabel}
+      />
+    )
+  }
+
+  private handleAddLabel = (label: ILabel): void => {
+    const {collector, onAddLabels} = this.props
+
+    onAddLabels(collector.id, [label])
+  }
+
+  private handleRemoveLabel = (label: ILabel): void => {
+    const {collector, onRemoveLabels} = this.props
+
+    onRemoveLabels(collector.id, [label])
+  }
+
+  private handleCreateLabel = async (label: ILabel): Promise<void> => {
+    try {
+      const {orgID, name, properties} = label
+      await this.props.onCreateLabel(orgID, name, properties)
+    } catch (err) {
+      throw err
+    }
+  }
+
   private handleOpenConfig = (): void => {
     this.props.onOpenTelegrafConfig(
       this.props.collector.id,
@@ -106,3 +171,18 @@ export default class CollectorRow extends PureComponent<Props> {
     this.props.onOpenInstructions(this.props.collector.id)
   }
 }
+
+const mstp = ({labels}: AppState): StateProps => {
+  return {labels: viewableLabels(labels.list)}
+}
+
+const mdtp: DispatchProps = {
+  onAddLabels: addTelelgrafLabelsAsync,
+  onRemoveLabels: removeTelelgrafLabelsAsync,
+  onCreateLabel: createLabelAsync,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(CollectorRow)

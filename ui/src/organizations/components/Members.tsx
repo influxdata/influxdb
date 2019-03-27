@@ -3,18 +3,11 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {
-  ComponentSize,
-  EmptyState,
-  IconFont,
-  Input,
-  Tabs,
-  Overlay,
-} from 'src/clockface'
+import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Tabs, Overlay} from 'src/clockface'
 import MemberList from 'src/organizations/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 import AddMembersOverlay from 'src/organizations/components/AddMembersOverlay'
-import {Button, ComponentColor} from '@influxdata/clockface'
 
 // Actions
 import * as NotificationsActions from 'src/types/actions/notifications'
@@ -25,6 +18,7 @@ import {
   AddResourceMemberRequestBody,
   User,
 } from '@influxdata/influx'
+import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
 
 // APIs

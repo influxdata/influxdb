@@ -22,7 +22,7 @@ import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
 import {Notification, NotificationFunc} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 
 export interface LineProtocolStepProps {
@@ -80,7 +80,7 @@ class CollectorsWizard extends PureComponent<Props> {
     return (
       <WizardOverlay
         visible={visible}
-        title={'Add Line Protocol'}
+        title="Add Line Protocol"
         onDismiss={this.handleDismiss}
       >
         <div className="wizard-contents">

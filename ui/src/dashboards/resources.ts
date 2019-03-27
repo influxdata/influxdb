@@ -1,23 +1,18 @@
 import {
+  Axes,
+  Cell,
+  Color,
+  Dashboard,
+  TableOptions,
+  FieldOption,
+  DecimalPlaces,
   Service,
   Source,
   SourceAuthenticationMethod,
   SourceLinks,
   TimeRange,
-  Template,
   QueryConfig,
-  TemplateType,
-  TemplateValueType,
 } from 'src/types'
-import {
-  Axes,
-  TableOptions,
-  FieldOption,
-  DecimalPlaces,
-} from 'src/types/v2/dashboards'
-import {Cell, Dashboard} from 'src/types/v2'
-
-import {Color} from 'src/types/colors'
 
 export const dashboard: Dashboard = {
   id: '1',
@@ -224,127 +219,6 @@ export const timeRange: TimeRange = {
   lower: 'now() - 5m',
   upper: null,
 }
-
-export const userDefinedTemplateVariables: Template[] = [
-  {
-    tempVar: ':fields:',
-    type: TemplateType.FieldKeys,
-    label: '',
-    values: [
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_guest',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_guest_nice',
-      },
-      {
-        selected: true,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_idle',
-      },
-      {
-        selected: false,
-        localSelected: true,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_iowait',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_irq',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_nice',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_softirq',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_steal',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_system',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.FieldKey,
-        value: 'usage_user',
-      },
-    ],
-    id: '2b8dca84-879c-4555-a7cf-97f2951f8643',
-  },
-  {
-    tempVar: ':measurements:',
-    type: TemplateType.Measurements,
-    label: '',
-    values: [
-      {
-        selected: true,
-        localSelected: true,
-        type: TemplateValueType.Measurement,
-        value: 'cpu',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.Measurement,
-        value: 'disk',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.Measurement,
-        value: 'diskio',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.Measurement,
-        value: 'mem',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.Measurement,
-        value: 'processes',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.Measurement,
-        value: 'swap',
-      },
-      {
-        selected: false,
-        localSelected: false,
-        type: TemplateValueType.Measurement,
-        value: 'system',
-      },
-    ],
-    id: '18855209-12db-4619-9834-1d7eb643ae6e',
-  },
-]
 
 export const thresholdsListColors: Color[] = [
   {

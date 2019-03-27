@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {includes} from 'lodash'
 
 // Components
-import {Form, Input, InputType, ComponentSize} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import PluginsSideBar from 'src/dataLoaders/components/collectorsWizard/configure/PluginsSideBar'
@@ -24,18 +24,24 @@ import {
 import {createDashboardsForPlugins as createDashboardsForPluginsAction} from 'src/protos/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
+// APIs
+import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
+
 // Constants
 import {
-  TelegrafConfigCreationSuccess,
   TelegrafDashboardCreated,
   TelegrafDashboardFailed,
 } from 'src/shared/copy/notifications'
 
 // Types
-import {AppState} from 'src/types/v2/index'
-import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
+import {
+  AppState,
+  TelegrafPlugin,
+  ConfigurationState,
+  DashboardTemplate,
+} from 'src/types'
+import {InputType, ComponentSize} from '@influxdata/clockface'
 import {client} from 'src/utils/api'
-import {IDashboardTemplate} from '@influxdata/influx'
 
 interface DispatchProps {
   onSetTelegrafConfigName: typeof setTelegrafConfigName
@@ -127,11 +133,9 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
   }
 
   private handleFormSubmit = async () => {
-    const {onSaveTelegrafConfig, telegrafConfigID, notify} = this.props
+    const {onSaveTelegrafConfig, telegrafConfigID} = this.props
 
     await onSaveTelegrafConfig()
-
-    notify(TelegrafConfigCreationSuccess)
 
     if (!telegrafConfigID) {
       this.handleCreateDashboardsForPlugins()
@@ -168,7 +172,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
       const templates = await Promise.all(pendingTemplates)
 
       const pendingDashboards = templates.map(t =>
-        client.dashboards.createFromTemplate(t as IDashboardTemplate, orgID)
+        createDashboardFromTemplateAJAX(t as DashboardTemplate, orgID)
       )
 
       const dashboards = await Promise.all(pendingDashboards)

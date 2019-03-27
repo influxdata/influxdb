@@ -4,16 +4,38 @@
 
 1. [12663](https://github.com/influxdata/influxdb/pull/12663): Insert flux function near cursor in flux editor
 1. [12678](https://github.com/influxdata/influxdb/pull/12678): Enable the use of variables in the Data Explorer and Cell Editor Overlay
+1. [12655](https://github.com/influxdata/influxdb/pull/12655): Add a variable control bar to dashboards to select values for variables.
+1. [12706](https://github.com/influxdata/influxdb/pull/12706): Add ability to add variable to script from the side menu.
+1. [12791](https://github.com/influxdata/influxdb/pull/12791): Use time range for metaqueries in Data Explorer and Cell Editor Overlay
+1. [12827](https://github.com/influxdata/influxdb/pull/12827): Fix screen tearing bug in Raw Data View
+1. [12843](https://github.com/influxdata/influxdb/pull/12843): Add copy to clipboard button to export overlays
+1. [12826](https://github.com/influxdata/influxdb/pull/12826): Enable copying error messages to the clipboard from dashboard cells
+1. [12876](https://github.com/influxdata/influxdb/pull/12876): Add the ability to update token's status in Token list
+1. [12821](https://github.com/influxdata/influxdb/pull/12821): Allow variables to be re-ordered within control bar on a dashboard.
+1. [12888](https://github.com/influxdata/influxdb/pull/12888): Add the ability to delete a template
+1. [12901](https://github.com/influxdata/influxdb/pull/12901): Save user preference for variable control bar visibility and default to visible
+1. [12910](https://github.com/influxdata/influxdb/pull/12910): Add the ability to clone a template
 
 ### Bug Fixes
-1. [12684](https://github.com/influxdata/influxdb/pull/12684): Fix mismatch in bucket row and header  
+
+1. [12684](https://github.com/influxdata/influxdb/pull/12684): Fix mismatch in bucket row and header
+1. [12703](https://github.com/influxdata/influxdb/pull/12703): Allows user to edit note on cell
+1. [12764](https://github.com/influxdata/influxdb/pull/12764): Fix empty state styles in scrapers in org view
+1. [12790](https://github.com/influxdata/influxdb/pull/12790): Fix bucket creation error when changing rentention rules types.
+1. [12793](https://github.com/influxdata/influxdb/pull/12793): Fix task creation error when switching schedule types.
+1. [12805](https://github.com/influxdata/influxdb/pull/12805): Fix hidden horizonal scrollbars in flux raw data view
+1. [12827](https://github.com/influxdata/influxdb/pull/12827): Fix screen tearing bug in Raw Data View
 
 ### UI Improvements
+
+1. [12782](https://github.com/influxdata/influxdb/pull/12782): Move bucket selection in the query builder to the first card in the list
+1. [12850](https://github.com/influxdata/influxdb/pull/12850): Ensure editor is automatically focused in note editor
 
 ## v2.0.0-alpha.6 [2019-03-15]
 
 ### Release Notes
-We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. In order to get this functionality, remove your existing data and start from scratch. 
+
+We have updated the way we do predefined dashboards to [include Templates](https://github.com/influxdata/influxdb/pull/12532) in this release which will cause existing Organizations to not have a System dashboard created when they build a new Telegraf configuration. In order to get this functionality, remove your existing data and start from scratch.
 
 **NOTE: This will remove all data from your InfluxDB v2.0 instance including timeseries data.**
 
@@ -35,6 +57,7 @@ Once completed, `v2.0.0-alpha.6` can be started.
 1. [12532](https://github.com/influxdata/influxdb/pull/12532): Add System template on onboarding
 
 ### Bug Fixes
+
 1. [12641](https://github.com/influxdata/influxdb/pull/12641): Stop scrollbars from covering text in flux editor
 
 ### UI Improvements

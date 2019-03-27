@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
+import {Form} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {ComponentStatus, Form} from 'src/clockface'
 import StreamingSelector from 'src/dataLoaders/components/collectorsWizard/select/StreamingSelector'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
@@ -18,10 +18,11 @@ import {
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
-import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
-import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
 import {Bucket} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {ComponentStatus} from '@influxdata/clockface'
+import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
+import {TelegrafPlugin, BundleName} from 'src/types/dataLoaders'
+import {AppState} from 'src/types'
 
 export interface OwnProps extends CollectorsStepProps {
   buckets: Bucket[]

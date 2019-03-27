@@ -3,15 +3,18 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {EmptyState} from 'src/clockface'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {
+  EmptyState,
+  TechnoSpinner,
+  SpinnerContainer,
+} from '@influxdata/clockface'
 
 // APIs
 import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Label} from 'src/types/v2/labels'
+import {Label} from 'src/types/labels'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

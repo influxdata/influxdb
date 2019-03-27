@@ -37,7 +37,7 @@ class OtherStep extends PureComponent<OnboardingStepProps, null> {
             text="Next"
             size={ComponentSize.Medium}
             onClick={this.handleNext}
-            titleText={'Next'}
+            titleText="Next"
           />
         </div>
       </div>

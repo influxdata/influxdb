@@ -14,7 +14,7 @@ import {
 } from 'src/timeMachine/constants'
 
 // Types
-import {TimeRange, View} from 'src/types/v2'
+import {TimeRange, View} from 'src/types'
 import {
   ViewType,
   DashboardDraftQuery,
@@ -23,9 +23,9 @@ import {
   QueryView,
   QueryViewProperties,
   ExtractWorkingView,
-} from 'src/types/v2/dashboards'
+} from 'src/types/dashboards'
 import {Action} from 'src/timeMachine/actions'
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
+import {TimeMachineTab} from 'src/types/timeMachine'
 import {RemoteDataState} from 'src/types'
 import {Color} from 'src/types/colors'
 
@@ -553,6 +553,18 @@ export const timeMachineReducer = (
     case 'SET_BUILDER_BUCKETS_STATUS': {
       return produce(state, draftState => {
         draftState.queryBuilder.bucketsStatus = action.payload.bucketsStatus
+      })
+    }
+
+    case 'SET_BUILDER_TAGS_STATUS': {
+      return produce(state, draftState => {
+        const {status} = action.payload
+        const tags = draftState.queryBuilder.tags
+
+        for (const tag of tags) {
+          tag.keysStatus = status
+          tag.valuesStatus = status
+        }
       })
     }
 

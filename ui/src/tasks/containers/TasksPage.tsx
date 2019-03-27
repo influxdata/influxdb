@@ -28,7 +28,7 @@ import {
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
-} from 'src/tasks/actions/v2'
+} from 'src/tasks/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
@@ -36,7 +36,7 @@ import {allOrganizationsID} from 'src/tasks/constants'
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {AppState, Task, TaskStatus} from 'src/types/v2'
+import {AppState, Task, TaskStatus} from 'src/types'
 
 interface PassedInProps {
   router: InjectedRouter

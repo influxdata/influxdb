@@ -1,4 +1,4 @@
-import {BuilderConfig} from 'src/types/v2'
+import {BuilderConfig} from 'src/types'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {
   TIME_RANGE_START,

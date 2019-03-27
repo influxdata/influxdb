@@ -2,14 +2,12 @@
 import React, {Component} from 'react'
 
 // Components
-import {
-  Button,
-  IconFont,
-  ComponentSize,
-  ComponentColor,
-} from '@influxdata/clockface'
-import {EmptyState} from 'src/clockface'
+import {Button, EmptyState} from '@influxdata/clockface'
 
+// Types
+import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
+
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

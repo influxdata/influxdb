@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import {IndexList, ConfirmationButton, Context} from 'src/clockface'
@@ -17,7 +18,7 @@ import {
   IconFont,
 } from '@influxdata/clockface'
 import {Bucket} from '@influxdata/influx'
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/dataLoaders'
 import EditableName from 'src/shared/components/EditableName'
 import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
 
@@ -93,7 +94,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private get organization(): JSX.Element {
-    if (!this.props.params.orgID) {
+    if (!_.get(this.props, 'params.orgID')) {
       return <IndexList.Cell>{this.props.bucket.organization}</IndexList.Cell>
     }
   }

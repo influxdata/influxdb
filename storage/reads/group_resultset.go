@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"sort"
 
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/zap"
 )
 
 type groupResultSet struct {
@@ -113,30 +111,14 @@ func (g *groupResultSet) Next() GroupCursor {
 }
 
 func (g *groupResultSet) sort() (int, error) {
-	log := logger.LoggerFromContext(g.ctx)
-	if log != nil {
-		var f func()
-		log, f = logger.NewOperation(log, "Sort", "group.sort", zap.String("group_type", g.req.Group.String()))
-		defer f()
-	}
-
-	span := opentracing.SpanFromContext(g.ctx)
-	if span != nil {
-		span = opentracing.StartSpan(
-			"group.sort",
-			opentracing.ChildOf(span.Context()),
-			opentracing.Tag{Key: "group_type", Value: g.req.Group.String()})
-		defer span.Finish()
-	}
+	span, _ := tracing.StartSpanFromContext(g.ctx)
+	defer span.Finish()
+	span.LogKV("group_type", g.req.Group.String())
 
 	n, err := g.sortFn(g)
 
-	if span != nil {
-		span.SetTag("rows", n)
-	}
-
-	if log != nil {
-		log.Info("Sort completed", zap.Int("rows", n))
+	if err != nil {
+		span.LogKV("rows", n)
 	}
 
 	return n, err

@@ -5,9 +5,8 @@ import {range} from 'lodash'
 
 // Components
 import {Button, ButtonShape, IconFont} from '@influxdata/clockface'
-import {Form} from 'src/clockface'
 import TagSelector from 'src/timeMachine/components/TagSelector'
-import QueryBuilderBucketDropdown from 'src/timeMachine/components/QueryBuilderBucketDropdown'
+import QueryBuilderDataCard from 'src/timeMachine/components/QueryBuilderDataCard'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import FunctionSelector from 'src/timeMachine/components/FunctionSelector'
 
@@ -17,11 +16,8 @@ import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
-// Styles
-import 'src/timeMachine/components/QueryBuilder.scss'
-
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface StateProps {
@@ -48,14 +44,10 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
 
     return (
       <div className="query-builder" data-testid="query-builder">
-        <div className="query-builder--buttons">
-          <Form.Element label="Bucket">
-            <QueryBuilderBucketDropdown />
-          </Form.Element>
-        </div>
         <div className="query-builder--cards">
           <FancyScrollbar>
             <div className="query-builder--tag-selectors">
+              <QueryBuilderDataCard />
               {range(tagFiltersLength).map(i => (
                 <TagSelector key={i} index={i} />
               ))}

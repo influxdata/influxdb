@@ -3,13 +3,8 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import moment from 'moment'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  ComponentStatus,
-  ButtonType,
-} from '@influxdata/clockface'
-import {Form, Input, Grid} from 'src/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import Retention from 'src/organizations/components/Retention'
 
 // Constants
@@ -17,6 +12,11 @@ import {MIN_RETENTION_SECONDS} from 'src/organizations/constants'
 
 // Types
 import {BucketRetentionRules} from '@influxdata/influx'
+import {
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 interface Props {
   name: string

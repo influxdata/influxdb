@@ -2,15 +2,18 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
+import {Input, Button, ColorPicker} from '@influxdata/clockface'
+import {Grid, Form, Label} from 'src/clockface'
+
+// Types
 import {
-  Button,
   Columns,
+  InputType,
   ButtonType,
   ComponentSize,
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {Grid, Form, Input, Label, InputType, ColorPicker} from 'src/clockface'
 
 // Constants
 import {INPUT_ERROR_COLOR} from 'src/configuration/constants/LabelColors'
@@ -18,9 +21,6 @@ const MAX_LABEL_CHARS = 50
 
 // Utils
 import {validateHexCode} from 'src/configuration/utils/labels'
-
-// Styles
-import 'src/configuration/components/LabelOverlayForm.scss'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

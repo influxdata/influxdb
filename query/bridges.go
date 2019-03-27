@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
@@ -23,6 +24,12 @@ func (b QueryServiceBridge) Query(ctx context.Context, req *Request) (flux.Resul
 	return flux.NewResultIteratorFromQuery(query), nil
 }
 
+// Check returns the status of this query service.  Since this bridge consumes an AsyncQueryService,
+// which is not available over the network, this check always passes.
+func (QueryServiceBridge) Check(context.Context) check.Response {
+	return check.Response{Name: "Query Service", Status: check.StatusPass}
+}
+
 // QueryServiceProxyBridge implements QueryService while consuming a ProxyQueryService interface.
 type QueryServiceProxyBridge struct {
 	ProxyQueryService ProxyQueryService
@@ -36,34 +43,42 @@ func (b QueryServiceProxyBridge) Query(ctx context.Context, req *Request) (flux.
 	}
 
 	r, w := io.Pipe()
-	statsChan := make(chan flux.Statistics, 1)
+	asri := &asyncStatsResultIterator{statsReady: make(chan struct{})}
 
 	go func() {
 		stats, err := b.ProxyQueryService.Query(ctx, w, preq)
 		_ = w.CloseWithError(err)
-		statsChan <- stats
+		asri.stats = stats
+		close(asri.statsReady)
 	}()
 
 	dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
 	ri, err := dec.Decode(r)
-	return asyncStatsResultIterator{
-		ResultIterator: ri,
-		statsChan:      statsChan,
-	}, err
+	asri.ResultIterator = ri
+	return asri, err
+}
+
+func (b QueryServiceProxyBridge) Check(ctx context.Context) check.Response {
+	return b.ProxyQueryService.Check(ctx)
 }
 
 type asyncStatsResultIterator struct {
 	flux.ResultIterator
-	statsChan chan flux.Statistics
-	stats     flux.Statistics
+
+	// Channel that is closed when stats have been written.
+	statsReady chan struct{}
+
+	// Statistics gathered from calling the proxy query service.
+	// This field must not be read until statsReady is closed.
+	stats flux.Statistics
 }
 
-func (i asyncStatsResultIterator) Release() {
+func (i *asyncStatsResultIterator) Release() {
 	i.ResultIterator.Release()
-	i.stats = <-i.statsChan
 }
 
-func (i asyncStatsResultIterator) Statistics() flux.Statistics {
+func (i *asyncStatsResultIterator) Statistics() flux.Statistics {
+	<-i.statsReady
 	return i.stats
 }
 
@@ -92,6 +107,12 @@ func (b ProxyQueryServiceAsyncBridge) Query(ctx context.Context, w io.Writer, re
 
 	stats := results.Statistics()
 	return stats, nil
+}
+
+// Check returns the status of this query service.  Since this bridge consumes an AsyncQueryService,
+// which is not available over the network, this check always passes.
+func (ProxyQueryServiceAsyncBridge) Check(context.Context) check.Response {
+	return check.Response{Name: "Query Service", Status: check.StatusPass}
 }
 
 // REPLQuerier implements the repl.Querier interface while consuming a QueryService

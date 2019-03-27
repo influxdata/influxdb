@@ -17,7 +17,7 @@ import {getTasks as getTasksAction} from 'src/organizations/actions/orgView'
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {AppState, Task} from 'src/types/v2'
+import {AppState, Task} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface RouterProps {
@@ -67,7 +67,7 @@ class OrgTasksIndex extends Component<Props, State> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
-                <OrganizationNavigation tab={'tasks'} orgID={org.id} />
+                <OrganizationNavigation tab="tasks" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
                     id="org-view-tab--tasks"

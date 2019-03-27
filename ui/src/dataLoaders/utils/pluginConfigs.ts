@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 // Constants
 import {
   telegrafPluginsInfo,
@@ -10,7 +12,7 @@ import {
   ConfigFields,
   Plugin,
   BundleName,
-} from 'src/types/v2/dataLoaders'
+} from 'src/types/dataLoaders'
 
 export const getConfigFields = (
   pluginName: TelegrafPluginName
@@ -24,7 +26,9 @@ export const updateConfigFields = <T extends Plugin>(
   value: string[] | string
 ): T => {
   return Object.assign({}, plugin, {
-    config: Object.assign({}, plugin.config, {[fieldName]: value}),
+    config: Object.assign({}, _.get(plugin, 'config', {}), {
+      [fieldName]: value,
+    }),
   })
 }
 

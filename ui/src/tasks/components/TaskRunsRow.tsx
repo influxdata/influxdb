@@ -8,12 +8,12 @@ import {IndexList, Overlay} from 'src/clockface'
 import RunLogsOverlay from 'src/tasks/components/RunLogsList'
 
 // Actions
-import {getLogs} from 'src/tasks/actions/v2'
+import {getLogs} from 'src/tasks/actions'
 
 // Types
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
 import {Run, LogEvent} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 interface OwnProps {

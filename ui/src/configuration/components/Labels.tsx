@@ -3,34 +3,36 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
+import {Input, Button, EmptyState} from '@influxdata/clockface'
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
-import {
-  Button,
-  IconFont,
-  ComponentSize,
-  ComponentColor,
-} from '@influxdata/clockface'
-import {EmptyState, Input, InputType} from 'src/clockface'
 import LabelList from 'src/configuration/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
 // Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
+
+// Selectors
+import {viewableLabels} from 'src/labels/selectors'
 
 // Utils
 import {validateLabelUniqueness} from 'src/configuration/utils/labels'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {ILabel} from '@influxdata/influx'
+import {
+  IconFont,
+  InputType,
+  ComponentSize,
+  ComponentColor,
+} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface StateProps {
-  labels: ILabel[]
+  labels: AppState['labels']['list']
 }
 
 interface State {
@@ -39,7 +41,6 @@ interface State {
 }
 
 interface DispatchProps {
-  notify: typeof notifyAction
   createLabel: typeof createLabel
   updateLabel: typeof updateLabel
   deleteLabel: typeof deleteLabel
@@ -122,11 +123,11 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleCreateLabel = (label: ILabel) => {
-    this.props.createLabel(label.name, label.properties)
+    this.props.createLabel(label.orgID, label.name, label.properties)
   }
 
   private handleUpdateLabel = (label: ILabel) => {
-    this.props.updateLabel(label.id, label.properties)
+    this.props.updateLabel(label.id, label)
   }
 
   private handleDelete = async (id: string) => {
@@ -167,14 +168,13 @@ class Labels extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = (state: AppState): StateProps => {
   return {
-    labels: labels.list,
+    labels: viewableLabels(state.labels.list),
   }
 }
 
 const mdtp: DispatchProps = {
-  notify: notifyAction,
   createLabel: createLabel,
   updateLabel: updateLabel,
   deleteLabel: deleteLabel,

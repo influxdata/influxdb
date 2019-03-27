@@ -8,7 +8,7 @@ import {SparkleSpinner} from '@influxdata/clockface'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   status: RemoteDataState
@@ -21,12 +21,12 @@ export class StatusIndicator extends PureComponent<Props> {
     const {status} = this.props
     return (
       <>
-        <div className={'wizard-step--top-container'}>
-          <div className={'wizard-step--sparkle-container'}>
+        <div className="wizard-step--top-container">
+          <div className="wizard-step--sparkle-container">
             <SparkleSpinner loading={status} />
           </div>
         </div>
-        <div className={'wizard-step--footer'}>
+        <div className="wizard-step--footer">
           <div className={this.footerClass}>{this.footerText}</div>
         </div>
         <br />

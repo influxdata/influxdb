@@ -8,7 +8,7 @@ import LineProtocol from 'src/dataLoaders/components/lineProtocolWizard/configur
 import LineProtocolVerifyStep from 'src/dataLoaders/components/lineProtocolWizard/verify/LineProtocolVerifyStep'
 
 // Types
-import {LineProtocolStep} from 'src/types/v2/dataLoaders'
+import {LineProtocolStep} from 'src/types'
 import {LineProtocolStepProps} from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 import {Bucket} from '@influxdata/influx'
 

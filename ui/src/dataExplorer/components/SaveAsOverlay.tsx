@@ -7,9 +7,6 @@ import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
 import SaveAsVariable from 'src/dataExplorer/components/SaveAsVariable'
 import {Radio, Overlay} from 'src/clockface'
 
-// Styles
-import 'src/dataExplorer/components/SaveAsButton.scss'
-
 enum SaveAsOption {
   Dashboard = 'dashboard',
   Task = 'task',

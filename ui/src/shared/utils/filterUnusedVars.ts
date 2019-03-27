@@ -2,7 +2,7 @@
 import {OPTION_NAME} from 'src/variables/constants'
 
 // Types
-import {QueryView} from 'src/types/v2/dashboards'
+import {QueryView} from 'src/types/dashboards'
 import {Variable, View} from '@influxdata/influx'
 
 /*
