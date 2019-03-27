@@ -14,10 +14,15 @@ import {
   createVariableSuccess,
   updateVariableSuccess,
 } from 'src/shared/copy/notifications'
+import {setExportTemplate} from 'src/templates/actions'
 
 // Utils
 import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
+
+// Constants
+import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {Dispatch} from 'redux-thunk'
@@ -244,5 +249,22 @@ export const refreshVariableValues = (
 
     console.error(e)
     dispatch(setValues(contextID, RemoteDataState.Error))
+  }
+}
+
+export const convertToTemplate = (variableID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    dispatch(setExportTemplate(RemoteDataState.Loading))
+
+    const variable = await client.variables.get(variableID)
+    const variableTemplate = variableToTemplate(variable)
+    const orgID = variable.orgID // TODO remove when org is implicit app state
+
+    dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate, orgID))
+  } catch (error) {
+    dispatch(setExportTemplate(RemoteDataState.Error))
+    dispatch(notify(copy.createTemplateFailed(error)))
   }
 }

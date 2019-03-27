@@ -2,8 +2,9 @@ import {
   labelToRelationship,
   labelToIncluded,
   taskToTemplate,
+  variableToTemplate,
 } from 'src/shared/utils/resourceToTemplate'
-import {TemplateType} from '@influxdata/influx'
+import {TemplateType, Variable} from '@influxdata/influx'
 import {Label, Task, TaskStatus} from 'src/types'
 
 const myfavelabel: Label = {
@@ -30,6 +31,20 @@ const myfavetask: Task = {
   org: 'org',
   orgID: '037b084ec8ebc000',
   status: TaskStatus.Active,
+}
+
+const myVariable: Variable = {
+  id: '039ae3b3b74b0000',
+  orgID: '039aa15b38cb0000',
+  name: 'beep',
+  selected: null,
+  arguments: {
+    type: 'query',
+    values: {
+      query: 'test!',
+      language: 'flux',
+    },
+  },
 }
 
 describe('resourceToTemplate', () => {
@@ -59,6 +74,42 @@ describe('resourceToTemplate', () => {
       expect(actual).toEqual(expected)
     })
   })
+
+  describe('variableToTemplate', () => {
+    it('converts a variable to a template', () => {
+      const actual = variableToTemplate(myVariable)
+      const expected = {
+        meta: {
+          version: '1',
+          name: 'beep-Template',
+          description: 'template created from variable: beep',
+        },
+        content: {
+          data: {
+            type: 'variable',
+            id: '039ae3b3b74b0000',
+            attributes: {
+              name: 'beep',
+              arguments: {
+                type: 'query',
+                values: {
+                  query: 'test!',
+                  language: 'flux',
+                },
+              },
+              selected: null,
+            },
+            relationships: {},
+          },
+          included: [],
+        },
+        labels: [],
+      }
+
+      expect(actual).toEqual(expected)
+    })
+  })
+
   describe('taskToTemplate', () => {
     it('converts a task to a template', () => {
       const actual = taskToTemplate(myfavetask)
