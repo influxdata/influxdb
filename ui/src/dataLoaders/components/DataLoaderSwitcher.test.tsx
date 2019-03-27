@@ -9,7 +9,7 @@ import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/Collec
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 
 // Types
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types'
 
 const setup = (override = {}) => {
   const props = {

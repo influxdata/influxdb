@@ -10,7 +10,7 @@ import {getActiveOrg} from 'src/organizations/selectors'
 import {createVariable} from 'src/variables/actions'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Variable} from '@influxdata/influx'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 

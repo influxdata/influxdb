@@ -18,7 +18,7 @@ import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   submitButtonDisabled: boolean

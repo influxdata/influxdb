@@ -12,8 +12,8 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Types
 import {Proto} from '@influxdata/influx'
-import {GetState, Dashboard} from 'src/types/v2'
-import {ConfigurationState} from 'src/types/v2/dataLoaders'
+import {GetState, Dashboard} from 'src/types'
+import {ConfigurationState} from 'src/types/dataLoaders'
 
 // Const
 import {

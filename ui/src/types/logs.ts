@@ -3,7 +3,7 @@ import {Index} from 'react-virtualized'
 import {QueryConfig} from 'src/types'
 import {Bucket, Source} from '@influxdata/influx'
 
-import {FieldOption, TimeSeriesValue} from 'src/types/v2/dashboards'
+import {FieldOption, TimeSeriesValue} from 'src/types/dashboards'
 
 export interface LogSearchParams {
   lower: string

@@ -59,6 +59,25 @@ const templatesReducer = (
         }
         return
       }
+
+      case ActionTypes.RemoveTemplateSummary: {
+        const {templateID} = action.payload
+        const {items} = draftState
+        draftState.items = items.filter(l => {
+          return l.id !== templateID
+        })
+
+        return
+      }
+
+      case ActionTypes.AddTemplateSummary: {
+        const {item} = action.payload
+        const {items} = draftState
+
+        draftState.items = [...items, item]
+
+        return
+      }
     }
   })
 

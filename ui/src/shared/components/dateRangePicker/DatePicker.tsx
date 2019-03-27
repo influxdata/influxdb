@@ -2,10 +2,15 @@
 import React, {PureComponent} from 'react'
 import ReactDatePicker from 'react-datepicker'
 
+// Components
+import {Form, Input} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
+
 // Styles
 import 'react-datepicker/dist/react-datepicker.css'
-import {Input, Form, Grid} from 'src/clockface'
-import {ComponentSize, Columns} from '@influxdata/clockface'
+
+// Types
+import {Columns, ComponentSize} from '@influxdata/clockface'
 
 interface Props {
   label: string

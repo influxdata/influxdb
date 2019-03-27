@@ -30,8 +30,8 @@ import {setTimeRange} from 'src/timeMachine/actions'
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, DashboardQuery, QueryEditMode, TimeRange} from 'src/types/v2'
-import {DashboardDraftQuery} from 'src/types/v2/dashboards'
+import {AppState, DashboardQuery, QueryEditMode, TimeRange} from 'src/types'
+import {DashboardDraftQuery} from 'src/types/dashboards'
 
 interface StateProps {
   activeQuery: DashboardQuery

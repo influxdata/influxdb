@@ -19,7 +19,7 @@ import {getActiveQuery} from 'src/timeMachine/selectors'
 import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   onInsertFluxFunction: (functionName: string, text: string) => void

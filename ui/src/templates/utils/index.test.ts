@@ -3,7 +3,7 @@ import {
   findIncludedFromRelationship,
   findIncludedVariables,
 } from 'src/templates/utils/'
-import {TemplateType} from 'src/types/v2'
+import {TemplateType} from 'src/types'
 
 const includeds = [
   {type: TemplateType.Cell, id: '1', attributes: {id: 'a'}},

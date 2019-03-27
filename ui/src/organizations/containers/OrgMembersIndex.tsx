@@ -23,7 +23,7 @@ import {client} from 'src/utils/api'
 // Types
 import {ResourceOwner} from '@influxdata/influx'
 import {Organization} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface RouterProps {
   params: {
@@ -65,7 +65,7 @@ class OrgMembersIndex extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'members'} orgID={org.id} />
+              <OrganizationNavigation tab="members" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--members"

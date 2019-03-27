@@ -10,7 +10,7 @@ import {createDashboardFromTemplate as createDashboardFromTemplateAction} from '
 
 // Types
 import ImportOverlay from 'src/shared/components/ImportOverlay'
-import {AppState, Organization} from 'src/types/v2'
+import {AppState, Organization} from 'src/types'
 
 interface DispatchProps {
   createDashboardFromTemplate: typeof createDashboardFromTemplateAction

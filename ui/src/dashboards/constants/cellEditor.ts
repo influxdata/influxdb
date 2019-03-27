@@ -1,6 +1,6 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
-import {ViewType, Axis, Axes} from 'src/types/v2/dashboards'
+import {ViewType, Axis, Axes} from 'src/types/dashboards'
 import {Color} from 'src/types/colors'
 
 export const initializeOptions = (type: ViewType) => {

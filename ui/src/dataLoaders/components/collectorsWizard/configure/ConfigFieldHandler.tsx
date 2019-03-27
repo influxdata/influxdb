@@ -19,7 +19,7 @@ import {
   TelegrafPlugin,
   ConfigFields,
   ConfigFieldType,
-} from 'src/types/v2/dataLoaders'
+} from 'src/types/dataLoaders'
 
 interface OwnProps {
   configFields: ConfigFields
@@ -44,7 +44,7 @@ export class ConfigFieldHandler extends PureComponent<Props> {
     const {configFields, telegrafPlugin, onSetConfigArrayValue} = this.props
 
     if (!configFields) {
-      return <p data-testid={'no-config'}>No configuration required.</p>
+      return <p data-testid="no-config">No configuration required.</p>
     }
 
     return Object.entries(configFields).map(

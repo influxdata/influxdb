@@ -17,11 +17,11 @@ import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
 
 // Types
-import {Dashboard, MeState} from 'src/types/v2'
+import {Dashboard, AppState} from 'src/types'
 import {Organization} from '@influxdata/influx'
 
 interface Props {
-  me: MeState
+  me: AppState['me']
 }
 
 const getOrganizations = () => client.organizations.getAll()
@@ -37,10 +37,10 @@ class ResourceLists extends PureComponent<Props> {
           <Panel.Body>
             <ul className="link-list">
               <li>
-                <Link to={`/configuration/settings_tab`}>Profile</Link>
+                <Link to="/configuration/settings_tab">Profile</Link>
               </li>
               <li>
-                <Link to={`/configuration/tokens_tab`}>Tokens</Link>
+                <Link to="/configuration/tokens_tab">Tokens</Link>
               </li>
             </ul>
           </Panel.Body>

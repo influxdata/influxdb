@@ -22,8 +22,7 @@ import {savingNoteFailed} from 'src/shared/copy/v2/notifications'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {AppState} from 'src/types/v2'
-import {NoteEditorMode} from 'src/types/v2/dashboards'
+import {AppState, NoteEditorMode} from 'src/types'
 
 interface StateProps {
   mode: NoteEditorMode

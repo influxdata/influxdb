@@ -1,12 +1,16 @@
-import {Template, SourceLinks, TemplateType, TemplateValueType} from 'src/types'
-import {Source} from '@influxdata/influx'
-import {Cell, Dashboard, Task} from 'src/types/v2'
-import {ILabel} from '@influxdata/influx'
-import {Links} from 'src/types/v2/links'
+import {
+  SourceLinks,
+  Cell,
+  Dashboard,
+  Task,
+  Links,
+  ConfigurationState,
+} from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {WithRouterProps} from 'react-router'
-import {ConfigurationState} from 'src/types/v2/dataLoaders'
 import {
+  Source,
+  ILabel,
   TelegrafPluginInputCpu,
   TelegrafPluginInputRedis,
   TelegrafPluginInputDisk,
@@ -160,41 +164,6 @@ export const query = {
 }
 
 // Dashboards
-export const template: Template = {
-  id: '1',
-  type: TemplateType.TagKeys,
-  label: 'test query',
-  tempVar: ':region:',
-  query: {
-    db: 'db1',
-    rp: 'rp1',
-    tagKey: 'tk1',
-    fieldKey: 'fk1',
-    measurement: 'm1',
-    influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
-  },
-  values: [
-    {
-      value: 'us-west',
-      type: TemplateValueType.TagKey,
-      selected: false,
-      localSelected: false,
-    },
-    {
-      value: 'us-east',
-      type: TemplateValueType.TagKey,
-      selected: true,
-      localSelected: true,
-    },
-    {
-      value: 'us-mount',
-      type: TemplateValueType.TagKey,
-      selected: false,
-      localSelected: false,
-    },
-  ],
-}
-
 export const dashboard: Dashboard = {
   id: '1',
   orgID: '02ee9e2a29d73000',

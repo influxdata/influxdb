@@ -5,7 +5,7 @@ import {
   DocumentListEntry,
   Document,
 } from '@influxdata/influx'
-import {View, Cell} from 'src/types/v2'
+import {View, Cell} from './index'
 
 export enum TemplateType {
   Label = 'label',
@@ -21,7 +21,7 @@ interface KeyValuePairs {
 }
 
 // Templates
-interface TemplateBase extends Document {
+export interface TemplateBase extends Document {
   content: {data: TemplateData; included: TemplateIncluded[]}
   labels?: ILabel[]
 }

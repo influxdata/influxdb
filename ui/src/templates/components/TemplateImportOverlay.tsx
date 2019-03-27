@@ -12,15 +12,8 @@ import {
 } from 'src/templates/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-//Constants
-import {
-  importTemplateSucceeded,
-  importTemplateFailed,
-} from 'src/shared/copy/notifications'
-
 // Types
-import {AppState, Organization} from 'src/types/v2'
-import {RemoteDataState} from 'src/types'
+import {AppState, Organization, RemoteDataState} from 'src/types'
 
 interface DispatchProps {
   createTemplate: typeof createTemplateAction
@@ -58,16 +51,12 @@ class TemplateImportOverlay extends PureComponent<Props> {
   private handleImportTemplate = () => async (
     importString: string
   ): Promise<void> => {
-    const {createTemplate, notify} = this.props
+    const {createTemplate} = this.props
     const {setTemplatesStatus} = this.props
-    try {
-      const template = JSON.parse(importString)
-      await createTemplate(template)
-      notify(importTemplateSucceeded())
-      setTemplatesStatus(RemoteDataState.NotStarted)
-    } catch (error) {
-      notify(importTemplateFailed(error))
-    }
+
+    const template = JSON.parse(importString)
+    await createTemplate(template)
+    setTemplatesStatus(RemoteDataState.NotStarted)
 
     this.onDismiss()
   }

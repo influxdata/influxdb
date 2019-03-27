@@ -3,8 +3,8 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
+import {Form} from '@influxdata/clockface'
 import {PluginConfigForm} from 'src/dataLoaders/components/collectorsWizard/configure/PluginConfigForm'
-import {Form} from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Constants

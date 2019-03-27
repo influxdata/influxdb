@@ -31,6 +31,7 @@ export const saveToLocalStorage = ({
   app: {persisted},
   ranges,
   variables,
+  userSettings,
 }: LocalStorage): void => {
   try {
     const appPersisted = {app: {persisted}}
@@ -41,6 +42,7 @@ export const saveToLocalStorage = ({
         VERSION,
         ranges: normalizer(ranges),
         variables,
+        userSettings,
       })
     )
   } catch (err) {

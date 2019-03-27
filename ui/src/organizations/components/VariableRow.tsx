@@ -30,13 +30,13 @@ export default class VariableRow extends PureComponent<Props> {
           <EditableName
             onUpdate={this.handleUpdateVariableName}
             name={variable.name}
-            noNameString={'NAME THIS VARIABLE'}
+            noNameString="NAME THIS VARIABLE"
             onEditName={this.handleEditVariable}
           >
             {variable.name}
           </EditableName>
         </IndexList.Cell>
-        <IndexList.Cell alignment={Alignment.Left}>{'Query'}</IndexList.Cell>
+        <IndexList.Cell alignment={Alignment.Left}>Query</IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
           <ConfirmationButton
             size={ComponentSize.ExtraSmall}

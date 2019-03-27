@@ -17,8 +17,8 @@ import {notify} from 'src/shared/actions/notifications'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, DashboardQuery} from 'src/types/v2'
-import {QueryView} from 'src/types/v2/dashboards'
+import {AppState, DashboardQuery} from 'src/types'
+import {QueryView} from 'src/types/dashboards'
 import {Dashboard} from 'src/types'
 
 // Nofication Messages

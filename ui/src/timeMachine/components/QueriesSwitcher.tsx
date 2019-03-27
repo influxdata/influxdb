@@ -17,7 +17,7 @@ import {getActiveQuery} from 'src/timeMachine/selectors'
 import {hasQueryBeenEdited} from 'src/timeMachine/utils/queryBuilder'
 
 // Types
-import {AppState, QueryEditMode, DashboardQuery} from 'src/types/v2'
+import {AppState, QueryEditMode, DashboardQuery} from 'src/types'
 
 interface StateProps {
   activeQuery: DashboardQuery

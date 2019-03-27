@@ -29,10 +29,11 @@ import {telegrafsReducer} from 'src/telegrafs/reducers'
 import {authorizationsReducer} from 'src/authorizations/reducers'
 import templatesReducer from 'src/templates/reducers'
 import {scrapersReducer} from 'src/scrapers/reducers'
+import {userSettingsReducer} from 'src/userSettings/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
@@ -58,6 +59,7 @@ export const rootReducer = combineReducers<ReducerState>({
   tokens: authorizationsReducer,
   scrapers: scrapersReducer,
   templates: templatesReducer,
+  userSettings: userSettingsReducer,
   VERSION: () => '',
 })
 

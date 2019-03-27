@@ -2,9 +2,11 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {ComponentSize} from '@influxdata/clockface'
+import {EmptyState} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import {EmptyState} from 'src/clockface'
+
+// Types
+import {ComponentSize} from '@influxdata/clockface'
 
 interface Props {
   searchTerm: string
@@ -35,7 +37,7 @@ const EmptyTemplatesList: FunctionComponent<Props> = ({
 
   return (
     <EmptyState size={ComponentSize.Large}>
-      <EmptyState.Text text={'No Templates match your search term'} />
+      <EmptyState.Text text="No Templates match your search term" />
     </EmptyState>
   )
 }

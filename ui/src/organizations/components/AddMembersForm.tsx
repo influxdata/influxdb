@@ -2,13 +2,14 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Button, ButtonType, IconFont} from '@influxdata/clockface'
-import {Form, Grid, Input, Columns} from 'src/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import SelectUsers from 'src/organizations/components/SelectUsers'
 import {UsersMap} from 'src/organizations/components/Members'
 
 // Types
 import {User} from '@influxdata/influx'
+import {Columns, IconFont, ButtonType} from '@influxdata/clockface'
 
 interface Props {
   onCloseModal: () => void

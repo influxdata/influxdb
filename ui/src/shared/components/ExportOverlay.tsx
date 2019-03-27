@@ -4,15 +4,13 @@ import {get} from 'lodash'
 import {client} from 'src/utils/api'
 
 // Components
-import {Overlay} from 'src/clockface'
-import {Form} from 'src/clockface'
 import {
+  Form,
   Button,
-  ComponentColor,
-  ComponentSize,
   SpinnerContainer,
   TechnoSpinner,
 } from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 import CopyButton from 'src/shared/components/CopyButton'
 
@@ -31,6 +29,7 @@ import {addOrgIDToTemplate} from 'src/shared/utils/resourceToTemplate'
 
 // Types
 import {DocumentCreate} from '@influxdata/influx'
+import {ComponentColor, ComponentSize} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 
 interface OwnProps extends DefaultProps {
@@ -130,7 +129,7 @@ class ExportOverlay extends PureComponent<Props> {
   private get downloadButton(): JSX.Element {
     return (
       <Button
-        text={`Download JSON`}
+        text="Download JSON"
         onClick={this.handleExport}
         color={ComponentColor.Primary}
       />
@@ -140,7 +139,7 @@ class ExportOverlay extends PureComponent<Props> {
   private get toTemplateButton(): JSX.Element {
     return (
       <Button
-        text={`Save as template`}
+        text="Save as template"
         onClick={this.handleConvertToTemplate}
         color={ComponentColor.Primary}
       />

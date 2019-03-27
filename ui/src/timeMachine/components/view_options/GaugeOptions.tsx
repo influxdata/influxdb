@@ -17,8 +17,8 @@ import {
 } from 'src/timeMachine/actions'
 
 // Types
-import {ViewType} from 'src/types/v2'
-import {DecimalPlaces} from 'src/types/v2/dashboards'
+import {ViewType} from 'src/types'
+import {DecimalPlaces} from 'src/types/dashboards'
 import {Color, ThresholdConfig} from 'src/types/colors'
 
 interface OwnProps {

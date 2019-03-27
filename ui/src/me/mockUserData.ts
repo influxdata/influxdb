@@ -1,5 +1,5 @@
 // Types
-import {MeState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 const LeroysTokens = [
   {
@@ -14,7 +14,7 @@ const LeroysTokens = [
   },
 ]
 
-export const me: MeState = {
+export const me: AppState['me'] = {
   id: 'id-of-groot',
   name: 'groot',
   links: {

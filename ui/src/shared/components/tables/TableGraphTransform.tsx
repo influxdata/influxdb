@@ -7,7 +7,7 @@ import memoizeOne from 'memoize-one'
 import {transformTableData} from 'src/dashboards/utils/tableGraph'
 
 // Types
-import {TableView, SortOptions} from 'src/types/v2/dashboards'
+import {TableView, SortOptions} from 'src/types/dashboards'
 import {TransformTableDataReturnType} from 'src/dashboards/utils/tableGraph'
 
 interface Props {

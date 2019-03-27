@@ -39,7 +39,6 @@ interface Props extends DefaultProps {
   onManualRefresh: () => void
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
-  showTemplateControlBar: boolean
   onRenameDashboard: (name: string) => Promise<void>
   toggleVariablesControlBar: () => void
   isShowingVariablesControlBar: boolean

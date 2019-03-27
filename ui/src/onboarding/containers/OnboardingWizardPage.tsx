@@ -10,16 +10,21 @@ import {client} from 'src/utils/api'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Components
+import {
+  Button,
+  EmptyState,
+  TechnoSpinner,
+  SpinnerContainer,
+} from '@influxdata/clockface'
+import {WizardFullScreen} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OnboardingWizard from 'src/onboarding/containers/OnboardingWizard'
 import Notifications from 'src/shared/components/notifications/Notifications'
-import {WizardFullScreen, EmptyState} from 'src/clockface'
-import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
 
 // Types
 import {ComponentColor, ComponentSize} from '@influxdata/clockface'
 import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
-import {Links} from 'src/types/v2/links'
+import {Links} from 'src/types/links'
 
 interface State {
   loading: RemoteDataState
@@ -90,7 +95,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
                     highlightWords={['Initial', 'User']}
                   />
                   <Button
-                    text={'Return to Home Page'}
+                    text="Return to Home Page"
                     onClick={this.redirectToHome}
                     color={ComponentColor.Primary}
                   />

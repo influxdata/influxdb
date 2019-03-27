@@ -16,8 +16,8 @@ import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
-import {DashboardQuery} from 'src/types/v2/dashboards'
-import {AppState, Organization} from 'src/types/v2'
+import {DashboardQuery} from 'src/types/dashboards'
+import {AppState, Organization} from 'src/types'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 

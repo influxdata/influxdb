@@ -27,7 +27,7 @@ import {
 
 // Types
 import {Organization, ITask as Task} from '@influxdata/influx'
-import {AppState, TaskStatus} from 'src/types/v2'
+import {AppState, TaskStatus} from 'src/types'
 import {client} from 'src/utils/api'
 import GetLabels from 'src/configuration/components/GetLabels'
 

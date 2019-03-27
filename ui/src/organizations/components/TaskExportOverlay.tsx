@@ -10,7 +10,7 @@ import {convertToTemplate as convertToTemplateAction} from 'src/tasks/actions'
 import {clearExportTemplate as clearExportTemplateAction} from 'src/templates/actions'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {DocumentCreate} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 

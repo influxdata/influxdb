@@ -23,7 +23,7 @@ import {
 
 // Types
 import {Organization} from '@influxdata/influx'
-import {AppState, Dashboard} from 'src/types/v2'
+import {AppState, Dashboard} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface RouterProps {
@@ -80,7 +80,7 @@ class OrgDashboardsIndex extends Component<Props, State> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
-                <OrganizationNavigation tab={'dashboards'} orgID={org.id} />
+                <OrganizationNavigation tab="dashboards" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
                     id="org-view-tab--dashboards"

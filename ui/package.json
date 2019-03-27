@@ -140,8 +140,8 @@
     "webpack": "^4.29.0"
   },
   "dependencies": {
-    "@influxdata/clockface": "0.0.5",
-    "@influxdata/influx": "0.2.48",
+    "@influxdata/influx": "0.2.52",
+    "@influxdata/clockface": "0.0.8",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",
@@ -186,6 +186,7 @@
     "redux": "^4.0.0",
     "redux-auth-wrapper": "^1.0.0",
     "redux-thunk": "^1.0.3",
+    "reselect": "^4.0.0",
     "rome": "^2.1.22",
     "ui": "^0.2.4",
     "uuid": "^3.2.1"

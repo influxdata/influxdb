@@ -2,8 +2,8 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {Cell, Dashboard} from 'src/types/v2'
-import {DecimalPlaces} from 'src/types/v2/dashboards'
+import {Cell, Dashboard} from 'src/types'
+import {DecimalPlaces} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 export const UNTITLED_GRAPH: string = 'Untitled Graph'

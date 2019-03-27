@@ -6,7 +6,7 @@ import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {formatStatValue} from 'src/shared/utils/formatStatValue'
 
 // Types
-import {ViewType, SingleStatView} from 'src/types/v2/dashboards'
+import {ViewType, SingleStatView} from 'src/types/dashboards'
 
 interface Props {
   properties: SingleStatView

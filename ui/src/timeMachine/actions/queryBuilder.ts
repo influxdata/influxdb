@@ -7,7 +7,7 @@ import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {Dispatch} from 'redux-thunk'
-import {GetState} from 'src/types/v2'
+import {GetState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {CancellationError} from 'src/types/promises'
 

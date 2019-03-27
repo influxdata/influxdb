@@ -1,22 +1,32 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
+import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {ResourceList} from 'src/clockface'
+import {ResourceList, Context, IconFont} from 'src/clockface'
 
 // Actions
+import {deleteTemplate, cloneTemplate} from 'src/templates/actions'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
+import {ComponentColor} from '@influxdata/clockface'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
 
-interface Props {
+interface OwnProps {
   template: TemplateSummary
   onFilterChange: (searchTerm: string) => void
 }
+
+interface DispatchProps {
+  onDelete: typeof deleteTemplate
+  onClone: typeof cloneTemplate
+}
+
+type Props = DispatchProps & OwnProps
 
 export class TemplateCard extends PureComponent<Props & WithRouterProps> {
   public render() {
@@ -45,7 +55,41 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
   private doNothing = () => {}
 
   private get contextMenu(): JSX.Element {
-    return null
+    const {
+      template: {id},
+      onDelete,
+    } = this.props
+    return (
+      <Context>
+        <Context.Menu
+          icon={IconFont.Duplicate}
+          color={ComponentColor.Secondary}
+        >
+          <Context.Item label="Clone" action={this.handleClone} value={id} />
+        </Context.Menu>
+        <Context.Menu
+          icon={IconFont.Trash}
+          color={ComponentColor.Danger}
+          testID="context-delete-menu"
+        >
+          <Context.Item
+            label="Delete"
+            action={onDelete}
+            value={id}
+            testID="context-delete-task"
+          />
+        </Context.Menu>
+      </Context>
+    )
+  }
+
+  private handleClone = () => {
+    const {
+      template: {id},
+      params: {orgID},
+      onClone,
+    } = this.props
+    onClone(id, orgID)
   }
 
   private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
@@ -63,4 +107,12 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
-export default withRouter<Props>(TemplateCard)
+const mdtp: DispatchProps = {
+  onDelete: deleteTemplate,
+  onClone: cloneTemplate,
+}
+
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
+  mdtp
+)(withRouter<Props>(TemplateCard))

@@ -2,7 +2,7 @@
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -82,7 +82,7 @@ class OrgTelegrafsIndex extends Component<Props, State> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab={'telegrafs'} orgID={org.id} />
+              <OrganizationNavigation tab="telegrafs" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--telegrafs"

@@ -21,12 +21,28 @@ export enum ActionTypes {
   PopulateTemplateSummaries = 'POPULATE_TEMPLATE_SUMMARIES',
   SetTemplatesStatus = 'SET_TEMPLATES_STATUS',
   SetExportTemplate = 'SET_EXPORT_TEMPLATE',
+  RemoveTemplateSummary = 'REMOVE_TEMPLATE_SUMMARY',
+  AddTemplateSummary = 'ADD_TEMPLATE_SUMMARY',
 }
 
 export type Actions =
   | PopulateTemplateSummaries
   | SetTemplatesStatus
   | SetExportTemplate
+  | RemoveTemplateSummary
+  | AddTemplateSummary
+
+export interface AddTemplateSummary {
+  type: ActionTypes.AddTemplateSummary
+  payload: {item: TemplateSummary}
+}
+
+export const addTemplateSummary = (
+  item: TemplateSummary
+): AddTemplateSummary => ({
+  type: ActionTypes.AddTemplateSummary,
+  payload: {item},
+})
 
 export interface PopulateTemplateSummaries {
   type: ActionTypes.PopulateTemplateSummaries
@@ -66,14 +82,30 @@ export const setExportTemplate = (
   payload: {status, item, orgID},
 })
 
+interface RemoveTemplateSummary {
+  type: ActionTypes.RemoveTemplateSummary
+  payload: {templateID: string}
+}
+
+const removeTemplateSummary = (templateID: string): RemoveTemplateSummary => ({
+  type: ActionTypes.RemoveTemplateSummary,
+  payload: {templateID},
+})
+
 export const getTemplatesForOrg = (orgName: string) => async dispatch => {
   dispatch(setTemplatesStatus(RemoteDataState.Loading))
   const items = await client.templates.getAll(orgName)
   dispatch(populateTemplateSummaries(items))
 }
 
-export const createTemplate = async (template: DocumentCreate) => {
-  await client.templates.create(template)
+export const createTemplate = (template: DocumentCreate) => async dispatch => {
+  try {
+    await client.templates.create(template)
+    dispatch(notify(copy.importTemplateSucceeded()))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.importTemplateFailed(e)))
+  }
 }
 
 export const convertToTemplate = (id: string) => async (
@@ -94,4 +126,36 @@ export const convertToTemplate = (id: string) => async (
 
 export const clearExportTemplate = () => async dispatch => {
   dispatch(setExportTemplate(RemoteDataState.NotStarted, null))
+}
+
+export const deleteTemplate = (templateID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    await client.templates.delete(templateID)
+    dispatch(removeTemplateSummary(templateID))
+    dispatch(notify(copy.deleteTemplateSuccess()))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.deleteTemplateFailed(e)))
+  }
+}
+
+export const cloneTemplate = (templateID: string, orgID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    const createdTemplate = await client.templates.clone(templateID, orgID)
+
+    dispatch(
+      addTemplateSummary({
+        ...createdTemplate,
+        labels: createdTemplate.labels || [],
+      })
+    )
+    dispatch(notify(copy.cloneTemplateSuccess()))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.cloneTemplateFailed(e)))
+  }
 }

@@ -13,7 +13,7 @@ import {getActiveOrg} from 'src/organizations/selectors'
 
 // Types
 import {Variable} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   onClickVariable: (variableName: string) => void
@@ -31,7 +31,7 @@ const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
 
   return (
     <div className="variable-toolbar">
-      <SearchBar onSearch={setSearchTerm} resourceName={'Variables'} />
+      <SearchBar onSearch={setSearchTerm} resourceName="Variables" />
       <FancyScrollbar>
         <div className="variables-toolbar--list">
           {variables

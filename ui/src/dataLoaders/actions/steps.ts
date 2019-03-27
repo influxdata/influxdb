@@ -1,5 +1,5 @@
 // Types
-import {Substep} from 'src/types/v2/dataLoaders'
+import {Substep} from 'src/types/dataLoaders'
 
 export type Action =
   | SetBucketInfo

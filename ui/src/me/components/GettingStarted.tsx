@@ -10,7 +10,7 @@ import ExploreGraphic from 'src/me/graphics/ExploreGraphic'
 import CollectorGraphic from 'src/me/graphics/CollectorGraphic'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/types'
 
 interface StateProps {
   orgs: Organization[]
@@ -34,7 +34,7 @@ class GettingStarted extends PureComponent<StateProps> {
           </Link>
         </div>
         <div className="getting-started--container">
-          <Link to={`/dashboards`} className="getting-started--card">
+          <Link to="/dashboards" className="getting-started--card">
             <GradientBorder />
             <DashboardingGraphic />
             <h3 className="getting-started--title">
@@ -45,7 +45,7 @@ class GettingStarted extends PureComponent<StateProps> {
           </Link>
         </div>
         <div className="getting-started--container">
-          <Link to={`/data-explorer`} className="getting-started--card">
+          <Link to="/data-explorer" className="getting-started--card">
             <GradientBorder />
             <ExploreGraphic />
             <h3 className="getting-started--title">

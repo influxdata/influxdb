@@ -25,10 +25,10 @@ import {
 } from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
-import {Links} from 'src/types/v2/links'
-import {Substep, TelegrafPlugin} from 'src/types/v2/dataLoaders'
+import {Links} from 'src/types/links'
+import {Substep, TelegrafPlugin} from 'src/types/dataLoaders'
 import {Notification, NotificationFunc} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 
 export interface CollectorsStepProps {
@@ -91,7 +91,7 @@ class CollectorsWizard extends PureComponent<Props> {
     return (
       <WizardOverlay
         visible={visible}
-        title={'Create a Telegraf Config'}
+        title="Create a Telegraf Config"
         onDismiss={this.handleDismiss}
       >
         <CollectorsStepSwitcher stepProps={this.stepProps} buckets={buckets} />

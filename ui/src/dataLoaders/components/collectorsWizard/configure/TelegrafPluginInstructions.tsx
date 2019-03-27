@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {includes} from 'lodash'
 
 // Components
-import {Form, Input, InputType, ComponentSize} from 'src/clockface'
+import {Form, Input} from '@influxdata/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import PluginsSideBar from 'src/dataLoaders/components/collectorsWizard/configure/PluginsSideBar'
@@ -34,8 +34,13 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, DashboardTemplate} from 'src/types/v2/index'
-import {TelegrafPlugin, ConfigurationState} from 'src/types/v2/dataLoaders'
+import {
+  AppState,
+  TelegrafPlugin,
+  ConfigurationState,
+  DashboardTemplate,
+} from 'src/types'
+import {InputType, ComponentSize} from '@influxdata/clockface'
 import {client} from 'src/utils/api'
 
 interface DispatchProps {

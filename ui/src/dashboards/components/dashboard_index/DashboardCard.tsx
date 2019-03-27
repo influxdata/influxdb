@@ -19,12 +19,13 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {Organization} from 'src/types/v2'
+import {Organization} from 'src/types'
 import {ILabel} from '@influxdata/influx'
-import {AppState, Dashboard} from 'src/types/v2'
+import {AppState, Dashboard} from 'src/types'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
+import {resetViews} from 'src/dashboards/actions/views'
 
 interface PassedProps {
   dashboard: Dashboard
@@ -44,6 +45,7 @@ interface DispatchProps {
   onAddDashboardLabels: typeof addDashboardLabelsAsync
   onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
   onCreateLabel: typeof createLabelAsync
+  onResetViews: typeof resetViews
 }
 
 type Props = PassedProps & DispatchProps & StateProps & WithRouterProps
@@ -134,16 +136,20 @@ class DashboardCard extends PureComponent<Props> {
     )
   }
 
-  private get ownerOrg(): Organization {
+  private get ownerOrg(): {id: string; name: string} {
     const {dashboard, orgs, showOwnerColumn} = this.props
 
     if (showOwnerColumn) {
-      return orgs.find(o => o.id === dashboard.orgID)
+      const {id, name} = orgs.find(o => o.id === dashboard.orgID)
+
+      return {id, name}
     }
   }
 
   private handleClickDashboard = () => {
-    const {router, dashboard} = this.props
+    const {router, dashboard, onResetViews} = this.props
+
+    onResetViews()
 
     router.push(`/dashboards/${dashboard.id}`)
   }
@@ -201,6 +207,7 @@ const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
   onAddDashboardLabels: addDashboardLabelsAsync,
   onRemoveDashboardLabels: removeDashboardLabelsAsync,
+  onResetViews: resetViews,
 }
 
 export default connect<StateProps, DispatchProps, PassedProps>(

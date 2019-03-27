@@ -24,9 +24,9 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {THRESHOLD_TYPE_BASE} from 'src/shared/constants/thresholds'
 
 // Types
-import {AppState, NewView} from 'src/types/v2'
-import {SingleStatView} from 'src/types/v2/dashboards'
-import {DecimalPlaces} from 'src/types/v2/dashboards'
+import {AppState, NewView} from 'src/types'
+import {SingleStatView} from 'src/types/dashboards'
+import {DecimalPlaces} from 'src/types/dashboards'
 import {Color, ThresholdConfig} from 'src/types/colors'
 
 interface StateProps {

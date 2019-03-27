@@ -21,7 +21,7 @@ import {
 } from 'src/shared/constants'
 
 // Types
-import {Cell} from 'src/types/v2'
+import {Cell} from 'src/types'
 import {TimeRange} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -75,7 +75,7 @@ class Cells extends Component<Props & WithRouterProps, State> {
         containerPadding={[0, 0]}
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.cell--draggable'}
+        draggableHandle=".cell--draggable"
         isDraggable={this.isDashboard}
         isResizable={this.isDashboard}
       >

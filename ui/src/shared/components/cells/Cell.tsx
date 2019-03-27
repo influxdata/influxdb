@@ -14,8 +14,14 @@ import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {getView} from 'src/dashboards/selectors'
 
 // Types
-import {TimeRange, RemoteDataState} from 'src/types'
-import {AppState, ViewType, View, Cell} from 'src/types/v2'
+import {
+  AppState,
+  ViewType,
+  View,
+  Cell,
+  TimeRange,
+  RemoteDataState,
+} from 'src/types'
 
 interface StateProps {
   viewsStatus: RemoteDataState

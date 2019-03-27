@@ -291,7 +291,9 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 			orgBackend.SecretService = tt.fields.SecretService
 			h := NewOrgHandler(orgBackend)
 
-			b, err := json.Marshal(tt.args.secrets)
+			b, err := json.Marshal(deleteSecretsRequest{
+				Secrets: tt.args.secrets,
+			})
 			if err != nil {
 				t.Fatalf("failed to marshal secrets: %v", err)
 			}

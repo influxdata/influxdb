@@ -4,7 +4,8 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import {Form, Dropdown} from 'src/clockface'
+import {Form} from '@influxdata/clockface'
+import {Dropdown} from 'src/clockface'
 
 // Actions
 import {
@@ -21,7 +22,7 @@ import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {VariableValues} from 'src/variables/types'
 
 interface StateProps {

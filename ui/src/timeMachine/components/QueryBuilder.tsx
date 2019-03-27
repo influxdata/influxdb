@@ -17,7 +17,7 @@ import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface StateProps {
