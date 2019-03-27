@@ -1,0 +1,35 @@
+@import 'src/style/modules';
+
+.import-template-overlay {
+  display: flex;
+  flex-direction: row;
+  width: 90%;
+  justify-content: center;
+}
+
+.import-template-overlay--details {
+  min-width: 65%;
+  margin-left: $ix-marg-c;
+}
+
+.import-template-overlay--columns {
+  display: flex;
+  justify-content: space-between;
+}
+
+.import-template-overlay--variables-column {
+  display: flex;
+  flex-direction: column;
+  width: 50%;
+}
+
+.import-template-overlay--cells-column {
+  display: flex;
+  flex-direction: column;
+  width: 50%;
+}
+
+.import-template-overlay--empty {
+  min-width: 65%;
+  margin-left: $ix-marg-c;
+}

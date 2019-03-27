@@ -41,11 +41,12 @@ class DashboardCards extends PureComponent<Props> {
   }
 
   componentDidUpdate(prevProps) {
-    const {sortDirection, sortKey, sortedIDs} = this.props
+    const {sortDirection, sortKey, sortedIDs, dashboards} = this.props
 
     if (
       prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey
+      prevProps.sortKey !== sortKey ||
+      prevProps.dashboards.length !== dashboards.length
     ) {
       this.setState({sortedIDs})
     }

@@ -8,13 +8,25 @@ import {Dropdown, DropdownMode} from 'src/clockface'
 // Types
 import {IconFont, ComponentColor, ComponentSize} from '@influxdata/clockface'
 
-interface Props {
+interface OwnProps {
   onSelectNew: () => void
   onSelectImport: () => void
+  onSelectTemplate?: () => void
   resourceName: string
+  canImportFromTemplate?: boolean
 }
 
+interface DefaultProps {
+  canImportFromTemplate: boolean
+}
+
+type Props = OwnProps & DefaultProps
+
 export default class AddResourceDropdown extends PureComponent<Props> {
+  public static defaultProps: DefaultProps = {
+    canImportFromTemplate: false,
+  }
+
   public render() {
     return (
       <Dropdown
@@ -34,7 +46,9 @@ export default class AddResourceDropdown extends PureComponent<Props> {
   private get optionItems(): JSX.Element[] {
     const importOption = this.importOption
     const newOption = this.newOption
-    return [
+    const templateOption = this.templateOption
+
+    const items = [
       <Dropdown.Item id={newOption} key={newOption} value={newOption}>
         {newOption}
       </Dropdown.Item>,
@@ -42,6 +56,20 @@ export default class AddResourceDropdown extends PureComponent<Props> {
         {importOption}
       </Dropdown.Item>,
     ]
+
+    if (!!this.props.canImportFromTemplate) {
+      items.push(
+        <Dropdown.Item
+          id={templateOption}
+          key={templateOption}
+          value={templateOption}
+        >
+          {templateOption}
+        </Dropdown.Item>
+      )
+    }
+
+    return items
   }
 
   private get newOption(): string {
@@ -52,14 +80,21 @@ export default class AddResourceDropdown extends PureComponent<Props> {
     return `Import ${this.props.resourceName}`
   }
 
+  private get templateOption(): string {
+    return `From a Template`
+  }
+
   private handleSelect = (selection: string): void => {
-    const {onSelectNew, onSelectImport} = this.props
+    const {onSelectNew, onSelectImport, onSelectTemplate} = this.props
 
     if (selection === this.newOption) {
       onSelectNew()
     }
     if (selection === this.importOption) {
       onSelectImport()
+    }
+    if (selection == this.templateOption) {
+      onSelectTemplate()
     }
   }
 }

@@ -94,6 +94,11 @@ const removeTemplateSummary = (templateID: string): RemoveTemplateSummary => ({
   payload: {templateID},
 })
 
+export const getTemplateByID = async (id: string) => {
+  const template = await client.templates.get(id)
+  return template
+}
+
 export const getTemplatesForOrg = (orgName: string) => async dispatch => {
   dispatch(setTemplatesStatus(RemoteDataState.Loading))
   const items = await client.templates.getAll(orgName)

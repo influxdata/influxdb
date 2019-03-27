@@ -10,6 +10,7 @@ interface Props {
   onClick: () => void
   name?: string
   image?: StatelessComponent
+  hideImage?: boolean
   checked: boolean
   disabled: boolean
 }
@@ -31,6 +32,7 @@ class CardSelectCard extends PureComponent<Props> {
           'card-select--checked': checked,
           'card-select--disabled': disabled,
           'card-select--active': !disabled,
+          'card-select--no-image': this.props.hideImage,
         })}
       >
         <label className="card-select--container">
@@ -60,7 +62,11 @@ class CardSelectCard extends PureComponent<Props> {
   }
 
   private get cardImage(): JSX.Element {
-    const {image, label} = this.props
+    const {image, label, hideImage} = this.props
+
+    if (hideImage) {
+      return
+    }
 
     if (image) {
       return React.createElement(image)
