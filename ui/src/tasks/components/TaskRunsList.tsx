@@ -27,7 +27,7 @@ export default class TaskRunsList extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      sortKey: null,
+      sortKey: 'scheduledFor',
       sortDirection: Sort.Descending,
     }
   }
@@ -104,9 +104,12 @@ export default class TaskRunsList extends PureComponent<Props, State> {
 
   public listRuns = (runs: Run[]): JSX.Element => {
     const {taskID} = this.props
+
+    let recentRuns = runs.slice(0, 20)
+
     const runsRow = (
       <>
-        {runs.map(r => (
+        {recentRuns.map(r => (
           <TaskRunsRow key={`run-id--${r.id}`} taskID={taskID} run={r} />
         ))}
       </>
