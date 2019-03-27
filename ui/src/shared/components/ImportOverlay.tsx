@@ -24,7 +24,7 @@ enum ImportOption {
   Paste = 'paste',
 }
 
-interface OwnProps extends WithRouterProps {
+interface OwnProps {
   onDismissOverlay: () => void
   resourceName: string
   onSubmit: (importString: string, orgID: string) => void
@@ -41,7 +41,7 @@ interface State {
   orgID: string
 }
 
-type Props = StateProps & OwnProps
+type Props = StateProps & OwnProps & WithRouterProps
 
 class ImportOverlay extends PureComponent<Props, State> {
   public static defaultProps: {isVisible: boolean} = {
@@ -195,4 +195,4 @@ const mstp = ({orgs}: AppState): StateProps => ({orgs})
 export default connect<StateProps, {}, OwnProps>(
   mstp,
   null
-)(withRouter(ImportOverlay))
+)(withRouter<OwnProps>(ImportOverlay))

@@ -2,6 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Utils
 import {getVariablesForOrg} from 'src/variables/selectors'
@@ -43,7 +44,7 @@ interface OwnProps {
   org: Organization
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & DispatchProps & OwnProps & WithRouterProps
 
 interface State {
   searchTerm: string
@@ -153,7 +154,11 @@ class Variables extends PureComponent<Props, State> {
 
   private handleFilterBlur() {}
 
-  private handleOpenImportOverlay = (): void => {}
+  private handleOpenImportOverlay = (): void => {
+    const {router, org} = this.props
+
+    router.push(`/organizations/${org.id}/variables/import`)
+  }
 
   private handleOpenCreateOverlay = (): void => {
     this.setState({createOverlayState: OverlayState.Open})
@@ -202,4 +207,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(Variables)
+)(withRouter<OwnProps>(Variables))

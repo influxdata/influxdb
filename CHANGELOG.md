@@ -15,6 +15,7 @@
 1. [12888](https://github.com/influxdata/influxdb/pull/12888): Add the ability to delete a template
 1. [12901](https://github.com/influxdata/influxdb/pull/12901): Save user preference for variable control bar visibility and default to visible
 1. [12910](https://github.com/influxdata/influxdb/pull/12910): Add the ability to clone a template
+1. [12958](https://github.com/influxdata/influxdb/pull/12958): Add the ability to import a variable
 
 ### Bug Fixes
 

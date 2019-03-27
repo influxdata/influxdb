@@ -98,6 +98,8 @@ export type DashboardTemplateIncluded =
   | LabelIncluded
   | VariableIncluded
 
+export type VariableTemplateIncluded = LabelIncluded | VariableIncluded
+
 // Template Datas
 interface TaskTemplateData extends TemplateData {
   type: TemplateType.Task
@@ -117,6 +119,15 @@ interface DashboardTemplateData extends TemplateData {
   }
 }
 
+interface VariableTemplateData extends TemplateData {
+  type: TemplateType.Variable
+  attributes: Variable
+  relationships: {
+    [TemplateType.Label]: {data: LabelRelationship[]}
+    [TemplateType.Variable]: {data: VariableRelationship[]}
+  }
+}
+
 // Templates
 export interface TaskTemplate extends TemplateBase {
   content: {
@@ -129,6 +140,13 @@ export interface DashboardTemplate extends TemplateBase {
   content: {
     data: DashboardTemplateData
     included: DashboardTemplateIncluded[]
+  }
+}
+
+export interface VariableTemplate extends TemplateBase {
+  content: {
+    data: VariableTemplateData
+    included: VariableTemplateIncluded[]
   }
 }
 
