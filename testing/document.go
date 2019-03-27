@@ -109,24 +109,17 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 			}
 		})
 
+		dl1 := new(influxdb.Document)
+		*dl1 = *d1
+		dl1.Labels = append([]*influxdb.Label{}, l1)
+
 		t.Run("bare call to find returns all documents", func(t *testing.T) {
 			ds, err := ss.FindDocuments(ctx)
 			if err != nil {
 				t.Fatalf("failed to retrieve documents: %v", err)
 			}
-
 			if exp, got := []*influxdb.Document{d1, d2, d3}, ds; !docsMetaEqual(exp, got) {
 				t.Errorf("documents are different -got/+want\ndiff %s", docsMetaDiff(exp, got))
-			}
-		})
-
-		t.Run("u1 can see o1s documents", func(t *testing.T) {
-			ds, err := ss.FindDocuments(ctx, influxdb.AuthorizedWhere(s1), influxdb.IncludeContent)
-			if err != nil {
-				t.Fatalf("failed to retrieve documents: %v", err)
-			}
-			if exp, got := []*influxdb.Document{d1}, ds; !docsEqual(exp, got) {
-				t.Errorf("documents are different -got/+want\ndiff %s", docsDiff(exp, got))
 			}
 		})
 
@@ -136,9 +129,6 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to retrieve documents: %v", err)
 			}
-			dl1 := new(influxdb.Document)
-			*dl1 = *d1
-			dl1.Labels = append([]*influxdb.Label{}, l1)
 
 			if exp, got := []*influxdb.Document{dl1}, ds; !docsEqual(exp, got) {
 				t.Errorf("documents are different -got/+want\ndiff %s", docsDiff(exp, got))
@@ -154,12 +144,12 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 		})
 
 		t.Run("u2 can see o1 and o2s documents", func(t *testing.T) {
-			ds, err := ss.FindDocuments(ctx, influxdb.AuthorizedWhere(s2), influxdb.IncludeContent)
+			ds, err := ss.FindDocuments(ctx, influxdb.AuthorizedWhere(s2), influxdb.IncludeContent, influxdb.IncludeLabels)
 			if err != nil {
 				t.Fatalf("failed to retrieve documents: %v", err)
 			}
 
-			if exp, got := []*influxdb.Document{d1, d2}, ds; !docsEqual(exp, got) {
+			if exp, got := []*influxdb.Document{dl1, d2}, ds; !docsEqual(exp, got) {
 				t.Errorf("documents are different -got/+want\ndiff %s", docsDiff(exp, got))
 			}
 		})
@@ -274,7 +264,7 @@ func docsMetaDiff(i1, i2 interface{}) string {
 	return cmp.Diff(i1, i2, documentMetaCmpOptions...)
 }
 
-var documentMetaCmpOptions = append(documentCmpOptions, cmpopts.IgnoreFields(influxdb.Document{}, "Content"))
+var documentMetaCmpOptions = append(documentCmpOptions, cmpopts.IgnoreFields(influxdb.Document{}, "Content", "Labels"))
 
 var documentCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
