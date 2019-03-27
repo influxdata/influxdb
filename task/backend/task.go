@@ -224,10 +224,10 @@ func ToInfluxTask(t *StoreTask, m *StoreTaskMeta) (*influxdb.Task, error) {
 		Cron:            opts.Cron,
 		AuthorizationID: influxdb.ID(m.AuthorizationID),
 	}
-	if opts.Every != 0 {
+	if !opts.Every.IsZero() {
 		pt.Every = opts.Every.String()
 	}
-	if opts.Offset != nil && *opts.Offset != 0 {
+	if opts.Offset != nil && !opts.Offset.IsZero() {
 		pt.Offset = opts.Offset.String()
 	}
 	if m != nil {

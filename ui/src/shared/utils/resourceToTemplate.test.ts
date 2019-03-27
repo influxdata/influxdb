@@ -17,7 +17,7 @@ const myfavetask: Task = {
   authorizationID: '037b084ed9abc000',
   every: '24h0m0s',
   flux:
-    'option task = {name: "lala", every: 86400000000000ns, offset: 60000000000ns}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
+    'option task = {name: "lala", every: 24h0m0s, offset: 1m0s}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
   id: '037b0877b359a000',
   labels: [
     {
@@ -194,7 +194,7 @@ describe('resourceToTemplate', () => {
             attributes: {
               every: '24h0m0s',
               flux:
-                'option task = {name: "lala", every: 86400000000000ns, offset: 60000000000ns}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
+                'option task = {name: "lala", every: 24h0m0s, offset: 1m0s}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
               name: 'lala',
               offset: '1m0s',
               status: 'active',

@@ -14,6 +14,7 @@ import (
 // This file contains helper methods for the StoreTaskMeta type defined in protobuf.
 
 // NewStoreTaskMeta returns a new StoreTaskMeta based on the given request and parsed options.
+// Do not call this without validating the request and options first.
 func NewStoreTaskMeta(req CreateTaskRequest, o options.Options) StoreTaskMeta {
 	stm := StoreTaskMeta{
 		Status:          string(req.Status),
@@ -26,7 +27,8 @@ func NewStoreTaskMeta(req CreateTaskRequest, o options.Options) StoreTaskMeta {
 		stm.MaxConcurrency = int32(*o.Concurrency)
 	}
 	if o.Offset != nil {
-		stm.Offset = int32(*o.Offset / time.Second)
+		offset, _ := o.Offset.DurationFrom(time.Unix(req.ScheduleAfter, 0)) // we can do this because it is validated already.
+		stm.Offset = offset.String()
 	}
 
 	if stm.Status == "" {
@@ -43,20 +45,29 @@ func (stm *StoreTaskMeta) AlignLatestCompleted() {
 
 	if strings.HasPrefix(stm.EffectiveCron, "@every ") {
 		everyString := strings.TrimPrefix(stm.EffectiveCron, "@every ")
-		every, err := time.ParseDuration(everyString)
+		every := options.Duration{}
+		err := every.Parse(everyString)
 		if err != nil {
 			// We cannot align a invalid time
 			return
 		}
-
-		t := time.Unix(stm.LatestCompleted, 0).Truncate(every).Unix()
-		if t == stm.LatestCompleted {
+		t := time.Unix(stm.LatestCompleted, 0)
+		everyDur, err := every.DurationFrom(t)
+		if err != nil {
+			return
+		}
+		t = t.Truncate(everyDur)
+		if t.Unix() == stm.LatestCompleted {
 			// For example, every 1m truncates to exactly on the minute.
 			// But the input request is schedule after, not "on or after".
 			// Add one interval.
-			t += int64(every / time.Second)
+			tafter, err := every.Add(t)
+			if err != nil {
+				return
+			}
+			t = tafter
 		}
-		stm.LatestCompleted = t
+		stm.LatestCompleted = t.Truncate(time.Second).Unix()
 	}
 
 }
@@ -123,15 +134,23 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 			latest = cr.Now
 		}
 	}
-
+	nowTime := time.Unix(now, 0)
 	nextScheduled := sch.Next(time.Unix(latest, 0))
 	nextScheduledUnix := nextScheduled.Unix()
-	if dueAt := nextScheduledUnix + int64(stm.Offset); dueAt > now {
+	offset := &options.Duration{}
+	if err := offset.Parse(stm.Offset); err != nil {
+		return RunCreation{}, err
+	}
+	dueAt, err := offset.Add(nextScheduled)
+	if err != nil {
+		return RunCreation{}, err
+	}
+	if dueAt.After(nowTime) {
 		// Can't schedule yet.
 		if len(stm.ManualRuns) > 0 {
-			return stm.createNextRunFromQueue(now, dueAt, sch, makeID)
+			return stm.createNextRunFromQueue(now, dueAt.Unix(), sch, makeID)
 		}
-		return RunCreation{}, RunNotYetDueError{DueAt: dueAt}
+		return RunCreation{}, RunNotYetDueError{DueAt: dueAt.Unix()}
 	}
 
 	id, err := makeID()
@@ -145,12 +164,16 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 		RunID: uint64(id),
 	})
 
+	nextDue, err := offset.Add(sch.Next(nextScheduled))
+	if err != nil {
+		return RunCreation{}, err
+	}
 	return RunCreation{
 		Created: QueuedRun{
 			RunID: id,
 			Now:   nextScheduledUnix,
 		},
-		NextDue:  sch.Next(nextScheduled).Unix() + int64(stm.Offset),
+		NextDue:  nextDue.Unix(),
 		HasQueue: len(stm.ManualRuns) > 0,
 	}, nil
 }
@@ -229,8 +252,15 @@ func (stm *StoreTaskMeta) NextDueRun() (int64, error) {
 			latest = cr.Now
 		}
 	}
-
-	return sch.Next(time.Unix(latest, 0)).Unix() + int64(stm.Offset), nil
+	offset := &options.Duration{}
+	if err := offset.Parse(stm.Offset); err != nil {
+		return 0, err
+	}
+	nextDue, err := offset.Add(sch.Next(time.Unix(latest, 0)))
+	if err != nil {
+		return 0, err
+	}
+	return nextDue.Unix(), nil
 }
 
 // ManuallyRunTimeRange requests a manual run covering the approximate range specified by the Unix timestamps start and end.
