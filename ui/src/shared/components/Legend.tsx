@@ -5,7 +5,7 @@ import moment from 'moment'
 import {uniq, flatten, isNumber} from 'lodash'
 
 // Components
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import DapperScrollbars from 'src/shared/components/dapperScrollbars/DapperScrollbars'
 
 // Constants
 import {LEGEND_PORTAL_ID} from 'src/shared/components/LegendPortal'
@@ -42,7 +42,7 @@ class Legend extends PureComponent<Props> {
     return createPortal(
       <div className="legend" ref={this.legendRef}>
         <div className="legend--time">{this.time}</div>
-        <FancyScrollbar autoHeight={true} maxHeight={120}>
+        <DapperScrollbars style={{maxHeight: '120px'}} autoHide={true}>
           <div className="legend--columns">
             {this.columns.map(({name, isNumeric, rows}, i) => (
               <div
@@ -66,7 +66,7 @@ class Legend extends PureComponent<Props> {
               </div>
             ))}
           </div>
-        </FancyScrollbar>
+        </DapperScrollbars>
       </div>,
       document.querySelector(`#${LEGEND_PORTAL_ID}`)
     )
