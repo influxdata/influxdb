@@ -134,6 +134,7 @@ var skipTests = map[string]string{
 	"drop_referenced":             "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
 	"yield":                       "yield requires special test case (https://github.com/influxdata/flux/issues/535)",
 	"rowfn_with_import":           "imported libraries are not visible in user-defined functions (https://github.com/influxdata/flux/issues/1000)",
+	"string_trim":                 "imported libraries are not visible in user-defined functions (https://github.com/influxdata/flux/issues/1000)",
 
 	"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
 }
