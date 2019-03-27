@@ -96,7 +96,7 @@ describe("Onboarding", () => {
     cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
 
     cy.get('button.button-primary').contains('Continue').should('be.enabled')
-    
+
 
   })
 
