@@ -756,7 +756,11 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 
 	b, err := json.Marshal(stats)
 	if err == nil {
-		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), string(b))
+		// authctx can be updated mid process
+		r.ts.nextDueMu.RLock()
+		authCtx := r.ts.authCtx
+		r.ts.nextDueMu.RUnlock()
+		r.taskControlService.AddRunLog(authCtx, r.task.ID, qr.RunID, time.Now(), string(b))
 	}
 	r.updateRunState(qr, RunSuccess, runLogger)
 	runLogger.Info("Execution succeeded")
