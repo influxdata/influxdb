@@ -5,6 +5,8 @@ interface TestUser {
   bucket: string
 }
 
+const defTimeOut = 3000
+
 describe('Onboarding', () => {
   let user: TestUser
 
@@ -20,7 +22,7 @@ describe('Onboarding', () => {
 
   it('Can Onboard to Quick Start', () => {
     //Check splash page
-    cy.location('pathname', {timeout: 3000}).should('include', 'onboarding/0')
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/0')
     cy.get('h3.wizard-step--title').contains('Welcome to InfluxDB 2.0')
     cy.get('div.wizard--credits').contains('Powered by')
     cy.get('div.wizard--credits').contains('InfluxData')
@@ -28,7 +30,7 @@ describe('Onboarding', () => {
     //Continue
     cy.get("button[title='Get Started']").click()
 
-    cy.location('pathname', {timeout: 3000}).should('include', 'onboarding/1')
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/1')
     //Check navigation bar
     cy.get("div.wizard--progress-title.checkmark:contains('Welcome')").click()
 
@@ -115,7 +117,7 @@ describe('Onboarding', () => {
     cy.get('button:contains("Continue")').click()
 
     //wait for new page to load
-    cy.location('pathname', {timeout: 3000}).should('include', 'onboarding/2')
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/2')
 
     cy.getByTestID('notification-success').should($msg => {
       expect($msg).to.contain('Initial user details have been successfully set')
@@ -152,7 +154,7 @@ describe('Onboarding', () => {
       .contains('Quick Start')
       .click()
 
-    cy.location('pathname', {timeout: 3000}).should('include', '/me')
+    cy.location('pathname', {timeout: defTimeOut}).should('include', '/me')
 
     cy.getByTestID('notification-success').should($msg => {
       expect($msg).to.contain(
@@ -167,5 +169,65 @@ describe('Onboarding', () => {
     cy.get(
       'div[data-testid=notification-success] button.notification-close'
     ).should('be.visible')
+  })
+
+  it('Can onboard to advanced', () => {
+
+    //Check splash page
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/0')
+
+    //Continue
+    cy.get("button[title='Get Started']").click()
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/1')
+
+    //Input fields
+    cy.get('input[title=Username]').type(user.username)
+    cy.get('input[title=Password]').type(user.password)
+    cy.get('input[title="Confirm Password"]').type(user.password)
+    cy.get('input[title="Initial Organization Name"]').type(user.org)
+    cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
+
+    cy.get('button:contains("Continue")').click()
+
+    //wait for new page to load
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/2')
+
+    //advance to Advanced
+    cy.get('button.button-success')
+      .contains('Advanced')
+      .click()
+
+    //wait for new page to load
+    cy.location('pathname', {timeout: defTimeOut}).should('match', /organizations\/.*\/buckets/)
+
+  })
+
+  it('Can onboard to configure later', () => {
+    //Check splash page
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/0')
+
+    //Continue
+    cy.get("button[title='Get Started']").click()
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/1')
+
+    //Input fields
+    cy.get('input[title=Username]').type(user.username)
+    cy.get('input[title=Password]').type(user.password)
+    cy.get('input[title="Confirm Password"]').type(user.password)
+    cy.get('input[title="Initial Organization Name"]').type(user.org)
+    cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
+
+    cy.get('button:contains("Continue")').click()
+
+    //wait for new page to load
+    cy.location('pathname', {timeout: defTimeOut}).should('include', 'onboarding/2')
+
+    //advance to Advanced
+    cy.get('button.button-success')
+      .contains('Configure Later')
+      .click()
+
+    cy.location('pathname', {timeout: defTimeOut}).should('include', '/me')
+
   })
 })
