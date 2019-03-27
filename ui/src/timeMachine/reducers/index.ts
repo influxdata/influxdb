@@ -79,13 +79,7 @@ export const initialStateHelper = (): TimeMachineState => ({
   activeQueryIndex: 0,
   availableXColumns: [],
   availableGroupColumns: [],
-  queryResults: {
-    files: null,
-    status: RemoteDataState.NotStarted,
-    isInitialFetch: true,
-    fetchDuration: null,
-    errorMessage: null,
-  },
+  queryResults: initialQueryResultsState(),
   queryBuilder: {
     buckets: [],
     bucketsStatus: RemoteDataState.NotStarted,
@@ -123,7 +117,7 @@ export const timeMachinesReducer = (
       hidden: false,
     }))
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
-    const activeQueryIndex = 0
+    const queryResults = initialQueryResultsState()
 
     return {
       ...state,
@@ -134,9 +128,13 @@ export const timeMachinesReducer = (
           ...activeTimeMachine,
           ...initialState,
           activeTab: TimeMachineTab.Queries,
-          activeQueryIndex,
+          isViewingRawData: false,
+          availableXColumns: [],
+          availableGroupColumns: [],
+          activeQueryIndex: 0,
           draftQueries,
           queryBuilder,
+          queryResults,
         },
       },
     }
@@ -838,6 +836,14 @@ const initialQueryBuilderState = (
     })),
   }
 }
+
+const initialQueryResultsState = (): QueryResultsState => ({
+  files: null,
+  status: RemoteDataState.NotStarted,
+  isInitialFetch: true,
+  fetchDuration: null,
+  errorMessage: null,
+})
 
 const buildActiveQuery = (draftState: TimeMachineState) => {
   const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
