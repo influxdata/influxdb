@@ -125,7 +125,6 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(labelBackend))
 	h.HandlerFunc("DELETE", dashboardsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
-	h.HandlerFunc("PATCH", dashboardsIDLabelsIDPath, newPatchLabelHandler(labelBackend))
 
 	return h
 }
