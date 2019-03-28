@@ -48,6 +48,7 @@ import {
 } from 'src/dashboards/utils/cellGetters'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {client} from 'src/utils/api'
+import {exportVariables} from 'src/variables/utils/hydrateVars'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -495,7 +496,12 @@ export const convertToTemplate = (dashboardID: string) => async (
     const views = await Promise.all(pendingViews)
     const allVariables = await client.variables.getAll()
     const variables = filterUnusedVars(allVariables, views)
-    const dashboardTemplate = dashboardToTemplate(dashboard, views, variables)
+    const exportedVariables = exportVariables(variables, allVariables)
+    const dashboardTemplate = dashboardToTemplate(
+      dashboard,
+      views,
+      exportedVariables
+    )
 
     const orgID = dashboard.orgID // TODO remove when org is implicit app state
 

@@ -1,6 +1,6 @@
 // Utils
 import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
-import {hydrateVars} from 'src/variables/utils/hydrateVars'
+import {hydrateVars, exportVariables} from 'src/variables/utils/hydrateVars'
 
 // Types
 import {Variable} from '@influxdata/influx'
@@ -40,6 +40,18 @@ class FakeFetcher implements ValueFetcher {
 }
 
 describe('hydrate vars', () => {
+  describe('exportVariables', () => {
+    const a = createVariable('a', 'f(x: v.b, v.c)')
+    const b = createVariable('b', 'beep')
+    const c = createVariable('c', 'robit')
+    const d = createVariable('d', 'nooooo!')
+    const vars = [a, b, c, d]
+
+    const actual = exportVariables([a], vars)
+
+    expect(actual).toEqual([a, b, c])
+  })
+
   test('should invalidate cyclic subgraphs', async () => {
     // Construct the following graph:
     //
