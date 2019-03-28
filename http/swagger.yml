@@ -6892,6 +6892,15 @@ components:
           type: object
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/documents/templates/1"
+          properties:
+            self:
+              description: URL for this document
+              $ref: "#/components/schemas/Link"
       required:
         - id
         - meta
@@ -6934,6 +6943,15 @@ components:
           $ref: "#/components/schemas/DocumentMeta"
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/documents/templates/1"
+          properties:
+            self:
+              description: URL for this document
+              $ref: "#/components/schemas/Link"
       required:
         - id
         - meta
