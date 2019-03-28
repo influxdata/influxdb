@@ -125,9 +125,11 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 		if err != nil {
 			return err
 		}
-		reqAt, err = time.Parse(time.RFC3339, r.RequestedAt)
-		if err != nil {
-			return err
+		if r.RequestedAt != "" {
+			reqAt, err = time.Parse(time.RFC3339, r.RequestedAt)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -137,7 +139,9 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 		for _, cr := range m.CurrentlyRunning {
 			if influxdb.ID(cr.RunID) == runID {
 				schedFor = time.Unix(cr.Now, 0)
-				reqAt = time.Unix(cr.RequestedAt, 0)
+				if cr.RequestedAt != 0 {
+					reqAt = time.Unix(cr.RequestedAt, 0)
+				}
 			}
 		}
 	}
@@ -171,9 +175,11 @@ func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID infl
 		if err != nil {
 			return err
 		}
-		reqAt, err = time.Parse(time.RFC3339, r.RequestedAt)
-		if err != nil {
-			return err
+		if r.RequestedAt != "" {
+			reqAt, err = time.Parse(time.RFC3339, r.RequestedAt)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -183,7 +189,9 @@ func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID infl
 		for _, cr := range m.CurrentlyRunning {
 			if influxdb.ID(cr.RunID) == runID {
 				schedFor = time.Unix(cr.Now, 0)
-				reqAt = time.Unix(cr.RequestedAt, 0)
+				if cr.RequestedAt != 0 {
+					reqAt = time.Unix(cr.RequestedAt, 0)
+				}
 			}
 		}
 	}
