@@ -21,7 +21,7 @@ import {
   TimeMachineTab,
 } from 'src/types'
 import {Color} from 'src/types/colors'
-import {Table, HistogramPosition, isNumeric} from 'src/minard'
+import {Table, HistogramPosition, isNumeric} from '@influxdata/vis'
 
 export type Action =
   | QueryBuilderAction
