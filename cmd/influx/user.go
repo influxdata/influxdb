@@ -5,10 +5,8 @@ import (
 	"os"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -44,17 +42,7 @@ func init() {
 
 func newUserService(f Flags) (platform.UserService, error) {
 	if flags.local {
-		boltFile, err := fs.BoltFile()
-		if err != nil {
-			return nil, err
-		}
-		c := bolt.NewClient()
-		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
-			return nil, err
-		}
-
-		return c, nil
+		return newLocalKVService()
 	}
 	return &http.UserService{
 		Addr:  flags.host,
@@ -64,17 +52,7 @@ func newUserService(f Flags) (platform.UserService, error) {
 
 func newUserResourceMappingService(f Flags) (platform.UserResourceMappingService, error) {
 	if flags.local {
-		boltFile, err := fs.BoltFile()
-		if err != nil {
-			return nil, err
-		}
-		c := bolt.NewClient()
-		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
-			return nil, err
-		}
-
-		return c, nil
+		return newLocalKVService()
 	}
 	return &http.UserResourceMappingService{
 		Addr:  flags.host,
