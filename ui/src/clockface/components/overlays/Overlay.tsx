@@ -64,6 +64,7 @@ class Overlay extends Component<Props, State> {
         thumbStartColor="#ffffff"
         thumbStopColor="#C9D0FF"
         autoHide={false}
+        autoSize={false}
       >
         {this.childContainer}
         <div className="overlay--mask" />
