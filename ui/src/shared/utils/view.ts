@@ -8,7 +8,7 @@ import {
 
 // Types
 import {ViewType, ViewShape, Base, Scale} from 'src/types'
-import {HistogramPosition} from 'src/minard'
+import {HistogramPosition} from '@influxdata/vis'
 import {
   XYView,
   XYViewGeom,
