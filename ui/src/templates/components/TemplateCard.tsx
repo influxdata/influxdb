@@ -5,17 +5,25 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ResourceList, Context, IconFont} from 'src/clockface'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
   deleteTemplate,
   cloneTemplate,
   updateTemplate,
+  addTemplateLabelsAsync,
+  removeTemplateLabelsAsync,
 } from 'src/templates/actions'
+import {createLabel as createLabelAsync} from 'src/labels/actions'
+
+// Selectors
+import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {TemplateSummary} from '@influxdata/influx'
+import {TemplateSummary, ILabel} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
+import {AppState} from 'src/types'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
@@ -29,13 +37,20 @@ interface DispatchProps {
   onDelete: typeof deleteTemplate
   onClone: typeof cloneTemplate
   onUpdate: typeof updateTemplate
+  onCreateLabel: typeof createLabelAsync
+  onAddLabels: typeof addTemplateLabelsAsync
+  onRemoveLabels: typeof removeTemplateLabelsAsync
 }
 
-type Props = DispatchProps & OwnProps
+interface StateProps {
+  labels: ILabel[]
+}
+
+type Props = DispatchProps & OwnProps & StateProps
 
 export class TemplateCard extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {template} = this.props
+    const {template, labels, onFilterChange} = this.props
 
     return (
       <ResourceList.Card
@@ -52,8 +67,42 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
             inputTestID="template-card--input"
           />
         )}
+        labels={() => (
+          <InlineLabels
+            selectedLabels={template.labels}
+            labels={labels}
+            onFilterChange={onFilterChange}
+            onAddLabel={this.handleAddLabel}
+            onRemoveLabel={this.handleRemoveLabel}
+            onCreateLabel={this.handleCreateLabel}
+          />
+        )}
       />
     )
+  }
+
+  private handleAddLabel = (label: ILabel) => {
+    const {onAddLabels, template} = this.props
+
+    onAddLabels(template.id, [label])
+  }
+
+  private handleRemoveLabel = (label: ILabel) => {
+    const {onRemoveLabels, template} = this.props
+
+    onRemoveLabels(template.id, [label])
+  }
+
+  private handleCreateLabel = async (label: ILabel): Promise<void> => {
+    try {
+      await this.props.onCreateLabel(label.orgID, label.name, label.properties)
+
+      // notify success
+    } catch (err) {
+      console.error(err)
+      // notify of fail
+      throw err
+    }
   }
 
   private handleUpdateTemplate = (name: string) => {
@@ -118,13 +167,22 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
+const mstp = ({labels}: AppState): StateProps => {
+  return {
+    labels: viewableLabels(labels.list),
+  }
+}
+
 const mdtp: DispatchProps = {
   onDelete: deleteTemplate,
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
+  onCreateLabel: createLabelAsync,
+  onAddLabels: addTemplateLabelsAsync,
+  onRemoveLabels: removeTemplateLabelsAsync,
 }
 
 export default connect<{}, DispatchProps, OwnProps>(
-  null,
+  mstp,
   mdtp
 )(withRouter<Props>(TemplateCard))

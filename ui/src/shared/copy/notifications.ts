@@ -798,6 +798,16 @@ export const importFailed = (): Notification => ({
 })
 
 // Templates
+export const addTemplatLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to add label to template',
+})
+
+export const removedTemplateLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to remove label from template',
+})
+
 export const TelegrafDashboardCreated = (configs: string[]): Notification => ({
   ...defaultSuccessNotification,
   message: `Successfully created dashboards for telegraf plugin${

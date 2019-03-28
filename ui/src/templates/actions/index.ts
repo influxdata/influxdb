@@ -4,7 +4,7 @@ import _ from 'lodash'
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 
 // Types
-import {TemplateSummary, DocumentCreate} from '@influxdata/influx'
+import {TemplateSummary, DocumentCreate, ILabel} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
 // Actions
@@ -187,4 +187,20 @@ export const cloneTemplate = (templateID: string, orgID: string) => async (
     console.error(e)
     dispatch(notify(copy.cloneTemplateFailed(e)))
   }
+}
+
+export const addTemplateLabelsAsync = (
+  _templateID: string,
+  _labels: ILabel[]
+) => async dispatch => {
+  // Todo add labels once API supports addition
+  dispatch(notify(copy.addTemplatLabelFailed()))
+}
+
+export const removeTemplateLabelsAsync = (
+  _templateID: string,
+  _labels: ILabel[]
+) => async dispatch => {
+  // Todo remove labels once API supports addition
+  dispatch(notify(copy.removedTemplateLabelFailed()))
 }
