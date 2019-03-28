@@ -69,6 +69,8 @@ class VariablesControlBar extends PureComponent<Props, State> {
     ) {
       return {initialLoading: RemoteDataState.Done}
     }
+
+    return {}
   }
 
   render() {
