@@ -4,10 +4,6 @@ import {Link} from 'react-router'
 import classnames from 'classnames'
 import {get} from 'lodash'
 
-// Components
-import NavMenuSubItem from 'src/pageLayout/components/NavMenuSubItem'
-import {Select} from 'src/clockface'
-
 // Types
 import {IconFont} from 'src/clockface'
 
@@ -43,7 +39,7 @@ const NavMenuItem: SFC<Props> = ({
         <Link className="nav--item-header" to={link}>
           {title}
         </Link>
-        <Select type={NavMenuSubItem}>{children}</Select>
+        {children}
       </div>
     </div>
   )
