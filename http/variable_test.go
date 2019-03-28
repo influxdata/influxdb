@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -23,12 +24,14 @@ func NewMockVariableBackend() *VariableBackend {
 	return &VariableBackend{
 		Logger:          zap.NewNop().With(zap.String("handler", "variable")),
 		VariableService: mock.NewVariableService(),
+		LabelService:    mock.NewLabelService(),
 	}
 }
 
 func TestVariableService_handleGetVariables(t *testing.T) {
 	type fields struct {
 		VariableService platform.VariableService
+		LabelService    platform.LabelService
 	}
 	type args struct {
 		queryParams map[string][]string
@@ -74,11 +77,25 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 						}, nil
 					},
 				},
+				&mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								Name: "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
 			},
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"variables":[{"id":"6162207574726f71","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/variables/6162207574726f71","org": "/api/v2/orgs/0000000000000001"}},{"id":"61726920617a696f","orgID":"0000000000000001","name":"variable-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/variables/61726920617a696f","org": "/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/variables?descending=false&limit=20&offset=0"}}`,
+				body:        `{"variables":[{"id":"6162207574726f71","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[{"id":"fc3dc670a4be9b9a","name":"label","properties":{"color":"fff000"}}],links":{"self":"/api/v2/variables/6162207574726f71","org": "/api/v2/orgs/0000000000000001","labels":"/api/v2/variables/6162207574726f71/labels"}},{"id":"61726920617a696f","orgID":"0000000000000001","name":"variable-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/variables/61726920617a696f","org": "/api/v2/orgs/0000000000000001","labels":"/api/v2/variables/61726920617a696f/labels"}}],"links":{"self":"/api/v2/variables?descending=false&limit=20&offset=0"}}`,
 			},
 		},
 		{
@@ -87,6 +104,11 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 				&mock.VariableService{
 					FindVariablesF: func(ctx context.Context, filter platform.VariableFilter, opts ...platform.FindOptions) ([]*platform.Variable, error) {
 						return []*platform.Variable{}, nil
+					},
+				},
+				&mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
+						return []*platform.Label{}, nil
 					},
 				},
 			},
@@ -120,6 +142,20 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 						}, nil
 					},
 				},
+				&mock.LabelService{
+					FindResourceLabelsFn: func(ctx context.Context, f platform.LabelMappingFilter) ([]*platform.Label, error) {
+						labels := []*platform.Label{
+							{
+								ID:   platformtesting.MustIDBase16("fc3dc670a4be9b9a"),
+								Name: "label",
+								Properties: map[string]string{
+									"color": "fff000",
+								},
+							},
+						}
+						return labels, nil
+					},
+				},
 			},
 			args: args{
 				map[string][]string{
@@ -129,7 +165,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"variables":[{"id":"6162207574726f71","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/variables/6162207574726f71","org":"/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/variables?descending=false&limit=20&offset=0&orgID=0000000000000001"}}`,
+				body:        `{"variables":[{"id":"6162207574726f71","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[{"id":"fc3dc670a4be9b9a","name":"label","properties":{"color": "fff000"}}],"links":{"self":"/api/v2/variables/6162207574726f71","org":"/api/v2/orgs/0000000000000001","labels":"/api/v2/variables/6162207574726f71/labels"}}],"links":{"self":"/api/v2/variables?descending=false&limit=20&offset=0&orgID=0000000000000001"}}`,
 			},
 		},
 	}
@@ -137,10 +173,12 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
+			variableBackend.LabelService = tt.fields.LabelService
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(variableBackend)
 
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
+
 			qp := r.URL.Query()
 			for k, vs := range tt.args.queryParams {
 				for _, v := range vs {
@@ -213,7 +251,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/variables/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001","labels":"/api/v2/variables/75650d0a636f6d70/labels"}}
 `,
 			},
 		},
@@ -347,7 +385,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/api/v2/variables/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000001","labels":"/api/v2/variables/75650d0a636f6d70/labels"}}
 `,
 			},
 		},
@@ -464,7 +502,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/api/v2/variables/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000002"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","org":"/api/v2/orgs/0000000000000002","labels":"/api/v2/variables/75650d0a636f6d70/labels"}}
 `,
 			},
 		},
@@ -599,6 +637,104 @@ func TestVariableService_handleDeleteVariable(t *testing.T) {
 
 			if statusCode != tt.wants.statusCode {
 				t.Errorf("got = %v, want %v", statusCode, tt.wants.statusCode)
+			}
+		})
+	}
+}
+
+func TestService_handlePostVariableLabel(t *testing.T) {
+	type fields struct {
+		LabelService platform.LabelService
+	}
+	type args struct {
+		labelMapping *platform.LabelMapping
+		variableID   platform.ID
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "add label to variable",
+			fields: fields{
+				LabelService: &mock.LabelService{
+					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
+						return &platform.Label{
+							ID:   1,
+							Name: "label",
+							Properties: map[string]string{
+								"color": "fff000",
+							},
+						}, nil
+					},
+					CreateLabelMappingFn: func(ctx context.Context, m *platform.LabelMapping) error { return nil },
+				},
+			},
+			args: args{
+				labelMapping: &platform.LabelMapping{
+					ResourceID: 100,
+					LabelID:    1,
+				},
+				variableID: 100,
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "label": {
+    "id": "0000000000000001",
+    "name": "label",
+    "properties": {
+      "color": "fff000"
+    }
+  },
+  "links": {
+    "self": "/api/v2/labels/0000000000000001"
+  }
+}
+`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			variableBackend := NewMockVariableBackend()
+			variableBackend.LabelService = tt.fields.LabelService
+			h := NewVariableHandler(variableBackend)
+
+			b, err := json.Marshal(tt.args.labelMapping)
+			if err != nil {
+				t.Fatalf("failed to unmarshal label mapping: %v", err)
+			}
+
+			url := fmt.Sprintf("http://localhost:9999/api/v2/variables/%s/labels", tt.args.variableID)
+			r := httptest.NewRequest("POST", url, bytes.NewReader(b))
+			w := httptest.NewRecorder()
+
+			h.ServeHTTP(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("got %v, want %v", res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("got %v, want %v", content, tt.wants.contentType)
+			}
+			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+				t.Errorf("Diff\n%s", diff)
 			}
 		})
 	}
