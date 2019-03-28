@@ -7,6 +7,8 @@ import {client} from 'src/utils/api'
 // Types
 import {Organization} from 'src/types'
 
+import {defaultTemplates} from 'src/templates/constants/'
+
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',
   AddOrg = 'ADD_ORG',
@@ -84,6 +86,10 @@ export const createOrg = (org: Organization) => async (
 ): Promise<void> => {
   try {
     const createdOrg = await client.organizations.create(org)
+    await client.templates.create({
+      ...defaultTemplates.systemTemplate(),
+      orgID: createdOrg.id,
+    })
     dispatch(addOrg(createdOrg))
   } catch (e) {
     console.error(e)
