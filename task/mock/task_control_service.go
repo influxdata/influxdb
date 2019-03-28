@@ -172,8 +172,14 @@ func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb
 	r := d.runs[tid][rid]
 	delete(d.runs[tid], rid)
 	t := d.tasks[tid]
-	schedFor, _ := time.Parse(time.RFC3339, r.ScheduledFor)
-	latest, _ := time.Parse(time.RFC3339, t.LatestCompleted)
+	schedFor, err := time.Parse(time.RFC3339, r.ScheduledFor)
+	if err != nil {
+		return nil, err
+	}
+	latest, err := time.Parse(time.RFC3339, t.LatestCompleted)
+	if err != nil {
+		return nil, err
+	}
 	if schedFor.After(latest) {
 		t.LatestCompleted = r.ScheduledFor
 	}
