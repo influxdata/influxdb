@@ -23,7 +23,7 @@ type TaskControlService struct {
 	runs map[influxdb.ID]map[influxdb.ID]*influxdb.Run
 
 	// Map of stringified, concatenated task and platform ID, to runs that have been created.
-	created map[influxdb.ID]backend.QueuedRun
+	created map[string]backend.QueuedRun
 
 	// Map of stringified task ID to task meta.
 	tasks      map[influxdb.ID]*influxdb.Task
@@ -40,7 +40,7 @@ func NewTaskControlService() *TaskControlService {
 		runs:             make(map[influxdb.ID]map[influxdb.ID]*influxdb.Run),
 		finishedRuns:     make(map[influxdb.ID]*influxdb.Run),
 		tasks:            make(map[influxdb.ID]*influxdb.Task),
-		created:          make(map[influxdb.ID]backend.QueuedRun),
+		created:          make(map[string]backend.QueuedRun),
 		totalRunsCreated: make(map[influxdb.ID]int),
 	}
 }
@@ -94,7 +94,7 @@ func (d *TaskControlService) CreateNextRun(ctx context.Context, taskID influxdb.
 				NextDue:  next,
 				HasQueue: len(d.manualRuns) != 0,
 			}
-			d.created[tid+rc.Created.RunID] = rc.Created
+			d.created[tid.String()+rc.Created.RunID.String()] = rc.Created
 			d.totalRunsCreated[taskID]++
 			return rc, nil
 		}
@@ -105,7 +105,7 @@ func (d *TaskControlService) CreateNextRun(ctx context.Context, taskID influxdb.
 		return backend.RunCreation{}, err
 	}
 	rc.Created.TaskID = taskID
-	d.created[tid+rc.Created.RunID] = rc.Created
+	d.created[tid.String()+rc.Created.RunID.String()] = rc.Created
 	d.totalRunsCreated[taskID]++
 	return rc, nil
 }
@@ -178,7 +178,7 @@ func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb
 		t.LatestCompleted = r.ScheduledFor
 	}
 	d.finishedRuns[rid] = r
-	delete(d.created, tid+rid)
+	delete(d.created, tid.String()+rid.String())
 	return r, nil
 }
 
