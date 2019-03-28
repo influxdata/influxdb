@@ -120,7 +120,7 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 	)
 	// check the log store
 	r, err := tcs.lr.FindRunByID(ctx, st.Org, runID)
-	if err == nil {
+	if err == nil && r != nil {
 		schedFor, _ = time.Parse(time.RFC3339, r.ScheduledFor)
 		reqAt, _ = time.Parse(time.RFC3339, r.RequestedAt)
 	}
@@ -160,7 +160,7 @@ func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID infl
 	)
 
 	r, err := tcs.lr.FindRunByID(ctx, st.Org, runID)
-	if err == nil {
+	if err == nil && r != nil {
 		schedFor, _ = time.Parse(time.RFC3339, r.ScheduledFor)
 		reqAt, _ = time.Parse(time.RFC3339, r.RequestedAt)
 	}
