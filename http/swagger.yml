@@ -6461,6 +6461,9 @@ components:
             self:
               type: string
               format: uri
+            org:
+              type: string
+              format: uri
         id:
           readOnly: true
           type: string
