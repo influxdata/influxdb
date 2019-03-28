@@ -8,6 +8,7 @@ import {
   TaskTemplate,
   TemplateBase,
   Task,
+  VariableTemplate,
 } from 'src/types'
 import {IDashboard, Cell} from '@influxdata/influx'
 import {client} from 'src/utils/api'
@@ -173,7 +174,7 @@ const createViewsFromTemplate = async (
 }
 
 const createVariablesFromTemplate = async (
-  template: DashboardTemplate,
+  template: DashboardTemplate | VariableTemplate,
   orgID: string
 ) => {
   const {
@@ -228,4 +229,33 @@ const createTaskLabelsFromTemplate = async (
 ) => {
   const templateLabels = await createLabelsFromTemplate(template, task.orgID)
   await client.tasks.addLabels(task.id, templateLabels)
+}
+
+export const createVariableFromTemplate = async (
+  template: VariableTemplate,
+  orgID: string
+) => {
+  const {content} = template
+
+  if (
+    content.data.type !== TemplateType.Variable ||
+    template.meta.version !== '1'
+  ) {
+    throw new Error('Can not create variable from this template')
+  }
+
+  const createdVariable = await client.variables.create({
+    ...content.data.attributes,
+    orgID,
+  })
+
+  if (!createdVariable || !createdVariable.id) {
+    throw new Error('Failed to create variable from template')
+  }
+
+  await createVariablesFromTemplate(template, orgID)
+
+  const variable = await client.variables.get(createdVariable.id)
+
+  return variable
 }

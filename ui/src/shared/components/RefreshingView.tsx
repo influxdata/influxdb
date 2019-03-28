@@ -44,7 +44,7 @@ interface State {
 type Props = OwnProps & StateProps
 
 class RefreshingView extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     inView: true,
     manualRefresh: 0,
   }

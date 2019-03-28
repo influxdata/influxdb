@@ -127,7 +127,6 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(labelBackend))
 	h.HandlerFunc("DELETE", organizationsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
-	h.HandlerFunc("PATCH", organizationsIDLabelsIDPath, newPatchLabelHandler(labelBackend))
 
 	return h
 }

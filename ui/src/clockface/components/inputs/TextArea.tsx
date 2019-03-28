@@ -33,24 +33,25 @@ export enum Wrap {
 }
 
 interface Props {
-  autocapitalize?: AutoCapitalize
-  autocomplete?: AutoComplete
-  autofocus?: boolean
-  cols?: number
-  disabled?: boolean
-  form?: string
-  maxlength?: number
-  minlength?: number
-  name?: string
-  placeholder?: string
-  readOnly?: boolean
-  required?: boolean
-  rows?: number
-  spellCheck?: boolean
-  wrap?: Wrap.Off
+  autocapitalize: AutoCapitalize
+  autocomplete: AutoComplete
+  autofocus: boolean
+  cols: number
+  disabled: boolean
+  form: string
+  maxlength: number
+  minlength: number
+  name: string
+  placeholder: string
+  readOnly: boolean
+  required: boolean
+  rows: number
+  spellCheck: boolean
+  wrap: Wrap.Off
   widthPixels?: number
   size?: ComponentSize
   status?: ComponentStatus
+  value: string
   customClass?: string
   onChange?: (s: string) => void
   onBlur?: (e?: ChangeEvent<HTMLTextAreaElement>) => void
@@ -58,11 +59,10 @@ interface Props {
   onKeyPress?: (e: KeyboardEvent<HTMLTextAreaElement>) => void
   onKeyUp?: (e: KeyboardEvent<HTMLTextAreaElement>) => void
   onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void
-  value?: string
 }
 
 class TextArea extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     autocapitalize: AutoCapitalize.Off,
     autocomplete: AutoComplete.Off,
     autofocus: false,

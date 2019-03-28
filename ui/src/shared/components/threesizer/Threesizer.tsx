@@ -48,12 +48,12 @@ interface DivisionState extends DivisionProps {
 interface Props {
   divisions: DivisionProps[]
   orientation: string
-  containerClass?: string
+  containerClass: string
 }
 
 @ErrorHandling
 class Threesizer extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     orientation: HANDLE_HORIZONTAL,
     containerClass: '',
   }

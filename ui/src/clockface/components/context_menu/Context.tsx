@@ -16,7 +16,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element | JSX.Element[]
-  align?: Alignment
+  align: Alignment
   className?: string
 }
 
@@ -26,7 +26,7 @@ interface State {
 
 @ErrorHandling
 class Context extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     align: Alignment.Right,
   }
 

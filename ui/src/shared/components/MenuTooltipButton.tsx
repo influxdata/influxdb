@@ -12,7 +12,7 @@ export interface MenuItem {
 }
 
 interface Props {
-  theme?: string
+  theme: string
   icon: string
   informParent: () => void
   menuItems: MenuItem[]
@@ -24,7 +24,7 @@ interface State {
 
 @ErrorHandling
 export default class MenuTooltipButton extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     theme: 'default',
   }
 

@@ -11,10 +11,10 @@ interface Props {
   fileTypesToAccept?: string
   containerClass?: string
   handleSubmit: (uploadContent: string | ArrayBuffer, fileName: string) => void
-  submitText?: string
-  submitOnDrop?: boolean
-  submitOnUpload?: boolean
-  compact?: boolean
+  submitText: string
+  submitOnDrop: boolean
+  submitOnUpload: boolean
+  compact: boolean
   onCancel?: () => void
 }
 
@@ -27,7 +27,7 @@ interface State {
 
 let dragCounter = 0
 class DragAndDrop extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     submitText: 'Write this File',
     submitOnDrop: false,
     submitOnUpload: false,

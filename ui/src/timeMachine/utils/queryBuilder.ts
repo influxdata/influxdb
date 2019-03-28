@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import {BuilderConfig} from 'src/types'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {
@@ -86,5 +87,8 @@ export function hasQueryBeenEdited(
   query: string,
   builderConfig: BuilderConfig
 ): boolean {
-  return query !== buildQuery(builderConfig)
+  const emptyQueryChanged = !isConfigValid(builderConfig) && !_.isEmpty(query)
+  const existingQueryChanged = query !== buildQuery(builderConfig)
+
+  return emptyQueryChanged || existingQueryChanged
 }

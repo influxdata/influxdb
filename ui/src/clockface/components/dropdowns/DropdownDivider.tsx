@@ -8,14 +8,14 @@ import {DropdownChild} from 'src/clockface/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  children?: DropdownChild
   id: string
-  text?: string
+  text: string
+  children?: DropdownChild
 }
 
 @ErrorHandling
 class DropdownDivider extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     text: '',
   }
 

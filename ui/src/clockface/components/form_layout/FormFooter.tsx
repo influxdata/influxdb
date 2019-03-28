@@ -9,7 +9,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element | JSX.Element[]
-  colsXS?: Columns
+  colsXS: Columns
   colsSM?: Columns
   colsMD?: Columns
   colsLG?: Columns
@@ -21,7 +21,7 @@ interface Props {
 
 @ErrorHandling
 class FormFooter extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     colsXS: Columns.Twelve,
   }
 

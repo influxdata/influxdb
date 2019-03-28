@@ -133,11 +133,6 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
-		// Always create Views bucket.
-		if err := c.initializeViews(ctx, tx); err != nil {
-			return err
-		}
-
 		// Always create Variables bucket.
 		if err := c.initializeVariables(ctx, tx); err != nil {
 			return err

@@ -13,8 +13,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   onSearch: (searchTerm: string) => void
-  widthPixels?: number
-  placeholderText?: string
+  widthPixels: number
+  placeholderText: string
   searchTerm: string
 }
 
@@ -24,7 +24,7 @@ interface State {
 
 @ErrorHandling
 class SearchWidget extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     widthPixels: 440,
     placeholderText: 'Search...',
     searchTerm: '',

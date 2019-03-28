@@ -72,7 +72,6 @@ type APIBackend struct {
 	ChronografService               *server.Service
 	ProtoService                    influxdb.ProtoService
 	OrgLookupService                authorizer.OrganizationService
-	ViewService                     influxdb.ViewService
 	DocumentService                 influxdb.DocumentService
 }
 

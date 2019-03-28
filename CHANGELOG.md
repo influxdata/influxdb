@@ -15,6 +15,7 @@
 1. [12888](https://github.com/influxdata/influxdb/pull/12888): Add the ability to delete a template
 1. [12901](https://github.com/influxdata/influxdb/pull/12901): Save user preference for variable control bar visibility and default to visible
 1. [12910](https://github.com/influxdata/influxdb/pull/12910): Add the ability to clone a template
+1. [12958](https://github.com/influxdata/influxdb/pull/12958): Add the ability to import a variable
 
 ### Bug Fixes
 
@@ -25,11 +26,13 @@
 1. [12793](https://github.com/influxdata/influxdb/pull/12793): Fix task creation error when switching schedule types.
 1. [12805](https://github.com/influxdata/influxdb/pull/12805): Fix hidden horizonal scrollbars in flux raw data view
 1. [12827](https://github.com/influxdata/influxdb/pull/12827): Fix screen tearing bug in Raw Data View
+1. [12959](https://github.com/influxdata/influxdb/pull/12959): Fix routing loop
 
 ### UI Improvements
 
 1. [12782](https://github.com/influxdata/influxdb/pull/12782): Move bucket selection in the query builder to the first card in the list
 1. [12850](https://github.com/influxdata/influxdb/pull/12850): Ensure editor is automatically focused in note editor
+1. [12915](https://github.com/influxdata/influxdb/pull/12915): Add ability to edit a template's name.
 
 ## v2.0.0-alpha.6 [2019-03-15]
 

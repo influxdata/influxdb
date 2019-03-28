@@ -7,7 +7,7 @@ import {
 } from 'src/shared/constants/thresholds'
 
 // Types
-import {ViewType, ViewShape} from 'src/types'
+import {ViewType, ViewShape, Base, Scale} from 'src/types'
 import {HistogramPosition} from 'src/minard'
 import {
   XYView,
@@ -56,24 +56,16 @@ function defaultLineViewProperties() {
         label: '',
         prefix: '',
         suffix: '',
-        base: '10',
-        scale: 'linear',
+        base: Base.Ten,
+        scale: Scale.Linear,
       },
       y: {
         bounds: ['', ''] as [string, string],
         label: '',
         prefix: '',
         suffix: '',
-        base: '10',
-        scale: 'linear',
-      },
-      y2: {
-        bounds: ['', ''] as [string, string],
-        label: '',
-        prefix: '',
-        suffix: '',
-        base: '10',
-        scale: 'linear',
+        base: Base.Ten,
+        scale: Scale.Linear,
       },
     },
   }

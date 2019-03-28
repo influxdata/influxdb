@@ -168,7 +168,13 @@ func (i *DocumentIndex) FindLabelByName(name string) (influxdb.ID, error) {
 	if err != nil {
 		return influxdb.InvalidID(), err
 	}
-	if len(ls) != 1 {
+	if len(ls) == 0 {
+		return influxdb.InvalidID(), &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  "label not found",
+		}
+	}
+	if len(ls) > 1 {
 		return influxdb.InvalidID(), &influxdb.Error{
 			Code: influxdb.EInternal,
 			Msg:  "found multiple labels matching the name provided",
@@ -577,6 +583,13 @@ func (s *DocumentStore) FindDocuments(ctx context.Context, opts ...influxdb.Docu
 
 		return nil
 	})
+
+	if IsNotFound(err) {
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  influxdb.ErrDocumentNotFound,
+		}
+	}
 
 	if err != nil {
 		return nil, err

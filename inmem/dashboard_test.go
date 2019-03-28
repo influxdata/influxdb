@@ -18,11 +18,6 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 			t.Fatalf("failed to populate Dashboards")
 		}
 	}
-	for _, b := range f.Views {
-		if err := s.PutView(ctx, b); err != nil {
-			t.Fatalf("failed to populate views")
-		}
-	}
 	return s, OpPrefix, func() {}
 }
 

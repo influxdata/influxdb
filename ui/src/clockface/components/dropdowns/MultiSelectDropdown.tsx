@@ -24,19 +24,19 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   children: JSX.Element[]
   onChange: (selectedIDs: string[], value: any) => void
-  onCollapse?: () => void
   selectedIDs: string[]
-  buttonColor?: ComponentColor
-  buttonSize?: ComponentSize
-  menuColor?: DropdownMenuColors
+  buttonColor: ComponentColor
+  buttonSize: ComponentSize
+  menuColor: DropdownMenuColors
+  wrapText: boolean
+  maxMenuHeight: number
+  emptyText: string
+  separatorText: string
+  customClass?: string
+  onCollapse?: () => void
   status?: ComponentStatus
   widthPixels?: number
   icon?: IconFont
-  wrapText?: boolean
-  customClass?: string
-  maxMenuHeight?: number
-  emptyText?: string
-  separatorText?: string
 }
 
 interface State {
@@ -45,7 +45,7 @@ interface State {
 
 @ErrorHandling
 class MultiSelectDropdown extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     buttonColor: ComponentColor.Default,
     buttonSize: ComponentSize.Small,
     status: ComponentStatus.Default,
