@@ -229,8 +229,34 @@ func newDashboardCellsResponse(dashboardID platform.ID, cs []*platform.Cell) das
 	return res
 }
 
-func newDashboardCellViewResponse(dashID, cellID platform.ID, v *platform.View) viewResponse {
-	return viewResponse{
+type viewLinks struct {
+	Self string `json:"self"`
+}
+
+type dashboardCellViewResponse struct {
+	platform.View
+	Links viewLinks `json:"links"`
+}
+
+func (r dashboardCellViewResponse) MarshalJSON() ([]byte, error) {
+	props, err := platform.MarshalViewPropertiesJSON(r.Properties)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(struct {
+		platform.ViewContents
+		Links      viewLinks       `json:"links"`
+		Properties json.RawMessage `json:"properties"`
+	}{
+		ViewContents: r.ViewContents,
+		Links:        r.Links,
+		Properties:   props,
+	})
+}
+
+func newDashboardCellViewResponse(dashID, cellID platform.ID, v *platform.View) dashboardCellViewResponse {
+	return dashboardCellViewResponse{
 		Links: viewLinks{
 			Self: fmt.Sprintf("/api/v2/dashboards/%s/cells/%s", dashID, cellID),
 		},
@@ -1321,7 +1347,7 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 		return nil, err
 	}
 
-	res := viewResponse{}
+	res := dashboardCellViewResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
@@ -1361,7 +1387,7 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 		return nil, err
 	}
 
-	res := viewResponse{}
+	res := dashboardCellViewResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
