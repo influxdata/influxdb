@@ -312,7 +312,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   const timeRange =
     ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
 
-  const dashboard = dashboards.find(d => d.id === dashboardID)
+  const dashboard = dashboards.list.find(d => d.id === dashboardID)
 
   return {
     links,

@@ -66,22 +66,22 @@ import {
 } from 'src/types'
 
 export enum ActionTypes {
-  LoadDashboards = 'LOAD_DASHBOARDS',
-  LoadDashboard = 'LOAD_DASHBOARD',
-  DeleteDashboard = 'DELETE_DASHBOARD',
+  SetDashboards = 'SET_DASHBOARDS',
+  SetDashboard = 'SET_DASHBOARD',
+  RemoveDashboard = 'REMOVE_DASHBOARD',
   DeleteDashboardFailed = 'DELETE_DASHBOARD_FAILED',
-  UpdateDashboard = 'UPDATE_DASHBOARD',
-  DeleteCell = 'DELETE_CELL',
+  EditDashboard = 'EDIT_DASHBOARD',
+  RemoveCell = 'REMOVE_CELL',
   AddDashboardLabels = 'ADD_DASHBOARD_LABELS',
   RemoveDashboardLabels = 'REMOVE_DASHBOARD_LABELS',
 }
 
 export type Action =
-  | LoadDashboardsAction
-  | DeleteDashboardAction
-  | LoadDashboardAction
-  | UpdateDashboardAction
-  | DeleteCellAction
+  | SetDashboardsAction
+  | RemoveDashboardAction
+  | SetDashboardAction
+  | EditDashboardAction
+  | RemoveCellAction
   | PublishNotificationAction
   | SetViewAction
   | DeleteTimeRangeAction
@@ -89,32 +89,33 @@ export type Action =
   | AddDashboardLabelsAction
   | RemoveDashboardLabelsAction
 
-interface DeleteCellAction {
-  type: ActionTypes.DeleteCell
+interface RemoveCellAction {
+  type: ActionTypes.RemoveCell
   payload: {
     dashboard: Dashboard
     cell: Cell
   }
 }
 
-interface UpdateDashboardAction {
-  type: ActionTypes.UpdateDashboard
+interface EditDashboardAction {
+  type: ActionTypes.EditDashboard
   payload: {
     dashboard: Dashboard
   }
 }
 
-interface LoadDashboardsAction {
-  type: ActionTypes.LoadDashboards
+interface SetDashboardsAction {
+  type: ActionTypes.SetDashboards
   payload: {
-    dashboards: Dashboard[]
+    status: RemoteDataState
+    list: Dashboard[]
   }
 }
 
-interface DeleteDashboardAction {
-  type: ActionTypes.DeleteDashboard
+interface RemoveDashboardAction {
+  type: ActionTypes.RemoveDashboard
   payload: {
-    dashboardID: string
+    id: string
   }
 }
 
@@ -125,8 +126,8 @@ interface DeleteDashboardFailedAction {
   }
 }
 
-interface LoadDashboardAction {
-  type: ActionTypes.LoadDashboard
+interface SetDashboardAction {
+  type: ActionTypes.SetDashboard
   payload: {
     dashboard: Dashboard
   }
@@ -150,32 +151,30 @@ interface RemoveDashboardLabelsAction {
 
 // Action Creators
 
-export const updateDashboard = (
-  dashboard: Dashboard
-): UpdateDashboardAction => ({
-  type: ActionTypes.UpdateDashboard,
+export const editDashboard = (dashboard: Dashboard): EditDashboardAction => ({
+  type: ActionTypes.EditDashboard,
   payload: {dashboard},
 })
 
-export const loadDashboards = (
-  dashboards: Dashboard[]
-): LoadDashboardsAction => ({
-  type: ActionTypes.LoadDashboards,
+export const setDashboards = (
+  status: RemoteDataState,
+  list?: Dashboard[]
+): SetDashboardsAction => ({
+  type: ActionTypes.SetDashboards,
   payload: {
-    dashboards,
+    status,
+    list,
   },
 })
 
-export const loadDashboard = (dashboard: Dashboard): LoadDashboardAction => ({
-  type: ActionTypes.LoadDashboard,
+export const setDashboard = (dashboard: Dashboard): SetDashboardAction => ({
+  type: ActionTypes.SetDashboard,
   payload: {dashboard},
 })
 
-export const deleteDashboard = (
-  dashboardID: string
-): DeleteDashboardAction => ({
-  type: ActionTypes.DeleteDashboard,
-  payload: {dashboardID},
+export const removeDashboard = (id: string): RemoveDashboardAction => ({
+  type: ActionTypes.RemoveDashboard,
+  payload: {id},
 })
 
 export const deleteDashboardFailed = (
@@ -185,11 +184,11 @@ export const deleteDashboardFailed = (
   payload: {dashboard},
 })
 
-export const deleteCell = (
+export const removeCell = (
   dashboard: Dashboard,
   cell: Cell
-): DeleteCellAction => ({
-  type: ActionTypes.DeleteCell,
+): RemoveCellAction => ({
+  type: ActionTypes.RemoveCell,
   payload: {dashboard, cell},
 })
 
@@ -215,10 +214,12 @@ export const getDashboardsAsync = () => async (
   dispatch: Dispatch<Action>
 ): Promise<Dashboard[]> => {
   try {
+    dispatch(setDashboards(RemoteDataState.Loading))
     const dashboards = await getDashboardsAJAX()
-    dispatch(loadDashboards(dashboards))
+    dispatch(setDashboards(RemoteDataState.Done, dashboards))
     return dashboards
   } catch (error) {
+    dispatch(setDashboards(RemoteDataState.Error))
     console.error(error)
     throw error
   }
@@ -244,9 +245,10 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
     await createDashboardAJAX(dashboard)
     const dashboards = await getDashboardsAJAX()
 
-    dispatch(loadDashboards(dashboards))
+    dispatch(setDashboards(RemoteDataState.Done, dashboards))
     dispatch(notify(copy.dashboardImported()))
   } catch (error) {
+    dispatch(setDashboards(RemoteDataState.Error))
     dispatch(notify(copy.dashboardImportFailed('Could not upload dashboard')))
     console.error(error)
   }
@@ -255,7 +257,7 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
 export const deleteDashboardAsync = (dashboard: Dashboard) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
-  dispatch(deleteDashboard(dashboard.id))
+  dispatch(removeDashboard(dashboard.id))
   dispatch(deleteTimeRange(dashboard.id))
 
   try {
@@ -303,7 +305,7 @@ export const getDashboardAsync = (dashboardID: string) => async (
     await dispatch(refreshDashboardVariableValues(dashboard, views))
 
     // Now that all the necessary state has been loaded, set the dashboard
-    dispatch(loadDashboard(dashboard))
+    dispatch(setDashboard(dashboard))
   } catch {
     dispatch(replace(`/dashboards`))
     dispatch(notify(copy.dashboardGetFailed(dashboardID)))
@@ -319,7 +321,7 @@ export const updateDashboardAsync = (dashboard: Dashboard) => async (
 ): Promise<void> => {
   try {
     const updatedDashboard = await updateDashboardAJAX(dashboard)
-    dispatch(updateDashboard(updatedDashboard))
+    dispatch(editDashboard(updatedDashboard))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.dashboardUpdateFailed()))
@@ -354,7 +356,7 @@ export const createCellWithView = (
     await dispatch(refreshDashboardVariableValues(dashboard, views))
 
     dispatch(setView(createdCell.id, newView, RemoteDataState.Done))
-    dispatch(updateDashboard(updatedDashboard))
+    dispatch(editDashboard(updatedDashboard))
   } catch {
     notify(copy.cellAddFailed())
   }
@@ -393,7 +395,7 @@ export const updateCellsAsync = (dashboard: Dashboard, cells: Cell[]) => async (
       cells: updatedCells,
     }
 
-    dispatch(loadDashboard(updatedDashboard))
+    dispatch(setDashboard(updatedDashboard))
   } catch (error) {
     console.error(error)
   }
@@ -413,7 +415,7 @@ export const deleteCellAsync = (dashboard: Dashboard, cell: Cell) => async (
       dispatch(refreshDashboardVariableValues(dashboard, views)),
     ])
 
-    dispatch(deleteCell(dashboard, cell))
+    dispatch(removeCell(dashboard, cell))
     dispatch(notify(copy.cellDeleted()))
   } catch (error) {
     console.error(error)
@@ -431,7 +433,7 @@ export const copyDashboardCellAsync = (
       cells: [...dashboard.cells, clonedCell],
     }
 
-    dispatch(loadDashboard(updatedDashboard))
+    dispatch(setDashboard(updatedDashboard))
     dispatch(notify(copy.cellAdded()))
   } catch (error) {
     console.error(error)
@@ -471,7 +473,7 @@ export const selectVariableValue = (
   value: string
 ) => async (dispatch, getState: GetState): Promise<void> => {
   const variables = getHydratedVariables(getState(), dashboardID)
-  const dashboard = getState().dashboards.find(d => d.id === dashboardID)
+  const dashboard = getState().dashboards.list.find(d => d.id === dashboardID)
 
   dispatch(selectValue(dashboardID, variableID, value))
 

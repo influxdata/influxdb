@@ -10,7 +10,7 @@ export const getViewsForDashboard = (
   state: AppState,
   dashboardID: string
 ): View[] => {
-  const dashboard = state.dashboards.find(
+  const dashboard = state.dashboards.list.find(
     dashboard => dashboard.id === dashboardID
   )
 
