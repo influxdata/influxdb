@@ -688,11 +688,12 @@ func (r *runner) fail(qr QueuedRun, runLogger *zap.Logger, stage string, reason 
 
 func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *zap.Logger) {
 	defer r.wg.Done()
-
+	errMsg := "Failed to finish run"
 	defer func() {
 		if _, err := r.taskControlService.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
 			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
-			runLogger.Error("Beginning run execution failed, and desired state update failed", zap.Error(err))
+
+			runLogger.Error(errMsg, zap.Error(err))
 
 			atomic.StoreUint32(r.state, runnerIdle)
 		}
@@ -704,7 +705,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	rp, err := r.executor.Execute(spCtx, qr)
 	if err != nil {
 		runLogger.Info("Failed to begin run execution", zap.Error(err))
-
+		errMsg = "Beginning run execution failed, " + errMsg
 		// TODO(mr): retry?
 		r.fail(qr, runLogger, "Run failed to begin execution", err)
 		return
@@ -733,7 +734,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	if err != nil {
 		if err == ErrRunCanceled {
 			r.updateRunState(qr, RunCanceled, runLogger)
-
+			errMsg = "Waiting for execution result failed, " + errMsg
 			// Move on to the next execution, for a canceled run.
 			r.startFromWorking(atomic.LoadInt64(r.ts.now))
 			return
@@ -747,6 +748,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	}
 	if err := rr.Err(); err != nil {
 		runLogger.Info("Run failed to execute", zap.Error(err))
+		errMsg = "Run failed to execute, " + errMsg
 
 		// TODO(mr): retry?
 		r.fail(qr, runLogger, "Run failed to execute", err)
