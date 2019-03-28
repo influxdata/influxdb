@@ -176,9 +176,12 @@ func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb
 	if err != nil {
 		return nil, err
 	}
-	latest, err := time.Parse(time.RFC3339, t.LatestCompleted)
-	if err != nil {
-		return nil, err
+	var latest time.Time
+	if t.LatestCompleted != "" {
+		latest, err = time.Parse(time.RFC3339, t.LatestCompleted)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if schedFor.After(latest) {
 		t.LatestCompleted = r.ScheduledFor
