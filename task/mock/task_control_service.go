@@ -83,7 +83,7 @@ func (d *TaskControlService) CreateNextRun(ctx context.Context, taskID influxdb.
 		runs[run.ID] = run
 		d.runs[task.ID] = runs
 		now, err := time.Parse(time.RFC3339, run.ScheduledFor)
-		next, _ := d.NextDueRun(ctx, taskID)
+		next, _ := d.nextDueRun(ctx, taskID)
 		if err == nil {
 			rc := backend.RunCreation{
 				Created: backend.QueuedRun{
@@ -205,6 +205,13 @@ func (t *TaskControlService) ManualRuns(ctx context.Context, taskID influxdb.ID)
 // NextDueRun returns the Unix timestamp of when the next call to CreateNextRun will be ready.
 // The returned timestamp reflects the task's offset, so it does not necessarily exactly match the schedule time.
 func (d *TaskControlService) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return d.nextDueRun(ctx, taskID)
+}
+
+func (d *TaskControlService) nextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error) {
 	task := d.tasks[taskID]
 	sch, err := cron.Parse(task.EffectiveCron())
 	if err != nil {
