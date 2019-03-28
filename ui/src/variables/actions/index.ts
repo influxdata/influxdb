@@ -16,6 +16,9 @@ import {
 } from 'src/shared/copy/notifications'
 import {setExportTemplate} from 'src/templates/actions'
 
+// APIs
+import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
+
 // Utils
 import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
@@ -26,7 +29,7 @@ import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {Dispatch} from 'redux-thunk'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, VariableTemplate} from 'src/types'
 import {GetState} from 'src/types'
 import {Variable} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
@@ -173,6 +176,26 @@ export const createVariable = (variable: Variable) => async (
       setVariable(createdVariable.id, RemoteDataState.Done, createdVariable)
     )
     dispatch(notify(createVariableSuccess(variable.name)))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(createVariableFailed(e.response.data.message)))
+  }
+}
+
+export const createVariableFromTemplate = (
+  template: VariableTemplate,
+  orgID: string
+) => async (dispatch: Dispatch<Action>) => {
+  try {
+    const createdVariable = await createVariableFromTemplateAJAX(
+      template,
+      orgID
+    )
+
+    dispatch(
+      setVariable(createdVariable.id, RemoteDataState.Done, createdVariable)
+    )
+    dispatch(notify(createVariableSuccess(createdVariable.name)))
   } catch (e) {
     console.error(e)
     dispatch(notify(createVariableFailed(e.response.data.message)))

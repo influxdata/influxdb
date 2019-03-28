@@ -303,7 +303,10 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.
 	}
 
 	if err := s.DeleteView(ctx, d.Cells[idx].ID); err != nil {
-		return err
+		return &platform.Error{
+			Err: err,
+			Op:  op,
+		}
 	}
 
 	d.Cells = append(d.Cells[:idx], d.Cells[idx+1:]...)
@@ -441,4 +444,51 @@ func (s *Service) UpdateDashboardCellView(ctx context.Context, dashboardID, cell
 	}
 
 	return v, nil
+}
+
+func (s *Service) loadView(ctx context.Context, id platform.ID) (*platform.View, *platform.Error) {
+	i, ok := s.viewKV.Load(id.String())
+	if !ok {
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "view not found",
+		}
+	}
+
+	d, ok := i.(*platform.View)
+	if !ok {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  fmt.Sprintf("type %T is not a view", i),
+		}
+	}
+	return d, nil
+}
+
+// FindViewByID returns a single view by ID.
+func (s *Service) FindViewByID(ctx context.Context, id platform.ID) (*platform.View, error) {
+	v, pe := s.loadView(ctx, id)
+	if pe != nil {
+		return nil, pe
+	}
+	return v, nil
+}
+
+// PutView sets view with the current ID.
+func (s *Service) PutView(ctx context.Context, c *platform.View) error {
+	if c.Properties == nil {
+		c.Properties = platform.EmptyViewProperties{}
+	}
+	s.viewKV.Store(c.ID.String(), c)
+	return nil
+}
+
+// DeleteView removes a view by ID.
+func (s *Service) DeleteView(ctx context.Context, id platform.ID) error {
+	if _, err := s.FindViewByID(ctx, id); err != nil {
+		return err
+	}
+
+	s.viewKV.Delete(id.String())
+	return nil
 }

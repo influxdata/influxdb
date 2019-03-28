@@ -7,10 +7,8 @@ import (
 	"time"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -53,17 +51,7 @@ func init() {
 
 func newBucketService(f Flags) (platform.BucketService, error) {
 	if flags.local {
-		boltFile, err := fs.BoltFile()
-		if err != nil {
-			return nil, err
-		}
-		c := bolt.NewClient()
-		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
-			return nil, err
-		}
-
-		return c, nil
+		return newLocalKVService()
 	}
 	return &http.BucketService{
 		Addr:  flags.host,

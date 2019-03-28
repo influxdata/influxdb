@@ -88,8 +88,8 @@ class TaskPage extends PureComponent<
             <div className="task-form--options">
               <TaskForm
                 orgs={orgs}
-                canSubmit={this.isFormValid}
                 taskOptions={taskOptions}
+                canSubmit={this.isFormValid}
                 onChangeInput={this.handleChangeInput}
                 onChangeScheduleType={this.handleChangeScheduleType}
                 onChangeTaskOrgID={this.handleChangeTaskOrgID}

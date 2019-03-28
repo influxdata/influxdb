@@ -10,6 +10,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
     <FancyScrollbar
       autoHeight={false}
       autoHide={false}
+      className=""
       hideTracksWhenNotNeeded={true}
       maxHeight={null}
       setScrollTop={[Function]}

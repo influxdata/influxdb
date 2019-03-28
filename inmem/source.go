@@ -125,7 +125,7 @@ func (s *Service) UpdateSource(ctx context.Context, id platform.ID, upd platform
 	if err != nil {
 		return nil, &platform.Error{
 			Err: err,
-			Op:  OpPrefix + platform.OpUpdateView,
+			Op:  OpPrefix + platform.OpUpdateSource,
 		}
 	}
 
@@ -139,7 +139,7 @@ func (s *Service) DeleteSource(ctx context.Context, id platform.ID) error {
 	if _, err := s.FindSourceByID(ctx, id); err != nil {
 		return &platform.Error{
 			Err: err,
-			Op:  OpPrefix + platform.OpDeleteView,
+			Op:  OpPrefix + platform.OpDeleteSource,
 		}
 	}
 	s.sourceKV.Delete(id.String())

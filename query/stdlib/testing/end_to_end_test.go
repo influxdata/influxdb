@@ -4,11 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"io"
-	"io/ioutil"
-	nethttp "net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,9 +15,7 @@ import (
 	"github.com/influxdata/flux/stdlib"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/query"
 
 	_ "github.com/influxdata/flux/stdlib"           // Import the built-in functions
@@ -147,7 +140,7 @@ func BenchmarkFluxEndToEnd(b *testing.B) {
 }
 
 func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
-	l := RunMainOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(t, ctx)
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 	for _, pkg := range pkgs {
@@ -163,7 +156,7 @@ func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
 }
 
 func benchEndToEnd(b *testing.B, pkgs []*ast.Package) {
-	l := RunMainOrFail(b, ctx)
+	l := launcher.RunTestLauncherOrFail(b, ctx)
 	l.SetupOrFail(b)
 	defer l.ShutdownOrFail(b, ctx)
 	for _, pkg := range pkgs {
@@ -203,7 +196,7 @@ func init() {
 	optionsAST = pkg.Files[0]
 }
 
-func testFlux(t testing.TB, l *Launcher, pkg *ast.Package) {
+func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 
 	// Query server to ensure write persists.
 
@@ -245,7 +238,7 @@ func testFlux(t testing.TB, l *Launcher, pkg *ast.Package) {
 		OrganizationID: l.Org.ID,
 		Compiler:       lang.ASTCompiler{AST: pkg},
 	}
-	if r, err := l.FluxService().Query(ctx, req); err != nil {
+	if r, err := l.FluxQueryService().Query(ctx, req); err != nil {
 		t.Fatal(err)
 	} else {
 		for r.More() {
@@ -264,7 +257,7 @@ func testFlux(t testing.TB, l *Launcher, pkg *ast.Package) {
 	// this time we use a call to `run` so that the assertion error is triggered
 	runCalls := stdlib.TestingRunCalls(pkg)
 	pkg.Files[len(pkg.Files)-1] = runCalls
-	r, err := l.FluxService().Query(ctx, req)
+	r, err := l.FluxQueryService().Query(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +274,7 @@ func testFlux(t testing.TB, l *Launcher, pkg *ast.Package) {
 		t.Error(err)
 		// Replace the testing.run calls with testing.inspect calls.
 		pkg.Files[len(pkg.Files)-1] = inspectCalls
-		r, err := l.FluxService().Query(ctx, req)
+		r, err := l.FluxQueryService().Query(ctx, req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -305,119 +298,4 @@ func testFlux(t testing.TB, l *Launcher, pkg *ast.Package) {
 			t.Error(err)
 		}
 	}
-}
-
-// Launcher is a test wrapper for main.Launcher.
-type Launcher struct {
-	*launcher.Launcher
-
-	// Root temporary directory for all data.
-	Path string
-
-	// Initialized after calling the Setup() helper.
-	User   *platform.User
-	Org    *platform.Organization
-	Bucket *platform.Bucket
-	Auth   *platform.Authorization
-
-	// Standard in/out/err buffers.
-	Stdin  bytes.Buffer
-	Stdout bytes.Buffer
-	Stderr bytes.Buffer
-}
-
-// NewLauncher returns a new instance of Launcher.
-func NewLauncher() *Launcher {
-	l := &Launcher{Launcher: launcher.NewLauncher()}
-	l.Launcher.Stdin = &l.Stdin
-	l.Launcher.Stdout = &l.Stdout
-	l.Launcher.Stderr = &l.Stderr
-	if testing.Verbose() {
-		l.Launcher.Stdout = io.MultiWriter(l.Launcher.Stdout, os.Stdout)
-		l.Launcher.Stderr = io.MultiWriter(l.Launcher.Stderr, os.Stderr)
-	}
-
-	path, err := ioutil.TempDir("", "")
-	if err != nil {
-		panic(err)
-	}
-	l.Path = path
-	return l
-}
-
-// RunMainOrFail initializes and starts the server.
-func RunMainOrFail(tb testing.TB, ctx context.Context, args ...string) *Launcher {
-	tb.Helper()
-	l := NewLauncher()
-	if err := l.Run(ctx, args...); err != nil {
-		tb.Fatal(err)
-	}
-	return l
-}
-
-// Run executes the program with additional arguments to set paths and ports.
-func (l *Launcher) Run(ctx context.Context, args ...string) error {
-	args = append(args, "--bolt-path", filepath.Join(l.Path, "influxd.bolt"))
-	args = append(args, "--protos-path", filepath.Join(l.Path, "protos"))
-	args = append(args, "--engine-path", filepath.Join(l.Path, "engine"))
-	args = append(args, "--http-bind-address", "127.0.0.1:0")
-	args = append(args, "--log-level", "debug")
-	return l.Launcher.Run(ctx, args...)
-}
-
-// Shutdown stops the program and cleans up temporary paths.
-func (l *Launcher) Shutdown(ctx context.Context) error {
-	l.Cancel()
-	l.Launcher.Shutdown(ctx)
-	return os.RemoveAll(l.Path)
-}
-
-// ShutdownOrFail stops the program and cleans up temporary paths. Fail on error.
-func (l *Launcher) ShutdownOrFail(tb testing.TB, ctx context.Context) {
-	tb.Helper()
-	if err := l.Shutdown(ctx); err != nil {
-		tb.Fatal(err)
-	}
-}
-
-// SetupOrFail creates a new user, bucket, org, and auth token. Fail on error.
-func (l *Launcher) SetupOrFail(tb testing.TB) {
-	svc := &http.SetupService{Addr: l.URL()}
-	results, err := svc.Generate(ctx, &platform.OnboardingRequest{
-		User:     "USER",
-		Password: "PASSWORD",
-		Org:      "ORG",
-		Bucket:   "BUCKET",
-	})
-	if err != nil {
-		tb.Fatal(err)
-	}
-
-	l.User = results.User
-	l.Org = results.Org
-	l.Bucket = results.Bucket
-	l.Auth = results.Auth
-}
-
-func (l *Launcher) FluxService() *http.FluxQueryService {
-	return &http.FluxQueryService{Addr: l.URL(), Token: l.Auth.Token}
-}
-
-func (l *Launcher) BucketService() *http.BucketService {
-	return &http.BucketService{
-		Addr:     l.URL(),
-		Token:    l.Auth.Token,
-		OpPrefix: bolt.OpPrefix,
-	}
-}
-
-// MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.
-func (l *Launcher) MustNewHTTPRequest(method, rawurl, body string) *nethttp.Request {
-	req, err := nethttp.NewRequest(method, l.URL()+rawurl, strings.NewReader(body))
-	if err != nil {
-		panic(err)
-	}
-
-	req.Header.Set("Authorization", "Token "+l.Auth.Token)
-	return req
 }

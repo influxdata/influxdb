@@ -36,15 +36,15 @@ import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 interface Props {
   orgs: Organization[]
   taskOptions: TaskOptions
+  isInOverlay: boolean
+  canSubmit: boolean
+  onSubmit: () => void
+  dismiss: () => void
   onChangeScheduleType: (schedule: TaskSchedule) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   onChangeTaskOrgID: (orgID: string) => void
   onChangeToOrgName: (orgName: string) => void
   onChangeToBucketName: (bucketName: string) => void
-  isInOverlay?: boolean
-  onSubmit?: () => void
-  canSubmit?: boolean
-  dismiss?: () => void
 }
 
 interface State {
@@ -54,12 +54,15 @@ interface State {
 const getBuckets = (org: Organization) => client.buckets.getAllByOrg(org.name)
 
 export default class TaskForm extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     isInOverlay: false,
-    onSubmit: () => {},
     canSubmit: true,
+    onSubmit: () => {},
     dismiss: () => {},
+    onChangeToBucketName: () => {},
+    onChangeToOrgName: () => {},
   }
+
   constructor(props: Props) {
     super(props)
 

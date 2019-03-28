@@ -9,12 +9,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children?: JSX.Element[] | JSX.Element | string | number
-  offsetPixels?: number
+  offsetPixels: number
 }
 
 @ErrorHandling
 class PageHeaderRight extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     offsetPixels: DEFAULT_OFFSET,
   }
 

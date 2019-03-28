@@ -6,13 +6,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element
-  minSizePixels?: number
+  minSizePixels: number
   sizePercent?: number
 }
 
 @ErrorHandling
 class DraggableResizerPanel extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     minSizePixels: 0,
   }
 

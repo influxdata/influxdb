@@ -33,6 +33,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
             <div className="save-as--options">
               <Radio>
                 <Radio.Button
+                  id="save-as-dashboard"
                   active={saveAsOption === SaveAsOption.Dashboard}
                   value={SaveAsOption.Dashboard}
                   onClick={this.handleSetSaveAsOption}
@@ -41,6 +42,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   Dashboard Cell
                 </Radio.Button>
                 <Radio.Button
+                  id="save-as-task"
                   active={saveAsOption === SaveAsOption.Task}
                   value={SaveAsOption.Task}
                   onClick={this.handleSetSaveAsOption}
@@ -49,6 +51,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   Task
                 </Radio.Button>
                 <Radio.Button
+                  id="save-as-variable"
                   active={saveAsOption === SaveAsOption.Variable}
                   value={SaveAsOption.Variable}
                   onClick={this.handleSetSaveAsOption}

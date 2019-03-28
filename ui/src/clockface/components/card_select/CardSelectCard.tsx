@@ -6,17 +6,17 @@ import ProtoboardIcon from 'src/clockface/components/card_select/ProtoboardIcon'
 
 interface Props {
   id: string
-  name?: string
   label: string
-  image?: StatelessComponent
-  checked?: boolean
-  disabled?: boolean
   onClick: () => void
+  name?: string
+  image?: StatelessComponent
+  checked: boolean
+  disabled: boolean
 }
 
 @ErrorHandling
 class CardSelectCard extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     checked: false,
     disabled: false,
   }

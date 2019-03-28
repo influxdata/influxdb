@@ -432,30 +432,6 @@ func decodePostLabelMappingRequest(ctx context.Context, r *http.Request, rt plat
 	return req, nil
 }
 
-// newPatchLabelHandler returns a handler func for a PATCH to /labels endpoints
-func newPatchLabelHandler(b *LabelBackend) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		req, err := decodePatchLabelRequest(ctx, r)
-		if err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-
-		label, err := b.LabelService.UpdateLabel(ctx, req.LabelID, req.Update)
-		if err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-
-		if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(label)); err != nil {
-			logEncodingError(b.Logger, r, err)
-			return
-		}
-	}
-}
-
 // newDeleteLabelHandler returns a handler func for a DELETE to /labels endpoints
 func newDeleteLabelHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

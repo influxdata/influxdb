@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/internal/fs"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -163,4 +165,18 @@ func Execute() {
 	if err := influxCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func newLocalKVService() (*kv.Service, error) {
+	boltFile, err := fs.BoltFile()
+	if err != nil {
+		return nil, err
+	}
+
+	store := bolt.NewKVStore(boltFile)
+	if err := store.Open(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return kv.NewService(store), nil
 }

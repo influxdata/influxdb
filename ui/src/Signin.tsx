@@ -94,7 +94,7 @@ export class Signin extends PureComponent<Props, State> {
         this.props.notify(sessionTimedOut())
       }
 
-      this.props.router.push(`/signin${returnTo}`)
+      this.props.router.replace(`/signin${returnTo}`)
     }
   }
 }

@@ -24,16 +24,16 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   confirmText: string
   onConfirm: (returnValue?: any) => void
+  size: ComponentSize
+  shape: ButtonShape
+  testID: string
+  status: ComponentStatus
   returnValue?: any
   text?: string
-  size?: ComponentSize
-  shape?: ButtonShape
   icon?: IconFont
-  status?: ComponentStatus
   titleText?: string
   tabIndex?: number
   className?: string
-  testID?: string
 }
 
 interface State {
@@ -42,7 +42,7 @@ interface State {
 
 @ErrorHandling
 class ConfirmationButton extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     size: ComponentSize.Small,
     shape: ButtonShape.Default,
     status: ComponentStatus.Default,

@@ -13,11 +13,14 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
+	"github.com/yudai/gojsondiff"
+	"github.com/yudai/gojsondiff/formatter"
 )
 
 // NewMockDashboardBackend returns a DashboardBackend with mock services.
@@ -1265,11 +1268,6 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 			t.Fatalf("failed to populate dashboard")
 		}
 	}
-	for _, b := range f.Views {
-		if err := svc.PutView(ctx, b); err != nil {
-			t.Fatalf("failed to populate views")
-		}
-	}
 
 	dashboardBackend := NewMockDashboardBackend()
 	dashboardBackend.DashboardService = svc
@@ -1385,4 +1383,40 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func jsonEqual(s1, s2 string) (eq bool, diff string, err error) {
+	var o1, o2 interface{}
+	if s1 == s2 {
+		return true, "", nil
+	}
+
+	if s1 == "" {
+		return false, s2, fmt.Errorf("s1 is empty")
+	}
+
+	if s2 == "" {
+		return false, s1, fmt.Errorf("s2 is empty")
+	}
+
+	if err = json.Unmarshal([]byte(s1), &o1); err != nil {
+		return
+	}
+
+	if err = json.Unmarshal([]byte(s2), &o2); err != nil {
+		return
+	}
+
+	differ := gojsondiff.New()
+	d, err := differ.Compare([]byte(s1), []byte(s2))
+	if err != nil {
+		return
+	}
+
+	config := formatter.AsciiFormatterConfig{}
+
+	formatter := formatter.NewAsciiFormatter(o1, config)
+	diff, err = formatter.Format(d)
+
+	return cmp.Equal(o1, o2), diff, err
 }

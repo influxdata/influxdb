@@ -11,17 +11,18 @@ interface Props {
   value: any
   children: JSX.Element | string | number
   onClick: (value: any) => void
-  disabled?: boolean
+  disabled: boolean
   titleText: string
-  disabledTitleText?: string
-  testID?: string
+  disabledTitleText: string
+  testID: string
 }
 
 @ErrorHandling
 class RadioButton extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     disabled: false,
     disabledTitleText: 'This option is disabled',
+    titleText: '',
     testID: 'radio-button',
   }
 

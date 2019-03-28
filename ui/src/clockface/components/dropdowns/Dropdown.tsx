@@ -31,7 +31,7 @@ interface ThumbColors {
   stop: string
 }
 
-export interface PassedProps {
+interface PassedProps {
   children: JSX.Element[]
   onChange: (value: any) => void
   selectedID?: string
@@ -40,8 +40,6 @@ export interface PassedProps {
   menuHeader?: JSX.Element
   icon?: IconFont
   customClass?: string
-  testID?: string
-  buttonTestID?: string
 }
 
 export interface DefaultProps {
@@ -53,6 +51,8 @@ export interface DefaultProps {
   mode?: DropdownMode
   titleText?: string
   wrapMenuText?: boolean
+  testID?: string
+  buttonTestID?: string
 }
 
 export type Props = PassedProps & DefaultProps
@@ -72,6 +72,8 @@ class Dropdown extends Component<Props, State> {
     mode: DropdownMode.Radio,
     titleText: '',
     wrapMenuText: false,
+    testID: 'dropdown',
+    buttonTestID: 'dropdown-button',
   }
 
   public static Button = DropdownButton
