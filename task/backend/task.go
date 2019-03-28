@@ -73,10 +73,10 @@ func (tcs *taskControlAdaptor) CurrentlyRunning(ctx context.Context, taskID infl
 		rtn[i] = &influxdb.Run{
 			ID:           influxdb.ID(cr.RunID),
 			TaskID:       t.ID,
-			ScheduledFor: time.Unix(cr.Now, 0).Format(time.RFC3339),
+			ScheduledFor: time.Unix(cr.Now, 0).UTC().Format(time.RFC3339),
 		}
 		if cr.RequestedAt != 0 {
-			rtn[i].RequestedAt = time.Unix(cr.RequestedAt, 0).Format(time.RFC3339)
+			rtn[i].RequestedAt = time.Unix(cr.RequestedAt, 0).UTC().Format(time.RFC3339)
 		}
 	}
 	return rtn, nil
@@ -88,12 +88,12 @@ func (tcs *taskControlAdaptor) ManualRuns(ctx context.Context, taskID influxdb.I
 		return nil, err
 	}
 
-	var rtn = make([]*influxdb.Run, len(m.CurrentlyRunning))
-	for i, cr := range m.CurrentlyRunning {
+	var rtn = make([]*influxdb.Run, len(m.ManualRuns))
+	for i, cr := range m.ManualRuns {
 		rtn[i] = &influxdb.Run{
 			ID:           influxdb.ID(cr.RunID),
 			TaskID:       t.ID,
-			ScheduledFor: time.Unix(cr.Now, 0).Format(time.RFC3339),
+			ScheduledFor: time.Unix(cr.Start, 0).UTC().Format(time.RFC3339),
 		}
 		if cr.RequestedAt != 0 {
 			rtn[i].RequestedAt = time.Unix(cr.RequestedAt, 0).Format(time.RFC3339)
@@ -103,7 +103,7 @@ func (tcs *taskControlAdaptor) ManualRuns(ctx context.Context, taskID influxdb.I
 }
 
 func (tcs *taskControlAdaptor) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error) {
-	_, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
+	m, err := tcs.s.FindTaskMetaByID(ctx, taskID)
 	if err != nil {
 		return 0, err
 	}
@@ -134,7 +134,6 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 				reqAt = time.Unix(cr.RequestedAt, 0)
 			}
 		}
-
 	}
 
 	rlb := RunLogBase{
@@ -175,7 +174,6 @@ func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID infl
 				reqAt = time.Unix(cr.RequestedAt, 0)
 			}
 		}
-
 	}
 
 	rlb := RunLogBase{
@@ -211,12 +209,12 @@ func ToInfluxTask(t *StoreTask, m *StoreTaskMeta) (*influxdb.Task, error) {
 	}
 	if m != nil {
 		pt.Status = string(m.Status)
-		pt.LatestCompleted = time.Unix(m.LatestCompleted, 0).Format(time.RFC3339)
+		pt.LatestCompleted = time.Unix(m.LatestCompleted, 0).UTC().Format(time.RFC3339)
 		if m.CreatedAt != 0 {
-			pt.CreatedAt = time.Unix(m.CreatedAt, 0).Format(time.RFC3339)
+			pt.CreatedAt = time.Unix(m.CreatedAt, 0).UTC().Format(time.RFC3339)
 		}
 		if m.UpdatedAt != 0 {
-			pt.UpdatedAt = time.Unix(m.UpdatedAt, 0).Format(time.RFC3339)
+			pt.UpdatedAt = time.Unix(m.UpdatedAt, 0).UTC().Format(time.RFC3339)
 		}
 		pt.AuthorizationID = influxdb.ID(m.AuthorizationID)
 	}

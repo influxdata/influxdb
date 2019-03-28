@@ -444,11 +444,11 @@ func TestScheduler_Queue(t *testing.T) {
 	e.RunningFor(task.ID)[0].Cancel()
 	pollForRun(240)
 
-	// Cancel the 3060 run; 240 should pick up.
+	// Cancel the 240 run; 3060 should pick up.
 	e.RunningFor(task.ID)[0].Cancel()
 	pollForRun(3060)
 
-	// Cancel 240; jobs should be idle.
+	// Cancel 3060; jobs should be idle.
 	e.RunningFor(task.ID)[0].Cancel()
 	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
@@ -510,19 +510,19 @@ func pollForRunLog(t *testing.T, ll *logListener, taskID, runID platform.ID, exp
 	t.FailNow()
 }
 
-// LogListener allows us to act as a middleware and see if specific logs have been written
+// runListener allows us to act as a middleware and see if specific states are updated
 type runListener struct {
 	mu sync.Mutex
 
 	backend.TaskControlService
 
-	rs map[string][]*platform.Run
+	rs map[platform.ID][]*platform.Run
 }
 
 func newRunListener(tcs backend.TaskControlService) *runListener {
 	return &runListener{
 		TaskControlService: tcs,
-		rs:                 make(map[string][]*platform.Run),
+		rs:                 make(map[platform.ID][]*platform.Run),
 	}
 }
 
@@ -530,7 +530,7 @@ func (l *runListener) UpdateRunState(ctx context.Context, taskID, runID platform
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	runs, ok := l.rs[taskID.String()]
+	runs, ok := l.rs[taskID]
 	if !ok {
 		runs = []*platform.Run{}
 	}
@@ -545,7 +545,7 @@ func (l *runListener) UpdateRunState(ctx context.Context, taskID, runID platform
 		runs = append(runs, &platform.Run{ID: runID, Status: state.String()})
 	}
 
-	l.rs[taskID.String()] = runs
+	l.rs[taskID] = runs
 
 	return l.TaskControlService.UpdateRunState(ctx, taskID, runID, when, state)
 }
@@ -562,7 +562,7 @@ func pollForRunStatus(t *testing.T, r *runListener, taskID platform.ID, expCount
 		}
 
 		r.mu.Lock()
-		runs = r.rs[taskID.String()]
+		runs = r.rs[taskID]
 		r.mu.Unlock()
 
 		if len(runs) != expCount {

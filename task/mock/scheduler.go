@@ -19,7 +19,7 @@ type Scheduler struct {
 
 	lastTick int64
 
-	claims map[string]*platform.Task
+	claims map[platform.ID]*platform.Task
 
 	createChan  chan *platform.Task
 	releaseChan chan *platform.Task
@@ -31,7 +31,7 @@ type Scheduler struct {
 
 func NewScheduler() *Scheduler {
 	return &Scheduler{
-		claims: map[string]*platform.Task{},
+		claims: map[platform.ID]*platform.Task{},
 	}
 }
 
@@ -56,12 +56,12 @@ func (s *Scheduler) ClaimTask(_ context.Context, task *platform.Task) error {
 	s.Lock()
 	defer s.Unlock()
 
-	_, ok := s.claims[task.ID.String()]
+	_, ok := s.claims[task.ID]
 	if ok {
 		return backend.ErrTaskAlreadyClaimed
 	}
 
-	s.claims[task.ID.String()] = task
+	s.claims[task.ID] = task
 
 	if s.createChan != nil {
 		s.createChan <- task
@@ -74,12 +74,12 @@ func (s *Scheduler) UpdateTask(_ context.Context, task *platform.Task) error {
 	s.Lock()
 	defer s.Unlock()
 
-	_, ok := s.claims[task.ID.String()]
+	_, ok := s.claims[task.ID]
 	if !ok {
 		return backend.ErrTaskNotClaimed
 	}
 
-	s.claims[task.ID.String()] = task
+	s.claims[task.ID] = task
 
 	if s.updateChan != nil {
 		s.updateChan <- task
@@ -96,7 +96,7 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 	s.Lock()
 	defer s.Unlock()
 
-	t, ok := s.claims[taskID.String()]
+	t, ok := s.claims[taskID]
 	if !ok {
 		return backend.ErrTaskNotClaimed
 	}
@@ -104,7 +104,7 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 		s.releaseChan <- t
 	}
 
-	delete(s.claims, taskID.String())
+	delete(s.claims, taskID)
 
 	return nil
 }
@@ -112,7 +112,7 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 func (s *Scheduler) TaskFor(id platform.ID) *platform.Task {
 	s.Lock()
 	defer s.Unlock()
-	return s.claims[id.String()]
+	return s.claims[id]
 }
 
 func (s *Scheduler) TaskCreateChan() <-chan *platform.Task {
@@ -237,7 +237,7 @@ func (e *Executor) PollForNumberRunning(taskID platform.ID, count int) ([]*RunPr
 			return running, nil
 		}
 	}
-	return nil, fmt.Errorf("did not see count of %d running task(s) for ID %s in time; last count was %d", count, taskID.String(), len(running))
+	return nil, fmt.Errorf("did not see count of %d running task(s) for ID %s in time; last count was %d", count, taskID, len(running))
 }
 
 // RunPromise is a mock RunPromise.

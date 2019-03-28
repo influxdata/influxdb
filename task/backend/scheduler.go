@@ -316,6 +316,11 @@ func (s *TickScheduler) ClaimTask(authCtx context.Context, task *platform.Task) 
 }
 
 func (s *TickScheduler) UpdateTask(authCtx context.Context, task *platform.Task) error {
+	opt, err := options.FromScript(task.Flux)
+	if err != nil {
+		return err
+	}
+
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 
@@ -344,10 +349,6 @@ func (s *TickScheduler) UpdateTask(authCtx context.Context, task *platform.Task)
 	ts.nextDueMu.Unlock()
 	// check the concurrency
 	// todo(lh): In the near future we may not be using the scheduler to manage concurrency.
-	opt, err := options.FromScript(task.Flux)
-	if err != nil {
-		return err
-	}
 	maxC := len(ts.runners)
 	if opt.Concurrency != nil {
 		maxC = int(*opt.Concurrency)

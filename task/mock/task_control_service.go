@@ -20,27 +20,27 @@ var idgen = snowflake.NewDefaultIDGenerator()
 type TaskControlService struct {
 	mu sync.Mutex
 	// Map of stringified task ID to last ID used for run.
-	runs map[string]map[string]*influxdb.Run
+	runs map[influxdb.ID]map[influxdb.ID]*influxdb.Run
 
 	// Map of stringified, concatenated task and platform ID, to runs that have been created.
-	created map[string]backend.QueuedRun
+	created map[influxdb.ID]backend.QueuedRun
 
 	// Map of stringified task ID to task meta.
-	tasks      map[string]*influxdb.Task
+	tasks      map[influxdb.ID]*influxdb.Task
 	manualRuns []*influxdb.Run
 	// Map of task ID to total number of runs created for that task.
 	totalRunsCreated map[influxdb.ID]int
-	finishedRuns     map[string]*influxdb.Run
+	finishedRuns     map[influxdb.ID]*influxdb.Run
 }
 
 var _ backend.TaskControlService = (*TaskControlService)(nil)
 
 func NewTaskControlService() *TaskControlService {
 	return &TaskControlService{
-		runs:             make(map[string]map[string]*influxdb.Run),
-		finishedRuns:     make(map[string]*influxdb.Run),
-		tasks:            make(map[string]*influxdb.Task),
-		created:          make(map[string]backend.QueuedRun),
+		runs:             make(map[influxdb.ID]map[influxdb.ID]*influxdb.Run),
+		finishedRuns:     make(map[influxdb.ID]*influxdb.Run),
+		tasks:            make(map[influxdb.ID]*influxdb.Task),
+		created:          make(map[influxdb.ID]backend.QueuedRun),
 		totalRunsCreated: make(map[influxdb.ID]int),
 	}
 }
@@ -51,7 +51,7 @@ func (d *TaskControlService) SetTask(task *influxdb.Task) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.tasks[task.ID.String()] = task
+	d.tasks[task.ID] = task
 }
 
 func (d *TaskControlService) SetManualRuns(runs []*influxdb.Run) {
@@ -66,7 +66,7 @@ func (d *TaskControlService) CreateNextRun(ctx context.Context, taskID influxdb.
 	if !taskID.Valid() {
 		return backend.RunCreation{}, errors.New("invalid task id")
 	}
-	tid := taskID.String()
+	tid := taskID
 
 	task, ok := d.tasks[tid]
 	if !ok {
@@ -78,10 +78,10 @@ func (d *TaskControlService) CreateNextRun(ctx context.Context, taskID influxdb.
 		d.manualRuns = d.manualRuns[1:]
 		runs, ok := d.runs[tid]
 		if !ok {
-			runs = make(map[string]*influxdb.Run)
+			runs = make(map[influxdb.ID]*influxdb.Run)
 		}
-		runs[run.ID.String()] = run
-		d.runs[task.ID.String()] = runs
+		runs[run.ID] = run
+		d.runs[task.ID] = runs
 		now, err := time.Parse(time.RFC3339, run.ScheduledFor)
 		next, _ := d.NextDueRun(ctx, taskID)
 		if err == nil {
@@ -94,7 +94,7 @@ func (d *TaskControlService) CreateNextRun(ctx context.Context, taskID influxdb.
 				NextDue:  next,
 				HasQueue: len(d.manualRuns) != 0,
 			}
-			d.created[tid+rc.Created.RunID.String()] = rc.Created
+			d.created[tid+rc.Created.RunID] = rc.Created
 			d.totalRunsCreated[taskID]++
 			return rc, nil
 		}
@@ -105,7 +105,7 @@ func (d *TaskControlService) CreateNextRun(ctx context.Context, taskID influxdb.
 		return backend.RunCreation{}, err
 	}
 	rc.Created.TaskID = taskID
-	d.created[tid+rc.Created.RunID.String()] = rc.Created
+	d.created[tid+rc.Created.RunID] = rc.Created
 	d.totalRunsCreated[taskID]++
 	return rc, nil
 }
@@ -120,7 +120,7 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 	if err == nil {
 		latest = lt.Unix()
 	}
-	for _, r := range t.runs[task.ID.String()] {
+	for _, r := range t.runs[task.ID] {
 		rt, err := time.Parse(time.RFC3339, r.ScheduledFor)
 		if err == nil {
 			if rt.Unix() > latest {
@@ -143,15 +143,15 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 	}
 
 	runID := idgen.ID()
-	runs, ok := t.runs[task.ID.String()]
+	runs, ok := t.runs[task.ID]
 	if !ok {
-		runs = make(map[string]*influxdb.Run)
+		runs = make(map[influxdb.ID]*influxdb.Run)
 	}
-	runs[runID.String()] = &influxdb.Run{
+	runs[runID] = &influxdb.Run{
 		ID:           runID,
 		ScheduledFor: nextScheduled.Format(time.RFC3339),
 	}
-	t.runs[task.ID.String()] = runs
+	t.runs[task.ID] = runs
 
 	return backend.RunCreation{
 		Created: backend.QueuedRun{
@@ -167,8 +167,8 @@ func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	tid := taskID.String()
-	rid := runID.String()
+	tid := taskID
+	rid := runID
 	r := d.runs[tid][rid]
 	delete(d.runs[tid], rid)
 	t := d.tasks[tid]
@@ -186,7 +186,7 @@ func (t *TaskControlService) CurrentlyRunning(ctx context.Context, taskID influx
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	rtn := []*influxdb.Run{}
-	for _, run := range t.runs[taskID.String()] {
+	for _, run := range t.runs[taskID] {
 		rtn = append(rtn, run)
 	}
 	return rtn, nil
@@ -205,7 +205,7 @@ func (t *TaskControlService) ManualRuns(ctx context.Context, taskID influxdb.ID)
 // NextDueRun returns the Unix timestamp of when the next call to CreateNextRun will be ready.
 // The returned timestamp reflects the task's offset, so it does not necessarily exactly match the schedule time.
 func (d *TaskControlService) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error) {
-	task := d.tasks[taskID.String()]
+	task := d.tasks[taskID]
 	sch, err := cron.Parse(task.EffectiveCron())
 	if err != nil {
 		return 0, err
@@ -216,7 +216,7 @@ func (d *TaskControlService) NextDueRun(ctx context.Context, taskID influxdb.ID)
 		latest = lt.Unix()
 	}
 
-	for _, r := range d.runs[task.ID.String()] {
+	for _, r := range d.runs[task.ID] {
 		rt, err := time.Parse(time.RFC3339, r.ScheduledFor)
 		if err == nil {
 			if rt.Unix() > latest {
@@ -243,14 +243,18 @@ func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID i
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	run := d.runs[taskID.String()][runID.String()]
-	run.Status = state.String()
+	run := d.runs[taskID][runID]
 	switch state {
 	case backend.RunStarted:
 		run.StartedAt = when.Format(time.RFC3339Nano)
 	case backend.RunSuccess, backend.RunFail, backend.RunCanceled:
 		run.FinishedAt = when.Format(time.RFC3339Nano)
+	case backend.RunScheduled:
+		// nothing
+	default:
+		panic("invalid status")
 	}
+	run.Status = state.String()
 	return nil
 }
 
@@ -259,7 +263,7 @@ func (d *TaskControlService) AddRunLog(ctx context.Context, taskID, runID influx
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	run := d.runs[taskID.String()][runID.String()]
+	run := d.runs[taskID][runID]
 	if run == nil {
 		panic("cannot add a log to a non existant run")
 	}
@@ -305,14 +309,14 @@ func (d *TaskControlService) PollForNumberCreated(taskID influxdb.ID, count int)
 			return created, nil
 		}
 	}
-	return created, fmt.Errorf("did not see count of %d created run(s) for task with ID %s in time, instead saw %d", count, taskID.String(), actualCount) // we return created anyways, to make it easier to debug
+	return created, fmt.Errorf("did not see count of %d created run(s) for task with ID %s in time, instead saw %d", count, taskID, actualCount) // we return created anyways, to make it easier to debug
 }
 
 func (d *TaskControlService) FinishedRun(runID influxdb.ID) *influxdb.Run {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	return d.finishedRuns[runID.String()]
+	return d.finishedRuns[runID]
 }
 
 func (d *TaskControlService) FinishedRuns() []*influxdb.Run {
