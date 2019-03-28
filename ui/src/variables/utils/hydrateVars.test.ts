@@ -41,15 +41,17 @@ class FakeFetcher implements ValueFetcher {
 
 describe('hydrate vars', () => {
   describe('exportVariables', () => {
-    const a = createVariable('a', 'f(x: v.b, v.c)')
-    const b = createVariable('b', 'beep')
-    const c = createVariable('c', 'robit')
-    const d = createVariable('d', 'nooooo!')
-    const vars = [a, b, c, d]
+    test('should find variable exports', () => {
+      const a = createVariable('a', 'f(x: v.b, v.c)')
+      const b = createVariable('b', 'beep')
+      const c = createVariable('c', 'robit')
+      const d = createVariable('d', 'nooooo!')
+      const vars = [a, b, c, d]
 
-    const actual = exportVariables([a], vars)
+      const actual = exportVariables([a], vars)
 
-    expect(actual).toEqual([a, b, c])
+      expect(actual).toEqual([a, b, c])
+    })
   })
 
   test('should invalidate cyclic subgraphs', async () => {
