@@ -77,7 +77,7 @@ describe('resourceToTemplate', () => {
 
   describe('variableToTemplate', () => {
     it('converts a variable to a template', () => {
-      const actual = variableToTemplate(myVariable)
+      const actual = variableToTemplate(myVariable, [])
       const expected = {
         meta: {
           version: '1',
@@ -99,9 +99,83 @@ describe('resourceToTemplate', () => {
               },
               selected: null,
             },
-            relationships: {},
+            relationships: {
+              variable: {
+                data: [],
+              },
+            },
           },
           included: [],
+        },
+        labels: [],
+      }
+
+      expect(actual).toEqual(expected)
+    })
+
+    it('converts a variable with dependencies to a template', () => {
+      const parentArgs = {
+        values: {...myVariable.arguments.values, query: `v.${myVariable.name}`},
+      }
+      const parentVar = {
+        ...myVariable,
+        id: '123Parent',
+        name: 'Parent Var',
+        arguments: {
+          ...myVariable.arguments,
+          ...parentArgs,
+        },
+      }
+      const actual = variableToTemplate(parentVar, [myVariable])
+      const expected = {
+        meta: {
+          version: '1',
+          name: 'Parent Var-Template',
+          description: 'template created from variable: Parent Var',
+        },
+        content: {
+          data: {
+            type: 'variable',
+            id: '123Parent',
+            attributes: {
+              name: 'Parent Var',
+              arguments: {
+                type: 'query',
+                values: {
+                  query: 'v.beep',
+                  language: 'flux',
+                },
+              },
+              selected: null,
+            },
+            relationships: {
+              variable: {
+                data: [
+                  {
+                    type: 'variable',
+                    id: '039ae3b3b74b0000',
+                  },
+                ],
+              },
+            },
+          },
+          included: [
+            {
+              type: 'variable',
+              id: '039ae3b3b74b0000',
+              attributes: {
+                name: 'beep',
+                arguments: {
+                  type: 'query',
+                  values: {
+                    query: 'test!',
+                    language: 'flux',
+                  },
+                },
+                selected: null,
+              },
+            },
+          ],
         },
         labels: [],
       }

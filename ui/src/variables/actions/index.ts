@@ -23,6 +23,7 @@ import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/
 import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
+import {findDependentVariables} from 'src/variables/utils/hydrateVars'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -282,7 +283,10 @@ export const convertToTemplate = (variableID: string) => async (
     dispatch(setExportTemplate(RemoteDataState.Loading))
 
     const variable = await client.variables.get(variableID)
-    const variableTemplate = variableToTemplate(variable)
+    const allVariables = await client.variables.getAll()
+
+    const dependencies = findDependentVariables(variable, allVariables)
+    const variableTemplate = variableToTemplate(variable, dependencies)
     const orgID = variable.orgID // TODO remove when org is implicit app state
 
     dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate, orgID))
