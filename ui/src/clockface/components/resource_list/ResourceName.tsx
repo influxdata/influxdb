@@ -16,22 +16,17 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Styles
 import 'src/clockface/components/resource_list/ResourceName.scss'
 
-interface PassedProps {
+interface Props {
   onUpdate: (name: string) => void
   name: string
   onClick?: (e: MouseEvent<HTMLAnchorElement>) => void
   placeholder?: string
   noNameString: string
+  parentTestID: string
+  buttonTestID: string
+  inputTestID: string
+  hrefValue: string
 }
-
-interface DefaultProps {
-  parentTestID?: string
-  buttonTestID?: string
-  inputTestID?: string
-  hrefValue?: string
-}
-
-type Props = PassedProps & DefaultProps
 
 interface State {
   isEditing: boolean
@@ -41,7 +36,7 @@ interface State {
 
 @ErrorHandling
 class ResourceName extends Component<Props, State> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     parentTestID: 'resource-name',
     buttonTestID: 'resource-name--button',
     inputTestID: 'resource-name--input',

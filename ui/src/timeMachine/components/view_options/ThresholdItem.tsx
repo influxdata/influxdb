@@ -22,11 +22,11 @@ import {SeverityColor, SeverityColorOptions} from 'src/types/logs'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  label?: string
   threshold: Color
-  isBase?: boolean
-  isDeletable?: boolean
-  disableColor?: boolean
+  label: string
+  isBase: boolean
+  isDeletable: boolean
+  disableColor: boolean
   onChooseColor: (threshold: Color) => void
   onValidateColorValue: (threshold: Color, targetValue: number) => boolean
   onUpdateColorValue: (threshold: Color, targetValue: number) => void
@@ -40,7 +40,7 @@ interface State {
 
 @ErrorHandling
 class Threshold extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     label: 'Value is <=',
     disableColor: false,
     isDeletable: true,

@@ -2,11 +2,11 @@
 import React, {PureComponent} from 'react'
 
 interface Props {
-  displayText?: string
+  displayText: string
 }
 
 class ProtoboardIcon extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     displayText: '',
   }
 

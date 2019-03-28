@@ -15,21 +15,16 @@ import 'src/clockface/components/empty_state/EmptyState.scss'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface PassedProps {
+interface Props {
   children: JSX.Element | JSX.Element[]
+  size: ComponentSize
+  testID: string
   customClass?: string
 }
 
-interface DefaultProps {
-  size?: ComponentSize
-  testID?: string
-}
-
-type Props = PassedProps & DefaultProps
-
 @ErrorHandling
 class EmptyState extends Component<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     size: ComponentSize.Small,
     testID: 'empty-state',
   }

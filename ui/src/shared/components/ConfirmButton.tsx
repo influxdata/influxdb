@@ -6,12 +6,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 type Position = 'top' | 'bottom' | 'left' | 'right'
 
 interface Props {
-  text?: string
-  confirmText?: string
+  confirmText: string
   confirmAction: () => void
-  type?: string
-  size?: string
-  square?: boolean
+  type: string
+  size: string
+  square: boolean
+  text?: string
   icon?: string
   disabled?: boolean
   customClass?: string
@@ -24,7 +24,7 @@ interface State {
 
 @ErrorHandling
 class ConfirmButton extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     confirmText: 'Confirm',
     type: 'btn-default',
     size: 'btn-sm',

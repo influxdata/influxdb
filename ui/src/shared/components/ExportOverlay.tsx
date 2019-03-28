@@ -32,16 +32,13 @@ import {DocumentCreate} from '@influxdata/influx'
 import {ComponentColor, ComponentSize} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 
-interface OwnProps extends DefaultProps {
+interface OwnProps {
   onDismissOverlay: () => void
   resource: DocumentCreate
   resourceName: string
   orgID: string
   status: RemoteDataState
-}
-
-interface DefaultProps {
-  isVisible?: boolean
+  isVisible: boolean
 }
 
 interface DispatchProps {
@@ -51,7 +48,7 @@ interface DispatchProps {
 type Props = OwnProps & DispatchProps
 
 class ExportOverlay extends PureComponent<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     isVisible: true,
   }
 

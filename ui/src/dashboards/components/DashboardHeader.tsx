@@ -25,11 +25,7 @@ import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
 import {Dashboard} from '@influxdata/influx'
 
-interface DefaultProps {
-  zoomedTimeRange: QueriesModels.TimeRange
-}
-
-interface Props extends DefaultProps {
+interface Props {
   activeDashboard: string
   dashboard: Dashboard
   timeRange: QueriesModels.TimeRange
@@ -44,10 +40,11 @@ interface Props extends DefaultProps {
   isShowingVariablesControlBar: boolean
   isHidden: boolean
   onAddNote: () => void
+  zoomedTimeRange: QueriesModels.TimeRange
 }
 
 export default class DashboardHeader extends Component<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     zoomedTimeRange: {
       upper: null,
       lower: null,

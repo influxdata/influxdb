@@ -11,29 +11,24 @@ import './Label.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface PassedProps {
+interface Props {
   id: string
   name: string
   description: string
   colorHex: string
   onClick?: (id: string) => void
   onDelete?: (id: string) => void
-}
-
-interface DefaultProps {
-  size?: ComponentSize
-  testID?: string
+  size: ComponentSize
+  testID: string
 }
 
 interface State {
   isMouseOver: boolean
 }
 
-type Props = PassedProps & DefaultProps
-
 @ErrorHandling
 class Label extends Component<Props, State> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     size: ComponentSize.ExtraSmall,
     testID: 'label--pill',
   }

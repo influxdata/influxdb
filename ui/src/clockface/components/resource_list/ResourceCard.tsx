@@ -7,27 +7,22 @@ import classnames from 'classnames'
 // Constants
 import {UPDATED_AT_TIME_FORMAT} from 'src/dashboards/constants'
 
-interface PassedProps {
+interface Props {
   name: () => JSX.Element
   updatedAt?: string
   owner?: {id: string; name: string}
   children?: JSX.Element[] | JSX.Element
   disabled?: boolean
+  testID: string
+  description: () => JSX.Element
+  labels: () => JSX.Element
+  metaData: () => JSX.Element[]
+  contextMenu: () => JSX.Element
+  toggle: () => JSX.Element
 }
-
-interface DefaultProps {
-  testID?: string
-  description?: () => JSX.Element
-  labels?: () => JSX.Element
-  metaData?: () => JSX.Element[]
-  contextMenu?: () => JSX.Element
-  toggle?: () => JSX.Element
-}
-
-type Props = PassedProps & DefaultProps
 
 export default class ResourceListCard extends PureComponent<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     testID: 'resource-card',
     description: () => null,
     labels: () => null,

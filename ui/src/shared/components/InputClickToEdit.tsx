@@ -3,12 +3,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   wrapperClass: string
+  tabIndex: number
   value?: string
   onChange?: (value: string) => void
   onKeyDown?: (value: string) => void
   onBlur: (value: string) => void
   disabled?: boolean
-  tabIndex?: number
   placeholder?: string
   appearAsNormalInput?: boolean
 }
@@ -20,7 +20,7 @@ interface State {
 
 @ErrorHandling
 class InputClickToEdit extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     tabIndex: 0,
   }
 

@@ -13,12 +13,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   children: JSX.Element[]
   fullWidth: boolean
-  inPresentationMode?: boolean
+  inPresentationMode: boolean
 }
 
 @ErrorHandling
 class PageHeader extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     inPresentationMode: false,
   }
 

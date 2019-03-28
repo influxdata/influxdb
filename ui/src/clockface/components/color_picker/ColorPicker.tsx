@@ -22,24 +22,19 @@ import {validateHexCode} from 'src/configuration/utils/labels'
 // Styles
 import 'src/clockface/components/color_picker/ColorPicker.scss'
 
-interface PassedProps {
+interface Props {
   color: string
   onChange: (color: string, status?: ComponentStatus) => void
+  testID: string
+  maintainInputFocus: boolean
 }
-
-interface DefaultProps {
-  maintainInputFocus?: boolean
-  testID?: string
-}
-
-type Props = PassedProps & DefaultProps
 
 interface State {
   errorMessage: string
 }
 
 export default class ColorPicker extends Component<Props, State> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     maintainInputFocus: false,
     testID: 'color-picker',
   }

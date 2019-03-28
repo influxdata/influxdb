@@ -10,13 +10,13 @@ interface Props {
   children: any
   visible: boolean
   title: string
-  maxWidth?: number
+  maxWidth: number
   onDismiss: () => void
 }
 
 @ErrorHandling
 class WizardOverlay extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     maxWidth: 1200,
   }
 

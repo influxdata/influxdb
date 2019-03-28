@@ -7,13 +7,23 @@ import {
   Cell as CellAPI,
 } from '@influxdata/influx'
 
+export enum Scale {
+  Linear = 'linear',
+  Log = 'log',
+}
+
+export enum Base {
+  Two = '2',
+  Ten = '10',
+}
+
 export interface Axis {
   label: string
   prefix: string
   suffix: string
-  base: string
-  scale: string
-  bounds: [string, string]
+  base: Base
+  scale: Scale
+  bounds: [string, string] | [null, null]
 }
 
 export type TimeSeriesValue = string | number | null | undefined
