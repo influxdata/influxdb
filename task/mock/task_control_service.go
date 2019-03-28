@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -319,5 +320,7 @@ func (d *TaskControlService) FinishedRuns() []*influxdb.Run {
 	for _, run := range d.finishedRuns {
 		rtn = append(rtn, run)
 	}
+
+	sort.Slice(rtn, func(i, j int) bool { return rtn[i].ScheduledFor < rtn[j].ScheduledFor })
 	return rtn
 }

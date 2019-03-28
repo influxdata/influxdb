@@ -52,8 +52,13 @@ func (tcs *taskControlAdaptor) CreateNextRun(ctx context.Context, taskID influxd
 }
 
 func (tcs *taskControlAdaptor) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
-	// the tests aren't looking for a returned Run because the old system didn't return one
 	// Once we completely switch over to the new system we can look at the returned run in the tests.
+	task, err := tcs.s.FindTaskByID(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	tcs.lr.FindRunByID(ctx, task.Org, runID)
+
 	return nil, tcs.s.FinishRun(ctx, taskID, runID)
 }
 

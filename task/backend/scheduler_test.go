@@ -52,7 +52,7 @@ func TestScheduler_Cancelation(t *testing.T) {
 	if err = o.CancelRun(context.Background(), task.ID, run.ID); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(10 * time.Millisecond) // we have to do this because the storage system we are using for the logs is eventually consistent.
+	time.Sleep(20 * time.Millisecond) // we have to do this because the storage system we are using for the logs is eventually consistent.
 	runs, err = tcs.CurrentlyRunning(context.Background(), task.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -757,12 +757,12 @@ func TestScheduler_RunFailureCleanup(t *testing.T) {
 			t.Fatalf("expected 3 runs created, got %d", n)
 		}
 	}
-	// // We don't have a good hook to get the run ID right now, so list the runs and assume the final one is ours.
-	// runs := tcs.FinishedRuns()
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// pollForRunLog(t, ll, task.ID, runs[len(runs)-1].ID, "Run failed to begin execution: forced failure on Execute")
+	// We don't have a good hook to get the run ID right now, so list the runs and assume the final one is ours.
+	runs := tcs.FinishedRuns()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pollForRunLog(t, ll, task.ID, runs[len(runs)-1].ID, "Run failed to begin execution: forced failure on Execute")
 
 	// One more tick just to ensure that we can keep going after this type of failure too.
 	s.Tick(9)
