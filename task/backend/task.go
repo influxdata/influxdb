@@ -121,8 +121,14 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 	// check the log store
 	r, err := tcs.lr.FindRunByID(ctx, st.Org, runID)
 	if err == nil && r != nil {
-		schedFor, _ = time.Parse(time.RFC3339, r.ScheduledFor)
-		reqAt, _ = time.Parse(time.RFC3339, r.RequestedAt)
+		schedFor, err = time.Parse(time.RFC3339, r.ScheduledFor)
+		if err != nil {
+			return err
+		}
+		reqAt, err = time.Parse(time.RFC3339, r.RequestedAt)
+		if err != nil {
+			return err
+		}
 	}
 
 	// in the old system the log store may not have the run until after the first
@@ -161,8 +167,14 @@ func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID infl
 
 	r, err := tcs.lr.FindRunByID(ctx, st.Org, runID)
 	if err == nil && r != nil {
-		schedFor, _ = time.Parse(time.RFC3339, r.ScheduledFor)
-		reqAt, _ = time.Parse(time.RFC3339, r.RequestedAt)
+		schedFor, err = time.Parse(time.RFC3339, r.ScheduledFor)
+		if err != nil {
+			return err
+		}
+		reqAt, err = time.Parse(time.RFC3339, r.RequestedAt)
+		if err != nil {
+			return err
+		}
 	}
 
 	// in the old system the log store may not have the run until after the first
