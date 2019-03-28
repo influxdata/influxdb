@@ -83,6 +83,10 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 			t.Parallel()
 			testMetaUpdate(t, sys)
 		})
+		t.Run("Task Manual Run", func(t *testing.T) {
+			t.Parallel()
+			testManualRun(t, sys)
+		})
 	})
 }
 
@@ -964,6 +968,49 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 	close(createTaskCh)
 	createWg.Wait()
 	extraWg.Wait()
+}
+
+func testManualRun(t *testing.T, s *System) {
+	cr := creds(t, s)
+
+	// Create a task.
+	tc := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
+	}
+
+	authorizedCtx := icontext.SetAuthorizer(s.Ctx, cr.Authorizer())
+
+	tsk, err := s.TaskService.CreateTask(authorizedCtx, tc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tsk.ID.Valid() {
+		t.Fatal("no task ID set")
+	}
+	scheduledFor := time.Now().UTC()
+
+	run, err := s.TaskService.ForceRun(authorizedCtx, tsk.ID, scheduledFor.Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ScheduledFor != scheduledFor.Format(time.RFC3339) {
+		t.Fatalf("force run returned a different scheduled for time expected: %s, got %s", scheduledFor.Format(time.RFC3339), run.ScheduledFor)
+	}
+
+	runs, err := s.TaskControlService.ManualRuns(authorizedCtx, tsk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 manual run: got %d", len(runs))
+	}
+	if runs[0].ID != run.ID {
+		diff := cmp.Diff(runs[0], run)
+		t.Fatalf("manual run missmatch: %s", diff)
+	}
 }
 
 func creds(t *testing.T, s *System) TestCreds {
