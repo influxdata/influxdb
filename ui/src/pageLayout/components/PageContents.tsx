@@ -21,7 +21,11 @@ class PageContents extends Component<Props> {
 
     if (scrollable) {
       return (
-        <DapperScrollbars className={this.containerClass} autoHide={false}>
+        <DapperScrollbars
+          className={this.containerClass}
+          autoHide={false}
+          autoSize={false}
+        >
           {this.children}
         </DapperScrollbars>
       )
