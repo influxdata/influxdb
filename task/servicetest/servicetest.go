@@ -42,99 +42,6 @@ func UsePlatformAdaptor(s backend.Store, lr backend.LogReader, rc task.RunContro
 	return task.PlatformAdapter(s, lr, rc, i, i, i)
 }
 
-// TaskControlAdaptor creates a TaskControlService for the older TaskStore system.
-func TaskControlAdaptor(s backend.Store, lw backend.LogWriter, lr backend.LogReader) backend.TaskControlService {
-	return &taskControlAdaptor{s, lw, lr}
-}
-
-// taskControlAdaptor adapts a backend.Store and log readers and writers to implement the task control service.
-type taskControlAdaptor struct {
-	s  backend.Store
-	lw backend.LogWriter
-	lr backend.LogReader
-}
-
-func (tcs *taskControlAdaptor) CreateNextRun(ctx context.Context, taskID influxdb.ID, now int64) (backend.RunCreation, error) {
-	return tcs.s.CreateNextRun(ctx, taskID, now)
-}
-
-func (tcs *taskControlAdaptor) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
-	// the tests aren't looking for a returned Run because the old system didn't return one
-	// Once we completely switch over to the new system we can look at the returned run in the tests.
-	return nil, tcs.s.FinishRun(ctx, taskID, runID)
-}
-
-func (tcs *taskControlAdaptor) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error) {
-	_, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
-	if err != nil {
-		return 0, err
-	}
-	return m.NextDueRun()
-}
-
-func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state backend.RunStatus) error {
-	st, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
-	if err != nil {
-		return err
-	}
-	var (
-		schedFor, reqAt time.Time
-	)
-	// check the log store
-	r, err := tcs.lr.FindRunByID(ctx, st.Org, runID)
-	if err == nil {
-		schedFor, _ = time.Parse(time.RFC3339, r.ScheduledFor)
-		reqAt, _ = time.Parse(time.RFC3339, r.RequestedAt)
-	}
-
-	// in the old system the log store may not have the run until after the first
-	// state update, so we will need to pull the currently running.
-	if schedFor.IsZero() {
-		for _, cr := range m.CurrentlyRunning {
-			if influxdb.ID(cr.RunID) == runID {
-				schedFor = time.Unix(cr.Now, 0)
-				reqAt = time.Unix(cr.RequestedAt, 0)
-			}
-		}
-
-	}
-
-	rlb := backend.RunLogBase{
-		Task:            st,
-		RunID:           runID,
-		RunScheduledFor: schedFor.Unix(),
-		RequestedAt:     reqAt.Unix(),
-	}
-
-	if err := tcs.lw.UpdateRunState(ctx, rlb, when, state); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when time.Time, log string) error {
-	st, err := tcs.s.FindTaskByID(ctx, taskID)
-	if err != nil {
-		return err
-	}
-
-	r, err := tcs.lr.FindRunByID(ctx, st.Org, runID)
-	if err != nil {
-		return err
-	}
-	schFor, _ := time.Parse(time.RFC3339, r.ScheduledFor)
-	reqAt, _ := time.Parse(time.RFC3339, r.RequestedAt)
-
-	rlb := backend.RunLogBase{
-		Task:            st,
-		RunID:           runID,
-		RunScheduledFor: schFor.Unix(),
-		RequestedAt:     reqAt.Unix(),
-	}
-
-	return tcs.lw.AddRunLog(ctx, rlb, when, log)
-}
-
 // TestTaskService should be called by consumers of the servicetest package.
 // This will call fn once to create a single influxdb.TaskService
 // used across all subtests in TestTaskService.
@@ -175,6 +82,10 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory) {
 		t.Run("Task Meta Updates", func(t *testing.T) {
 			t.Parallel()
 			testMetaUpdate(t, sys)
+		})
+		t.Run("Task Manual Run", func(t *testing.T) {
+			t.Parallel()
+			testManualRun(t, sys)
 		})
 	})
 }
@@ -1057,6 +968,49 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 	close(createTaskCh)
 	createWg.Wait()
 	extraWg.Wait()
+}
+
+func testManualRun(t *testing.T, s *System) {
+	cr := creds(t, s)
+
+	// Create a task.
+	tc := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
+	}
+
+	authorizedCtx := icontext.SetAuthorizer(s.Ctx, cr.Authorizer())
+
+	tsk, err := s.TaskService.CreateTask(authorizedCtx, tc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tsk.ID.Valid() {
+		t.Fatal("no task ID set")
+	}
+	scheduledFor := time.Now().UTC()
+
+	run, err := s.TaskService.ForceRun(authorizedCtx, tsk.ID, scheduledFor.Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ScheduledFor != scheduledFor.Format(time.RFC3339) {
+		t.Fatalf("force run returned a different scheduled for time expected: %s, got %s", scheduledFor.Format(time.RFC3339), run.ScheduledFor)
+	}
+
+	runs, err := s.TaskControlService.ManualRuns(authorizedCtx, tsk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 manual run: got %d", len(runs))
+	}
+	if runs[0].ID != run.ID {
+		diff := cmp.Diff(runs[0], run)
+		t.Fatalf("manual run missmatch: %s", diff)
+	}
 }
 
 func creds(t *testing.T, s *System) TestCreds {

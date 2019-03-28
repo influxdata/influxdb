@@ -96,7 +96,7 @@ stuff f=-123.456,b=true,s="hello"
 }
 from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, bOut.Name, be.Org.Name),
 	}
-	created, err := be.TaskService().CreateTask(pctx.SetAuthorizer(ctx, be.Auth), create)
+	created, err := be.TaskService().CreateTask(ctx, create)
 	if err != nil {
 		t.Fatal(err)
 	}

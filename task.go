@@ -40,6 +40,21 @@ type Task struct {
 	UpdatedAt       string `json:"updatedAt,omitempty"`
 }
 
+// EffectiveCron returns the effective cron string of the options.
+// If the cron option was specified, it is returned.
+// If the every option was specified, it is converted into a cron string using "@every".
+// Otherwise, the empty string is returned.
+// The value of the offset option is not considered.
+func (t *Task) EffectiveCron() string {
+	if t.Cron != "" {
+		return t.Cron
+	}
+	if t.Every != "" {
+		return "@every " + t.Every
+	}
+	return ""
+}
+
 // Run is a record created when a run of a task is scheduled.
 type Run struct {
 	ID           ID     `json:"id,omitempty"`

@@ -3,16 +3,13 @@ package mock
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/task/backend"
-	scheduler "github.com/influxdata/influxdb/task/backend"
 	"go.uber.org/zap"
 )
 
@@ -22,28 +19,19 @@ type Scheduler struct {
 
 	lastTick int64
 
-	claims map[string]*Task
-	meta   map[string]backend.StoreTaskMeta
+	claims map[platform.ID]*platform.Task
 
-	createChan  chan *Task
-	releaseChan chan *Task
-	updateChan  chan *Task
+	createChan  chan *platform.Task
+	releaseChan chan *platform.Task
+	updateChan  chan *platform.Task
 
 	claimError   error
 	releaseError error
 }
 
-// Task is a mock implementation of a task.
-type Task struct {
-	Script           string
-	StartExecution   int64
-	ConcurrencyLimit uint8
-}
-
 func NewScheduler() *Scheduler {
 	return &Scheduler{
-		claims: map[string]*Task{},
-		meta:   map[string]backend.StoreTaskMeta{},
+		claims: map[platform.ID]*platform.Task{},
 	}
 }
 
@@ -60,7 +48,7 @@ func (s *Scheduler) Start(context.Context) {}
 
 func (s *Scheduler) Stop() {}
 
-func (s *Scheduler) ClaimTask(task *backend.StoreTask, meta *backend.StoreTaskMeta) error {
+func (s *Scheduler) ClaimTask(_ context.Context, task *platform.Task) error {
 	if s.claimError != nil {
 		return s.claimError
 	}
@@ -68,40 +56,33 @@ func (s *Scheduler) ClaimTask(task *backend.StoreTask, meta *backend.StoreTaskMe
 	s.Lock()
 	defer s.Unlock()
 
-	_, ok := s.claims[task.ID.String()]
+	_, ok := s.claims[task.ID]
 	if ok {
 		return backend.ErrTaskAlreadyClaimed
 	}
-	s.meta[task.ID.String()] = *meta
 
-	t := &Task{Script: task.Script, StartExecution: meta.LatestCompleted, ConcurrencyLimit: uint8(meta.MaxConcurrency)}
-
-	s.claims[task.ID.String()] = t
+	s.claims[task.ID] = task
 
 	if s.createChan != nil {
-		s.createChan <- t
+		s.createChan <- task
 	}
 
 	return nil
 }
 
-func (s *Scheduler) UpdateTask(task *backend.StoreTask, meta *backend.StoreTaskMeta) error {
+func (s *Scheduler) UpdateTask(_ context.Context, task *platform.Task) error {
 	s.Lock()
 	defer s.Unlock()
 
-	_, ok := s.claims[task.ID.String()]
+	_, ok := s.claims[task.ID]
 	if !ok {
 		return backend.ErrTaskNotClaimed
 	}
 
-	s.meta[task.ID.String()] = *meta
-
-	t := &Task{Script: task.Script, StartExecution: meta.LatestCompleted, ConcurrencyLimit: uint8(meta.MaxConcurrency)}
-
-	s.claims[task.ID.String()] = t
+	s.claims[task.ID] = task
 
 	if s.updateChan != nil {
-		s.updateChan <- t
+		s.updateChan <- task
 	}
 
 	return nil
@@ -115,7 +96,7 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 	s.Lock()
 	defer s.Unlock()
 
-	t, ok := s.claims[taskID.String()]
+	t, ok := s.claims[taskID]
 	if !ok {
 		return backend.ErrTaskNotClaimed
 	}
@@ -123,28 +104,27 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 		s.releaseChan <- t
 	}
 
-	delete(s.claims, taskID.String())
-	delete(s.meta, taskID.String())
+	delete(s.claims, taskID)
 
 	return nil
 }
 
-func (s *Scheduler) TaskFor(id platform.ID) *Task {
+func (s *Scheduler) TaskFor(id platform.ID) *platform.Task {
 	s.Lock()
 	defer s.Unlock()
-	return s.claims[id.String()]
+	return s.claims[id]
 }
 
-func (s *Scheduler) TaskCreateChan() <-chan *Task {
-	s.createChan = make(chan *Task, 10)
+func (s *Scheduler) TaskCreateChan() <-chan *platform.Task {
+	s.createChan = make(chan *platform.Task, 10)
 	return s.createChan
 }
-func (s *Scheduler) TaskReleaseChan() <-chan *Task {
-	s.releaseChan = make(chan *Task, 10)
+func (s *Scheduler) TaskReleaseChan() <-chan *platform.Task {
+	s.releaseChan = make(chan *platform.Task, 10)
 	return s.releaseChan
 }
-func (s *Scheduler) TaskUpdateChan() <-chan *Task {
-	s.updateChan = make(chan *Task, 10)
+func (s *Scheduler) TaskUpdateChan() <-chan *platform.Task {
+	s.updateChan = make(chan *platform.Task, 10)
 	return s.updateChan
 }
 
@@ -160,134 +140,6 @@ func (s *Scheduler) ReleaseError(err error) {
 
 func (s *Scheduler) CancelRun(_ context.Context, taskID, runID platform.ID) error {
 	return nil
-}
-
-// DesiredState is a mock implementation of DesiredState (used by NewScheduler).
-type DesiredState struct {
-	mu sync.Mutex
-	// Map of stringified task ID to last ID used for run.
-	runIDs map[string]uint64
-
-	// Map of stringified, concatenated task and platform ID, to runs that have been created.
-	created map[string]backend.QueuedRun
-
-	// Map of stringified task ID to task meta.
-	meta map[string]backend.StoreTaskMeta
-
-	// Map of task ID to total number of runs created for that task.
-	totalRunsCreated map[platform.ID]int
-}
-
-var _ backend.DesiredState = (*DesiredState)(nil)
-
-func NewDesiredState() *DesiredState {
-	return &DesiredState{
-		runIDs:           make(map[string]uint64),
-		created:          make(map[string]backend.QueuedRun),
-		meta:             make(map[string]backend.StoreTaskMeta),
-		totalRunsCreated: make(map[platform.ID]int),
-	}
-}
-
-// SetTaskMeta sets the task meta for the given task ID.
-// SetTaskMeta must be called before CreateNextRun, for a given task ID.
-func (d *DesiredState) SetTaskMeta(taskID platform.ID, meta backend.StoreTaskMeta) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	d.meta[taskID.String()] = meta
-}
-
-// CreateNextRun creates the next run for the given task.
-// Refer to the documentation for SetTaskPeriod to understand how the times are determined.
-func (d *DesiredState) CreateNextRun(_ context.Context, taskID platform.ID, now int64) (backend.RunCreation, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if !taskID.Valid() {
-		return backend.RunCreation{}, errors.New("invalid task id")
-	}
-	tid := taskID.String()
-
-	meta, ok := d.meta[tid]
-	if !ok {
-		panic(fmt.Sprintf("meta not set for task with ID %s", tid))
-	}
-
-	makeID := func() (platform.ID, error) {
-		d.runIDs[tid]++
-		runID := platform.ID(d.runIDs[tid])
-		return runID, nil
-	}
-
-	rc, err := meta.CreateNextRun(now, makeID)
-	if err != nil {
-		return backend.RunCreation{}, err
-	}
-	d.meta[tid] = meta
-	rc.Created.TaskID = taskID
-	d.created[tid+rc.Created.RunID.String()] = rc.Created
-	d.totalRunsCreated[taskID]++
-	return rc, nil
-}
-
-func (d *DesiredState) FinishRun(_ context.Context, taskID, runID platform.ID) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	tid := taskID.String()
-	rid := runID.String()
-	m := d.meta[tid]
-	if !m.FinishRun(runID) {
-		var knownIDs []string
-		for _, r := range m.CurrentlyRunning {
-			knownIDs = append(knownIDs, platform.ID(r.RunID).String())
-		}
-		return fmt.Errorf("unknown run ID %s; known run IDs: %s", rid, strings.Join(knownIDs, ", "))
-	}
-	d.meta[tid] = m
-	delete(d.created, tid+rid)
-	return nil
-}
-
-func (d *DesiredState) CreatedFor(taskID platform.ID) []backend.QueuedRun {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	var qrs []backend.QueuedRun
-	for _, qr := range d.created {
-		if qr.TaskID == taskID {
-			qrs = append(qrs, qr)
-		}
-	}
-
-	return qrs
-}
-
-// TotalRunsCreatedForTask returns the number of runs created for taskID.
-func (d *DesiredState) TotalRunsCreatedForTask(taskID platform.ID) int {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	return d.totalRunsCreated[taskID]
-}
-
-// PollForNumberCreated blocks for a small amount of time waiting for exactly the given count of created and unfinished runs for the given task ID.
-// If the expected number isn't found in time, it returns an error.
-//
-// Because the scheduler and executor do a lot of state changes asynchronously, this is useful in test.
-func (d *DesiredState) PollForNumberCreated(taskID platform.ID, count int) ([]scheduler.QueuedRun, error) {
-	const numAttempts = 50
-	actualCount := 0
-	var created []scheduler.QueuedRun
-	for i := 0; i < numAttempts; i++ {
-		time.Sleep(2 * time.Millisecond) // we sleep even on first so it becomes more likely that we catch when too many are produced.
-		created = d.CreatedFor(taskID)
-		actualCount = len(created)
-		if actualCount == count {
-			return created, nil
-		}
-	}
-	return created, fmt.Errorf("did not see count of %d created run(s) for task with ID %s in time, instead saw %d", count, taskID.String(), actualCount) // we return created anyways, to make it easier to debug
 }
 
 type Executor struct {
@@ -385,7 +237,7 @@ func (e *Executor) PollForNumberRunning(taskID platform.ID, count int) ([]*RunPr
 			return running, nil
 		}
 	}
-	return nil, fmt.Errorf("did not see count of %d running task(s) for ID %s in time; last count was %d", count, taskID.String(), len(running))
+	return nil, fmt.Errorf("did not see count of %d running task(s) for ID %s in time; last count was %d", count, taskID, len(running))
 }
 
 // RunPromise is a mock RunPromise.

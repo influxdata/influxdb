@@ -71,7 +71,7 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 	}
 
 	return &servicetest.System{
-		TaskControlService: servicetest.TaskControlAdaptor(store, rrw, rrw),
+		TaskControlService: backend.TaskControlAdaptor(store, rrw, rrw),
 		TaskService:        taskService,
 		Ctx:                ctx,
 		I:                  i,

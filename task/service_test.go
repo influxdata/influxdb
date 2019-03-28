@@ -27,7 +27,7 @@ func inMemFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 
 	i := inmem.NewService()
 	return &servicetest.System{
-		TaskControlService: servicetest.TaskControlAdaptor(st, lrw, lrw),
+		TaskControlService: backend.TaskControlAdaptor(st, lrw, lrw),
 		Ctx:                ctx,
 		I:                  i,
 		TaskService:        servicetest.UsePlatformAdaptor(st, lrw, mock.NewScheduler(), i),
@@ -63,7 +63,7 @@ func boltFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 
 	i := inmem.NewService()
 	return &servicetest.System{
-		TaskControlService: servicetest.TaskControlAdaptor(st, lrw, lrw),
+		TaskControlService: backend.TaskControlAdaptor(st, lrw, lrw),
 		TaskService:        servicetest.UsePlatformAdaptor(st, lrw, mock.NewScheduler(), i),
 		Ctx:                ctx,
 		I:                  i,

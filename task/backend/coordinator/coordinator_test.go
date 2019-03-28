@@ -15,11 +15,11 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-func timeoutSelector(ch <-chan *mock.Task) (*mock.Task, error) {
+func timeoutSelector(ch <-chan *platform.Task) (*platform.Task, error) {
 	select {
 	case task := <-ch:
 		return task, nil
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		return nil, errors.New("timeout on select")
 	}
 }
@@ -47,7 +47,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if task.Script != script {
+	if task.Flux != script {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
@@ -65,7 +65,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if task.Script != script {
+	if task.Flux != script {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
@@ -102,7 +102,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if task.Script != script {
+	if task.Flux != script {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
@@ -115,7 +115,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if task.Script != script {
+	if task.Flux != script {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 
@@ -129,7 +129,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if task.Script != newScript {
+	if task.Flux != newScript {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
 }
