@@ -5,8 +5,6 @@ interface TestUser {
   bucket: string
 }
 
-const defTimeOut = 3000
-
 describe('Onboarding', () => {
   let user: TestUser
 
@@ -37,10 +35,7 @@ describe('Onboarding', () => {
 
     cy.location('pathname').should('include', 'onboarding/1')
 
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/1'
-    )
+    cy.location('pathname').should('include', 'onboarding/1')
     //Check navigation bar
     cy.getByTestID('nav-step--welcome').click()
 
@@ -371,21 +366,21 @@ describe('Onboarding', () => {
       .should('be.enabled')
       .children('.button--label')
       .contains('Continue')
+
   })
 
   it('Can onboard to advanced', () => {
+
+    cy.server()
+
+    cy.route('POST', 'api/v2/setup').as('orgSetup')
+
     //Check splash page
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/0'
-    )
+    cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
     cy.get("button[title='Get Started']").click()
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/1'
-    )
+    cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
     cy.get('input[title=Username]').type(user.username)
@@ -396,37 +391,37 @@ describe('Onboarding', () => {
 
     cy.get('button:contains("Continue")').click()
 
-    //wait for new page to load
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/2'
-    )
+    cy.wait('@orgSetup')
 
-    //advance to Advanced
-    cy.get('button.button-success')
-      .contains('Advanced')
-      .click()
+    cy.get('@orgSetup').then(xhr => {
+      let orgId: string = xhr.responseBody.org.id
 
-    //wait for new page to load
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'match',
-      /organizations\/.*\/buckets/
-    )
+      //wait for new page to load
+      cy.location('pathname').should('include', 'onboarding/2')
+
+      //advance to Advanced
+      cy.get('button.button-success')
+        .contains('Advanced')
+        .click()
+
+      //wait for new page to load
+      cy.location('pathname').should('match', /orgs\/.*\/buckets/)
+
+      cy.location('pathname').should('include', orgId)
+    })
   })
 
   it('Can onboard to configure later', () => {
+    cy.server()
+
+    cy.route('POST', 'api/v2/setup').as('orgSetup')
+
     //Check splash page
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/0'
-    )
+    cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
     cy.get("button[title='Get Started']").click()
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/1'
-    )
+    cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
     cy.get('input[title=Username]').type(user.username)
@@ -437,18 +432,120 @@ describe('Onboarding', () => {
 
     cy.get('button:contains("Continue")').click()
 
-    //wait for new page to load
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/2'
-    )
+    cy.wait('@orgSetup')
 
-    //advance to Advanced
-    cy.get('button.button-success')
-      .contains('Configure Later')
-      .click()
+    cy.get('@orgSetup').then(xhr => {
+      let orgId: string = xhr.responseBody.org.id
+      //wait for new page to load
 
-    cy.location('pathname', {timeout: defTimeOut}).should('include', '/me')
+      cy.location('pathname').should('include', 'onboarding/2')
+
+      //advance to Advanced
+      cy.get('button.button-success')
+        .contains('Configure Later')
+        .click()
+
+      cy.location('pathname').should('include', orgId)
+    })
+  })
+
+  it('respects field requirements', () => {
+    //Continue
+    cy.get("button[title='Get Started']").click()
+
+    cy.get('input[title=Username]').type(user.username)
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.get('input[title=Password]').type(user.password)
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.get('input[title="Confirm Password"]').type('drowssap')
+
+    //check password mismatch
+    cy.get('div.form--element:has(div.input--error)')
+      .children('span.form--element-error')
+      .should('have.text', 'Passwords do not match')
+
+    cy.get('span.input-status').should('have.class', 'alert-triangle')
+
+    cy.get('input[title="Initial Organization Name"]').type(user.org)
+    cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.get('input[title="Confirm Password"]')
+      .clear()
+      .type(user.password)
+
+    cy.get('div.form--element:has(div.input--error)').should('not.exist')
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.enabled')
+
+    //check cleared username
+    cy.get('input[title=Username]').clear()
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.get('input[title=Username]').type(user.username)
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.enabled')
+
+    //check cleared password
+    cy.get('input[title=Password]').clear()
+
+    cy.get('div.form--element:has(div.input--error)')
+      .children('span.form--element-error')
+      .should('have.text', 'Passwords do not match')
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.get('input[title="Password"]').type(user.password)
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.enabled')
+
+    //check cleared org name
+    cy.get('input[title="Initial Organization Name"]').clear()
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.get('input[title="Initial Organization Name"]').type(user.org)
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.enabled')
+
+    //check cleared bucket name
+    cy.get('input[title="Initial Bucket Name"]').clear()
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.disabled')
+
+    cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
+
+    cy.get('button.button-primary')
+      .contains('Continue')
+      .should('be.enabled')
   })
 })
 
