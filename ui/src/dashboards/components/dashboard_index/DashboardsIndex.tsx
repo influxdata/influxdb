@@ -22,6 +22,9 @@ import {
 } from 'src/dashboards/actions'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
@@ -71,8 +74,8 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {handleGetDashboards, dashboards} = this.props
-    await handleGetDashboards()
+    const {dashboards} = this.props
+
     const dashboardIDs = dashboards.map(d => d.id)
     this.props.retainRangesDashTimeV1(dashboardIDs)
   }
@@ -98,25 +101,27 @@ class DashboardIndex extends PureComponent<Props, State> {
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-md-12">
-              <DashboardsIndexContents
-                filterComponent={() => (
-                  <SearchWidget
-                    placeholderText="Filter dashboards..."
-                    onSearch={this.handleFilterDashboards}
-                    searchTerm={searchTerm}
-                  />
-                )}
-                dashboards={dashboards}
-                onDeleteDashboard={this.handleDeleteDashboard}
-                onCreateDashboard={this.handleCreateDashboard}
-                onCloneDashboard={this.handleCloneDashboard}
-                onUpdateDashboard={handleUpdateDashboard}
-                notify={notify}
-                searchTerm={searchTerm}
-                showOwnerColumn={true}
-                onFilterChange={this.handleFilterDashboards}
-                onImportDashboard={this.summonImportOverlay}
-              />
+              <GetResources resource={ResourceTypes.Dashboards}>
+                <DashboardsIndexContents
+                  filterComponent={() => (
+                    <SearchWidget
+                      placeholderText="Filter dashboards..."
+                      onSearch={this.handleFilterDashboards}
+                      searchTerm={searchTerm}
+                    />
+                  )}
+                  dashboards={dashboards}
+                  onDeleteDashboard={this.handleDeleteDashboard}
+                  onCreateDashboard={this.handleCreateDashboard}
+                  onCloneDashboard={this.handleCloneDashboard}
+                  onUpdateDashboard={handleUpdateDashboard}
+                  notify={notify}
+                  searchTerm={searchTerm}
+                  showOwnerColumn={true}
+                  onFilterChange={this.handleFilterDashboards}
+                  onImportDashboard={this.summonImportOverlay}
+                />
+              </GetResources>
             </div>
           </Page.Contents>
         </Page>
@@ -174,7 +179,11 @@ class DashboardIndex extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {dashboards, links, orgs} = state
+  const {
+    dashboards: {list: dashboards},
+    links,
+    orgs,
+  } = state
 
   return {
     orgs,

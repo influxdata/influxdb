@@ -1,4 +1,3 @@
-import {Dashboard} from 'src/types/dashboards'
 import {Organization} from 'src/types/orgs'
 import {Links} from 'src/types/links'
 import {Notification} from 'src/types'
@@ -11,7 +10,6 @@ import {MeState} from 'src/shared/reducers/v2/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
-import {ProtosState} from 'src/protos/reducers'
 import {VariablesState} from 'src/variables/reducers'
 import {OrgViewState} from 'src/organizations/reducers/orgView'
 import {LabelsState} from 'src/labels/reducers'
@@ -23,6 +21,7 @@ import {RangeState} from 'src/dashboards/reducers/ranges'
 import {ViewsState} from 'src/dashboards/reducers/views'
 import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
+import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 
 export interface AppState {
   VERSION: string
@@ -33,7 +32,7 @@ export interface AppState {
   app: AppPresentationState
   ranges: RangeState
   views: ViewsState
-  dashboards: Dashboard[]
+  dashboards: DashboardsState
   notifications: Notification[]
   timeMachines: TimeMachinesState
   routing: RouterState
@@ -45,7 +44,6 @@ export interface AppState {
   onboarding: OnboardingState
   noteEditor: NoteEditorState
   dataLoading: DataLoadingState
-  protos: ProtosState
   variables: VariablesState
   tokens: AuthorizationsState
   templates: TemplatesState

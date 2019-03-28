@@ -105,7 +105,7 @@ class VEOContents extends PureComponent<Props, {}> {
 
 const mstp = (state: AppState, {dashboardID}): StateProps => {
   const {dashboards} = state
-  const dashboard = dashboards.find(d => d.id === dashboardID)
+  const dashboard = dashboards.list.find(d => d.id === dashboardID)
 
   const {view, draftQueries} = getActiveTimeMachine(state)
 

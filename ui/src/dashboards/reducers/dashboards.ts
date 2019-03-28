@@ -1,83 +1,111 @@
-import {Action, ActionTypes} from 'src/dashboards/actions'
-import {Dashboard} from 'src/types'
+// Libraries
+import {produce} from 'immer'
 import _ from 'lodash'
 
-type State = Dashboard[]
+// Types
+import {Action, ActionTypes} from 'src/dashboards/actions'
+import {Dashboard, RemoteDataState} from 'src/types'
 
-export default (state: State = [], action: Action): State => {
-  switch (action.type) {
-    case ActionTypes.LoadDashboards: {
-      const {dashboards} = action.payload
+export interface DashboardsState {
+  list: Dashboard[]
+  status: RemoteDataState
+}
 
-      return [...dashboards]
-    }
+const initialState = () => ({
+  list: [],
+  status: RemoteDataState.NotStarted,
+})
 
-    case ActionTypes.DeleteDashboard: {
-      const {dashboardID} = action.payload
+export const dashboardsReducer = (
+  state: DashboardsState = initialState(),
+  action: Action
+): DashboardsState => {
+  return produce(state, draftState => {
+    switch (action.type) {
+      case ActionTypes.SetDashboards: {
+        const {list, status} = action.payload
 
-      return [...state.filter(d => d.id !== dashboardID)]
-    }
-
-    case ActionTypes.LoadDashboard: {
-      const {dashboard} = action.payload
-
-      const newDashboards = _.unionBy([dashboard], state, 'id')
-
-      return newDashboards
-    }
-
-    case ActionTypes.UpdateDashboard: {
-      const {dashboard} = action.payload
-      const newState = state.map(d =>
-        d.id === dashboard.id ? {...dashboard} : d
-      )
-
-      return [...newState]
-    }
-
-    case ActionTypes.DeleteCell: {
-      const {dashboard, cell} = action.payload
-      const newState = state.map(d => {
-        if (d.id !== dashboard.id) {
-          return {...d}
+        draftState.status = status
+        if (list) {
+          draftState.list = list
         }
 
-        const cells = d.cells.filter(c => c.id !== cell.id)
-        return {...d, cells}
-      })
+        return
+      }
 
-      return [...newState]
+      case ActionTypes.RemoveDashboard: {
+        const {id} = action.payload
+        draftState.list = draftState.list.filter(l => l.id !== id)
+
+        return
+      }
+
+      case ActionTypes.SetDashboard: {
+        const {dashboard} = action.payload
+        draftState.list = _.unionBy([dashboard], state.list, 'id')
+
+        return
+      }
+
+      case ActionTypes.EditDashboard: {
+        const {dashboard} = action.payload
+
+        draftState.list = draftState.list.map(d => {
+          if (d.id === dashboard.id) {
+            return dashboard
+          }
+          return d
+        })
+
+        return
+      }
+
+      case ActionTypes.RemoveCell: {
+        const {dashboard, cell} = action.payload
+        draftState.list = draftState.list.map(d => {
+          if (d.id === dashboard.id) {
+            const cells = d.cells.filter(c => c.id !== cell.id)
+            d.cells = cells
+          }
+
+          return d
+        })
+
+        return
+      }
+
+      case ActionTypes.AddDashboardLabels: {
+        const {dashboardID, labels} = action.payload
+
+        draftState.list = draftState.list.map(d => {
+          if (d.id === dashboardID) {
+            d.labels = [...d.labels, ...labels]
+          }
+
+          return d
+        })
+
+        return
+      }
+
+      case ActionTypes.RemoveDashboardLabels: {
+        const {dashboardID, labels} = action.payload
+        draftState.list = draftState.list.map(d => {
+          if (d.id === dashboardID) {
+            const updatedLabels = d.labels.filter(el => {
+              const labelToRemove = labels.find(l => l.id === el.id)
+
+              return !labelToRemove
+            })
+
+            d.labels = updatedLabels
+          }
+
+          return d
+        })
+
+        return
+      }
     }
-
-    case ActionTypes.AddDashboardLabels: {
-      const {dashboardID, labels} = action.payload
-
-      const newState = state.map(d => {
-        if (d.id === dashboardID) {
-          return {...d, labels: [...d.labels, ...labels]}
-        }
-        return d
-      })
-
-      return [...newState]
-    }
-
-    case ActionTypes.RemoveDashboardLabels: {
-      const {dashboardID, labels} = action.payload
-
-      const newState = state.map(d => {
-        if (d.id === dashboardID) {
-          const updatedLabels = d.labels.filter(l => {
-            return !labels.includes(l)
-          })
-          return {...d, labels: updatedLabels}
-        }
-        return d
-      })
-
-      return [...newState]
-    }
-  }
-
-  return state
+  })
 }

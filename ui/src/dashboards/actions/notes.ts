@@ -65,7 +65,7 @@ export const createNoteCell = (dashboardID: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const dashboard = getState().dashboards.find(d => d.id === dashboardID)
+  const dashboard = getState().dashboards.list.find(d => d.id === dashboardID)
 
   if (!dashboard) {
     throw new Error(`could not find dashboard with id "${dashboardID}"`)

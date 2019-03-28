@@ -26,8 +26,7 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {IconFont} from '@influxdata/clockface'
-import {Notification} from 'src/types/notifications'
-import {Dashboard} from 'src/types'
+import {Dashboard, AppState, Notification} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -39,12 +38,14 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  dashboards: Dashboard[]
-  onChange: () => void
   orgID: string
 }
 
-type Props = DispatchProps & OwnProps & WithRouterProps
+interface StateProps {
+  dashboards: Dashboard[]
+}
+
+type Props = DispatchProps & StateProps & OwnProps & WithRouterProps
 
 interface State {
   searchTerm: string
@@ -149,13 +150,19 @@ class Dashboards extends PureComponent<Props, State> {
   }
 }
 
+const mstp = (state: AppState, props: OwnProps): StateProps => {
+  const dashboards = state.dashboards.list.filter(d => d.orgID === props.orgID)
+
+  return {dashboards}
+}
+
 const mdtp: DispatchProps = {
   notify: notifyAction,
   handleDeleteDashboard: deleteDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
   mdtp
 )(withRouter(Dashboards))
