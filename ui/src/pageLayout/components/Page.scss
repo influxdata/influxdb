@@ -75,10 +75,20 @@
 }
 
 .page-contents {
+  width: 100%;
+  position: relative;
   height: calc(100% - #{$page-header-size}) !important;
 
   &.full-width {
     padding: 0 $page-gutter;
+  }
+
+  & > .dapper-scrollbars--track-y {
+    background: linear-gradient(
+      to bottom,
+      $g6-smoke 0%,
+      $g3-castle 100%
+    ) !important;
   }
 }
 
@@ -97,5 +107,7 @@
 .page-contents.presentation-mode {
   height: 100% !important;
 
-  .container-fluid {padding: 8px}
+  .container-fluid {
+    padding: 8px;
+  }
 }

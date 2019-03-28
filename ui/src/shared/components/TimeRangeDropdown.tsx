@@ -55,6 +55,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
             selectedID={timeRange.label}
             onChange={this.handleChange}
             widthPixels={this.dropdownWidth}
+            menuWidthPixels={this.dropdownWidth + 50}
             titleText={this.formattedCustomTimeRange}
           >
             {TIME_RANGES.map(({label}) => {

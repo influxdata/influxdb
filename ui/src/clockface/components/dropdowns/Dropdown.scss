@@ -46,7 +46,6 @@
   line-height: 12px;
   font-weight: 600;
   color: fade-out($g20-white, 0.18);
-  white-space: nowrap;
   position: relative;
   text-align: left;
 
@@ -64,13 +63,21 @@
     cursor: pointer;
   }
 
+  .dropdown--action & {
+    padding-left: 11px;
+  }
+}
+
+.dropdown-item--children {
   .dropdown-wrap & {
     word-break: break-all;
     white-space: pre-wrap;
   }
 
-  .dropdown--action & {
-    padding-left: 11px;
+  .dropdown-truncate & {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -150,8 +157,7 @@
   $dividerA,
   $dividerB,
   $dividerText,
-  $scrollA,
-  $scrollB
+  $checkbox
 ) {
   @include gradient-h($backgroundA, $backgroundB);
 
@@ -167,13 +173,7 @@
     background-color: $dividerA;
   }
   .dropdown-item--checkbox:after {
-    background-color: $scrollA;
-  }
-  .fancy-scroll--thumb-h {
-    @include gradient-h($scrollA, $scrollB);
-  }
-  .fancy-scroll--thumb-v {
-    @include gradient-v($scrollA, $scrollB);
+    background-color: $checkbox;
   }
 }
 
@@ -186,8 +186,7 @@
     $c-amethyst,
     $c-ocean,
     $c-potassium,
-    $c-neutrino,
-    $c-hydrogen
+    $c-neutrino
   );
 }
 
@@ -200,8 +199,7 @@
     $c-sapphire,
     $c-ocean,
     $c-laser,
-    $c-neutrino,
-    $c-hydrogen
+    $c-neutrino
   );
 }
 
@@ -214,8 +212,7 @@
     $c-ocean,
     $c-viridian,
     $c-krypton,
-    $c-neutrino,
-    $c-krypton
+    $c-neutrino
   );
 }
 
@@ -228,12 +225,6 @@
     $g0-obsidian,
     $g2-kevlar,
     $g11-sidewalk,
-    $c-pool,
-    $c-comet
+    $c-pool
   );
-}
-
-/* TODO: Make fancyscroll more customizable */
-.dropdown--menu-container .fancy-scroll--track-h {
-  display: none;
 }
