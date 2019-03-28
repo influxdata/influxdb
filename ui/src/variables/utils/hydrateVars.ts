@@ -45,6 +45,22 @@ export const findDependentVariables = (
   return dependencies
 }
 
+export const exportVariables = (
+  variables: Variable[],
+  allVariables: Variable[]
+): Variable[] => {
+  const varSet = new Set<Variable>()
+
+  for (const v of variables) {
+    varSet.add(v)
+    for (const d of findDependentVariables(v, allVariables)) {
+      varSet.add(d)
+    }
+  }
+
+  return [...varSet]
+}
+
 const createVariableGraph = (allVariables: Variable[]): VariableNode[] => {
   const nodesByID: {[variableID: string]: VariableNode} = {}
 
