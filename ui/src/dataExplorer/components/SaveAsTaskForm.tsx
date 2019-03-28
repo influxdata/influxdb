@@ -177,7 +177,7 @@ class SaveAsTaskForm extends PureComponent<Props> {
 
 const mstp = (state: AppState): StateProps => {
   const {
-    orgs,
+    orgs: {items},
     tasks: {newScript, taskOptions},
   } = state
 
@@ -188,7 +188,7 @@ const mstp = (state: AppState): StateProps => {
   const activeOrgName = getActiveOrg(state).name
 
   return {
-    orgs,
+    orgs: items,
     activeOrgName,
     newScript,
     taskOptions,

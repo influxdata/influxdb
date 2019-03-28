@@ -5,30 +5,49 @@ import {Dispatch} from 'redux'
 import {client} from 'src/utils/api'
 
 // Types
-import {Organization} from 'src/types'
+import {Organization, RemoteDataState} from 'src/types'
 
 import {defaultTemplates} from 'src/templates/constants/'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',
+  SetOrgsStatus = 'SET_ORGS_STATUS',
   AddOrg = 'ADD_ORG',
   RemoveOrg = 'REMOVE_ORG',
   EditOrg = 'EDIT_ORG',
 }
 
-export interface SetOrganizations {
+export type Actions = SetOrgs | AddOrg | RemoveOrg | EditOrg | SetOrgsStatus
+
+export interface SetOrgs {
   type: ActionTypes.SetOrgs
   payload: {
-    organizations: Organization[]
+    status: RemoteDataState
+    orgs: Organization[]
   }
 }
 
-export type Actions = SetOrganizations | AddOrg | RemoveOrg | EditOrg
-
-export const setOrgs = (organizations: Organization[]): SetOrganizations => {
+export const setOrgs = (
+  orgs: Organization[],
+  status: RemoteDataState
+): SetOrgs => {
   return {
     type: ActionTypes.SetOrgs,
-    payload: {organizations},
+    payload: {status, orgs},
+  }
+}
+
+export interface SetOrgsStatus {
+  type: ActionTypes.SetOrgsStatus
+  payload: {
+    status: RemoteDataState
+  }
+}
+
+export const setOrgsStatus = (status: RemoteDataState): SetOrgsStatus => {
+  return {
+    type: ActionTypes.SetOrgsStatus,
+    payload: {status},
   }
 }
 
@@ -71,13 +90,17 @@ export const editOrg = (org: Organization): EditOrg => ({
 // Async Actions
 
 export const getOrganizations = () => async (
-  dispatch: Dispatch<SetOrganizations>
-): Promise<void> => {
+  dispatch
+): Promise<Organization[]> => {
   try {
+    dispatch(setOrgsStatus(RemoteDataState.Loading))
+
     const organizations = await client.organizations.getAll()
-    dispatch(setOrgs(organizations))
+    dispatch(setOrgs(organizations, RemoteDataState.Done))
+    return organizations
   } catch (e) {
     console.error(e)
+    dispatch(setOrgs(null, RemoteDataState.Error))
   }
 }
 

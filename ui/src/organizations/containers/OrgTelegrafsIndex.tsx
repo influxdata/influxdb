@@ -123,10 +123,10 @@ class OrgTelegrafsIndex extends Component<Props, State> {
 
 const mstp = (state: AppState, props: WithRouterProps): StateProps => {
   const {
-    orgs,
+    orgs: {items},
     telegrafs: {list},
   } = state
-  const org = orgs.find(o => o.id === props.params.orgID)
+  const org = items.find(o => o.id === props.params.orgID)
   return {
     org,
     telegrafs: list,

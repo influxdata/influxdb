@@ -190,7 +190,7 @@ class ImportOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({orgs}: AppState): StateProps => ({orgs})
+const mstp = ({orgs: {items}}: AppState): StateProps => ({orgs: items})
 
 export default connect<StateProps, {}, OwnProps>(
   mstp,

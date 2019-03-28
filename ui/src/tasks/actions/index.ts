@@ -313,13 +313,15 @@ export const populateTasks = () => async (
   getState: GetStateFunc
 ): Promise<void> => {
   try {
-    const {orgs} = getState()
+    const {
+      orgs: {items},
+    } = getState()
 
     const user = await client.users.me()
     const tasks = await client.tasks.getAllByUser(user)
 
     const mappedTasks = tasks.map(task => {
-      const org = orgs.find(org => org.id === task.orgID)
+      const org = items.find(org => org.id === task.orgID)
 
       return {
         ...task,

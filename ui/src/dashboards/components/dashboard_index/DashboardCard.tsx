@@ -196,10 +196,10 @@ class DashboardCard extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels, orgs}: AppState): StateProps => {
+const mstp = ({labels, orgs: {items}}: AppState): StateProps => {
   return {
     labels: viewableLabels(labels.list),
-    orgs,
+    orgs: items,
   }
 }
 
