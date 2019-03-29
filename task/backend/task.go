@@ -150,9 +150,10 @@ func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID
 		Task:            st,
 		RunID:           runID,
 		RunScheduledFor: schedFor.Unix(),
-		RequestedAt:     reqAt.Unix(),
 	}
-
+	if !reqAt.IsZero() {
+		rlb.RequestedAt = reqAt.Unix()
+	}
 	if err := tcs.lw.UpdateRunState(ctx, rlb, when, state); err != nil {
 		return err
 	}
@@ -200,7 +201,9 @@ func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID infl
 		Task:            st,
 		RunID:           runID,
 		RunScheduledFor: schedFor.Unix(),
-		RequestedAt:     reqAt.Unix(),
+	}
+	if !reqAt.IsZero() {
+		rlb.RequestedAt = reqAt.Unix()
 	}
 	return tcs.lw.AddRunLog(ctx, rlb, when, log)
 }
