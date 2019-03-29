@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import {range} from 'lodash'
 
@@ -11,7 +12,10 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import FunctionSelector from 'src/timeMachine/components/FunctionSelector'
 
 // Actions
-import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
+import {
+  loadBuckets,
+  addTagSelector as addTagSelectorAction,
+} from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -26,17 +30,18 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onLoadBuckets: () => Promise<void>
-  onAddTagSelector: () => void
+  onLoadBuckets: typeof loadBuckets
+  onAddTagSelector: typeof addTagSelectorAction
 }
 
 type Props = StateProps & DispatchProps
 
-interface State {}
-
-class TimeMachineQueryBuilder extends PureComponent<Props, State> {
+class TimeMachineQueryBuilder extends PureComponent<Props & WithRouterProps> {
   public componentDidMount() {
-    this.props.onLoadBuckets()
+    const {
+      params: {orgID},
+    } = this.props
+    this.props.onLoadBuckets(orgID)
   }
 
   public render() {
@@ -61,7 +66,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
   }
 
   private get addButton(): JSX.Element {
-    const {moreTags, onAddTagSelector} = this.props
+    const {moreTags} = this.props
 
     if (!moreTags) {
       return null
@@ -71,10 +76,17 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
       <Button
         shape={ButtonShape.Square}
         icon={IconFont.Plus}
-        onClick={onAddTagSelector}
+        onClick={this.handleAddTagSelector}
         customClass="query-builder--add-tag-selector"
       />
     )
+  }
+  private handleAddTagSelector() {
+    const {
+      onAddTagSelector,
+      params: {orgID},
+    } = this.props
+    onAddTagSelector(orgID)
   }
 }
 
@@ -92,10 +104,10 @@ const mstp = (state: AppState): StateProps => {
 
 const mdtp = {
   onLoadBuckets: loadBuckets as any,
-  onAddTagSelector: addTagSelector,
+  onAddTagSelector: addTagSelectorAction,
 }
 
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(TimeMachineQueryBuilder)
+)(withRouter<Props>(TimeMachineQueryBuilder))

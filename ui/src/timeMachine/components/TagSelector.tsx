@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -63,7 +64,7 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 @ErrorHandling
-class TagSelector extends PureComponent<Props> {
+class TagSelector extends PureComponent<Props & WithRouterProps> {
   private debouncer = new DefaultDebouncer()
 
   public render() {
@@ -214,21 +215,33 @@ class TagSelector extends PureComponent<Props> {
   }
 
   private handleSelectTag = (tag: string): void => {
-    const {index, onSelectTag} = this.props
+    const {
+      index,
+      onSelectTag,
+      params: {orgID},
+    } = this.props
 
-    onSelectTag(index, tag)
+    onSelectTag(index, tag, orgID)
   }
 
   private handleSelectValue = (value: string): void => {
-    const {index, onSelectValue} = this.props
+    const {
+      index,
+      onSelectValue,
+      params: {orgID},
+    } = this.props
 
-    onSelectValue(index, value)
+    onSelectValue(index, value, orgID)
   }
 
   private handleRemoveTagSelector = () => {
-    const {index, onRemoveTagSelector} = this.props
+    const {
+      index,
+      onRemoveTagSelector,
+      params: {orgID},
+    } = this.props
 
-    onRemoveTagSelector(index)
+    onRemoveTagSelector(index, orgID)
   }
 
   private handleKeysSearch = (value: string) => {
@@ -239,9 +252,13 @@ class TagSelector extends PureComponent<Props> {
   }
 
   private emitKeysSearch = () => {
-    const {index, onSearchKeys} = this.props
+    const {
+      index,
+      onSearchKeys,
+      params: {orgID},
+    } = this.props
 
-    onSearchKeys(index)
+    onSearchKeys(index, orgID)
   }
 
   private handleValuesSearch = (e: ChangeEvent<HTMLInputElement>) => {
@@ -253,9 +270,13 @@ class TagSelector extends PureComponent<Props> {
   }
 
   private emitValuesSearch = () => {
-    const {index, onSearchValues} = this.props
+    const {
+      index,
+      onSearchValues,
+      params: {orgID},
+    } = this.props
 
-    onSearchValues(index)
+    onSearchValues(index, orgID)
   }
 }
 
@@ -306,4 +327,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(TagSelector)
+)(withRouter(TagSelector))

@@ -55,6 +55,7 @@ interface StateProps {
 
 interface OwnProps {
   router: InjectedRouter
+  params: {orgID: string}
 }
 
 type Props = DispatchProps & StateProps & OwnProps
@@ -131,7 +132,12 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private handleCreateDashboard = async (): Promise<void> => {
-    const {router, notify, orgs} = this.props
+    const {
+      router,
+      notify,
+      orgs,
+      params: {orgID},
+    } = this.props
     try {
       const newDashboard = {
         name: DEFAULT_DASHBOARD_NAME,
@@ -139,7 +145,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         orgID: orgs[0].id,
       }
       const data = await createDashboard(newDashboard)
-      router.push(`/dashboards/${data.id}`)
+      router.push(`/orgs/${orgID}/dashboards/${data.id}`)
     } catch (error) {
       notify(dashboardCreateFailed())
     }
@@ -148,7 +154,13 @@ class DashboardIndex extends PureComponent<Props, State> {
   private handleCloneDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
-    const {router, notify, orgs, dashboards} = this.props
+    const {
+      router,
+      notify,
+      orgs,
+      dashboards,
+      params: {orgID},
+    } = this.props
     try {
       const data = await cloneDashboard(
         {
@@ -157,7 +169,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         },
         dashboards
       )
-      router.push(`/dashboards/${data.id}`)
+      router.push(`/orgs/${orgID}/dashboards/${data.id}`)
     } catch (error) {
       console.error(error)
       notify(dashboardCreateFailed())
@@ -173,8 +185,11 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private summonImportOverlay = (): void => {
-    const {router} = this.props
-    router.push(`/dashboards/import`)
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    router.push(`/orgs/${orgID}/dashboards/import`)
   }
 }
 

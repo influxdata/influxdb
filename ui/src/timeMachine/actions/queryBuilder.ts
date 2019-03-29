@@ -2,7 +2,6 @@
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 
 // Utils
-import {getActiveOrg} from 'src/organizations/selectors'
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
@@ -209,12 +208,11 @@ export const setKeysSearchTerm = (
   payload: {index, searchTerm},
 })
 
-export const loadBuckets = () => async (
+export const loadBuckets = (orgID: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
   const queryURL = getState().links.query.self
-  const orgID = getActiveOrg(getState()).id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
@@ -229,9 +227,9 @@ export const loadBuckets = () => async (
     dispatch(setBuilderBuckets(buckets))
 
     if (selectedBucket && buckets.includes(selectedBucket)) {
-      dispatch(selectBucket(selectedBucket))
+      dispatch(selectBucket(selectedBucket, orgID))
     } else {
-      dispatch(selectBucket(buckets[0], true))
+      dispatch(selectBucket(buckets[0], orgID, true))
     }
   } catch (e) {
     if (e instanceof CancellationError) {
@@ -245,13 +243,14 @@ export const loadBuckets = () => async (
 
 export const selectBucket = (
   bucket: string,
+  orgID: string,
   resetSelections: boolean = false
 ) => async (dispatch: Dispatch<Action>) => {
   dispatch(setBuilderBucket(bucket, resetSelections))
-  dispatch(loadTagSelector(0))
+  dispatch(loadTagSelector(0, orgID))
 }
 
-export const loadTagSelector = (index: number) => async (
+export const loadTagSelector = (index: number, orgID: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -263,7 +262,6 @@ export const loadTagSelector = (index: number) => async (
 
   const tagsSelections = tags.slice(0, index)
   const queryURL = getState().links.query.self
-  const orgID = getActiveOrg(getState()).id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
@@ -300,7 +298,7 @@ export const loadTagSelector = (index: number) => async (
     }
 
     dispatch(setBuilderTagKeys(index, keys))
-    dispatch(loadTagSelectorValues(index))
+    dispatch(loadTagSelectorValues(index, orgID))
   } catch (e) {
     if (e instanceof CancellationError) {
       return
@@ -311,7 +309,7 @@ export const loadTagSelector = (index: number) => async (
   }
 }
 
-const loadTagSelectorValues = (index: number) => async (
+const loadTagSelectorValues = (index: number, orgID: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -319,7 +317,6 @@ const loadTagSelectorValues = (index: number) => async (
   const {buckets, tags} = getActiveQuery(state).builderConfig
   const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
-  const orgID = getActiveOrg(state).id
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
@@ -350,7 +347,7 @@ const loadTagSelectorValues = (index: number) => async (
     }
 
     dispatch(setBuilderTagValues(index, values))
-    dispatch(loadTagSelector(index + 1))
+    dispatch(loadTagSelector(index + 1, orgID))
   } catch (e) {
     if (e instanceof CancellationError) {
       return
@@ -361,10 +358,11 @@ const loadTagSelectorValues = (index: number) => async (
   }
 }
 
-export const selectTagValue = (index: number, value: string) => async (
-  dispatch: Dispatch<Action>,
-  getState: GetState
-) => {
+export const selectTagValue = (
+  index: number,
+  value: string,
+  orgID: string
+) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   const tags = getActiveQuery(getState()).builderConfig.tags
   const values = tags[index].values
 
@@ -379,32 +377,34 @@ export const selectTagValue = (index: number, value: string) => async (
   dispatch(setBuilderTagValuesSelection(index, newValues))
 
   if (index === tags.length - 1 && newValues.length) {
-    dispatch(addTagSelector())
+    dispatch(addTagSelector(orgID))
   } else {
-    dispatch(loadTagSelector(index + 1))
+    dispatch(loadTagSelector(index + 1, orgID))
   }
 }
 
-export const selectTagKey = (index: number, key: string) => async (
-  dispatch: Dispatch<Action>
-) => {
+export const selectTagKey = (
+  index: number,
+  key: string,
+  orgID: string
+) => async (dispatch: Dispatch<Action>) => {
   dispatch(setBuilderTagKeySelection(index, key))
-  dispatch(loadTagSelectorValues(index))
+  dispatch(loadTagSelectorValues(index, orgID))
 }
 
-export const searchTagValues = (index: number) => async (
+export const searchTagValues = (index: number, orgID: string) => async (
   dispatch: Dispatch<Action>
 ) => {
-  dispatch(loadTagSelectorValues(index))
+  dispatch(loadTagSelectorValues(index, orgID))
 }
 
-export const searchTagKeys = (index: number) => async (
+export const searchTagKeys = (index: number, orgID) => async (
   dispatch: Dispatch<Action>
 ) => {
-  dispatch(loadTagSelector(index))
+  dispatch(loadTagSelector(index, orgID))
 }
 
-export const addTagSelector = () => async (
+export const addTagSelector = (orgID: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -412,20 +412,22 @@ export const addTagSelector = () => async (
 
   const newIndex = getActiveQuery(getState()).builderConfig.tags.length - 1
 
-  dispatch(loadTagSelector(newIndex))
+  dispatch(loadTagSelector(newIndex, orgID))
 }
 
-export const removeTagSelector = (index: number) => async (
+export const removeTagSelector = (index: number, orgID: string) => async (
   dispatch: Dispatch<Action>
 ) => {
   queryBuilderFetcher.cancelFindValues(index)
   queryBuilderFetcher.cancelFindKeys(index)
 
   dispatch(removeTagSelectorSync(index))
-  dispatch(loadTagSelector(index))
+  dispatch(loadTagSelector(index, orgID))
 }
 
-export const reloadTagSelectors = () => async (dispatch: Dispatch<Action>) => {
+export const reloadTagSelectors = (orgID: string) => async (
+  dispatch: Dispatch<Action>
+) => {
   dispatch(setBuilderTagsStatus(RemoteDataState.Loading))
-  dispatch(loadTagSelector(0))
+  dispatch(loadTagSelector(0, orgID))
 }

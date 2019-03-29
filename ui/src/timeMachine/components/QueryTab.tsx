@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import TimeMachineQueryTabName from 'src/timeMachine/components/QueryTabName'
@@ -45,7 +46,10 @@ interface State {
   isEditingName: boolean
 }
 
-class TimeMachineQueryTab extends PureComponent<Props, State> {
+class TimeMachineQueryTab extends PureComponent<
+  Props & WithRouterProps,
+  State
+> {
   public static getDerivedStateFromProps(props: Props): Partial<State> {
     if (props.queryIndex !== props.activeQueryIndex) {
       return {isEditingName: false}
@@ -113,13 +117,18 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
   }
 
   private handleSetActive = (): void => {
-    const {queryIndex, activeQueryIndex, onSetActiveQueryIndex} = this.props
+    const {
+      queryIndex,
+      activeQueryIndex,
+      onSetActiveQueryIndex,
+      params: {orgID},
+    } = this.props
 
     if (queryIndex === activeQueryIndex) {
       return
     }
 
-    onSetActiveQueryIndex(queryIndex)
+    onSetActiveQueryIndex(queryIndex, orgID)
   }
 
   private handleCancelEditName = () => {
@@ -170,10 +179,14 @@ class TimeMachineQueryTab extends PureComponent<Props, State> {
   }
 
   private handleRemove = (e: MouseEvent): void => {
-    const {queryIndex, onRemoveQuery} = this.props
+    const {
+      queryIndex,
+      onRemoveQuery,
+      params: {orgID},
+    } = this.props
 
     e.stopPropagation()
-    onRemoveQuery(queryIndex)
+    onRemoveQuery(queryIndex, orgID)
   }
 
   private handleToggleView = (e: MouseEvent): void => {
@@ -200,4 +213,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(TimeMachineQueryTab)
+)(withRouter(TimeMachineQueryTab))

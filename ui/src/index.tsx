@@ -50,6 +50,8 @@ import TemplateImportOverlay from 'src/templates/components/TemplateImportOverla
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
 import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
+import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
+import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -108,7 +110,7 @@ class Root extends PureComponent {
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
                     <Route path="/">
-                      <Route path="org/:orgID" component={App}>
+                      <Route path="orgs/:orgID" component={App}>
                         <IndexRoute component={MePage} />
                         <Route path="tasks" component={TasksPage}>
                           <Route path=":id/export" component={TaskExportOverlay} />
@@ -139,16 +141,18 @@ class Root extends PureComponent {
                         <Route path="configuration/:tab" component={ConfigurationPage} />
                         <Route path="settings">
                           <IndexRoute component={OrgMembersIndex} />
-                          <Route path="buckets" component={OrgBucketsIndex} />
-                          <Route path="members" component={OrgMembersIndex} />
-                          <Route path="telegrafs" component={OrgTelegrafsIndex} />
-                          <Route path="templates" component={OrgTemplatesIndex}>
-                            <Route path="import" component={TemplateImportOverlay} />
-                            <Route path=":id/export" component={TemplateExportOverlay} />
-                          </Route>
-                          <Route path="variables" component={OrgVariablesIndex} />
-                          <Route path="scrapers" component={OrgScrapersIndex} />
                         </Route>
+                        <Route path="buckets" component={OrgBucketsIndex} />
+                        <Route path="members" component={OrgMembersIndex} />
+                        <Route path="telegrafs" component={OrgTelegrafsIndex} />
+                        <Route path="templates" component={OrgTemplatesIndex}>
+                          <Route path="import" component={TemplateImportOverlay} />
+                          <Route path=":id/export" component={TemplateExportOverlay} />
+                        </Route>
+                        <Route path="variables" component={OrgVariablesIndex} />
+                          <Route path="import" component={VariableImportOverlay} />
+                          <Route path=":id/export" component={OrgVariableExportOverlay} />
+                        <Route path="scrapers" component={OrgScrapersIndex} />
                       </Route>
                     </Route>
                   </Route>

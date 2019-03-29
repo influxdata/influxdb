@@ -65,7 +65,6 @@ class VariableRow extends PureComponent<Props> {
       variable,
       location: {pathname},
     } = this.props
-
     router.push(`${pathname}/${variable.id}/export`)
   }
 

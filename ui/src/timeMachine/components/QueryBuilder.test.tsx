@@ -2,20 +2,14 @@ import React from 'react'
 
 import {renderWithRedux} from 'src/mockState'
 import {waitForElement, fireEvent} from 'react-testing-library'
+import {withRouterProps} from 'mocks/dummyData'
 
 import QueryBuilder from 'src/timeMachine/components/QueryBuilder'
 
 jest.mock('src/timeMachine/apis/queryBuilder')
 
 const setInitialState = state => {
-  return {
-    ...state,
-    orgs: [
-      {
-        id: 'foo',
-      },
-    ],
-  }
+  return state
 }
 
 describe('QueryBuilder', () => {
@@ -25,7 +19,7 @@ describe('QueryBuilder', () => {
       getAllByTestId,
       queryAllByTestId,
       getByText,
-    } = renderWithRedux(<QueryBuilder />, setInitialState)
+    } = renderWithRedux(<QueryBuilder {...withRouterProps} />, setInitialState)
 
     const bucketsDropdownClosed = await waitForElement(() => getByText('b1'))
 

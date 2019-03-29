@@ -31,18 +31,6 @@ exports[`TaskForm rendering renders 1`] = `
         widthXS={12}
       >
         <t
-          label="Owner"
-        >
-          <TaskOptionsOrgIDDropdown
-            onChangeOrgID={[MockFunction]}
-            orgs={Array []}
-          />
-        </t>
-      </GridColumn>
-      <GridColumn
-        widthXS={12}
-      >
-        <t
           label="Schedule Task"
         >
           <t

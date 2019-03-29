@@ -1,5 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -23,20 +24,26 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSelectBucket: (bucket: string, resetSelections: boolean) => void
+  onSelectBucket: typeof selectBucket
 }
 
 interface OwnProps {}
 
 type Props = StateProps & DispatchProps & OwnProps
 
-const QueryBuilderBucketDropdown: SFC<Props> = props => {
-  const {selectedBucket, buckets, bucketsStatus, onSelectBucket} = props
+const QueryBuilderBucketDropdown: SFC<Props & WithRouterProps> = props => {
+  const {
+    selectedBucket,
+    buckets,
+    bucketsStatus,
+    onSelectBucket,
+    params: {orgID},
+  } = props
 
   return (
     <Dropdown
       selectedID={selectedBucket}
-      onChange={bucket => onSelectBucket(bucket, true)}
+      onChange={bucket => onSelectBucket(bucket, orgID, true)}
       buttonSize={ComponentSize.Small}
       status={toComponentStatus(bucketsStatus)}
       testID="buckets"
@@ -66,4 +73,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(QueryBuilderBucketDropdown)
+)(withRouter(QueryBuilderBucketDropdown))

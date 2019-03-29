@@ -53,7 +53,7 @@ class GetOrganizations extends PureComponent<Props> {
     const orgExists = !!orgID && !!org
 
     if (!orgExists && orgs.length) {
-      router.push(`org/${orgs[0].id}`)
+      router.push(`orgs/${orgs[0].id}`)
     }
   }
 

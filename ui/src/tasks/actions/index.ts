@@ -409,13 +409,13 @@ export const updateScript = (route?: string) => async (
 export const saveNewScript = (
   script: string,
   preamble: string,
-  orgName: string,
+  orgID: string,
   route?: string
 ) => async (dispatch): Promise<void> => {
   try {
     const fluxScript = await insertPreambleInScript(script, preamble)
 
-    await client.tasks.create(orgName, fluxScript)
+    await client.tasks.createByOrgID(orgID, fluxScript)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())

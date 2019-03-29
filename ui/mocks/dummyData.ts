@@ -295,7 +295,7 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
 }
 
 export const withRouterProps: WithRouterProps = {
-  params: {},
+  params: {orgID: '4'},
   location: null,
   routes: null,
   router: null,

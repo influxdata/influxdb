@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEditor'
@@ -46,9 +47,9 @@ interface DispatchProps {
 
 type Props = StateProps & DispatchProps
 
-class TimeMachineQueries extends PureComponent<Props> {
+class TimeMachineQueries extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {draftQueries, onAddQuery, timeRange, onSetTimeRange} = this.props
+    const {draftQueries, timeRange} = this.props
 
     return (
       <div className="time-machine-queries">
@@ -67,7 +68,7 @@ class TimeMachineQueries extends PureComponent<Props> {
               icon={IconFont.PlusSkinny}
               size={ComponentSize.ExtraSmall}
               color={ComponentColor.Default}
-              onClick={onAddQuery}
+              onClick={this.handleAddQuery}
             />
           </div>
           <div className="time-machine-queries--buttons">
@@ -77,7 +78,7 @@ class TimeMachineQueries extends PureComponent<Props> {
               <TimeMachineRefreshDropdown />
               <TimeRangeDropdown
                 timeRange={timeRange}
-                onSetTimeRange={onSetTimeRange}
+                onSetTimeRange={this.handleSetTimeRange}
               />
               <TimeMachineQueriesSwitcher />
               <SubmitQueryButton />
@@ -100,6 +101,22 @@ class TimeMachineQueries extends PureComponent<Props> {
       return null
     }
   }
+
+  private handleAddQuery = () => {
+    const {
+      onAddQuery,
+      params: {orgID},
+    } = this.props
+    onAddQuery(orgID)
+  }
+
+  private handleSetTimeRange = (timeRange: TimeRange) => {
+    const {
+      onSetTimeRange,
+      params: {orgID},
+    } = this.props
+    onSetTimeRange(timeRange, orgID)
+  }
 }
 
 const mstp = (state: AppState) => {
@@ -118,4 +135,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(TimeMachineQueries)
+)(withRouter<Props>(TimeMachineQueries))

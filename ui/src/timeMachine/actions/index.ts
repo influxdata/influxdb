@@ -115,10 +115,13 @@ const setTimeRangeSync = (timeRange: TimeRange): SetTimeRangeAction => ({
   payload: {timeRange},
 })
 
-export const setTimeRange = (timeRange: TimeRange) => dispatch => {
+export const setTimeRange = (
+  timeRange: TimeRange,
+  orgID: string
+) => dispatch => {
   dispatch(setTimeRangeSync(timeRange))
   dispatch(saveAndExecuteQueries())
-  dispatch(reloadTagSelectors())
+  dispatch(reloadTagSelectors(orgID))
 }
 
 interface SetTypeAction {
@@ -344,11 +347,12 @@ export const setActiveQueryIndexSync = (
   payload: {activeQueryIndex},
 })
 
-export const setActiveQueryIndex = (activeQueryIndex: number) => (
-  dispatch: Dispatch<Action>
-) => {
+export const setActiveQueryIndex = (
+  activeQueryIndex: number,
+  orgID: string
+) => (dispatch: Dispatch<Action>) => {
   dispatch(setActiveQueryIndexSync(activeQueryIndex))
-  dispatch(loadBuckets())
+  dispatch(loadBuckets(orgID))
 }
 
 interface AddQueryAction {
@@ -359,9 +363,9 @@ export const addQuerySync = (): AddQueryAction => ({
   type: 'ADD_QUERY',
 })
 
-export const addQuery = () => (dispatch: Dispatch<Action>) => {
+export const addQuery = (orgID: string) => (dispatch: Dispatch<Action>) => {
   dispatch(addQuerySync())
-  dispatch(loadBuckets())
+  dispatch(loadBuckets(orgID))
 }
 
 interface RemoveQueryAction {
@@ -384,11 +388,11 @@ export const toggleQuerySync = (queryIndex: number): ToggleQueryAction => ({
   payload: {queryIndex},
 })
 
-export const removeQuery = (queryIndex: number) => (
+export const removeQuery = (queryIndex: number, orgID: string) => (
   dispatch: Dispatch<Action>
 ) => {
   dispatch(removeQuerySync(queryIndex))
-  dispatch(loadBuckets())
+  dispatch(loadBuckets(orgID))
   dispatch(saveAndExecuteQueries())
 }
 
