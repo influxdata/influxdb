@@ -4677,12 +4677,8 @@ paths:
             schema:
               $ref: "#/components/schemas/PasswordResetBody"
       responses:
-        '200':
-          description: user details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/User"
+        '204':
+          description: password successfully updated
         default:
           description: unsuccessful authentication
           content:
