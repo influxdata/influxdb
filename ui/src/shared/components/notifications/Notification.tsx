@@ -98,11 +98,7 @@ class Notification extends Component<Props, State> {
   }
 
   private get notificationStyle(): CSSProperties {
-    const {height} = this.state
-
-    const NOTIFICATION_MARGIN = 4
-
-    return {height: height + NOTIFICATION_MARGIN}
+    return {height: '100%'}
   }
 
   private updateHeight = (): void => {

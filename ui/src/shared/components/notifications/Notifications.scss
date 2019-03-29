@@ -86,6 +86,7 @@ $notification-margin: 12px;
 .notification-container {
   overflow: hidden;
   height: 0;
+  margin-bottom: $ix-marg-a;
   transition: height 0.25s ease;
 
   &.show .notification {
