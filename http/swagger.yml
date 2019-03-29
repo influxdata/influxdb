@@ -6723,10 +6723,10 @@ components:
               properties:
                 createdAt:
                   type: string
-                  format: date
+                  format: date-time
                 updatedAt:
                   type: string
-                  format: date
+                  format: date-time
             cells:
                 $ref: "#/components/schemas/Cells"
             labels:
