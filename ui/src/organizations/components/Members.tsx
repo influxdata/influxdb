@@ -117,22 +117,11 @@ export default class Members extends PureComponent<Props, State> {
 
   private async getUsers() {
     const {members} = this.props
+    const apiUsers = await client.users.getAll()
+    const allUsers = apiUsers.reduce((acc, u) => _.set(acc, u.id, u), {})
+    const users = _.omit(allUsers, members.map(m => m.id))
 
-    const data = await client.users.getAllUsers()
-
-    const users = {}
-
-    data.users.forEach(key => {
-      users[key.id] = key
-    })
-
-    members.forEach(m => {
-      if (users[m.id]) {
-        delete users[m.id]
-      }
-    })
-
-    this.setState({users: users})
+    this.setState({users})
   }
 
   private addMember = async (user: AddResourceMemberRequestBody) => {
