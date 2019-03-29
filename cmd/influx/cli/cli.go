@@ -207,7 +207,7 @@ func (c *CommandLine) Run() error {
 	c.Version()
 
 	if c.Type == QueryLanguageFlux {
-		repl, err := getFluxREPL(c.Host, c.Port, c.Ssl)
+		repl, err := getFluxREPL(c.Host, c.Port, c.Ssl, c.ClientConfig.Username, c.ClientConfig.Password)
 		if err != nil {
 			return err
 		}
@@ -1194,7 +1194,7 @@ func (c *CommandLine) ExecuteFluxQuery(query string) error {
 		}()
 	}
 
-	repl, err := getFluxREPL(c.Host, c.Port, c.Ssl)
+	repl, err := getFluxREPL(c.Host, c.Port, c.Ssl, c.ClientConfig.Username, c.ClientConfig.Password)
 	if err != nil {
 		return err
 	}

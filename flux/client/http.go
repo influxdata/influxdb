@@ -36,6 +36,8 @@ var (
 // API endpoint.
 type HTTP struct {
 	Addr               string
+	Username           string
+	Password           string
 	InsecureSkipVerify bool
 	url                *url.URL
 }
@@ -65,6 +67,9 @@ func (s *HTTP) Query(ctx context.Context, r *ProxyRequest) (flux.ResultIterator,
 	hreq, err := http.NewRequest("POST", s.url.String(), &body)
 	if err != nil {
 		return nil, err
+	}
+	if s.Username != "" {
+		hreq.SetBasicAuth(s.Username, s.Password)
 	}
 
 	hreq.Header.Set("Content-Type", "application/json")
