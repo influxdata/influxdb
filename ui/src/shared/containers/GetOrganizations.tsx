@@ -14,9 +14,12 @@ import {getOrganizations as getOrganizationsAction} from 'src/organizations/acti
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {InjectedRouter} from 'react-router'
 
 interface PassedInProps {
   children: React.ReactElement<any>
+  router: InjectedRouter
+  params: {orgID: string}
 }
 
 interface DispatchProps {
@@ -25,15 +28,33 @@ interface DispatchProps {
 
 interface StateProps {
   status: RemoteDataState
-  org: Organization
+  orgs: Organization[]
 }
 
 type Props = StateProps & DispatchProps & PassedInProps
 
 @ErrorHandling
 class GetOrganizations extends PureComponent<Props> {
-  public async componentDidMount() {
-    await this.props.getOrganizations()
+  public componentDidMount() {
+    const {getOrganizations} = this.props
+
+    getOrganizations()
+  }
+
+  public componentDidUpdate() {
+    const {
+      router,
+      params: {orgID},
+      orgs,
+    } = this.props
+
+    const org = orgs.find(o => o.id === orgID)
+
+    const orgExists = !!orgID && !!org
+
+    if (!orgExists && orgs.length) {
+      router.push(`org/${orgs[0].id}`)
+    }
   }
 
   public render() {
@@ -56,7 +77,7 @@ const mstp = (state: AppState): StateProps => {
     orgs: {status, items},
   } = state
 
-  return {status, org: items[0]}
+  return {status, orgs: items}
 }
 
 export default connect<StateProps, DispatchProps, PassedInProps>(
