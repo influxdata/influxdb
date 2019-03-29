@@ -42,7 +42,10 @@ class Legend extends PureComponent<Props> {
     return createPortal(
       <div className="legend" ref={this.legendRef}>
         <div className="legend--time">{this.time}</div>
-        <DapperScrollbars style={{maxHeight: '120px'}} autoHide={true}>
+        <DapperScrollbars
+          style={{maxHeight: '120px', maxWidth: '500px'}}
+          autoHide={true}
+        >
           <div className="legend--columns">
             {this.columns.map(({name, isNumeric, rows}, i) => (
               <div
