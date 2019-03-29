@@ -62,8 +62,8 @@ func AuthorizationService(
 			fn:   FindAuthorizationByToken,
 		},
 		{
-			name: "UpdateAuthorizationStatus",
-			fn:   UpdateAuthorizationStatus,
+			name: "UpdateAuthorization",
+			fn:   UpdateAuthorization,
 		},
 		{
 			name: "FindAuthorizations",
@@ -447,14 +447,18 @@ func FindAuthorizationByID(
 	}
 }
 
-// UpdateAuthorizationStatus testing
-func UpdateAuthorizationStatus(
+func stringPtr(s string) *string {
+	return &s
+}
+
+// UpdateAuthorization testing
+func UpdateAuthorization(
 	init func(AuthorizationFields, *testing.T) (platform.AuthorizationService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		id     platform.ID
-		status platform.Status
+		id  platform.ID
+		upd *platform.AuthorizationUpdate
 	}
 	type wants struct {
 		err           error
@@ -522,8 +526,11 @@ func UpdateAuthorizationStatus(
 				},
 			},
 			args: args{
-				id:     MustIDBase16(authTwoID),
-				status: platform.Inactive,
+				id: MustIDBase16(authTwoID),
+				upd: &platform.AuthorizationUpdate{
+					Status:      platform.Inactive.Ptr(),
+					Description: stringPtr("desc1"),
+				},
 			},
 			wants: wants{
 				authorization: &platform.Authorization{
@@ -533,6 +540,7 @@ func UpdateAuthorizationStatus(
 					Token:       "rand2",
 					Permissions: createUsersPermission(MustIDBase16(orgOneID)),
 					Status:      platform.Inactive,
+					Description: "desc1",
 				},
 			},
 		},
@@ -585,13 +593,15 @@ func UpdateAuthorizationStatus(
 				},
 			},
 			args: args{
-				id:     MustIDBase16(authThreeID),
-				status: platform.Inactive,
+				id: MustIDBase16(authThreeID),
+				upd: &platform.AuthorizationUpdate{
+					Status: platform.Inactive.Ptr(),
+				},
 			},
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.ENotFound,
-					Op:   platform.OpSetAuthorizationStatus,
+					Op:   platform.OpUpdateAuthorization,
 					Msg:  "authorization not found",
 				},
 			},
@@ -652,13 +662,15 @@ func UpdateAuthorizationStatus(
 				},
 			},
 			args: args{
-				id:     MustIDBase16(authTwoID),
-				status: platform.Status("unknown"),
+				id: MustIDBase16(authTwoID),
+				upd: &platform.AuthorizationUpdate{
+					Status: platform.Status("unknown").Ptr(),
+				},
 			},
 			wants: wants{
 				err: &platform.Error{
 					Code: platform.EInvalid,
-					Op:   platform.OpSetAuthorizationStatus,
+					Op:   platform.OpUpdateAuthorization,
 					Msg:  "unknown authorization status",
 				},
 			},
@@ -670,7 +682,7 @@ func UpdateAuthorizationStatus(
 			defer done()
 			ctx := context.Background()
 
-			err := s.SetAuthorizationStatus(ctx, tt.args.id, tt.args.status)
+			err := s.UpdateAuthorization(ctx, tt.args.id, tt.args.upd)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if tt.wants.err == nil {

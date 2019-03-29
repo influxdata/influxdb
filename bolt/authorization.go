@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -382,27 +382,32 @@ func (c *Client) deleteAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 	return nil
 }
 
-// SetAuthorizationStatus updates the status of the authorization. Useful
-// for setting an authorization to inactive or active.
-func (c *Client) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
+// UpdateAuthorization updates the status and description if available.
+func (c *Client) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if pe := c.updateAuthorization(ctx, tx, id, status); pe != nil {
+		if pe := c.updateAuthorization(ctx, tx, id, upd); pe != nil {
 			return &platform.Error{
 				Err: pe,
-				Op:  platform.OpSetAuthorizationStatus,
+				Op:  platform.OpUpdateAuthorization,
 			}
 		}
 		return nil
 	})
 }
 
-func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platform.ID, status platform.Status) *platform.Error {
+func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platform.ID, upd *platform.AuthorizationUpdate) *platform.Error {
 	a, pe := c.findAuthorizationByID(ctx, tx, id)
 	if pe != nil {
 		return pe
 	}
 
-	a.Status = status
+	if upd.Status != nil {
+		a.Status = *upd.Status
+	}
+	if upd.Description != nil {
+		a.Description = *upd.Description
+	}
+
 	b, err := encodeAuthorization(a)
 	if err != nil {
 		return &platform.Error{
