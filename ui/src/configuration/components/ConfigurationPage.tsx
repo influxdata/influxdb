@@ -18,6 +18,8 @@ import Scrapers from 'src/configuration/components/Scrapers'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
+import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
 interface OwnProps {
   activeTabUrl: string
@@ -43,66 +45,90 @@ class ConfigurationPage extends Component<Props> {
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <GetResources resource={ResourceTypes.Authorizations}>
-              <TabbedPage
-                name="Configuration"
-                parentUrl="/configuration"
-                activeTabUrl={tab}
-              >
-                <TabbedPageSection
-                  id="buckets_tab"
-                  url="buckets_tab"
-                  title="Buckets"
+              <CloudExclude>
+                <TabbedPage
+                  name="Configuration"
+                  parentUrl="/configuration"
+                  activeTabUrl={tab}
                 >
-                  <GetResources resource={ResourceTypes.Buckets}>
-                    <Buckets />
-                  </GetResources>
-                </TabbedPageSection>
-                <TabbedPageSection
-                  id="telegrafs_tab"
-                  url="telegrafs_tab"
-                  title="Telegraf"
-                >
-                  <GetResources resource={ResourceTypes.Buckets}>
-                    <GetResources resource={ResourceTypes.Telegrafs}>
-                      <Telegrafs />
+                  <TabbedPageSection
+                    id="buckets_tab"
+                    url="buckets_tab"
+                    title="Buckets"
+                  >
+                    <GetResources resource={ResourceTypes.Buckets}>
+                      <Buckets />
                     </GetResources>
-                  </GetResources>
-                </TabbedPageSection>
-                <TabbedPageSection
-                  id="scrapers_tab"
-                  url="scrapers_tab"
-                  title="Scrapers"
-                >
-                  <GetResources resource={ResourceTypes.Buckets}>
-                    <GetResources resource={ResourceTypes.Scrapers}>
-                      <Scrapers />
+                  </TabbedPageSection>
+                  <TabbedPageSection
+                    id="telegrafs_tab"
+                    url="telegrafs_tab"
+                    title="Telegraf"
+                  >
+                    <GetResources resource={ResourceTypes.Buckets}>
+                      <GetResources resource={ResourceTypes.Telegrafs}>
+                        <Telegrafs />
+                      </GetResources>
                     </GetResources>
-                  </GetResources>
-                </TabbedPageSection>
-                <TabbedPageSection
-                  id="variables_tab"
-                  url="variables_tab"
-                  title="Variables"
+                  </TabbedPageSection>
+                  <TabbedPageSection
+                    id="scrapers_tab"
+                    url="scrapers_tab"
+                    title="Scrapers"
+                  >
+                    <GetResources resource={ResourceTypes.Buckets}>
+                      <GetResources resource={ResourceTypes.Scrapers}>
+                        <Scrapers />
+                      </GetResources>
+                    </GetResources>
+                  </TabbedPageSection>
+                  <TabbedPageSection
+                    id="variables_tab"
+                    url="variables_tab"
+                    title="Variables"
+                  >
+                    <GetResources resource={ResourceTypes.Variables}>
+                      <Variables />
+                    </GetResources>
+                  </TabbedPageSection>
+                  <TabbedPageSection
+                    id="tokens_tab"
+                    url="tokens_tab"
+                    title="Tokens"
+                  >
+                    <Tokens />
+                  </TabbedPageSection>
+                  <TabbedPageSection
+                    id="settings_tab"
+                    url="settings_tab"
+                    title="Profile"
+                  >
+                    <Settings />
+                  </TabbedPageSection>
+                </TabbedPage>
+              </CloudExclude>
+              <CloudOnly>
+                <TabbedPage
+                  name="Configuration"
+                  parentUrl="/configuration"
+                  activeTabUrl={tab}
                 >
-                  <GetResources resource={ResourceTypes.Variables}>
-                    <Variables />
-                  </GetResources>
-                </TabbedPageSection>
-                <TabbedPageSection
-                  id="tokens_tab"
-                  url="tokens_tab"
-                  title="Tokens"
-                >
-                  <Tokens />
-                </TabbedPageSection>
-                <TabbedPageSection
-                  id="settings_tab"
-                  url="settings_tab"
-                  title="Profile"
-                >
-                  <Settings />
-                </TabbedPageSection>
-              </TabbedPage>
+                  <TabbedPageSection
+                    id="tokens_tab"
+                    url="tokens_tab"
+                    title="Tokens"
+                  >
+                    <Tokens />
+                  </TabbedPageSection>
+                  <TabbedPageSection
+                    id="settings_tab"
+                    url="settings_tab"
+                    title="Profile"
+                  >
+                    <Settings />
+                  </TabbedPageSection>
+                </TabbedPage>
+              </CloudOnly>
             </GetResources>
           </div>
         </Page.Contents>
