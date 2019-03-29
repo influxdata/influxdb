@@ -937,6 +937,17 @@ func (e *Engine) ShouldCompactCache(t time.Time) CacheStatus {
 	return CacheStatusOkay
 }
 
+func (e *Engine) lastModified() time.Time {
+	fsTime := e.FileStore.LastModified()
+	cacheTime := e.Cache.LastWriteTime()
+
+	if cacheTime.After(fsTime) {
+		return cacheTime
+	}
+
+	return fsTime
+}
+
 func (e *Engine) compact(wg *sync.WaitGroup) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
@@ -956,7 +967,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level1Groups := e.CompactionPlan.PlanLevel(1)
 			level2Groups := e.CompactionPlan.PlanLevel(2)
 			level3Groups := e.CompactionPlan.PlanLevel(3)
-			level4Groups := e.CompactionPlan.Plan(e.FileStore.LastModified())
+			level4Groups := e.CompactionPlan.Plan(e.lastModified())
 			e.compactionTracker.SetOptimiseQueue(uint64(len(level4Groups)))
 
 			// If no full compactions are need, see if an optimize is needed
