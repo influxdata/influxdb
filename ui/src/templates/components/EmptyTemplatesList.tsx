@@ -2,21 +2,23 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {EmptyState} from '@influxdata/clockface'
-import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import {
+  EmptyState,
+  IconFont,
+  ComponentColor,
+  Button,
+} from '@influxdata/clockface'
 
 // Types
 import {ComponentSize} from '@influxdata/clockface'
 
 interface Props {
   searchTerm: string
-  onCreate: () => void
   onImport: () => void
 }
 
 const EmptyTemplatesList: FunctionComponent<Props> = ({
   searchTerm,
-  onCreate,
   onImport,
 }) => {
   if (searchTerm === '') {
@@ -26,10 +28,11 @@ const EmptyTemplatesList: FunctionComponent<Props> = ({
           text={"Looks like you don't have any Templates, why not create one?"}
           highlightWords={['Templates']}
         />
-        <AddResourceDropdown
-          onSelectNew={onCreate}
-          onSelectImport={onImport}
-          resourceName="Template"
+        <Button
+          text="Import Template"
+          icon={IconFont.Plus}
+          color={ComponentColor.Primary}
+          onClick={onImport}
         />
       </EmptyState>
     )
