@@ -100,6 +100,11 @@ func (s *KVStore) WithDB(db *bolt.DB) {
 	s.db = db
 }
 
+// DB returns the bolt DB.
+func (s *KVStore) DB() *bolt.DB {
+	return s.db
+}
+
 // View opens up a view transaction against the store.
 func (s *KVStore) View(ctx context.Context, fn func(tx kv.Tx) error) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
