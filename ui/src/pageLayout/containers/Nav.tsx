@@ -24,59 +24,64 @@ type Props = OwnProps & WithRouterProps
 @ErrorHandling
 class SideNav extends PureComponent<Props> {
   public render() {
-    const {isHidden, me} = this.props
+    const {
+      isHidden,
+      me,
+      params: {orgID},
+    } = this.props
     const {location} = this.props
     if (isHidden) {
       return null
     }
+    const orgPrefix = `/org/${orgID}`
 
     return (
       <NavMenu>
         <NavMenu.Item
           title={me.name}
-          link="/me"
+          link={`${orgPrefix}/me`}
           icon={IconFont.CuboNav}
           location={location.pathname}
           highlightPaths={['me', 'account']}
         >
           <NavMenu.SubItem
             title="Logout"
-            link="/logout"
+            link={`${orgPrefix}/logout`}
             location={location.pathname}
             highlightPaths={[]}
           />
         </NavMenu.Item>
         <NavMenu.Item
           title="Data Explorer"
-          link="/data-explorer"
+          link={`${orgPrefix}/data-explorer`}
           icon={IconFont.GraphLine}
           location={location.pathname}
           highlightPaths={['data-explorer']}
         />
         <NavMenu.Item
           title="Dashboards"
-          link="/dashboards"
+          link={`${orgPrefix}/dashboards`}
           icon={IconFont.Dashboards}
           location={location.pathname}
           highlightPaths={['dashboards']}
         />
         <NavMenu.Item
           title="Tasks"
-          link="/tasks"
+          link={`${orgPrefix}/tasks`}
           icon={IconFont.Calendar}
           location={location.pathname}
           highlightPaths={['tasks']}
         />
         <NavMenu.Item
           title="Organizations"
-          link="/organizations"
+          link={`${orgPrefix}/organizations`}
           icon={IconFont.UsersDuo}
           location={location.pathname}
           highlightPaths={['organizations']}
         />
         <NavMenu.Item
           title="Configuration"
-          link="/configuration/buckets_tab"
+          link={`${orgPrefix}/configuration/buckets_tab`}
           icon={IconFont.Wrench}
           location={location.pathname}
           highlightPaths={['configuration']}
@@ -109,13 +114,13 @@ class SideNav extends PureComponent<Props> {
           </CloudExclude>
           <NavMenu.SubItem
             title="Profile"
-            link="/configuration/settings_tab"
+            link={`${orgPrefix}/configuration/settings_tab`}
             location={location.pathname}
             highlightPaths={['settings_tab']}
           />
           <NavMenu.SubItem
             title="Tokens"
-            link="/configuration/tokens_tab"
+            link={`${orgPrefix}/configuration/tokens_tab`}
             location={location.pathname}
             highlightPaths={['tokens_tab']}
           />
