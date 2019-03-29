@@ -1,16 +1,12 @@
 import React from 'react'
+import {Route} from 'react-router'
 
-import {renderWithRedux} from 'src/mockState'
+import {renderWithReduxAndRouter} from 'src/mockState'
 import {waitForElement, fireEvent} from 'react-testing-library'
-import {withRouterProps} from 'mocks/dummyData'
 
 import QueryBuilder from 'src/timeMachine/components/QueryBuilder'
 
 jest.mock('src/timeMachine/apis/queryBuilder')
-
-const setInitialState = state => {
-  return state
-}
 
 describe('QueryBuilder', () => {
   it('can select a bucket', async () => {
@@ -19,7 +15,13 @@ describe('QueryBuilder', () => {
       getAllByTestId,
       queryAllByTestId,
       getByText,
-    } = renderWithRedux(<QueryBuilder {...withRouterProps} />, setInitialState)
+    } = renderWithReduxAndRouter(
+      <Route path="/orgs/:orgID/data-explorer" component={QueryBuilder} />,
+      () => ({}),
+      {
+        route: '/orgs/039d995276a14000/data-explorer',
+      }
+    )
 
     const bucketsDropdownClosed = await waitForElement(() => getByText('b1'))
 
@@ -47,7 +49,13 @@ describe('QueryBuilder', () => {
       getByTestId,
       getAllByTestId,
       queryAllByTestId,
-    } = renderWithRedux(<QueryBuilder />, setInitialState)
+    } = renderWithReduxAndRouter(
+      <Route path="/orgs/:orgID/data-explorer" component={QueryBuilder} />,
+      () => ({}),
+      {
+        route: '/orgs/039d995276a14000/data-explorer',
+      }
+    )
 
     let keysButton = await waitForElement(() => getByText('tk1'))
 
@@ -70,9 +78,12 @@ describe('QueryBuilder', () => {
   })
 
   it('can select a tag value', async () => {
-    const {getByText, getByTestId, queryAllByTestId} = renderWithRedux(
-      <QueryBuilder />,
-      setInitialState
+    const {getByText, getByTestId, queryAllByTestId} = renderWithReduxAndRouter(
+      <Route path="/orgs/:orgID/data-explorer" component={QueryBuilder} />,
+      () => ({}),
+      {
+        route: '/orgs/039d995276a14000/data-explorer',
+      }
     )
 
     const tagValue = await waitForElement(() => getByText('tv1'))

@@ -43,6 +43,25 @@ export function renderWithRedux(ui, initialState = s => s) {
   }
 }
 
+export function renderWithReduxAndRouter(
+  ui,
+  initialState = s => s,
+  {route = '/', history = createMemoryHistory({entries: [route]})} = {}
+) {
+  const seedStore = configureStore(localState, history)
+  const seedState = seedStore.getState()
+  const store = configureStore(initialState(seedState), history)
+
+  return {
+    ...render(
+      <Provider store={store}>
+        <Router history={history}>{ui}</Router>
+      </Provider>
+    ),
+    store,
+  }
+}
+
 export function renderWithRouter(
   ui,
   {route = '/', history = createMemoryHistory({entries: [route]})} = {}
