@@ -30,10 +30,12 @@ func (q *replQuerier) Query(ctx context.Context, compiler flux.Compiler) (flux.R
 	return q.client.Query(ctx, req)
 }
 
-func getFluxREPL(host string, port int, ssl bool) (*repl.REPL, error) {
+func getFluxREPL(host string, port int, ssl bool, username, password string) (*repl.REPL, error) {
 	c, err := client.NewHTTP(host, port, ssl)
 	if err != nil {
 		return nil, err
 	}
+	c.Username = username
+	c.Password = password
 	return repl.New(&replQuerier{client: c}), nil
 }
