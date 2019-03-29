@@ -1,4 +1,12 @@
-## v2.0.0-alpha.7 [unreleased]
+## v2.0.0-alpha.8 [unreleased]
+
+### Features
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.7 [2019-03-28]
 
 ### Features
 
