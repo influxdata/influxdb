@@ -6435,6 +6435,8 @@ components:
           enum: ["map"]
         values:
           type: object
+          additionalProperties:
+            type: string
     QueryVariableProperties:
       properties:
         type:
