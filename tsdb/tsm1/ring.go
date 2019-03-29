@@ -42,12 +42,7 @@ type ring struct {
 	partitions [numPartitions]*partition
 }
 
-// newring returns a new ring initialised with n partitions. n must always be a
-// power of 2, and for performance reasons should be larger than the number of
-// cores on the host. The supported set of values for n is:
-//
-//     {1, 2, 4, 8, 16, 32, 64, 128, 256}.
-//
+// newring returns a new ring initialised with numPartitions partitions.
 func newRing() *ring {
 	r := new(ring)
 	for i := 0; i < len(r.partitions); i++ {
