@@ -2,9 +2,30 @@ package storage
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// The following package variables act as singletons, to be shared by all
+// storage.Engine instantiations. This allows multiple Engines to be
+// monitored within the same process.
+var (
+	rms *retentionMetrics
+	mmu sync.RWMutex
+)
+
+// RetentionPrometheusCollectors returns all prometheus metrics for retention.
+func RetentionPrometheusCollectors() []prometheus.Collector {
+	mmu.RLock()
+	defer mmu.RUnlock()
+
+	var collectors []prometheus.Collector
+	if rms != nil {
+		collectors = append(collectors, rms.PrometheusCollectors()...)
+	}
+	return collectors
+}
 
 // namespace is the leading part of all published metrics for the Storage service.
 const namespace = "storage"
