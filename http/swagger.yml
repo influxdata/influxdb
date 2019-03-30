@@ -1262,6 +1262,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/variables/{variableID}/labels':
+    get:
+      tags:
+        - Variables
+      summary: list all labels for a variable
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: variableID
+          schema:
+            type: string
+          required: true
+          description: ID of the variable
+      responses:
+        '200':
+          description: a list of all labels for a variable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Variables
+      summary: add a label to a variable
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: variableID
+          schema:
+            type: string
+          required: true
+          description: ID of the variable
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '200':
+          description: a list of all labels for a variable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/variables/{variableID}/labels/{labelID}':
+    delete:
+      tags:
+        - Variables
+      summary: delete a label from a variable
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: variableID
+          schema:
+            type: string
+          required: true
+          description: ID of the variable
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: variable not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /write:
     post:
       tags:
@@ -6467,6 +6559,9 @@ components:
             org:
               type: string
               format: uri
+            labels:
+              type: string
+              format: uri
         id:
           readOnly: true
           type: string
@@ -6478,6 +6573,8 @@ components:
           type: array
           items:
             type: string
+        labels:
+            $ref: "#/components/schemas/Labels"
         arguments:
           type: object
           oneOf:
