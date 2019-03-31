@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 )
 
 func TestInitialMetrics(t *testing.T) {
-	client, teardown, err := NewTestClient()
+	client, teardown, err := NewTestKVStore()
 	if err != nil {
 		t.Fatalf("unable to setup bolt client: %v", err)
 	}
@@ -25,12 +26,16 @@ func TestInitialMetrics(t *testing.T) {
 	}
 
 	metrics := map[string]int{
-		"influxdb_organizations_total": 0,
-		"influxdb_buckets_total":       0,
-		"influxdb_users_total":         0,
-		"influxdb_tokens_total":        0,
-		"influxdb_dashboards_total":    0,
-		"boltdb_reads_total":           0,
+		"influxdb_authorizations_total":    0,
+		"influxdb_buckets_total":           0,
+		"influxdb_dashboards_total":        0,
+		"influxdb_notificationRules_total": 0,
+		"influxdb_orgs_total":              0,
+		"influxdb_telegrafs_total":         0,
+		"influxdb_scrapers_total":          0,
+		"influxdb_users_total":             0,
+		"influxdb_labels_total":            0,
+		"influxdb_variables_total":         0,
 	}
 	for name, count := range metrics {
 		c := promtest.MustFindMetric(t, mfs, name, nil)
@@ -40,8 +45,8 @@ func TestInitialMetrics(t *testing.T) {
 	}
 }
 
-func TestMetrics_Onboarding(t *testing.T) {
-	client, teardown, err := NewTestClient()
+func TestKVStoreMetrics_Onboarding(t *testing.T) {
+	client, teardown, err := NewTestKVStore()
 	if err != nil {
 		t.Fatalf("unable to setup bolt client: %v", err)
 	}
@@ -51,19 +56,26 @@ func TestMetrics_Onboarding(t *testing.T) {
 	reg.MustRegister(client)
 
 	ctx := context.Background()
-	if _, _ = client.Generate(ctx,
-		&platform.OnboardingRequest{
-			User:     "u1",
-			Password: "password1",
-			Org:      "o1",
-			Bucket:   "b1",
-		}); err != nil {
+	svc := kv.NewService(client)
+	svc.Initialize(ctx)
+	req := &influxdb.OnboardingRequest{
+		User:     "u1",
+		Password: "password1",
+		Org:      "o1",
+		Bucket:   "b1",
+	}
+
+	_, err = svc.Generate(ctx, req)
+	if err != nil {
 		t.Fatalf("unable to setup onboarding: %v", err)
 	}
 
-	_ = client.CreateDashboard(ctx, &platform.Dashboard{
-		OrganizationID: platform.ID(1),
+	err = svc.CreateDashboard(ctx, &influxdb.Dashboard{
+		OrganizationID: influxdb.ID(1),
 	})
+	if err != nil {
+		t.Fatalf("unable to create dashboard: %v", err)
+	}
 
 	mfs, err := reg.Gather()
 	if err != nil {
@@ -71,12 +83,12 @@ func TestMetrics_Onboarding(t *testing.T) {
 	}
 
 	metrics := map[string]int{
-		"influxdb_organizations_total": 1,
-		"influxdb_buckets_total":       1,
-		"influxdb_users_total":         1,
-		"influxdb_tokens_total":        1,
-		"influxdb_dashboards_total":    1,
-		"boltdb_reads_total":           1,
+		"influxdb_authorizations_total": 1,
+		"influxdb_buckets_total":        1,
+		"influxdb_dashboards_total":     1,
+		"influxdb_orgs_total":           1,
+		"influxdb_users_total":          1,
+		"boltdb_reads_total":            1,
 	}
 
 	for name, count := range metrics {

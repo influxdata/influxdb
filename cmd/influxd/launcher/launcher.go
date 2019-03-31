@@ -395,6 +395,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	boltKVStore := bolt.NewKVStore(m.boltPath)
+	boltKVStore.WithDB(m.boltClient.DB())
+
 	serviceConfig := kv.ServiceConfig{
 		SessionLength: time.Duration(m.sessionLength) * time.Minute,
 	}
@@ -402,11 +405,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var flusher http.Flusher
 	switch m.storeType {
 	case BoltStore:
-		store := bolt.NewKVStore(m.boltPath)
-		store.WithDB(m.boltClient.DB())
-		m.kvService = kv.NewService(store, serviceConfig)
+		m.kvService = kv.NewService(boltKVStore, serviceConfig)
 		if m.testing {
-			flusher = store
+			flusher = boltKVStore
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
@@ -432,7 +433,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		infprom.NewInfluxCollector(m.kvService, info),
 	)
 	m.reg.WithLogger(m.logger)
-	m.reg.MustRegister(m.boltClient)
+	m.reg.MustRegister(boltKVStore)
 
 	var (
 		orgSvc              platform.OrganizationService             = m.kvService
