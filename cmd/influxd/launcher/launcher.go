@@ -199,7 +199,7 @@ type Launcher struct {
 	enginePath      string
 	secretStore     string
 
-	boltClient    *bolt.Client
+	boltKVStore   *bolt.KVStore
 	kvService     *kv.Service
 	engine        *storage.Engine
 	StorageConfig storage.Config
@@ -276,7 +276,7 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	m.natsServer.Close()
 
 	m.logger.Info("Stopping", zap.String("service", "bolt"))
-	if err := m.boltClient.Close(); err != nil {
+	if err := m.boltKVStore.Close(); err != nil {
 		m.logger.Info("failed closing bolt", zap.Error(err))
 	}
 
@@ -373,11 +373,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.jaegerTracerCloser = closer
 	}
 
-	m.boltClient = bolt.NewClient()
-	m.boltClient.Path = m.boltPath
-	m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
-
-	if err := m.boltClient.Open(ctx); err != nil {
+	m.boltKVStore = bolt.NewKVStore(m.boltPath)
+	m.boltKVStore.WithLogger(m.logger.With(zap.String("store", "bolt")))
+	if err := m.boltKVStore.Open(ctx); err != nil {
 		m.logger.Error("failed opening bolt", zap.Error(err))
 		return err
 	}
@@ -385,11 +383,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var flusher http.Flusher
 	switch m.storeType {
 	case BoltStore:
-		store := bolt.NewKVStore(m.boltPath)
-		store.WithDB(m.boltClient.DB())
-		m.kvService = kv.NewService(store)
+		m.kvService = kv.NewService(m.boltKVStore)
 		if m.testing {
-			flusher = store
+			flusher = m.boltKVStore
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
@@ -412,10 +408,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg = prom.NewRegistry()
 	m.reg.MustRegister(
 		prometheus.NewGoCollector(),
-		infprom.NewInfluxCollector(m.boltClient, info),
+		infprom.NewInfluxCollector(m.kvService, info),
 	)
 	m.reg.WithLogger(m.logger)
-	m.reg.MustRegister(m.boltClient)
+	m.reg.MustRegister(m.boltKVStore)
 
 	var (
 		orgSvc           platform.OrganizationService             = m.kvService
@@ -458,7 +454,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
+	chronografSvc, err := server.NewServiceV2(ctx, m.boltKVStore.DB())
 	if err != nil {
 		m.logger.Error("failed creating chronograf service", zap.Error(err))
 		return err
