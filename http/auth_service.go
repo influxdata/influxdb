@@ -481,6 +481,12 @@ func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, 
 		return
 	}
 
+	updatedAuth, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
 	o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
 	if err != nil {
 		EncodeError(ctx, err, w)
@@ -499,7 +505,7 @@ func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, 
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(updatedAuth, o, u, ps)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
