@@ -412,16 +412,6 @@ func (s *Service) deleteAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 	return nil
 }
 
-// SetAuthorizationStatus updates the status of the authorization. Useful
-// for setting an authorization to inactive or active.
-func (s *Service) SetAuthorizationStatus(ctx context.Context, id influxdb.ID, status influxdb.Status) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.updateAuthorization(ctx, tx, id, &influxdb.AuthorizationUpdate{
-			Status: &status,
-		})
-	})
-}
-
 // UpdateAuthorization updates the status and description if available.
 func (s *Service) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
