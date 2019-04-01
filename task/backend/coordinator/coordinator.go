@@ -10,7 +10,7 @@ import (
 )
 
 type Coordinator struct {
-	backend.Store
+	platform.TaskService
 
 	logger *zap.Logger
 	sch    backend.Scheduler
@@ -26,12 +26,12 @@ func WithLimit(i int) Option {
 	}
 }
 
-func New(logger *zap.Logger, scheduler backend.Scheduler, st backend.Store, opts ...Option) *Coordinator {
+func New(logger *zap.Logger, scheduler backend.Scheduler, ts platform.TaskService, opts ...Option) *Coordinator {
 	c := &Coordinator{
-		logger: logger,
-		sch:    scheduler,
-		Store:  st,
-		limit:  1000,
+		logger:      logger,
+		sch:         scheduler,
+		TaskService: ts,
+		limit:       1000,
 	}
 
 	for _, opt := range opts {
@@ -45,7 +45,7 @@ func New(logger *zap.Logger, scheduler backend.Scheduler, st backend.Store, opts
 
 // claimExistingTasks is called on startup to claim all tasks in the store.
 func (c *Coordinator) claimExistingTasks() {
-	tasks, err := c.Store.ListTasks(context.Background(), backend.TaskSearchParams{})
+	tasks, _, err := c.TaskService.FindTasks(context.Background(), platform.TaskFilter{})
 	if err != nil {
 		c.logger.Error("failed to list tasks", zap.Error(err))
 		return
@@ -53,24 +53,19 @@ func (c *Coordinator) claimExistingTasks() {
 
 	for len(tasks) > 0 {
 		for _, task := range tasks {
-			if task.Meta.Status != string(backend.TaskActive) {
+			if task.Status != string(backend.TaskActive) {
 				// Don't claim inactive tasks at startup.
 				continue
 			}
 
-			t, err := backend.ToInfluxTask(&task.Task, &task.Meta)
-			if err != nil {
-				continue
-			}
-
 			// I may need a context with an auth here
-			if err := c.sch.ClaimTask(context.Background(), t); err != nil {
+			if err := c.sch.ClaimTask(context.Background(), task); err != nil {
 				c.logger.Error("failed claim task", zap.Error(err))
 				continue
 			}
 		}
-		tasks, err = c.Store.ListTasks(context.Background(), backend.TaskSearchParams{
-			After: tasks[len(tasks)-1].Task.ID,
+		tasks, _, err = c.TaskService.FindTasks(context.Background(), platform.TaskFilter{
+			After: &tasks[len(tasks)-1].ID,
 		})
 		if err != nil {
 			c.logger.Error("failed list additional tasks", zap.Error(err))
@@ -79,111 +74,93 @@ func (c *Coordinator) claimExistingTasks() {
 	}
 }
 
-func (c *Coordinator) CreateTask(ctx context.Context, req backend.CreateTaskRequest) (platform.ID, error) {
-	id, err := c.Store.CreateTask(ctx, req)
+func (c *Coordinator) CreateTask(ctx context.Context, t platform.TaskCreate) (*platform.Task, error) {
+	task, err := c.TaskService.CreateTask(ctx, t)
 	if err != nil {
-		return id, err
+		return task, err
 	}
 
-	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, id)
-	if err != nil {
-		return id, err
-	}
-	t, err := backend.ToInfluxTask(task, meta)
-	if err != nil {
-		return id, err
-	}
-	if err := c.sch.ClaimTask(ctx, t); err != nil {
-		_, delErr := c.Store.DeleteTask(ctx, id)
+	if err := c.sch.ClaimTask(ctx, task); err != nil {
+		delErr := c.TaskService.DeleteTask(ctx, task.ID)
 		if delErr != nil {
-			return id, fmt.Errorf("schedule task failed: %s\n\tcleanup also failed: %s", err, delErr)
+			return task, fmt.Errorf("schedule task failed: %s\n\tcleanup also failed: %s", err, delErr)
 		}
-		return id, err
+		return task, err
 	}
 
-	return id, nil
+	return task, nil
 }
 
-func (c *Coordinator) UpdateTask(ctx context.Context, req backend.UpdateTaskRequest) (backend.UpdateTaskResult, error) {
-	res, err := c.Store.UpdateTask(ctx, req)
+func (c *Coordinator) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+	task, err := c.TaskService.UpdateTask(ctx, id, upd)
 	if err != nil {
-		return res, err
-	}
-
-	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, req.ID)
-	if err != nil {
-		return res, err
+		return task, err
 	}
 
 	// If disabling the task, do so before modifying the script.
-	if req.Status == backend.TaskInactive && res.OldStatus != backend.TaskInactive {
-		if err := c.sch.ReleaseTask(req.ID); err != nil && err != backend.ErrTaskNotClaimed {
-			return res, err
+	if task.Status == string(backend.TaskInactive) {
+		if err := c.sch.ReleaseTask(id); err != nil && err != backend.ErrTaskNotClaimed {
+			return task, err
 		}
 	}
 
-	t, err := backend.ToInfluxTask(task, meta)
-	if err != nil {
-		return res, err
-	}
-
-	if err := c.sch.UpdateTask(ctx, t); err != nil && err != backend.ErrTaskNotClaimed {
-		return res, err
+	if err := c.sch.UpdateTask(ctx, task); err != nil && err != backend.ErrTaskNotClaimed {
+		return task, err
 	}
 
 	// If enabling the task, claim it after modifying the script.
-	if req.Status == backend.TaskActive {
-		if err := c.sch.ClaimTask(ctx, t); err != nil && err != backend.ErrTaskAlreadyClaimed {
-			return res, err
+	if task.Status == string(backend.TaskActive) {
+		if err := c.sch.ClaimTask(ctx, task); err != nil && err != backend.ErrTaskAlreadyClaimed {
+			return task, err
 		}
 	}
 
-	return res, nil
+	return task, nil
 }
 
-func (c *Coordinator) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, err error) {
+func (c *Coordinator) DeleteTask(ctx context.Context, id platform.ID) error {
 	if err := c.sch.ReleaseTask(id); err != nil && err != backend.ErrTaskNotClaimed {
-		return false, err
+		return err
 	}
 
-	return c.Store.DeleteTask(ctx, id)
+	return c.TaskService.DeleteTask(ctx, id)
 }
 
-func (c *Coordinator) DeleteOrg(ctx context.Context, orgID platform.ID) error {
-	orgTasks, err := c.Store.ListTasks(ctx, backend.TaskSearchParams{
-		Org: orgID,
-	})
+func (c *Coordinator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
+	err := c.sch.CancelRun(ctx, taskID, runID)
 	if err != nil {
 		return err
 	}
 
-	for _, orgTask := range orgTasks {
-		if err := c.sch.ReleaseTask(orgTask.Task.ID); err != nil {
-			return err
-		}
+	// TODO(lh): Im not sure if we need to call the task service here directly or if the scheduler does that
+	// for now we will do it and then if it causes errors we can opt to do it in the scheduler only
+	return c.TaskService.CancelRun(ctx, taskID, runID)
+}
+
+func (c *Coordinator) RetryRun(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	task, err := c.TaskService.FindTaskByID(ctx, taskID)
+	if err != nil {
+		return nil, err
 	}
 
-	return c.Store.DeleteOrg(ctx, orgID)
-}
-
-func (c *Coordinator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
-	return c.sch.CancelRun(ctx, taskID, runID)
-}
-
-func (c *Coordinator) ManuallyRunTimeRange(ctx context.Context, taskID platform.ID, start, end, requestedAt int64) (*backend.StoreTaskMetaManualRun, error) {
-	r, err := c.Store.ManuallyRunTimeRange(ctx, taskID, start, end, requestedAt)
+	r, err := c.TaskService.RetryRun(ctx, taskID, runID)
 	if err != nil {
 		return r, err
 	}
-	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, taskID)
+
+	return r, c.sch.UpdateTask(ctx, task)
+}
+
+func (c *Coordinator) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+	task, err := c.TaskService.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
 
-	t, err := backend.ToInfluxTask(task, meta)
+	r, err := c.TaskService.ForceRun(ctx, taskID, scheduledFor)
 	if err != nil {
-		return nil, err
+		return r, err
 	}
 
-	return r, c.sch.UpdateTask(ctx, t)
+	return r, c.sch.UpdateTask(ctx, task)
 }
