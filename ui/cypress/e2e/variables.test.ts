@@ -6,7 +6,7 @@ describe('Variables', () => {
 
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
-      cy.visit(`organizations/${body.org.id}/variables`)
+      cy.visit(`orgs/${body.org.id}/variables`)
     })
   })
 
