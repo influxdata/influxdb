@@ -65,7 +65,6 @@ func (s *Scheduler) ClaimTask(_ context.Context, task *platform.Task) error {
 
 	if s.createChan != nil {
 		s.createChan <- task
-
 	}
 
 	return nil
