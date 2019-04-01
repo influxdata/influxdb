@@ -10,9 +10,6 @@ import (
 	"github.com/influxdata/influxdb/snowflake"
 )
 
-// OpPrefix is the op prefix.
-const OpPrefix = "inmem/"
-
 // Service implements various top level services.
 type Service struct {
 	authorizationKV       sync.Map

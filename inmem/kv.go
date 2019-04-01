@@ -11,6 +11,9 @@ import (
 	"github.com/influxdata/influxdb/kv"
 )
 
+// OpPrefix is the op prefix.
+const OpPrefix = "inmem/"
+
 // KVStore is an in memory btree backed kv.Store.
 type KVStore struct {
 	mu      sync.RWMutex
