@@ -36,11 +36,11 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/storage"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/storage/reads/datatypes"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
@@ -1209,11 +1209,9 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 		encoder := pr.Dialect.Encoder()
 		results := flux.NewResultIteratorFromQuery(q)
 		if h.Config.FluxLogEnabled {
-			if s, ok := results.(flux.Statisticser); ok {
-				defer func() {
-					stats = s.Statistics()
-				}()
-			}
+			defer func() {
+				stats = results.Statistics()
+			}()
 		}
 		defer results.Release()
 
