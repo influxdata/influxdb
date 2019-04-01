@@ -138,3 +138,6 @@ from(bucket: "x")
 	})
 
 }
+
+func TestRun(t *testing.T) {
+}

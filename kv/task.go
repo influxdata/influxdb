@@ -865,11 +865,17 @@ func (s *Service) CreateNextRun(ctx context.Context, taskID influxdb.ID, now int
 func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, now int64) (backend.RunCreation, error) {
 	// pull the scheduler for the task
 	task, err := s.findTaskByID(ctx, tx, taskID)
-
-	schedule := task.EffectiveCron()
+	if err != nil {
+		return backend.RunCreation{}, err
+	}
+	// todo(docmerlin): use the schedule
+	// schedule := task.EffectiveCron()
 	// get the latest completed and the latest currently running run's time
 	var latestCompleted time.Time
 	lRun, err := s.findLatestCompleted(ctx, tx, taskID)
+	if err != nil {
+		return backend.RunCreation{}, err
+	}
 
 	if lRun != nil {
 
@@ -878,6 +884,9 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 
 	for _, run := range runs {
 		runTime, err := run.ScheduledForTime()
+		if err != nil {
+			return backend.RunCreation{}, err
+		}
 		if runTime.After(latestCompleted) {
 			latestCompleted = runTime
 		}
@@ -888,6 +897,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 	// check if we have any manual runs queued
 
 	// populate RunCreation
+	return backend.RunCreation{}, nil
 }
 
 func (s *Service) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {

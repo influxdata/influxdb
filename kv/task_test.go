@@ -1,4 +1,4 @@
-package kv
+package kv_test
 
 import (
 	"github.com/influxdata/influxdb/kv"

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
@@ -63,6 +64,11 @@ type Run struct {
 	FinishedAt   string `json:"finishedAt,omitempty"`
 	RequestedAt  string `json:"requestedAt,omitempty"`
 	Log          []Log  `json:"log"`
+}
+
+// ScheduledForTime gives the time.Time that somethingis scheduled for.
+func (r *Run) ScheduledForTime() (time.Time, error) {
+	return time.Parse(time.RFC3339, r.ScheduledFor)
 }
 
 // Log represents a link to a log resource
