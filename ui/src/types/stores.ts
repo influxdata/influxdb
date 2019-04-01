@@ -1,4 +1,3 @@
-import {Organization} from 'src/types/orgs'
 import {Links} from 'src/types/links'
 import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'
@@ -22,6 +21,7 @@ import {ViewsState} from 'src/dashboards/reducers/views'
 import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
+import {OrgsState} from 'src/organizations/reducers/orgs'
 
 export interface AppState {
   VERSION: string
@@ -38,7 +38,7 @@ export interface AppState {
   routing: RouterState
   tasks: TaskState
   timeRange: TimeRange
-  orgs: Organization[]
+  orgs: OrgsState
   orgView: OrgViewState
   me: MeState
   onboarding: OnboardingState

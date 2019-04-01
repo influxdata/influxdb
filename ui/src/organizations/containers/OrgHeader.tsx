@@ -52,8 +52,10 @@ class OrgHeader extends Component<Props> {
 }
 
 const mstp = (state: AppState, props: OwnProps) => {
-  const {orgs} = state
-  const org = orgs.find(o => o.id === props.orgID)
+  const {
+    orgs: {items},
+  } = state
+  const org = items.find(o => o.id === props.orgID)
   return {
     org,
   }

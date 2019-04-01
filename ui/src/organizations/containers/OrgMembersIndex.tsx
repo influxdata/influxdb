@@ -101,9 +101,8 @@ class OrgMembersIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: Props) => {
-  const {orgs} = state
-  const org = orgs.find(o => o.id === props.params.orgID)
+const mstp = ({orgs: {items}}: AppState, props: Props) => {
+  const org = items.find(o => o.id === props.params.orgID)
   return {
     org,
   }

@@ -176,10 +176,10 @@ class Variables extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({variables, orgs}: AppState): StateProps => {
+const mstp = ({variables, orgs: {items}}: AppState): StateProps => {
   return {
     variables: variables,
-    orgs,
+    orgs: items,
   }
 }
 

@@ -188,10 +188,10 @@ class Buckets extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({buckets, orgs}: AppState): StateProps => {
+const mstp = ({buckets, orgs: {items}}: AppState): StateProps => {
   return {
     buckets: buckets.list,
-    orgs,
+    orgs: items,
   }
 }
 

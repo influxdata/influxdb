@@ -182,11 +182,11 @@ const mstp = (state: AppState): StateProps => {
   const {
     dashboards: {list: dashboards},
     links,
-    orgs,
+    orgs: {items},
   } = state
 
   return {
-    orgs,
+    orgs: items,
     dashboards,
     links,
   }
