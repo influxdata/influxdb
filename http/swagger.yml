@@ -6742,10 +6742,14 @@ components:
         - $ref: "#/components/schemas/SecretKeys"
         - type: object
           properties:
-            self:
-              type: string
-            org:
-              type: string
+            links:
+              readOnly: true
+              type: object
+              properties:
+                self:
+                  type: string
+                org:
+                  type: string
     CreateProtoResourcesRequest:
       properties:
         orgID:
