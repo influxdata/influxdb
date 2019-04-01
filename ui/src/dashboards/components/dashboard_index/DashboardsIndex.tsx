@@ -32,7 +32,7 @@ import {dashboardCreateFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {Links, Dashboard, AppState, Organization} from 'src/types'
+import {Links, Dashboard, AppState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
