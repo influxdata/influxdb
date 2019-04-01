@@ -21,6 +21,7 @@ type OrgBackend struct {
 	Logger *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
+	OrgLimitService                 influxdb.OrgLimitService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
 	UserResourceMappingService      influxdb.UserResourceMappingService
 	SecretService                   influxdb.SecretService
@@ -33,6 +34,7 @@ func NewOrgBackend(b *APIBackend) *OrgBackend {
 	return &OrgBackend{
 		Logger: b.Logger.With(zap.String("handler", "org")),
 
+		OrgLimitService:                 b.OrgLimitService,
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
 		UserResourceMappingService:      b.UserResourceMappingService,
@@ -49,6 +51,7 @@ type OrgHandler struct {
 	Logger *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
+	OrgLimitService                 influxdb.OrgLimitService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
 	UserResourceMappingService      influxdb.UserResourceMappingService
 	SecretService                   influxdb.SecretService
@@ -69,14 +72,15 @@ const (
 	organizationsIDSecretsDeletePath = "/api/v2/orgs/:id/secrets/delete"
 	organizationsIDLabelsPath        = "/api/v2/orgs/:id/labels"
 	organizationsIDLabelsIDPath      = "/api/v2/orgs/:id/labels/:lid"
+	organizationsIDLimitsPath        = "/api/v2/orgs/:id/limits"
 )
 
 // NewOrgHandler returns a new instance of OrgHandler.
 func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h := &OrgHandler{
-		Router: NewRouter(),
-		Logger: zap.NewNop(),
-
+		Router:                          NewRouter(),
+		Logger:                          zap.NewNop(),
+		OrgLimitService:                 b.OrgLimitService,
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
 		UserResourceMappingService:      b.UserResourceMappingService,
@@ -91,6 +95,9 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h.HandlerFunc("GET", organizationsIDLogPath, h.handleGetOrgLog)
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
+
+	h.HandlerFunc("GET", organizationsIDLimitsPath, h.handleGetOrgLimits)
+	h.HandlerFunc("PUT", organizationsIDLimitsPath, h.handlePutOrgLimits)
 
 	memberBackend := MemberBackend{
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
@@ -885,4 +892,117 @@ func newOrganizationLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry
 		},
 		Logs: logs,
 	}
+}
+
+// handleGetOrgLimits retrieves a orgs limits.
+func (h *OrgHandler) handleGetOrgLimits(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetOrgLimitsRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	l, err := h.OrgLimitService.GetOrgLimits(ctx, req.OrgID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgLimitsResponse(req.OrgID, l)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
+type orgLimitsResponse struct {
+	Links map[string]string `json:"links"`
+	*influxdb.OrgLimits
+}
+
+func newOrgLimitsResponse(orgID influxdb.ID, l *influxdb.OrgLimits) *orgLimitsResponse {
+	return &orgLimitsResponse{
+		Links: map[string]string{
+			"org":  fmt.Sprintf("/api/v2/orgs/%s", orgID),
+			"self": fmt.Sprintf("/api/v2/orgs/%s/limits", orgID),
+		},
+		OrgLimits: l,
+	}
+}
+
+type getOrgLimitsRequest struct {
+	OrgID influxdb.ID
+}
+
+func decodeGetOrgLimitsRequest(ctx context.Context, r *http.Request) (*getOrgLimitsRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing org id",
+		}
+	}
+
+	var i influxdb.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	return &getOrgLimitsRequest{
+		OrgID: i,
+	}, nil
+}
+
+// handlePutOrgLimits sets a orgs limits.
+func (h *OrgHandler) handlePutOrgLimits(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodePutOrgLimitsRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.OrgLimitService.SetOrgLimits(ctx, req.OrgID, req.Limits); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgLimitsResponse(req.OrgID, req.Limits)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
+type putOrgLimitsRequest struct {
+	OrgID  influxdb.ID
+	Limits *influxdb.OrgLimits
+}
+
+func decodePutOrgLimitsRequest(ctx context.Context, r *http.Request) (*putOrgLimitsRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing org id",
+		}
+	}
+
+	var i influxdb.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	l := &influxdb.OrgLimits{}
+	if err := json.NewDecoder(r.Body).Decode(l); err != nil {
+		return nil, err
+	}
+
+	return &putOrgLimitsRequest{
+		OrgID:  i,
+		Limits: l,
+	}, nil
 }
