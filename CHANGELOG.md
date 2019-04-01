@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.8 [unreleased]
 
 ### Features
+1. [13024](https://github.com/influxdata/influxdb/pull/13024): Add the ability to edit token's description
 
 ### Bug Fixes
 
