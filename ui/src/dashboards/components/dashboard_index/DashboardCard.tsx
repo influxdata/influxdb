@@ -147,11 +147,16 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleClickDashboard = () => {
-    const {router, dashboard, onResetViews} = this.props
+    const {
+      router,
+      dashboard,
+      onResetViews,
+      params: {orgID},
+    } = this.props
 
     onResetViews()
 
-    router.push(`/dashboards/${dashboard.id}`)
+    router.push(`/orgs/${orgID}/dashboards/${dashboard.id}`)
   }
 
   private handleUpdateDescription = (description: string): void => {
@@ -189,10 +194,10 @@ class DashboardCard extends PureComponent<Props> {
     const {
       router,
       dashboard,
-      location: {pathname},
+      params: {orgID},
     } = this.props
 
-    router.push(`${pathname}/${dashboard.id}/export`)
+    router.push(`/orgs/${orgID}/dashboards/${dashboard.id}/export`)
   }
 }
 

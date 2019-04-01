@@ -12,7 +12,6 @@ import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 interface OwnProps {
   isHidden: boolean
@@ -29,11 +28,11 @@ class SideNav extends PureComponent<Props> {
       me,
       params: {orgID},
     } = this.props
-    const {location} = this.props
     if (isHidden) {
       return null
     }
-    const orgPrefix = `/org/${orgID}`
+
+    const orgPrefix = `/orgs/${orgID}`
 
     return (
       <NavMenu>
@@ -46,7 +45,7 @@ class SideNav extends PureComponent<Props> {
         >
           <NavMenu.SubItem
             title="Logout"
-            link={`${orgPrefix}/logout`}
+            link="/logout"
             location={location.pathname}
             highlightPaths={[]}
           />
@@ -73,45 +72,12 @@ class SideNav extends PureComponent<Props> {
           highlightPaths={['tasks']}
         />
         <NavMenu.Item
-          title="Organizations"
-          link={`${orgPrefix}/organizations`}
-          icon={IconFont.UsersDuo}
-          location={location.pathname}
-          highlightPaths={['organizations']}
-        />
-        <NavMenu.Item
-          title="Configuration"
-          link={`${orgPrefix}/configuration/buckets_tab`}
+          title="Settings"
+          link={`${orgPrefix}/settings`}
           icon={IconFont.Wrench}
           location={location.pathname}
-          highlightPaths={['configuration']}
+          highlightPaths={['settings']}
         >
-          <CloudExclude>
-            <NavMenu.SubItem
-              title="Buckets"
-              link="/configuration/buckets_tab"
-              location={location.pathname}
-              highlightPaths={['buckets_tab']}
-            />
-            <NavMenu.SubItem
-              title="Telegrafs"
-              link="/configuration/telegrafs_tab"
-              location={location.pathname}
-              highlightPaths={['telegrafs_tab']}
-            />
-            <NavMenu.SubItem
-              title="Scrapers"
-              link="/configuration/scrapers_tab"
-              location={location.pathname}
-              highlightPaths={['scrapers_tab']}
-            />
-            <NavMenu.SubItem
-              title="Variables"
-              link="/configuration/variables_tab"
-              location={location.pathname}
-              highlightPaths={['variables_tab']}
-            />
-          </CloudExclude>
           <NavMenu.SubItem
             title="Profile"
             link={`${orgPrefix}/configuration/settings_tab`}

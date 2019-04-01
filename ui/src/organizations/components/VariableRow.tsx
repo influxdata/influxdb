@@ -63,10 +63,9 @@ class VariableRow extends PureComponent<Props> {
     const {
       router,
       variable,
-      location: {pathname},
+      params: {orgID},
     } = this.props
-
-    router.push(`${pathname}/${variable.id}/export`)
+    router.push(`orgs/${orgID}/variables/${variable.id}/export`)
   }
 
   private handleUpdateVariableName = async (name: string) => {

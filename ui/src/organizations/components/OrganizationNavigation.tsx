@@ -19,7 +19,7 @@ class OrganizationNavigation extends PureComponent<Props> {
   public render() {
     const {tab, orgID} = this.props
 
-    const route = `/org/${orgID}`
+    const route = `/orgs/${orgID}`
 
     return (
       <Tabs.Nav>

@@ -15,7 +15,6 @@ import {
 } from '@influxdata/clockface'
 import {Grid} from 'src/clockface'
 import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown'
-import TaskOptionsOrgIDDropdown from 'src/tasks/components/TasksOptionsOrgIDDropdown'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
@@ -74,7 +73,6 @@ export default class TaskForm extends PureComponent<Props, State> {
   public render() {
     const {
       onChangeInput,
-      onChangeTaskOrgID,
       onChangeToOrgName,
       onChangeToBucketName,
       taskOptions: {
@@ -83,7 +81,6 @@ export default class TaskForm extends PureComponent<Props, State> {
         interval,
         offset,
         cron,
-        orgID,
         toOrgName,
         toBucketName,
       },
@@ -102,15 +99,6 @@ export default class TaskForm extends PureComponent<Props, State> {
                   placeholder="Name your task"
                   onChange={onChangeInput}
                   value={name}
-                />
-              </Form.Element>
-            </Grid.Column>
-            <Grid.Column widthXS={Columns.Twelve}>
-              <Form.Element label="Owner">
-                <TaskOptionsOrgIDDropdown
-                  orgs={orgs}
-                  selectedOrgID={orgID}
-                  onChangeOrgID={onChangeTaskOrgID}
                 />
               </Form.Element>
             </Grid.Column>

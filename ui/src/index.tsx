@@ -110,7 +110,7 @@ class Root extends PureComponent {
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
                     <Route path="/">
-                      <Route path="org/:orgID" component={App}>
+                      <Route path="orgs/:orgID" component={App}>
                         <IndexRoute component={MePage} />
                         <Route path="tasks" component={TasksPage}>
                           <Route path=":id/export" component={TaskExportOverlay} />

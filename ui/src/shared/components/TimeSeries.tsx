@@ -2,6 +2,7 @@
 import {Component} from 'react'
 import {isEqual, flatten} from 'lodash'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // API
 import {
@@ -11,13 +12,12 @@ import {
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
-import {getActiveOrg} from 'src/organizations/selectors'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/dashboards'
-import {AppState, Organization} from 'src/types'
+import {AppState} from 'src/types'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
@@ -32,7 +32,6 @@ interface QueriesState {
 
 interface StateProps {
   queryLink: string
-  activeOrg: Organization
 }
 
 interface OwnProps {
@@ -64,7 +63,7 @@ const defaultState = (): State => ({
   duration: 0,
 })
 
-class TimeSeries extends Component<Props, State> {
+class TimeSeries extends Component<Props & WithRouterProps, State> {
   public static defaultProps = {
     inView: true,
     implicitSubmit: true,
@@ -102,7 +101,7 @@ class TimeSeries extends Component<Props, State> {
   private reload = async () => {
     const {inView, queryLink, variables} = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
-    const orgID = this.props.activeOrg.id
+    const orgID = this.props.params.orgID
 
     if (!inView) {
       return
@@ -181,12 +180,11 @@ class TimeSeries extends Component<Props, State> {
 
 const mstp = (state: AppState) => {
   const {links} = state
-  const activeOrg = getActiveOrg(state)
 
-  return {activeOrg, queryLink: links.query.self}
+  return {queryLink: links.query.self}
 }
 
 export default connect<StateProps, {}, OwnProps>(
   mstp,
   null
-)(TimeSeries)
+)(withRouter(TimeSeries))

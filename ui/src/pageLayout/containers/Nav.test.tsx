@@ -12,17 +12,17 @@ function Nav(props) {
     <>
       <NavMenu.Item
         title="Dashboards"
-        link="/dashboards"
+        link="/orgs/036ef4599dddb000/dashboards"
         icon={IconFont.Dashboards}
         location={pathname}
         highlightPaths={['dashboards']}
       />
       <NavMenu.Item
-        title="Organizations"
-        link="/organizations"
-        icon={IconFont.UsersDuo}
+        title="Tasks"
+        link="/orgs/036ef4599dddb000/tasks"
+        icon={IconFont.Calendar}
         location={pathname}
-        highlightPaths={['organizations']}
+        highlightPaths={['tasks']}
       />
     </>
   )
@@ -39,13 +39,13 @@ const setup = (override?) => {
 
 describe('Nav', () => {
   it('only highlights one nav item', () => {
-    const pathname = '/organizations/036ef4599dddb000/dashboards'
+    const pathname = '/orgs/036ef4599dddb000/dashboards'
     const {getByTestId} = setup({pathname})
 
     const dashItem = getByTestId(`nav-menu-item ${IconFont.Dashboards}`)
-    const orgItem = getByTestId(`nav-menu-item ${IconFont.UsersDuo}`)
+    const tasksItem = getByTestId(`nav-menu-item ${IconFont.Calendar}`)
 
-    expect(dashItem.className).not.toContain('active')
-    expect(orgItem.className).toContain('active')
+    expect(dashItem.className).toContain('active')
+    expect(tasksItem.className).not.toContain('active')
   })
 })

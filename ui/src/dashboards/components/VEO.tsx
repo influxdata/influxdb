@@ -24,6 +24,7 @@ interface OwnProps extends WithRouterProps {
   params: {
     dashboardID: string
     cellID?: string
+    orgID: string
   }
 }
 
@@ -98,10 +99,10 @@ class VEO extends PureComponent<Props, State> {
   private handleClose = () => {
     const {
       router,
-      params: {dashboardID},
+      params: {dashboardID, orgID},
     } = this.props
 
-    router.push(`/dashboards/${dashboardID}`)
+    router.push(`orgs/${orgID}/dashboards/${dashboardID}`)
   }
 }
 

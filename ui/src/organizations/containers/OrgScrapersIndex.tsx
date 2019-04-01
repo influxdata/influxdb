@@ -114,7 +114,7 @@ class OrgScrapersIndex extends Component<Props> {
 
 const mstp = (state: AppState, props: Props) => {
   const {
-    orgs: {items }
+    orgs: {items},
   } = state
   const org = items.find(o => o.id === props.params.orgID)
   return {

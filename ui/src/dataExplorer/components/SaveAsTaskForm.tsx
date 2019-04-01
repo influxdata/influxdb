@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -19,7 +20,6 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
-import {getActiveOrg} from 'src/organizations/selectors'
 import {
   taskOptionsToFluxScript,
   addDestinationToFluxScript,
@@ -47,7 +47,6 @@ interface DispatchProps {
 
 interface StateProps {
   orgs: Organization[]
-  activeOrgName: string
   taskOptions: TaskOptions
   draftQueries: DashboardDraftQuery[]
   activeQueryIndex: number
@@ -57,7 +56,7 @@ interface StateProps {
 
 type Props = StateProps & OwnProps & DispatchProps
 
-class SaveAsTaskForm extends PureComponent<Props> {
+class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   public componentDidMount() {
     const {setTaskOption, setNewScript} = this.props
 
@@ -116,7 +115,7 @@ class SaveAsTaskForm extends PureComponent<Props> {
       newScript,
       taskOptions,
       timeRange,
-      activeOrgName,
+      params: {orgID},
     } = this.props
 
     // When a task runs, it does not have access to variables that we typically
@@ -138,7 +137,7 @@ class SaveAsTaskForm extends PureComponent<Props> {
     const preamble = `${varOption}\n\n${taskOption}`
     const script = addDestinationToFluxScript(newScript, taskOptions)
 
-    saveNewScript(script, preamble, activeOrgName)
+    saveNewScript(script, preamble, orgID)
   }
 
   private handleChangeTaskOrgID = (orgID: string) => {
@@ -185,11 +184,8 @@ const mstp = (state: AppState): StateProps => {
     state
   )
 
-  const activeOrgName = getActiveOrg(state).name
-
   return {
     orgs: items,
-    activeOrgName,
     newScript,
     taskOptions,
     timeRange,
@@ -208,4 +204,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(SaveAsTaskForm)
+)(withRouter(SaveAsTaskForm))

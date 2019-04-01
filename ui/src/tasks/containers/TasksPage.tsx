@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {InjectedRouter} from 'react-router'
+import {InjectedRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -67,7 +67,10 @@ interface ConnectedStateProps {
   dropdownOrgID: string
 }
 
-type Props = ConnectedDispatchProps & PassedInProps & ConnectedStateProps
+type Props = ConnectedDispatchProps &
+  PassedInProps &
+  ConnectedStateProps &
+  WithRouterProps
 
 interface State {
   isImporting: boolean
@@ -169,15 +172,21 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private handleCreateTask = () => {
-    const {router} = this.props
+    const {
+      router,
+      params: {orgID},
+    } = this.props
 
-    router.push('/tasks/new')
+    router.push(`/orgs/${orgID}/tasks/new`)
   }
 
   private summonOverlay = (): void => {
-    const {router} = this.props
+    const {
+      router,
+      params: {orgID},
+    } = this.props
 
-    router.push('/tasks/import')
+    router.push(`/orgs/${orgID}/tasks/import`)
   }
 
   private get search(): JSX.Element {

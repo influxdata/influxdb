@@ -53,7 +53,7 @@ class GetOrganizations extends PureComponent<Props> {
       setOrg,
     } = this.props
 
-    //does orgID from url match any orgs that exist
+    // does orgID from url match any orgs that exist
     const org = orgs.find(o => o.id === orgID)
     const orgExists = !!orgID && !!org
     if (orgExists) {
@@ -61,9 +61,8 @@ class GetOrganizations extends PureComponent<Props> {
     }
 
     if (!orgExists && orgs.length) {
-      //default to first org
+      // default to first org
       router.push(`org/${orgs[0].id}`)
-      setOrg(orgs[0])
     }
   }
 

@@ -209,7 +209,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
 
 const mstp = ({
   tasks: {searchTerm, showInactive},
-  orgs:{items},
+  orgs: {items},
 }: AppState): ConnectedStateProps => {
   return {
     searchTerm,
