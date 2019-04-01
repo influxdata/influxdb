@@ -9,7 +9,6 @@ import VariableItem from 'src/timeMachine/components/variableToolbar/VariableIte
 
 // Utils
 import {getVariablesForOrg} from 'src/variables/selectors'
-import {getActiveOrg} from 'src/organizations/selectors'
 
 // Types
 import {Variable} from '@influxdata/influx'
@@ -50,7 +49,7 @@ const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
 }
 
 const mstp = (state: AppState) => {
-  const org = getActiveOrg(state)
+  const org = state.orgs.org
   const variables = getVariablesForOrg(state, org.id)
   const {status: variablesStatus} = state.variables
 
