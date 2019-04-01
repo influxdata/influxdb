@@ -437,4 +437,4 @@ export const GIT_SHA = process.env.GIT_SHA
 
 export const CLOUD = process.env.CLOUD && process.env.CLOUD === 'true'
 export const CLOUD_SIGNIN_PATHNAME = '/api/v2/signin'
-export const CLOUD_SIGNOUT_PATHNAME = '/api/v2/signout'
+export const CLOUD_SIGNOUT_URL = process.env.CLOUD_LOGOUT_URL
