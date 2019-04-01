@@ -12,8 +12,6 @@ import {
   updateCells as updateCellsAJAX,
   addCell as addCellAJAX,
   deleteCell as deleteCellAJAX,
-  addDashboardLabels as addDashboardLabelsAJAX,
-  removeDashboardLabels as removeDashboardLabelsAJAX,
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
@@ -446,7 +444,10 @@ export const addDashboardLabelsAsync = (
   labels: ILabel[]
 ) => async (dispatch: Dispatch<Action>) => {
   try {
-    const newLabels = await addDashboardLabelsAJAX(dashboardID, labels)
+    const newLabels = await client.dashboards.addLabels(
+      dashboardID,
+      labels.map(l => l.id)
+    )
 
     dispatch(addDashboardLabels(dashboardID, newLabels))
   } catch (error) {
@@ -460,7 +461,8 @@ export const removeDashboardLabelsAsync = (
   labels: ILabel[]
 ) => async (dispatch: Dispatch<Action>) => {
   try {
-    await removeDashboardLabelsAJAX(dashboardID, labels)
+    await client.dashboards.removeLabels(dashboardID, labels.map(l => l.id))
+
     dispatch(removeDashboardLabels(dashboardID, labels))
   } catch (error) {
     console.error(error)
