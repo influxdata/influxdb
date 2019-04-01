@@ -1473,6 +1473,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /ready:
+    servers:
+        - url: /
     get:
       tags:
         - Ready
@@ -1491,6 +1493,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /health:
+    servers:
+        - url: /
     get:
       tags:
         - Health
