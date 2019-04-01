@@ -8,11 +8,13 @@ import {Organization, RemoteDataState} from 'src/types'
 export interface OrgsState {
   status: RemoteDataState
   items: Organization[]
+  org: Organization
 }
 
 const defaultState: OrgsState = {
   status: RemoteDataState.NotStarted,
   items: [],
+  org: null,
 }
 
 export const orgsReducer = (state = defaultState, action: Actions): OrgsState =>
@@ -27,6 +29,13 @@ export const orgsReducer = (state = defaultState, action: Actions): OrgsState =>
         const {status, orgs} = action.payload
         draftState.status = status || draftState.status
         draftState.items = orgs || draftState.items
+        return
+      }
+      case ActionTypes.SetOrg: {
+        const {
+          org: {name, id},
+        } = action.payload
+        draftState.org = {name, id}
         return
       }
       case ActionTypes.AddOrg: {

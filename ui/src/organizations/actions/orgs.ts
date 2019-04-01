@@ -15,9 +15,16 @@ export enum ActionTypes {
   AddOrg = 'ADD_ORG',
   RemoveOrg = 'REMOVE_ORG',
   EditOrg = 'EDIT_ORG',
+  SetOrg = 'SET_ORG',
 }
 
-export type Actions = SetOrgs | AddOrg | RemoveOrg | EditOrg | SetOrgsStatus
+export type Actions =
+  | SetOrgs
+  | AddOrg
+  | RemoveOrg
+  | EditOrg
+  | SetOrgsStatus
+  | SetOrg
 
 export interface SetOrgs {
   type: ActionTypes.SetOrgs
@@ -41,6 +48,20 @@ export interface SetOrgsStatus {
   type: ActionTypes.SetOrgsStatus
   payload: {
     status: RemoteDataState
+  }
+}
+
+export interface SetOrg {
+  type: ActionTypes.SetOrg
+  payload: {
+    org: Organization
+  }
+}
+
+export const setOrg = (org: Organization): SetOrg => {
+  return {
+    type: ActionTypes.SetOrg,
+    payload: {org},
   }
 }
 
