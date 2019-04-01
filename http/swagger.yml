@@ -6812,6 +6812,8 @@ components:
                 owners: "/api/v2/dashboards/1/owners"
                 members: "/api/v2/dashboards/1/members"
                 logs: "/api/v2/dashboards/1/logs"
+                labels: "/api/v2/dashboards/1/labels"
+                org: "/api/v2/labels/1"
               properties:
                 self:
                   $ref: "#/components/schemas/Link"
@@ -6822,6 +6824,10 @@ components:
                 owners:
                   $ref: "#/components/schemas/Link"
                 logs:
+                  $ref: "#/components/schemas/Link"
+                labels:
+                  $ref: "#/components/schemas/Link"
+                org:
                   $ref: "#/components/schemas/Link"
             id:
               readOnly: true
