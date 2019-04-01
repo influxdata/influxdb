@@ -17,14 +17,14 @@ import './RadioButtons.scss'
 interface Props {
   children: JSX.Element[]
   customClass?: string
-  color?: ComponentColor
-  size?: ComponentSize
-  shape?: ButtonShape
+  color: ComponentColor
+  size: ComponentSize
+  shape: ButtonShape
 }
 
 @ErrorHandling
 class Radio extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     color: ComponentColor.Primary,
     size: ComponentSize.Small,
     shape: ButtonShape.Default,

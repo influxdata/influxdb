@@ -22,12 +22,15 @@ const (
 type VariableBackend struct {
 	Logger          *zap.Logger
 	VariableService platform.VariableService
+	LabelService    platform.LabelService
 }
 
+// NewVariableBackend creates a backend used by the variable handler.
 func NewVariableBackend(b *APIBackend) *VariableBackend {
 	return &VariableBackend{
 		Logger:          b.Logger.With(zap.String("handler", "variable")),
 		VariableService: b.VariableService,
+		LabelService:    b.LabelService,
 	}
 }
 
@@ -38,6 +41,7 @@ type VariableHandler struct {
 	Logger *zap.Logger
 
 	VariableService platform.VariableService
+	LabelService    platform.LabelService
 }
 
 // NewVariableHandler creates a new VariableHandler
@@ -47,9 +51,12 @@ func NewVariableHandler(b *VariableBackend) *VariableHandler {
 		Logger: b.Logger,
 
 		VariableService: b.VariableService,
+		LabelService:    b.LabelService,
 	}
 
 	entityPath := fmt.Sprintf("%s/:id", variablePath)
+	entityLabelsPath := fmt.Sprintf("%s/labels", entityPath)
+	entityLabelsIDPath := fmt.Sprintf("%s/:lid", entityLabelsPath)
 
 	h.HandlerFunc("GET", variablePath, h.handleGetVariables)
 	h.HandlerFunc("POST", variablePath, h.handlePostVariable)
@@ -57,6 +64,15 @@ func NewVariableHandler(b *VariableBackend) *VariableHandler {
 	h.HandlerFunc("PATCH", entityPath, h.handlePatchVariable)
 	h.HandlerFunc("PUT", entityPath, h.handlePutVariable)
 	h.HandlerFunc("DELETE", entityPath, h.handleDeleteVariable)
+
+	labelBackend := &LabelBackend{
+		Logger:       b.Logger.With(zap.String("handler", "label")),
+		LabelService: b.LabelService,
+		ResourceType: platform.DashboardsResourceType,
+	}
+	h.HandlerFunc("GET", entityLabelsPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("POST", entityLabelsPath, newPostLabelHandler(labelBackend))
+	h.HandlerFunc("DELETE", entityLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
 	return h
 }
@@ -74,7 +90,7 @@ func (r getVariablesResponse) ToPlatform() []*platform.Variable {
 	return variables
 }
 
-func newGetVariablesResponse(variables []*platform.Variable, f platform.VariableFilter, opts platform.FindOptions) getVariablesResponse {
+func newGetVariablesResponse(ctx context.Context, variables []*platform.Variable, f platform.VariableFilter, opts platform.FindOptions, labelService platform.LabelService) getVariablesResponse {
 	num := len(variables)
 	resp := getVariablesResponse{
 		Variables: make([]variableResponse, 0, num),
@@ -82,7 +98,8 @@ func newGetVariablesResponse(variables []*platform.Variable, f platform.Variable
 	}
 
 	for _, variable := range variables {
-		resp.Variables = append(resp.Variables, newVariableResponse(variable))
+		labels, _ := labelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: variable.ID})
+		resp.Variables = append(resp.Variables, newVariableResponse(variable, labels))
 	}
 
 	return resp
@@ -138,7 +155,7 @@ func (h *VariableHandler) handleGetVariables(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err = encodeResponse(ctx, w, http.StatusOK, newGetVariablesResponse(variables, req.filter, req.opts))
+	err = encodeResponse(ctx, w, http.StatusOK, newGetVariablesResponse(ctx, variables, req.filter, req.opts, h.LabelService))
 	if err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
@@ -181,7 +198,13 @@ func (h *VariableHandler) handleGetVariable(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(variable))
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: variable.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(variable, labels))
 	if err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
@@ -189,23 +212,33 @@ func (h *VariableHandler) handleGetVariable(w http.ResponseWriter, r *http.Reque
 }
 
 type variableLinks struct {
-	Self string `json:"self"`
-	Org  string `json:"org"`
+	Self   string `json:"self"`
+	Labels string `json:"labels"`
+	Org    string `json:"org"`
 }
 
 type variableResponse struct {
 	*platform.Variable
-	Links variableLinks `json:"links"`
+	Labels []platform.Label `json:"labels"`
+	Links  variableLinks    `json:"links"`
 }
 
-func newVariableResponse(m *platform.Variable) variableResponse {
-	return variableResponse{
+func newVariableResponse(m *platform.Variable, labels []*platform.Label) variableResponse {
+	res := variableResponse{
 		Variable: m,
+		Labels:   []platform.Label{},
 		Links: variableLinks{
-			Self: fmt.Sprintf("/api/v2/variables/%s", m.ID),
-			Org:  fmt.Sprintf("/api/v2/orgs/%s", m.OrganizationID),
+			Self:   fmt.Sprintf("/api/v2/variables/%s", m.ID),
+			Labels: fmt.Sprintf("/api/v2/variables/%s/labels", m.ID),
+			Org:    fmt.Sprintf("/api/v2/orgs/%s", m.OrganizationID),
 		},
 	}
+
+	for _, l := range labels {
+		res.Labels = append(res.Labels, *l)
+	}
+
+	return res
 }
 
 func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Request) {
@@ -223,8 +256,7 @@ func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err = encodeResponse(ctx, w, http.StatusCreated, newVariableResponse(req.variable))
-	if err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newVariableResponse(req.variable, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -278,7 +310,13 @@ func (h *VariableHandler) handlePatchVariable(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(variable))
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: variable.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(variable, labels))
 	if err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
@@ -340,7 +378,13 @@ func (h *VariableHandler) handlePutVariable(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(req.variable))
+	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: req.variable.ID})
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(req.variable, labels))
 	if err != nil {
 		logEncodingError(h.Logger, r, err)
 		return

@@ -58,8 +58,13 @@ func (c *Coordinator) claimExistingTasks() {
 				continue
 			}
 
-			t := task // Copy to avoid mistaken closure around task value.
-			if err := c.sch.ClaimTask(&t.Task, &t.Meta); err != nil {
+			t, err := backend.ToInfluxTask(&task.Task, &task.Meta)
+			if err != nil {
+				continue
+			}
+
+			// I may need a context with an auth here
+			if err := c.sch.ClaimTask(context.Background(), t); err != nil {
 				c.logger.Error("failed claim task", zap.Error(err))
 				continue
 			}
@@ -84,8 +89,11 @@ func (c *Coordinator) CreateTask(ctx context.Context, req backend.CreateTaskRequ
 	if err != nil {
 		return id, err
 	}
-
-	if err := c.sch.ClaimTask(task, meta); err != nil {
+	t, err := backend.ToInfluxTask(task, meta)
+	if err != nil {
+		return id, err
+	}
+	if err := c.sch.ClaimTask(ctx, t); err != nil {
 		_, delErr := c.Store.DeleteTask(ctx, id)
 		if delErr != nil {
 			return id, fmt.Errorf("schedule task failed: %s\n\tcleanup also failed: %s", err, delErr)
@@ -114,13 +122,18 @@ func (c *Coordinator) UpdateTask(ctx context.Context, req backend.UpdateTaskRequ
 		}
 	}
 
-	if err := c.sch.UpdateTask(task, meta); err != nil && err != backend.ErrTaskNotClaimed {
+	t, err := backend.ToInfluxTask(task, meta)
+	if err != nil {
+		return res, err
+	}
+
+	if err := c.sch.UpdateTask(ctx, t); err != nil && err != backend.ErrTaskNotClaimed {
 		return res, err
 	}
 
 	// If enabling the task, claim it after modifying the script.
 	if req.Status == backend.TaskActive {
-		if err := c.sch.ClaimTask(task, meta); err != nil && err != backend.ErrTaskAlreadyClaimed {
+		if err := c.sch.ClaimTask(ctx, t); err != nil && err != backend.ErrTaskAlreadyClaimed {
 			return res, err
 		}
 	}
@@ -162,9 +175,15 @@ func (c *Coordinator) ManuallyRunTimeRange(ctx context.Context, taskID platform.
 	if err != nil {
 		return r, err
 	}
-	t, m, err := c.Store.FindTaskByIDWithMeta(ctx, taskID)
+	task, meta, err := c.Store.FindTaskByIDWithMeta(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
-	return r, c.sch.UpdateTask(t, m)
+
+	t, err := backend.ToInfluxTask(task, meta)
+	if err != nil {
+		return nil, err
+	}
+
+	return r, c.sch.UpdateTask(ctx, t)
 }

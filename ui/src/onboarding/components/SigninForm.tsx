@@ -134,7 +134,7 @@ class SigninForm extends PureComponent<Props, State> {
     const {query} = this.props.location
 
     if (query && query.returnTo) {
-      router.push(query.returnTo)
+      router.replace(query.returnTo)
     } else {
       router.push('/')
     }

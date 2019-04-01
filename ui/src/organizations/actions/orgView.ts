@@ -5,21 +5,17 @@ import {
   ITask as Task,
   ITaskTemplate,
 } from '@influxdata/influx'
-import {Dashboard} from 'src/types'
 
 // API
 import {client} from 'src/utils/api'
-import {getDashboardsByOrgID} from 'src/dashboards/apis/v2/index'
 import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/templates/api'
 
 export enum ActionTypes {
   GetTasks = 'GET_TASKS',
   PopulateTasks = 'POPULATE_TASKS',
-  getDashboards = 'GET_DASHBOARDS',
-  PopulateDashboards = 'POPULATE_DASHBOARDS',
 }
 
-export type Actions = PopulateTasks | PopulateDashboards
+export type Actions = PopulateTasks
 
 export interface PopulateTasks {
   type: ActionTypes.PopulateTasks
@@ -34,23 +30,6 @@ export const populateTasks = (tasks: Task[]): PopulateTasks => ({
 export const getTasks = (orgID: string) => async dispatch => {
   const tasks = await client.tasks.getAllByOrgID(orgID)
   dispatch(populateTasks(tasks))
-}
-
-export interface PopulateDashboards {
-  type: ActionTypes.PopulateDashboards
-  payload: {dashboards: Dashboard[]}
-}
-
-export const populateDashboards = (
-  dashboards: Dashboard[]
-): PopulateDashboards => ({
-  type: ActionTypes.PopulateDashboards,
-  payload: {dashboards},
-})
-
-export const getDashboards = (orgID: string) => async dispatch => {
-  const dashboards = await getDashboardsByOrgID(orgID)
-  dispatch(populateDashboards(dashboards))
 }
 
 export const createScraper = (scraper: ScraperTargetRequest) => async () => {

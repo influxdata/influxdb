@@ -1,20 +1,15 @@
 // Libraries
 import React, {PureComponent} from 'react'
 
-interface PassedProps {
+interface Props {
   onSetActive: () => void
   name: string
   active: boolean
+  testID: string
 }
-
-interface DefaultProps {
-  testID?: string
-}
-
-type Props = PassedProps & DefaultProps
 
 export default class ToolbarTab extends PureComponent<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     testID: 'toolbar-tab',
   }
 

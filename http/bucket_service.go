@@ -120,7 +120,6 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(labelBackend))
 	h.HandlerFunc("DELETE", bucketsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
-	h.HandlerFunc("PATCH", bucketsIDLabelsIDPath, newPatchLabelHandler(labelBackend))
 
 	return h
 }

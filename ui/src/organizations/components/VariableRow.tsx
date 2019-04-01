@@ -1,26 +1,25 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {
-  IndexList,
-  Alignment,
-  ComponentSize,
-  ConfirmationButton,
-} from 'src/clockface'
+import {IndexList, Alignment, Context, IconFont} from 'src/clockface'
+import {ComponentColor} from '@influxdata/clockface'
 
 // Types
 import {Variable} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 
-interface Props {
+interface OwnProps {
   variable: Variable
   onDeleteVariable: (variable: Variable) => void
   onUpdateVariableName: (variable: Partial<Variable>) => void
   onEditVariable: (variable: Variable) => void
 }
 
-export default class VariableRow extends PureComponent<Props> {
+type Props = OwnProps & WithRouterProps
+
+class VariableRow extends PureComponent<Props> {
   public render() {
     const {variable, onDeleteVariable} = this.props
 
@@ -38,16 +37,36 @@ export default class VariableRow extends PureComponent<Props> {
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Left}>Query</IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-          <ConfirmationButton
-            size={ComponentSize.ExtraSmall}
-            text="Delete"
-            confirmText="Confirm"
-            onConfirm={onDeleteVariable}
-            returnValue={variable}
-          />
+          <Context>
+            <Context.Menu icon={IconFont.CogThick}>
+              <Context.Item label="Export" action={this.handleExport} />
+            </Context.Menu>
+            <Context.Menu
+              icon={IconFont.Trash}
+              color={ComponentColor.Danger}
+              testID="context-delete-menu"
+            >
+              <Context.Item
+                label="Delete"
+                action={onDeleteVariable}
+                value={variable}
+                testID="context-delete-task"
+              />
+            </Context.Menu>
+          </Context>
         </IndexList.Cell>
       </IndexList.Row>
     )
+  }
+
+  private handleExport = () => {
+    const {
+      router,
+      variable,
+      location: {pathname},
+    } = this.props
+
+    router.push(`${pathname}/${variable.id}/export`)
   }
 
   private handleUpdateVariableName = async (name: string) => {
@@ -60,3 +79,5 @@ export default class VariableRow extends PureComponent<Props> {
     this.props.onEditVariable(this.props.variable)
   }
 }
+
+export default withRouter<OwnProps>(VariableRow)

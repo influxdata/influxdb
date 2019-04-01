@@ -14,20 +14,15 @@ import {RemoteDataState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface PassedProps {
+interface Props {
   onUpdate: (name: string) => void
   name: string
+  noNameString: string
+  hrefValue: string
+  testID: string
   onEditName?: (e?: MouseEvent<HTMLAnchorElement>) => void
   placeholder?: string
-  noNameString: string
 }
-
-interface DefaultProps {
-  hrefValue?: string
-  testID?: string
-}
-
-type Props = PassedProps & DefaultProps
 
 interface State {
   isEditing: boolean
@@ -37,7 +32,7 @@ interface State {
 
 @ErrorHandling
 class EditableName extends Component<Props, State> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     hrefValue: '#',
     testID: 'editable-name',
   }

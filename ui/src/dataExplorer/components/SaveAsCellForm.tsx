@@ -234,7 +234,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   const {
     orgs,
-    dashboards,
+    dashboards: {list: dashboards},
     timeMachines: {
       timeMachines: {de},
     },

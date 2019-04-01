@@ -31,6 +31,7 @@ export default class Retention extends PureComponent<Props> {
       <>
         <Radio shape={ButtonShape.StretchToFit} customClass="retention--radio">
           <Radio.Button
+            id="never"
             active={type === null}
             onClick={this.handleRadioClick}
             value={null}
@@ -38,6 +39,7 @@ export default class Retention extends PureComponent<Props> {
             Never
           </Radio.Button>
           <Radio.Button
+            id="intervals"
             active={type === BucketRetentionRules.TypeEnum.Expire}
             onClick={this.handleRadioClick}
             value={BucketRetentionRules.TypeEnum.Expire}

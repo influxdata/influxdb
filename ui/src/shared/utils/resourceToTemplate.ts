@@ -29,6 +29,18 @@ const blankTaskTemplate = () => {
   }
 }
 
+const blankVariableTemplate = () => {
+  const baseTemplate = blankTemplate()
+  return {
+    ...baseTemplate,
+    content: {
+      ...baseTemplate.content,
+      data: {...baseTemplate.content.data, type: TemplateType.Variable},
+    },
+    labels: [],
+  }
+}
+
 const blankDashboardTemplate = () => {
   const baseTemplate = blankTemplate()
   return {
@@ -137,6 +149,41 @@ const cellToRelationship = (cell: Cell) => ({
   type: TemplateType.Cell,
   id: cell.id,
 })
+
+export const variableToTemplate = (
+  v: Variable,
+  dependencies: Variable[],
+  baseTemplate = blankVariableTemplate()
+) => {
+  const variableName = _.get(v, 'name', '')
+  const templateName = `${variableName}-Template`
+  const variableData = variableToIncluded(v)
+  const dependencyRelationships = dependencies.map(d =>
+    variableToRelationship(d)
+  )
+  const includedDependencies = dependencies.map(d => variableToIncluded(d))
+  return {
+    ...baseTemplate,
+    meta: {
+      ...baseTemplate.meta,
+      name: templateName,
+      description: `template created from variable: ${variableName}`,
+    },
+    content: {
+      ...baseTemplate.content,
+      data: {
+        ...baseTemplate.content.data,
+        ...variableData,
+        relationships: {
+          [TemplateType.Variable]: {
+            data: [...dependencyRelationships],
+          },
+        },
+      },
+      included: [...includedDependencies],
+    },
+  }
+}
 
 const variableToIncluded = (v: Variable) => {
   const variableAttributes = _.pick(v, ['name', 'arguments', 'selected'])

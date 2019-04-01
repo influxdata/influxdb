@@ -19,21 +19,14 @@ import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
 // Constants
 import {LINE_COLORS, LABEL_WIDTH, CHAR_PIXELS} from 'src/shared/graphs/helpers'
 import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
-import {
-  AXES_SCALE_OPTIONS,
-  DEFAULT_AXIS,
-} from 'src/dashboards/constants/cellEditor'
+import {DEFAULT_AXIS} from 'src/dashboards/constants/cellEditor'
 
 // Types
-import {Axes, TimeRange} from 'src/types'
+import {Axes, TimeRange, Base, Scale, DashboardQuery, Color} from 'src/types'
 import {DygraphData, Options, SeriesLegendData} from 'src/external/dygraph'
-import {Color} from 'src/types/colors'
-import {DashboardQuery} from 'src/types/dashboards'
 import {SeriesDescription} from 'src/shared/parsing/flux/spreadTables'
 
 const getRangeMemoizedY = memoizeOne(getRange)
-
-const {LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 const DEFAULT_DYGRAPH_OPTIONS = {
   yRangePad: 10,
@@ -55,20 +48,18 @@ interface LegendData {
 }
 
 interface OwnProps {
+  axes: Axes
   viewID: string
-  queries?: DashboardQuery[]
-  timeSeries: DygraphData
-  labels: string[]
-  seriesDescriptions: SeriesDescription[]
-  options?: Partial<Options>
   colors: Color[]
-  timeRange?: TimeRange
-  axes?: Axes
-  isGraphFilled?: boolean
-  onZoom?: (timeRange: TimeRange) => void
+  labels: string[]
+  timeSeries: DygraphData
+  options: Partial<Options>
+  seriesDescriptions: SeriesDescription[]
+  onZoom: (timeRange: TimeRange) => void
   mode?: string
-  underlayCallback?: () => void
+  timeRange?: TimeRange
   children?: JSX.Element
+  queries?: DashboardQuery[]
 }
 
 type Props = OwnProps & InjectedHoverProps
@@ -85,24 +76,23 @@ interface State {
 
 @ErrorHandling
 class Dygraph extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
+    onZoom: () => {},
     axes: {
       x: {
-        bounds: [null, null],
+        prefix: '',
+        suffix: '',
+        base: Base.Ten,
+        scale: Scale.Linear,
+        label: '',
         ...DEFAULT_AXIS,
+        bounds: [null, null] as [null, null],
       },
       y: {
-        bounds: [null, null],
         ...DEFAULT_AXIS,
-      },
-      y2: {
-        bounds: undefined,
-        ...DEFAULT_AXIS,
+        bounds: [null, null] as [null, null],
       },
     },
-    isGraphFilled: true,
-    onZoom: () => {},
-    underlayCallback: () => {},
     options: {},
   }
 
@@ -244,7 +234,7 @@ class Dygraph extends Component<Props, State> {
     const [min, max] = range
 
     // Bug in Dygraph calculates a negative range for logscale when min range is 0
-    if (y.scale === LOG && min <= 0) {
+    if (y.scale === Scale.Log && min <= 0) {
       range = [0.01, max]
     }
 
@@ -282,8 +272,6 @@ class Dygraph extends Component<Props, State> {
     const {
       labels,
       axes: {y},
-      underlayCallback,
-      isGraphFilled,
       options: passedOptions,
     } = this.props
 
@@ -298,18 +286,17 @@ class Dygraph extends Component<Props, State> {
 
     const options = {
       labels,
-      underlayCallback,
       colors,
       file: timeSeries as any,
       zoomCallback: handleZoom,
-      fillGraph: isGraphFilled,
-      logscale: y.scale === LOG,
+      fillGraph: true,
+      logscale: y.scale === Scale.Log,
       ylabel: yLabel,
       axes: {
         y: {
           axisLabelWidth: labelWidth,
-          labelsKMB: y.base === BASE_10,
-          labelsKMG2: y.base === BASE_2,
+          labelsKMB: y.base === Base.Ten,
+          labelsKMG2: y.base === Base.Two,
           axisLabelFormatter: formatYVal,
           valueRange: this.getYRange(timeSeries),
         },
@@ -400,4 +387,4 @@ class Dygraph extends Component<Props, State> {
   }
 }
 
-export default withHoverTime(Dygraph)
+export default withHoverTime<OwnProps>(Dygraph)

@@ -21,7 +21,6 @@ import {
   incrementCurrentStepIndex,
   decrementCurrentStepIndex,
 } from 'src/dataLoaders/actions/steps'
-import {createDashboardsForPlugins as createDashboardsForPluginsAction} from 'src/protos/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // APIs
@@ -52,7 +51,6 @@ interface DispatchProps {
   onDecrementStep: typeof decrementCurrentStepIndex
   notify: typeof notifyAction
   onSaveTelegrafConfig: typeof createOrUpdateTelegrafConfigAsync
-  createDashboardsForPlugins: typeof createDashboardsForPluginsAction
 }
 
 interface StateProps {
@@ -244,7 +242,6 @@ const mdtp: DispatchProps = {
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
   onSetPluginConfiguration: setPluginConfiguration,
   onSaveTelegrafConfig: createOrUpdateTelegrafConfigAsync,
-  createDashboardsForPlugins: createDashboardsForPluginsAction,
   notify: notifyAction,
 }
 

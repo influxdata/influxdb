@@ -54,11 +54,7 @@ export default class OrgTemplatesList extends PureComponent<Props, State> {
           </ResourceList.Header>
           <ResourceList.Body
             emptyState={
-              <EmptyTemplatesList
-                searchTerm={searchTerm}
-                onCreate={onImport}
-                onImport={onImport}
-              />
+              <EmptyTemplatesList searchTerm={searchTerm} onImport={onImport} />
             }
           >
             {this.sortedCards}

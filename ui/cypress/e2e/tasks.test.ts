@@ -21,7 +21,7 @@ describe('Tasks', () => {
     cy.getByTestID('dropdown--item New Task').click()
 
     cy.getByInputName('name').type(taskName)
-    cy.getByInputName('interval').type('1d')
+    cy.getByInputName('interval').type('24h')
     cy.getByInputName('offset').type('20m')
 
     cy.get<Bucket>('@bucket').then(({name}) => {
@@ -103,7 +103,7 @@ describe('Tasks', () => {
     cy.getByTestID('dropdown--item New Task').click()
 
     cy.getByInputName('name').type('🦄ask')
-    cy.getByInputName('interval').type('1d')
+    cy.getByInputName('interval').type('24h')
     cy.getByInputName('offset').type('20m')
 
     cy.getByTestID('flux-editor').within(() => {

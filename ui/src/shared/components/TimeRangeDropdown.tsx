@@ -4,7 +4,7 @@ import {get} from 'lodash'
 import moment from 'moment'
 
 // Components
-import {Dropdown} from 'src/clockface'
+import {Dropdown, DropdownMode} from 'src/clockface'
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
 // Constants
@@ -55,7 +55,9 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
             selectedID={timeRange.label}
             onChange={this.handleChange}
             widthPixels={this.dropdownWidth}
+            menuWidthPixels={this.dropdownWidth + 50}
             titleText={this.formattedCustomTimeRange}
+            mode={DropdownMode.ActionList}
           >
             {TIME_RANGES.map(({label}) => {
               if (label === TIME_RANGE_LABEL) {
@@ -143,7 +145,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
   }
 
   private handleHideDatePicker = () => {
-    this.setState({isDatePickerOpen: false, dropdownPosition: null})
+    this.setState({isDatePickerOpen: false, dropdownPosition: undefined})
   }
 
   private handleChange = (label: string): void => {

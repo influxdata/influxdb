@@ -7,8 +7,8 @@ import {
 } from 'src/shared/constants/thresholds'
 
 // Types
-import {ViewType, ViewShape} from 'src/types'
-import {HistogramPosition} from 'src/minard'
+import {ViewType, ViewShape, Base, Scale} from 'src/types'
+import {HistogramPosition} from '@influxdata/vis'
 import {
   XYView,
   XYViewGeom,
@@ -22,6 +22,7 @@ import {
   ViewProperties,
   DashboardQuery,
   QueryEditMode,
+  BuilderConfig,
 } from 'src/types/dashboards'
 
 function defaultView() {
@@ -35,12 +36,12 @@ export function defaultViewQuery(): DashboardQuery {
     name: '',
     text: '',
     editMode: QueryEditMode.Builder,
-    builderConfig: {
-      buckets: [],
-      tags: [{key: '_measurement', values: []}],
-      functions: [],
-    },
+    builderConfig: defaultBuilderConfig(),
   }
+}
+
+export function defaultBuilderConfig(): BuilderConfig {
+  return {buckets: [], tags: [{key: '_measurement', values: []}], functions: []}
 }
 
 function defaultLineViewProperties() {
@@ -56,24 +57,16 @@ function defaultLineViewProperties() {
         label: '',
         prefix: '',
         suffix: '',
-        base: '10',
-        scale: 'linear',
+        base: Base.Ten,
+        scale: Scale.Linear,
       },
       y: {
         bounds: ['', ''] as [string, string],
         label: '',
         prefix: '',
         suffix: '',
-        base: '10',
-        scale: 'linear',
-      },
-      y2: {
-        bounds: ['', ''] as [string, string],
-        label: '',
-        prefix: '',
-        suffix: '',
-        base: '10',
-        scale: 'linear',
+        base: Base.Ten,
+        scale: Scale.Linear,
       },
     },
   }

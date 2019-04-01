@@ -13,7 +13,7 @@ import persistStateEnhancer from './persistStateEnhancer'
 import meReducer from 'src/shared/reducers/v2/me'
 import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
-import dashboardsReducer from 'src/dashboards/reducers/dashboards'
+import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
 import viewsReducer from 'src/dashboards/reducers/views'
 import {timeMachinesReducer} from 'src/timeMachine/reducers'
 import orgsReducer from 'src/organizations/reducers/orgs'
@@ -21,7 +21,6 @@ import orgViewReducer from 'src/organizations/reducers/orgView'
 import onboardingReducer from 'src/onboarding/reducers'
 import noteEditorReducer from 'src/dashboards/reducers/notes'
 import dataLoadingReducer from 'src/dataLoaders/reducers'
-import protosReducer from 'src/protos/reducers'
 import {variablesReducer} from 'src/variables/reducers'
 import {labelsReducer} from 'src/labels/reducers'
 import {bucketsReducer} from 'src/buckets/reducers'
@@ -51,7 +50,6 @@ export const rootReducer = combineReducers<ReducerState>({
   onboarding: onboardingReducer,
   noteEditor: noteEditorReducer,
   dataLoading: dataLoadingReducer,
-  protos: protosReducer,
   variables: variablesReducer,
   labels: labelsReducer,
   buckets: bucketsReducer,

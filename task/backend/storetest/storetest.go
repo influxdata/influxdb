@@ -12,6 +12,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/snowflake"
 	"github.com/influxdata/influxdb/task/backend"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 var idGen = snowflake.NewIDGenerator()
@@ -522,8 +523,15 @@ from(bucket:"test") |> range(start:-1h)`
 		if meta.EffectiveCron != "* * * * *" {
 			t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
 		}
-
-		if time.Duration(meta.Offset)*time.Second != 5*time.Second {
+		duration := options.Duration{}
+		if err := duration.Parse(meta.Offset); err != nil {
+			t.Fatal(err)
+		}
+		dur, err := duration.DurationFrom(time.Now()) // is time.Now() the best option here
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dur != 5*time.Second {
 			t.Fatalf("unexpected delay stored in meta: %v", meta.Offset)
 		}
 
@@ -683,7 +691,12 @@ from(bucket:"test") |> range(start:-1h)`
 		t.Fatalf("unexpected cron stored in meta: %q", meta.EffectiveCron)
 	}
 
-	if time.Duration(meta.Offset)*time.Second != 5*time.Second {
+	duration := options.Duration{}
+
+	if err := duration.Parse(meta.Offset); err != nil {
+		t.Fatal(err)
+	}
+	if duration.String() != "5s" {
 		t.Fatalf("unexpected delay stored in meta: %v", meta.Offset)
 	}
 

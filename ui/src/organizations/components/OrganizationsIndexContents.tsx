@@ -14,6 +14,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Organization} from 'src/types'
 import {Alignment, ComponentSize} from '@influxdata/clockface'
 import {deleteOrg} from 'src/organizations/actions/orgs'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 interface Props {
   orgs: Organization[]
@@ -47,13 +48,15 @@ class OrganizationsPageContents extends Component<Props> {
           <Link to={`/organizations/${o.id}/members`}>{o.name}</Link>
         </IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-          <ConfirmationButton
-            confirmText="Confirm"
-            text="Delete"
-            size={ComponentSize.ExtraSmall}
-            returnValue={o}
-            onConfirm={onDeleteOrg}
-          />
+          <CloudExclude>
+            <ConfirmationButton
+              confirmText="Confirm"
+              text="Delete"
+              size={ComponentSize.ExtraSmall}
+              returnValue={o}
+              onConfirm={onDeleteOrg}
+            />
+          </CloudExclude>
         </IndexList.Cell>
       </IndexList.Row>
     ))

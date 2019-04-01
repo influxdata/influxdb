@@ -12,6 +12,7 @@ import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 interface OwnProps {
   isHidden: boolean
@@ -80,30 +81,32 @@ class SideNav extends PureComponent<Props> {
           location={location.pathname}
           highlightPaths={['configuration']}
         >
-          <NavMenu.SubItem
-            title="Buckets"
-            link="/configuration/buckets_tab"
-            location={location.pathname}
-            highlightPaths={['buckets_tab']}
-          />
-          <NavMenu.SubItem
-            title="Telegrafs"
-            link="/configuration/telegrafs_tab"
-            location={location.pathname}
-            highlightPaths={['telegrafs_tab']}
-          />
-          <NavMenu.SubItem
-            title="Scrapers"
-            link="/configuration/scrapers_tab"
-            location={location.pathname}
-            highlightPaths={['scrapers_tab']}
-          />
-          <NavMenu.SubItem
-            title="Variables"
-            link="/configuration/variables_tab"
-            location={location.pathname}
-            highlightPaths={['variables_tab']}
-          />
+          <CloudExclude>
+            <NavMenu.SubItem
+              title="Buckets"
+              link="/configuration/buckets_tab"
+              location={location.pathname}
+              highlightPaths={['buckets_tab']}
+            />
+            <NavMenu.SubItem
+              title="Telegrafs"
+              link="/configuration/telegrafs_tab"
+              location={location.pathname}
+              highlightPaths={['telegrafs_tab']}
+            />
+            <NavMenu.SubItem
+              title="Scrapers"
+              link="/configuration/scrapers_tab"
+              location={location.pathname}
+              highlightPaths={['scrapers_tab']}
+            />
+            <NavMenu.SubItem
+              title="Variables"
+              link="/configuration/variables_tab"
+              location={location.pathname}
+              highlightPaths={['variables_tab']}
+            />
+          </CloudExclude>
           <NavMenu.SubItem
             title="Profile"
             link="/configuration/settings_tab"

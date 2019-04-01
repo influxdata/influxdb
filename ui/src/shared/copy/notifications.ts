@@ -845,6 +845,16 @@ export const createTemplateFailed = (error: string): Notification => ({
   message: `Failed to export resource as template: ${error}`,
 })
 
+export const updateTemplateSucceeded = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Successfully updated template.`,
+})
+
+export const updateTemplateFailed = (error: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update template: ${error}`,
+})
+
 export const deleteTemplateFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete template: ${error}`,

@@ -12,19 +12,14 @@ import CopyButton from 'src/shared/components/CopyButton'
 // Styles
 import 'src/shared/components/CodeSnippet.scss'
 
-export interface PassedProps {
+export interface Props {
   copyText: string
+  label: string
 }
-
-interface DefaultProps {
-  label?: string
-}
-
-type Props = PassedProps & DefaultProps
 
 @ErrorHandling
 class CodeSnippet extends PureComponent<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     label: 'Code Snippet',
   }
 

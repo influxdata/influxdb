@@ -145,7 +145,6 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(labelBackend))
 	h.HandlerFunc("DELETE", tasksIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
-	h.HandlerFunc("PATCH", tasksIDLabelsIDPath, newPatchLabelHandler(labelBackend))
 
 	return h
 }

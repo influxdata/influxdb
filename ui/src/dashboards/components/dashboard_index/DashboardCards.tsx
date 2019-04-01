@@ -84,7 +84,7 @@ class DashboardCards extends PureComponent<Props> {
 
 const mstp = (state: AppState, props: OwnProps) => {
   return {
-    sortedIDs: getSortedResource(state.dashboards, props),
+    sortedIDs: getSortedResource(state.dashboards.list, props),
   }
 }
 

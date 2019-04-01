@@ -39,28 +39,31 @@ type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
 @ErrorHandling
 class OrgVariablesIndex extends Component<Props> {
   public render() {
-    const {org} = this.props
+    const {org, children} = this.props
 
     return (
-      <Page titleTag={org.name}>
-        <OrgHeader orgID={org.id} />
-        <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-12">
-            <Tabs>
-              <OrganizationNavigation tab="variables" orgID={org.id} />
-              <Tabs.TabContents>
-                <TabbedPageSection
-                  id="org-view-tab--variables"
-                  url="variables"
-                  title="Variables"
-                >
-                  <Variables org={org} />
-                </TabbedPageSection>
-              </Tabs.TabContents>
-            </Tabs>
-          </div>
-        </Page.Contents>
-      </Page>
+      <>
+        <Page titleTag={org.name}>
+          <OrgHeader orgID={org.id} />
+          <Page.Contents fullWidth={false} scrollable={true}>
+            <div className="col-xs-12">
+              <Tabs>
+                <OrganizationNavigation tab="variables" orgID={org.id} />
+                <Tabs.TabContents>
+                  <TabbedPageSection
+                    id="org-view-tab--variables"
+                    url="variables"
+                    title="Variables"
+                  >
+                    <Variables org={org} />
+                  </TabbedPageSection>
+                </Tabs.TabContents>
+              </Tabs>
+            </div>
+          </Page.Contents>
+        </Page>
+        {children}
+      </>
     )
   }
 }

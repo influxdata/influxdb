@@ -1,7 +1,7 @@
 import React, {useRef, SFC} from 'react'
 import {createPortal} from 'react-dom'
 import {uniq, flatten} from 'lodash'
-import {HistogramTooltipProps, useTooltipStyle} from 'src/minard'
+import {HistogramTooltipProps, useTooltipStyle} from '@influxdata/vis'
 import {format} from 'd3-format'
 
 import {TOOLTIP_PORTAL_ID} from 'src/shared/components/TooltipPortal'

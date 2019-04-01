@@ -14,14 +14,23 @@ import {
   createVariableSuccess,
   updateVariableSuccess,
 } from 'src/shared/copy/notifications'
+import {setExportTemplate} from 'src/templates/actions'
+
+// APIs
+import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
 
 // Utils
 import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
+import {findDependentVariables} from 'src/variables/utils/hydrateVars'
+
+// Constants
+import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {Dispatch} from 'redux-thunk'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, VariableTemplate} from 'src/types'
 import {GetState} from 'src/types'
 import {Variable} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
@@ -174,6 +183,26 @@ export const createVariable = (variable: Variable) => async (
   }
 }
 
+export const createVariableFromTemplate = (
+  template: VariableTemplate,
+  orgID: string
+) => async (dispatch: Dispatch<Action>) => {
+  try {
+    const createdVariable = await createVariableFromTemplateAJAX(
+      template,
+      orgID
+    )
+
+    dispatch(
+      setVariable(createdVariable.id, RemoteDataState.Done, createdVariable)
+    )
+    dispatch(notify(createVariableSuccess(createdVariable.name)))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(createVariableFailed(e.response.data.message)))
+  }
+}
+
 export const updateVariable = (id: string, props: Partial<Variable>) => async (
   dispatch: Dispatch<Action>
 ) => {
@@ -244,5 +273,25 @@ export const refreshVariableValues = (
 
     console.error(e)
     dispatch(setValues(contextID, RemoteDataState.Error))
+  }
+}
+
+export const convertToTemplate = (variableID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    dispatch(setExportTemplate(RemoteDataState.Loading))
+
+    const variable = await client.variables.get(variableID)
+    const allVariables = await client.variables.getAll()
+
+    const dependencies = findDependentVariables(variable, allVariables)
+    const variableTemplate = variableToTemplate(variable, dependencies)
+    const orgID = variable.orgID // TODO remove when org is implicit app state
+
+    dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate, orgID))
+  } catch (error) {
+    dispatch(setExportTemplate(RemoteDataState.Error))
+    dispatch(notify(copy.createTemplateFailed(error)))
   }
 }

@@ -11,17 +11,13 @@ import FormFooter from 'src/clockface/components/form_layout/FormFooter'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface PassedProps {
+interface Props {
   children: JSX.Element[] | JSX.Element
   style?: React.CSSProperties
   className?: string
   onSubmit?: (e: React.FormEvent) => void
+  testID: string
 }
-interface DefaultProps {
-  testID?: string
-}
-
-type Props = PassedProps & DefaultProps
 
 interface BoxProps {
   children: JSX.Element | JSX.Element[]
@@ -36,7 +32,7 @@ class Form extends Component<Props> {
   public static Divider = FormDivider
   public static Footer = FormFooter
 
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     testID: 'form-container',
   }
 

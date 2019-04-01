@@ -11,19 +11,21 @@ import autoRefreshOptions, {
   AutoRefreshOption,
   AutoRefreshOptionType,
 } from 'src/shared/data/autoRefreshes'
+const DROPDOWN_WIDTH_COLLAPSED = 50
+const DROPDOWN_WIDTH_FULL = 84
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   selected: number
   onChoose: (milliseconds: number) => void
-  showManualRefresh?: boolean
+  showManualRefresh: boolean
   onManualRefresh?: () => void
 }
 
 @ErrorHandling
 class AutoRefreshDropdown extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     showManualRefresh: true,
   }
 
@@ -41,6 +43,7 @@ class AutoRefreshDropdown extends Component<Props> {
         <Dropdown
           icon={this.dropdownIcon}
           widthPixels={this.dropdownWidthPixels}
+          menuWidthPixels={DROPDOWN_WIDTH_FULL}
           onChange={this.handleDropdownChange}
           selectedID={this.selectedID}
         >
@@ -96,10 +99,10 @@ class AutoRefreshDropdown extends Component<Props> {
 
   private get dropdownWidthPixels(): number {
     if (this.isPaused) {
-      return 50
+      return DROPDOWN_WIDTH_COLLAPSED
     }
 
-    return 84
+    return DROPDOWN_WIDTH_FULL
   }
 
   private get selectedID(): string {

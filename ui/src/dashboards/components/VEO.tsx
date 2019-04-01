@@ -48,13 +48,14 @@ class VEO extends PureComponent<Props, State> {
   }
 
   public componentDidUpdate() {
-    if (
-      !this.state.hasActivatedTimeMachine &&
-      this.props.viewsStatus === RemoteDataState.Done
-    ) {
-      this.props.onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {
-        view: this.props.view,
-      })
+    const {view, onSetActiveTimeMachine} = this.props
+    const {hasActivatedTimeMachine} = this.state
+
+    const timeMachineShouldActivate =
+      !hasActivatedTimeMachine && this.loading === RemoteDataState.Done
+
+    if (timeMachineShouldActivate) {
+      onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
       this.setState({hasActivatedTimeMachine: true})
     }
   }

@@ -3,11 +3,9 @@ package influxdb_test
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/pkg/pointer"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/options"
 )
@@ -18,10 +16,10 @@ func TestOptionsMarshal(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{"every":"10s", "offset":"1h"}`), tu); err != nil {
 		t.Fatal(err)
 	}
-	if tu.Options.Every != 10*time.Second {
+	if tu.Options.Every.String() != "10s" {
 		t.Fatalf("option.every not properly unmarshaled, expected 10s got %s", tu.Options.Every)
 	}
-	if *tu.Options.Offset != time.Hour {
+	if tu.Options.Offset.String() != "1h" {
 		t.Fatalf("option.every not properly unmarshaled, expected 1h got %s", tu.Options.Offset)
 	}
 
@@ -38,22 +36,22 @@ func TestOptionsMarshal(t *testing.T) {
 
 func TestOptionsEdit(t *testing.T) {
 	tu := &platform.TaskUpdate{}
-	tu.Options.Every = 10 * time.Second
+	tu.Options.Every = *(options.MustParseDuration("10s"))
 	if err := tu.UpdateFlux(`option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 		t.Fatal(err)
 	}
 	t.Run("zeroing", func(t *testing.T) {
-		if tu.Options.Every != 0 {
-			t.Errorf("expected Every to be zeroed but it wasn't")
+		if !tu.Options.Every.IsZero() {
+			t.Errorf("expected Every to be zeroed but it was not")
 		}
 	})
 	t.Run("fmt string", func(t *testing.T) {
-		t.Skip("This won't work until the flux formatter formats durations in a nicer way")
 		expected := `option task = {every: 10s, name: "foo"}
-	from(bucket:"x")
-	|> range(start:-1h)`
+
+from(bucket: "x")
+	|> range(start: -1h)`
 		if *tu.Flux != expected {
-			t.Errorf("got the wrong task back, expected %s,\n got %s\n", expected, *tu.Flux)
+			t.Errorf("got the wrong task back, expected %s,\n got %s\n diff: %s", expected, *tu.Flux, cmp.Diff(expected, *tu.Flux))
 		}
 	})
 	t.Run("replacement", func(t *testing.T) {
@@ -61,15 +59,14 @@ func TestOptionsEdit(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		if op.Every != 10*time.Second {
+		if op.Every.String() != "10s" {
 			t.Logf("expected every to be 10s but was %s", op.Every)
 			t.Fail()
 		}
 	})
 	t.Run("add new option", func(t *testing.T) {
 		tu := &platform.TaskUpdate{}
-		ofst := 30 * time.Second
-		tu.Options.Offset = &ofst
+		tu.Options.Offset = options.MustParseDuration("30s")
 		if err := tu.UpdateFlux(`option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
 		}
@@ -77,7 +74,7 @@ func TestOptionsEdit(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		if op.Offset == nil || *op.Offset != 30*time.Second {
+		if op.Offset == nil || op.Offset.String() != "30s" {
 			t.Fatalf("expected every to be 30s but was %s", op.Every)
 		}
 	})
@@ -91,7 +88,7 @@ func TestOptionsEdit(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		if op.Every != 0 {
+		if !op.Every.IsZero() {
 			t.Fatalf("expected every to be 0 but was %s", op.Every)
 		}
 		if op.Cron != "* * * * *" {
@@ -100,7 +97,7 @@ func TestOptionsEdit(t *testing.T) {
 	})
 	t.Run("switching from cron to every", func(t *testing.T) {
 		tu := &platform.TaskUpdate{}
-		tu.Options.Every = 10 * time.Second
+		tu.Options.Every = *(options.MustParseDuration("10s"))
 		if err := tu.UpdateFlux(`option task = {cron: "* * * * *", name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
 		}
@@ -108,7 +105,7 @@ func TestOptionsEdit(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		if op.Every != 10*time.Second {
+		if op.Every.String() != "10s" {
 			t.Fatalf("expected every to be 10s but was %s", op.Every)
 		}
 		if op.Cron != "" {
@@ -117,7 +114,7 @@ func TestOptionsEdit(t *testing.T) {
 	})
 	t.Run("delete deletable option", func(t *testing.T) {
 		tu := &platform.TaskUpdate{}
-		tu.Options.Offset = pointer.Duration(0)
+		tu.Options.Offset = &options.Duration{}
 		expscript := `option task = {cron: "* * * * *", name: "foo"}
 
 from(bucket: "x")
@@ -129,7 +126,7 @@ from(bucket: "x")
 		if err != nil {
 			t.Error(err)
 		}
-		if op.Every != 0 {
+		if !op.Every.IsZero() {
 			t.Fatalf("expected every to be 0s but was %s", op.Every)
 		}
 		if op.Cron != "* * * * *" {
