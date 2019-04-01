@@ -554,7 +554,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.scheduler.Start(ctx)
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
-		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, store), lr, m.scheduler, authSvc, userResourceSvc, orgSvc)
+		taskSvc = task.PlatformAdapter(store, lr, m.scheduler, authSvc, userResourceSvc, orgSvc)
+		taskSvc = coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, taskSvc)
 		taskSvc = task.NewValidator(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
 		m.taskStore = store
 	}
