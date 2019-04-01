@@ -203,6 +203,36 @@ func TestProtoHandler(t *testing.T) {
 		`,
 			},
 		},
+		{
+			name: "create dashboard with proto not found",
+			fields: fields{
+				ProtoService: &mock.ProtoService{
+					CreateDashboardsFromProtoFn: func(ctx context.Context, protoID, orgID platform.ID) ([]*platform.Dashboard, error) {
+						return nil, &platform.Error{
+							Msg:  "proto not found",
+							Code: platform.ENotFound,
+						}
+					},
+				},
+			},
+			args: args{
+				method:   "POST",
+				endpoint: "/api/v2/protos/0000000000000001/dashboards",
+				body: &createProtoResourcesRequest{
+					OrganizationID: 1,
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json; charset=utf-8",
+				body: `
+		{
+			"code": "not found",
+			"message": "proto not found"
+		}
+		`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

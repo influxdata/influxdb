@@ -128,7 +128,10 @@ func (s *ProtoService) findProto(ctx context.Context, id platform.ID) (*platform
 		}
 	}
 
-	return nil, &platform.Error{Msg: "proto not found"}
+	return nil, &platform.Error{
+		Msg:  "proto not found",
+		Code: platform.ENotFound,
+	}
 }
 
 // CreateDashboardsFromProto creates instances of each dashboard in a proto.
