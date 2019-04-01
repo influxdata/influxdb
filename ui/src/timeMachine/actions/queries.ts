@@ -9,7 +9,6 @@ import {refreshVariableValues, selectValue} from 'src/variables/actions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {getActiveOrg} from 'src/organizations/selectors'
 import {getVariableAssignments} from 'src/variables/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
@@ -64,7 +63,7 @@ export const refreshTimeMachineVariableValues = () => async (
     ...view,
     properties: {...view.properties, queries: draftQueries},
   }
-  const orgID = getActiveOrg(getState()).id
+  const orgID = getState().orgs.org.id
   const variables = getVariablesForOrg(getState(), orgID)
   const variablesInUse = filterUnusedVars(variables, [view, draftView])
 
@@ -95,7 +94,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     await dispatch(refreshTimeMachineVariableValues())
 
-    const orgID = getActiveOrg(getState()).id
+    const orgID = getState().orgs.org.id
     const queryURL = getState().links.query.self
     const activeTimeMachineID = getState().timeMachines.activeTimeMachineID
     const variableAssignments = [
@@ -147,7 +146,7 @@ export const addVariableToTimeMachine = (variableID: string) => async (
   getState: GetState
 ) => {
   const contextID = getState().timeMachines.activeTimeMachineID
-  const orgID = getActiveOrg(getState()).id
+  const orgID = getState().orgs.org.id
 
   const variable = getVariable(getState(), variableID)
   const variables = getHydratedVariables(getState(), contextID)

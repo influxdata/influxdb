@@ -72,9 +72,8 @@ const mdtp: DispatchProps = {
   populateDashboards: getDashboardsAsync,
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {orgs} = state
-  return {orgs}
+const mstp = ({orgs: {items}}: AppState): StateProps => {
+  return {orgs: items}
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

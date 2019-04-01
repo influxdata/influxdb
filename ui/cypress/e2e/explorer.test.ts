@@ -18,8 +18,10 @@ describe('DataExplorer', () => {
       cy.wrap(body.org).as('org')
     })
 
-    cy.fixture('routes').then(({explorer}) => {
-      cy.visit(explorer)
+    cy.fixture('routes').then(({orgs, explorer}) => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.visit(`${orgs}/${id}${explorer}`)
+      })
     })
   })
 

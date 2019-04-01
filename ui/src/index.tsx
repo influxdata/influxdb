@@ -22,10 +22,6 @@ import Logout from 'src/Logout'
 import TaskPage from 'src/tasks/containers/TaskPage'
 import TasksPage from 'src/tasks/containers/TasksPage'
 import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
-import OrganizationsIndex from 'src/organizations/containers/OrganizationsIndex'
-import OrgTaskPage from 'src/organizations/components/OrgTaskPage'
-import OrgTaskEditPage from 'src/organizations/components/OrgTaskEditPage'
-import OrgBucketIndex from 'src/organizations/containers/OrgBucketsIndex'
 import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
@@ -39,24 +35,21 @@ import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
 import Notifications from 'src/shared/containers/Notifications'
 import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
-import OrgDashboardsIndex from 'src/organizations/containers/OrgDashboardsIndex'
-import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
-import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
-import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
-import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
-import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
-import OrgTasksIndex from 'src/organizations/containers/OrgTasksIndex'
 import TaskExportOverlay from 'src/organizations/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/organizations/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
-import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
-import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
-import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
-import CreateOrgOverlay from './organizations/components/CreateOrgOverlay'
-import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
-
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
+import OrgBucketsIndex from 'src/organizations/containers/OrgBucketsIndex'
+import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
+import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
+import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
+import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
+import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
+import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
+import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
+import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
+import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -114,92 +107,12 @@ class Root extends PureComponent {
                   <Route path="/logout" component={Logout} />
                 </Route>
               </Route>
-              <Route path="/">
-                <Route component={Signin}>
-                  <Route component={GetMe}>
-                    <Route component={GetOrganizations}>
-                      <Route component={App}>
+              <Route component={Signin}>
+                <Route component={GetMe}>
+                  <Route component={GetOrganizations}>
+                    <Route path="/">
+                      <Route path="orgs/:orgID" component={App}>
                         <IndexRoute component={MePage} />
-
-                        <Route
-                          path="organizations"
-                          component={OrganizationsIndex}
-                        >
-                          <Route path="new" component={CreateOrgOverlay} />
-                        </Route>
-
-                        <Route path="organizations">
-                          <IndexRoute component={OrganizationsIndex} />
-                          <Route component={OrganizationsIndex}>
-                            <Route path="new" component={CreateOrgOverlay} />
-                          </Route>
-                          <Route path=":orgID">
-                            <Route path="buckets" component={OrgBucketIndex} />
-                            <Route
-                              path="dashboards"
-                              component={OrgDashboardsIndex}
-                            >
-                              <Route
-                                path="import"
-                                component={DashboardImportOverlay}
-                              />
-                              <Route
-                                path=":dashboardID/export"
-                                component={DashboardExportOverlay}
-                              />
-                            </Route>
-                            <Route path="members" component={OrgMembersIndex} />
-                            <Route
-                              path="telegrafs"
-                              component={OrgTelegrafsIndex}
-                            />
-                            <Route
-                              path="templates"
-                              component={OrgTemplatesIndex}
-                            >
-                              <Route
-                                path="import"
-                                component={TemplateImportOverlay}
-                              />
-                              <Route
-                                path=":id/export"
-                                component={TemplateExportOverlay}
-                              />
-                            </Route>
-                            <Route
-                              path="variables"
-                              component={OrgVariablesIndex}
-                            >
-                              <Route
-                                path="import"
-                                component={VariableImportOverlay}
-                              />
-                              <Route
-                                path=":id/export"
-                                component={OrgVariableExportOverlay}
-                              />
-                            </Route>
-                            <Route
-                              path="scrapers"
-                              component={OrgScrapersIndex}
-                            />
-                            <Route path="tasks/new" component={OrgTaskPage} />
-                            <Route path="tasks" component={OrgTasksIndex}>
-                              <Route
-                                path="import"
-                                component={TaskImportOverlay}
-                              />
-                              <Route
-                                path=":id/export"
-                                component={TaskExportOverlay}
-                              />
-                            </Route>
-                            <Route
-                              path="tasks/:id"
-                              component={OrgTaskEditPage}
-                            />
-                          </Route>
-                        </Route>
                         <Route path="tasks" component={TasksPage}>
                           <Route
                             path=":id/export"
@@ -248,6 +161,32 @@ class Root extends PureComponent {
                           path="configuration/:tab"
                           component={ConfigurationPage}
                         />
+                        <Route path="settings">
+                          <IndexRoute component={OrgMembersIndex} />
+                        </Route>
+                        <Route path="buckets" component={OrgBucketsIndex} />
+                        <Route path="members" component={OrgMembersIndex} />
+                        <Route path="telegrafs" component={OrgTelegrafsIndex} />
+                        <Route path="templates" component={OrgTemplatesIndex}>
+                          <Route
+                            path="import"
+                            component={TemplateImportOverlay}
+                          />
+                          <Route
+                            path=":id/export"
+                            component={TemplateExportOverlay}
+                          />
+                        </Route>
+                        <Route path="variables" component={OrgVariablesIndex} />
+                        <Route
+                          path="import"
+                          component={VariableImportOverlay}
+                        />
+                        <Route
+                          path=":id/export"
+                          component={OrgVariableExportOverlay}
+                        />
+                        <Route path="scrapers" component={OrgScrapersIndex} />
                       </Route>
                     </Route>
                   </Route>

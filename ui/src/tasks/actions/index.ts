@@ -313,13 +313,15 @@ export const populateTasks = () => async (
   getState: GetStateFunc
 ): Promise<void> => {
   try {
-    const {orgs} = getState()
+    const {
+      orgs: {items},
+    } = getState()
 
     const user = await client.users.me()
     const tasks = await client.tasks.getAllByUser(user)
 
     const mappedTasks = tasks.map(task => {
-      const org = orgs.find(org => org.id === task.orgID)
+      const org = items.find(org => org.id === task.orgID)
 
       return {
         ...task,
@@ -407,13 +409,13 @@ export const updateScript = (route?: string) => async (
 export const saveNewScript = (
   script: string,
   preamble: string,
-  orgName: string,
+  orgID: string,
   route?: string
 ) => async (dispatch): Promise<void> => {
   try {
     const fluxScript = await insertPreambleInScript(script, preamble)
 
-    await client.tasks.create(orgName, fluxScript)
+    await client.tasks.createByOrgID(orgID, fluxScript)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())

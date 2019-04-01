@@ -12,7 +12,6 @@ import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 interface OwnProps {
   isHidden: boolean
@@ -24,17 +23,22 @@ type Props = OwnProps & WithRouterProps
 @ErrorHandling
 class SideNav extends PureComponent<Props> {
   public render() {
-    const {isHidden, me} = this.props
-    const {location} = this.props
+    const {
+      isHidden,
+      me,
+      params: {orgID},
+    } = this.props
     if (isHidden) {
       return null
     }
+
+    const orgPrefix = `/orgs/${orgID}`
 
     return (
       <NavMenu>
         <NavMenu.Item
           title={me.name}
-          link="/me"
+          link={`${orgPrefix}/me`}
           icon={IconFont.CuboNav}
           location={location.pathname}
           highlightPaths={['me', 'account']}
@@ -48,74 +52,41 @@ class SideNav extends PureComponent<Props> {
         </NavMenu.Item>
         <NavMenu.Item
           title="Data Explorer"
-          link="/data-explorer"
+          link={`${orgPrefix}/data-explorer`}
           icon={IconFont.GraphLine}
           location={location.pathname}
           highlightPaths={['data-explorer']}
         />
         <NavMenu.Item
           title="Dashboards"
-          link="/dashboards"
+          link={`${orgPrefix}/dashboards`}
           icon={IconFont.Dashboards}
           location={location.pathname}
           highlightPaths={['dashboards']}
         />
         <NavMenu.Item
           title="Tasks"
-          link="/tasks"
+          link={`${orgPrefix}/tasks`}
           icon={IconFont.Calendar}
           location={location.pathname}
           highlightPaths={['tasks']}
         />
         <NavMenu.Item
-          title="Organizations"
-          link="/organizations"
-          icon={IconFont.UsersDuo}
-          location={location.pathname}
-          highlightPaths={['organizations']}
-        />
-        <NavMenu.Item
-          title="Configuration"
-          link="/configuration/buckets_tab"
+          title="Settings"
+          link={`${orgPrefix}/settings`}
           icon={IconFont.Wrench}
           location={location.pathname}
-          highlightPaths={['configuration']}
+          highlightPaths={['settings']}
         >
-          <CloudExclude>
-            <NavMenu.SubItem
-              title="Buckets"
-              link="/configuration/buckets_tab"
-              location={location.pathname}
-              highlightPaths={['buckets_tab']}
-            />
-            <NavMenu.SubItem
-              title="Telegrafs"
-              link="/configuration/telegrafs_tab"
-              location={location.pathname}
-              highlightPaths={['telegrafs_tab']}
-            />
-            <NavMenu.SubItem
-              title="Scrapers"
-              link="/configuration/scrapers_tab"
-              location={location.pathname}
-              highlightPaths={['scrapers_tab']}
-            />
-            <NavMenu.SubItem
-              title="Variables"
-              link="/configuration/variables_tab"
-              location={location.pathname}
-              highlightPaths={['variables_tab']}
-            />
-          </CloudExclude>
           <NavMenu.SubItem
             title="Profile"
-            link="/configuration/settings_tab"
+            link={`${orgPrefix}/configuration/settings_tab`}
             location={location.pathname}
             highlightPaths={['settings_tab']}
           />
           <NavMenu.SubItem
             title="Tokens"
-            link="/configuration/tokens_tab"
+            link={`${orgPrefix}/configuration/tokens_tab`}
             location={location.pathname}
             highlightPaths={['tokens_tab']}
           />

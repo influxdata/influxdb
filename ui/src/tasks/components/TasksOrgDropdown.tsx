@@ -12,7 +12,7 @@ import {setDropdownOrgID as setDropdownOrgIDAction} from 'src/tasks/actions'
 import {defaultAllOrgs} from 'src/tasks/constants'
 
 // Types
-import {Organization} from 'src/types'
+import {Organization, AppState} from 'src/types'
 
 interface ConnectedDispatchProps {
   setDropdownOrgID: typeof setDropdownOrgIDAction
@@ -58,9 +58,12 @@ class TasksOrgDropdown extends PureComponent<Props> {
   }
 }
 
-const mstp = ({tasks: {dropdownOrgID}, orgs}): ConnectedStateProps => {
+const mstp = ({
+  tasks: {dropdownOrgID},
+  orgs: {items},
+}: AppState): ConnectedStateProps => {
   return {
-    orgs,
+    orgs: items,
     dropdownOrgID,
   }
 }
