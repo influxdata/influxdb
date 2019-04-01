@@ -1,6 +1,9 @@
 package influxdb
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Organization is an organization. 🎉
 type Organization struct {
@@ -51,4 +54,40 @@ type OrganizationUpdate struct {
 type OrganizationFilter struct {
 	Name *string
 	ID   *ID
+}
+
+// OrgLimits limits org resources.
+type OrgLimits struct {
+	// A duration of 0 means infinite retention.
+	MaxBucketRetention time.Duration `json:"maxBucketRetention"`
+}
+
+// ExceedsMaxBucketRetention returns if the duration provided exceeds the maximum
+// bucket retention length.
+func (l *OrgLimits) ExceedsMaxBucketRetention(d time.Duration) error {
+	if l.MaxBucketRetention == 0 {
+		return nil
+	}
+
+	if d == 0 && l.MaxBucketRetention != 0 {
+		return &Error{
+			Msg:  "bucket retention exceeds max bucket retention for the org",
+			Code: EForbidden,
+		}
+	}
+
+	if d > l.MaxBucketRetention {
+		return &Error{
+			Msg:  "bucket retention exceeds max bucket retention for the org",
+			Code: EForbidden,
+		}
+	}
+
+	return nil
+}
+
+// OrgLimitService is a service for managing org limits.
+type OrgLimitService interface {
+	GetOrgLimits(ctx context.Context, orgID ID) (*OrgLimits, error)
+	SetOrgLimits(ctx context.Context, orgID ID, l *OrgLimits) error
 }
