@@ -3,6 +3,7 @@ package coordinator_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,9 +32,12 @@ const script = `option task = {name: "a task",cron: "* * * * *"} from(bucket:"te
 func inmemTaskService() platform.TaskService {
 	gen := snowflake.NewDefaultIDGenerator()
 	tasks := map[platform.ID]*platform.Task{}
+	mu := sync.Mutex
 
 	ts := &pmock.TaskService{
 		CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+			mu.Lock()
+			defer mu.Unlock()
 			id := gen.ID()
 			task := &platform.Task{ID: id, Flux: tc.Flux, Status: tc.Status, OrganizationID: tc.OrganizationID, Organization: tc.Organization}
 			if task.Status == "" {
@@ -44,10 +48,14 @@ func inmemTaskService() platform.TaskService {
 			return tasks[id], nil
 		},
 		DeleteTaskFn: func(ctx context.Context, id platform.ID) error {
+			mu.Lock()
+			defer mu.Unlock()
 			delete(tasks, id)
 			return nil
 		},
 		UpdateTaskFn: func(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+			mu.Lock()
+			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
 				return nil, backend.ErrTaskNotFound
@@ -62,6 +70,8 @@ func inmemTaskService() platform.TaskService {
 			return t, nil
 		},
 		FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
+			mu.Lock()
+			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
 				return nil, backend.ErrTaskNotFound
@@ -69,6 +79,8 @@ func inmemTaskService() platform.TaskService {
 			return t, nil
 		},
 		FindTasksFn: func(ctx context.Context, tf platform.TaskFilter) ([]*platform.Task, int, error) {
+			mu.Lock()
+			defer mu.Unlock()
 			if tf.After != nil {
 				return []*platform.Task{}, 0, nil
 			}
@@ -79,6 +91,8 @@ func inmemTaskService() platform.TaskService {
 			return rtn, len(rtn), nil
 		},
 		ForceRunFn: func(ctx context.Context, id platform.ID, scheduledFor int64) (*platform.Run, error) {
+			mu.Lock()
+			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
 				return nil, backend.ErrTaskNotFound
