@@ -1,5 +1,3 @@
-/* eslint-disable */
-
 import 'babel-polyfill'
 
 import React, {PureComponent} from 'react'
@@ -100,7 +98,10 @@ class Root extends PureComponent {
             <Route component={Setup}>
               <Route path="/onboarding">
                 <Route path=":stepID" component={OnboardingWizardPage} />
-                <Route path=":stepID/:substepID" component={OnboardingWizardPage} />
+                <Route
+                  path=":stepID/:substepID"
+                  component={OnboardingWizardPage}
+                />
                 <Route component={Notifications}>
                   <Route path="/signin" component={SigninPage} />
                   <Route path="/logout" component={Logout} />
@@ -113,32 +114,53 @@ class Root extends PureComponent {
                       <Route path="orgs/:orgID" component={App}>
                         <IndexRoute component={MePage} />
                         <Route path="tasks" component={TasksPage}>
-                          <Route path=":id/export" component={TaskExportOverlay} />
+                          <Route
+                            path=":id/export"
+                            component={TaskExportOverlay}
+                          />
                           <Route path="import" component={TaskImportOverlay} />
                         </Route>
                         <Route path="tasks/:id/runs" component={TaskRunsPage} />
                         <Route path="tasks/new" component={TaskPage} />
                         <Route path="tasks/:id" component={TaskEditPage} />
-                        <Route path="data-explorer" component={DataExplorerPage} >
+                        <Route
+                          path="data-explorer"
+                          component={DataExplorerPage}
+                        >
                           <Route path="save" component={SaveAsOverlay} />
                         </Route>
                         <Route path="dashboards" component={DashboardsIndex}>
-                          <Route path="import" component={DashboardImportOverlay} />
-                          <Route path=":dashboardID/export" component={DashboardExportOverlay} />
+                          <Route
+                            path="import"
+                            component={DashboardImportOverlay}
+                          />
+                          <Route
+                            path=":dashboardID/export"
+                            component={DashboardExportOverlay}
+                          />
                         </Route>
-                        <Route path="dashboards/:dashboardID" component={DashboardPage} >
+                        <Route
+                          path="dashboards/:dashboardID"
+                          component={DashboardPage}
+                        >
                           <Route path="cells">
                             <Route path="new" component={VEO} />
                             <Route path=":cellID/edit" component={VEO} />
                           </Route>
                           <Route path="notes">
                             <Route path="new" component={NoteEditorOverlay} />
-                            <Route path=":cellID/edit" component={NoteEditorOverlay} />
+                            <Route
+                              path=":cellID/edit"
+                              component={NoteEditorOverlay}
+                            />
                           </Route>
                         </Route>
                         <Route path="me" component={MePage} />
                         <Route path="account/:tab" component={Account} />
-                        <Route path="configuration/:tab" component={ConfigurationPage} />
+                        <Route
+                          path="configuration/:tab"
+                          component={ConfigurationPage}
+                        />
                         <Route path="settings">
                           <IndexRoute component={OrgMembersIndex} />
                         </Route>
@@ -146,12 +168,24 @@ class Root extends PureComponent {
                         <Route path="members" component={OrgMembersIndex} />
                         <Route path="telegrafs" component={OrgTelegrafsIndex} />
                         <Route path="templates" component={OrgTemplatesIndex}>
-                          <Route path="import" component={TemplateImportOverlay} />
-                          <Route path=":id/export" component={TemplateExportOverlay} />
+                          <Route
+                            path="import"
+                            component={TemplateImportOverlay}
+                          />
+                          <Route
+                            path=":id/export"
+                            component={TemplateExportOverlay}
+                          />
                         </Route>
                         <Route path="variables" component={OrgVariablesIndex} />
-                          <Route path="import" component={VariableImportOverlay} />
-                          <Route path=":id/export" component={OrgVariableExportOverlay} />
+                        <Route
+                          path="import"
+                          component={VariableImportOverlay}
+                        />
+                        <Route
+                          path=":id/export"
+                          component={OrgVariableExportOverlay}
+                        />
                         <Route path="scrapers" component={OrgScrapersIndex} />
                       </Route>
                     </Route>

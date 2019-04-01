@@ -140,7 +140,7 @@ class DashboardIndex extends PureComponent<Props, State> {
       const newDashboard = {
         name: DEFAULT_DASHBOARD_NAME,
         cells: [],
-        orgID: orgID,
+        orgID,
       }
       const data = await createDashboard(newDashboard)
       router.push(`/orgs/${orgID}/dashboards/${data.id}`)

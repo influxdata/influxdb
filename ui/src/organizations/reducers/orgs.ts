@@ -58,8 +58,6 @@ export const orgsReducer = (state = defaultState, action: Actions): OrgsState =>
         })
         return
       }
-      default:
-        return
     }
   })
 
