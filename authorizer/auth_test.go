@@ -244,8 +244,8 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 			m.DeleteAuthorizationFn = func(ctx context.Context, id influxdb.ID) error {
 				return nil
 			}
-			m.UpdateAuthorizationFn = func(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) error {
-				return nil
+			m.UpdateAuthorizationFn = func(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+				return nil, nil
 			}
 			s := authorizer.NewAuthorizationService(m)
 
@@ -258,7 +258,7 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 			})
 
 			t.Run("update authorization", func(t *testing.T) {
-				err := s.UpdateAuthorization(ctx, 10, &influxdb.AuthorizationUpdate{Status: influxdb.Active.Ptr()})
+				_, err := s.UpdateAuthorization(ctx, 10, &influxdb.AuthorizationUpdate{Status: influxdb.Active.Ptr()})
 				influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 			})
 
