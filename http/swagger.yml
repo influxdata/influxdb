@@ -6777,7 +6777,12 @@ components:
         dashboards:
           type: array
           items:
-            $ref: "#/components/schemas/Dashboard"
+            $ref: "#/components/schemas/ProtoDashboard"
+    ProtoDashboard:
+      type: object
+      properties:
+        dashboard:
+          $ref: "#/components/schemas/Dashboard"
         views:
           type: object
           additionalProperties:
