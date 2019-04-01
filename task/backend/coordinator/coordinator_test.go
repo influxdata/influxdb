@@ -119,9 +119,12 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	task, err = timeoutSelector(createChan)
+	createdTask, err := timeoutSelector(createChan)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if task.ID != createdTask.ID {
+		t.Fatal("task given to scheduler not the same as task created")
 	}
 
 	if task.Flux != script {
