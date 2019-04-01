@@ -16,6 +16,7 @@ import (
 var (
 	organizationBucket = []byte("organizationsv1")
 	organizationIndex  = []byte("organizationindexv1")
+	orgLimitBucket     = []byte("orgs/limits/v1")
 )
 
 var _ influxdb.OrganizationService = (*Service)(nil)
@@ -28,6 +29,93 @@ func (s *Service) initializeOrgs(ctx context.Context, tx Tx) error {
 	if _, err := tx.Bucket(organizationIndex); err != nil {
 		return err
 	}
+	if _, err := tx.Bucket(orgLimitBucket); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) GetOrgLimits(ctx context.Context, orgID influxdb.ID) (*influxdb.OrgLimits, error) {
+	var l *influxdb.OrgLimits
+	err := s.kv.View(ctx, func(tx Tx) error {
+		lm, err := s.getOrgLimits(ctx, tx, orgID)
+		if err != nil {
+			return err
+		}
+
+		l = lm
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+func (s *Service) getOrgLimits(ctx context.Context, tx Tx, orgID influxdb.ID) (*influxdb.OrgLimits, error) {
+	if _, err := s.findOrganizationByID(ctx, tx, orgID); err != nil {
+		return nil, err
+	}
+
+	k, err := orgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := tx.Bucket(orgLimitBucket)
+	if err != nil {
+		return nil, err
+	}
+
+	v, err := b.Get(k)
+	if IsNotFound(err) {
+		return &influxdb.OrgLimits{}, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	l := &influxdb.OrgLimits{}
+	if err := json.Unmarshal(v, l); err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+func (s *Service) SetOrgLimits(ctx context.Context, orgID influxdb.ID, l *influxdb.OrgLimits) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
+		return s.setOrgLimits(ctx, tx, orgID, l)
+	})
+}
+
+func (s *Service) setOrgLimits(ctx context.Context, tx Tx, orgID influxdb.ID, l *influxdb.OrgLimits) error {
+	if _, err := s.findOrganizationByID(ctx, tx, orgID); err != nil {
+		return err
+	}
+
+	k, err := orgID.Encode()
+	if err != nil {
+		return err
+	}
+
+	b, err := tx.Bucket(orgLimitBucket)
+	if err != nil {
+		return err
+	}
+
+	v, err := json.Marshal(l)
+	if err != nil {
+		return err
+	}
+
+	if err := b.Put(k, v); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -379,7 +379,16 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 	defer span.Finish()
 
 	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.createBucket(ctx, tx, b)
+		if err := s.createBucket(ctx, tx, b); err != nil {
+			return err
+		}
+
+		// TODO(desa): we might want to do this check higher up in the stack since it should be possible,
+		// but for now this should be a good first pass.
+		if err := s.enforceBucketLimits(ctx, tx, b); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
@@ -601,11 +610,34 @@ func (s *Service) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb
 		if err != nil {
 			return err
 		}
+
+		// TODO(desa): we might want to do this check higher up in the stack since it should be possible,
+		// but for now this should be a good first pass.
+		if err := s.enforceBucketLimits(ctx, tx, bkt); err != nil {
+			return err
+		}
+
 		b = bkt
 		return nil
 	})
 
 	return b, err
+}
+
+func (s *Service) enforceBucketLimits(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	l, err := s.getOrgLimits(ctx, tx, b.OrganizationID)
+	if err != nil {
+		return err
+	}
+
+	if err := l.ExceedsMaxBucketRetention(b.RetentionPeriod); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
