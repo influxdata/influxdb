@@ -7637,7 +7637,7 @@ components:
           type: string
           enum:
             - ready
-        start:
+        started:
           type: string
           format: date-time
           example: "2019-03-13T10:09:33.891196-04:00"
