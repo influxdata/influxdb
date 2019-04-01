@@ -30,7 +30,7 @@ describe('tasksReducer', () => {
 
     it('clears the interval property from the task options when cron is selected', () => {
       const initialState = defaultState
-      initialState.taskOptions = {...defaultTaskOptions, interval: '1d'}
+      initialState.taskOptions = {...defaultTaskOptions, interval: '24h'} // todo(docmerlin): allow for time units larger than 1d, right now h is the longest unit our s
 
       const actual = tasksReducer(
         initialState,

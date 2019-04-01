@@ -2,7 +2,9 @@
 // Feel free to add more pointerification functions for more types as you need them.
 package pointer
 
-import "time"
+import (
+	"time"
+)
 
 // Duration returns a pointer to its argument.
 func Duration(d time.Duration) *time.Duration {
