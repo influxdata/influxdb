@@ -555,3 +555,163 @@ func TestOrgService_CreateOrganization(t *testing.T) {
 		})
 	}
 }
+
+func TestOrgLimitService_GetOrgLimits(t *testing.T) {
+	type fields struct {
+		OrgLimitService influxdb.OrgLimitService
+	}
+	type args struct {
+		permission influxdb.Permission
+		id         influxdb.ID
+	}
+	type wants struct {
+		err error
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "authorized to access id",
+			fields: fields{
+				OrgLimitService: &mock.OrganizationService{
+					GetOrgLimitsF: func(ctx context.Context, id influxdb.ID) (*influxdb.OrgLimits, error) {
+						return &influxdb.OrgLimits{}, nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: "read",
+					Resource: influxdb.Resource{
+						Type: influxdb.AnyResourceType,
+					},
+				},
+				id: 1,
+			},
+			wants: wants{
+				err: nil,
+			},
+		},
+		{
+			name: "unauthorized to access id",
+			fields: fields{
+				OrgLimitService: &mock.OrganizationService{
+					GetOrgLimitsF: func(ctx context.Context, id influxdb.ID) (*influxdb.OrgLimits, error) {
+						return &influxdb.OrgLimits{}, nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: "read",
+					Resource: influxdb.Resource{
+						Type: influxdb.OrgsResourceType,
+					},
+				},
+				id: 1,
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "read:any is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := authorizer.NewOrgLimitService(tt.fields.OrgLimitService)
+
+			ctx := context.Background()
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+
+			_, err := s.GetOrgLimits(ctx, tt.args.id)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+		})
+	}
+}
+
+func TestOrgLimitService_SetOrgLimits(t *testing.T) {
+	type fields struct {
+		OrgLimitService influxdb.OrgLimitService
+	}
+	type args struct {
+		permission influxdb.Permission
+		id         influxdb.ID
+	}
+	type wants struct {
+		err error
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "authorized to access id",
+			fields: fields{
+				OrgLimitService: &mock.OrganizationService{
+					SetOrgLimitsF: func(ctx context.Context, id influxdb.ID, l *influxdb.OrgLimits) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: "write",
+					Resource: influxdb.Resource{
+						Type: influxdb.AnyResourceType,
+					},
+				},
+				id: 1,
+			},
+			wants: wants{
+				err: nil,
+			},
+		},
+		{
+			name: "unauthorized to access id",
+			fields: fields{
+				OrgLimitService: &mock.OrganizationService{
+					SetOrgLimitsF: func(ctx context.Context, id influxdb.ID, l *influxdb.OrgLimits) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				permission: influxdb.Permission{
+					Action: "read",
+					Resource: influxdb.Resource{
+						Type: influxdb.AnyResourceType,
+					},
+				},
+				id: 1,
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Msg:  "write:any is unauthorized",
+					Code: influxdb.EUnauthorized,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := authorizer.NewOrgLimitService(tt.fields.OrgLimitService)
+
+			ctx := context.Background()
+			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
+
+			err := s.SetOrgLimits(ctx, tt.args.id, nil)
+			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
+		})
+	}
+}
