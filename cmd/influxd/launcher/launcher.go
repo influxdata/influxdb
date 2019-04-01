@@ -26,7 +26,6 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
-	protofs "github.com/influxdata/influxdb/fs"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
@@ -38,7 +37,6 @@ import (
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
 	infprom "github.com/influxdata/influxdb/prometheus"
-	"github.com/influxdata/influxdb/proto"
 	"github.com/influxdata/influxdb/query"
 	pcontrol "github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/snowflake"
@@ -173,12 +171,6 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:    "data store for secrets (bolt or vault)",
 		},
 		{
-			DestP:   &l.protosPath,
-			Flag:    "protos-path",
-			Default: filepath.Join(dir, "protos"),
-			Desc:    "path to protos on the filesystem",
-		},
-		{
 			DestP:   &l.reportingDisabled,
 			Flag:    "reporting-disabled",
 			Default: false,
@@ -206,7 +198,6 @@ type Launcher struct {
 	httpBindAddress string
 	boltPath        string
 	enginePath      string
-	protosPath      string
 	secretStore     string
 
 	boltClient    *bolt.Client
@@ -468,22 +459,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Load proto examples from the user data.
-	protoSvc := protofs.NewProtoService(m.protosPath, m.logger, dashboardSvc)
-	if err := protoSvc.Open(ctx); err != nil {
-		m.logger.Error("failed to read protos from the filesystem", zap.Error(err))
-		return err
-	}
-
-	// ... now, load the proto examples that are build with release.
-	protoData, err := proto.Load(m.logger)
-	if err != nil {
-		return err
-	}
-
-	// join the release proto examples with the user data examples.
-	protoSvc.WithProtos(protoData)
-
 	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
 	if err != nil {
 		m.logger.Error("failed creating chronograf service", zap.Error(err))
@@ -637,7 +612,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
-		ProtoService:                    protoSvc,
 		DocumentService:                 m.kvService,
 		OrgLookupService:                m.kvService,
 	}
