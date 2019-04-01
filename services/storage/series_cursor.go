@@ -7,10 +7,10 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/storage/reads/datatypes"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 

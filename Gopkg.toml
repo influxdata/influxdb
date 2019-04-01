@@ -72,11 +72,7 @@
 
 [[constraint]]
   name = "github.com/influxdata/flux"
-  version = "0.12.0"
-
-[[constraint]]
-  name = "github.com/influxdata/platform"
-  revision = "0f79e4ea3248354c789cba274542e0a8e55971db"
+  version = "= 0.23.0"
 
 [[constraint]]
   name = "github.com/spf13/cast"

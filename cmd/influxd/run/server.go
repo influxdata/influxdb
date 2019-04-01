@@ -31,9 +31,9 @@ import (
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
+	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/platform/storage/reads"
 	client "github.com/influxdata/usage-client/v1"
 	"go.uber.org/zap"
 
