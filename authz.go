@@ -120,8 +120,11 @@ const (
 	// LabelsResourceType gives permission to one or more labels.
 	LabelsResourceType = ResourceType("labels") // 11
 	// ViewsResourceType gives permission to one or more views.
-	ViewsResourceType     = ResourceType("views")     // 12
+	ViewsResourceType = ResourceType("views") // 12
+	// DocumentsResourceType gives permissions to view documents.
 	DocumentsResourceType = ResourceType("documents") // 13
+	// AnyResourceType gives permission to view any resource. This is used for super users.
+	AnyResourceType = ResourceType("any") // 14
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -178,6 +181,7 @@ func (t ResourceType) Valid() (err error) {
 	case LabelsResourceType: // 11
 	case ViewsResourceType: // 12
 	case DocumentsResourceType: // 13
+	case AnyResourceType: // 14
 	default:
 		err = ErrInvalidResourceType
 	}
@@ -197,7 +201,7 @@ func (p Permission) Matches(perm Permission) bool {
 		return false
 	}
 
-	if p.Resource.Type != perm.Resource.Type {
+	if p.Resource.Type != perm.Resource.Type && p.Resource.Type != AnyResourceType {
 		return false
 	}
 
@@ -309,11 +313,10 @@ func NewPermissionAtID(id ID, a Action, rt ResourceType, orgID ID) (*Permission,
 
 // OperPermissions are the default permissions for those who setup the application.
 func OperPermissions() []Permission {
+	// TODO(desa): I'm not sure if this will break things, but I'm going to give it a try.
 	ps := []Permission{}
-	for _, r := range AllResourceTypes {
-		for _, a := range actions {
-			ps = append(ps, Permission{Action: a, Resource: Resource{Type: r}})
-		}
+	for _, a := range actions {
+		ps = append(ps, Permission{Action: a, Resource: Resource{Type: AnyResourceType}})
 	}
 
 	return ps

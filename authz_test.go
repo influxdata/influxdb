@@ -15,6 +15,24 @@ func TestAuthorizer_PermissionAllowed(t *testing.T) {
 		allowed     bool
 	}{
 		{
+			name: "any permission",
+			permission: platform.Permission{
+				Action: platform.WriteAction,
+				Resource: platform.Resource{
+					Type: platform.BucketsResourceType,
+				},
+			},
+			permissions: []platform.Permission{
+				{
+					Action: platform.WriteAction,
+					Resource: platform.Resource{
+						Type: platform.AnyResourceType,
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
 			name: "global permission",
 			permission: platform.Permission{
 				Action: platform.WriteAction,
