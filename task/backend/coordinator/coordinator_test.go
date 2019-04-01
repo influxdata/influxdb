@@ -32,7 +32,7 @@ const script = `option task = {name: "a task",cron: "* * * * *"} from(bucket:"te
 func inmemTaskService() platform.TaskService {
 	gen := snowflake.NewDefaultIDGenerator()
 	tasks := map[platform.ID]*platform.Task{}
-	mu := sync.Mutex
+	mu := sync.Mutex{}
 
 	ts := &pmock.TaskService{
 		CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
