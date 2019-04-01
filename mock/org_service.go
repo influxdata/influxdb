@@ -2,10 +2,12 @@ package mock
 
 import (
 	"context"
+
 	platform "github.com/influxdata/influxdb"
 )
 
 var _ platform.OrganizationService = &OrganizationService{}
+var _ platform.OrgLimitService = &OrganizationService{}
 
 // OrganizationService is a mock organization server.
 type OrganizationService struct {
@@ -15,6 +17,8 @@ type OrganizationService struct {
 	CreateOrganizationF   func(ctx context.Context, b *platform.Organization) error
 	UpdateOrganizationF   func(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error)
 	DeleteOrganizationF   func(ctx context.Context, id platform.ID) error
+	GetOrgLimitsF         func(ctx context.Context, orgID platform.ID) (*platform.OrgLimits, error)
+	SetOrgLimitsF         func(ctx context.Context, orgID platform.ID, l *platform.OrgLimits) error
 }
 
 // NewOrganizationService returns a mock OrganizationService where its methods will return
@@ -64,4 +68,14 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 // DeleteOrganization calls DeleteOrganizationF.
 func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	return s.DeleteOrganizationF(ctx, id)
+}
+
+// GetOrgLimits calls GetOrgLimitsF.
+func (s *OrganizationService) GetOrgLimits(ctx context.Context, orgID platform.ID) (*platform.OrgLimits, error) {
+	return s.GetOrgLimitsF(ctx, orgID)
+}
+
+// SetOrgLimits calls SetOrgLimitsF.
+func (s *OrganizationService) SetOrgLimits(ctx context.Context, orgID platform.ID, l *platform.OrgLimits) error {
+	return s.SetOrgLimitsF(ctx, orgID, l)
 }
