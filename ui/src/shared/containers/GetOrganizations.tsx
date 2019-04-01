@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {useEffect, FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
@@ -16,7 +16,6 @@ import {
 } from 'src/organizations/actions/orgs'
 
 // Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
 import {InjectedRouter} from 'react-router'
 
 interface PassedInProps {
@@ -37,22 +36,22 @@ interface StateProps {
 
 type Props = StateProps & DispatchProps & PassedInProps
 
-@ErrorHandling
-class GetOrganizations extends PureComponent<Props> {
-  public componentDidMount() {
-    const {getOrganizations} = this.props
+const GetOrganizations: FunctionComponent<Props> = ({
+  status,
+  params: {orgID},
+  orgs,
+  router,
+  setOrg,
+  getOrganizations,
+  children,
+}) => {
+  useEffect(() => {
+    if (status === RemoteDataState.NotStarted) {
+      getOrganizations()
+    }
+  })
 
-    getOrganizations()
-  }
-
-  public componentDidUpdate() {
-    const {
-      router,
-      params: {orgID},
-      orgs,
-      setOrg,
-    } = this.props
-
+  useEffect(() => {
     // does orgID from url match any orgs that exist
     const org = orgs.find(o => o.id === orgID)
     const orgExists = !!orgID && !!org
@@ -62,19 +61,15 @@ class GetOrganizations extends PureComponent<Props> {
 
     if (!orgExists && orgs.length) {
       // default to first org
-      router.push(`org/${orgs[0].id}`)
+      router.push(`orgs/${orgs[0].id}`)
     }
-  }
+  }, [orgID, status])
 
-  public render() {
-    const {status} = this.props
-
-    return (
-      <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
-        {this.props.children && React.cloneElement(this.props.children)}
-      </SpinnerContainer>
-    )
-  }
+  return (
+    <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
+      {children && React.cloneElement(children)}
+    </SpinnerContainer>
+  )
 }
 
 const mdtp = {
