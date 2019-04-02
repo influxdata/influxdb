@@ -5,10 +5,6 @@ import "context"
 // OnboardingService represents a service for the first run.
 type OnboardingService interface {
 	PasswordsService
-	BucketService
-	OrganizationService
-	UserService
-	AuthorizationService
 
 	// IsOnboarding determine if onboarding request is allowed.
 	IsOnboarding(ctx context.Context) (bool, error)

@@ -332,6 +332,11 @@ func (c *Client) UpdateOrganization(ctx context.Context, id influxdb.ID, upd inf
 	return o, err
 }
 
+// UpdateOrgLimits updates an orgs limits. This code is not used and therefore panics.
+func (c *Client) UpdateOrgLimits(ctx context.Context, id influxdb.ID, l influxdb.OrgLimits) (*influxdb.Organization, error) {
+	panic("function should not be called")
+}
+
 func (c *Client) updateOrganization(ctx context.Context, tx *bolt.Tx, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, *influxdb.Error) {
 	o, pe := c.findOrganizationByID(ctx, tx, id)
 	if pe != nil {

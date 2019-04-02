@@ -21,7 +21,6 @@ type OrgBackend struct {
 	Logger *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
-	OrgLimitService                 influxdb.OrgLimitService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
 	UserResourceMappingService      influxdb.UserResourceMappingService
 	SecretService                   influxdb.SecretService
@@ -34,7 +33,6 @@ func NewOrgBackend(b *APIBackend) *OrgBackend {
 	return &OrgBackend{
 		Logger: b.Logger.With(zap.String("handler", "org")),
 
-		OrgLimitService:                 b.OrgLimitService,
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
 		UserResourceMappingService:      b.UserResourceMappingService,
@@ -51,7 +49,6 @@ type OrgHandler struct {
 	Logger *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
-	OrgLimitService                 influxdb.OrgLimitService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
 	UserResourceMappingService      influxdb.UserResourceMappingService
 	SecretService                   influxdb.SecretService
@@ -80,7 +77,6 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h := &OrgHandler{
 		Router:                          NewRouter(),
 		Logger:                          zap.NewNop(),
-		OrgLimitService:                 b.OrgLimitService,
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
 		UserResourceMappingService:      b.UserResourceMappingService,
@@ -96,7 +92,6 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
 
-	h.HandlerFunc("GET", organizationsIDLimitsPath, h.handleGetOrgLimits)
 	h.HandlerFunc("PUT", organizationsIDLimitsPath, h.handlePutOrgLimits)
 
 	memberBackend := MemberBackend{
@@ -173,6 +168,7 @@ func newOrgResponse(o *influxdb.Organization) *orgResponse {
 	return &orgResponse{
 		Links: map[string]string{
 			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
+			"limits":     fmt.Sprintf("/api/v2/orgs/%s/limits", o.ID),
 			"logs":       fmt.Sprintf("/api/v2/orgs/%s/logs", o.ID),
 			"members":    fmt.Sprintf("/api/v2/orgs/%s/members", o.ID),
 			"owners":     fmt.Sprintf("/api/v2/orgs/%s/owners", o.ID),
@@ -580,6 +576,10 @@ type OrganizationService struct {
 	OpPrefix string
 }
 
+func (s *OrganizationService) UpdateOrgLimits(ctx context.Context, id influxdb.ID, limits influxdb.OrgLimits) (*influxdb.Organization, error) {
+	panic("not implemented")
+}
+
 // FindOrganizationByID gets a single organization with a given id using HTTP.
 func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
 	filter := influxdb.OrganizationFilter{ID: &id}
@@ -894,67 +894,6 @@ func newOrganizationLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry
 	}
 }
 
-// handleGetOrgLimits retrieves a orgs limits.
-func (h *OrgHandler) handleGetOrgLimits(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	req, err := decodeGetOrgLimitsRequest(ctx, r)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	l, err := h.OrgLimitService.GetOrgLimits(ctx, req.OrgID)
-	if err != nil {
-		EncodeError(ctx, err, w)
-		return
-	}
-
-	if err := encodeResponse(ctx, w, http.StatusOK, newOrgLimitsResponse(req.OrgID, l)); err != nil {
-		logEncodingError(h.Logger, r, err)
-		return
-	}
-}
-
-type orgLimitsResponse struct {
-	Links map[string]string `json:"links"`
-	*influxdb.OrgLimits
-}
-
-func newOrgLimitsResponse(orgID influxdb.ID, l *influxdb.OrgLimits) *orgLimitsResponse {
-	return &orgLimitsResponse{
-		Links: map[string]string{
-			"org":  fmt.Sprintf("/api/v2/orgs/%s", orgID),
-			"self": fmt.Sprintf("/api/v2/orgs/%s/limits", orgID),
-		},
-		OrgLimits: l,
-	}
-}
-
-type getOrgLimitsRequest struct {
-	OrgID influxdb.ID
-}
-
-func decodeGetOrgLimitsRequest(ctx context.Context, r *http.Request) (*getOrgLimitsRequest, error) {
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "url missing org id",
-		}
-	}
-
-	var i influxdb.ID
-	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-
-	return &getOrgLimitsRequest{
-		OrgID: i,
-	}, nil
-}
-
 // handlePutOrgLimits sets a orgs limits.
 func (h *OrgHandler) handlePutOrgLimits(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -965,12 +904,13 @@ func (h *OrgHandler) handlePutOrgLimits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.OrgLimitService.SetOrgLimits(ctx, req.OrgID, req.Limits); err != nil {
+	o, err := h.OrganizationService.UpdateOrgLimits(ctx, req.OrgID, req.Limits)
+	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newOrgLimitsResponse(req.OrgID, req.Limits)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(o)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -978,7 +918,7 @@ func (h *OrgHandler) handlePutOrgLimits(w http.ResponseWriter, r *http.Request) 
 
 type putOrgLimitsRequest struct {
 	OrgID  influxdb.ID
-	Limits *influxdb.OrgLimits
+	Limits influxdb.OrgLimits
 }
 
 func decodePutOrgLimitsRequest(ctx context.Context, r *http.Request) (*putOrgLimitsRequest, error) {
@@ -996,8 +936,8 @@ func decodePutOrgLimitsRequest(ctx context.Context, r *http.Request) (*putOrgLim
 		return nil, err
 	}
 
-	l := &influxdb.OrgLimits{}
-	if err := json.NewDecoder(r.Body).Decode(l); err != nil {
+	l := influxdb.OrgLimits{}
+	if err := json.NewDecoder(r.Body).Decode(&l); err != nil {
 		return nil, err
 	}
 

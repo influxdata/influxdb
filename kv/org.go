@@ -35,15 +35,17 @@ func (s *Service) initializeOrgs(ctx context.Context, tx Tx) error {
 	return nil
 }
 
-func (s *Service) GetOrgLimits(ctx context.Context, orgID influxdb.ID) (*influxdb.OrgLimits, error) {
-	var l *influxdb.OrgLimits
-	err := s.kv.View(ctx, func(tx Tx) error {
-		lm, err := s.getOrgLimits(ctx, tx, orgID)
+func (s *Service) UpdateOrgLimits(ctx context.Context, id influxdb.ID, limits influxdb.OrgLimits) (*influxdb.Organization, error) {
+	var o *influxdb.Organization
+
+	err := s.kv.Update(ctx, func(tx Tx) error {
+		org, err := s.updateOrgLimits(ctx, tx, id, limits)
 		if err != nil {
 			return err
 		}
 
-		l = lm
+		o = org
+
 		return nil
 	})
 
@@ -51,72 +53,22 @@ func (s *Service) GetOrgLimits(ctx context.Context, orgID influxdb.ID) (*influxd
 		return nil, err
 	}
 
-	return l, nil
+	return o, nil
 }
 
-func (s *Service) getOrgLimits(ctx context.Context, tx Tx, orgID influxdb.ID) (*influxdb.OrgLimits, error) {
-	if _, err := s.findOrganizationByID(ctx, tx, orgID); err != nil {
-		return nil, err
-	}
-
-	k, err := orgID.Encode()
+func (s *Service) updateOrgLimits(ctx context.Context, tx Tx, id influxdb.ID, limits influxdb.OrgLimits) (*influxdb.Organization, error) {
+	o, err := s.findOrganizationByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	b, err := tx.Bucket(orgLimitBucket)
-	if err != nil {
+	o.Limits = limits
+
+	if err := s.putOrganization(ctx, tx, o); err != nil {
 		return nil, err
 	}
 
-	v, err := b.Get(k)
-	if IsNotFound(err) {
-		return &influxdb.OrgLimits{}, nil
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	l := &influxdb.OrgLimits{}
-	if err := json.Unmarshal(v, l); err != nil {
-		return nil, err
-	}
-
-	return l, nil
-}
-
-func (s *Service) SetOrgLimits(ctx context.Context, orgID influxdb.ID, l *influxdb.OrgLimits) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.setOrgLimits(ctx, tx, orgID, l)
-	})
-}
-
-func (s *Service) setOrgLimits(ctx context.Context, tx Tx, orgID influxdb.ID, l *influxdb.OrgLimits) error {
-	if _, err := s.findOrganizationByID(ctx, tx, orgID); err != nil {
-		return err
-	}
-
-	k, err := orgID.Encode()
-	if err != nil {
-		return err
-	}
-
-	b, err := tx.Bucket(orgLimitBucket)
-	if err != nil {
-		return err
-	}
-
-	v, err := json.Marshal(l)
-	if err != nil {
-		return err
-	}
-
-	if err := b.Put(k, v); err != nil {
-		return err
-	}
-
-	return nil
+	return o, nil
 }
 
 // FindOrganizationByID retrieves a organization by id.

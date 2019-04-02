@@ -142,39 +142,13 @@ func (s *OrgService) DeleteOrganization(ctx context.Context, id influxdb.ID) err
 	return s.s.DeleteOrganization(ctx, id)
 }
 
-type OrgLimitService struct {
-	s influxdb.OrgLimitService
-}
-
-func NewOrgLimitService(s influxdb.OrgLimitService) *OrgLimitService {
-	return &OrgLimitService{
-		s: s,
-	}
-}
-
-func (s *OrgLimitService) GetOrgLimits(ctx context.Context, orgID influxdb.ID) (*influxdb.OrgLimits, error) {
-	if err := authorizeReadAny(ctx); err != nil {
-		return nil, err
-	}
-
-	l, err := s.s.GetOrgLimits(ctx, orgID)
-	if err != nil {
-		return nil, err
-	}
-
-	return l, nil
-}
-
-func (s *OrgLimitService) SetOrgLimits(ctx context.Context, orgID influxdb.ID, l *influxdb.OrgLimits) error {
+// UpdateOrgLimits checks to see if the authorizer on context has is has oper permissions.
+func (s *OrgService) UpdateOrgLimits(ctx context.Context, id influxdb.ID, l influxdb.OrgLimits) (*influxdb.Organization, error) {
 	if err := authorizeWriteAny(ctx); err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := s.s.SetOrgLimits(ctx, orgID, l); err != nil {
-		return err
-	}
-
-	return nil
+	return s.s.UpdateOrgLimits(ctx, id, l)
 }
 
 func newAnyPermission(a influxdb.Action) (*influxdb.Permission, error) {
@@ -186,19 +160,6 @@ func newAnyPermission(a influxdb.Action) (*influxdb.Permission, error) {
 	}
 
 	return p, p.Valid()
-}
-
-func authorizeReadAny(ctx context.Context) error {
-	p, err := newAnyPermission(influxdb.ReadAction)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func authorizeWriteAny(ctx context.Context) error {

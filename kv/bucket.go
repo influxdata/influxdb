@@ -628,12 +628,12 @@ func (s *Service) enforceBucketLimits(ctx context.Context, tx Tx, b *influxdb.Bu
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	l, err := s.getOrgLimits(ctx, tx, b.OrganizationID)
+	o, err := s.findOrganizationByID(ctx, tx, b.OrganizationID)
 	if err != nil {
 		return err
 	}
 
-	if err := l.ExceedsMaxBucketRetention(b.RetentionPeriod); err != nil {
+	if err := o.Limits.ExceedsMaxBucketRetention(b.RetentionPeriod); err != nil {
 		return err
 	}
 

@@ -51,7 +51,6 @@ type APIBackend struct {
 	SessionService                  influxdb.SessionService
 	UserService                     influxdb.UserService
 	OrganizationService             influxdb.OrganizationService
-	OrgLimitService                 influxdb.OrgLimitService
 	UserResourceMappingService      influxdb.UserResourceMappingService
 	LabelService                    influxdb.LabelService
 	DashboardService                influxdb.DashboardService
@@ -95,7 +94,6 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	orgBackend := NewOrgBackend(b)
 	orgBackend.OrganizationService = authorizer.NewOrgService(b.OrganizationService)
-	orgBackend.OrgLimitService = authorizer.NewOrgLimitService(b.OrgLimitService)
 	h.OrgHandler = NewOrgHandler(orgBackend)
 
 	userBackend := NewUserBackend(b)

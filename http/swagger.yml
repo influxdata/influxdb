@@ -3572,31 +3572,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/limits':
-    get:
-      tags:
-        - Organizations
-      summary: retrieve the orgs limits.
-      parameters:
-        - $ref: '#/components/parameters/TraceSpan'
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: ID of the organization
-      responses:
-        '200':
-          description: the orgs limits
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrgLimitsResponse"
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
     put:
       tags:
         - Organizations
@@ -3618,11 +3593,11 @@ paths:
               $ref: "#/components/schemas/OrgLimits"
       responses:
         '200':
-          description: returns the created label
+          description: returns the organization with updated limits
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OrgLimitsResponse"
+                $ref: "#/components/schemas/Organization"
         default:
           description: unexpected error
           content:
@@ -5711,20 +5686,6 @@ components:
         maxBucketRetention:
           type: integer
           description: duration in nanoseconds of the maximum retention length. Zero retention means infinite.
-    OrgLimitsResponse:
-      allOf:
-        - type: object
-          properties:
-            links:
-              type: object
-              properties:
-                org:
-                  type: string
-                  format: uri
-                self:
-                  type: string
-                  format: uri
-        - $ref: "#/components/schemas/OrgLimits"
     Organization:
       properties:
         links:
@@ -5764,6 +5725,8 @@ components:
           type: string
         name:
           type: string
+        limits:
+          $ref: "#/components/schemas/OrgLimits"
         status:
           description: if inactive the organization is inactive.
           default: active

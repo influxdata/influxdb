@@ -7,8 +7,9 @@ import (
 
 // Organization is an organization. 🎉
 type Organization struct {
-	ID   ID     `json:"id,omitempty"`
-	Name string `json:"name"`
+	ID     ID        `json:"id,omitempty"`
+	Name   string    `json:"name"`
+	Limits OrgLimits `json:"limits"`
 }
 
 // ops for orgs error and orgs op logs.
@@ -40,6 +41,10 @@ type OrganizationService interface {
 	// Returns the new organization state after update.
 	UpdateOrganization(ctx context.Context, id ID, upd OrganizationUpdate) (*Organization, error)
 
+	// Updates a single organization with changeset.
+	// Returns the new organization state after update.
+	UpdateOrgLimits(ctx context.Context, id ID, limits OrgLimits) (*Organization, error)
+
 	// Removes a organization by ID.
 	DeleteOrganization(ctx context.Context, id ID) error
 }
@@ -64,7 +69,7 @@ type OrgLimits struct {
 
 // ExceedsMaxBucketRetention returns if the duration provided exceeds the maximum
 // bucket retention length.
-func (l *OrgLimits) ExceedsMaxBucketRetention(d time.Duration) error {
+func (l OrgLimits) ExceedsMaxBucketRetention(d time.Duration) error {
 	if l.MaxBucketRetention == 0 {
 		return nil
 	}
@@ -84,10 +89,4 @@ func (l *OrgLimits) ExceedsMaxBucketRetention(d time.Duration) error {
 	}
 
 	return nil
-}
-
-// OrgLimitService is a service for managing org limits.
-type OrgLimitService interface {
-	GetOrgLimits(ctx context.Context, orgID ID) (*OrgLimits, error)
-	SetOrgLimits(ctx context.Context, orgID ID, l *OrgLimits) error
 }

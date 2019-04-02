@@ -223,6 +223,10 @@ func (s *Service) UpdateOrganization(ctx context.Context, id platform.ID, upd pl
 	return o, nil
 }
 
+func (s *Service) UpdateOrgLimits(ctx context.Context, id platform.ID, l platform.OrgLimits) (*platform.Organization, error) {
+	panic("function should not be called")
+}
+
 // DeleteOrganization deletes a organization and prunes it from the index.
 func (s *Service) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	if _, err := s.FindOrganizationByID(ctx, id); err != nil {
