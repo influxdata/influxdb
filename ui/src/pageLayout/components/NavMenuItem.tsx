@@ -32,7 +32,10 @@ class NavMenuItem extends Component<Props> {
 
     if (type === NavMenuType.RouterLink) {
       return (
-        <div className={classnames('nav--item', {active})} data-testid={testID}>
+        <div
+          className={classnames('nav--item', {active})}
+          data-testid={`${testID} ${title}`}
+        >
           <Link className="nav--item-icon" to={path}>
             <span className={`icon sidebar--icon ${icon}`} />
           </Link>

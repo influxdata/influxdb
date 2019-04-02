@@ -32,7 +32,7 @@ class NavMenuSubItem extends Component<Props> {
         <Link
           className={classnames('nav--sub-item', {active})}
           to={path}
-          data-testid={testID}
+          data-testid={`${testID} ${title}`}
         >
           {title}
         </Link>
