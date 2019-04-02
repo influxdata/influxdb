@@ -1,28 +1,12 @@
 // Utils
 import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
-import {hydrateVars, exportVariables} from 'src/variables/utils/hydrateVars'
+import {hydrateVars} from 'src/variables/utils/hydrateVars'
+
+// Mocks
+import {createVariable} from 'src/variables/mocks'
 
 // Types
-import {Variable} from '@influxdata/influx'
 import {CancellationError} from 'src/types/promises'
-
-const createVariable = (
-  name: string,
-  query: string,
-  selected?: string
-): Variable => ({
-  name,
-  id: name,
-  orgID: 'howdy',
-  selected: selected ? [selected] : [],
-  arguments: {
-    type: 'query',
-    values: {
-      query,
-      language: 'flux',
-    },
-  },
-})
 
 class FakeFetcher implements ValueFetcher {
   responses = {}
@@ -40,20 +24,6 @@ class FakeFetcher implements ValueFetcher {
 }
 
 describe('hydrate vars', () => {
-  describe('exportVariables', () => {
-    test('should find variable exports', () => {
-      const a = createVariable('a', 'f(x: v.b, v.c)')
-      const b = createVariable('b', 'beep')
-      const c = createVariable('c', 'robit')
-      const d = createVariable('d', 'nooooo!')
-      const vars = [a, b, c, d]
-
-      const actual = exportVariables([a], vars)
-
-      expect(actual).toEqual([a, b, c])
-    })
-  })
-
   test('should invalidate cyclic subgraphs', async () => {
     // Construct the following graph:
     //
