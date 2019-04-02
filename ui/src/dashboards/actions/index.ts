@@ -46,7 +46,7 @@ import {
 } from 'src/dashboards/utils/cellGetters'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {client} from 'src/utils/api'
-import {exportVariables} from 'src/variables/utils/hydrateVars'
+import {exportVariables} from 'src/variables/utils/exportVariables'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'

@@ -23,7 +23,7 @@ import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/
 import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
-import {exportVariables} from 'src/variables/utils/hydrateVars'
+import {exportVariables} from 'src/variables/utils/exportVariables'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'

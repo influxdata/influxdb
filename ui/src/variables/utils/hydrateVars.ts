@@ -17,7 +17,7 @@ import {
   ValueSelections,
 } from 'src/variables/types'
 
-interface VariableNode {
+export interface VariableNode {
   variable: Variable
   values: VariableValues
   parents: VariableNode[]
@@ -33,36 +33,9 @@ interface HydrateVarsOptions {
   fetcher?: ValueFetcher
 }
 
-export const findDependentVariables = (
-  variable: Variable,
-  varGraph: VariableNode[]
-): Variable[] => {
-  const node = varGraph.find(n => n.variable.id === variable.id)
-  return collectDescendants(node).map(n => n.variable)
-}
-
-export const exportVariables = (
-  variables: Variable[],
+export const createVariableGraph = (
   allVariables: Variable[]
-): Variable[] => {
-  const varSet = new Set<Variable>()
-  const varGraph = createVariableGraph(allVariables)
-
-  for (const v of variables) {
-    if (varSet.has(v)) {
-      continue
-    }
-
-    varSet.add(v)
-    for (const d of findDependentVariables(v, varGraph)) {
-      varSet.add(d)
-    }
-  }
-
-  return [...varSet]
-}
-
-const createVariableGraph = (allVariables: Variable[]): VariableNode[] => {
+): VariableNode[] => {
   const nodesByID: {[variableID: string]: VariableNode} = {}
 
   // First initialize all the nodes
@@ -229,7 +202,7 @@ const constVariableValues = (
 
   Checks visited to prevent looping forever
 */
-const collectDescendants = (
+export const collectDescendants = (
   node: VariableNode,
   visited: Set<VariableNode> = new Set()
 ): VariableNode[] => {
