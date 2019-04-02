@@ -41,8 +41,12 @@ const (
 
 // Partition represents a collection of layered index files and WAL.
 type Partition struct {
-	mu     sync.RWMutex
-	opened bool
+	// The rule to ensure no deadlocks, no resource leaks, and no use after close
+	// is that if the partition launches a goroutine, it must acquire a reference
+	// to itself first and releases it only after it has done all of its use of mu.
+	mu    sync.RWMutex
+	resmu sync.Mutex // protects res Open and Close
+	res   lifecycle.Resource
 
 	sfile    *tsdb.SeriesFile     // series lookup file
 	sfileref *lifecycle.Reference // reference to series lookup file
@@ -55,6 +59,7 @@ type Partition struct {
 	// NOTE: Does not include active log file stats.
 	stats MeasurementCardinalityStats
 
+	// Running statistics
 	tracker *partitionTracker
 
 	// Fast series lookup of series IDs in the series file that have been present
@@ -62,13 +67,10 @@ type Partition struct {
 	seriesIDSet *tsdb.SeriesIDSet
 
 	// Compaction management
-	levels          []CompactionLevel // compaction levels
-	levelCompacting []bool            // level compaction status
-
-	// Close management.
-	once    sync.Once
-	closing chan struct{} // closing is used to inform iterators the partition is closing.
-	wg      sync.WaitGroup
+	levels              []CompactionLevel // compaction levels
+	levelCompacting     []bool            // level compaction status
+	compactionsDisabled int               // counter of disables
+	compactionsWG       sync.WaitGroup
 
 	// Directory of the Partition's index files.
 	path string
@@ -78,10 +80,6 @@ type Partition struct {
 	MaxLogFileSize int64
 	nosync         bool // when true, flushing and syncing of LogFile will be disabled.
 	logbufferSize  int  // the LogFile's buffer is set to this value.
-
-	// Frequency of compaction checks.
-	compactionInterrupt chan struct{}
-	compactionsDisabled int
 
 	logger *zap.Logger
 
@@ -95,15 +93,11 @@ type Partition struct {
 // NewPartition returns a new instance of Partition.
 func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	partition := &Partition{
-		closing:     make(chan struct{}),
 		path:        path,
 		sfile:       sfile,
 		seriesIDSet: tsdb.NewSeriesIDSet(),
 
 		MaxLogFileSize: DefaultMaxIndexLogFileSize,
-
-		// compactionEnabled: true,
-		compactionInterrupt: make(chan struct{}),
 
 		logger:  zap.NewNop(),
 		version: Version,
@@ -117,12 +111,17 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 // bytes estimates the memory footprint of this Partition, in bytes.
 func (p *Partition) bytes() int {
 	var b int
-	b += 24 // mu RWMutex is 24 bytes
-	b += int(unsafe.Sizeof(p.opened))
-	// Do not count SeriesFile because it belongs to the code that constructed this Partition.
+	b += int(unsafe.Sizeof(p.mu))
+	b += int(unsafe.Sizeof(p.resmu))
+	b += int(unsafe.Sizeof(p.res))
+	// Do not count SeriesFile contents because it belongs to the code that constructed this Partition.
+	b += int(unsafe.Sizeof(p.sfile))
+	b += int(unsafe.Sizeof(p.sfileref))
 	b += int(unsafe.Sizeof(p.activeLogFile)) + p.activeLogFile.bytes()
 	b += int(unsafe.Sizeof(p.fileSet)) + p.fileSet.bytes()
 	b += int(unsafe.Sizeof(p.seq))
+	b += int(unsafe.Sizeof(p.stats))
+	b += int(unsafe.Sizeof(p.tracker))
 	b += int(unsafe.Sizeof(p.seriesIDSet)) + p.seriesIDSet.Bytes()
 	b += int(unsafe.Sizeof(p.levels))
 	for _, level := range p.levels {
@@ -132,14 +131,12 @@ func (p *Partition) bytes() int {
 	for _, levelCompacting := range p.levelCompacting {
 		b += int(unsafe.Sizeof(levelCompacting))
 	}
-	b += 12 // once sync.Once is 12 bytes
-	b += int(unsafe.Sizeof(p.closing))
-	b += 16 // wg sync.WaitGroup is 16 bytes
+	b += int(unsafe.Sizeof(p.compactionsDisabled))
 	b += int(unsafe.Sizeof(p.path)) + len(p.path)
 	b += int(unsafe.Sizeof(p.id)) + len(p.id)
 	b += int(unsafe.Sizeof(p.MaxLogFileSize))
-	b += int(unsafe.Sizeof(p.compactionInterrupt))
-	b += int(unsafe.Sizeof(p.compactionsDisabled))
+	b += int(unsafe.Sizeof(p.nosync))
+	b += int(unsafe.Sizeof(p.logbufferSize))
 	b += int(unsafe.Sizeof(p.logger))
 	b += int(unsafe.Sizeof(p.manifestSize))
 	b += int(unsafe.Sizeof(p.version))
@@ -152,10 +149,10 @@ var ErrIncompatibleVersion = errors.New("incompatible tsi1 index MANIFEST")
 
 // Open opens the partition.
 func (p *Partition) Open() (err error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.resmu.Lock()
+	defer p.resmu.Unlock()
 
-	if p.opened {
+	if p.res.Opened() {
 		return errors.New("index partition already open")
 	}
 
@@ -165,7 +162,6 @@ func (p *Partition) Open() (err error) {
 		return err
 	}
 
-	p.closing = make(chan struct{})
 	defer func() {
 		if err != nil {
 			p.close()
@@ -250,6 +246,9 @@ func (p *Partition) Open() (err error) {
 	// Place the files in a file set.
 	p.fileSet, err = NewFileSet(p.sfile, files)
 	if err != nil {
+		for _, file := range files {
+			file.Close()
+		}
 		return err
 	}
 
@@ -281,7 +280,7 @@ func (p *Partition) Open() (err error) {
 	p.computeStats()
 
 	// Mark opened.
-	p.opened = true
+	p.res.Open()
 
 	// Send a compaction request on start up.
 	p.compact()
@@ -364,25 +363,17 @@ func (p *Partition) buildSeriesSet() error {
 	return nil
 }
 
-// Wait returns once outstanding compactions have finished.
-func (p *Partition) Wait() {
-	p.wg.Wait()
-}
-
-// Close closes the index.
+// Close closes the partition.
 func (p *Partition) Close() error {
-	// Wait for goroutines to finish outstanding compactions.
-	p.once.Do(func() {
-		if p.closing != nil {
-			close(p.closing)
-		}
-		if p.compactionInterrupt != nil {
-			close(p.compactionInterrupt)
-		}
-	})
-	p.wg.Wait()
+	p.resmu.Lock()
+	defer p.resmu.Unlock()
 
-	// Lock index.
+	// Close the resource and wait for any outstanding references.
+	p.res.Close()
+	p.compactionsWG.Wait()
+
+	// There are now no internal outstanding callers holding a reference
+	// so we can acquire this mutex to protect against external callers.
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -411,17 +402,6 @@ func (p *Partition) close() error {
 	}
 
 	return err
-}
-
-// closing returns true if the partition is currently closing. It does not require
-// a lock so will always return to callers.
-func (p *Partition) isClosing() bool {
-	select {
-	case <-p.closing:
-		return true
-	default:
-		return false
-	}
 }
 
 // Path returns the path to the partition.
@@ -480,19 +460,10 @@ func (p *Partition) WithLogger(logger *zap.Logger) {
 // FileSet returns a copy of the current file set. You must call Release on it when
 // you are finished.
 func (p *Partition) FileSet() (*FileSet, error) {
-	// It's important to check p.closing with the read lock so that even if
-	// the information about if the partition being closed is immediately wrong
-	// after the select case decision, the rest of the close procedure cannot
-	// run until after we have constructed the file set.
 	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	select {
-	case <-p.closing:
-		return nil, errors.New("index is closing")
-	default:
-		return p.fileSet.Duplicate()
-	}
+	fs, err := p.fileSet.Duplicate()
+	p.mu.RUnlock()
+	return fs, err
 }
 
 // replaceFileSet is a helper to replace the file set of the partition. It releases
@@ -516,6 +487,7 @@ func (p *Partition) prependActiveLogFile() error {
 	// Prepend and generate new fileset.
 	fileSet, err := p.fileSet.PrependLogFile(f)
 	if err != nil {
+		f.Close()
 		return err
 	}
 
@@ -524,6 +496,7 @@ func (p *Partition) prependActiveLogFile() error {
 	if err != nil {
 		// TODO: Close index if write fails.
 		fileSet.Release()
+		f.Close()
 		return err
 	}
 
@@ -914,53 +887,41 @@ func (p *Partition) AssignShard(k string, shardID uint64)         {}
 func (p *Partition) Compact() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	p.compact()
 }
 
+// DisableCompactions stops any compactions from starting until a call to EnableCompactions.
 func (p *Partition) DisableCompactions() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	p.compactionsDisabled++
-
-	select {
-	case <-p.closing:
-		return
-	default:
-	}
-
-	if p.compactionsDisabled == 0 {
-		close(p.compactionInterrupt)
-		p.compactionInterrupt = make(chan struct{})
-	}
 }
 
+// EnableCompactions allows compactions to proceed again after a call to DisableCompactions.
 func (p *Partition) EnableCompactions() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Already enabled?
-	if p.compactionsEnabled() {
-		return
-	}
 	p.compactionsDisabled--
 }
 
-func (p *Partition) compactionsEnabled() bool {
-	return p.compactionsDisabled == 0
-}
+// Wait will block until all compactions are finished. Must only be called while they
+// are disabled.
+func (p *Partition) Wait() { p.compactionsWG.Wait() }
 
 // compact compacts continguous groups of files that are not currently compacting.
 func (p *Partition) compact() {
-	if p.isClosing() {
-		return
-	} else if !p.compactionsEnabled() {
+	if p.compactionsDisabled > 0 {
+		p.logger.Error("Cannot start a compaction while disabled")
 		return
 	}
-	interrupt := p.compactionInterrupt
 
 	fs, err := p.fileSet.Duplicate()
 	if err != nil {
 		p.logger.Error("Attempt to compact while partition is closing", zap.Error(err))
+		return
 	}
 	defer fs.Release()
 
@@ -982,6 +943,13 @@ func (p *Partition) compact() {
 			files = files[len(files)-MaxIndexMergeCount:]
 		}
 
+		// We intend to do a compaction. Acquire a resource to do so.
+		ref, err := p.res.Acquire()
+		if err != nil {
+			p.logger.Error("Attempt to compact while partition is closing", zap.Error(err))
+			return
+		}
+
 		// Acquire references to the files to keep them alive through compaction.
 		frefs, err := IndexFiles(files).Acquire()
 		if err != nil {
@@ -993,19 +961,20 @@ func (p *Partition) compact() {
 		p.levelCompacting[level] = true
 
 		// Start compacting in a separate goroutine.
-		p.wg.Add(1)
+		p.compactionsWG.Add(1)
 		go func(level int) {
-			// Ensure file references are always released.
-			defer frefs.Release()
-
 			// Compact to a new level.
-			p.compactToLevel(files, frefs, level+1, interrupt)
+			p.compactToLevel(files, frefs, level+1, ref.Closing())
 
 			// Ensure compaction lock for the level is released.
 			p.mu.Lock()
 			p.levelCompacting[level] = false
 			p.mu.Unlock()
-			p.wg.Done()
+
+			// Ensure references are released.
+			frefs.Release()
+			ref.Release()
+			p.compactionsWG.Done()
 
 			// Check for new compactions
 			p.Compact()
@@ -1143,8 +1112,6 @@ func (p *Partition) compactToLevel(files []*IndexFile, frefs lifecycle.Reference
 	}
 }
 
-func (p *Partition) Rebuild() {}
-
 func (p *Partition) CheckLogFile() error {
 	// Check log file size under read lock.
 	p.mu.RLock()
@@ -1162,7 +1129,18 @@ func (p *Partition) CheckLogFile() error {
 }
 
 func (p *Partition) checkLogFile() error {
+	if p.compactionsDisabled > 0 {
+		return nil
+	}
+
+	// Acquire a reference to hold the partition open.
+	ref, err := p.res.Acquire()
+	if err != nil {
+		return err
+	}
+
 	if p.activeLogFile.Size() < p.MaxLogFileSize {
+		ref.Release()
 		return nil
 	}
 
@@ -1171,15 +1149,17 @@ func (p *Partition) checkLogFile() error {
 
 	// Open new log file and insert it into the first position.
 	if err := p.prependActiveLogFile(); err != nil {
+		ref.Release()
 		return err
 	}
 
 	// Begin compacting in a background goroutine.
-	p.wg.Add(1)
+	p.compactionsWG.Add(1)
 	go func() {
-		defer p.wg.Done()
-		p.compactLogFile(logFile)
-		p.Compact() // check for new compactions
+		p.compactLogFile(logFile, ref.Closing())
+		ref.Release()          // release our reference
+		p.compactionsWG.Done() // compaction is now complete
+		p.Compact()            // check for new compactions
 	}()
 
 	return nil
@@ -1188,11 +1168,7 @@ func (p *Partition) checkLogFile() error {
 // compactLogFile compacts f into a tsi file. The new file will share the
 // same identifier but will have a ".tsi" extension. Once the log file is
 // compacted then the manifest is updated and the log file is discarded.
-func (p *Partition) compactLogFile(logFile *LogFile) {
-	if p.isClosing() {
-		return
-	}
-
+func (p *Partition) compactLogFile(logFile *LogFile, interrupt <-chan struct{}) {
 	defer func() {
 		p.mu.RLock()
 		defer p.mu.RUnlock()
@@ -1200,10 +1176,6 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
 		p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
 	}()
-
-	p.mu.Lock()
-	interrupt := p.compactionInterrupt
-	p.mu.Unlock()
 
 	start := time.Now()
 
