@@ -43,7 +43,7 @@ class SideNav extends PureComponent<Props> {
           icon={IconFont.CuboNav}
           active={this.activateNavItem(['me', 'account'])}
         >
-          <NavMenu.SubItem title="Logout" path="/logout" highlightPaths={[]} />
+          <NavMenu.SubItem title="Logout" path="/logout" active={false} />
         </NavMenu.Item>
         <NavMenu.Item
           title="Data Explorer"

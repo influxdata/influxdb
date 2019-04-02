@@ -24,7 +24,7 @@ type Props = PassedProps & Partial<DefaultProps>
 class NavMenuItem extends Component<Props> {
   public static defaultProps: DefaultProps = {
     type: NavMenuType.RouterLink,
-    testID: 'nav-menu-item',
+    testID: 'nav-menu--item',
   }
 
   public render() {
