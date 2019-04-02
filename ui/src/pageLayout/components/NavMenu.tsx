@@ -9,12 +9,23 @@ import NavMenuSubItem from 'src/pageLayout/components/NavMenuSubItem'
 // Types
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface PassedProps {
   children: JSX.Element[]
+  className?: string
 }
+
+interface DefaultProps {
+  testID: string
+}
+
+type Props = PassedProps & Partial<DefaultProps>
 
 @ErrorHandling
 class NavMenu extends PureComponent<Props> {
+  public static defaultProps = {
+    testID: 'nav-menu',
+  }
+
   public static Item = NavMenuItem
   public static SubItem = NavMenuSubItem
 
@@ -23,10 +34,14 @@ class NavMenu extends PureComponent<Props> {
   }
 
   public render() {
-    const {children} = this.props
+    const {children, testID} = this.props
+
+    const className = this.props.className
+      ? `nav ${this.props.className}`
+      : 'nav'
 
     return (
-      <nav className="nav" data-testid="nav">
+      <nav className={className} data-testid={testID}>
         {children}
       </nav>
     )
