@@ -36,8 +36,8 @@ class NavMenuSubItem extends PureComponent<Props> {
             active,
             [`${className}`]: className,
           })}
-          to={path}
           data-testid={`${testID} ${title}`}
+          to={path}
         >
           {title}
         </Link>
@@ -46,9 +46,12 @@ class NavMenuSubItem extends PureComponent<Props> {
 
     return (
       <a
-        className={classnames('nav--sub-item', {active})}
+        className={classnames('nav--sub-item', {
+          active,
+          [`${className}`]: className,
+        })}
+        data-testid={`${testID} ${title}`}
         href={path}
-        data-testid={testID}
       >
         {title}
       </a>

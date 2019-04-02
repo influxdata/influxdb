@@ -63,7 +63,13 @@ class NavMenuItem extends PureComponent<Props> {
     }
 
     return (
-      <div className={classnames('nav--item', {active})} data-testid={testID}>
+      <div
+        className={classnames('nav--item', {
+          active,
+          [`${className}`]: className,
+        })}
+        data-testid={`${testID} ${title}`}
+      >
         <a className="nav--item-icon" href={path}>
           <span className={`icon sidebar--icon ${icon}`} />
         </a>
