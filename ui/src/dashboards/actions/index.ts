@@ -6,7 +6,6 @@ import {replace} from 'react-router-redux'
 import {
   getDashboard as getDashboardAJAX,
   getDashboards as getDashboardsAJAX,
-  createDashboard as createDashboardAJAX,
   deleteDashboard as deleteDashboardAJAX,
   updateDashboard as updateDashboardAJAX,
   updateCells as updateCellsAJAX,
@@ -240,27 +239,6 @@ export const createDashboardFromTemplate = (
     dispatch(notify(importDashboardSucceeded()))
   } catch (error) {
     dispatch(notify(importDashboardFailed(error)))
-  }
-}
-
-export const importDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>,
-  getState: GetState
-): Promise<void> => {
-  try {
-    const {
-      orgs: {org},
-    } = getState()
-
-    await createDashboardAJAX(dashboard)
-    const dashboards = await getDashboardsAJAX(org.id)
-
-    dispatch(setDashboards(RemoteDataState.Done, dashboards))
-    dispatch(notify(copy.dashboardImported()))
-  } catch (error) {
-    dispatch(setDashboards(RemoteDataState.Error))
-    dispatch(notify(copy.dashboardImportFailed('Could not upload dashboard')))
-    console.error(error)
   }
 }
 
