@@ -20,7 +20,6 @@ interface OwnProps {
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  showOwnerColumn: boolean
   onFilterChange: (searchTerm: string) => void
 }
 
@@ -57,7 +56,6 @@ class DashboardCards extends PureComponent<Props> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
-      showOwnerColumn,
       onFilterChange,
     } = this.props
 
@@ -73,7 +71,6 @@ class DashboardCards extends PureComponent<Props> {
             onCloneDashboard={onCloneDashboard}
             onDeleteDashboard={onDeleteDashboard}
             onUpdateDashboard={onUpdateDashboard}
-            showOwnerColumn={showOwnerColumn}
             onFilterChange={onFilterChange}
           />
         )
