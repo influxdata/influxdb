@@ -121,6 +121,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
           checked={_.get(selectedTemplateSummary, 'id', '') === t.id}
           label={t.meta.name}
           hideImage={true}
+          testID={`card-select-${t.meta.name}`}
         />
       )
     })
@@ -133,6 +134,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
         text="Create Dashboard"
         onClick={this.onSubmit}
         key="submit-button"
+        testID="create-dashboard-button"
         color={ComponentColor.Primary}
       />,
     ]
