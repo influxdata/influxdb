@@ -12,17 +12,27 @@ import {ILabel} from '@influxdata/influx'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+export enum LabelsEditMode {
+  Editable = 'editable',
+  Readonly = 'readonly',
+}
+
 interface Props {
+  editMode?: LabelsEditMode // temporary for displaying labels
   selectedLabels: ILabel[]
   labels: ILabel[]
-  onRemoveLabel: (label: ILabel) => void
-  onAddLabel: (label: ILabel) => void
-  onCreateLabel: (label: ILabel) => Promise<void>
-  onFilterChange: (searchTerm: string) => void
+  onRemoveLabel?: (label: ILabel) => void
+  onAddLabel?: (label: ILabel) => void
+  onCreateLabel?: (label: ILabel) => Promise<void>
+  onFilterChange?: (searchTerm: string) => void
 }
 
 @ErrorHandling
 export default class InlineLabels extends Component<Props> {
+  public static defaultProps = {
+    editMode: LabelsEditMode.Editable,
+  }
+
   public render() {
     return <div className="inline-labels">{this.selectedLabels}</div>
   }
@@ -32,12 +42,14 @@ export default class InlineLabels extends Component<Props> {
 
     return (
       <div className="inline-labels--container">
-        <InlineLabelsEditor
-          labels={labels}
-          selectedLabels={selectedLabels}
-          onAddLabel={onAddLabel}
-          onCreateLabel={onCreateLabel}
-        />
+        {this.isEditable && (
+          <InlineLabelsEditor
+            labels={labels}
+            selectedLabels={selectedLabels}
+            onAddLabel={onAddLabel}
+            onCreateLabel={onCreateLabel}
+          />
+        )}
         {this.currentLabels}
       </div>
     )
@@ -45,6 +57,7 @@ export default class InlineLabels extends Component<Props> {
 
   private get currentLabels(): JSX.Element[] {
     const {selectedLabels} = this.props
+    const onDelete = this.isEditable ? this.handleDeleteLabel : null
 
     if (selectedLabels.length) {
       return selectedLabels.map(label => (
@@ -54,11 +67,15 @@ export default class InlineLabels extends Component<Props> {
           name={label.name}
           colorHex={label.properties.color}
           description={label.properties.description}
-          onDelete={this.handleDeleteLabel}
+          onDelete={onDelete}
           onClick={this.handleLabelClick}
         />
       ))
     }
+  }
+
+  private get isEditable(): boolean {
+    return this.props.editMode === LabelsEditMode.Editable
   }
 
   private handleLabelClick = (labelID: string): void => {

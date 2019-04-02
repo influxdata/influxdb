@@ -5,18 +5,16 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ResourceList, Context, IconFont} from 'src/clockface'
-import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import InlineLabels, {
+  LabelsEditMode,
+} from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
   deleteTemplate,
   cloneTemplate,
   updateTemplate,
-  addTemplateLabelsAsync,
-  removeTemplateLabelsAsync,
 } from 'src/templates/actions'
-import {createLabel as createLabelAsync} from 'src/labels/actions'
-
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
 
@@ -37,9 +35,6 @@ interface DispatchProps {
   onDelete: typeof deleteTemplate
   onClone: typeof cloneTemplate
   onUpdate: typeof updateTemplate
-  onCreateLabel: typeof createLabelAsync
-  onAddLabels: typeof addTemplateLabelsAsync
-  onRemoveLabels: typeof removeTemplateLabelsAsync
 }
 
 interface StateProps {
@@ -48,7 +43,7 @@ interface StateProps {
 
 type Props = DispatchProps & OwnProps & StateProps
 
-export class TemplateCard extends PureComponent<Props & WithRouterProps> {
+class TemplateCard extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {template, labels, onFilterChange} = this.props
 
@@ -72,37 +67,11 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
             selectedLabels={template.labels}
             labels={labels}
             onFilterChange={onFilterChange}
-            onAddLabel={this.handleAddLabel}
-            onRemoveLabel={this.handleRemoveLabel}
-            onCreateLabel={this.handleCreateLabel}
+            editMode={LabelsEditMode.Readonly}
           />
         )}
       />
     )
-  }
-
-  private handleAddLabel = (label: ILabel) => {
-    const {onAddLabels, template} = this.props
-
-    onAddLabels(template.id, [label])
-  }
-
-  private handleRemoveLabel = (label: ILabel) => {
-    const {onRemoveLabels, template} = this.props
-
-    onRemoveLabels(template.id, [label])
-  }
-
-  private handleCreateLabel = async (label: ILabel): Promise<void> => {
-    try {
-      await this.props.onCreateLabel(label.orgID, label.name, label.properties)
-
-      // notify success
-    } catch (err) {
-      console.error(err)
-      // notify of fail
-      throw err
-    }
   }
 
   private handleUpdateTemplate = (name: string) => {
@@ -177,12 +146,9 @@ const mdtp: DispatchProps = {
   onDelete: deleteTemplate,
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
-  onCreateLabel: createLabelAsync,
-  onAddLabels: addTemplateLabelsAsync,
-  onRemoveLabels: removeTemplateLabelsAsync,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
 )(withRouter<Props>(TemplateCard))
