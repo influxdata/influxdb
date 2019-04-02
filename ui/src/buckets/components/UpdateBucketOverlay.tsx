@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {Overlay, ComponentStatus} from 'src/clockface'
-import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
+import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Constants
 import {DEFAULT_SECONDS} from 'src/organizations/components/Retention'
@@ -24,7 +24,7 @@ interface State {
   nameInputStatus: ComponentStatus
 }
 
-export default class BucketOverlay extends PureComponent<Props, State> {
+export default class UpdateBucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 

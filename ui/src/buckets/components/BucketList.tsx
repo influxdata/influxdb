@@ -5,8 +5,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import UpdateBucketOverlay from 'src/organizations/components/UpdateBucketOverlay'
-import BucketRow, {PrettyBucket} from 'src/organizations/components/BucketRow'
+import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
+import BucketRow, {PrettyBucket} from 'src/buckets/components/BucketRow'
 import {Overlay, IndexList} from 'src/clockface'
 import DataLoaderSwitcher from 'src/dataLoaders/components/DataLoaderSwitcher'
 
@@ -22,8 +22,8 @@ import {AppState} from 'src/types'
 interface OwnProps {
   buckets: PrettyBucket[]
   emptyState: JSX.Element
-  onUpdateBucket: (b: PrettyBucket) => Promise<void>
-  onDeleteBucket: (b: PrettyBucket) => Promise<void>
+  onUpdateBucket: (b: PrettyBucket) => void
+  onDeleteBucket: (b: PrettyBucket) => void
   onFilterChange: (searchTerm: string) => void
 }
 

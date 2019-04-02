@@ -11,7 +11,6 @@ import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSecti
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Settings from 'src/me/components/account/Settings'
 import Tokens from 'src/me/components/account/Tokens'
-import Buckets from 'src/configuration/components/Buckets'
 import Telegrafs from 'src/configuration/components/Telegrafs'
 import Variables from 'src/configuration/components/Variables'
 import Scrapers from 'src/configuration/components/Scrapers'
@@ -51,15 +50,6 @@ class ConfigurationPage extends Component<Props> {
                   parentUrl="/configuration"
                   activeTabUrl={tab}
                 >
-                  <TabbedPageSection
-                    id="buckets_tab"
-                    url="buckets_tab"
-                    title="Buckets"
-                  >
-                    <GetResources resource={ResourceTypes.Buckets}>
-                      <Buckets />
-                    </GetResources>
-                  </TabbedPageSection>
                   <TabbedPageSection
                     id="telegrafs_tab"
                     url="telegrafs_tab"

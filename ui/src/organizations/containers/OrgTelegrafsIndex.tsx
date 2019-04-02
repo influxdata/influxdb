@@ -26,7 +26,7 @@ import {client} from 'src/utils/api'
 import {RemoteDataState} from 'src/types'
 
 const getBuckets = async (org: Organization) => {
-  return client.buckets.getAllByOrg(org.name)
+  return client.buckets.getAll(org.id)
 }
 
 interface RouterProps {

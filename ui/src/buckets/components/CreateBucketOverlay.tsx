@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 
 // Components
 import {Overlay, ComponentStatus} from 'src/clockface'
-import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
+import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Types
 import {Bucket, BucketRetentionRules, Organization} from '@influxdata/influx'
@@ -26,7 +26,7 @@ const emptyBucket = {
   retentionRules: [],
 } as Bucket
 
-export default class BucketOverlay extends PureComponent<Props, State> {
+export default class CreateBucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
