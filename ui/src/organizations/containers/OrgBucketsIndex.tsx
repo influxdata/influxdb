@@ -93,9 +93,8 @@ class OrgBucketsIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: WithRouterProps) => {
-  const {orgs} = state
-  const org = orgs.find(o => o.id === props.params.orgID)
+const mstp = ({orgs: {items}}: AppState, props: WithRouterProps) => {
+  const org = items.find(o => o.id === props.params.orgID)
   return {
     org,
   }

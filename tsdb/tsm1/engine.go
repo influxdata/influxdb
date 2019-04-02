@@ -419,11 +419,6 @@ func (e *Engine) disableSnapshotCompactions() {
 	e.mu.Lock()
 	e.snapDone = nil
 	e.mu.Unlock()
-
-	// If the cache is empty, free up its resources as well.
-	if e.Cache.Size() == 0 {
-		e.Cache.Free()
-	}
 }
 
 // ScheduleFullCompaction will force the engine to fully compact all data stored.
@@ -585,12 +580,6 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 func (e *Engine) IsIdle() bool {
 	cacheEmpty := e.Cache.Size() == 0
 	return cacheEmpty && e.compactionTracker.AllActive() == 0 && e.CompactionPlan.FullyCompacted()
-}
-
-// Free releases any resources held by the engine to free up memory or CPU.
-func (e *Engine) Free() error {
-	e.Cache.Free()
-	return e.FileStore.Free()
 }
 
 // WritePoints saves the set of points in the engine.
@@ -937,6 +926,17 @@ func (e *Engine) ShouldCompactCache(t time.Time) CacheStatus {
 	return CacheStatusOkay
 }
 
+func (e *Engine) lastModified() time.Time {
+	fsTime := e.FileStore.LastModified()
+	cacheTime := e.Cache.LastWriteTime()
+
+	if cacheTime.After(fsTime) {
+		return cacheTime
+	}
+
+	return fsTime
+}
+
 func (e *Engine) compact(wg *sync.WaitGroup) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
@@ -956,7 +956,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level1Groups := e.CompactionPlan.PlanLevel(1)
 			level2Groups := e.CompactionPlan.PlanLevel(2)
 			level3Groups := e.CompactionPlan.PlanLevel(3)
-			level4Groups := e.CompactionPlan.Plan(e.FileStore.LastModified())
+			level4Groups := e.CompactionPlan.Plan(e.lastModified())
 			e.compactionTracker.SetOptimiseQueue(uint64(len(level4Groups)))
 
 			// If no full compactions are need, see if an optimize is needed

@@ -152,12 +152,16 @@ const cellToRelationship = (cell: Cell) => ({
 
 export const variableToTemplate = (
   v: Variable,
+  dependencies: Variable[],
   baseTemplate = blankVariableTemplate()
 ) => {
   const variableName = _.get(v, 'name', '')
   const templateName = `${variableName}-Template`
   const variableData = variableToIncluded(v)
-
+  const dependencyRelationships = dependencies.map(d =>
+    variableToRelationship(d)
+  )
+  const includedDependencies = dependencies.map(d => variableToIncluded(d))
   return {
     ...baseTemplate,
     meta: {
@@ -170,9 +174,13 @@ export const variableToTemplate = (
       data: {
         ...baseTemplate.content.data,
         ...variableData,
-        relationships: {},
+        relationships: {
+          [TemplateType.Variable]: {
+            data: [...dependencyRelationships],
+          },
+        },
       },
-      included: [],
+      included: [...includedDependencies],
     },
   }
 }

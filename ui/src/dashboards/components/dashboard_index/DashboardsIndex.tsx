@@ -22,6 +22,9 @@ import {
 } from 'src/dashboards/actions'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
@@ -29,7 +32,7 @@ import {dashboardCreateFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {Links, Dashboard, AppState, Organization} from 'src/types'
+import {Links, Dashboard, AppState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -47,11 +50,11 @@ interface DispatchProps {
 interface StateProps {
   links: Links
   dashboards: Dashboard[]
-  orgs: Organization[]
 }
 
 interface OwnProps {
   router: InjectedRouter
+  params: {orgID: string}
 }
 
 type Props = DispatchProps & StateProps & OwnProps
@@ -71,8 +74,8 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {handleGetDashboards, dashboards} = this.props
-    await handleGetDashboards()
+    const {dashboards} = this.props
+
     const dashboardIDs = dashboards.map(d => d.id)
     this.props.retainRangesDashTimeV1(dashboardIDs)
   }
@@ -98,25 +101,27 @@ class DashboardIndex extends PureComponent<Props, State> {
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-md-12">
-              <DashboardsIndexContents
-                filterComponent={() => (
-                  <SearchWidget
-                    placeholderText="Filter dashboards..."
-                    onSearch={this.handleFilterDashboards}
-                    searchTerm={searchTerm}
-                  />
-                )}
-                dashboards={dashboards}
-                onDeleteDashboard={this.handleDeleteDashboard}
-                onCreateDashboard={this.handleCreateDashboard}
-                onCloneDashboard={this.handleCloneDashboard}
-                onUpdateDashboard={handleUpdateDashboard}
-                notify={notify}
-                searchTerm={searchTerm}
-                showOwnerColumn={true}
-                onFilterChange={this.handleFilterDashboards}
-                onImportDashboard={this.summonImportOverlay}
-              />
+              <GetResources resource={ResourceTypes.Dashboards}>
+                <DashboardsIndexContents
+                  filterComponent={() => (
+                    <SearchWidget
+                      placeholderText="Filter dashboards..."
+                      onSearch={this.handleFilterDashboards}
+                      searchTerm={searchTerm}
+                    />
+                  )}
+                  dashboards={dashboards}
+                  onDeleteDashboard={this.handleDeleteDashboard}
+                  onCreateDashboard={this.handleCreateDashboard}
+                  onCloneDashboard={this.handleCloneDashboard}
+                  onUpdateDashboard={handleUpdateDashboard}
+                  notify={notify}
+                  searchTerm={searchTerm}
+                  showOwnerColumn={true}
+                  onFilterChange={this.handleFilterDashboards}
+                  onImportDashboard={this.summonImportOverlay}
+                />
+              </GetResources>
             </div>
           </Page.Contents>
         </Page>
@@ -126,15 +131,19 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private handleCreateDashboard = async (): Promise<void> => {
-    const {router, notify, orgs} = this.props
+    const {
+      router,
+      notify,
+      params: {orgID},
+    } = this.props
     try {
       const newDashboard = {
         name: DEFAULT_DASHBOARD_NAME,
         cells: [],
-        orgID: orgs[0].id,
+        orgID,
       }
       const data = await createDashboard(newDashboard)
-      router.push(`/dashboards/${data.id}`)
+      router.push(`/orgs/${orgID}/dashboards/${data.id}`)
     } catch (error) {
       notify(dashboardCreateFailed())
     }
@@ -143,16 +152,21 @@ class DashboardIndex extends PureComponent<Props, State> {
   private handleCloneDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
-    const {router, notify, orgs, dashboards} = this.props
+    const {
+      router,
+      notify,
+      dashboards,
+      params: {orgID},
+    } = this.props
     try {
       const data = await cloneDashboard(
         {
           ...dashboard,
-          orgID: orgs[0].id,
+          orgID,
         },
         dashboards
       )
-      router.push(`/dashboards/${data.id}`)
+      router.push(`/orgs/${orgID}/dashboards/${data.id}`)
     } catch (error) {
       console.error(error)
       notify(dashboardCreateFailed())
@@ -168,16 +182,21 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   private summonImportOverlay = (): void => {
-    const {router} = this.props
-    router.push(`/dashboards/import`)
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    router.push(`/orgs/${orgID}/dashboards/import`)
   }
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {dashboards, links, orgs} = state
+  const {
+    dashboards: {list: dashboards},
+    links,
+  } = state
 
   return {
-    orgs,
     dashboards,
     links,
   }

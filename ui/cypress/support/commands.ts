@@ -61,7 +61,7 @@ export const createTask = (
 ): Cypress.Chainable<Cypress.Response> => {
   const flux = `option task = {
     name: "${name}",
-    every: 1d,
+    every: 24h,
     offset: 20m
   }
   from(bucket: "defbuck")

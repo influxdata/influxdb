@@ -112,13 +112,11 @@ class OrgTasksIndex extends Component<Props, State> {
   }
 }
 
-const mstp = (state: AppState, props: Props): StateProps => {
-  const {
-    orgs,
-    orgView: {tasks},
-  } = state
-
-  const org = orgs.find(o => o.id === props.params.orgID)
+const mstp = (
+  {orgs: {items}, orgView: {tasks}}: AppState,
+  props: Props
+): StateProps => {
+  const org = items.find(o => o.id === props.params.orgID)
 
   return {
     org,

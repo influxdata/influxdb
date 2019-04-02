@@ -21,14 +21,17 @@ $variables-control-bar--gutter: $ix-marg-a;
   }
 
   .variable-dropdown {
-    margin: 0 $variables-control-bar--gutter / 2;
+    margin-right: $variables-control-bar--gutter / 2;
+  }
+
+  .variable-dropdown--container {
+    padding-bottom: 5px;
   }
 
   .variables-spinner-container {
     height: $variables-control-bar--height;
   }
 }
-
 
 .variables-control-bar--empty {
   background-color: $g3-castle;
@@ -39,4 +42,9 @@ $variables-control-bar--gutter: $ix-marg-a;
 
 .variables-control-bar > .techno-spinner {
   margin-left: 10px;
+}
+
+.variables-control-bar.presentation-mode {
+  padding: 8px 0px 0px 8px;
+  min-height: 0px;
 }

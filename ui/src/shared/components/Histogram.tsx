@@ -6,7 +6,7 @@ import {
   Histogram as MinardHistogram,
   Table,
   isNumeric,
-} from 'src/minard'
+} from '@influxdata/vis'
 
 // Components
 import HistogramTooltip from 'src/shared/components/HistogramTooltip'

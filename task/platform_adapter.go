@@ -176,10 +176,10 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		AuthorizationID: req.AuthorizationID,
 	}
 
-	if opts.Every != 0 {
+	if !opts.Every.IsZero() {
 		task.Every = opts.Every.String()
 	}
-	if opts.Offset != nil && *opts.Offset != 0 {
+	if opts.Offset != nil && !(*opts.Offset).IsZero() {
 		task.Offset = opts.Offset.String()
 	}
 
@@ -429,10 +429,10 @@ func (p *pAdapter) toPlatformTask(ctx context.Context, t backend.StoreTask, m *b
 		Flux:           t.Script,
 		Cron:           opts.Cron,
 	}
-	if opts.Every != 0 {
+	if !opts.Every.IsZero() {
 		pt.Every = opts.Every.String()
 	}
-	if opts.Offset != nil && *opts.Offset != 0 {
+	if opts.Offset != nil && !(*opts.Offset).IsZero() {
 		pt.Offset = opts.Offset.String()
 	}
 	if m != nil {

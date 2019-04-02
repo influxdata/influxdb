@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, CSSProperties, MouseEvent} from 'react'
+import React, {Component, MouseEvent} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -7,7 +7,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 import DropdownDivider from 'src/clockface/components/dropdowns/DropdownDivider'
 import DropdownItem from 'src/clockface/components/dropdowns/DropdownItem'
 import DropdownButton from 'src/clockface/components/dropdowns/DropdownButton'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import DapperScrollbars from 'src/shared/components/dapperScrollbars/DapperScrollbars'
 import WaitingText from 'src/shared/components/WaitingText'
 
 // Types
@@ -26,30 +26,36 @@ export enum DropdownMode {
   Radio = 'radio',
 }
 
-interface OwnProps {
+interface ThumbColors {
+  start: string
+  stop: string
+}
+
+interface PassedProps {
   children: JSX.Element[]
   onChange: (value: any) => void
+  selectedID?: string
+  widthPixels?: number
+  menuWidthPixels?: number
+  menuHeader?: JSX.Element
+  icon?: IconFont
+  customClass?: string
 }
 
-interface DefaultProps {
-  buttonTestID?: string
-  selectedID?: string
+export interface DefaultProps {
   buttonColor?: ComponentColor
   buttonSize?: ComponentSize
-  menuColor?: DropdownMenuColors
   status?: ComponentStatus
-  widthPixels?: number
-  icon?: IconFont
-  wrapText?: boolean
-  customClass?: string
   maxMenuHeight?: number
+  menuColor?: DropdownMenuColors
   mode?: DropdownMode
   titleText?: string
-  menuHeader?: JSX.Element
+  wrapMenuText?: boolean
   testID?: string
+  buttonTestID?: string
 }
 
-export type Props = OwnProps & DefaultProps
+export type Props = PassedProps & DefaultProps
 
 interface State {
   expanded: boolean
@@ -61,11 +67,11 @@ class Dropdown extends Component<Props, State> {
     buttonColor: ComponentColor.Default,
     buttonSize: ComponentSize.Small,
     status: ComponentStatus.Default,
-    wrapText: false,
     maxMenuHeight: 250,
     menuColor: DropdownMenuColors.Sapphire,
     mode: DropdownMode.Radio,
     titleText: '',
+    wrapMenuText: false,
     testID: 'dropdown',
     buttonTestID: 'dropdown-button',
   }
@@ -110,16 +116,17 @@ class Dropdown extends Component<Props, State> {
       buttonColor,
       buttonSize,
       status,
-      wrapText,
       customClass,
       mode,
+      wrapMenuText,
     } = this.props
 
     return classnames(
       `dropdown dropdown-${buttonSize} dropdown-${buttonColor}`,
       {
         disabled: status === ComponentStatus.Disabled,
-        'dropdown-wrap': wrapText,
+        'dropdown-wrap': wrapMenuText,
+        'dropdown-truncate': !wrapMenuText,
         [customClass]: customClass,
         [`dropdown--${mode}`]: mode,
       }
@@ -178,6 +185,8 @@ class Dropdown extends Component<Props, State> {
     const {
       selectedID,
       maxMenuHeight,
+      widthPixels,
+      menuWidthPixels,
       menuHeader,
       menuColor,
       children,
@@ -190,15 +199,32 @@ class Dropdown extends Component<Props, State> {
       return null
     }
 
+    let width = '100%'
+
+    if (widthPixels) {
+      width = `${widthPixels}px`
+    }
+
+    if (menuWidthPixels) {
+      width = `${menuWidthPixels}px`
+    }
+
+    const {start, stop} = this.thumbColorsFromTheme
+
     return (
       <div
         className={`dropdown--menu-container dropdown--${menuColor}`}
-        style={this.menuStyle}
+        style={{width}}
       >
-        <FancyScrollbar
+        <DapperScrollbars
+          style={{
+            maxWidth: '100%',
+            maxHeight: `${maxMenuHeight}px`,
+          }}
+          autoSize={true}
           autoHide={false}
-          autoHeight={true}
-          maxHeight={maxMenuHeight}
+          thumbStartColor={start}
+          thumbStopColor={stop}
         >
           <div
             className="dropdown--menu"
@@ -226,28 +252,32 @@ class Dropdown extends Component<Props, State> {
               }
             })}
           </div>
-        </FancyScrollbar>
+        </DapperScrollbars>
       </div>
     )
   }
 
-  private get menuStyle(): CSSProperties {
-    const {wrapText, widthPixels} = this.props
+  private get thumbColorsFromTheme(): ThumbColors {
+    const {menuColor} = this.props
 
-    let containerWidth = '100%'
-
-    if (widthPixels) {
-      containerWidth = `${widthPixels}px`
-    }
-
-    if (wrapText && widthPixels) {
-      return {
-        width: containerWidth,
-      }
-    }
-
-    return {
-      minWidth: containerWidth,
+    switch (menuColor) {
+      case DropdownMenuColors.Amethyst:
+      case DropdownMenuColors.Sapphire:
+        return {
+          start: '#BEF0FF',
+          stop: '#6BDFFF',
+        }
+      case DropdownMenuColors.Malachite:
+        return {
+          start: '#BEF0FF',
+          stop: '#A5F3B4',
+        }
+      default:
+      case DropdownMenuColors.Onyx:
+        return {
+          start: '#22ADF6',
+          stop: '#9394FF',
+        }
     }
   }
 

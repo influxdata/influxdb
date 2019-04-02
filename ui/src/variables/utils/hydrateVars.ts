@@ -33,6 +33,34 @@ interface HydrateVarsOptions {
   fetcher?: ValueFetcher
 }
 
+export const findDependentVariables = (
+  variable: Variable,
+  allVariables: Variable[]
+): Variable[] => {
+  const query: string = variable.arguments.values.query
+  const dependencies = allVariables.filter(maybeChild =>
+    query.includes(`${OPTION_NAME}.${maybeChild.name}`)
+  )
+
+  return dependencies
+}
+
+export const exportVariables = (
+  variables: Variable[],
+  allVariables: Variable[]
+): Variable[] => {
+  const varSet = new Set<Variable>()
+
+  for (const v of variables) {
+    varSet.add(v)
+    for (const d of findDependentVariables(v, allVariables)) {
+      varSet.add(d)
+    }
+  }
+
+  return [...varSet]
+}
+
 const createVariableGraph = (allVariables: Variable[]): VariableNode[] => {
   const nodesByID: {[variableID: string]: VariableNode} = {}
 

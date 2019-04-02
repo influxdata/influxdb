@@ -8,7 +8,7 @@ import {
 
 // Types
 import {ViewType, ViewShape, Base, Scale} from 'src/types'
-import {HistogramPosition} from 'src/minard'
+import {HistogramPosition} from '@influxdata/vis'
 import {
   XYView,
   XYViewGeom,
@@ -22,6 +22,7 @@ import {
   ViewProperties,
   DashboardQuery,
   QueryEditMode,
+  BuilderConfig,
 } from 'src/types/dashboards'
 
 function defaultView() {
@@ -35,12 +36,12 @@ export function defaultViewQuery(): DashboardQuery {
     name: '',
     text: '',
     editMode: QueryEditMode.Builder,
-    builderConfig: {
-      buckets: [],
-      tags: [{key: '_measurement', values: []}],
-      functions: [],
-    },
+    builderConfig: defaultBuilderConfig(),
   }
+}
+
+export function defaultBuilderConfig(): BuilderConfig {
+  return {buckets: [], tags: [{key: '_measurement', values: []}], functions: []}
 }
 
 function defaultLineViewProperties() {

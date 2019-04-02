@@ -459,7 +459,7 @@ paths:
             schema:
               $ref: "#/components/schemas/LabelMapping"
       responses:
-        '200':
+        '201':
           description: "the label added to the telegraf config"
           content:
             application/json:
@@ -819,12 +819,12 @@ paths:
             schema:
               $ref: "#/components/schemas/LabelMapping"
       responses:
-        '200':
-          description: a list of all labels for a scraper target
+        '201':
+          description: the newly added label
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LabelsResponse"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -1262,6 +1262,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/variables/{variableID}/labels':
+    get:
+      tags:
+        - Variables
+      summary: list all labels for a variable
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: variableID
+          schema:
+            type: string
+          required: true
+          description: ID of the variable
+      responses:
+        '200':
+          description: a list of all labels for a variable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Variables
+      summary: add a label to a variable
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: variableID
+          schema:
+            type: string
+          required: true
+          description: ID of the variable
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '201':
+          description: the newly added label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/variables/{variableID}/labels/{labelID}':
+    delete:
+      tags:
+        - Variables
+      summary: delete a label from a variable
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: variableID
+          schema:
+            type: string
+          required: true
+          description: ID of the variable
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: variable not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /write:
     post:
       tags:
@@ -1381,6 +1473,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /ready:
+    servers:
+        - url: /
     get:
       tags:
         - Ready
@@ -1399,6 +1493,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /health:
+    servers:
+        - url: /
     get:
       tags:
         - Health
@@ -2241,7 +2337,7 @@ paths:
             schema:
               $ref: "#/components/schemas/LabelMapping"
       responses:
-        '200':
+        '201':
           description: the label added to the dashboard
           content:
             application/json:
@@ -2700,7 +2796,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Authorization"
+              $ref: "#/components/schemas/AuthorizationUpdateRequest"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -3081,12 +3177,12 @@ paths:
             schema:
               $ref: "#/components/schemas/LabelMapping"
       responses:
-        '200':
-          description: a list of all labels for a bucket
+        '201':
+          description: the newly added label
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LabelsResponse"
+                $ref: "#/components/schemas/LabelResponse"
         default:
           description: unexpected error
           content:
@@ -3521,7 +3617,7 @@ paths:
             schema:
               $ref: "#/components/schemas/LabelMapping"
       responses:
-        '200':
+        '201':
           description: returns the created label
           content:
             application/json:
@@ -4677,12 +4773,8 @@ paths:
             schema:
               $ref: "#/components/schemas/PasswordResetBody"
       responses:
-        '200':
-          description: user details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/User"
+        '204':
+          description: password successfully updated
         default:
           description: unsuccessful authentication
           content:
@@ -5346,12 +5438,8 @@ components:
               type: string
               nullable: true
               description: optional name of the organization of the organization with orgID.
-    Authorization:
-      required: [orgID, permissions]
+    AuthorizationUpdateRequest:
       properties:
-        orgID:
-          type: string
-          description: ID of org that authorization is scoped to.
         status:
           description: if inactive the token is inactive and requests using the token will be rejected.
           default: active
@@ -5362,46 +5450,55 @@ components:
         description:
           type: string
           description: A description of the token.
-        permissions:
-          type: array
-          minLength: 1
-          description: List of permissions for an auth.  An auth must have at least one Permission.
-          items:
-            $ref: "#/components/schemas/Permission"
-        id:
-          readOnly: true
-          type: string
-        token:
-          readOnly: true
-          type: string
-          description: Passed via the Authorization Header and Token Authentication type.
-        userID:
-          readOnly: true
-          type: string
-          description: ID of user that created and owns the token.
-        user:
-          readOnly: true
-          type: string
-          description: Name of user that created and owns the token.
-        org:
-          readOnly: true
-          type: string
-          description: Name of the org token is scoped to.
-        links:
-          type: object
-          readOnly: true
-          example:
-            self: "/api/v2/authorizations/1"
-            user: "/api/v2/users/12"
+    Authorization:
+      required: [orgID, permissions]
+      allOf:
+        - $ref: "#/components/schemas/AuthorizationUpdateRequest"
+        - type: object
           properties:
-            self:
+            orgID:
+              type: string
+              description: ID of org that authorization is scoped to.
+            permissions:
+              type: array
+              minLength: 1
+              description: List of permissions for an auth.  An auth must have at least one Permission.
+              items:
+                $ref: "#/components/schemas/Permission"
+            id:
               readOnly: true
               type: string
-              format: uri
+            token:
+              readOnly: true
+              type: string
+              description: Passed via the Authorization Header and Token Authentication type.
+            userID:
+              readOnly: true
+              type: string
+              description: ID of user that created and owns the token.
             user:
               readOnly: true
               type: string
-              format: uri
+              description: Name of user that created and owns the token.
+            org:
+              readOnly: true
+              type: string
+              description: Name of the org token is scoped to.
+            links:
+              type: object
+              readOnly: true
+              example:
+                self: "/api/v2/authorizations/1"
+                user: "/api/v2/users/12"
+              properties:
+                self:
+                  readOnly: true
+                  type: string
+                  format: uri
+                user:
+                  readOnly: true
+                  type: string
+                  format: uri
     Authorizations:
       type: object
       properties:
@@ -6435,6 +6532,8 @@ components:
           enum: ["map"]
         values:
           type: object
+          additionalProperties:
+            type: string
     QueryVariableProperties:
       properties:
         type:
@@ -6461,6 +6560,12 @@ components:
             self:
               type: string
               format: uri
+            org:
+              type: string
+              format: uri
+            labels:
+              type: string
+              format: uri
         id:
           readOnly: true
           type: string
@@ -6472,6 +6577,8 @@ components:
           type: array
           items:
             type: string
+        labels:
+            $ref: "#/components/schemas/Labels"
         arguments:
           type: object
           oneOf:
@@ -6639,10 +6746,14 @@ components:
         - $ref: "#/components/schemas/SecretKeys"
         - type: object
           properties:
-            self:
-              type: string
-            org:
-              type: string
+            links:
+              readOnly: true
+              type: object
+              properties:
+                self:
+                  type: string
+                org:
+                  type: string
     CreateProtoResourcesRequest:
       properties:
         orgID:
@@ -6705,6 +6816,8 @@ components:
                 owners: "/api/v2/dashboards/1/owners"
                 members: "/api/v2/dashboards/1/members"
                 logs: "/api/v2/dashboards/1/logs"
+                labels: "/api/v2/dashboards/1/labels"
+                org: "/api/v2/labels/1"
               properties:
                 self:
                   $ref: "#/components/schemas/Link"
@@ -6716,6 +6829,10 @@ components:
                   $ref: "#/components/schemas/Link"
                 logs:
                   $ref: "#/components/schemas/Link"
+                labels:
+                  $ref: "#/components/schemas/Link"
+                org:
+                  $ref: "#/components/schemas/Link"
             id:
               readOnly: true
               type: string
@@ -6724,10 +6841,10 @@ components:
               properties:
                 createdAt:
                   type: string
-                  format: date
+                  format: date-time
                 updatedAt:
                   type: string
-                  format: date
+                  format: date-time
             cells:
                 $ref: "#/components/schemas/Cells"
             labels:
@@ -6892,6 +7009,15 @@ components:
           type: object
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/documents/templates/1"
+          properties:
+            self:
+              description: URL for this document
+              $ref: "#/components/schemas/Link"
       required:
         - id
         - meta
@@ -6934,6 +7060,15 @@ components:
           $ref: "#/components/schemas/DocumentMeta"
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/documents/templates/1"
+          properties:
+            self:
+              description: URL for this document
+              $ref: "#/components/schemas/Link"
       required:
         - id
         - meta
@@ -7516,7 +7651,7 @@ components:
           type: string
           enum:
             - ready
-        start:
+        started:
           type: string
           format: date-time
           example: "2019-03-13T10:09:33.891196-04:00"

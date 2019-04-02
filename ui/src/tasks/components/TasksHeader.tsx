@@ -5,7 +5,6 @@ import {Page} from 'src/pageLayout'
 // Components
 import {SlideToggle, ComponentSize} from '@influxdata/clockface'
 import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
-import TaskOrgDropdown from 'src/tasks/components/TasksOrgDropdown'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 
 interface Props {
@@ -50,7 +49,6 @@ export default class TasksHeader extends PureComponent<Props> {
               size={ComponentSize.ExtraSmall}
               onChange={setShowInactive}
             />
-            {this.orgDropDown}
             <AddResourceDropdown
               onSelectNew={onCreateTask}
               onSelectImport={onImportTask}
@@ -89,14 +87,5 @@ export default class TasksHeader extends PureComponent<Props> {
       return 'Tasks'
     }
     return ''
-  }
-
-  private get orgDropDown(): JSX.Element {
-    const {showOrgDropdown} = this.props
-
-    if (showOrgDropdown) {
-      return <TaskOrgDropdown />
-    }
-    return <></>
   }
 }

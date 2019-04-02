@@ -1,13 +1,13 @@
 // Reducer
-import reducer from 'src/dashboards/reducers/dashboards'
+import {dashboardsReducer as reducer} from 'src/dashboards/reducers/dashboards'
 
 // Actions
 import {
-  loadDashboard,
-  loadDashboards,
-  deleteDashboard,
-  updateDashboard,
-  deleteCell,
+  setDashboard,
+  setDashboards,
+  removeDashboard,
+  editDashboard,
+  removeCell,
   addDashboardLabels,
   removeDashboardLabels,
 } from 'src/dashboards/actions/'
@@ -15,48 +15,53 @@ import {
 // Resources
 import {dashboard} from 'src/dashboards/resources'
 import {labels} from 'mocks/dummyData'
+import {RemoteDataState} from '@influxdata/clockface'
+
+const status = RemoteDataState.Done
 
 describe('dashboards reducer', () => {
-  it('can load the dashboards', () => {
-    const expected = [dashboard]
-    const actual = reducer([], loadDashboards(expected))
+  it('can set the dashboards', () => {
+    const list = [dashboard]
+
+    const expected = {status, list}
+    const actual = reducer(undefined, setDashboards(status, list))
 
     expect(actual).toEqual(expected)
   })
 
-  it('can delete a dashboard', () => {
+  it('can remove a dashboard', () => {
     const d2 = {...dashboard, id: '2'}
-    const state = [dashboard, d2]
-    const expected = [dashboard]
-    const actual = reducer(state, deleteDashboard(d2.id))
+    const list = [dashboard, d2]
+    const expected = {list: [dashboard], status}
+    const actual = reducer({list, status}, removeDashboard(d2.id))
 
     expect(actual).toEqual(expected)
   })
 
-  it('can load a dashboard', () => {
+  it('can set a dashboard', () => {
     const loadedDashboard = {...dashboard, name: 'updated'}
     const d2 = {...dashboard, id: '2'}
-    const state = [dashboard, d2]
+    const state = {status, list: [dashboard, d2]}
 
-    const expected = [loadedDashboard, d2]
-    const actual = reducer(state, loadDashboard(loadedDashboard))
+    const expected = {status, list: [loadedDashboard, d2]}
+    const actual = reducer(state, setDashboard(loadedDashboard))
 
     expect(actual).toEqual(expected)
   })
 
-  it('can update a dashboard', () => {
+  it('can edit a dashboard', () => {
     const updates = {...dashboard, name: 'updated dash'}
-    const expected = [updates]
-    const actual = reducer([dashboard], updateDashboard(updates))
+    const expected = {status, list: [updates]}
+    const actual = reducer({status, list: [dashboard]}, editDashboard(updates))
 
     expect(actual).toEqual(expected)
   })
 
-  it('can delete a cell from a dashboard', () => {
-    const expected = [{...dashboard, cells: []}]
+  it('can remove a cell from a dashboard', () => {
+    const expected = {status, list: [{...dashboard, cells: []}]}
     const actual = reducer(
-      [dashboard],
-      deleteCell(dashboard, dashboard.cells[0])
+      {status, list: [dashboard]},
+      removeCell(dashboard, dashboard.cells[0])
     )
 
     expect(actual).toEqual(expected)
@@ -64,20 +69,24 @@ describe('dashboards reducer', () => {
 
   it('can add labels to a dashboard', () => {
     const dashboardWithoutLabels = {...dashboard, labels: []}
-    const expected = [{...dashboard, labels}]
+    const expected = {status, list: [{...dashboard, labels}]}
     const actual = reducer(
-      [dashboardWithoutLabels],
+      {status, list: [dashboardWithoutLabels]},
       addDashboardLabels(dashboardWithoutLabels.id, labels)
     )
 
     expect(actual).toEqual(expected)
   })
 
-  it('can delete labels from a dashboard', () => {
-    const dashboardWithLabels = {...dashboard, labels}
-    const expected = [{...dashboard, labels: []}]
+  it('can remove labels from a dashboard', () => {
+    const leftOverLabel = {...labels[0], name: 'wowowowo', id: '3'}
+    const dashboardWithLabels = {
+      ...dashboard,
+      labels: [...labels, leftOverLabel],
+    }
+    const expected = {status, list: [{...dashboard, labels: [leftOverLabel]}]}
     const actual = reducer(
-      [dashboardWithLabels],
+      {status, list: [dashboardWithLabels]},
       removeDashboardLabels(dashboardWithLabels.id, labels)
     )
 

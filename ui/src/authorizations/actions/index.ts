@@ -60,7 +60,9 @@ interface EditAuthorization {
   }
 }
 
-export const editLabel = (authorization: Authorization): EditAuthorization => ({
+export const editAuthorization = (
+  authorization: Authorization
+): EditAuthorization => ({
   type: 'EDIT_AUTH',
   payload: {authorization},
 })
@@ -106,12 +108,9 @@ export const updateAuthorization = (authorization: Authorization) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const label = await client.authorizations.update(
-      authorization.id,
-      authorization
-    )
+    await client.authorizations.update(authorization.id, authorization)
 
-    dispatch(editLabel(label))
+    dispatch(getAuthorizations())
   } catch (e) {
     console.error(e)
     dispatch(notify(authorizationUpdateFailed(authorization.id)))

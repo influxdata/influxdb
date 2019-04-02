@@ -10,11 +10,11 @@ jest.mock('src/timeMachine/apis/queryBuilder')
 const setInitialState = state => {
   return {
     ...state,
-    orgs: [
-      {
+    orgs: {
+      org: {
         id: 'foo',
       },
-    ],
+    },
   }
 }
 

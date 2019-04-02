@@ -12,8 +12,10 @@ describe('Dashboards', () => {
       cy.wrap(body.org).as('org')
     })
 
-    cy.fixture('routes').then(({dashboards}) => {
-      cy.visit(dashboards)
+    cy.fixture('routes').then(({orgs}) => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.visit(`${orgs}/${id}/dashboards`)
+      })
     })
   })
 
@@ -24,7 +26,11 @@ describe('Dashboards', () => {
 
     cy.getByTestID('dropdown--item New Dashboard').click()
 
-    cy.visit('/dashboards')
+    cy.fixture('routes').then(({orgs}) => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.visit(`${orgs}/${id}/dashboards`)
+      })
+    })
 
     cy.getByTestID('dashboard-card').should('have.length', 1)
   })
@@ -36,7 +42,11 @@ describe('Dashboards', () => {
 
     cy.getByTestID('dropdown--item New Dashboard').click()
 
-    cy.visit('/dashboards')
+    cy.fixture('routes').then(({orgs}) => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.visit(`${orgs}/${id}/dashboards`)
+      })
+    })
 
     cy.getByTestID('dashboard-card').should('have.length', 1)
   })
@@ -53,7 +63,11 @@ describe('Dashboards', () => {
         })
       })
 
-      cy.visit('/dashboards')
+      cy.fixture('routes').then(({orgs}) => {
+        cy.get<Organization>('@org').then(({id}) => {
+          cy.visit(`${orgs}/${id}/dashboards`)
+        })
+      })
     })
 
     it('can delete a dashboard', () => {
@@ -140,7 +154,7 @@ describe('Dashboards', () => {
         })
       })
 
-      it('can create a label and add to a dashboard', () => {
+      it.skip('can create a label and add to a dashboard', () => {
         const label = 'plerps'
         cy.getByTestID(`inline-labels--add`)
           .first()

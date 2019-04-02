@@ -86,9 +86,12 @@ class OrgTemplatesIndex extends Component<Props> {
 }
 
 const mstp = (state: AppState, props: Props): StateProps => {
-  const {orgs, templates} = state
+  const {
+    orgs: {items},
+    templates,
+  } = state
 
-  const org = orgs.find(o => o.id === props.params.orgID)
+  const org = items.find(o => o.id === props.params.orgID)
 
   return {
     org,

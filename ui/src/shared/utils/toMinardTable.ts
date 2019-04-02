@@ -1,5 +1,5 @@
 import {FluxTable} from 'src/types'
-import {Table, ColumnType, isNumeric} from 'src/minard'
+import {Table, ColumnType, isNumeric} from '@influxdata/vis'
 
 export const GROUP_KEY_COL_NAME = 'group_key'
 

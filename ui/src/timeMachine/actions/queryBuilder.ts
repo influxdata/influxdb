@@ -2,7 +2,6 @@
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 
 // Utils
-import {getActiveOrg} from 'src/organizations/selectors'
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
@@ -214,7 +213,7 @@ export const loadBuckets = () => async (
   getState: GetState
 ) => {
   const queryURL = getState().links.query.self
-  const orgID = getActiveOrg(getState()).id
+  const orgID = getState().orgs.org.id
 
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
@@ -263,7 +262,7 @@ export const loadTagSelector = (index: number) => async (
 
   const tagsSelections = tags.slice(0, index)
   const queryURL = getState().links.query.self
-  const orgID = getActiveOrg(getState()).id
+  const orgID = getState().orgs.org.id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
@@ -319,7 +318,7 @@ const loadTagSelectorValues = (index: number) => async (
   const {buckets, tags} = getActiveQuery(state).builderConfig
   const tagsSelections = tags.slice(0, index)
   const queryURL = state.links.query.self
-  const orgID = getActiveOrg(state).id
+  const orgID = getState().orgs.org.id
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 

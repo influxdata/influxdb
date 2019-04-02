@@ -5,10 +5,8 @@ import (
 	"os"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -289,17 +287,7 @@ func init() {
 
 func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
 	if flags.local {
-		boltFile, err := fs.BoltFile()
-		if err != nil {
-			return nil, err
-		}
-		c := bolt.NewClient()
-		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
-			return nil, err
-		}
-
-		return c, nil
+		return newLocalKVService()
 	}
 	return &http.AuthorizationService{
 		Addr:  flags.host,
@@ -473,7 +461,9 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := s.SetAuthorizationStatus(context.Background(), id, platform.Active); err != nil {
+	if err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
+		Status: platform.Active.Ptr(),
+	}); err != nil {
 		return err
 	}
 
@@ -542,7 +532,9 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := s.SetAuthorizationStatus(ctx, id, platform.Inactive); err != nil {
+	if err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
+		Status: platform.Inactive.Ptr(),
+	}); err != nil {
 		return err
 	}
 

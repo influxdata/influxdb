@@ -63,9 +63,11 @@ class TemplateImportOverlay extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState, props: Props): StateProps => {
-  const {orgs} = state
+  const {
+    orgs: {items},
+  } = state
 
-  const org = orgs.find(o => o.id === props.params.orgID)
+  const org = items.find(o => o.id === props.params.orgID)
 
   return {org}
 }

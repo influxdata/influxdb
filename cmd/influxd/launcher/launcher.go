@@ -547,13 +547,15 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, store)
 
 		lw := taskbackend.NewPointLogWriter(pointsWriter)
-		m.scheduler = taskbackend.NewScheduler(store, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
+		lr := taskbackend.NewQueryLogReader(queryService)
+		taskControlService := taskbackend.TaskControlAdaptor(store, lw, lr)
+		m.scheduler = taskbackend.NewScheduler(taskControlService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
-		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
-		lr := taskbackend.NewQueryLogReader(queryService)
-		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, store), lr, m.scheduler, authSvc, userResourceSvc, orgSvc)
+		taskSvc = task.PlatformAdapter(store, lr, m.scheduler, authSvc, userResourceSvc, orgSvc)
+		taskSvc = coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, taskSvc)
 		taskSvc = task.NewValidator(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
 		m.taskStore = store
 	}

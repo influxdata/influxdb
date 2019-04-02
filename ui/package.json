@@ -141,8 +141,9 @@
   },
   "dependencies": {
     "@influxdata/clockface": "0.0.8",
-    "@influxdata/influx": "0.2.53",
+    "@influxdata/influx": "0.2.55",
     "@influxdata/react-custom-scrollbars": "4.3.8",
+    "@influxdata/vis": "^0.1.1",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",
     "bignumber.js": "^4.0.2",
@@ -181,6 +182,7 @@
     "react-resize-detector": "^2.3.0",
     "react-router": "^3.0.2",
     "react-router-redux": "^4.0.8",
+    "react-scrollbars-custom": "^4.0.0-alpha.8",
     "react-tooltip": "^3.2.1",
     "react-virtualized": "^9.18.5",
     "redux": "^4.0.0",

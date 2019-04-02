@@ -1,4 +1,13 @@
-## v2.0.0-alpha.7 [unreleased]
+## v2.0.0-alpha.8 [unreleased]
+
+### Features
+1. [13024](https://github.com/influxdata/influxdb/pull/13024): Add the ability to edit token's description
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.7 [2019-03-28]
 
 ### Features
 
@@ -26,6 +35,7 @@
 1. [12793](https://github.com/influxdata/influxdb/pull/12793): Fix task creation error when switching schedule types.
 1. [12805](https://github.com/influxdata/influxdb/pull/12805): Fix hidden horizonal scrollbars in flux raw data view
 1. [12827](https://github.com/influxdata/influxdb/pull/12827): Fix screen tearing bug in Raw Data View
+1. [12961](https://github.com/influxdata/influxdb/pull/12961): Fix scroll clipping in graph legends & dropdown menus
 1. [12959](https://github.com/influxdata/influxdb/pull/12959): Fix routing loop
 
 ### UI Improvements

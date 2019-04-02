@@ -25,7 +25,7 @@ message StoreTaskMeta {
   string effective_cron = 5;
 
   // Task's configured delay, in seconds.
-  int32 offset = 6;
+  string offset = 6;
 
   int64 created_at = 7;
   int64 updated_at = 8;

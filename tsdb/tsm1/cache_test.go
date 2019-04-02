@@ -1,8 +1,6 @@
 package tsm1
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -105,44 +103,32 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 
 // Tests that the cache stats and size are correctly maintained during writes.
 func TestCache_WriteMulti_Stats(t *testing.T) {
-	limit := uint64(1)
-	c := NewCache(limit)
-	ms := NewTestStore()
-	c.store = ms
-
-	// Not enough room in the cache.
-	v := NewValue(1, 1.0)
-	values := map[string][]Value{"foo": {v, v}}
-	if got, exp := c.WriteMulti(values), ErrCacheMemorySizeLimitExceeded(uint64(v.Size()*2), limit); !reflect.DeepEqual(got, exp) {
-		t.Fatalf("got %q, expected %q", got, exp)
-	}
+	vf := NewValue(1, 1.0)
+	vi := NewValue(1, int64(1))
+	c := NewCache(60)
 
 	// Fail one of the values in the write.
-	c = NewCache(50)
-	c.init()
-	c.store = ms
-
-	ms.writef = func(key []byte, v Values) (bool, error) {
-		if bytes.Equal(key, []byte("foo")) {
-			return false, errors.New("write failed")
-		}
-		return true, nil
+	if err := c.WriteMulti(map[string][]Value{"foo": {vf}}); err != nil {
+		t.Fatalf("expected no error. got %v", err)
+	}
+	if err := c.WriteMulti(map[string][]Value{"foo": {vi}, "bar": {vf}}); err == nil {
+		t.Fatal("got no error")
 	}
 
-	values = map[string][]Value{"foo": {v, v}, "bar": {v}}
-	if got, exp := c.WriteMulti(values), errors.New("write failed"); !reflect.DeepEqual(got, exp) {
-		t.Fatalf("got %v, expected %v", got, exp)
+	// Not enough room in the cache.
+	if err := c.WriteMulti(map[string][]Value{"foo": {vf, vf}}); err == nil {
+		t.Fatal("got no error")
 	}
 
 	// Cache size decreased correctly.
-	if got, exp := c.Size(), uint64(16)+3; got != exp {
+	if got, exp := c.Size(), uint64(3+3*8+3+8); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
 	// Write stats updated
 	if got, exp := atomic.LoadUint64(&c.tracker.writesDropped), uint64(1); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
-	} else if got, exp := atomic.LoadUint64(&c.tracker.writesErr), uint64(1); got != exp {
+	} else if got, exp := atomic.LoadUint64(&c.tracker.writesErr), uint64(2); got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }
@@ -764,37 +750,10 @@ func mustMarshalEntry(entry wal.WALEntry) (wal.WalEntryType, []byte) {
 	return entry.Type(), snappy.Encode(b, b)
 }
 
-// TestStore implements the storer interface and can be used to mock out a
-// Cache's storer implememation.
-type TestStore struct {
-	entryf       func(key []byte) *entry
-	writef       func(key []byte, values Values) (bool, error)
-	addf         func(key []byte, entry *entry)
-	removef      func(key []byte)
-	keysf        func(sorted bool) [][]byte
-	applyf       func(f func([]byte, *entry) error) error
-	applySerialf func(f func([]byte, *entry) error) error
-	resetf       func()
-	splitf       func(n int) []storer
-	countf       func() int
-}
-
-func NewTestStore() *TestStore                                      { return &TestStore{} }
-func (s *TestStore) entry(key []byte) *entry                        { return s.entryf(key) }
-func (s *TestStore) write(key []byte, values Values) (bool, error)  { return s.writef(key, values) }
-func (s *TestStore) add(key []byte, entry *entry)                   { s.addf(key, entry) }
-func (s *TestStore) remove(key []byte)                              { s.removef(key) }
-func (s *TestStore) keys(sorted bool) [][]byte                      { return s.keysf(sorted) }
-func (s *TestStore) apply(f func([]byte, *entry) error) error       { return s.applyf(f) }
-func (s *TestStore) applySerial(f func([]byte, *entry) error) error { return s.applySerialf(f) }
-func (s *TestStore) reset()                                         { s.resetf() }
-func (s *TestStore) split(n int) []storer                           { return s.splitf(n) }
-func (s *TestStore) count() int                                     { return s.countf() }
-
 var fvSize = uint64(NewValue(1, float64(1)).Size())
 
 func BenchmarkCacheFloatEntries(b *testing.B) {
-	cache := NewCache(uint64(b.N) * fvSize)
+	cache := NewCache(uint64(b.N)*fvSize + 4)
 	vals := make([][]Value, b.N)
 	for i := 0; i < b.N; i++ {
 		vals[i] = []Value{NewValue(1, float64(i))}
@@ -815,7 +774,7 @@ type points struct {
 
 func BenchmarkCacheParallelFloatEntries(b *testing.B) {
 	c := b.N * runtime.GOMAXPROCS(0)
-	cache := NewCache(uint64(c) * fvSize * 10)
+	cache := NewCache(uint64(c)*fvSize*10 + 20*5)
 	vals := make([]points, c)
 	for i := 0; i < c; i++ {
 		v := make([]Value, 10)

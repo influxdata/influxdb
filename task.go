@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
@@ -38,6 +36,21 @@ type Task struct {
 	LatestCompleted string `json:"latestCompleted,omitempty"`
 	CreatedAt       string `json:"createdAt,omitempty"`
 	UpdatedAt       string `json:"updatedAt,omitempty"`
+}
+
+// EffectiveCron returns the effective cron string of the options.
+// If the cron option was specified, it is returned.
+// If the every option was specified, it is converted into a cron string using "@every".
+// Otherwise, the empty string is returned.
+// The value of the offset option is not considered.
+func (t *Task) EffectiveCron() string {
+	if t.Cron != "" {
+		return t.Cron
+	}
+	if t.Every != "" {
+		return "@every " + t.Every
+	}
+	return ""
 }
 
 // Run is a record created when a run of a task is scheduled.
@@ -145,11 +158,11 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 
 		// Every represents a fixed period to repeat execution.
 		// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
-		Every flux.Duration `json:"every,omitempty"`
+		Every options.Duration `json:"every,omitempty"`
 
 		// Offset represents a delay before execution.
 		// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
-		Offset *flux.Duration `json:"offset,omitempty"`
+		Offset *options.Duration `json:"offset,omitempty"`
 
 		Concurrency *int64 `json:"concurrency,omitempty"`
 
@@ -163,9 +176,9 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 	}
 	t.Options.Name = jo.Name
 	t.Options.Cron = jo.Cron
-	t.Options.Every = time.Duration(jo.Every)
+	t.Options.Every = jo.Every
 	if jo.Offset != nil {
-		offset := time.Duration(*jo.Offset)
+		offset := *jo.Offset
 		t.Options.Offset = &offset
 	}
 	t.Options.Concurrency = jo.Concurrency
@@ -187,10 +200,10 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 		Cron string `json:"cron,omitempty"`
 
 		// Every represents a fixed period to repeat execution.
-		Every flux.Duration `json:"every,omitempty"`
+		Every options.Duration `json:"every,omitempty"`
 
 		// Offset represents a delay before execution.
-		Offset *flux.Duration `json:"offset,omitempty"`
+		Offset *options.Duration `json:"offset,omitempty"`
 
 		Concurrency *int64 `json:"concurrency,omitempty"`
 
@@ -200,9 +213,9 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 	}{}
 	jo.Name = t.Options.Name
 	jo.Cron = t.Options.Cron
-	jo.Every = flux.Duration(t.Options.Every)
+	jo.Every = t.Options.Every
 	if t.Options.Offset != nil {
-		offset := flux.Duration(*t.Options.Offset)
+		offset := *t.Options.Offset
 		jo.Offset = &offset
 	}
 	jo.Concurrency = t.Options.Concurrency
@@ -215,7 +228,7 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 
 func (t TaskUpdate) Validate() error {
 	switch {
-	case t.Options.Every != 0 && t.Options.Cron != "":
+	case !t.Options.Every.IsZero() && t.Options.Cron != "":
 		return errors.New("cannot specify both every and cron")
 	case t.Flux == nil && t.Status == nil && t.Options.IsZero() && t.Token == "":
 		return errors.New("cannot update task without content")
@@ -237,25 +250,23 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 		return ast.GetError(parsedPKG)
 	}
 	parsed := parsedPKG.Files[0]
-	if t.Options.Every != 0 && t.Options.Cron != "" {
-		return errors.New("cannot specify both every and cron")
+	if !t.Options.Every.IsZero() && t.Options.Cron != "" {
+		return errors.New("cannot specify both cron and every")
 	}
 	op := make(map[string]ast.Expression, 4)
 
 	if t.Options.Name != "" {
 		op["name"] = &ast.StringLiteral{Value: t.Options.Name}
 	}
-	if t.Options.Every != 0 {
-		d := ast.Duration{Magnitude: int64(t.Options.Every), Unit: "ns"}
-		op["every"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
+	if !t.Options.Every.IsZero() {
+		op["every"] = &t.Options.Every.Node
 	}
 	if t.Options.Cron != "" {
 		op["cron"] = &ast.StringLiteral{Value: t.Options.Cron}
 	}
 	if t.Options.Offset != nil {
-		if *t.Options.Offset != 0 {
-			d := ast.Duration{Magnitude: int64(*t.Options.Offset), Unit: "ns"}
-			op["offset"] = &ast.DurationLiteral{Values: []ast.Duration{d}}
+		if !t.Options.Offset.IsZero() {
+			op["offset"] = &t.Options.Offset.Node
 		} else {
 			toDelete["offset"] = struct{}{}
 		}
@@ -285,12 +296,12 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 				case "offset":
 					if offset, ok := op["offset"]; ok && t.Options.Offset != nil {
 						delete(op, "offset")
-						p.Value = offset
+						p.Value = offset.Copy().(*ast.DurationLiteral)
 					}
 				case "every":
-					if every, ok := op["every"]; ok && t.Options.Every != 0 {
+					if every, ok := op["every"]; ok && !t.Options.Every.IsZero() {
+						p.Value = every.Copy().(*ast.DurationLiteral)
 						delete(op, "every")
-						p.Value = every
 					} else if cron, ok := op["cron"]; ok && t.Options.Cron != "" {
 						delete(op, "cron")
 						p.Value = cron
@@ -300,10 +311,10 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 					if cron, ok := op["cron"]; ok && t.Options.Cron != "" {
 						delete(op, "cron")
 						p.Value = cron
-					} else if every, ok := op["every"]; ok && t.Options.Every != 0 {
+					} else if every, ok := op["every"]; ok && !t.Options.Every.IsZero() {
 						delete(op, "every")
 						p.Key = &ast.Identifier{Name: "every"}
-						p.Value = every
+						p.Value = every.Copy().(*ast.DurationLiteral)
 					}
 				}
 			}
