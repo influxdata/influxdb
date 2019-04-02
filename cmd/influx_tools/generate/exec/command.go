@@ -200,15 +200,19 @@ func (cmd *Command) exec(storagePlan *generate.StoragePlan, spec *gen.Spec) erro
 	return g.Run(context.Background(), storagePlan.Database, storagePlan.ShardPath(), storagePlan.NodeShardGroups(), gens)
 }
 
-const exampleSchema = `title = "CLI schema"
+const exampleSchema = `title = "Documented schema"
 
 # limit the maximum number of series generated across all measurements
 #
 # series-limit: integer, optional (default: unlimited)
-# multiple measurements are merged together
-[[measurements]]
-# name of measurement
 
+[[measurements]]
+
+# name of measurement
+#
+# NOTE: 
+# Multiple definitions of the same measurement name are allowed and
+# will be merged together.
 name = "cpu"
 
 # sample: float; where 0 < sample ≤ 1.0 (default: 0.5)
@@ -216,7 +220,7 @@ name = "cpu"
 #
 # sample 25% of the tags
 #
-# sample = 0.25
+sample = 0.25
 
 # Keys for defining a tag
 #
@@ -249,13 +253,16 @@ name = "cpu"
 #       path: string
 #           absolute path or relative path to current toml file
 tags = [
-    # example sequence tag source. The range of values are automatically prefixed with 0s
+    # example sequence tag source. The range of values are automatically 
+    # prefixed with 0s
     # to ensure correct sort behavior.
-    { name = "host",   source = { type = "sequence", format = "host-%s", start = 0, count = 5 } },
+    { name = "host", source = { type = "sequence", format = "host-%s", start = 0, count = 5 } },
 
-    # tags can also be sourced from a file. The path is relative to the schema.toml.
-    # Each value must be on a new line. The file is also sorted, validated for UTF-8 and deduplicated.
-    # { name = "region", source = { type = "file", path = "files/regions.txt" } },
+    # tags can also be sourced from a file. The path is relative to the 
+    # schema.toml.
+    # Each value must be on a new line. The file is also sorted, deduplicated 
+    # and UTF-8 validated.
+    { name = "rack", source = { type = "file", path = "files/racks.txt" } },
 
     # Example string array source, which is also deduplicated and sorted
     { name = "region", source = ["us-west-01","us-west-02","us-east"] },
@@ -267,12 +274,47 @@ tags = [
 #   Name of field
 #
 # count: int, required
-#   Number of values to generate. When multiple fields have the same 
-#   count, they will share timestamps.
+#   The maximum number of values to generate. When multiple fields 
+#   have the same count and time-spec, they will share timestamps.
 #
-# time-precision: string (default: ms)
-#   The precision for generated timestamps. 
-#   One of ns, us, ms, s, m, h
+# A time-spec can be either time-precision or time-interval, which 
+# determines how timestamps are generated and may also influence 
+# the time range and number of values generated.
+#
+# time-precision: string [ns, us, ms, s, m, h] (default: ms)
+#   Specifies the precision (rounding) for generated timestamps.
+#
+#   If the precision results in fewer than "count" intervals for the 
+#   given time range the number of values will be reduced.
+#
+#   Example: 
+#      count = 1000, start = 0s, end = 100s, time-precison = s
+#      100 values will be generated at [0s, 1s, 2s, ..., 99s] 
+#
+#   If the precision results in greater than "count" intervals for the
+#   given time range, the interval will be rounded to the nearest multiple of
+#   time-precision.
+#
+#   Example: 
+#      count = 10, start = 0s, end = 100s, time-precison = s
+#      100 values will be generated at [0s, 10s, 20s, ..., 90s] 
+#
+# time-interval: Go duration string (eg 90s, 1h30m)
+#   Specifies the delta between generated timestamps. 
+#
+#   If the delta results in fewer than "count" intervals for the 
+#   given time range the number of values will be reduced.
+#
+#   Example: 
+#      count = 100, start = 0s, end = 100s, time-interval = 10s
+#      10 values will be generated at [0s, 10s, 20s, ..., 90s] 
+#
+#   If the delta results in greater than "count" intervals for the
+#   given time range, the start-time will be adjusted to ensure "count" values.
+#
+#   Example: 
+#      count = 20, start = 0s, end = 1000s, time-interval = 10s
+#      20 values will be generated at [800s, 810s, ..., 900s, ..., 990s] 
 #
 # source: int, float, boolean, string, array or object
 # 
@@ -321,8 +363,8 @@ tags = [
 ]
 fields = [
     # An example of a sequence of integer values
-    { name = "free", count = 17, source = [10,15,20,25,30,35,30], time-precision = "ms" },
-    { name = "low_mem", count = 17, source = [false,true,true], time-precision = "ms" },
+    { name = "free",    count = 100, source = [10,15,20,25,30,35,30], time-precision = "ms" },
+    { name = "low_mem", count = 100, source = [false,true,true], time-precision = "ms" },
 ]
 `
 

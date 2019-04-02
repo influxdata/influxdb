@@ -4,7 +4,7 @@ import (
 	"bytes"
 )
 
-type Series interface {
+type seriesKeyField interface {
 	// Key returns the series key.
 	// The returned value may be cached.
 	Key() []byte
@@ -22,13 +22,13 @@ type constSeries struct {
 func (s *constSeries) Key() []byte   { return s.key }
 func (s *constSeries) Field() []byte { return s.field }
 
-var nilSeries Series = &constSeries{}
+var nilSeries seriesKeyField = &constSeries{}
 
 // Compare returns an integer comparing two SeriesGenerator instances
 // lexicographically.
 // The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
 // A nil argument is equivalent to an empty SeriesGenerator.
-func CompareSeries(a, b Series) int {
+func CompareSeries(a, b seriesKeyField) int {
 	if a == nil {
 		a = nilSeries
 	}
@@ -44,7 +44,7 @@ func CompareSeries(a, b Series) int {
 	}
 }
 
-func (s *constSeries) CopyFrom(a Series) {
+func (s *constSeries) CopyFrom(a seriesKeyField) {
 	key := a.Key()
 	if cap(s.key) < len(key) {
 		s.key = make([]byte, len(key))
