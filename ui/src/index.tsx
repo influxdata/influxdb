@@ -40,7 +40,7 @@ import TaskImportOverlay from 'src/organizations/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
-import OrgBucketsIndex from 'src/organizations/containers/OrgBucketsIndex'
+import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
 import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
 import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
@@ -172,7 +172,7 @@ class Root extends PureComponent {
                           <Route path="settings">
                             <IndexRoute component={OrgMembersIndex} />
                           </Route>
-                          <Route path="buckets" component={OrgBucketsIndex} />
+                          <Route path="buckets" component={BucketsIndex} />
                           <Route path="members" component={OrgMembersIndex} />
                           <Route
                             path="telegrafs"
@@ -188,18 +188,16 @@ class Root extends PureComponent {
                               component={TemplateExportOverlay}
                             />
                           </Route>
-                          <Route
-                            path="variables"
-                            component={OrgVariablesIndex}
-                          />
-                          <Route
-                            path="import"
-                            component={VariableImportOverlay}
-                          />
-                          <Route
-                            path=":id/export"
-                            component={OrgVariableExportOverlay}
-                          />
+                          <Route path="variables" component={OrgVariablesIndex}>
+                            <Route
+                              path="import"
+                              component={VariableImportOverlay}
+                            />
+                            <Route
+                              path=":id/export"
+                              component={OrgVariableExportOverlay}
+                            />
+                          </Route>
                           <Route path="scrapers" component={OrgScrapersIndex} />
                         </Route>
                       </Route>

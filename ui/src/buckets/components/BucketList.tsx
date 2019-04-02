@@ -5,8 +5,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import UpdateBucketOverlay from 'src/organizations/components/UpdateBucketOverlay'
-import BucketRow, {PrettyBucket} from 'src/organizations/components/BucketRow'
+import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
+import BucketRow, {PrettyBucket} from 'src/buckets/components/BucketRow'
 import {Overlay, IndexList} from 'src/clockface'
 import DataLoaderSwitcher from 'src/dataLoaders/components/DataLoaderSwitcher'
 
@@ -79,12 +79,11 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
       <>
         <IndexList>
           <IndexList.Header>
-            <IndexList.HeaderCell columnName="Name" width="30%" />
-            <IndexList.HeaderCell columnName="Org" width="30%" />
-            <IndexList.HeaderCell columnName="Retention" width="30%" />
+            <IndexList.HeaderCell columnName="Name" width="40%" />
+            <IndexList.HeaderCell columnName="Retention" width="40%" />
             <IndexList.HeaderCell columnName="" width="20%" />
           </IndexList.Header>
-          <IndexList.Body columnCount={4} emptyState={emptyState}>
+          <IndexList.Body columnCount={3} emptyState={emptyState}>
             {buckets.map(bucket => (
               <BucketRow
                 key={bucket.id}
@@ -165,10 +164,8 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
   }
 
   private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {
-    try {
-      await this.props.onUpdateBucket(updatedBucket)
-      this.setState({bucketOverlayState: OverlayState.Closed})
-    } catch (_) {}
+    await this.props.onUpdateBucket(updatedBucket)
+    this.setState({bucketOverlayState: OverlayState.Closed})
   }
 }
 

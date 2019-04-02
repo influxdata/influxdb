@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {Overlay, ComponentStatus} from 'src/clockface'
-import BucketOverlayForm from 'src/organizations/components/BucketOverlayForm'
+import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Constants
 import {DEFAULT_SECONDS} from 'src/organizations/components/Retention'

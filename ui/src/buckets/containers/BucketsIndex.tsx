@@ -9,7 +9,7 @@ import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import Buckets from 'src/organizations/components/Buckets'
+import BucketsTab from 'src/buckets/components/BucketsTab'
 import GetResources, {
   ResourceTypes,
 } from 'src/configuration/components/GetResources'
@@ -24,10 +24,6 @@ interface StateProps {
 
 @ErrorHandling
 class OrgBucketsIndex extends Component<StateProps> {
-  constructor(props) {
-    super(props)
-  }
-
   public render() {
     const {org} = this.props
 
@@ -45,7 +41,7 @@ class OrgBucketsIndex extends Component<StateProps> {
                   title="Buckets"
                 >
                   <GetResources resource={ResourceTypes.Buckets}>
-                    <Buckets />
+                    <BucketsTab />
                   </GetResources>
                 </TabbedPageSection>
               </Tabs.TabContents>

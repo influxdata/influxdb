@@ -5,6 +5,8 @@ import _ from 'lodash'
 
 // Components
 import {IndexList, ConfirmationButton, Context} from 'src/clockface'
+import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
+import EditableName from 'src/shared/components/EditableName'
 
 // Constants
 import {DEFAULT_BUCKET_NAME} from 'src/dashboards/constants'
@@ -19,8 +21,6 @@ import {
 } from '@influxdata/clockface'
 import {Bucket} from '@influxdata/influx'
 import {DataLoaderType} from 'src/types/dataLoaders'
-import EditableName from 'src/shared/components/EditableName'
-import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
 
 export interface PrettyBucket extends Bucket {
   ruleString: string
@@ -49,7 +49,6 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
               noNameString={DEFAULT_BUCKET_NAME}
             />
           </IndexList.Cell>
-          {this.organization}
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
             <ConfirmationButton
@@ -91,12 +90,6 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
         </IndexList.Row>
       </>
     )
-  }
-
-  private get organization(): JSX.Element {
-    if (!_.get(this.props, 'params.orgID')) {
-      return <IndexList.Cell>{this.props.bucket.organization}</IndexList.Cell>
-    }
   }
 
   private handleUpdateBucketName = async (value: string) => {

@@ -8,9 +8,9 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Input, Button, EmptyState} from '@influxdata/clockface'
 import {Overlay, Tabs} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
-import BucketList from 'src/organizations/components/BucketList'
-import {PrettyBucket} from 'src/organizations/components/BucketRow'
-import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'
+import BucketList from 'src/buckets/components/BucketList'
+import {PrettyBucket} from 'src/buckets/components/BucketRow'
+import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 
 // Actions
 import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
