@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Components
 import NavMenu from 'src/pageLayout/components/NavMenu'
@@ -38,62 +39,55 @@ class SideNav extends PureComponent<Props> {
       <NavMenu>
         <NavMenu.Item
           title={me.name}
-          link={`${orgPrefix}/me`}
+          path={`${orgPrefix}/me`}
           icon={IconFont.CuboNav}
-          location={location.pathname}
-          highlightPaths={['me', 'account']}
+          active={this.activateNavItem(['me', 'account'])}
         >
-          <NavMenu.SubItem
-            title="Logout"
-            link="/logout"
-            location={location.pathname}
-            highlightPaths={[]}
-          />
+          <NavMenu.SubItem title="Logout" path="/logout" highlightPaths={[]} />
         </NavMenu.Item>
         <NavMenu.Item
           title="Data Explorer"
-          link={`${orgPrefix}/data-explorer`}
+          path={`${orgPrefix}/data-explorer`}
           icon={IconFont.GraphLine}
-          location={location.pathname}
-          highlightPaths={['data-explorer']}
+          active={this.activateNavItem(['data-explorer'])}
         />
         <NavMenu.Item
           title="Dashboards"
-          link={`${orgPrefix}/dashboards`}
+          path={`${orgPrefix}/dashboards`}
           icon={IconFont.Dashboards}
-          location={location.pathname}
-          highlightPaths={['dashboards']}
+          active={this.activateNavItem(['dashboards'])}
         />
         <NavMenu.Item
           title="Tasks"
-          link={`${orgPrefix}/tasks`}
+          path={`${orgPrefix}/tasks`}
           icon={IconFont.Calendar}
-          location={location.pathname}
-          highlightPaths={['tasks']}
+          active={this.activateNavItem(['tasks'])}
         />
         <NavMenu.Item
           title="Settings"
-          link={`${orgPrefix}/settings`}
+          path={`${orgPrefix}/settings`}
           icon={IconFont.Wrench}
-          location={location.pathname}
-          highlightPaths={['settings']}
+          active={this.activateNavItem(['settings'])}
         >
           <NavMenu.SubItem
             title="Profile"
-            link={`${orgPrefix}/configuration/settings_tab`}
-            location={location.pathname}
-            highlightPaths={['settings_tab']}
+            path={`${orgPrefix}/configuration/settings_tab`}
+            active={this.activateNavItem(['settings_tab'])}
           />
           <NavMenu.SubItem
             title="Tokens"
-            link={`${orgPrefix}/configuration/tokens_tab`}
-            location={location.pathname}
-            highlightPaths={['tokens_tab']}
+            path={`${orgPrefix}/configuration/tokens_tab`}
+            active={this.activateNavItem(['tokens_tab'])}
           />
         </NavMenu.Item>
         <CloudNav />
       </NavMenu>
     )
+  }
+
+  private activateNavItem = (keywords: string[]): boolean => {
+    const parentPath = _.get(location.pathname.split('/'), '3', '')
+    return keywords.some(path => path === parentPath)
   }
 }
 
