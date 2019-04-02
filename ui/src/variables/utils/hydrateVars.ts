@@ -5,7 +5,7 @@ import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
 import {resolveSelectedValue} from 'src/variables/utils/resolveSelectedValue'
 
 // Constants
-import {OPTION_NAME} from 'src/variables/constants/index'
+import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -35,14 +35,10 @@ interface HydrateVarsOptions {
 
 export const findDependentVariables = (
   variable: Variable,
-  allVariables: Variable[]
+  varGraph: VariableNode[]
 ): Variable[] => {
-  const query: string = variable.arguments.values.query
-  const dependencies = allVariables.filter(maybeChild =>
-    query.includes(`${OPTION_NAME}.${maybeChild.name}`)
-  )
-
-  return dependencies
+  const node = varGraph.find(n => n.variable.id === variable.id)
+  return collectDescendants(node).map(n => n.variable)
 }
 
 export const exportVariables = (
@@ -50,10 +46,15 @@ export const exportVariables = (
   allVariables: Variable[]
 ): Variable[] => {
   const varSet = new Set<Variable>()
+  const varGraph = createVariableGraph(allVariables)
 
   for (const v of variables) {
+    if (varSet.has(v)) {
+      continue
+    }
+
     varSet.add(v)
-    for (const d of findDependentVariables(v, allVariables)) {
+    for (const d of findDependentVariables(v, varGraph)) {
       varSet.add(d)
     }
   }
@@ -78,14 +79,13 @@ const createVariableGraph = (allVariables: Variable[]): VariableNode[] => {
 
   // Then initialize all the edges (the `parents` and `children` references)
   for (const variable of allVariables) {
-    if (variable.arguments.type !== 'query') {
+    if (!isQueryVar(variable)) {
       continue
     }
 
-    const query: string = variable.arguments.values.query
-    const childIDs = allVariables
-      .filter(maybeChild => query.includes(`${OPTION_NAME}.${maybeChild.name}`))
-      .map(maybeChild => maybeChild.id)
+    const childIDs = getVarChildren(variable, allVariables).map(
+      child => child.id
+    )
 
     for (const childID of childIDs) {
       nodesByID[variable.id].children.push(nodesByID[childID])
@@ -95,6 +95,21 @@ const createVariableGraph = (allVariables: Variable[]): VariableNode[] => {
 
   return Object.values(nodesByID)
 }
+
+const isQueryVar = (v: Variable) => v.arguments.type === 'query'
+export const isInQuery = (query: string, v: Variable) =>
+  !!query.match(
+    new RegExp(`${BOUNDARY_GROUP}${OPTION_NAME}.${v.name}${BOUNDARY_GROUP}`)
+  )
+
+const getVarChildren = (
+  {
+    arguments: {
+      values: {query},
+    },
+  }: Variable,
+  allVariables: Variable[]
+) => allVariables.filter(maybeChild => isInQuery(query, maybeChild))
 
 /*
   Collect all ancestors of a node.
@@ -212,16 +227,24 @@ const constVariableValues = (
 
   A node `b` is a descendant of `a` if there exists a path from `a` to `b`.
 
-  This will loop forever if it is run on a node within a cycle or leading to a
-  cycle.
+  Checks visited to prevent looping forever
 */
-const collectDescendants = (node: VariableNode, acc = []): VariableNode[] => {
+const collectDescendants = (
+  node: VariableNode,
+  visited: Set<VariableNode> = new Set()
+): VariableNode[] => {
+  let descendants = []
+
+  // reduce children
   for (const child of node.children) {
-    acc.push(child)
-    collectDescendants(child)
+    if (visited.has(child)) {
+      continue
+    }
+    visited.add(child)
+    descendants = descendants.concat(child, collectDescendants(child, visited))
   }
 
-  return acc
+  return descendants
 }
 
 /*
