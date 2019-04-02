@@ -204,20 +204,16 @@ const constVariableValues = (
 */
 export const collectDescendants = (
   node: VariableNode,
-  visited: Set<VariableNode> = new Set()
+  acc = new Set()
 ): VariableNode[] => {
-  let descendants = []
-
-  // reduce children
   for (const child of node.children) {
-    if (visited.has(child)) {
-      continue
+    if (!acc.has(child)) {
+      acc.add(child)
+      collectDescendants(child, acc)
     }
-    visited.add(child)
-    descendants = descendants.concat(child, collectDescendants(child, visited))
   }
 
-  return descendants
+  return [...acc]
 }
 
 /*

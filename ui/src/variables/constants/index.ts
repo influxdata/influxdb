@@ -3,69 +3,67 @@ export const TIME_RANGE_START = 'timeRangeStart'
 export const TIME_RANGE_STOP = 'timeRangeStop'
 export const WINDOW_PERIOD = 'windowPeriod'
 
-enum FluxBoundaries {
-  START = '^',
-  QUOTE = '"',
-  SPACE = '\\s',
-  NEWLINE = '\\n',
-  COMMENT = '\\/\\/',
-  // and, or, not require space around them
-  ADD = '\\+',
-  SUB = '\\-',
-  MUL = '\\*',
-  DIV = '\\/',
-  MOD = '\\%',
-  EQ = '\\=\\=',
-  LT = '\\<',
-  GT = '\\>',
-  LTE = '\\<=',
-  GTE = '\\>\\=',
-  NEQ = '\\!\\=',
-  REGEXEQ = '\\=\\~',
-  REGEXNEQ = '\\!\\~',
-  ASSIGN = '\\=',
-  ARROW = '\\=\\>',
-  LPAREN = '\\(',
-  RPAREN = '\\)',
-  LBRACK = '\\[',
-  RBRACK = '\\]',
-  LBRACE = '\\{',
-  RBRACE = '\\}',
-  COLON = '\\:',
-  COMMA = '\\,',
-  EOF = '$',
-}
+const START = '^'
+const QUOTE = '"'
+const SPACE = '\\s'
+const NEWLINE = '\\n'
+const COMMENT = '\\/\\/'
+const ADD = '\\+'
+const SUB = '\\-'
+const MUL = '\\*'
+const DIV = '\\/'
+const MOD = '\\%'
+const EQ = '\\=\\='
+const LT = '\\<'
+const GT = '\\>'
+const LTE = '\\<='
+const GTE = '\\>\\='
+const NEQ = '\\!\\='
+const REGEXEQ = '\\=\\~'
+const REGEXNEQ = '\\!\\~'
+const ASSIGN = '\\='
+const ARROW = '\\=\\>'
+const LPAREN = '\\('
+const RPAREN = '\\)'
+const LBRACK = '\\['
+const RBRACK = '\\]'
+const LBRACE = '\\{'
+const RBRACE = '\\}'
+const COLON = '\\:'
+const COMMA = '\\,'
+const EOF = '$'
 
 const FLUX_BOUNDARY = [
-  FluxBoundaries.START,
-  FluxBoundaries.QUOTE,
-  FluxBoundaries.SPACE,
-  FluxBoundaries.NEWLINE,
-  FluxBoundaries.COMMENT,
-  FluxBoundaries.ADD,
-  FluxBoundaries.SUB,
-  FluxBoundaries.MUL,
-  FluxBoundaries.DIV,
-  FluxBoundaries.MOD,
-  FluxBoundaries.EQ,
-  FluxBoundaries.LT,
-  FluxBoundaries.GT,
-  FluxBoundaries.LTE,
-  FluxBoundaries.GTE,
-  FluxBoundaries.NEQ,
-  FluxBoundaries.REGEXEQ,
-  FluxBoundaries.REGEXNEQ,
-  FluxBoundaries.ASSIGN,
-  FluxBoundaries.ARROW,
-  FluxBoundaries.LPAREN,
-  FluxBoundaries.RPAREN,
-  FluxBoundaries.LBRACK,
-  FluxBoundaries.RBRACK,
-  FluxBoundaries.LBRACE,
-  FluxBoundaries.RBRACE,
-  FluxBoundaries.COLON,
-  FluxBoundaries.COMMA,
-  FluxBoundaries.EOF,
+  START,
+  QUOTE,
+  SPACE,
+  NEWLINE,
+  COMMENT,
+  // and, or, and not all require spaces
+  ADD,
+  SUB,
+  MUL,
+  DIV,
+  MOD,
+  EQ,
+  LT,
+  GT,
+  LTE,
+  GTE,
+  NEQ,
+  REGEXEQ,
+  REGEXNEQ,
+  ASSIGN,
+  ARROW,
+  LPAREN,
+  RPAREN,
+  LBRACK,
+  RBRACK,
+  LBRACE,
+  RBRACE,
+  COLON,
+  COMMA,
+  EOF,
 ].join('|')
 
 export const BOUNDARY_GROUP = `(${FLUX_BOUNDARY})`
