@@ -1,8 +1,10 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
 
 // Components
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Input, Button, EmptyState} from '@influxdata/clockface'
 import {Overlay, Tabs} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
@@ -11,52 +13,42 @@ import {PrettyBucket} from 'src/organizations/components/BucketRow'
 import CreateBucketOverlay from 'src/organizations/components/CreateBucketOverlay'
 
 // Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
+import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
 
 // Utils
 import {ruleToString} from 'src/utils/formatting'
 
-// APIs
-import {client} from 'src/utils/api'
-
 // Types
 import {Bucket, Organization, BucketRetentionRules} from '@influxdata/influx'
 import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
-import {OverlayState} from 'src/types'
+import {OverlayState, AppState} from 'src/types'
 
-interface Props {
+interface StateProps {
   org: Organization
   buckets: Bucket[]
-  onChange: () => void
-  notify: NotificationsActions.PublishNotificationActionCreator
+}
+
+interface DispatchProps {
+  createBucket: typeof createBucket
+  updateBucket: typeof updateBucket
+  deleteBucket: typeof deleteBucket
 }
 
 interface State {
-  buckets: PrettyBucket[]
   searchTerm: string
   overlayState: OverlayState
 }
 
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  bucketDeleteSuccess,
-  bucketDeleteFailed,
-  bucketCreateFailed,
-  bucketCreateSuccess,
-  bucketUpdateFailed,
-  bucketUpdateSuccess,
-} from 'src/shared/copy/v2/notifications'
+type Props = DispatchProps & StateProps
 
 @ErrorHandling
-export default class Buckets extends PureComponent<Props, State> {
+class Buckets extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
     this.state = {
       searchTerm: '',
       overlayState: OverlayState.Closed,
-      buckets: this.prettyBuckets(this.props.buckets),
     }
   }
 
@@ -108,41 +100,17 @@ export default class Buckets extends PureComponent<Props, State> {
     )
   }
 
-  private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {
-    const {onChange, notify} = this.props
-    try {
-      await client.buckets.update(updatedBucket.id, updatedBucket)
-      onChange()
-      notify(bucketUpdateSuccess(updatedBucket.name))
-    } catch (e) {
-      console.error(e)
-      notify(bucketUpdateFailed(updatedBucket.name))
-    }
+  private handleUpdateBucket = (updatedBucket: PrettyBucket) => {
+    this.props.updateBucket(updatedBucket as Bucket)
   }
 
-  private handleDeleteBucket = async (deletedBucket: PrettyBucket) => {
-    const {onChange, notify} = this.props
-    try {
-      await client.buckets.delete(deletedBucket.id)
-      onChange()
-      notify(bucketDeleteSuccess(deletedBucket.name))
-    } catch (e) {
-      console.error(e)
-      bucketDeleteFailed(deletedBucket.name)
-    }
+  private handleDeleteBucket = ({id, name}: PrettyBucket) => {
+    this.props.deleteBucket(id, name)
   }
 
   private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
-    const {onChange, notify} = this.props
-    try {
-      await client.buckets.create(bucket)
-      onChange()
-      this.handleCloseModal()
-      notify(bucketCreateSuccess())
-    } catch (e) {
-      console.error(e)
-      notify(bucketCreateFailed())
-    }
+    await this.props.createBucket(bucket)
+    this.handleCloseModal()
   }
 
   private handleOpenModal = (): void => {
@@ -186,14 +154,13 @@ export default class Buckets extends PureComponent<Props, State> {
   }
 
   private get emptyState(): JSX.Element {
-    const {org} = this.props
     const {searchTerm} = this.state
 
     if (_.isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text
-            text={`${org.name} does not own any Buckets , why not create one?`}
+            text={`Looks like there aren't any Buckets, why not create one?`}
             highlightWords={['Buckets']}
           />
           <Button
@@ -213,3 +180,21 @@ export default class Buckets extends PureComponent<Props, State> {
     )
   }
 }
+
+const mstp = ({buckets, orgs}: AppState): StateProps => {
+  return {
+    buckets: buckets.list,
+    org: orgs.org,
+  }
+}
+
+const mdtp = {
+  createBucket,
+  updateBucket,
+  deleteBucket,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(Buckets)

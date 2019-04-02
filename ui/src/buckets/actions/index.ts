@@ -2,7 +2,7 @@
 import {client} from 'src/utils/api'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 import {Dispatch} from 'redux-thunk'
 
@@ -53,7 +53,7 @@ interface EditBucket {
   }
 }
 
-export const editLabel = (bucket: Bucket): EditBucket => ({
+export const editBucket = (bucket: Bucket): EditBucket => ({
   type: 'EDIT_BUCKET',
   payload: {bucket},
 })
@@ -68,11 +68,17 @@ export const removeBucket = (id: string): RemoveBucket => ({
   payload: {id},
 })
 
-export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
+export const getBuckets = () => async (
+  dispatch: Dispatch<Action>,
+  getState: () => AppState
+) => {
   try {
     dispatch(setBuckets(RemoteDataState.Loading))
+    const {
+      orgs: {org},
+    } = getState()
 
-    const buckets = (await client.buckets.getAllByOrg('')) as Bucket[]
+    const buckets = (await client.buckets.getAll(org.id)) as Bucket[]
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
   } catch (e) {
@@ -83,10 +89,19 @@ export const getBuckets = () => async (dispatch: Dispatch<Action>) => {
 }
 
 export const createBucket = (bucket: Bucket) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action>,
+  getState: () => AppState
 ) => {
   try {
-    const createdBucket = await client.buckets.create(bucket)
+    const {
+      orgs: {org},
+    } = getState()
+
+    const createdBucket = await client.buckets.create({
+      ...bucket,
+      organizationID: org.id,
+    })
+
     dispatch(addBucket(createdBucket))
   } catch (e) {
     console.error(e)
@@ -95,16 +110,16 @@ export const createBucket = (bucket: Bucket) => async (
   }
 }
 
-export const updateBucket = (bucket: Bucket) => async (
+export const updateBucket = (updatedBucket: Bucket) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const label = await client.buckets.update(bucket.id, bucket)
+    const bucket = await client.buckets.update(updatedBucket.id, updatedBucket)
 
-    dispatch(editLabel(label))
+    dispatch(editBucket(bucket))
   } catch (e) {
     console.error(e)
-    dispatch(notify(bucketUpdateFailed(bucket.name)))
+    dispatch(notify(bucketUpdateFailed(updatedBucket.name)))
   }
 }
 
