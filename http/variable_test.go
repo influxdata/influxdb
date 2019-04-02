@@ -95,7 +95,73 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"variables":[{"id":"6162207574726f71","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[{"id":"fc3dc670a4be9b9a","name":"label","properties":{"color":"fff000"}}],"links":{"self":"/api/v2/variables/6162207574726f71","labels":"/api/v2/variables/6162207574726f71/labels","org":"/api/v2/orgs/0000000000000001"}},{"id":"61726920617a696f","orgID":"0000000000000001","name":"variable-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"labels":[{"id":"fc3dc670a4be9b9a","name":"label","properties":{"color":"fff000"}}],"links":{"self":"/api/v2/variables/61726920617a696f","labels":"/api/v2/variables/61726920617a696f/labels","org": "/api/v2/orgs/0000000000000001"}}],"links":{"self":"/api/v2/variables?descending=false&limit=20&offset=0"}}`,
+				body: `{
+					"links":{
+					   "self":"/api/v2/variables?descending=false&limit=20&offset=0"
+					},
+					"variables":[
+					   {
+						  "arguments":{
+							 "type":"constant",
+							 "values":[
+								"a",
+								"b"
+							 ]
+						  },
+						  "description":"",
+						  "id":"6162207574726f71",
+						  "labels":[
+							 {
+								"id":"fc3dc670a4be9b9a",
+								"name":"label",
+								"properties":{
+								   "color":"fff000"
+								}
+							 }
+						  ],
+						  "links":{
+							 "labels":"/api/v2/variables/6162207574726f71/labels",
+							 "org":"/api/v2/orgs/0000000000000001",
+							 "self":"/api/v2/variables/6162207574726f71"
+						  },
+						  "name":"variable-a",
+						  "orgID":"0000000000000001",
+						  "selected":[
+							 "b"
+						  ]
+					   },
+					   {
+						  "arguments":{
+							 "type":"map",
+							 "values":{
+								"a":"b",
+								"c":"d"
+							 }
+						  },
+						  "description":"",
+						  "id":"61726920617a696f",
+						  "labels":[
+							 {
+								"id":"fc3dc670a4be9b9a",
+								"name":"label",
+								"properties":{
+								   "color":"fff000"
+								}
+							 }
+						  ],
+						  "links":{
+							 "labels":"/api/v2/variables/61726920617a696f/labels",
+							 "org":"/api/v2/orgs/0000000000000001",
+							 "self":"/api/v2/variables/61726920617a696f"
+						  },
+						  "name":"variable-b",
+						  "orgID":"0000000000000001",
+						  "selected":[
+							 "c"
+						  ]
+					   }
+					]
+				 }`,
 			},
 		},
 		{
@@ -165,7 +231,43 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"variables":[{"id":"6162207574726f71","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[{"id":"fc3dc670a4be9b9a","name":"label","properties":{"color": "fff000"}}],"links":{"self":"/api/v2/variables/6162207574726f71","org":"/api/v2/orgs/0000000000000001","labels":"/api/v2/variables/6162207574726f71/labels"}}],"links":{"self":"/api/v2/variables?descending=false&limit=20&offset=0&orgID=0000000000000001"}}`,
+				body: `{
+					"links": {
+					  "self": "/api/v2/variables?descending=false&limit=20&offset=0&orgID=0000000000000001"
+					},
+					"variables": [
+					  {
+						"arguments": {
+						  "type": "constant",
+						  "values": [
+							"a",
+							"b"
+						  ]
+						},
+				        "description": "",
+						"id": "6162207574726f71",
+						"labels": [
+						  {
+							"id": "fc3dc670a4be9b9a",
+							"name": "label",
+							"properties": {
+							  "color": "fff000"
+							}
+						  }
+						],
+						"links": {
+						  "labels": "/api/v2/variables/6162207574726f71/labels",
+						  "org": "/api/v2/orgs/0000000000000001",
+						  "self": "/api/v2/variables/6162207574726f71"
+						},
+						"name": "variable-a",
+						"orgID": "0000000000000001",
+						"selected": [
+						  "b"
+						]
+					  }
+					]
+				  }`,
 			},
 		},
 	}
@@ -251,7 +353,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"variable-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"variable-a","description":"","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
 `,
 			},
 		},
@@ -384,7 +486,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","description":"","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
 `,
 			},
 		},
@@ -501,7 +603,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000002"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","description":"","selected":[],"arguments":{"type":"constant","values":[]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000002"}}
 `,
 			},
 		},
