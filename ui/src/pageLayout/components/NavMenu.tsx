@@ -15,7 +15,7 @@ interface PassedProps {
 }
 
 interface DefaultProps {
-  testID?: string
+  testID: string
 }
 
 type Props = PassedProps & Partial<DefaultProps>

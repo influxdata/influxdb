@@ -16,8 +16,8 @@ interface PassedProps {
 }
 
 interface DefaultProps {
-  type?: NavMenuType
-  testID?: string
+  type: NavMenuType
+  testID: string
 }
 
 type Props = PassedProps & Partial<DefaultProps>
