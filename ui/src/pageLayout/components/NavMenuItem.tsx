@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
 
@@ -22,7 +22,7 @@ interface DefaultProps {
 
 type Props = PassedProps & Partial<DefaultProps>
 
-class NavMenuItem extends Component<Props> {
+class NavMenuItem extends PureComponent<Props> {
   public static defaultProps: DefaultProps = {
     type: NavMenuType.RouterLink,
     testID: 'nav-menu--item',
