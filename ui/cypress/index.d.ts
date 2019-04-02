@@ -17,6 +17,7 @@ import {
   createScraper,
   fluxEqual,
   createTelegraf,
+  createDashboardTemplate,
 } from './support/commands'
 
 declare global {
@@ -27,6 +28,7 @@ declare global {
       createSource: typeof createSource
       createTask: typeof createTask
       createVariable: typeof createVariable
+      createDashboardTemplate: typeof createDashboardTemplate
       createDashboard: typeof createDashboard
       createOrg: typeof createOrg
       flush: typeof flush

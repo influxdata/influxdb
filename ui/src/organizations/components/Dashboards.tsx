@@ -81,7 +81,9 @@ class Dashboards extends PureComponent<Props, State> {
           <AddResourceDropdown
             onSelectNew={this.handleCreateDashboard}
             onSelectImport={this.summonImportOverlay}
+            onSelectTemplate={this.summonImportFromTemplateOverlay}
             resourceName="Dashboard"
+            canImportFromTemplate={true}
           />
         </Tabs.TabContentsHeader>
         <DashboardsIndexContents
@@ -113,8 +115,19 @@ class Dashboards extends PureComponent<Props, State> {
   }
 
   private summonImportOverlay = (): void => {
-    const {router, params} = this.props
-    router.push(`/organizations/${params.orgID}/dashboards/import`)
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    router.push(`/organizations/${orgID}/dashboards/import`)
+  }
+
+  private summonImportFromTemplateOverlay = (): void => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    router.push(`/organizations/${orgID}/dashboards/import/template`)
   }
 
   private handleCreateDashboard = async (): Promise<void> => {

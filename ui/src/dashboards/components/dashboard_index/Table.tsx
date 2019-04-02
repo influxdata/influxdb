@@ -124,6 +124,14 @@ class DashboardsTable extends PureComponent<Props, State> {
     this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
+  private summonImportFromTemplateOverlay = (): void => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    router.push(`/orgs/${orgID}/dashboards/import/template`)
+  }
+
   private get emptyState(): JSX.Element {
     const {onCreateDashboard, searchTerm, onImportDashboard} = this.props
 
@@ -144,6 +152,7 @@ class DashboardsTable extends PureComponent<Props, State> {
         <AddResourceDropdown
           onSelectNew={onCreateDashboard}
           onSelectImport={onImportDashboard}
+          onSelectTemplate={this.summonImportFromTemplateOverlay}
           resourceName="Dashboard"
         />
       </EmptyState>
