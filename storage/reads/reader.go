@@ -52,7 +52,137 @@ func (r *storeReader) Read(ctx context.Context, rs influxdb.ReadSpec, start, sto
 	}, nil
 }
 
+func (r *storeReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+	return &simpleTableIterator{
+		ctx:   ctx,
+		s:     r.s,
+		spec:  spec,
+		alloc: alloc,
+	}, nil
+}
+
 func (r *storeReader) Close() {}
+
+type simpleTableIterator struct {
+	ctx   context.Context
+	s     Store
+	spec  influxdb.ReadFilterSpec
+	stats cursors.CursorStats
+	alloc *memory.Allocator
+}
+
+func (bi *simpleTableIterator) Statistics() cursors.CursorStats { return bi.stats }
+
+func (bi *simpleTableIterator) Do(f func(flux.Table) error) error {
+	orgID := uint64(bi.spec.OrganizationID)
+	bucketID := uint64(bi.spec.BucketID)
+	src := bi.s.GetSourceFrom(orgID, bucketID)
+
+	// Setup read request
+	any, err := types.MarshalAny(src)
+	if err != nil {
+		return err
+	}
+
+	var predicate *datatypes.Predicate
+	if bi.spec.Predicate != nil {
+		p, err := toStoragePredicate(bi.spec.Predicate)
+		if err != nil {
+			return err
+		}
+		predicate = p
+	}
+
+	var req datatypes.ReadFilterRequest
+	req.ReadSource = any
+	req.Predicate = predicate
+	req.Range.Start = int64(bi.spec.Bounds.Start)
+	req.Range.End = int64(bi.spec.Bounds.Stop)
+
+	rs, err := bi.s.ReadFilter(bi.ctx, &req)
+	if err != nil {
+		return err
+	}
+
+	if rs == nil {
+		return nil
+	}
+
+	return bi.handleRead(f, rs)
+}
+
+func (bi *simpleTableIterator) handleRead(f func(flux.Table) error, rs ResultSet) error {
+	// these resources must be closed if not nil on return
+	var (
+		cur   cursors.Cursor
+		table storageTable
+	)
+
+	defer func() {
+		if table != nil {
+			table.Close()
+		}
+		if cur != nil {
+			cur.Close()
+		}
+		rs.Close()
+	}()
+
+READ:
+	for rs.Next() {
+		cur = rs.Cursor()
+		if cur == nil {
+			// no data for series key + field combination
+			continue
+		}
+
+		bnds := bi.spec.Bounds
+		key := defaultGroupKeyForSeries(rs.Tags(), bnds)
+		done := make(chan struct{})
+		switch typedCur := cur.(type) {
+		case cursors.IntegerArrayCursor:
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
+			table = newIntegerTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, bi.alloc)
+		case cursors.FloatArrayCursor:
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TFloat)
+			table = newFloatTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, bi.alloc)
+		case cursors.UnsignedArrayCursor:
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TUInt)
+			table = newUnsignedTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, bi.alloc)
+		case cursors.BooleanArrayCursor:
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TBool)
+			table = newBooleanTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, bi.alloc)
+		case cursors.StringArrayCursor:
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
+			table = newStringTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, bi.alloc)
+		default:
+			panic(fmt.Sprintf("unreachable: %T", typedCur))
+		}
+
+		cur = nil
+
+		if !table.Empty() {
+			if err := f(table); err != nil {
+				table.Close()
+				table = nil
+				return err
+			}
+			select {
+			case <-done:
+			case <-bi.ctx.Done():
+				table.Cancel()
+				break READ
+			}
+		}
+
+		stats := table.Statistics()
+		bi.stats.ScannedValues += stats.ScannedValues
+		bi.stats.ScannedBytes += stats.ScannedBytes
+		table.Close()
+		table = nil
+	}
+	return rs.Err()
+}
 
 type tableIterator struct {
 	ctx       context.Context
@@ -440,6 +570,29 @@ func determineTableColsForSeries(tags models.Tags, typ flux.ColType) ([]flux.Col
 		defs[4+j] = []byte("")
 	}
 	return cols, defs
+}
+
+func defaultGroupKeyForSeries(tags models.Tags, bnds execute.Bounds) flux.GroupKey {
+	cols := make([]flux.ColMeta, 2, len(tags))
+	vs := make([]values.Value, 2, len(tags))
+	cols[0] = flux.ColMeta{
+		Label: execute.DefaultStartColLabel,
+		Type:  flux.TTime,
+	}
+	vs[0] = values.NewTime(bnds.Start)
+	cols[1] = flux.ColMeta{
+		Label: execute.DefaultStopColLabel,
+		Type:  flux.TTime,
+	}
+	vs[1] = values.NewTime(bnds.Stop)
+	for i := range tags {
+		cols = append(cols, flux.ColMeta{
+			Label: string(tags[i].Key),
+			Type:  flux.TString,
+		})
+		vs = append(vs, values.NewString(string(tags[i].Value)))
+	}
+	return execute.NewGroupKey(cols, vs)
 }
 
 func groupKeyForSeries(tags models.Tags, readSpec *influxdb.ReadSpec, bnds execute.Bounds) flux.GroupKey {

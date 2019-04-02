@@ -76,6 +76,8 @@ type GroupCursor interface {
 
 type Store interface {
 	Read(ctx context.Context, req *datatypes.ReadRequest) (ResultSet, error)
+	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (ResultSet, error)
 	GroupRead(ctx context.Context, req *datatypes.ReadRequest) (GroupResultSet, error)
 	GetSource(rs influxdb.ReadSpec) (proto.Message, error)
+	GetSourceFrom(orgID, bucketID uint64) proto.Message
 }

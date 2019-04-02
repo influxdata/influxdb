@@ -22,6 +22,28 @@ func newStore(engine *storage.Engine) *store {
 	return &store{engine: engine}
 }
 
+func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error) {
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	var source readSource
+	if err := types.UnmarshalAny(req.ReadSource, &source); err != nil {
+		return nil, err
+	}
+
+	var cur reads.SeriesCursor
+	if ic, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.engine); err != nil {
+		return nil, err
+	} else if ic == nil {
+		return nil, nil
+	} else {
+		cur = ic
+	}
+
+	return reads.NewResultSetFromFilter(ctx, req, cur), nil
+}
+
 func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
 	if len(req.GroupKeys) > 0 {
 		panic("Read: len(Grouping) > 0")
@@ -49,7 +71,7 @@ func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 	}
 
 	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursor(ctx, source, req, s.engine); err != nil {
+	if ic, err := newIndexSeriesCursor(ctx, source, req.Predicate, s.engine); err != nil {
 		return nil, err
 	} else if ic == nil {
 		return nil, nil
@@ -91,7 +113,7 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
-		cur, err := newIndexSeriesCursor(ctx, source, req, s.engine)
+		cur, err := newIndexSeriesCursor(ctx, source, req.Predicate, s.engine)
 		if cur == nil || err != nil {
 			return nil, err
 		}
@@ -118,6 +140,13 @@ func (s *store) GetSource(rs influxdb.ReadSpec) (proto.Message, error) {
 		BucketID:       uint64(rs.BucketID),
 		OrganizationID: uint64(rs.OrganizationID),
 	}, nil
+}
+
+func (s *store) GetSourceFrom(orgID, bucketID uint64) proto.Message {
+	return &readSource{
+		BucketID:       bucketID,
+		OrganizationID: orgID,
+	}
 }
 
 func getReadSource(req *datatypes.ReadRequest) (*readSource, error) {
