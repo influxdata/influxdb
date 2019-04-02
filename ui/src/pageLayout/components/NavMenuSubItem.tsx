@@ -10,6 +10,7 @@ interface PassedProps {
   title: string
   path: string
   active: boolean
+  className?: string
 }
 
 interface DefaultProps {
@@ -24,13 +25,17 @@ class NavMenuSubItem extends Component<Props> {
     type: NavMenuType.RouterLink,
     testID: 'nav-menu--sub-item',
   }
+
   public render() {
-    const {title, path, testID, type, active} = this.props
+    const {title, path, testID, type, active, className} = this.props
 
     if (type === NavMenuType.RouterLink) {
       return (
         <Link
-          className={classnames('nav--sub-item', {active})}
+          className={classnames('nav--sub-item', {
+            active,
+            [`${className}`]: className,
+          })}
           to={path}
           data-testid={`${testID} ${title}`}
         >

@@ -12,6 +12,7 @@ interface PassedProps {
   path: string
   children?: JSX.Element | JSX.Element[]
   active: boolean
+  className?: string
 }
 
 interface DefaultProps {
@@ -28,12 +29,24 @@ class NavMenuItem extends Component<Props> {
   }
 
   public render() {
-    const {icon, title, path, children, active, testID, type} = this.props
+    const {
+      icon,
+      title,
+      path,
+      children,
+      active,
+      testID,
+      type,
+      className,
+    } = this.props
 
     if (type === NavMenuType.RouterLink) {
       return (
         <div
-          className={classnames('nav--item', {active})}
+          className={classnames('nav--item', {
+            active,
+            [`${className}`]: className,
+          })}
           data-testid={`${testID} ${title}`}
         >
           <Link className="nav--item-icon" to={path}>
