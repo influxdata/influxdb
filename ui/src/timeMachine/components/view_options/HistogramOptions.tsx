@@ -130,16 +130,10 @@ const HistogramOptions: SFC<Props> = props => {
       </Form.Element>
       <Form.Element label="Positioning">
         <Dropdown selectedID={position} onChange={onSetPosition}>
-          <Dropdown.Item
-            id={HistogramPosition.Overlaid}
-            value={HistogramPosition.Overlaid}
-          >
+          <Dropdown.Item id="overlaid" value="overlaid">
             Overlaid
           </Dropdown.Item>
-          <Dropdown.Item
-            id={HistogramPosition.Stacked}
-            value={HistogramPosition.Stacked}
-          >
+          <Dropdown.Item id="stacked" value="stacked">
             Stacked
           </Dropdown.Item>
         </Dropdown>

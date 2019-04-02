@@ -1,12 +1,7 @@
 // Libraries
 import React, {useMemo, useEffect, SFC} from 'react'
 import {connect} from 'react-redux'
-import {
-  Plot as MinardPlot,
-  Histogram as MinardHistogram,
-  Table,
-  isNumeric,
-} from '@influxdata/vis'
+import {Plot, Table, Config, isNumeric} from '@influxdata/vis'
 
 // Components
 import HistogramTooltip from 'src/shared/components/HistogramTooltip'
@@ -97,26 +92,27 @@ const Histogram: SFC<Props> = ({
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
 
-  return (
-    <MinardPlot
-      table={table}
-      xAxisLabel={xAxisLabel}
-      xDomain={xDomain}
-      onSetXDomain={setXDomain}
-    >
-      {env => (
-        <MinardHistogram
-          env={env}
-          x={mappings.x}
-          fill={fill}
-          binCount={binCount}
-          position={position}
-          tooltip={HistogramTooltip}
-          colors={colorHexes}
-        />
-      )}
-    </MinardPlot>
-  )
+  const config: Config = {
+    table,
+    xDomain,
+    onSetXDomain: setXDomain,
+    xAxisLabel,
+    tickFont: 'bold 10px Roboto',
+    tickFill: '#8e91a1',
+    layers: [
+      {
+        type: 'histogram',
+        x: mappings.x,
+        fill,
+        binCount,
+        position,
+        tooltip: HistogramTooltip,
+        colors: colorHexes,
+      },
+    ],
+  }
+
+  return <Plot config={config} />
 }
 
 const mdtp = {
