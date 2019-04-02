@@ -227,6 +227,24 @@ func TestHandler_Query_Auth(t *testing.T) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 
+	// Test that auth fails if shared secret is blank.
+	origSecret := h.Config.SharedSecret
+	h.Config.SharedSecret = ""
+	token, _ = MustJWTToken("user1", h.Config.SharedSecret, false)
+	signedToken, err = token.SignedString([]byte(h.Config.SharedSecret))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"bearer auth disabled"}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+	h.Config.SharedSecret = origSecret
+
 	// Test the handler with valid user and password in the url and invalid in
 	// basic auth (prioritize url).
 	w = httptest.NewRecorder()
