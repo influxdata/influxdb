@@ -15,6 +15,7 @@ import {
   updateLabelFailed,
   deleteLabelFailed,
 } from 'src/shared/copy/notifications'
+import {GetState} from 'src/types'
 
 export type Action = SetLabels | AddLabel | EditLabel | RemoveLabel
 
@@ -81,12 +82,19 @@ export const getLabels = () => async (dispatch: Dispatch<Action>) => {
 }
 
 export const createLabel = (
-  orgID: string,
   name: string,
   properties: LabelProperties
-) => async (dispatch: Dispatch<Action>) => {
+) => async (dispatch: Dispatch<Action>, getState: GetState) => {
+  const {
+    orgs: {org},
+  } = getState()
+
   try {
-    const createdLabel = await client.labels.create({orgID, name, properties})
+    const createdLabel = await client.labels.create({
+      orgID: org.id,
+      name,
+      properties,
+    })
 
     dispatch(addLabel(createdLabel))
   } catch (e) {

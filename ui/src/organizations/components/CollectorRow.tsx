@@ -149,8 +149,8 @@ class CollectorRow extends PureComponent<Props> {
 
   private handleCreateLabel = async (label: ILabel): Promise<void> => {
     try {
-      const {orgID, name, properties} = label
-      await this.props.onCreateLabel(orgID, name, properties)
+      const {name, properties} = label
+      await this.props.onCreateLabel(name, properties)
     } catch (err) {
       throw err
     }
