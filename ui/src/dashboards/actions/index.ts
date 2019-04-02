@@ -210,12 +210,18 @@ export const removeDashboardLabels = (
 // Thunks
 
 export const getDashboardsAsync = () => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ): Promise<Dashboard[]> => {
   try {
+    const {
+      orgs: {org},
+    } = getState()
+
     dispatch(setDashboards(RemoteDataState.Loading))
-    const dashboards = await getDashboardsAJAX()
+    const dashboards = await getDashboardsAJAX(org.id)
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
+
     return dashboards
   } catch (error) {
     dispatch(setDashboards(RemoteDataState.Error))
@@ -238,11 +244,16 @@ export const createDashboardFromTemplate = (
 }
 
 export const importDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ): Promise<void> => {
   try {
+    const {
+      orgs: {org},
+    } = getState()
+
     await createDashboardAJAX(dashboard)
-    const dashboards = await getDashboardsAJAX()
+    const dashboards = await getDashboardsAJAX(org.id)
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
     dispatch(notify(copy.dashboardImported()))
