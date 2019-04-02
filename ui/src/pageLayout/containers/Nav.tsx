@@ -8,6 +8,9 @@ import _ from 'lodash'
 import NavMenu from 'src/pageLayout/components/NavMenu'
 import CloudNav from 'src/pageLayout/components/CloudNav'
 
+// Utils
+import {getNavItemActivation} from 'src/pageLayout/utils'
+
 // Types
 import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
@@ -41,7 +44,7 @@ class SideNav extends PureComponent<Props> {
           title={me.name}
           path={`${orgPrefix}/me`}
           icon={IconFont.CuboNav}
-          active={this.activateNavItem(['me', 'account'])}
+          active={getNavItemActivation(['me', 'account'], location.pathname)}
         >
           <NavMenu.SubItem title="Logout" path="/logout" active={false} />
         </NavMenu.Item>
@@ -49,45 +52,40 @@ class SideNav extends PureComponent<Props> {
           title="Data Explorer"
           path={`${orgPrefix}/data-explorer`}
           icon={IconFont.GraphLine}
-          active={this.activateNavItem(['data-explorer'])}
+          active={getNavItemActivation(['data-explorer'], location.pathname)}
         />
         <NavMenu.Item
           title="Dashboards"
           path={`${orgPrefix}/dashboards`}
           icon={IconFont.Dashboards}
-          active={this.activateNavItem(['dashboards'])}
+          active={getNavItemActivation(['dashboards'], location.pathname)}
         />
         <NavMenu.Item
           title="Tasks"
           path={`${orgPrefix}/tasks`}
           icon={IconFont.Calendar}
-          active={this.activateNavItem(['tasks'])}
+          active={getNavItemActivation(['tasks'], location.pathname)}
         />
         <NavMenu.Item
           title="Settings"
           path={`${orgPrefix}/settings`}
           icon={IconFont.Wrench}
-          active={this.activateNavItem(['settings'])}
+          active={getNavItemActivation(['settings'], location.pathname)}
         >
           <NavMenu.SubItem
             title="Profile"
             path={`${orgPrefix}/configuration/settings_tab`}
-            active={this.activateNavItem(['settings_tab'])}
+            active={getNavItemActivation(['settings_tab'], location.pathname)}
           />
           <NavMenu.SubItem
             title="Tokens"
             path={`${orgPrefix}/configuration/tokens_tab`}
-            active={this.activateNavItem(['tokens_tab'])}
+            active={getNavItemActivation(['tokens_tab'], location.pathname)}
           />
         </NavMenu.Item>
         <CloudNav />
       </NavMenu>
     )
-  }
-
-  private activateNavItem = (keywords: string[]): boolean => {
-    const parentPath = _.get(location.pathname.split('/'), '3', '')
-    return keywords.some(path => path === parentPath)
   }
 }
 
