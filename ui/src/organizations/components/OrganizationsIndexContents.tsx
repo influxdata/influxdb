@@ -45,7 +45,7 @@ class OrganizationsPageContents extends Component<Props> {
     return orgs.map(o => (
       <IndexList.Row key={o.id}>
         <IndexList.Cell>
-          <Link to={`/organizations/${o.id}/members`}>{o.name}</Link>
+          <Link to={`/orgs/${o.id}/members`}>{o.name}</Link>
         </IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
           <CloudExclude>

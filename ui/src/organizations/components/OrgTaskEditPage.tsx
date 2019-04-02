@@ -64,7 +64,7 @@ class OrgTaskEditPage extends PureComponent<
     const {
       params: {id, orgID},
     } = this.props
-    await this.props.selectTaskByID(id, `/organizations/${orgID}/tasks/`)
+    await this.props.selectTaskByID(id, `/orgs/${orgID}/tasks/`)
 
     const {currentTask} = this.props
 
@@ -133,7 +133,7 @@ class OrgTaskEditPage extends PureComponent<
   private handleSave = () => {
     const {params} = this.props
 
-    this.props.updateScript(`/organizations/${params.orgID}/tasks/`)
+    this.props.updateScript(`/orgs/${params.orgID}/tasks/`)
   }
 
   private handleCancel = () => {

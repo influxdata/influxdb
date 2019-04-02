@@ -140,7 +140,7 @@ class OrgTaskPage extends PureComponent<
   private get route(): string {
     const {params} = this.props
 
-    return `/organizations/${params.orgID}/tasks/`
+    return `/orgs/${params.orgID}/tasks/`
   }
 
   private get orgName(): string {

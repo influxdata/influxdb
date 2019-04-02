@@ -152,7 +152,7 @@ class OrgTasksPage extends PureComponent<Props, State> {
   private handleSelectTask = (task: Task) => {
     const {selectTask, orgID} = this.props
 
-    selectTask(task, `/organizations/${orgID}/tasks/${task.id}`)
+    selectTask(task, `/orgs/${orgID}/tasks/${task.id}`)
   }
 
   private get filteredTasks() {
@@ -197,13 +197,13 @@ class OrgTasksPage extends PureComponent<Props, State> {
   private handleCreateTask = () => {
     const {router, orgID} = this.props
 
-    router.push(`/organizations/${orgID}/tasks/new`)
+    router.push(`/orgs/${orgID}/tasks/new`)
   }
 
   private handleImportTask = (): void => {
     const {router, orgID} = this.props
 
-    router.push(`/organizations/${orgID}/tasks/import`)
+    router.push(`/orgs/${orgID}/tasks/import`)
   }
 }
 
