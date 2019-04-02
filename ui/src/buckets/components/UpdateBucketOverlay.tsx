@@ -24,7 +24,7 @@ interface State {
   nameInputStatus: ComponentStatus
 }
 
-export default class BucketOverlay extends PureComponent<Props, State> {
+export default class UpdateBucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 

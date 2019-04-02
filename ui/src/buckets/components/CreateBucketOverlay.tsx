@@ -26,7 +26,7 @@ const emptyBucket = {
   retentionRules: [],
 } as Bucket
 
-export default class BucketOverlay extends PureComponent<Props, State> {
+export default class CreateBucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {

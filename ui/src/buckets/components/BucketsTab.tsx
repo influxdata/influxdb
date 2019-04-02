@@ -42,7 +42,7 @@ interface State {
 type Props = DispatchProps & StateProps
 
 @ErrorHandling
-class Buckets extends PureComponent<Props, State> {
+class BucketsTab extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -197,4 +197,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(Buckets)
+)(BucketsTab)

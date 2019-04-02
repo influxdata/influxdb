@@ -23,7 +23,7 @@ interface StateProps {
 }
 
 @ErrorHandling
-class OrgBucketsIndex extends Component<StateProps> {
+class BucketsIndex extends Component<StateProps> {
   public render() {
     const {org} = this.props
 
@@ -58,4 +58,4 @@ const mstp = ({orgs: {org}}: AppState) => ({org})
 export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(OrgBucketsIndex)
+)(BucketsIndex)
