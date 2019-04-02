@@ -3,7 +3,7 @@ import {exportVariables} from 'src/variables/utils/exportVariables'
 import {createVariable} from 'src/variables/mocks'
 
 describe('exportVariables', () => {
-  test('should find dependent variables', () => {
+  it('should find dependent variables', () => {
     const a = createVariable('a', 'f(x: v.b)')
     const b = createVariable('b', 'cool')
     const c = createVariable('c', 'nooo!')
@@ -15,7 +15,7 @@ describe('exportVariables', () => {
     expect(actual).toEqual([a, b])
   })
 
-  test('should find dependent variables with cycles', () => {
+  it('should find dependent variables with cycles', () => {
     const a = createVariable('a', 'f(x: v.b, y: v.c)')
     const b = createVariable('b', 'f(x: v.f, y: v.e)')
     const c = createVariable('c', 'f(x: v.g)')
@@ -52,7 +52,7 @@ describe('exportVariables', () => {
   ]
 
   examples.forEach(example => {
-    test(`should filter vars with shared prefix: ${example.name}`, () => {
+    it(`should filter vars with shared prefix: ${example.name}`, () => {
       const target = createVariable('target', 'match me!')
       const partial = createVariable('tar', 'broke!')
       const vars = [example, target, partial]
