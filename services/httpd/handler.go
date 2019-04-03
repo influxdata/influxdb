@@ -240,6 +240,10 @@ func (h *Handler) Open() {
 	}
 	h.accessLogFilters = StatusFilters(h.Config.AccessLogStatusFilters)
 
+	if h.Config.AuthEnabled && h.Config.SharedSecret == "" {
+		h.Logger.Info("Auth is enabled but shared-secret is blank. BearerAuthentication is disabled.")
+	}
+
 	if h.Config.FluxEnabled {
 		h.registered = true
 		prom.MustRegister(h.Controller.PrometheusCollectors()...)
@@ -1595,6 +1599,11 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 					return
 				}
 			case BearerAuthentication:
+				if h.Config.SharedSecret == "" {
+					atomic.AddInt64(&h.stats.AuthenticationFailures, 1)
+					h.httpError(w, "bearer auth disabled", http.StatusUnauthorized)
+					return
+				}
 				keyLookupFn := func(token *jwt.Token) (interface{}, error) {
 					// Check for expected signing method.
 					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
