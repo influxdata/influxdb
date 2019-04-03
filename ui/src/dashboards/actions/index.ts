@@ -236,7 +236,7 @@ export const createDashboardFromTemplate = (
   try {
     await createDashboardFromTemplateAJAX(template, orgID)
 
-    const dashboards = await getDashboardsAJAX()
+    const dashboards = await getDashboardsAJAX(orgID)
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
     dispatch(notify(importDashboardSucceeded()))
