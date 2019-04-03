@@ -6,6 +6,7 @@ import {render} from 'react-testing-library'
 import {initialState as initialVariablesState} from 'src/variables/reducers'
 import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
 import configureStore from 'src/store/configureStore'
+import {RemoteDataState} from 'src/types'
 
 const localState = {
   app: {
@@ -14,7 +15,11 @@ const localState = {
     },
     persisted: {autoRefresh: 0, showTemplateControlBar: false},
   },
-  orgs: [{orgID: 'orgid'}],
+  orgs: {
+    items: [{name: 'org', orgID: 'orgid'}],
+    org: {name: 'org', id: 'orgid'},
+    status: RemoteDataState.Done,
+  },
   VERSION: '2.0.0',
   ranges: [
     {

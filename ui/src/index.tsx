@@ -52,6 +52,8 @@ import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
 import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
 import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
 import SetOrg from 'src/shared/containers/SetOrg'
+import RouteToOrg from 'src/shared/containers/RouteToOrg'
+
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
 
 // Actions
@@ -113,9 +115,10 @@ class Root extends PureComponent {
               <Route component={Signin}>
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
-                    <Route component={SetOrg}>
-                      <Route path="/">
-                        <Route path="orgs/:orgID" component={App}>
+                    <Route path="/">
+                      <IndexRoute component={RouteToOrg} />
+                      <Route path="orgs/:orgID" component={App}>
+                        <Route component={SetOrg}>
                           <IndexRoute component={MePage} />
                           <Route path="tasks" component={TasksPage}>
                             <Route
