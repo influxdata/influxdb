@@ -1,8 +1,13 @@
-import {Permission, PermissionResource, Authorization} from '@influxdata/influx'
+import {
+  Permission,
+  PermissionResource,
+  Authorization,
+  AuthorizationUpdateRequest,
+} from '@influxdata/influx'
 
 const {TypeEnum} = PermissionResource
 const {ActionEnum} = Permission
-const {StatusEnum} = Authorization
+const {StatusEnum} = AuthorizationUpdateRequest
 
 export const authorization: Authorization = {
   links: {
