@@ -8,8 +8,8 @@ import TaskRunsRow from 'src/tasks/components/TaskRunsRow'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
-import {Run} from '@influxdata/influx'
 import {Sort, ComponentSize} from '@influxdata/clockface'
+import {Run} from 'src/tasks/components/TaskRunsPage'
 
 interface Props {
   taskID: string
@@ -34,49 +34,42 @@ export default class TaskRunsList extends PureComponent<Props, State> {
 
   public render() {
     const {sortKey, sortDirection} = this.state
+
     const headerKeys: SortKey[] = [
-      'requestedAt',
-      'startedAt',
-      'finishedAt',
       'status',
       'scheduledFor',
+      'startedAt',
+      'duration',
     ]
     return (
       <IndexList>
         <IndexList.Header>
           <IndexList.HeaderCell
-            columnName="Requested At"
-            width="20%"
+            columnName="Status"
+            width="10%"
             sortKey={headerKeys[0]}
             sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
-            columnName="Started At"
+            columnName="Schedule"
             width="20%"
             sortKey={headerKeys[1]}
             sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
-            columnName="Finished At"
+            columnName="Started"
             width="20%"
             sortKey={headerKeys[2]}
             sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell
-            columnName="Status"
-            width="10%"
+            columnName="Duration"
+            width="20%"
             sortKey={headerKeys[3]}
             sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
-          />
-          <IndexList.HeaderCell
-            columnName="Schedule For"
-            width="20%"
-            sortKey={headerKeys[4]}
-            sort={sortKey === headerKeys[4] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
           <IndexList.HeaderCell width="10%" />

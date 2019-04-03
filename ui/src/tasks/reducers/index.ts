@@ -1,10 +1,11 @@
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Run, LogEvent} from '@influxdata/influx'
+import {LogEvent} from '@influxdata/influx'
 
 //Types
 import {Action} from 'src/tasks/actions'
 import {ITask as Task} from '@influxdata/influx'
 import {RemoteDataState} from '@influxdata/clockface'
+import {Run} from 'src/tasks/components/TaskRunsPage'
 
 export interface State {
   newScript: string

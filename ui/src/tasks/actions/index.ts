@@ -3,7 +3,7 @@ import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {Run, LogEvent, ITask as Task} from '@influxdata/influx'
+import {LogEvent, ITask as Task} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -41,6 +41,7 @@ import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
+import {Run} from 'src/tasks/components/TaskRunsPage'
 
 export type Action =
   | SetNewScript
@@ -460,7 +461,17 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
 
     const runs = await client.tasks.getRunsByTaskID(taskID)
 
-    dispatch(setRuns(runs, RemoteDataState.Done))
+    const runsWithDuration = runs.map(run => {
+      const finished = new Date(run.finishedAt)
+      const started = new Date(run.startedAt)
+
+      return {
+        ...run,
+        duration: `${finished.getTime() - started.getTime()} seconds`,
+      }
+    })
+
+    dispatch(setRuns(runsWithDuration, RemoteDataState.Done))
   } catch (error) {
     console.error(error)
     const message = getErrorMessage(error)
