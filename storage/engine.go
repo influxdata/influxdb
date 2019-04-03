@@ -139,9 +139,8 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.engine.SetDefaultMetricLabels(e.defaultMetricLabels)
 	e.sfile.SetDefaultMetricLabels(e.defaultMetricLabels)
 	e.index.SetDefaultMetricLabels(e.defaultMetricLabels)
-	if e.wal != nil {
-		e.wal.SetDefaultMetricLabels(e.defaultMetricLabels)
-	}
+	e.wal.SetDefaultMetricLabels(e.defaultMetricLabels)
+	e.retentionEnforcer.SetDefaultMetricLabels(e.defaultMetricLabels)
 
 	return e
 }
@@ -174,7 +173,7 @@ func (e *Engine) PrometheusCollectors() []prometheus.Collector {
 	metrics = append(metrics, tsi1.PrometheusCollectors()...)
 	metrics = append(metrics, tsm1.PrometheusCollectors()...)
 	metrics = append(metrics, wal.PrometheusCollectors()...)
-	metrics = append(metrics, e.retentionEnforcer.PrometheusCollectors()...)
+	metrics = append(metrics, RetentionPrometheusCollectors()...)
 	return metrics
 }
 
@@ -210,7 +209,9 @@ func (e *Engine) Open(ctx context.Context) (err error) {
 	// TODO(edd) background tasks will be run in priority order via a scheduler.
 	// For now we will just run on an interval as we only have the retention
 	// policy enforcer.
-	e.runRetentionEnforcer()
+	if e.retentionEnforcer != nil {
+		e.runRetentionEnforcer()
+	}
 
 	return nil
 }
@@ -277,11 +278,6 @@ func (e *Engine) runRetentionEnforcer() {
 	} else if interval < 0 {
 		e.logger.Error("Negative retention interval", logger.DurationLiteral("check_interval", interval))
 		return
-	}
-
-	if e.retentionEnforcer != nil {
-		// Set default metric labels on retention enforcer.
-		e.retentionEnforcer.metrics = newRetentionMetrics(e.defaultMetricLabels)
 	}
 
 	l := e.logger.With(zap.String("component", "retention_enforcer"), logger.DurationLiteral("check_interval", interval))
