@@ -240,6 +240,10 @@ func (h *Handler) Open() {
 	}
 	h.accessLogFilters = StatusFilters(h.Config.AccessLogStatusFilters)
 
+	if h.Config.AuthEnabled && h.Config.SharedSecret == "" {
+		h.Logger.Info("Auth is enabled but shared-secret is blank. BearerAuthentication is disabled.")
+	}
+
 	if h.Config.FluxEnabled {
 		h.registered = true
 		prom.MustRegister(h.Controller.PrometheusCollectors()...)
