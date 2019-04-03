@@ -14,7 +14,7 @@ import {IndexList, ComponentSpacer, ConfirmationButton} from 'src/clockface'
 import EditableName from 'src/shared/components/EditableName'
 
 // Types
-import {Authorization} from '@influxdata/influx'
+import {Authorization, AuthorizationUpdateRequest} from '@influxdata/influx'
 
 interface OwnProps {
   auth: Authorization
@@ -65,15 +65,15 @@ class TokenRow extends PureComponent<Props> {
 
   private get isTokenEnbled(): boolean {
     const {auth} = this.props
-    return auth.status === Authorization.StatusEnum.Active
+    return auth.status === AuthorizationUpdateRequest.StatusEnum.Active
   }
 
   private changeToggle = () => {
     const {auth, onUpdate} = this.props
-    if (auth.status === Authorization.StatusEnum.Active) {
-      auth.status = Authorization.StatusEnum.Inactive
+    if (auth.status === AuthorizationUpdateRequest.StatusEnum.Active) {
+      auth.status = AuthorizationUpdateRequest.StatusEnum.Inactive
     } else {
-      auth.status = Authorization.StatusEnum.Active
+      auth.status = AuthorizationUpdateRequest.StatusEnum.Active
     }
     onUpdate(auth)
   }
