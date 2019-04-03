@@ -150,7 +150,7 @@ func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platfo
 	if buf == nil {
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
-			Msg:  "bucket not found",
+			Msg:  fmt.Sprintf("bucket %q not found", n),
 		}
 	}
 
