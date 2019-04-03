@@ -29,7 +29,7 @@ class TokensIndex extends Component<StateProps> {
 
     return (
       <Page titleTag={org.name}>
-        <OrgHeader orgID={org.id} />
+        <OrgHeader />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
