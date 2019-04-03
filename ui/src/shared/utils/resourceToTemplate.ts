@@ -53,11 +53,11 @@ const blankDashboardTemplate = () => {
   }
 }
 
-export const labelToRelationship = (l: Label) => {
+export const labelToRelationship = l => {
   return {type: TemplateType.Label, id: l.id}
 }
 
-export const labelToIncluded = (l: Label) => {
+export const labelToIncluded = l => {
   return {
     type: TemplateType.Label,
     id: l.id,
@@ -162,6 +162,8 @@ export const variableToTemplate = (
     variableToRelationship(d)
   )
   const includedDependencies = dependencies.map(d => variableToIncluded(d))
+  const includedLabels = v.labels.map(l => labelToIncluded(l))
+
   return {
     ...baseTemplate,
     meta: {
@@ -180,17 +182,24 @@ export const variableToTemplate = (
           },
         },
       },
-      included: [...includedDependencies],
+      included: [...includedDependencies, ...includedLabels],
     },
   }
 }
 
 const variableToIncluded = (v: Variable) => {
   const variableAttributes = _.pick(v, ['name', 'arguments', 'selected'])
+  const labelRelationships = v.labels.map(l => labelToRelationship(l))
+
   return {
     id: v.id,
     type: TemplateType.Variable,
     attributes: variableAttributes,
+    relationships: {
+      [TemplateType.Label]: {
+        data: [...labelRelationships],
+      },
+    },
   }
 }
 
@@ -210,18 +219,22 @@ export const dashboardToTemplate = (
 
   const dashboardAttributes = _.pick(dashboard, ['name', 'description'])
 
-  const labels = getDeep<Label[]>(dashboard, 'labels', [])
-  const includedLabels = labels.map(l => labelToIncluded(l))
-  const relationshipsLabels = labels.map(l => labelToRelationship(l))
+  const dashboardLables = getDeep<Label[]>(dashboard, 'labels', [])
+  const dashboardIncludedLabels = dashboardLables.map(l => labelToIncluded(l))
+  const relationshipsLabels = dashboardLables.map(l => labelToRelationship(l))
 
   const cells = getDeep<Cell[]>(dashboard, 'cells', [])
   const includedCells = cells.map(c => cellToIncluded(c, views))
   const relationshipsCells = cells.map(c => cellToRelationship(c))
 
   const includedVariables = variables.map(v => variableToIncluded(v))
+  const variableIncludedLabels = _.flatMap(variables, v =>
+    v.labels.map(l => labelToIncluded(l))
+  )
   const relationshipsVariables = variables.map(v => variableToRelationship(v))
 
   const includedViews = views.map(v => viewToIncluded(v))
+  const includedLabels = [...dashboardIncludedLabels, ...variableIncludedLabels]
 
   const template = {
     ...baseTemplate,
