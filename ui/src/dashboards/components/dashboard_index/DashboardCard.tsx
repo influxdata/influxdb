@@ -16,7 +16,7 @@ import {
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {viewableLabels, labelsInOrg} from 'src/labels/selectors'
 
 // Types
 import {ILabel} from '@influxdata/influx'
@@ -187,9 +187,9 @@ class DashboardCard extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
   return {
-    labels: viewableLabels(labels.list),
+    labels: labelsInOrg(org.id, viewableLabels(labels.list)),
   }
 }
 
