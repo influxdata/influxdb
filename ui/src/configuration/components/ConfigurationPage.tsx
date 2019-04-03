@@ -96,13 +96,6 @@ class ConfigurationPage extends Component<Props> {
                   activeTabUrl={tab}
                 >
                   <TabbedPageSection
-                    id="tokens_tab"
-                    url="tokens_tab"
-                    title="Tokens"
-                  >
-                    <Tokens />
-                  </TabbedPageSection>
-                  <TabbedPageSection
                     id="settings_tab"
                     url="settings_tab"
                     title="Profile"
