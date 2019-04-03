@@ -16,7 +16,6 @@ import {AppState} from 'src/types'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
-import {Organization} from '@influxdata/influx'
 import {ScrapersState} from 'src/scrapers/reducers'
 
 // Decorators
@@ -28,7 +27,6 @@ import {VariablesState} from 'src/variables/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 
 interface StateProps {
-  org: Organization
   labels: LabelsState
   buckets: BucketsState
   telegrafs: TelegrafsState
@@ -117,7 +115,6 @@ class GetResources extends PureComponent<Props, StateProps> {
 }
 
 const mstp = ({
-  orgs,
   labels,
   buckets,
   telegrafs,
@@ -126,8 +123,6 @@ const mstp = ({
   tokens,
   dashboards,
 }: AppState): StateProps => {
-  const org = orgs[0]
-
   return {
     labels,
     buckets,
@@ -136,7 +131,6 @@ const mstp = ({
     variables,
     scrapers,
     tokens,
-    org,
   }
 }
 

@@ -13,11 +13,7 @@ import CodeSnippet from 'src/shared/components/CodeSnippet'
 // Types
 import {Authorization, Permission} from '@influxdata/influx'
 
-// Actions
-import {NotificationAction} from 'src/types'
-
 interface Props {
-  onNotify: NotificationAction
   auth: Authorization
   onDismissOverlay: () => void
 }

@@ -4,37 +4,29 @@ import {connect} from 'react-redux'
 
 // Components
 import {Input} from '@influxdata/clockface'
-import TokenList from 'src/me/components/account/TokensList'
+import TokenList from 'src/authorizations/components/TokenList'
 import FilterList from 'src/shared/components/Filter'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
-
-// Actions
-import * as notifyActions from 'src/shared/actions/notifications'
 
 // Types
 import {Authorization} from '@influxdata/influx'
 import {IconFont} from '@influxdata/clockface'
-
-interface State {
-  searchTerm: string
-}
+import {AppState} from 'src/types'
 
 enum AuthSearchKeys {
   Description = 'description',
   Status = 'status',
 }
 
+interface State {
+  searchTerm: string
+}
+
 interface StateProps {
   tokens: Authorization[]
 }
 
-interface DispatchProps {
-  notify: typeof notifyActions.notify
-}
-
-type Props = StateProps & DispatchProps
-
-export class Tokens extends PureComponent<Props, State> {
+class TokensTab extends PureComponent<StateProps, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -44,7 +36,7 @@ export class Tokens extends PureComponent<Props, State> {
 
   public render() {
     const {searchTerm} = this.state
-    const {tokens, notify} = this.props
+    const {tokens} = this.props
 
     return (
       <>
@@ -63,11 +55,7 @@ export class Tokens extends PureComponent<Props, State> {
           searchKeys={this.searchKeys}
         >
           {filteredAuths => (
-            <TokenList
-              onNotify={notify}
-              auths={filteredAuths}
-              searchTerm={searchTerm}
-            />
+            <TokenList auths={filteredAuths} searchTerm={searchTerm} />
           )}
         </FilterList>
       </>
@@ -83,17 +71,9 @@ export class Tokens extends PureComponent<Props, State> {
   }
 }
 
-const mdtp = {
-  notify: notifyActions.notify,
-}
+const mstp = ({tokens}: AppState) => ({tokens: tokens.list})
 
-const mstp = ({tokens}) => {
-  return {
-    tokens: tokens.list,
-  }
-}
-
-export default connect<StateProps, DispatchProps, {}>(
+export default connect<StateProps, {}, {}>(
   mstp,
-  mdtp
-)(Tokens)
+  null
+)(TokensTab)

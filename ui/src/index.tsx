@@ -52,6 +52,7 @@ import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
 import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
 import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
 import SetOrg from 'src/shared/containers/SetOrg'
+import TokensIndex from 'src/authorizations/containers/TokensIndex'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -178,6 +179,7 @@ class Root extends PureComponent {
                             <IndexRoute component={OrgMembersIndex} />
                           </Route>
                           <Route path="buckets" component={BucketsIndex} />
+                          <Route path="tokens" component={TokensIndex} />
                           <Route path="members" component={OrgMembersIndex} />
                           <Route
                             path="telegrafs"
