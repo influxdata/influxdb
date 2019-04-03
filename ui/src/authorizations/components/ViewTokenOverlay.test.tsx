@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import ViewTokenOverlay from 'src/me/components/account/ViewTokenOverlay'
+import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
 // Fixtures
 import {authorization as auth} from 'src/authorizations/apis/__mocks__/data'

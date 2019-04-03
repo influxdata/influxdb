@@ -11,6 +11,7 @@ import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import {Panel} from 'src/clockface'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import VersionInfo from 'src/shared/components/VersionInfo'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 // APIs
 import {getDashboards} from 'src/organizations/apis'
@@ -42,21 +43,23 @@ class ResourceLists extends PureComponent<Props> {
             </ul>
           </Panel.Body>
         </Panel>
-        <Panel>
-          <Panel.Header title="Organizations" />
-          <Panel.Body>
-            <ResourceFetcher<Organization[]> fetcher={getOrganizations}>
-              {(orgs, loading) => (
-                <SpinnerContainer
-                  loading={loading}
-                  spinnerComponent={<TechnoSpinner diameterPixels={50} />}
-                >
-                  <OrgsList orgs={orgs} />
-                </SpinnerContainer>
-              )}
-            </ResourceFetcher>
-          </Panel.Body>
-        </Panel>
+        <CloudExclude>
+          <Panel>
+            <Panel.Header title="Organizations" />
+            <Panel.Body>
+              <ResourceFetcher<Organization[]> fetcher={getOrganizations}>
+                {(orgs, loading) => (
+                  <SpinnerContainer
+                    loading={loading}
+                    spinnerComponent={<TechnoSpinner diameterPixels={50} />}
+                  >
+                    <OrgsList orgs={orgs} />
+                  </SpinnerContainer>
+                )}
+              </ResourceFetcher>
+            </Panel.Body>
+          </Panel>
+        </CloudExclude>
         <Panel>
           <Panel.Header title="Dashboards" />
           <Panel.Body>

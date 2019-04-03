@@ -73,11 +73,6 @@ class SideNav extends PureComponent<Props> {
           active={getNavItemActivation(['settings'], location.pathname)}
         >
           <NavMenu.SubItem
-            title="Profile"
-            path={`${orgPrefix}/configuration/settings_tab`}
-            active={getNavItemActivation(['settings_tab'], location.pathname)}
-          />
-          <NavMenu.SubItem
             title="Tokens"
             path={`${orgPrefix}/configuration/tokens_tab`}
             active={getNavItemActivation(['tokens_tab'], location.pathname)}

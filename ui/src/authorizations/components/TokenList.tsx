@@ -4,19 +4,15 @@ import React, {PureComponent} from 'react'
 // Components
 import {EmptyState} from '@influxdata/clockface'
 import {IndexList, Overlay} from 'src/clockface'
-import TokenRow from 'src/me/components/account/TokenRow'
+import TokenRow from 'src/authorizations/components/TokenRow'
+import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
 // Types
 import {Authorization} from '@influxdata/influx'
 import {ComponentSize} from '@influxdata/clockface'
-import ViewTokenOverlay from './ViewTokenOverlay'
-
-// Actions
-import {NotificationAction} from 'src/types'
 
 interface Props {
   auths: Authorization[]
-  onNotify: NotificationAction
   searchTerm: string
 }
 
@@ -35,7 +31,7 @@ export default class TokenList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {auths, onNotify} = this.props
+    const {auths} = this.props
     const {isTokenOverlayVisible, authInView} = this.state
 
     return (
@@ -59,7 +55,6 @@ export default class TokenList extends PureComponent<Props, State> {
         </IndexList>
         <Overlay visible={isTokenOverlayVisible}>
           <ViewTokenOverlay
-            onNotify={onNotify}
             auth={authInView}
             onDismissOverlay={this.handleDismissOverlay}
           />

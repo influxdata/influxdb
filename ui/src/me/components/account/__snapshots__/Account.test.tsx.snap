@@ -35,13 +35,6 @@ exports[`Account rendering renders! 1`] = `
       >
         <Connect(Settings) />
       </TabbedPageSection>
-      <TabbedPageSection
-        id="tokens"
-        title="My Tokens"
-        url="tokens"
-      >
-        <Connect(Tokens) />
-      </TabbedPageSection>
     </withRouter(TabbedPage)>
   </PageContents>
 </Page>

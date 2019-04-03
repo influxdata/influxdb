@@ -7,7 +7,6 @@ import {Page} from 'src/pageLayout'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Settings from 'src/me/components/account/Settings'
-import Tokens from 'src/me/components/account/Tokens'
 
 export enum Tabs {
   Settings = 'settings',
@@ -37,13 +36,6 @@ export default class Account extends PureComponent<WithRouterProps> {
               url={Tabs.Settings}
             >
               <Settings />
-            </TabbedPageSection>
-            <TabbedPageSection
-              title="My Tokens"
-              id={Tabs.Tokens}
-              url={Tabs.Tokens}
-            >
-              <Tokens />
             </TabbedPageSection>
           </TabbedPage>
         </Page.Contents>

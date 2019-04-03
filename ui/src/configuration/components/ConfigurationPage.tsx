@@ -10,7 +10,6 @@ import GetResources, {
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Settings from 'src/me/components/account/Settings'
-import Tokens from 'src/me/components/account/Tokens'
 import Telegrafs from 'src/configuration/components/Telegrafs'
 import Variables from 'src/configuration/components/Variables'
 import Scrapers from 'src/configuration/components/Scrapers'
@@ -82,13 +81,6 @@ class ConfigurationPage extends Component<Props> {
                     </GetResources>
                   </TabbedPageSection>
                   <TabbedPageSection
-                    id="tokens_tab"
-                    url="tokens_tab"
-                    title="Tokens"
-                  >
-                    <Tokens />
-                  </TabbedPageSection>
-                  <TabbedPageSection
                     id="settings_tab"
                     url="settings_tab"
                     title="Profile"
@@ -103,13 +95,6 @@ class ConfigurationPage extends Component<Props> {
                   parentUrl="/configuration"
                   activeTabUrl={tab}
                 >
-                  <TabbedPageSection
-                    id="tokens_tab"
-                    url="tokens_tab"
-                    title="Tokens"
-                  >
-                    <Tokens />
-                  </TabbedPageSection>
                   <TabbedPageSection
                     id="settings_tab"
                     url="settings_tab"
