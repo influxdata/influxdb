@@ -38,7 +38,9 @@ var (
 	maxNanoTime = time.Unix(0, MaxNanoTime).UTC()
 
 	// ErrTimeOutOfRange gets returned when time is out of the representable range using int64 nanoseconds since the epoch.
-	ErrTimeOutOfRange = fmt.Errorf("time outside range %d - %d", MinNanoTime, MaxNanoTime)
+	ErrTimeOutOfRange = func(timestamp, mult int64) error {
+		return fmt.Errorf("time %d is outside the range [%d, %d]", timestamp, MinNanoTime/mult, MaxNanoTime/mult)
+	}
 )
 
 // SafeCalcTime safely calculates the time given. Will return error if the time is outside the
@@ -50,13 +52,13 @@ func SafeCalcTime(timestamp int64, precision string) (time.Time, error) {
 		return tme, CheckTime(tme)
 	}
 
-	return time.Time{}, ErrTimeOutOfRange
+	return time.Time{}, ErrTimeOutOfRange(timestamp, mult)
 }
 
 // CheckTime checks that a time is within the safe range.
 func CheckTime(t time.Time) error {
 	if t.Before(minNanoTime) || t.After(maxNanoTime) {
-		return ErrTimeOutOfRange
+		return ErrTimeOutOfRange(t.Unix(), 1)
 	}
 	return nil
 }
