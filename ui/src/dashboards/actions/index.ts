@@ -46,7 +46,7 @@ import {
 } from 'src/dashboards/utils/cellGetters'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {client} from 'src/utils/api'
-import {exportVariables} from 'src/variables/utils/hydrateVars'
+import {exportVariables} from 'src/variables/utils/exportVariables'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -231,6 +231,9 @@ export const createDashboardFromTemplate = (
   try {
     await createDashboardFromTemplateAJAX(template, orgID)
 
+    const dashboards = await getDashboardsAJAX()
+
+    dispatch(setDashboards(RemoteDataState.Done, dashboards))
     dispatch(notify(importDashboardSucceeded()))
   } catch (error) {
     dispatch(notify(importDashboardFailed(error)))

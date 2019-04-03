@@ -544,7 +544,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			store = taskbackend.NewInMemStore()
 		}
 
-		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, store)
+		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, nil)
 
 		lw := taskbackend.NewPointLogWriter(pointsWriter)
 		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
@@ -555,6 +555,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
 		taskSvc = task.PlatformAdapter(store, lr, m.scheduler, authSvc, userResourceSvc, orgSvc)
+		taskexecutor.AddTaskService(executor, taskSvc)
 		taskSvc = coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, taskSvc)
 		taskSvc = task.NewValidator(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
 		m.taskStore = store

@@ -1,5 +1,5 @@
-// Constants
-import {OPTION_NAME} from 'src/variables/constants'
+// Utils
+import {isInQuery} from 'src/variables/utils/hydrateVars'
 
 // Types
 import {QueryView} from 'src/types/dashboards'
@@ -23,7 +23,7 @@ export const filterUnusedVars = (variables: Variable[], views: View[]) => {
   )
 
   const varsInUse = variables.filter(variable =>
-    queryTexts.some(text => text.includes(`${OPTION_NAME}.${variable.name}`))
+    queryTexts.some(text => isInQuery(text, variable))
   )
 
   return varsInUse

@@ -8,6 +8,7 @@ import TemplatesHeader from 'src/templates/components/TemplatesHeader'
 import OrgTemplatesList from 'src/organizations/components/OrgTemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import GetLabels from 'src/configuration/components/GetLabels'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
@@ -45,20 +46,22 @@ class OrgTemplatesPage extends PureComponent<Props, State> {
           isFullPage={false}
           filterComponent={() => this.filterComponent}
         />
-        <FilterList<TemplateSummary>
-          searchTerm={searchTerm}
-          searchKeys={['meta.name', 'labels[].name']}
-          list={templates}
-        >
-          {ts => (
-            <OrgTemplatesList
-              searchTerm={searchTerm}
-              templates={ts}
-              onFilterChange={this.setSearchTerm}
-              onImport={onImport}
-            />
-          )}
-        </FilterList>
+        <GetLabels>
+          <FilterList<TemplateSummary>
+            searchTerm={searchTerm}
+            searchKeys={['meta.name', 'labels[].name']}
+            list={templates}
+          >
+            {ts => (
+              <OrgTemplatesList
+                searchTerm={searchTerm}
+                templates={ts}
+                onFilterChange={this.setSearchTerm}
+                onImport={onImport}
+              />
+            )}
+          </FilterList>
+        </GetLabels>
       </>
     )
   }

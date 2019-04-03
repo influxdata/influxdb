@@ -32,7 +32,7 @@ const getScrapers = async (): Promise<ScraperTargetResponse[]> => {
 }
 
 const getBuckets = async (org: Organization): Promise<Bucket[]> => {
-  return client.buckets.getAllByOrg(org.name)
+  return client.buckets.getAll(org.id)
 }
 
 interface RouterProps {

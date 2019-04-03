@@ -21,7 +21,7 @@ import (
 type queryServiceExecutor struct {
 	qs     query.QueryService
 	as     influxdb.AuthorizationService
-	st     backend.Store
+	ts     influxdb.TaskService
 	logger *zap.Logger
 	wg     sync.WaitGroup
 }
@@ -31,17 +31,31 @@ var _ backend.Executor = (*queryServiceExecutor)(nil)
 // NewQueryServiceExecutor returns a new executor based on the given QueryService.
 // In general, you should prefer NewAsyncQueryServiceExecutor, as that code is smaller and simpler,
 // because asynchronous queries are more in line with the Executor interface.
-func NewQueryServiceExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, st backend.Store) backend.Executor {
-	return &queryServiceExecutor{logger: logger, qs: qs, as: as, st: st}
+func NewQueryServiceExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService) *queryServiceExecutor {
+	return &queryServiceExecutor{logger: logger, qs: qs, as: as, ts: ts}
+}
+
+// AddTaskService is a temporary solution to a chicken and egg problem. It takes a executor and sets the task service.
+// This is required because the platform adaptor requires a executor but the executor requires a task service.
+// TODO(lh): Remove this function once we are no longer using the PlatformAdaptor
+func AddTaskService(e backend.Executor, ts influxdb.TaskService) {
+	qe, ok := e.(*queryServiceExecutor)
+	if ok {
+		qe.ts = ts
+	}
+	ae, ok := e.(*asyncQueryServiceExecutor)
+	if ok {
+		ae.ts = ts
+	}
 }
 
 func (e *queryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
-	t, m, err := e.st.FindTaskByIDWithMeta(ctx, run.TaskID)
+	t, err := e.ts.FindTaskByID(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
 	}
 
-	auth, err := e.as.FindAuthorizationByID(ctx, influxdb.ID(m.AuthorizationID))
+	auth, err := e.as.FindAuthorizationByID(ctx, influxdb.ID(t.AuthorizationID))
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +73,7 @@ type syncRunPromise struct {
 	qr     backend.QueuedRun
 	auth   *influxdb.Authorization
 	qs     query.QueryService
-	t      *backend.StoreTask
+	t      *influxdb.Task
 	ctx    context.Context
 	cancel context.CancelFunc
 	logger *zap.Logger
@@ -73,7 +87,7 @@ type syncRunPromise struct {
 
 var _ backend.RunPromise = (*syncRunPromise)(nil)
 
-func newSyncRunPromise(ctx context.Context, auth *influxdb.Authorization, qr backend.QueuedRun, e *queryServiceExecutor, t *backend.StoreTask) *syncRunPromise {
+func newSyncRunPromise(ctx context.Context, auth *influxdb.Authorization, qr backend.QueuedRun, e *queryServiceExecutor, t *influxdb.Task) *syncRunPromise {
 	ctx, cancel := context.WithCancel(ctx)
 	opLogger := e.logger.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
 	log, logEnd := logger.NewOperation(opLogger, "Executing task", "execute")
@@ -139,7 +153,7 @@ func (p *syncRunPromise) finish(res *runResult, err error) {
 func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	spec, err := flux.Compile(p.ctx, p.t.Script, time.Unix(p.qr.Now, 0))
+	spec, err := flux.Compile(p.ctx, p.t.Flux, time.Unix(p.qr.Now, 0))
 	if err != nil {
 		p.finish(nil, err)
 		return
@@ -147,7 +161,7 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 
 	req := &query.Request{
 		Authorization:  p.auth,
-		OrganizationID: p.t.Org,
+		OrganizationID: p.t.OrganizationID,
 		Compiler: lang.SpecCompiler{
 			Spec: spec,
 		},
@@ -195,7 +209,7 @@ func (p *syncRunPromise) cancelOnContextDone(wg *sync.WaitGroup) {
 type asyncQueryServiceExecutor struct {
 	qs     query.AsyncQueryService
 	as     influxdb.AuthorizationService
-	st     backend.Store
+	ts     influxdb.TaskService
 	logger *zap.Logger
 	wg     sync.WaitGroup
 }
@@ -203,29 +217,29 @@ type asyncQueryServiceExecutor struct {
 var _ backend.Executor = (*asyncQueryServiceExecutor)(nil)
 
 // NewAsyncQueryServiceExecutor returns a new executor based on the given AsyncQueryService.
-func NewAsyncQueryServiceExecutor(logger *zap.Logger, qs query.AsyncQueryService, as influxdb.AuthorizationService, st backend.Store) backend.Executor {
-	return &asyncQueryServiceExecutor{logger: logger, qs: qs, as: as, st: st}
+func NewAsyncQueryServiceExecutor(logger *zap.Logger, qs query.AsyncQueryService, as influxdb.AuthorizationService, ts influxdb.TaskService) backend.Executor {
+	return &asyncQueryServiceExecutor{logger: logger, qs: qs, as: as, ts: ts}
 }
 
 func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
-	t, m, err := e.st.FindTaskByIDWithMeta(ctx, run.TaskID)
+	t, err := e.ts.FindTaskByID(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
 	}
 
-	auth, err := e.as.FindAuthorizationByID(ctx, influxdb.ID(m.AuthorizationID))
+	auth, err := e.as.FindAuthorizationByID(ctx, influxdb.ID(t.AuthorizationID))
 	if err != nil {
 		return nil, err
 	}
 
-	spec, err := flux.Compile(ctx, t.Script, time.Unix(run.Now, 0))
+	spec, err := flux.Compile(ctx, t.Flux, time.Unix(run.Now, 0))
 	if err != nil {
 		return nil, err
 	}
 
 	req := &query.Request{
 		Authorization:  auth,
-		OrganizationID: t.Org,
+		OrganizationID: t.OrganizationID,
 		Compiler: lang.SpecCompiler{
 			Spec: spec,
 		},

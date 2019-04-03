@@ -5,6 +5,9 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ResourceList, Context, IconFont} from 'src/clockface'
+import InlineLabels, {
+  LabelsEditMode,
+} from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
@@ -12,10 +15,13 @@ import {
   cloneTemplate,
   updateTemplate,
 } from 'src/templates/actions'
+// Selectors
+import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {TemplateSummary} from '@influxdata/influx'
+import {TemplateSummary, ILabel} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
+import {AppState} from 'src/types'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
@@ -31,11 +37,15 @@ interface DispatchProps {
   onUpdate: typeof updateTemplate
 }
 
-type Props = DispatchProps & OwnProps
+interface StateProps {
+  labels: ILabel[]
+}
 
-export class TemplateCard extends PureComponent<Props & WithRouterProps> {
+type Props = DispatchProps & OwnProps & StateProps
+
+class TemplateCard extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {template} = this.props
+    const {template, labels, onFilterChange} = this.props
 
     return (
       <ResourceList.Card
@@ -50,6 +60,14 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
             parentTestID="template-card--name"
             buttonTestID="template-card--name-button"
             inputTestID="template-card--input"
+          />
+        )}
+        labels={() => (
+          <InlineLabels
+            selectedLabels={template.labels}
+            labels={labels}
+            onFilterChange={onFilterChange}
+            editMode={LabelsEditMode.Readonly}
           />
         )}
       />
@@ -118,13 +136,19 @@ export class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 }
 
+const mstp = ({labels}: AppState): StateProps => {
+  return {
+    labels: viewableLabels(labels.list),
+  }
+}
+
 const mdtp: DispatchProps = {
   onDelete: deleteTemplate,
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
   mdtp
 )(withRouter<Props>(TemplateCard))

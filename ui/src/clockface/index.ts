@@ -47,6 +47,7 @@ import {
   Stack,
   ButtonType,
   Sort,
+  NavMenuType,
 } from './types'
 
 // Fire de lazer
@@ -84,6 +85,7 @@ export {
   MultiSelectDropdown,
   MultiInputType,
   MultipleInput,
+  NavMenuType,
   Overlay,
   Panel,
   ProgressBar,

@@ -27,6 +27,7 @@ import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
+import DashboardImportFromTemplateOverlay from 'src/dashboards/components/DashboardImportFromTemplateOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import {MePage, Account} from 'src/me'
@@ -40,7 +41,7 @@ import TaskImportOverlay from 'src/organizations/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
-import OrgBucketsIndex from 'src/organizations/containers/OrgBucketsIndex'
+import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
 import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
 import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
@@ -50,6 +51,7 @@ import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
 import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
 import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
 import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
+import SetOrg from 'src/shared/containers/SetOrg'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -110,83 +112,99 @@ class Root extends PureComponent {
               <Route component={Signin}>
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
-                    <Route path="/">
-                      <Route path="orgs/:orgID" component={App}>
-                        <IndexRoute component={MePage} />
-                        <Route path="tasks" component={TasksPage}>
-                          <Route
-                            path=":id/export"
-                            component={TaskExportOverlay}
-                          />
-                          <Route path="import" component={TaskImportOverlay} />
-                        </Route>
-                        <Route path="tasks/:id/runs" component={TaskRunsPage} />
-                        <Route path="tasks/new" component={TaskPage} />
-                        <Route path="tasks/:id" component={TaskEditPage} />
-                        <Route
-                          path="data-explorer"
-                          component={DataExplorerPage}
-                        >
-                          <Route path="save" component={SaveAsOverlay} />
-                        </Route>
-                        <Route path="dashboards" component={DashboardsIndex}>
-                          <Route
-                            path="import"
-                            component={DashboardImportOverlay}
-                          />
-                          <Route
-                            path=":dashboardID/export"
-                            component={DashboardExportOverlay}
-                          />
-                        </Route>
-                        <Route
-                          path="dashboards/:dashboardID"
-                          component={DashboardPage}
-                        >
-                          <Route path="cells">
-                            <Route path="new" component={VEO} />
-                            <Route path=":cellID/edit" component={VEO} />
-                          </Route>
-                          <Route path="notes">
-                            <Route path="new" component={NoteEditorOverlay} />
+                    <Route component={SetOrg}>
+                      <Route path="/">
+                        <Route path="orgs/:orgID" component={App}>
+                          <IndexRoute component={MePage} />
+                          <Route path="tasks" component={TasksPage}>
                             <Route
-                              path=":cellID/edit"
-                              component={NoteEditorOverlay}
+                              path=":id/export"
+                              component={TaskExportOverlay}
+                            />
+                            <Route
+                              path="import"
+                              component={TaskImportOverlay}
                             />
                           </Route>
-                        </Route>
-                        <Route path="me" component={MePage} />
-                        <Route path="account/:tab" component={Account} />
-                        <Route
-                          path="configuration/:tab"
-                          component={ConfigurationPage}
-                        />
-                        <Route path="settings">
-                          <IndexRoute component={OrgMembersIndex} />
-                        </Route>
-                        <Route path="buckets" component={OrgBucketsIndex} />
-                        <Route path="members" component={OrgMembersIndex} />
-                        <Route path="telegrafs" component={OrgTelegrafsIndex} />
-                        <Route path="templates" component={OrgTemplatesIndex}>
                           <Route
-                            path="import"
-                            component={TemplateImportOverlay}
+                            path="tasks/:id/runs"
+                            component={TaskRunsPage}
                           />
+                          <Route path="tasks/new" component={TaskPage} />
+                          <Route path="tasks/:id" component={TaskEditPage} />
                           <Route
-                            path=":id/export"
-                            component={TemplateExportOverlay}
+                            path="data-explorer"
+                            component={DataExplorerPage}
+                          >
+                            <Route path="save" component={SaveAsOverlay} />
+                          </Route>
+                          <Route path="dashboards" component={DashboardsIndex}>
+                            <Route
+                              path="import"
+                              component={DashboardImportOverlay}
+                            />
+                            <Route
+                              path="import/template"
+                              component={DashboardImportFromTemplateOverlay}
+                            />
+                            <Route
+                              path=":dashboardID/export"
+                              component={DashboardExportOverlay}
+                            />
+                          </Route>
+                          <Route
+                            path="dashboards/:dashboardID"
+                            component={DashboardPage}
+                          >
+                            <Route path="cells">
+                              <Route path="new" component={VEO} />
+                              <Route path=":cellID/edit" component={VEO} />
+                            </Route>
+                            <Route path="notes">
+                              <Route path="new" component={NoteEditorOverlay} />
+                              <Route
+                                path=":cellID/edit"
+                                component={NoteEditorOverlay}
+                              />
+                            </Route>
+                          </Route>
+                          <Route path="me" component={MePage} />
+                          <Route path="account/:tab" component={Account} />
+                          <Route
+                            path="configuration/:tab"
+                            component={ConfigurationPage}
                           />
+                          <Route path="settings">
+                            <IndexRoute component={OrgMembersIndex} />
+                          </Route>
+                          <Route path="buckets" component={BucketsIndex} />
+                          <Route path="members" component={OrgMembersIndex} />
+                          <Route
+                            path="telegrafs"
+                            component={OrgTelegrafsIndex}
+                          />
+                          <Route path="templates" component={OrgTemplatesIndex}>
+                            <Route
+                              path="import"
+                              component={TemplateImportOverlay}
+                            />
+                            <Route
+                              path=":id/export"
+                              component={TemplateExportOverlay}
+                            />
+                          </Route>
+                          <Route path="variables" component={OrgVariablesIndex}>
+                            <Route
+                              path="import"
+                              component={VariableImportOverlay}
+                            />
+                            <Route
+                              path=":id/export"
+                              component={OrgVariableExportOverlay}
+                            />
+                          </Route>
+                          <Route path="scrapers" component={OrgScrapersIndex} />
                         </Route>
-                        <Route path="variables" component={OrgVariablesIndex} />
-                        <Route
-                          path="import"
-                          component={VariableImportOverlay}
-                        />
-                        <Route
-                          path=":id/export"
-                          component={OrgVariableExportOverlay}
-                        />
-                        <Route path="scrapers" component={OrgScrapersIndex} />
                       </Route>
                     </Route>
                   </Route>

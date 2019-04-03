@@ -2,10 +2,14 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Components
 import NavMenu from 'src/pageLayout/components/NavMenu'
 import CloudNav from 'src/pageLayout/components/CloudNav'
+
+// Utils
+import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
 import {AppState} from 'src/types'
@@ -38,57 +42,45 @@ class SideNav extends PureComponent<Props> {
       <NavMenu>
         <NavMenu.Item
           title={me.name}
-          link={`${orgPrefix}/me`}
+          path={`${orgPrefix}/me`}
           icon={IconFont.CuboNav}
-          location={location.pathname}
-          highlightPaths={['me', 'account']}
+          active={getNavItemActivation(['me', 'account'], location.pathname)}
         >
-          <NavMenu.SubItem
-            title="Logout"
-            link="/logout"
-            location={location.pathname}
-            highlightPaths={[]}
-          />
+          <NavMenu.SubItem title="Logout" path="/logout" active={false} />
         </NavMenu.Item>
         <NavMenu.Item
           title="Data Explorer"
-          link={`${orgPrefix}/data-explorer`}
+          path={`${orgPrefix}/data-explorer`}
           icon={IconFont.GraphLine}
-          location={location.pathname}
-          highlightPaths={['data-explorer']}
+          active={getNavItemActivation(['data-explorer'], location.pathname)}
         />
         <NavMenu.Item
           title="Dashboards"
-          link={`${orgPrefix}/dashboards`}
+          path={`${orgPrefix}/dashboards`}
           icon={IconFont.Dashboards}
-          location={location.pathname}
-          highlightPaths={['dashboards']}
+          active={getNavItemActivation(['dashboards'], location.pathname)}
         />
         <NavMenu.Item
           title="Tasks"
-          link={`${orgPrefix}/tasks`}
+          path={`${orgPrefix}/tasks`}
           icon={IconFont.Calendar}
-          location={location.pathname}
-          highlightPaths={['tasks']}
+          active={getNavItemActivation(['tasks'], location.pathname)}
         />
         <NavMenu.Item
           title="Settings"
-          link={`${orgPrefix}/settings`}
+          path={`${orgPrefix}/settings`}
           icon={IconFont.Wrench}
-          location={location.pathname}
-          highlightPaths={['settings']}
+          active={getNavItemActivation(['settings'], location.pathname)}
         >
           <NavMenu.SubItem
             title="Profile"
-            link={`${orgPrefix}/configuration/settings_tab`}
-            location={location.pathname}
-            highlightPaths={['settings_tab']}
+            path={`${orgPrefix}/configuration/settings_tab`}
+            active={getNavItemActivation(['settings_tab'], location.pathname)}
           />
           <NavMenu.SubItem
             title="Tokens"
-            link={`${orgPrefix}/configuration/tokens_tab`}
-            location={location.pathname}
-            highlightPaths={['tokens_tab']}
+            path={`${orgPrefix}/configuration/tokens_tab`}
+            active={getNavItemActivation(['tokens_tab'], location.pathname)}
           />
         </NavMenu.Item>
         <CloudNav />

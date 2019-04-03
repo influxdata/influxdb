@@ -51,6 +51,25 @@ describe('Dashboards', () => {
     cy.getByTestID('dashboard-card').should('have.length', 1)
   })
 
+  it('can create a dashboard from a Template', () => {
+    cy.getByTestID('dashboard-card').should('have.length', 0)
+    cy.get<Organization>('@org').then(({id}) => {
+      cy.createDashboardTemplate(id)
+    })
+
+    cy.get('.page-header--container')
+      .contains('Create')
+      .click()
+
+    cy.getByTestID('dropdown--item From a Template').click()
+
+    cy.getByTestID('card-select-Bashboard-Template').click()
+
+    cy.getByTestID('create-dashboard-button').click()
+
+    cy.getByTestID('dashboard-card').should('have.length', 1)
+  })
+
   describe('Dashboard List', () => {
     beforeEach(() => {
       cy.get<Organization>('@org').then(({id}) => {

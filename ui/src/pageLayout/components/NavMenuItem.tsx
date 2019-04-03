@@ -1,48 +1,87 @@
 // Libraries
-import React, {SFC} from 'react'
+import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
-import {get} from 'lodash'
 
 // Types
-import {IconFont} from 'src/clockface'
+import {IconFont, NavMenuType} from 'src/clockface'
 
-interface Props {
+interface PassedProps {
   icon: IconFont
   title: string
-  link: string
+  path: string
   children?: JSX.Element | JSX.Element[]
-  location: string
-  highlightPaths: string[]
+  active: boolean
+  className?: string
 }
 
-const NavMenuItem: SFC<Props> = ({
-  icon,
-  title,
-  link,
-  children,
-  location,
-  highlightPaths,
-}) => {
-  const parentPath = get(location.split('/'), '3', '')
-  const isActive = highlightPaths.some(path => path === parentPath)
+interface DefaultProps {
+  type: NavMenuType
+  testID: string
+}
 
-  return (
-    <div
-      className={classnames('nav--item', {active: isActive})}
-      data-testid={`nav-menu-item ${icon}`}
-    >
-      <Link className="nav--item-icon" to={link}>
-        <span className={`icon sidebar--icon ${icon}`} />
-      </Link>
-      <div className="nav--item-menu">
-        <Link className="nav--item-header" to={link}>
-          {title}
-        </Link>
-        {children}
+type Props = PassedProps & Partial<DefaultProps>
+
+class NavMenuItem extends PureComponent<Props> {
+  public static defaultProps: DefaultProps = {
+    type: NavMenuType.RouterLink,
+    testID: 'nav-menu--item',
+  }
+
+  public render() {
+    const {
+      icon,
+      title,
+      path,
+      children,
+      active,
+      testID,
+      type,
+      className,
+    } = this.props
+
+    if (type === NavMenuType.RouterLink) {
+      return (
+        <div
+          className={classnames('nav--item', {
+            active,
+            [`${className}`]: className,
+          })}
+          data-testid={`${testID} ${title}`}
+        >
+          <Link className="nav--item-icon" to={path}>
+            <span className={`icon sidebar--icon ${icon}`} />
+          </Link>
+          <div className="nav--item-menu">
+            <Link className="nav--item-header" to={path}>
+              {title}
+            </Link>
+            {children}
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div
+        className={classnames('nav--item', {
+          active,
+          [`${className}`]: className,
+        })}
+        data-testid={`${testID} ${title}`}
+      >
+        <a className="nav--item-icon" href={path}>
+          <span className={`icon sidebar--icon ${icon}`} />
+        </a>
+        <div className="nav--item-menu">
+          <a className="nav--item-header" href={path}>
+            {title}
+          </a>
+          {children}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 }
 
 export default NavMenuItem
