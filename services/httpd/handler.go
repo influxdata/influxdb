@@ -214,6 +214,10 @@ func (h *Handler) Open() {
 		}
 		h.Logger.Info("opened HTTP access log", zap.String("path", path))
 	}
+
+	if h.Config.AuthEnabled && h.Config.SharedSecret == "" {
+		h.Logger.Info("Auth is enabled but shared-secret is blank. BearerAuthentication is disabled.")
+	}
 }
 
 func (h *Handler) Close() {
