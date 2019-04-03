@@ -28,7 +28,6 @@ type APIHandler struct {
 	TaskHandler          *TaskHandler
 	TelegrafHandler      *TelegrafHandler
 	QueryHandler         *FluxHandler
-	ProtoHandler         *ProtoHandler
 	WriteHandler         *WriteHandler
 	DocumentHandler      *DocumentHandler
 	SetupHandler         *SetupHandler
@@ -70,7 +69,6 @@ type APIBackend struct {
 	SecretService                   influxdb.SecretService
 	LookupService                   influxdb.LookupService
 	ChronografService               *server.Service
-	ProtoService                    influxdb.ProtoService
 	OrgLookupService                authorizer.OrganizationService
 	DocumentService                 influxdb.DocumentService
 }
@@ -138,7 +136,6 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	fluxBackend := NewFluxBackend(b)
 	h.QueryHandler = NewFluxHandler(fluxBackend)
 
-	h.ProtoHandler = NewProtoHandler(NewProtoBackend(b))
 	h.ChronografHandler = NewChronografHandler(b.ChronografService)
 	h.SwaggerHandler = newSwaggerLoader(b.Logger.With(zap.String("service", "swagger-loader")))
 	h.LabelHandler = NewLabelHandler(authorizer.NewLabelService(b.LabelService))
@@ -159,7 +156,6 @@ var apiLinks = map[string]interface{}{
 	"variables": "/api/v2/variables",
 	"me":        "/api/v2/me",
 	"orgs":      "/api/v2/orgs",
-	"protos":    "/api/v2/protos",
 	"query": map[string]string{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
@@ -282,11 +278,6 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/variables") {
 		h.VariableHandler.ServeHTTP(w, r)
-		return
-	}
-
-	if strings.HasPrefix(r.URL.Path, "/api/v2/protos") {
-		h.ProtoHandler.ServeHTTP(w, r)
 		return
 	}
 
