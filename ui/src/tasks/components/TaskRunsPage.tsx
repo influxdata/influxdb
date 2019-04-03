@@ -9,12 +9,16 @@ import TaskRunsList from 'src/tasks/components/TaskRunsList'
 // Types
 import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
-import {Run} from '@influxdata/influx'
+import {Run as APIRun} from '@influxdata/influx'
 import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
 
 // Actions
 import {getRuns, runTask} from 'src/tasks/actions'
 import {IconFont} from 'src/clockface'
+
+export interface Run extends APIRun {
+  duration: string
+}
 
 interface OwnProps {
   params: {id: string}
@@ -35,6 +39,7 @@ type Props = OwnProps & DispatchProps & StateProps
 class TaskRunsPage extends PureComponent<Props> {
   public render() {
     const {params, runs} = this.props
+
     return (
       <SpinnerContainer
         loading={this.props.runStatus}

@@ -124,8 +124,12 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleViewRuns = () => {
-    const {router, task} = this.props
-    router.push(`tasks/${task.id}/runs`)
+    const {
+      router,
+      task,
+      params: {orgID},
+    } = this.props
+    router.push(`/orgs/${orgID}/tasks/${task.id}/runs`)
   }
 
   private handleRenameTask = async (name: string) => {
