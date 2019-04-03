@@ -33,7 +33,6 @@ import * as copy from 'src/shared/copy/notifications'
 import {AppState, Label} from 'src/types'
 
 // Utils
-import {getDeep} from 'src/utils/wrappers'
 import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
 import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
@@ -50,7 +49,6 @@ export type Action =
   | SetCurrentScript
   | SetCurrentTask
   | SetShowInactive
-  | SetDropdownOrgID
   | SetTaskInterval
   | SetTaskCron
   | ClearTask
@@ -121,13 +119,6 @@ export interface SetSearchTerm {
 export interface SetShowInactive {
   type: 'SET_SHOW_INACTIVE'
   payload: {}
-}
-
-export interface SetDropdownOrgID {
-  type: 'SET_DROPDOWN_ORG_ID'
-  payload: {
-    dropdownOrgID: string
-  }
 }
 
 export interface SetTaskOption {
@@ -205,11 +196,6 @@ export const setSearchTerm = (searchTerm: string): SetSearchTerm => ({
 export const setShowInactive = (): SetShowInactive => ({
   type: 'SET_SHOW_INACTIVE',
   payload: {},
-})
-
-export const setDropdownOrgID = (dropdownOrgID: string): SetDropdownOrgID => ({
-  type: 'SET_DROPDOWN_ORG_ID',
-  payload: {dropdownOrgID},
 })
 
 export const setRuns = (runs: Run[], runStatus: RemoteDataState): SetRuns => ({
@@ -315,21 +301,13 @@ export const populateTasks = () => async (
 ): Promise<void> => {
   try {
     const {
-      orgs: {items},
+      orgs: {org},
     } = getState()
 
     const user = await client.users.me()
     const tasks = await client.tasks.getAllByUser(user)
 
-    const mappedTasks = tasks.map(task => {
-      const org = items.find(org => org.id === task.orgID)
-
-      return {
-        ...task,
-        organization: org,
-      }
-    })
-
+    const mappedTasks = tasks.map(task => ({...task, organization: org}))
     dispatch(setTasks(mappedTasks))
   } catch (e) {
     console.error(e)
@@ -353,20 +331,34 @@ export const selectTaskByID = (id: string, route?: string) => async (
   }
 }
 
-export const selectTask = (task: Task, route?: string) => async dispatch => {
+export const selectTask = (task: Task, route?: string) => async (
+  dispatch,
+  getState: GetStateFunc
+) => {
   if (route) {
     dispatch(push(route))
     return
   }
-  dispatch(push(`/tasks/${task.id}`))
+  const {
+    orgs: {org},
+  } = getState()
+
+  dispatch(push(`orgs/${org.id}/tasks/${task.id}`))
 }
 
-export const goToTasks = (route?: string) => async dispatch => {
+export const goToTasks = (route?: string) => async (
+  dispatch,
+  getState: GetStateFunc
+) => {
   if (route) {
     dispatch(push(route))
     return
   }
-  dispatch(push('/tasks'))
+  const {
+    orgs: {org},
+  } = getState()
+
+  dispatch(push(`orgs/${org.id}/tasks`))
 }
 
 export const cancel = () => async dispatch => {
@@ -410,13 +402,15 @@ export const updateScript = (route?: string) => async (
 export const saveNewScript = (
   script: string,
   preamble: string,
-  orgID: string,
   route?: string
-) => async (dispatch): Promise<void> => {
+) => async (dispatch, getState: GetStateFunc): Promise<void> => {
   try {
     const fluxScript = await insertPreambleInScript(script, preamble)
 
-    await client.tasks.createByOrgID(orgID, fluxScript)
+    const {
+      orgs: {org},
+    } = getState()
+    await client.tasks.createByOrgID(org.id, fluxScript)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
@@ -440,10 +434,11 @@ export const importTask = (script: string) => async (
       return
     }
 
-    const {orgs} = await getState()
-    const orgID = getDeep<string>(orgs, '0.id', '') // TODO org selection by user.
+    const {
+      orgs: {org},
+    } = await getState()
 
-    await client.tasks.create(orgID, script)
+    await client.tasks.create(org.id, script)
 
     dispatch(populateTasks())
 
@@ -502,16 +497,19 @@ export const getLogs = (taskID: string, runID: string) => async (
 }
 
 export const convertToTemplate = (taskID: string) => async (
-  dispatch
+  dispatch,
+  getState: GetStateFunc
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
 
+    const {
+      orgs: {org},
+    } = await getState()
     const task = await client.tasks.get(taskID)
     const taskTemplate = taskToTemplate(task)
-    const orgID = task.orgID // TODO remove when org is implicit app state
 
-    dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate, orgID))
+    dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate, org.id))
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))
