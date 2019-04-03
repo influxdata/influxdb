@@ -54,7 +54,7 @@ type Query struct {
 	Metadata flux.Metadata
 
 	spec  *flux.Spec
-	ready chan map[string]flux.Result
+	ready chan flux.Result
 	once  sync.Once
 	err   error
 	mu    sync.Mutex
@@ -68,11 +68,11 @@ func NewQuery(spec *flux.Spec) *Query {
 	return &Query{
 		Metadata: make(flux.Metadata),
 		spec:     spec,
-		ready:    make(chan map[string]flux.Result, 1),
+		ready:    make(chan flux.Result, 1),
 	}
 }
 
-func (q *Query) SetResults(results map[string]flux.Result) *Query {
+func (q *Query) SetResults(results flux.Result) *Query {
 	q.ready <- results
 	return q
 }
@@ -87,7 +87,7 @@ func (q *Query) Spec() *flux.Spec {
 	return q.spec
 }
 
-func (q *Query) Ready() <-chan map[string]flux.Result {
+func (q *Query) Results() <-chan flux.Result {
 	return q.ready
 }
 
