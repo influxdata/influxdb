@@ -6,6 +6,7 @@ import {
 } from 'src/shared/utils/resourceToTemplate'
 import {TemplateType, Variable} from '@influxdata/influx'
 import {Label, Task, TaskStatus} from 'src/types'
+import {createVariable} from 'src/variables/mocks'
 
 const myfavelabel: Label = {
   id: '1',
@@ -41,7 +42,7 @@ const myVariable: Variable = {
   arguments: {
     type: 'query',
     values: {
-      query: 'test!',
+      query: 'f(x: v.a)',
       language: 'flux',
     },
   },
@@ -77,7 +78,10 @@ describe('resourceToTemplate', () => {
 
   describe('variableToTemplate', () => {
     it('converts a variable to a template', () => {
-      const actual = variableToTemplate(myVariable, [])
+      const a = createVariable('a', 'x.b + 1')
+      const b = createVariable('b', '9000')
+      const dependencies = [a, b]
+      const actual = variableToTemplate(myVariable, dependencies)
       const expected = {
         meta: {
           version: '1',
@@ -93,7 +97,7 @@ describe('resourceToTemplate', () => {
               arguments: {
                 type: 'query',
                 values: {
-                  query: 'test!',
+                  query: 'f(x: v.a)',
                   language: 'flux',
                 },
               },
@@ -101,11 +105,51 @@ describe('resourceToTemplate', () => {
             },
             relationships: {
               variable: {
-                data: [],
+                data: [
+                  {
+                    id: 'a',
+                    type: 'variable',
+                  },
+                  {
+                    id: 'b',
+                    type: 'variable',
+                  },
+                ],
               },
             },
           },
-          included: [],
+          included: [
+            {
+              type: 'variable',
+              id: 'a',
+              attributes: {
+                name: 'a',
+                arguments: {
+                  type: 'query',
+                  values: {
+                    query: 'x.b + 1',
+                    language: 'flux',
+                  },
+                },
+                selected: [],
+              },
+            },
+            {
+              type: 'variable',
+              id: 'b',
+              attributes: {
+                name: 'b',
+                arguments: {
+                  type: 'query',
+                  values: {
+                    query: '9000',
+                    language: 'flux',
+                  },
+                },
+                selected: [],
+              },
+            },
+          ],
         },
         labels: [],
       }
@@ -168,7 +212,7 @@ describe('resourceToTemplate', () => {
                 arguments: {
                   type: 'query',
                   values: {
-                    query: 'test!',
+                    query: 'f(x: v.a)',
                     language: 'flux',
                   },
                 },

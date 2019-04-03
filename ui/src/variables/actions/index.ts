@@ -23,7 +23,7 @@ import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/
 import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
-import {exportVariables} from 'src/variables/utils/exportVariables'
+import {findDepedentVariables} from 'src/variables/utils/exportVariables'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -285,7 +285,7 @@ export const convertToTemplate = (variableID: string) => async (
     const variable = await client.variables.get(variableID)
     const allVariables = await client.variables.getAll()
 
-    const dependencies = exportVariables([variable], allVariables)
+    const dependencies = findDepedentVariables(variable, allVariables)
     const variableTemplate = variableToTemplate(variable, dependencies)
     const orgID = variable.orgID // TODO remove when org is implicit app state
 
