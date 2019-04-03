@@ -18,4 +18,5 @@ export const createVariable = (
       language: 'flux',
     },
   },
+  labels: [],
 })

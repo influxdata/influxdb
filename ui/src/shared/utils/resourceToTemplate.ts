@@ -53,11 +53,11 @@ const blankDashboardTemplate = () => {
   }
 }
 
-export const labelToRelationship = l => {
+export const labelToRelationship = (l: Label) => {
   return {type: TemplateType.Label, id: l.id}
 }
 
-export const labelToIncluded = l => {
+export const labelToIncluded = (l: Label) => {
   return {
     type: TemplateType.Label,
     id: l.id,
@@ -158,11 +158,14 @@ export const variableToTemplate = (
   const variableName = _.get(v, 'name', '')
   const templateName = `${variableName}-Template`
   const variableData = variableToIncluded(v)
-  const dependencyRelationships = dependencies.map(d =>
-    variableToRelationship(d)
-  )
+  const variableRelationships = dependencies.map(d => variableToRelationship(d))
   const includedDependencies = dependencies.map(d => variableToIncluded(d))
   const includedLabels = v.labels.map(l => labelToIncluded(l))
+  const labelRelationships = v.labels.map(l => labelToRelationship(l))
+
+  const includedDependentLabels = _.flatMap(dependencies, d =>
+    d.labels.map(l => labelToIncluded(l))
+  )
 
   return {
     ...baseTemplate,
@@ -178,11 +181,18 @@ export const variableToTemplate = (
         ...variableData,
         relationships: {
           [TemplateType.Variable]: {
-            data: [...dependencyRelationships],
+            data: [...variableRelationships],
+          },
+          [TemplateType.Label]: {
+            data: [...labelRelationships],
           },
         },
       },
-      included: [...includedDependencies, ...includedLabels],
+      included: [
+        ...includedDependencies,
+        ...includedLabels,
+        ...includedDependentLabels,
+      ],
     },
   }
 }

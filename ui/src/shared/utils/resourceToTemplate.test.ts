@@ -47,6 +47,7 @@ const myVariable: Variable = {
       language: 'flux',
     },
   },
+  labels: [],
 }
 
 describe('resourceToTemplate', () => {
@@ -78,11 +79,16 @@ describe('resourceToTemplate', () => {
   })
 
   describe('variableToTemplate', () => {
-    it('converts a variable to a template', () => {
-      const a = createVariable('a', 'x.b + 1')
+    it('converts a variable with dependencies to a template', () => {
+      const a = {
+        ...createVariable('a', 'x.b + 1'),
+        labels: [myfavelabel],
+      }
       const b = createVariable('b', '9000')
       const dependencies = [a, b]
+
       const actual = variableToTemplate(myVariable, dependencies)
+
       const expected = {
         meta: {
           version: '1',
@@ -117,6 +123,9 @@ describe('resourceToTemplate', () => {
                   },
                 ],
               },
+              label: {
+                data: [],
+              },
             },
           },
           included: [
@@ -134,6 +143,16 @@ describe('resourceToTemplate', () => {
                 },
                 selected: [],
               },
+              relationships: {
+                label: {
+                  data: [
+                    {
+                      type: 'label',
+                      id: '1',
+                    },
+                  ],
+                },
+              },
             },
             {
               type: 'variable',
@@ -149,75 +168,18 @@ describe('resourceToTemplate', () => {
                 },
                 selected: [],
               },
-            },
-          ],
-        },
-        labels: [],
-      }
-
-      expect(actual).toEqual(expected)
-    })
-
-    it('converts a variable with dependencies to a template', () => {
-      const parentArgs = {
-        values: {...myVariable.arguments.values, query: `v.${myVariable.name}`},
-      }
-      const parentVar = {
-        ...myVariable,
-        id: '123Parent',
-        name: 'Parent Var',
-        arguments: {
-          ...myVariable.arguments,
-          ...parentArgs,
-        },
-      }
-      const actual = variableToTemplate(parentVar, [myVariable])
-      const expected = {
-        meta: {
-          version: '1',
-          name: 'Parent Var-Template',
-          description: 'template created from variable: Parent Var',
-        },
-        content: {
-          data: {
-            type: 'variable',
-            id: '123Parent',
-            attributes: {
-              name: 'Parent Var',
-              arguments: {
-                type: 'query',
-                values: {
-                  query: 'v.beep',
-                  language: 'flux',
+              relationships: {
+                label: {
+                  data: [],
                 },
               },
-              selected: null,
             },
-            relationships: {
-              variable: {
-                data: [
-                  {
-                    type: 'variable',
-                    id: '039ae3b3b74b0000',
-                  },
-                ],
-              },
-            },
-          },
-          included: [
             {
-              type: 'variable',
-              id: '039ae3b3b74b0000',
+              id: '1',
+              type: 'label',
               attributes: {
-                name: 'beep',
-                arguments: {
-                  type: 'query',
-                  values: {
-                    query: 'f(x: v.a)',
-                    language: 'flux',
-                  },
-                },
-                selected: null,
+                name: '1label',
+                properties: {color: 'fffff', description: 'omg'},
               },
             },
           ],
