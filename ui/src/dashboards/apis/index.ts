@@ -20,8 +20,8 @@ export const addDashboardIDToCells = (
 }
 
 // TODO(desa): what to do about getting dashboards from another v2 source
-export const getDashboards = async (): Promise<Dashboard[]> => {
-  const dashboards = await client.dashboards.getAll()
+export const getDashboards = async (orgID: string): Promise<Dashboard[]> => {
+  const dashboards = await client.dashboards.getAllByOrgID(orgID)
 
   return dashboards.map(d => ({
     ...d,

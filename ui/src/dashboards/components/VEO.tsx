@@ -102,7 +102,7 @@ class VEO extends PureComponent<Props, State> {
       params: {dashboardID, orgID},
     } = this.props
 
-    router.push(`orgs/${orgID}/dashboards/${dashboardID}`)
+    router.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
   }
 }
 

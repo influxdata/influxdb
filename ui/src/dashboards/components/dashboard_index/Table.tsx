@@ -22,7 +22,6 @@ interface OwnProps {
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
   onFilterChange: (searchTerm: string) => void
-  showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
   onImportDashboard: () => void
   dashboards: Dashboard[]
@@ -52,7 +51,6 @@ class DashboardsTable extends PureComponent<Props, State> {
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
-      showOwnerColumn,
       onFilterChange,
     } = this.props
 
@@ -67,7 +65,6 @@ class DashboardsTable extends PureComponent<Props, State> {
             sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
-          {this.ownerSorter}
           <ResourceList.Sorter
             name={this.headerKeys[2]}
             sortKey={this.headerKeys[2]}
@@ -85,7 +82,6 @@ class DashboardsTable extends PureComponent<Props, State> {
               onCloneDashboard={onCloneDashboard}
               onDeleteDashboard={onDeleteDashboard}
               onUpdateDashboard={onUpdateDashboard}
-              showOwnerColumn={showOwnerColumn}
               onFilterChange={onFilterChange}
             />
           )}
@@ -96,22 +92,6 @@ class DashboardsTable extends PureComponent<Props, State> {
 
   private get headerKeys(): SortKey[] {
     return ['name', 'owner', 'modified', 'default']
-  }
-
-  private get ownerSorter(): JSX.Element {
-    const {showOwnerColumn} = this.props
-    const {sortKey, sortDirection} = this.state
-
-    if (showOwnerColumn) {
-      return (
-        <ResourceList.Sorter
-          name={this.headerKeys[1]}
-          sortKey={this.headerKeys[1]}
-          sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-          onClick={this.handleClickColumn}
-        />
-      )
-    }
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {

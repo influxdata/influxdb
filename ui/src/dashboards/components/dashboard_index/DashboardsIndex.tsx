@@ -17,8 +17,6 @@ import {
   getDashboardsAsync,
   deleteDashboardAsync,
   updateDashboardAsync,
-  addDashboardLabelsAsync,
-  removeDashboardLabelsAsync,
 } from 'src/dashboards/actions'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -43,8 +41,6 @@ interface DispatchProps {
   handleUpdateDashboard: typeof updateDashboardAsync
   notify: (message: Notification) => void
   retainRangesDashTimeV1: (dashboardIDs: string[]) => void
-  onAddDashboardLabels: typeof addDashboardLabelsAsync
-  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
 }
 
 interface StateProps {
@@ -119,7 +115,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                   onUpdateDashboard={handleUpdateDashboard}
                   notify={notify}
                   searchTerm={searchTerm}
-                  showOwnerColumn={true}
                   onFilterChange={this.handleFilterDashboards}
                   onImportDashboard={this.summonImportOverlay}
                 />
@@ -218,8 +213,6 @@ const mdtp: DispatchProps = {
   handleDeleteDashboard: deleteDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
-  onAddDashboardLabels: addDashboardLabelsAsync,
-  onRemoveDashboardLabels: removeDashboardLabelsAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

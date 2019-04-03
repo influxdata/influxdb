@@ -94,7 +94,6 @@ class Dashboards extends PureComponent<Props, State> {
           onUpdateDashboard={handleUpdateDashboard}
           notify={notify}
           searchTerm={searchTerm}
-          showOwnerColumn={false}
           onFilterChange={this.handleFilterUpdate}
           onImportDashboard={this.summonImportOverlay}
         />

@@ -6,7 +6,6 @@ import {replace} from 'react-router-redux'
 import {
   getDashboard as getDashboardAJAX,
   getDashboards as getDashboardsAJAX,
-  createDashboard as createDashboardAJAX,
   deleteDashboard as deleteDashboardAJAX,
   updateDashboard as updateDashboardAJAX,
   updateCells as updateCellsAJAX,
@@ -210,12 +209,18 @@ export const removeDashboardLabels = (
 // Thunks
 
 export const getDashboardsAsync = () => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ): Promise<Dashboard[]> => {
   try {
+    const {
+      orgs: {org},
+    } = getState()
+
     dispatch(setDashboards(RemoteDataState.Loading))
-    const dashboards = await getDashboardsAJAX()
+    const dashboards = await getDashboardsAJAX(org.id)
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
+
     return dashboards
   } catch (error) {
     dispatch(setDashboards(RemoteDataState.Error))
@@ -237,22 +242,6 @@ export const createDashboardFromTemplate = (
     dispatch(notify(importDashboardSucceeded()))
   } catch (error) {
     dispatch(notify(importDashboardFailed(error)))
-  }
-}
-
-export const importDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>
-): Promise<void> => {
-  try {
-    await createDashboardAJAX(dashboard)
-    const dashboards = await getDashboardsAJAX()
-
-    dispatch(setDashboards(RemoteDataState.Done, dashboards))
-    dispatch(notify(copy.dashboardImported()))
-  } catch (error) {
-    dispatch(setDashboards(RemoteDataState.Error))
-    dispatch(notify(copy.dashboardImportFailed('Could not upload dashboard')))
-    console.error(error)
   }
 }
 
