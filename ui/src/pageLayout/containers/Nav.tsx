@@ -71,13 +71,7 @@ class SideNav extends PureComponent<Props> {
           path={`${orgPrefix}/settings`}
           icon={IconFont.Wrench}
           active={getNavItemActivation(['settings'], location.pathname)}
-        >
-          <NavMenu.SubItem
-            title="Tokens"
-            path={`${orgPrefix}/configuration/tokens_tab`}
-            active={getNavItemActivation(['tokens_tab'], location.pathname)}
-          />
-        </NavMenu.Item>
+        />
         <CloudNav />
       </NavMenu>
     )
