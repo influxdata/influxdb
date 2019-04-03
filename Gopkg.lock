@@ -380,7 +380,7 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:16471b31dbe9f0c949d5db7c32688c743c4dcf891677093f45c27bf70c903e93"
+  digest = "1:0e29c493c2538a653b6c8787312ba93884f654415d782c85e51d07772baec1de"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -422,8 +422,8 @@
     "values",
   ]
   pruneopts = "UT"
-  revision = "5f3472e367cafd69c74d5715f28f0f5d56f3890a"
-  version = "v0.23.0"
+  revision = "bcfc535fb7443776501797df4ba596483c50c7fe"
+  version = "v0.24.0"
 
 [[projects]]
   branch = "master"
@@ -1019,18 +1019,14 @@
     "github.com/influxdata/flux/control",
     "github.com/influxdata/flux/csv",
     "github.com/influxdata/flux/execute",
-    "github.com/influxdata/flux/interpreter",
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/memory",
-    "github.com/influxdata/flux/parser",
     "github.com/influxdata/flux/plan",
     "github.com/influxdata/flux/repl",
     "github.com/influxdata/flux/semantic",
     "github.com/influxdata/flux/stdlib",
-    "github.com/influxdata/flux/stdlib/http",
     "github.com/influxdata/flux/stdlib/influxdata/influxdb",
     "github.com/influxdata/flux/stdlib/influxdata/influxdb/v1",
-    "github.com/influxdata/flux/stdlib/kafka",
     "github.com/influxdata/flux/stdlib/universe",
     "github.com/influxdata/flux/values",
     "github.com/influxdata/influxql",

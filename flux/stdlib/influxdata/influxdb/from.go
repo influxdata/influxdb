@@ -231,7 +231,7 @@ func (FromConversionRule) Pattern() plan.Pattern {
 	return plan.Pat(FromKind)
 }
 
-func (FromConversionRule) Rewrite(pn plan.PlanNode) (plan.PlanNode, bool, error) {
+func (FromConversionRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	logicalFromSpec := pn.ProcedureSpec().(*FromProcedureSpec)
 	newNode := plan.CreatePhysicalNode(pn.ID(), &PhysicalFromProcedureSpec{
 		FromProcedureSpec: *logicalFromSpec,
@@ -255,7 +255,7 @@ func (rule MergeFromRangeRule) Pattern() plan.Pattern {
 }
 
 // Rewrite attempts to rewrite a `from -> range` into a `FromRange`.
-func (rule MergeFromRangeRule) Rewrite(node plan.PlanNode) (plan.PlanNode, bool, error) {
+func (rule MergeFromRangeRule) Rewrite(node plan.Node) (plan.Node, bool, error) {
 	from := node.Predecessors()[0]
 	fromSpec := from.ProcedureSpec().(*PhysicalFromProcedureSpec)
 	rangeSpec := node.ProcedureSpec().(*universe.RangeProcedureSpec)
@@ -296,7 +296,7 @@ func (rule MergeFromRangeRule) Rewrite(node plan.PlanNode) (plan.PlanNode, bool,
 	fromRange.BoundsSet = true
 
 	// Finally merge nodes into single operation
-	merged, err := plan.MergeToPhysicalPlanNode(node, from, fromRange)
+	merged, err := plan.MergeToPhysicalNode(node, from, fromRange)
 	if err != nil {
 		return nil, false, err
 	}
@@ -317,7 +317,7 @@ func (MergeFromFilterRule) Pattern() plan.Pattern {
 	return plan.Pat(universe.FilterKind, plan.Pat(PhysicalFromKind))
 }
 
-func (MergeFromFilterRule) Rewrite(filterNode plan.PlanNode) (plan.PlanNode, bool, error) {
+func (MergeFromFilterRule) Rewrite(filterNode plan.Node) (plan.Node, bool, error) {
 	filterSpec := filterNode.ProcedureSpec().(*universe.FilterProcedureSpec)
 	fromNode := filterNode.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*PhysicalFromProcedureSpec)
@@ -362,7 +362,7 @@ func (MergeFromFilterRule) Rewrite(filterNode plan.PlanNode) (plan.PlanNode, boo
 
 	if notPushable == nil {
 		// All predicates could be pushed down, so eliminate the filter
-		mergedNode, err := plan.MergeToPhysicalPlanNode(filterNode, fromNode, newFromSpec)
+		mergedNode, err := plan.MergeToPhysicalNode(filterNode, fromNode, newFromSpec)
 		if err != nil {
 			return nil, false, err
 		}
@@ -527,7 +527,7 @@ func (FromDistinctRule) Pattern() plan.Pattern {
 	return plan.Pat(universe.DistinctKind, plan.Pat(PhysicalFromKind))
 }
 
-func (FromDistinctRule) Rewrite(distinctNode plan.PlanNode) (plan.PlanNode, bool, error) {
+func (FromDistinctRule) Rewrite(distinctNode plan.Node) (plan.Node, bool, error) {
 	fromNode := distinctNode.Predecessors()[0]
 	distinctSpec := distinctNode.ProcedureSpec().(*universe.DistinctProcedureSpec)
 	fromSpec := fromNode.ProcedureSpec().(*PhysicalFromProcedureSpec)
@@ -564,7 +564,7 @@ func (MergeFromGroupRule) Pattern() plan.Pattern {
 	return plan.Pat(universe.GroupKind, plan.Pat(PhysicalFromKind))
 }
 
-func (MergeFromGroupRule) Rewrite(groupNode plan.PlanNode) (plan.PlanNode, bool, error) {
+func (MergeFromGroupRule) Rewrite(groupNode plan.Node) (plan.Node, bool, error) {
 	fromNode := groupNode.Predecessors()[0]
 	groupSpec := groupNode.ProcedureSpec().(*universe.GroupProcedureSpec)
 	fromSpec := fromNode.ProcedureSpec().(*PhysicalFromProcedureSpec)
@@ -587,7 +587,7 @@ func (MergeFromGroupRule) Rewrite(groupNode plan.PlanNode) (plan.PlanNode, bool,
 	newFromSpec.GroupingSet = true
 	newFromSpec.GroupMode = groupSpec.GroupMode
 	newFromSpec.GroupKeys = groupSpec.GroupKeys
-	merged, err := plan.MergeToPhysicalPlanNode(groupNode, fromNode, newFromSpec)
+	merged, err := plan.MergeToPhysicalNode(groupNode, fromNode, newFromSpec)
 	if err != nil {
 		return nil, false, err
 	}
@@ -605,7 +605,7 @@ func (FromKeysRule) Pattern() plan.Pattern {
 	return plan.Pat(universe.KeysKind, plan.Pat(PhysicalFromKind))
 }
 
-func (FromKeysRule) Rewrite(keysNode plan.PlanNode) (plan.PlanNode, bool, error) {
+func (FromKeysRule) Rewrite(keysNode plan.Node) (plan.Node, bool, error) {
 	fromNode := keysNode.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*PhysicalFromProcedureSpec)
 
