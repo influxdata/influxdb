@@ -4,6 +4,7 @@
 
 1. [13024](https://github.com/influxdata/influxdb/pull/13024): Add the ability to edit token's description
 1. [13078](https://github.com/influxdata/influxdb/pull/13078): Add the option to create a Dashboard from a Template.
+1. [13120](https://github.com/influxdata/influxdb/pull/13120): Fix checktime error message to match precision
 
 ### Bug Fixes
 
