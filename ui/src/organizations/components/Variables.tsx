@@ -157,7 +157,7 @@ class Variables extends PureComponent<Props, State> {
   private handleOpenImportOverlay = (): void => {
     const {router, org} = this.props
 
-    router.push(`/organizations/${org.id}/variables/import`)
+    router.push(`/orgs/${org.id}/variables/import`)
   }
 
   private handleOpenCreateOverlay = (): void => {
