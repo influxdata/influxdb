@@ -458,7 +458,10 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
   try {
     dispatch(setRuns([], RemoteDataState.Loading))
 
-    const runs = await client.tasks.getRunsByTaskID(taskID)
+    const [runs] = await Promise.all([
+      client.tasks.getRunsByTaskID(taskID),
+      dispatch(selectTaskByID(taskID)),
+    ])
 
     const runsWithDuration = runs.map(run => {
       const finished = new Date(run.finishedAt)
