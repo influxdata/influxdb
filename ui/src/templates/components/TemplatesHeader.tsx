@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {Page} from 'src/pageLayout'
 
 // Components
-import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
+import {Tabs} from 'src/clockface'
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
@@ -39,9 +39,7 @@ export default class TemplatesHeader extends PureComponent<Props> {
     return (
       <Tabs.TabContentsHeader>
         {filterComponent()}
-        <ComponentSpacer align={Alignment.Right} stackChildren={Stack.Columns}>
-          {this.importButton}
-        </ComponentSpacer>
+        {this.importButton}
       </Tabs.TabContentsHeader>
     )
   }

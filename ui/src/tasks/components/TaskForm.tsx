@@ -6,8 +6,14 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {client} from 'src/utils/api'
 
 // Components
-import {Form, Radio, Input, Button} from '@influxdata/clockface'
-import {Grid, ComponentSpacer} from 'src/clockface'
+import {
+  Form,
+  Radio,
+  Input,
+  Button,
+  ComponentSpacer,
+} from '@influxdata/clockface'
+import {Grid} from 'src/clockface'
 import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
@@ -21,8 +27,10 @@ import {
   ButtonShape,
   ComponentColor,
   ComponentStatus,
+  FlexDirection,
+  AlignItems,
+  ComponentSize,
 } from '@influxdata/clockface'
-import {Stack, Alignment} from 'src/clockface'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
 interface Props {
@@ -98,8 +106,9 @@ export default class TaskForm extends PureComponent<Props, State> {
             <Grid.Column>
               <Form.Element label="Schedule Task">
                 <ComponentSpacer
-                  align={Alignment.Left}
-                  stackChildren={Stack.Rows}
+                  direction={FlexDirection.Column}
+                  alignItems={AlignItems.FlexStart}
+                  margin={ComponentSize.Small}
                 >
                   <Radio shape={ButtonShape.StretchToFit}>
                     <Radio.Button

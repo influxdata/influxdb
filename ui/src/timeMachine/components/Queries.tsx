@@ -18,8 +18,10 @@ import {
   ButtonShape,
   ComponentSize,
   ComponentColor,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
 } from '@influxdata/clockface'
-import {Alignment, ComponentSpacer} from 'src/clockface'
 
 // Actions
 import {addQuery} from 'src/timeMachine/actions'
@@ -70,7 +72,11 @@ class TimeMachineQueries extends PureComponent<Props> {
             />
           </div>
           <div className="time-machine-queries--buttons">
-            <ComponentSpacer align={Alignment.Right}>
+            <ComponentSpacer
+              direction={FlexDirection.Row}
+              justifyContent={JustifyContent.FlexEnd}
+              margin={ComponentSize.Small}
+            >
               <RawDataToggle />
               <CSVExportButton />
               <TimeMachineRefreshDropdown />

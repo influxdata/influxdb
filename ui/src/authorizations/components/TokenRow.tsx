@@ -10,12 +10,7 @@ import {
 
 // Components
 import {ComponentSize, SlideToggle} from '@influxdata/clockface'
-import {
-  IndexList,
-  ComponentSpacer,
-  ConfirmationButton,
-  Alignment,
-} from 'src/clockface'
+import {IndexList, ConfirmationButton, Alignment} from 'src/clockface'
 import EditableName from 'src/shared/components/EditableName'
 
 // Types
@@ -55,14 +50,12 @@ class TokenRow extends PureComponent<Props> {
           />
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
-          <ComponentSpacer align={Alignment.Right}>
-            <ConfirmationButton
-              size={ComponentSize.ExtraSmall}
-              text="Delete"
-              confirmText="Confirm"
-              onConfirm={this.handleDelete}
-            />
-          </ComponentSpacer>
+          <ConfirmationButton
+            size={ComponentSize.ExtraSmall}
+            text="Delete"
+            confirmText="Confirm"
+            onConfirm={this.handleDelete}
+          />
         </IndexList.Cell>
       </IndexList.Row>
     )
