@@ -23,7 +23,12 @@ import Notifications from 'src/shared/components/notifications/Notifications'
 
 // Types
 import {ComponentColor, ComponentSize} from '@influxdata/clockface'
-import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
+import {
+  Notification,
+  NotificationFunc,
+  RemoteDataState,
+  AppState,
+} from 'src/types'
 import {Links} from 'src/types/links'
 
 interface State {
@@ -164,7 +169,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({links}) => ({links})
+const mstp = ({links}: AppState) => ({links})
 
 const mdtp = {
   notify: notifyAction,
