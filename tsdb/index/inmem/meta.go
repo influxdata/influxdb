@@ -1163,6 +1163,7 @@ func (t *tagKeyValue) Range(f func(tagValue string, a seriesIDs) bool) {
 			return
 		}
 	}
+	t.mu.RUnlock()
 }
 
 // RangeAll calls f sequentially on each key and value. A call to RangeAll on a
@@ -1199,7 +1200,12 @@ func (e *tagKeyValueEntry) ids() (_ seriesIDs, changed bool) {
 	return a, true
 }
 
-func (e *tagKeyValueEntry) setIDs(a seriesIDs) { e.a = a }
+func (e *tagKeyValueEntry) setIDs(a seriesIDs) {
+	if e == nil {
+		return
+	}
+	e.a = a
+}
 
 // SeriesIDs is a convenience type for sorting, checking equality, and doing
 // union and intersection of collections of series ids.
