@@ -244,7 +244,10 @@ export const dashboardToTemplate = (
   const relationshipsVariables = variables.map(v => variableToRelationship(v))
 
   const includedViews = views.map(v => viewToIncluded(v))
-  const includedLabels = [...dashboardIncludedLabels, ...variableIncludedLabels]
+  const includedLabels = _.uniqBy(
+    [...dashboardIncludedLabels, ...variableIncludedLabels],
+    'id'
+  )
 
   const template = {
     ...baseTemplate,
