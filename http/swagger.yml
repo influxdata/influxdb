@@ -635,6 +635,14 @@ paths:
       tags:
         - ScraperTargets
       summary: get all scraper targets
+      parameters:
+          - $ref: '#/components/parameters/TraceSpan'
+          - in: query
+            name: orgID
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: all scraper targets
@@ -1715,6 +1723,14 @@ paths:
       tags:
         - Labels
       summary: Get all labels
+      parameters:
+          - $ref: '#/components/parameters/TraceSpan'
+          - in: query
+            name: orgID
+            description: specifies the organization of the resource
+            required: true
+            schema:
+              type: string
       responses:
         '200':
           description: all labels
