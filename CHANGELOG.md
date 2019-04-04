@@ -1,6 +1,8 @@
 v1.7.6 [unreleased]
 -------------------
 
+-	[#13167](https://github.com/influxdata/influxdb/pull/13168): Track prom remote read request stats.
+
 v1.7.5 [2019-03-26]
 -------------------
 
