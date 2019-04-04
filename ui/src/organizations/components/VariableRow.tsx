@@ -4,15 +4,14 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
+import {IndexList, Alignment, Context, IconFont} from 'src/clockface'
 import {
-  IndexList,
-  Alignment,
-  Context,
-  IconFont,
-  Stack,
+  ComponentColor,
   ComponentSpacer,
-} from 'src/clockface'
-import {ComponentColor} from '@influxdata/clockface'
+  FlexDirection,
+  AlignItems,
+  ComponentSize,
+} from '@influxdata/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Types
@@ -58,8 +57,9 @@ class VariableRow extends PureComponent<Props & WithRouterProps> {
       <IndexList.Row testID="variable-row">
         <IndexList.Cell alignment={Alignment.Left}>
           <ComponentSpacer
-            stackChildren={Stack.Rows}
-            align={Alignment.Left}
+            margin={ComponentSize.Small}
+            direction={FlexDirection.Column}
+            alignItems={AlignItems.FlexStart}
             stretchToFitWidth={true}
           >
             <EditableName
