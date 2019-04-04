@@ -1,6 +1,6 @@
 import {
   ILabel,
-  Variable,
+  IVariable as Variable,
   IDashboard,
   DocumentListEntry,
   Document,

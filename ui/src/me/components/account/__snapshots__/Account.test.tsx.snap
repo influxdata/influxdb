@@ -11,7 +11,7 @@ exports[`Account rendering renders! 1`] = `
     <PageHeaderLeft
       offsetPixels={0}
     >
-      <PageTitle
+      <Connect(PageTitleWithOrg)
         title="Account"
       />
     </PageHeaderLeft>

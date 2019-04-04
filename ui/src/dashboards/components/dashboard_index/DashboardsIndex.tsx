@@ -8,6 +8,7 @@ import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/D
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // APIs
 import {createDashboard, cloneDashboard} from 'src/dashboards/apis/'
@@ -85,7 +86,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         <Page titleTag="Dashboards">
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
-              <Page.Title title="Dashboards" />
+              <PageTitleWithOrg title="Dashboards" />
             </Page.Header.Left>
             <Page.Header.Right>
               <AddResourceDropdown

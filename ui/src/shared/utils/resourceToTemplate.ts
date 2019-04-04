@@ -5,7 +5,7 @@ import {
   TemplateType,
   DocumentCreate,
   ITemplate,
-  Variable,
+  IVariable as Variable,
 } from '@influxdata/influx'
 import {viewableLabels} from 'src/labels/selectors'
 

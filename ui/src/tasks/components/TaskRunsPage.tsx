@@ -5,6 +5,7 @@ import {connect} from 'react-redux'
 // Components
 import {Page} from 'src/pageLayout'
 import TaskRunsList from 'src/tasks/components/TaskRunsList'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Types
 import {AppState} from 'src/types'
@@ -48,7 +49,7 @@ class TaskRunsPage extends PureComponent<Props> {
         <Page titleTag="Runs">
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
-              <Page.Title title="Runs" />
+              <PageTitleWithOrg title="Runs" />
             </Page.Header.Left>
             <Page.Header.Right>
               <Button

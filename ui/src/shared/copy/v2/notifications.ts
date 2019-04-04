@@ -272,3 +272,13 @@ export const memberRemoveFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to remove members: "${message}"`,
 })
+
+export const addVariableLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to add label to variables`,
+})
+
+export const removeVariableLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to remove label from variables`,
+})

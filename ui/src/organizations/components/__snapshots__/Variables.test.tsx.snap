@@ -19,7 +19,7 @@ exports[`VariableList rendering renders 1`] = `
       columnCount={3}
       emptyState={<React.Fragment />}
     >
-      <withRouter(VariableRow)
+      <Connect(withRouter(VariableRow))
         key="variable-undefined"
         onDeleteVariable={[MockFunction]}
         onEditVariable={[Function]}

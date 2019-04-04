@@ -6,7 +6,7 @@ import {get} from 'lodash'
 import {RemoteDataState} from 'src/types'
 import {VariableValuesByID} from 'src/variables/types'
 import {Action} from 'src/variables/actions'
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 
 export const initialState = (): VariablesState => ({
   status: RemoteDataState.NotStarted,

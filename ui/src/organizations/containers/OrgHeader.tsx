@@ -1,25 +1,15 @@
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {Page} from 'src/pageLayout'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
-// Types
-import {Organization} from '@influxdata/influx'
-import {AppState} from 'src/types'
-
-interface StateProps {
-  org: Organization
-}
-
-class OrgHeader extends Component<StateProps> {
+class OrgHeader extends Component {
   public render() {
-    const {org} = this.props
-
     return (
       <Page.Header fullWidth={false}>
         <Page.Header.Left>
-          <Page.Title title={`${org.name} / Settings`} />
+          <PageTitleWithOrg title="Settings" />
         </Page.Header.Left>
         <Page.Header.Right />
       </Page.Header>
@@ -27,9 +17,4 @@ class OrgHeader extends Component<StateProps> {
   }
 }
 
-const mstp = ({orgs: {org}}: AppState) => ({org})
-
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(OrgHeader)
+export default OrgHeader

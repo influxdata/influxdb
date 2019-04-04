@@ -183,6 +183,7 @@ describe('hydrate vars', () => {
       id: 'b',
       name: 'b',
       orgID: '',
+      labels: [],
       arguments: {
         type: 'map',
         values: {
@@ -224,6 +225,7 @@ describe('hydrate vars', () => {
       id: 'b',
       name: 'b',
       orgID: '',
+      labels: [],
       arguments: {
         type: 'constant',
         values: ['v1', 'v2'],

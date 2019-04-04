@@ -7,7 +7,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 
 interface Props {
   children: (variables: Variable[], loading: RemoteDataState) => JSX.Element

@@ -7,6 +7,7 @@ import {Page} from 'src/pageLayout'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Settings from 'src/me/components/account/Settings'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 export enum Tabs {
   Settings = 'settings',
@@ -20,7 +21,7 @@ export default class Account extends PureComponent<WithRouterProps> {
       <Page titleTag="Account">
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title="Account" />
+            <PageTitleWithOrg title="Account" />
           </Page.Header.Left>
           <Page.Header.Right />
         </Page.Header>
