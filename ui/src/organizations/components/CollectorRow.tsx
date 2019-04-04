@@ -3,17 +3,15 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {
-  ComponentSpacer,
-  Stack,
-  IndexList,
-  ConfirmationButton,
-} from 'src/clockface'
+import {IndexList, Alignment, ConfirmationButton} from 'src/clockface'
 import {
   ComponentSize,
-  Alignment,
   Button,
   ComponentColor,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+  AlignItems,
 } from '@influxdata/clockface'
 import {ITelegraf as Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
@@ -67,8 +65,9 @@ class CollectorRow extends PureComponent<Props> {
         <IndexList.Row>
           <IndexList.Cell>
             <ComponentSpacer
-              stackChildren={Stack.Rows}
-              align={Alignment.Left}
+              margin={ComponentSize.Small}
+              direction={FlexDirection.Column}
+              alignItems={AlignItems.FlexStart}
               stretchToFitWidth={true}
             >
               <EditableName
@@ -87,7 +86,11 @@ class CollectorRow extends PureComponent<Props> {
           </IndexList.Cell>
           <IndexList.Cell>{bucket}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-            <ComponentSpacer align={Alignment.Right}>
+            <ComponentSpacer
+              margin={ComponentSize.Small}
+              direction={FlexDirection.Row}
+              justifyContent={JustifyContent.FlexEnd}
+            >
               <Button
                 text="Setup Instructions"
                 size={ComponentSize.ExtraSmall}

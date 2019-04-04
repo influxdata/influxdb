@@ -19,13 +19,14 @@ import GetResources, {
 
 // Types
 import {
-  Stack,
   Columns,
-  Alignment,
   ButtonType,
   ButtonShape,
   ComponentColor,
   ComponentStatus,
+  FlexDirection,
+  AlignItems,
+  ComponentSize,
 } from '@influxdata/clockface'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
@@ -93,8 +94,9 @@ export default class TaskForm extends PureComponent<Props, State> {
             <Grid.Column>
               <Form.Element label="Schedule Task">
                 <ComponentSpacer
-                  align={Alignment.Left}
-                  stackChildren={Stack.Rows}
+                  direction={FlexDirection.Column}
+                  alignItems={AlignItems.FlexStart}
+                  margin={ComponentSize.Small}
                 >
                   <Radio shape={ButtonShape.StretchToFit}>
                     <Radio.Button

@@ -4,11 +4,11 @@ import {connect} from 'react-redux'
 
 // Components
 import {
-  Stack,
-  Alignment,
   SlideToggle,
   ComponentSize,
   ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
 } from '@influxdata/clockface'
 import NoteEditorText from 'src/dashboards/components/NoteEditorText'
 import NoteEditorPreview from 'src/dashboards/components/NoteEditorPreview'
@@ -68,7 +68,10 @@ class NoteEditor extends PureComponent<Props> {
     const {showNoteWhenEmpty, onToggleShowNoteWhenEmpty} = this.props
 
     return (
-      <ComponentSpacer stackChildren={Stack.Columns} align={Alignment.Right}>
+      <ComponentSpacer
+        direction={FlexDirection.Row}
+        justifyContent={JustifyContent.FlexEnd}
+      >
         <SlideToggle.Label text="Show note when query returns no data" />
         <SlideToggle
           active={showNoteWhenEmpty}

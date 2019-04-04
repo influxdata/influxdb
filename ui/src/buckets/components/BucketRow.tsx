@@ -13,12 +13,12 @@ import {DEFAULT_BUCKET_NAME} from 'src/dashboards/constants'
 
 // Types
 import {
-  Alignment,
   ButtonShape,
   ComponentSize,
   ComponentColor,
   IconFont,
 } from '@influxdata/clockface'
+import {Alignment} from 'src/clockface'
 import {Bucket} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 

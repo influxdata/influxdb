@@ -9,7 +9,8 @@ import Dropdown, {
 } from 'src/clockface/components/dropdowns/Dropdown'
 
 // Types
-import {ComponentSize, DropdownMenuColors} from '@influxdata/clockface'
+import {ComponentSize} from '@influxdata/clockface'
+import {DropdownMenuColors} from 'src/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

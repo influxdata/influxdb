@@ -2,7 +2,12 @@
 import React, {Component} from 'react'
 
 // Components
-import {ComponentSpacer, Alignment} from 'src/clockface'
+import {
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+  ComponentSize,
+} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -21,7 +26,13 @@ class PanelHeader extends Component<Props> {
       <div className="panel-header">
         <div className="panel-title">{title}</div>
         <div className="panel-controls">
-          <ComponentSpacer align={Alignment.Right}>{children}</ComponentSpacer>
+          <ComponentSpacer
+            margin={ComponentSize.Small}
+            direction={FlexDirection.Row}
+            justifyContent={JustifyContent.FlexEnd}
+          >
+            {children}
+          </ComponentSpacer>
         </div>
       </div>
     )

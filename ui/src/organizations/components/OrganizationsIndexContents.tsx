@@ -12,7 +12,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Organization} from 'src/types'
-import {Alignment, ComponentSize} from '@influxdata/clockface'
+import {ComponentSize} from '@influxdata/clockface'
+import {Alignment} from 'src/clockface'
 import {deleteOrg} from 'src/organizations/actions/orgs'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 

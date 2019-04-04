@@ -15,11 +15,12 @@ import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import {
   Button,
   IconFont,
-  Alignment,
   ButtonShape,
   ComponentSize,
   ComponentColor,
   ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
 } from '@influxdata/clockface'
 
 // Actions
@@ -71,7 +72,11 @@ class TimeMachineQueries extends PureComponent<Props> {
             />
           </div>
           <div className="time-machine-queries--buttons">
-            <ComponentSpacer align={Alignment.Right}>
+            <ComponentSpacer
+              direction={FlexDirection.Row}
+              justifyContent={JustifyContent.FlexEnd}
+              margin={ComponentSize.Small}
+            >
               <RawDataToggle />
               <CSVExportButton />
               <TimeMachineRefreshDropdown />

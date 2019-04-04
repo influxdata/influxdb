@@ -6,6 +6,7 @@ exports[`LineProtocol rendering renders! 1`] = `
 >
   <t
     onSubmit={[Function]}
+    testID="form-container"
   >
     <div
       className="wizard-step--scroll-area"
