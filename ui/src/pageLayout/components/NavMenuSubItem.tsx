@@ -6,28 +6,24 @@ import classnames from 'classnames'
 // Types
 import {NavMenuType} from 'src/clockface'
 
-interface PassedProps {
+interface Props {
   title: string
-  path: string
+  path?: string
   active: boolean
   className?: string
-}
-
-interface DefaultProps {
   type: NavMenuType
   testID: string
+  onClick?: () => void
 }
 
-type Props = PassedProps & Partial<DefaultProps>
-
 class NavMenuSubItem extends PureComponent<Props> {
-  public static defaultProps: DefaultProps = {
+  public static defaultProps = {
     type: NavMenuType.RouterLink,
     testID: 'nav-menu--sub-item',
   }
 
   public render() {
-    const {title, path, testID, type, active, className} = this.props
+    const {title, path, testID, type, active, className, onClick} = this.props
 
     if (type === NavMenuType.RouterLink) {
       return (
@@ -41,6 +37,14 @@ class NavMenuSubItem extends PureComponent<Props> {
         >
           {title}
         </Link>
+      )
+    }
+
+    if (type === NavMenuType.ShowDropdown) {
+      return (
+        <div className={`nav--sub-item ${className}`} onClick={onClick}>
+          {title}
+        </div>
       )
     }
 

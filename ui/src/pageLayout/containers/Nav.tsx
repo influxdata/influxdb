@@ -14,23 +14,39 @@ import {getNavItemActivation} from 'src/pageLayout/utils'
 // Types
 import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
+import {Organization} from '@influxdata/influx'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 
-interface OwnProps {
+interface StateProps {
   isHidden: boolean
   me: AppState['me']
+  orgs: Organization[]
 }
 
-type Props = OwnProps & WithRouterProps
+interface State {
+  showOrganizations: boolean
+}
+
+type Props = StateProps & WithRouterProps
 
 @ErrorHandling
-class SideNav extends PureComponent<Props> {
+class SideNav extends PureComponent<Props, State> {
+  constructor(props) {
+    super(props)
+
+    this.state = {
+      showOrganizations: false,
+    }
+  }
+
   public render() {
     const {
       isHidden,
       me,
       params: {orgID},
+      orgs,
     } = this.props
     if (isHidden) {
       return null
@@ -41,12 +57,16 @@ class SideNav extends PureComponent<Props> {
     return (
       <NavMenu>
         <NavMenu.Item
-          title={me.name}
-          path={`${orgPrefix}/me`}
+          title={`${me.name} (${this.orgName})`}
+          path={`${orgPrefix}`}
           icon={IconFont.CuboNav}
           active={getNavItemActivation(['me', 'account'], location.pathname)}
         >
-          <NavMenu.SubItem title="Logout" path="/logout" active={false} />
+          <AccountNavSubItem
+            orgs={orgs}
+            showOrganizations={this.state.showOrganizations}
+            toggleOrganizationsView={this.toggleOrganizationsView}
+          />
         </NavMenu.Item>
         <NavMenu.Item
           title="Data Explorer"
@@ -76,13 +96,27 @@ class SideNav extends PureComponent<Props> {
       </NavMenu>
     )
   }
+
+  private get orgName(): string {
+    const {
+      params: {orgID},
+      orgs,
+    } = this.props
+    return orgs.find(org => {
+      return org.id === orgID
+    }).name
+  }
+
+  private toggleOrganizationsView = (): void => {
+    this.setState({showOrganizations: !this.state.showOrganizations})
+  }
 }
 
-const mstp = (state: AppState) => {
+const mstp = (state: AppState): StateProps => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const {me} = state
+  const {me, orgs} = state
 
-  return {isHidden, me}
+  return {isHidden, me, orgs: orgs.items}
 }
 
-export default connect(mstp)(withRouter<OwnProps>(SideNav))
+export default connect<StateProps>(mstp)(withRouter(SideNav))
