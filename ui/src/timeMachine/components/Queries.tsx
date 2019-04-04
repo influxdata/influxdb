@@ -15,12 +15,11 @@ import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import {
   Button,
   IconFont,
-  Alignment,
   ButtonShape,
   ComponentSize,
   ComponentColor,
-  ComponentSpacer,
 } from '@influxdata/clockface'
+import {Alignment, ComponentSpacer} from 'src/clockface'
 
 // Actions
 import {addQuery} from 'src/timeMachine/actions'

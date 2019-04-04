@@ -12,12 +12,12 @@ import WaitingText from 'src/shared/components/WaitingText'
 
 // Types
 import {
-  DropdownMenuColors,
   ComponentStatus,
   ComponentColor,
   ComponentSize,
   IconFont,
 } from '@influxdata/clockface'
+import {DropdownMenuColors} from 'src/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

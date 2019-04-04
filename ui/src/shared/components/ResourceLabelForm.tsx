@@ -3,7 +3,8 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form, Input, Button, ComponentSpacer} from '@influxdata/clockface'
+import {Form, Input, Button} from '@influxdata/clockface'
+import {ComponentSpacer} from 'src/clockface'
 import RandomLabelColorButton from 'src/configuration/components/RandomLabelColor'
 
 // Constants
@@ -18,12 +19,12 @@ import {
 
 // Types
 import {
-  Alignment,
   InputType,
   ButtonType,
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
+import {Alignment} from 'src/clockface'
 import {Label, LabelProperties} from 'src/types/labels'
 
 // Decorators

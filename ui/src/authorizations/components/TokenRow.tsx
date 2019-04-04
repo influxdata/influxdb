@@ -9,8 +9,13 @@ import {
 } from 'src/authorizations/actions'
 
 // Components
-import {Alignment, ComponentSize, SlideToggle} from '@influxdata/clockface'
-import {IndexList, ComponentSpacer, ConfirmationButton} from 'src/clockface'
+import {ComponentSize, SlideToggle} from '@influxdata/clockface'
+import {
+  IndexList,
+  ComponentSpacer,
+  ConfirmationButton,
+  Alignment,
+} from 'src/clockface'
 import EditableName from 'src/shared/components/EditableName'
 
 // Types

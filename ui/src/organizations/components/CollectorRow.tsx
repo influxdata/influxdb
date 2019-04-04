@@ -7,14 +7,10 @@ import {
   ComponentSpacer,
   Stack,
   IndexList,
+  Alignment,
   ConfirmationButton,
 } from 'src/clockface'
-import {
-  ComponentSize,
-  Alignment,
-  Button,
-  ComponentColor,
-} from '@influxdata/clockface'
+import {ComponentSize, Button, ComponentColor} from '@influxdata/clockface'
 import {ITelegraf as Telegraf} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 import EditableDescription from 'src/shared/components/editable_description/EditableDescription'

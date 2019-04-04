@@ -3,13 +3,8 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {
-  Stack,
-  Alignment,
-  SlideToggle,
-  ComponentSize,
-  ComponentSpacer,
-} from '@influxdata/clockface'
+import {SlideToggle, ComponentSize} from '@influxdata/clockface'
+import {Stack, Alignment, ComponentSpacer} from 'src/clockface'
 import NoteEditorText from 'src/dashboards/components/NoteEditorText'
 import NoteEditorPreview from 'src/dashboards/components/NoteEditorPreview'
 

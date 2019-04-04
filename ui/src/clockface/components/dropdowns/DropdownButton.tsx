@@ -8,9 +8,9 @@ import {
   ComponentColor,
   ComponentSize,
   IconFont,
-  DropdownChild,
   ButtonType,
 } from '@influxdata/clockface'
+import {DropdownChild} from 'src/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

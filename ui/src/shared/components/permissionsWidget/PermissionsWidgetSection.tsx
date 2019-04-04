@@ -2,8 +2,8 @@
 import React, {Component} from 'react'
 
 // Components
-import {Button, Alignment, ComponentSize} from '@influxdata/clockface'
-import {ComponentSpacer} from 'src/clockface'
+import {Button, ComponentSize} from '@influxdata/clockface'
+import {ComponentSpacer, Alignment} from 'src/clockface'
 import PermissionsWidgetItem from 'src/shared/components/permissionsWidget/PermissionsWidgetItem'
 
 // Types
