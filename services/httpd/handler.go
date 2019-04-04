@@ -58,6 +58,12 @@ const (
 	MaxDebugRequestsInterval = 6 * time.Hour
 )
 
+var (
+	// ErrBearerAuthDisabled is returned when client specifies bearer auth in
+	// a request but bearer auth is disabled.
+	ErrBearerAuthDisabled = errors.New("bearer auth disabld")
+)
+
 // AuthenticationMethod defines the type of authentication used.
 type AuthenticationMethod int
 
@@ -239,6 +245,10 @@ func (h *Handler) Open() {
 		h.Logger.Info("opened HTTP access log", zap.String("path", path))
 	}
 	h.accessLogFilters = StatusFilters(h.Config.AccessLogStatusFilters)
+
+	if h.Config.AuthEnabled && h.Config.SharedSecret == "" {
+		h.Logger.Info("Auth is enabled but shared-secret is blank. BearerAuthentication is disabled.")
+	}
 
 	if h.Config.FluxEnabled {
 		h.registered = true
@@ -1581,6 +1591,11 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 					return
 				}
 			case BearerAuthentication:
+				if h.Config.SharedSecret == "" {
+					atomic.AddInt64(&h.stats.AuthenticationFailures, 1)
+					h.httpError(w, ErrBearerAuthDisabled.Error(), http.StatusUnauthorized)
+					return
+				}
 				keyLookupFn := func(token *jwt.Token) (interface{}, error) {
 					// Check for expected signing method.
 					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
