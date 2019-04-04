@@ -17,8 +17,7 @@ import {
   ComponentSize,
   IconFont,
 } from '@influxdata/clockface'
-import {DropdownMenuColors} from 'src/clockface'
-
+import {DropdownMenuColors} from 'src/clockface/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export enum DropdownMode {
