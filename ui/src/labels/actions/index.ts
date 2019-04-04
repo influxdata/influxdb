@@ -67,11 +67,19 @@ export const removeLabel = (id: string): RemoveLabel => ({
   payload: {id},
 })
 
-export const getLabels = () => async (dispatch: Dispatch<Action>) => {
+export const getLabels = () => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
   try {
+    const {
+      orgs: {
+        org: {id},
+      },
+    } = getState()
     dispatch(setLabels(RemoteDataState.Loading))
 
-    const labels = await client.labels.getAll()
+    const labels = await client.labels.getAll(id)
 
     dispatch(setLabels(RemoteDataState.Done, labels))
   } catch (e) {
