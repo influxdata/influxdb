@@ -1,3 +1,10 @@
+v1.6.7 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#13151](https://github.com/influxdata/influxdb/pull/13151): Add nil check for tagKeyValueEntry.setIDs().
+
 v1.6.6 [2019-02-28]
 -------------------
 
