@@ -53,6 +53,12 @@ const (
 	MaxDebugRequestsInterval = 6 * time.Hour
 )
 
+var (
+	// ErrBearerAuthDisabled is returned when client specifies bearer auth in
+	// a request but bearer auth is disabled.
+	ErrBearerAuthDisabled = errors.New("bearer auth disabld")
+)
+
 // AuthenticationMethod defines the type of authentication used.
 type AuthenticationMethod int
 
@@ -1410,7 +1416,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 			case BearerAuthentication:
 				if h.Config.SharedSecret == "" {
 					atomic.AddInt64(&h.stats.AuthenticationFailures, 1)
-					h.httpError(w, "bearer auth disabled", http.StatusUnauthorized)
+					h.httpError(w, ErrBearerAuthDisabled.Error(), http.StatusUnauthorized)
 					return
 				}
 				keyLookupFn := func(token *jwt.Token) (interface{}, error) {
