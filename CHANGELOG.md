@@ -3,6 +3,10 @@ v1.7.6 [unreleased]
 
 -	[#13167](https://github.com/influxdata/influxdb/pull/13168): Track prom remote read request stats.
 
+### Bugfixes
+
+-	[#13150](https://github.com/influxdata/influxdb/pull/13150): Add nil check for tagKeyValueEntry.setIDs().
+
 v1.7.5 [2019-03-26]
 -------------------
 
