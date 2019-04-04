@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {InjectedRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -12,10 +11,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetLabels from 'src/configuration/components/GetLabels'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Actions
 import {
-  populateTasks,
   updateTaskStatus,
   updateTaskName,
   deleteTask,
@@ -23,27 +24,20 @@ import {
   cloneTask,
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
-  setDropdownOrgID as setDropdownOrgIDAction,
-  importTask,
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
 } from 'src/tasks/actions'
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
-// Constants
-import {allOrganizationsID} from 'src/tasks/constants'
 
 // Types
-import {Organization} from '@influxdata/influx'
-import {AppState, Task, TaskStatus} from 'src/types'
+import {AppState, Task, TaskStatus, RemoteDataState} from 'src/types'
+import {InjectedRouter, WithRouterProps} from 'react-router'
 
 interface PassedInProps {
   router: InjectedRouter
 }
 
 interface ConnectedDispatchProps {
-  populateTasks: typeof populateTasks
   updateTaskStatus: typeof updateTaskStatus
   updateTaskName: typeof updateTaskName
   deleteTask: typeof deleteTask
@@ -51,20 +45,16 @@ interface ConnectedDispatchProps {
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
-  setDropdownOrgID: typeof setDropdownOrgIDAction
-  importTask: typeof importTask
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onRunTask: typeof runTask
-  notify: typeof notifyAction
 }
 
 interface ConnectedStateProps {
   tasks: Task[]
   searchTerm: string
   showInactive: boolean
-  orgs: Organization[]
-  dropdownOrgID: string
+  status: RemoteDataState
 }
 
 type Props = ConnectedDispatchProps &
@@ -86,7 +76,6 @@ class TasksPage extends PureComponent<Props, State> {
     if (!props.showInactive) {
       props.setShowInactive()
     }
-    props.setDropdownOrgID(null)
 
     this.state = {
       isImporting: false,
@@ -118,44 +107,42 @@ class TasksPage extends PureComponent<Props, State> {
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
-              <GetLabels>
-                <FilterList<Task>
-                  list={this.filteredTasks}
-                  searchTerm={searchTerm}
-                  searchKeys={['name', 'labels[].name']}
-                >
-                  {ts => (
-                    <TasksList
-                      searchTerm={searchTerm}
-                      tasks={ts}
-                      totalCount={this.totalTaskCount}
-                      onActivate={this.handleActivate}
-                      onDelete={this.handleDelete}
-                      onCreate={this.handleCreateTask}
-                      onClone={this.handleClone}
-                      onSelect={this.props.selectTask}
-                      onAddTaskLabels={onAddTaskLabels}
-                      onRemoveTaskLabels={onRemoveTaskLabels}
-                      onRunTask={onRunTask}
-                      onFilterChange={setSearchTerm}
-                      filterComponent={() => this.search}
-                      onUpdate={updateTaskName}
-                      onImportTask={this.summonOverlay}
-                    />
-                  )}
-                </FilterList>
-                {this.hiddenTaskAlert}
-              </GetLabels>
+              <GetResources resource={ResourceTypes.Tasks}>
+                <GetLabels>
+                  <FilterList<Task>
+                    list={this.filteredTasks}
+                    searchTerm={searchTerm}
+                    searchKeys={['name', 'labels[].name']}
+                  >
+                    {ts => (
+                      <TasksList
+                        searchTerm={searchTerm}
+                        tasks={ts}
+                        totalCount={this.totalTaskCount}
+                        onActivate={this.handleActivate}
+                        onDelete={this.handleDelete}
+                        onCreate={this.handleCreateTask}
+                        onClone={this.handleClone}
+                        onSelect={this.props.selectTask}
+                        onAddTaskLabels={onAddTaskLabels}
+                        onRemoveTaskLabels={onRemoveTaskLabels}
+                        onRunTask={onRunTask}
+                        onFilterChange={setSearchTerm}
+                        filterComponent={() => this.search}
+                        onUpdate={updateTaskName}
+                        onImportTask={this.summonOverlay}
+                      />
+                    )}
+                  </FilterList>
+                  {this.hiddenTaskAlert}
+                </GetLabels>
+              </GetResources>
             </div>
           </Page.Contents>
         </Page>
         {this.props.children}
       </>
     )
-  }
-
-  public componentDidMount() {
-    this.props.populateTasks()
   }
 
   private handleActivate = (task: Task) => {
@@ -202,17 +189,14 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private get filteredTasks(): Task[] {
-    const {tasks, showInactive, dropdownOrgID} = this.props
+    const {tasks, showInactive} = this.props
     const matchingTasks = tasks.filter(t => {
       let activeFilter = true
       if (!showInactive) {
         activeFilter = t.status === TaskStatus.Active
       }
-      let orgIDFilter = true
-      if (dropdownOrgID && dropdownOrgID !== allOrganizationsID) {
-        orgIDFilter = t.orgID === dropdownOrgID
-      }
-      return activeFilter && orgIDFilter
+
+      return activeFilter
     })
 
     return matchingTasks
@@ -246,21 +230,17 @@ class TasksPage extends PureComponent<Props, State> {
 }
 
 const mstp = ({
-  tasks: {tasks, searchTerm, showInactive, dropdownOrgID},
-  orgs: {items},
+  tasks: {status, list, searchTerm, showInactive},
 }: AppState): ConnectedStateProps => {
   return {
-    tasks,
+    tasks: list,
+    status: status,
     searchTerm,
     showInactive,
-    orgs: items,
-    dropdownOrgID,
   }
 }
 
 const mdtp: ConnectedDispatchProps = {
-  notify: notifyAction,
-  populateTasks,
   updateTaskStatus,
   updateTaskName,
   deleteTask,
@@ -268,8 +248,6 @@ const mdtp: ConnectedDispatchProps = {
   cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
-  setDropdownOrgID: setDropdownOrgIDAction,
-  importTask,
   onRemoveTaskLabels: removeTaskLabelsAsync,
   onAddTaskLabels: addTaskLabelsAsync,
   onRunTask: runTask,

@@ -56,7 +56,6 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         testID="task-card"
         disabled={!this.isTaskActive}
         labels={() => this.labels}
-        owner={{name: task.org, id: task.orgID}}
         contextMenu={() => this.contextMenu}
         name={() => (
           <ResourceList.Name

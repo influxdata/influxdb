@@ -2,9 +2,6 @@
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
-// APIs
-import {client} from 'src/utils/api'
-
 // Components
 import {
   Form,
@@ -14,13 +11,13 @@ import {
   ComponentSpacer,
 } from '@influxdata/clockface'
 import {Grid} from 'src/clockface'
-import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
-import GetOrgResources from 'src/organizations/components/GetOrgResources'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Types
-import {Organization, Bucket} from '@influxdata/influx'
 import {
   Stack,
   Columns,
@@ -33,7 +30,6 @@ import {
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
 interface Props {
-  orgs: Organization[]
   taskOptions: TaskOptions
   isInOverlay: boolean
   canSubmit: boolean
@@ -41,16 +37,12 @@ interface Props {
   dismiss: () => void
   onChangeScheduleType: (schedule: TaskSchedule) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
-  onChangeTaskOrgID: (orgID: string) => void
-  onChangeToOrgName: (orgName: string) => void
   onChangeToBucketName: (bucketName: string) => void
 }
 
 interface State {
   schedule: TaskSchedule
 }
-
-const getBuckets = (org: Organization) => client.buckets.getAll(org.id)
 
 export default class TaskForm extends PureComponent<Props, State> {
   public static defaultProps = {
@@ -59,7 +51,6 @@ export default class TaskForm extends PureComponent<Props, State> {
     onSubmit: () => {},
     dismiss: () => {},
     onChangeToBucketName: () => {},
-    onChangeToOrgName: () => {},
   }
 
   constructor(props: Props) {
@@ -73,7 +64,6 @@ export default class TaskForm extends PureComponent<Props, State> {
   public render() {
     const {
       onChangeInput,
-      onChangeToOrgName,
       onChangeToBucketName,
       taskOptions: {
         name,
@@ -81,10 +71,8 @@ export default class TaskForm extends PureComponent<Props, State> {
         interval,
         offset,
         cron,
-        toOrgName,
         toBucketName,
       },
-      orgs,
       isInOverlay,
     } = this.props
 
@@ -141,31 +129,13 @@ export default class TaskForm extends PureComponent<Props, State> {
             />
             {isInOverlay && (
               <Grid.Column widthXS={Columns.Six}>
-                <Form.Element label="Output Organization">
-                  <TaskOptionsOrgDropdown
-                    orgs={orgs}
-                    selectedOrgName={toOrgName}
-                    onChangeOrgName={onChangeToOrgName}
-                  />
-                </Form.Element>
-              </Grid.Column>
-            )}
-            {isInOverlay && (
-              <Grid.Column widthXS={Columns.Six}>
                 <Form.Element label="Output Bucket">
-                  <GetOrgResources<Bucket>
-                    organization={this.toOrganization}
-                    fetcher={getBuckets}
-                  >
-                    {(buckets, loading) => (
-                      <TaskOptionsBucketDropdown
-                        buckets={buckets}
-                        selectedBucketName={toBucketName}
-                        onChangeBucketName={onChangeToBucketName}
-                        loading={loading}
-                      />
-                    )}
-                  </GetOrgResources>
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <TaskOptionsBucketDropdown
+                      selectedBucketName={toBucketName}
+                      onChangeBucketName={onChangeToBucketName}
+                    />
+                  </GetResources>
                 </Form.Element>
               </Grid.Column>
             )}
@@ -174,15 +144,6 @@ export default class TaskForm extends PureComponent<Props, State> {
         </Grid>
       </Form>
     )
-  }
-
-  private get toOrganization(): Organization {
-    const {
-      orgs,
-      taskOptions: {toOrgName},
-    } = this.props
-    const toOrg = orgs.find(o => o.name === toOrgName)
-    return toOrg
   }
 
   private get buttons(): JSX.Element {

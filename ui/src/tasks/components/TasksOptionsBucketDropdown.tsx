@@ -1,30 +1,38 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
 
 // Components
 import {Dropdown, ComponentStatus} from 'src/clockface'
 
 // Types
 import {Bucket} from '@influxdata/influx'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, AppState} from 'src/types'
 
-interface Props {
-  buckets: Bucket[]
+interface OwnProps {
   onChangeBucketName: (selectedBucketName: string) => void
   selectedBucketName: string
-  loading: RemoteDataState
 }
 
-export default class TaskOptionsBucketDropdown extends PureComponent<Props> {
+interface StateProps {
+  buckets: Bucket[]
+  status: RemoteDataState
+}
+
+type Props = OwnProps & StateProps
+
+class TaskOptionsBucketDropdown extends PureComponent<Props> {
   public componentDidMount() {
     this.setSelectedToFirst()
   }
+
   public componentDidUpdate(prevProps: Props) {
     if (this.props.buckets !== prevProps.buckets) {
       this.setSelectedToFirst()
     }
   }
+
   public render() {
     return (
       <Dropdown
@@ -56,9 +64,10 @@ export default class TaskOptionsBucketDropdown extends PureComponent<Props> {
       ]
     }
   }
+
   private get status(): ComponentStatus {
-    const {loading, buckets} = this.props
-    if (loading === RemoteDataState.Loading) {
+    const {status, buckets} = this.props
+    if (status === RemoteDataState.Loading) {
       return ComponentStatus.Loading
     }
     if (!buckets || !buckets.length) {
@@ -85,3 +94,15 @@ export default class TaskOptionsBucketDropdown extends PureComponent<Props> {
     onChangeBucketName(firstBucketNameInList)
   }
 }
+
+const mstp = ({buckets}: AppState): StateProps => {
+  return {
+    buckets: buckets.list,
+    status: buckets.status,
+  }
+}
+
+export default connect<StateProps, {}, OwnProps>(
+  mstp,
+  null
+)(TaskOptionsBucketDropdown)

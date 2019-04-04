@@ -16,7 +16,7 @@ describe('Tasks', () => {
     })
   })
 
-  it.skip('can create a task', () => {
+  it('can create a task', () => {
     const taskName = '🦄ask'
     cy.get('.empty-state').within(() => {
       cy.contains('Create').click()
@@ -105,7 +105,7 @@ describe('Tasks', () => {
     cy.getByTestID('task-card').should('contain', newName)
   })
 
-  it.skip('fails to create a task without a valid script', () => {
+  it('fails to create a task without a valid script', () => {
     cy.get('.empty-state').within(() => {
       cy.contains('Create').click()
     })

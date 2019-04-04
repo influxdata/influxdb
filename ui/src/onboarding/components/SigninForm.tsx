@@ -19,7 +19,7 @@ import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {Links} from 'src/types/links'
-import {Notification, NotificationFunc} from 'src/types'
+import {Notification, NotificationFunc, AppState} from 'src/types'
 import {
   Columns,
   InputType,
@@ -141,7 +141,7 @@ class SigninForm extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({links}) => ({
+const mstp = ({links}: AppState) => ({
   links,
 })
 
