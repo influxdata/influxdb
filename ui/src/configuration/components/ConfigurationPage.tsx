@@ -13,6 +13,7 @@ import Settings from 'src/me/components/account/Settings'
 import Telegrafs from 'src/configuration/components/Telegrafs'
 import Variables from 'src/configuration/components/Variables'
 import Scrapers from 'src/configuration/components/Scrapers'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -36,7 +37,7 @@ class ConfigurationPage extends Component<Props> {
       <Page titleTag="Configuration">
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title="Configuration" />
+            <PageTitleWithOrg title="Configuration" />
           </Page.Header.Left>
           <Page.Header.Right />
         </Page.Header>

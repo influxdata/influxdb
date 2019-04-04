@@ -1,6 +1,9 @@
 // Libraries
 import React, {PureComponent} from 'react'
+
+// Components
 import {Page} from 'src/pageLayout'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Components
 import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
@@ -29,7 +32,7 @@ export default class TemplatesHeader extends PureComponent<Props> {
       return (
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title={this.pageTitle} />
+            <PageTitleWithOrg title={this.pageTitle} />
           </Page.Header.Left>
           <Page.Header.Right>{this.importButton}</Page.Header.Right>
         </Page.Header>
