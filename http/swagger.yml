@@ -6588,18 +6588,6 @@ components:
             - $ref: "#/components/schemas/V1ViewProperties"
             - $ref: "#/components/schemas/EmptyViewProperties"
             - $ref: "#/components/schemas/LogViewProperties"
-    Views:
-      type: object
-      properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-        views:
-          type: array
-          items:
-            $ref: "#/components/schemas/View"
     CellUpdate:
       type: object
       properties:
