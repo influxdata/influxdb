@@ -25,7 +25,7 @@ import {
   addDestinationToFluxScript,
 } from 'src/utils/taskOptionsToFluxScript'
 
-import {Organization, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import {
   TaskOptions,
   TaskOptionKeys,
@@ -37,10 +37,8 @@ interface PassedInProps {
 }
 
 interface ConnectStateProps {
-  org: Organization
   taskOptions: TaskOptions
   newScript: string
-  tasksLink: string
 }
 
 interface ConnectDispatchProps {
@@ -54,10 +52,6 @@ interface ConnectDispatchProps {
 class TaskPage extends PureComponent<
   PassedInProps & ConnectStateProps & ConnectDispatchProps
 > {
-  constructor(props) {
-    super(props)
-  }
-
   public componentDidMount() {
     this.props.setTaskOption({
       key: 'taskScheduleType',
@@ -144,12 +138,10 @@ class TaskPage extends PureComponent<
   }
 }
 
-const mstp = ({tasks, links, orgs: {org}}: AppState): ConnectStateProps => {
+const mstp = ({tasks}: AppState): ConnectStateProps => {
   return {
-    org,
     taskOptions: tasks.taskOptions,
     newScript: tasks.newScript,
-    tasksLink: links.tasks,
   }
 }
 

@@ -38,7 +38,6 @@ interface Props {
   dismiss: () => void
   onChangeScheduleType: (schedule: TaskSchedule) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
-  onChangeToOrgName: (orgName: string) => void
   onChangeToBucketName: (bucketName: string) => void
 }
 
@@ -53,7 +52,6 @@ export default class TaskForm extends PureComponent<Props, State> {
     onSubmit: () => {},
     dismiss: () => {},
     onChangeToBucketName: () => {},
-    onChangeToOrgName: () => {},
   }
 
   constructor(props: Props) {

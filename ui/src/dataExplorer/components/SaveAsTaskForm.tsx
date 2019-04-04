@@ -82,7 +82,6 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
         taskOptions={taskOptions}
         onChangeScheduleType={this.handleChangeScheduleType}
         onChangeInput={this.handleChangeInput}
-        onChangeToOrgName={this.handleChangeToOrgName}
         onChangeToBucketName={this.handleChangeToBucketName}
         isInOverlay={true}
         onSubmit={this.handleSubmit}
@@ -130,12 +129,6 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     const script = addDestinationToFluxScript(newScript, taskOptions)
 
     saveNewScript(script, preamble)
-  }
-
-  private handleChangeToOrgName = (orgName: string) => {
-    const {setTaskOption} = this.props
-
-    setTaskOption({key: 'toOrgName', value: orgName})
   }
 
   private handleChangeToBucketName = (bucketName: string) => {
