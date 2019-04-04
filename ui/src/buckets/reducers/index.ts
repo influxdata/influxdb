@@ -2,9 +2,8 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, Bucket} from 'src/types'
 import {Action} from 'src/buckets/actions'
-import {Bucket} from '@influxdata/influx'
 
 const initialState = (): BucketsState => ({
   status: RemoteDataState.NotStarted,

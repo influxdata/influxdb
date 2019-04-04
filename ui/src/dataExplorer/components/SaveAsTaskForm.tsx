@@ -75,16 +75,13 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   public render() {
-    const {orgs, taskOptions, dismiss} = this.props
+    const {taskOptions, dismiss} = this.props
 
     return (
       <TaskForm
-        orgs={orgs}
         taskOptions={taskOptions}
         onChangeScheduleType={this.handleChangeScheduleType}
         onChangeInput={this.handleChangeInput}
-        onChangeTaskOrgID={this.handleChangeTaskOrgID}
-        onChangeToOrgName={this.handleChangeToOrgName}
         onChangeToBucketName={this.handleChangeToBucketName}
         isInOverlay={true}
         onSubmit={this.handleSubmit}
@@ -110,13 +107,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleSubmit = async () => {
-    const {
-      saveNewScript,
-      newScript,
-      taskOptions,
-      timeRange,
-      params: {orgID},
-    } = this.props
+    const {saveNewScript, newScript, taskOptions, timeRange} = this.props
 
     // When a task runs, it does not have access to variables that we typically
     // inject into the script via the front end. So any variables that are used
@@ -137,19 +128,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     const preamble = `${varOption}\n\n${taskOption}`
     const script = addDestinationToFluxScript(newScript, taskOptions)
 
-    saveNewScript(script, preamble, orgID)
-  }
-
-  private handleChangeTaskOrgID = (orgID: string) => {
-    const {setTaskOption} = this.props
-
-    setTaskOption({key: 'orgID', value: orgID})
-  }
-
-  private handleChangeToOrgName = (orgName: string) => {
-    const {setTaskOption} = this.props
-
-    setTaskOption({key: 'toOrgName', value: orgName})
+    saveNewScript(script, preamble)
   }
 
   private handleChangeToBucketName = (bucketName: string) => {

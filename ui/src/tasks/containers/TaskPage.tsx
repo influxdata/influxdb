@@ -11,7 +11,6 @@ import FluxEditor from 'src/shared/components/FluxEditor'
 import {Page} from 'src/pageLayout'
 
 // Actions
-import {State as TasksState} from 'src/tasks/reducers'
 import {
   setNewScript,
   saveNewScript,
@@ -26,9 +25,7 @@ import {
   addDestinationToFluxScript,
 } from 'src/utils/taskOptionsToFluxScript'
 
-// Types
-import {Links} from 'src/types/links'
-import {Organization} from 'src/types'
+import {AppState} from 'src/types'
 import {
   TaskOptions,
   TaskOptionKeys,
@@ -40,10 +37,8 @@ interface PassedInProps {
 }
 
 interface ConnectStateProps {
-  orgs: Organization[]
   taskOptions: TaskOptions
   newScript: string
-  tasksLink: string
 }
 
 interface ConnectDispatchProps {
@@ -57,10 +52,6 @@ interface ConnectDispatchProps {
 class TaskPage extends PureComponent<
   PassedInProps & ConnectStateProps & ConnectDispatchProps
 > {
-  constructor(props) {
-    super(props)
-  }
-
   public componentDidMount() {
     this.props.setTaskOption({
       key: 'taskScheduleType',
@@ -73,7 +64,7 @@ class TaskPage extends PureComponent<
   }
 
   public render(): JSX.Element {
-    const {newScript, taskOptions, orgs} = this.props
+    const {newScript, taskOptions} = this.props
 
     return (
       <Page titleTag="Create Task">
@@ -87,12 +78,10 @@ class TaskPage extends PureComponent<
           <div className="task-form">
             <div className="task-form--options">
               <TaskForm
-                orgs={orgs}
                 taskOptions={taskOptions}
                 canSubmit={this.isFormValid}
                 onChangeInput={this.handleChangeInput}
                 onChangeScheduleType={this.handleChangeScheduleType}
-                onChangeTaskOrgID={this.handleChangeTaskOrgID}
               />
             </div>
             <div className="task-form--editor">
@@ -134,11 +123,7 @@ class TaskPage extends PureComponent<
     const script: string = addDestinationToFluxScript(newScript, taskOptions)
     const preamble = `${taskOption}`
 
-    this.props.saveNewScript(script, preamble, this.orgName)
-  }
-
-  private get orgName(): string {
-    return this.props.orgs[0].name
+    this.props.saveNewScript(script, preamble)
   }
 
   private handleCancel = () => {
@@ -151,26 +136,12 @@ class TaskPage extends PureComponent<
 
     this.props.setTaskOption({key, value})
   }
-
-  private handleChangeTaskOrgID = (orgID: string) => {
-    this.props.setTaskOption({key: 'orgID', value: orgID})
-  }
 }
 
-const mstp = ({
-  tasks,
-  links,
-  orgs,
-}: {
-  tasks: TasksState
-  links: Links
-  orgs: Organization[]
-}): ConnectStateProps => {
+const mstp = ({tasks}: AppState): ConnectStateProps => {
   return {
-    orgs,
     taskOptions: tasks.taskOptions,
     newScript: tasks.newScript,
-    tasksLink: links.tasks,
   }
 }
 

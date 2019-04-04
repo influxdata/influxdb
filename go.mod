@@ -39,7 +39,7 @@ require (
 	github.com/go-ldap/ldap v2.5.1+incompatible // indirect
 	github.com/go-test/deep v1.0.1 // indirect
 	github.com/gocql/gocql v0.0.0-20181124151448-70385f88b28b // indirect
-	github.com/gogo/protobuf v1.2.0
+	github.com/gogo/protobuf v1.2.1
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
 	github.com/golang/protobuf v1.2.0
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db

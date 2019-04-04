@@ -19,7 +19,7 @@ import {
   IconFont,
 } from '@influxdata/clockface'
 import {Alignment} from 'src/clockface'
-import {Bucket} from '@influxdata/influx'
+import {Bucket} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 
 export interface PrettyBucket extends Bucket {
