@@ -17,7 +17,6 @@ import GetResources, {
 
 // Actions
 import {
-  getTasks,
   updateTaskStatus,
   updateTaskName,
   deleteTask,
@@ -25,7 +24,6 @@ import {
   cloneTask,
   setSearchTerm as setSearchTermAction,
   setShowInactive as setShowInactiveAction,
-  importTask,
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
@@ -40,7 +38,6 @@ interface PassedInProps {
 }
 
 interface ConnectedDispatchProps {
-  getTasks: typeof getTasks
   updateTaskStatus: typeof updateTaskStatus
   updateTaskName: typeof updateTaskName
   deleteTask: typeof deleteTask
@@ -48,7 +45,6 @@ interface ConnectedDispatchProps {
   selectTask: typeof selectTask
   setSearchTerm: typeof setSearchTermAction
   setShowInactive: typeof setShowInactiveAction
-  importTask: typeof importTask
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onRunTask: typeof runTask
@@ -245,7 +241,6 @@ const mstp = ({
 }
 
 const mdtp: ConnectedDispatchProps = {
-  getTasks,
   updateTaskStatus,
   updateTaskName,
   deleteTask,
@@ -253,7 +248,6 @@ const mdtp: ConnectedDispatchProps = {
   cloneTask,
   setSearchTerm: setSearchTermAction,
   setShowInactive: setShowInactiveAction,
-  importTask,
   onRemoveTaskLabels: removeTaskLabelsAsync,
   onAddTaskLabels: addTaskLabelsAsync,
   onRunTask: runTask,

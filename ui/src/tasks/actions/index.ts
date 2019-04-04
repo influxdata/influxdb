@@ -441,7 +441,7 @@ export const importTask = (script: string) => async (
       orgs: {org},
     } = await getState()
 
-    await client.tasks.create(org.id, script)
+    await client.tasks.createByOrgID(org.id, script)
 
     dispatch(getTasks())
 
@@ -530,6 +530,6 @@ export const createTaskFromTemplate = (template: ITaskTemplate) => async (
 
     await createTaskFromTemplateAJAX(template, org.id)
 
-    dispatch(getTasks)
+    dispatch(getTasks())
   } catch (error) {}
 }

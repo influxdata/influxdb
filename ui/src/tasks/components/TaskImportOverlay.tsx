@@ -7,11 +7,9 @@ import ImportOverlay from 'src/shared/components/ImportOverlay'
 
 // Actions
 import {createTaskFromTemplate as createTaskFromTemplateAction} from 'src/tasks/actions/'
-import {getTasks as getTasksAction} from 'src/tasks/actions'
 
 interface DispatchProps {
   createTaskFromTemplate: typeof createTaskFromTemplateAction
-  getTasks: typeof getTasksAction
 }
 
 type Props = DispatchProps & WithRouterProps
@@ -46,7 +44,6 @@ class TaskImportOverlay extends PureComponent<Props> {
 
 const mdtp: DispatchProps = {
   createTaskFromTemplate: createTaskFromTemplateAction,
-  getTasks: getTasksAction,
 }
 
 export default connect<{}, DispatchProps, Props>(

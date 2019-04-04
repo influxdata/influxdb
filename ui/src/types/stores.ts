@@ -10,7 +10,6 @@ import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
 import {VariablesState} from 'src/variables/reducers'
-import {OrgViewState} from 'src/organizations/reducers/orgView'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
@@ -39,7 +38,6 @@ export interface AppState {
   tasks: TasksState
   timeRange: TimeRange
   orgs: OrgsState
-  orgView: OrgViewState
   me: MeState
   onboarding: OnboardingState
   noteEditor: NoteEditorState
