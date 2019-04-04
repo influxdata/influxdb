@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Actions
 import {getLabels} from 'src/labels/actions'
@@ -10,6 +10,8 @@ import {getTelegrafs} from 'src/telegrafs/actions'
 import {getVariables} from 'src/variables/actions'
 import {getScrapers} from 'src/scrapers/actions'
 import {getDashboardsAsync} from 'src/dashboards/actions'
+import {getTasks} from 'src/tasks/actions'
+import {getAuthorizations} from 'src/authorizations/actions'
 
 // Types
 import {AppState} from 'src/types'
@@ -17,14 +19,14 @@ import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
 import {ScrapersState} from 'src/scrapers/reducers'
-
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
-import {getAuthorizations} from 'src/authorizations/actions'
+import {TasksState} from 'src/tasks/reducers/'
+import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {AuthorizationsState} from 'src/authorizations/reducers'
 import {VariablesState} from 'src/variables/reducers'
-import {DashboardsState} from 'src/dashboards/reducers/dashboards'
+
+// Components
+import {ErrorHandling} from 'src/shared/decorators/errors'
+import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
 
 interface StateProps {
   labels: LabelsState
@@ -34,6 +36,7 @@ interface StateProps {
   scrapers: ScrapersState
   tokens: AuthorizationsState
   dashboards: DashboardsState
+  tasks: TasksState
 }
 
 interface DispatchProps {
@@ -44,6 +47,7 @@ interface DispatchProps {
   getScrapers: typeof getScrapers
   getAuthorizations: typeof getAuthorizations
   getDashboards: typeof getDashboardsAsync
+  getTasks: typeof getTasks
 }
 
 interface PassedProps {
@@ -60,6 +64,7 @@ export enum ResourceTypes {
   Authorizations = 'tokens',
   Scrapers = 'scrapers',
   Dashboards = 'dashboards',
+  Tasks = 'tasks',
 }
 
 @ErrorHandling
@@ -88,6 +93,10 @@ class GetResources extends PureComponent<Props, StateProps> {
 
       case ResourceTypes.Variables: {
         return await this.props.getVariables()
+      }
+
+      case ResourceTypes.Tasks: {
+        return await this.props.getTasks()
       }
 
       case ResourceTypes.Authorizations: {
@@ -122,6 +131,7 @@ const mstp = ({
   scrapers,
   tokens,
   dashboards,
+  tasks,
 }: AppState): StateProps => {
   return {
     labels,
@@ -131,6 +141,7 @@ const mstp = ({
     variables,
     scrapers,
     tokens,
+    tasks,
   }
 }
 
@@ -142,6 +153,7 @@ const mdtp = {
   getScrapers: getScrapers,
   getAuthorizations: getAuthorizations,
   getDashboards: getDashboardsAsync,
+  getTasks: getTasks,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

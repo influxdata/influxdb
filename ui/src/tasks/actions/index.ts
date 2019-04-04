@@ -22,6 +22,7 @@ import {
   taskRunSuccess,
   taskGetFailed,
 } from 'src/shared/copy/v2/notifications'
+import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/templates/api'
 
 // Actions
 import {setExportTemplate} from 'src/templates/actions'
@@ -31,16 +32,15 @@ import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {AppState, Label} from 'src/types'
+import {RemoteDataState} from '@influxdata/clockface'
+import {ITaskTemplate} from '@influxdata/influx'
+import {Run} from 'src/tasks/components/TaskRunsPage'
 
 // Utils
 import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
 import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
-
-// Types
-import {RemoteDataState} from '@influxdata/clockface'
-import {Run} from 'src/tasks/components/TaskRunsPage'
 
 export type Action =
   | SetNewScript
@@ -57,12 +57,20 @@ export type Action =
   | SetRuns
   | SetLogs
   | UpdateTask
+  | SetTaskStatus
 
 type GetStateFunc = () => AppState
 
 export interface SetAllTaskOptions {
   type: 'SET_ALL_TASK_OPTIONS'
   payload: Task
+}
+
+export interface SetTaskStatus {
+  type: 'SET_TASKS_STATUS'
+  payload: {
+    status: RemoteDataState
+  }
 }
 
 export interface ClearTask {
@@ -159,6 +167,11 @@ export const setTaskOption = (taskOption: {
   payload: {...taskOption},
 })
 
+export const setTasksStatus = (status: RemoteDataState): SetTaskStatus => ({
+  type: 'SET_TASKS_STATUS',
+  payload: {status},
+})
+
 export const setAllTaskOptions = (task: Task): SetAllTaskOptions => ({
   type: 'SET_ALL_TASK_OPTIONS',
   payload: {...task},
@@ -214,6 +227,28 @@ export const updateTask = (task: Task): UpdateTask => ({
 })
 
 // Thunks
+export const getTasks = () => async (
+  dispatch,
+  getState: GetStateFunc
+): Promise<void> => {
+  try {
+    setTasksStatus(RemoteDataState.Loading)
+    const {
+      orgs: {org},
+    } = getState()
+
+    const tasks = await client.tasks.getAllByOrgID(org.id)
+
+    dispatch(setTasks(tasks))
+    setTasksStatus(RemoteDataState.Done)
+  } catch (e) {
+    setTasksStatus(RemoteDataState.Error)
+    console.error(e)
+    const message = getErrorMessage(e)
+    dispatch(notify(tasksFetchFailed(message)))
+  }
+}
+
 export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
   dispatch
 ): Promise<void> => {
@@ -247,7 +282,7 @@ export const updateTaskStatus = (task: Task) => async dispatch => {
   try {
     await client.tasks.updateStatus(task.id, task.status)
 
-    dispatch(populateTasks())
+    dispatch(getTasks())
     dispatch(notify(taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
@@ -260,7 +295,7 @@ export const updateTaskName = (task: Task) => async dispatch => {
   try {
     await client.tasks.update(task.id, task)
 
-    dispatch(populateTasks())
+    dispatch(getTasks())
     dispatch(notify(taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
@@ -273,7 +308,7 @@ export const deleteTask = (task: Task) => async dispatch => {
   try {
     await client.tasks.delete(task.id)
 
-    dispatch(populateTasks())
+    dispatch(getTasks())
     dispatch(notify(taskDeleteSuccess()))
   } catch (e) {
     console.error(e)
@@ -287,7 +322,7 @@ export const cloneTask = (task: Task, _) => async dispatch => {
     await client.tasks.clone(task.id)
 
     dispatch(notify(taskCloneSuccess(task.name)))
-    dispatch(populateTasks())
+    dispatch(getTasks())
   } catch (e) {
     console.error(e)
     const message = getErrorMessage(e)
@@ -295,28 +330,7 @@ export const cloneTask = (task: Task, _) => async dispatch => {
   }
 }
 
-export const populateTasks = () => async (
-  dispatch,
-  getState: GetStateFunc
-): Promise<void> => {
-  try {
-    const {
-      orgs: {org},
-    } = getState()
-
-    const user = await client.users.me()
-    const tasks = await client.tasks.getAllByUser(user)
-
-    const mappedTasks = tasks.map(task => ({...task, organization: org}))
-    dispatch(setTasks(mappedTasks))
-  } catch (e) {
-    console.error(e)
-    const message = getErrorMessage(e)
-    dispatch(notify(tasksFetchFailed(message)))
-  }
-}
-
-export const selectTaskByID = (id: string, route?: string) => async (
+export const selectTaskByID = (id: string) => async (
   dispatch
 ): Promise<void> => {
   try {
@@ -325,7 +339,7 @@ export const selectTaskByID = (id: string, route?: string) => async (
     return dispatch(setCurrentTask({...task}))
   } catch (e) {
     console.error(e)
-    dispatch(goToTasks(route))
+    dispatch(goToTasks())
     const message = getErrorMessage(e)
     dispatch(notify(taskNotFound(message)))
   }
@@ -343,22 +357,15 @@ export const selectTask = (task: Task, route?: string) => async (
     orgs: {org},
   } = getState()
 
-  dispatch(push(`orgs/${org.id}/tasks/${task.id}`))
+  dispatch(push(`/orgs/${org.id}/tasks/${task.id}`))
 }
 
-export const goToTasks = (route?: string) => async (
-  dispatch,
-  getState: GetStateFunc
-) => {
-  if (route) {
-    dispatch(push(route))
-    return
-  }
+export const goToTasks = () => async (dispatch, getState: GetStateFunc) => {
   const {
     orgs: {org},
   } = getState()
 
-  dispatch(push(`orgs/${org.id}/tasks`))
+  dispatch(push(`/orgs/${org.id}/tasks`))
 }
 
 export const cancel = () => async dispatch => {
@@ -366,10 +373,7 @@ export const cancel = () => async dispatch => {
   dispatch(goBack())
 }
 
-export const updateScript = (route?: string) => async (
-  dispatch,
-  getState: GetStateFunc
-) => {
+export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
   try {
     const {
       tasks: {currentScript: script, currentTask: task, taskOptions},
@@ -390,7 +394,7 @@ export const updateScript = (route?: string) => async (
     await client.tasks.update(task.id, updatedTask)
 
     dispatch(setCurrentTask(null))
-    dispatch(goToTasks(route))
+    dispatch(goToTasks)
     dispatch(notify(taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
@@ -399,11 +403,10 @@ export const updateScript = (route?: string) => async (
   }
 }
 
-export const saveNewScript = (
-  script: string,
-  preamble: string,
-  route?: string
-) => async (dispatch, getState: GetStateFunc): Promise<void> => {
+export const saveNewScript = (script: string, preamble: string) => async (
+  dispatch,
+  getState: GetStateFunc
+): Promise<void> => {
   try {
     const fluxScript = await insertPreambleInScript(script, preamble)
 
@@ -414,8 +417,8 @@ export const saveNewScript = (
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
-    dispatch(populateTasks())
-    dispatch(goToTasks(route))
+    dispatch(getTasks())
+    dispatch(goToTasks())
     dispatch(notify(taskCreatedSuccess()))
   } catch (error) {
     console.error(error)
@@ -440,7 +443,7 @@ export const importTask = (script: string) => async (
 
     await client.tasks.create(org.id, script)
 
-    dispatch(populateTasks())
+    dispatch(getTasks())
 
     dispatch(notify(taskImportSuccess()))
   } catch (error) {
@@ -514,4 +517,19 @@ export const convertToTemplate = (taskID: string) => async (
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))
   }
+}
+
+export const createTaskFromTemplate = (template: ITaskTemplate) => async (
+  dispatch,
+  getState: GetStateFunc
+): Promise<void> => {
+  try {
+    const {
+      orgs: {org},
+    } = await getState()
+
+    await createTaskFromTemplateAJAX(template, org.id)
+
+    dispatch(getTasks)
+  } catch (error) {}
 }

@@ -1,14 +1,9 @@
 import _ from 'lodash'
 
-import {
-  ScraperTargetRequest,
-  ITask as Task,
-  ITaskTemplate,
-} from '@influxdata/influx'
+import {ScraperTargetRequest, ITask as Task} from '@influxdata/influx'
 
 // API
 import {client} from 'src/utils/api'
-import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/templates/api'
 
 export enum ActionTypes {
   GetTasks = 'GET_TASKS',
@@ -34,11 +29,4 @@ export const getTasks = (orgID: string) => async dispatch => {
 
 export const createScraper = (scraper: ScraperTargetRequest) => async () => {
   await client.scrapers.create(scraper)
-}
-
-export const createTaskFromTemplate = (
-  template: ITaskTemplate,
-  orgID: string
-) => async () => {
-  await createTaskFromTemplateAJAX(template, orgID)
 }

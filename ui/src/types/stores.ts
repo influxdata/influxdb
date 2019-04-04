@@ -3,7 +3,7 @@ import {Notification} from 'src/types'
 import {TimeRange} from 'src/types/queries'
 import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
-import {State as TaskState} from 'src/tasks/reducers'
+import {TasksState} from 'src/tasks/reducers'
 import {RouterState} from 'react-router-redux'
 import {MeState} from 'src/shared/reducers/v2/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
@@ -36,7 +36,7 @@ export interface AppState {
   notifications: Notification[]
   timeMachines: TimeMachinesState
   routing: RouterState
-  tasks: TaskState
+  tasks: TasksState
   timeRange: TimeRange
   orgs: OrgsState
   orgView: OrgViewState
