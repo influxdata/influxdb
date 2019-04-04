@@ -6,6 +6,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
 >
   <t
     onSubmit={[Function]}
+    testID="form-container"
   >
     <div
       className="wizard-step--scroll-area"
@@ -41,6 +42,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
               >
                 <t
                   label="Username"
+                  testID="form--element"
                 >
                   <t
                     autoFocus={true}
@@ -67,6 +69,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
               >
                 <t
                   label="Password"
+                  testID="form--element"
                 >
                   <t
                     autoFocus={false}
@@ -93,6 +96,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 <t
                   errorMessage={false}
                   label="Confirm Password"
+                  testID="form--element"
                 >
                   <t
                     autoFocus={false}
@@ -120,6 +124,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 <t
                   label="Initial Organization Name"
                   labelAddOn={[Function]}
+                  testID="form--element"
                 >
                   <t
                     autoFocus={false}
@@ -147,6 +152,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 <t
                   label="Initial Bucket Name"
                   labelAddOn={[Function]}
+                  testID="form--element"
                 >
                   <t
                     autoFocus={false}

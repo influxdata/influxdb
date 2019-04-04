@@ -50,11 +50,18 @@ exports[`Account rendering renders! 1`] = `
                         <div
                           className="panel-controls"
                         >
-                          <ComponentSpacer
-                            align="right"
+                          <t
+                            alignItems="center"
+                            direction="row"
+                            justifyContent="flex-end"
+                            margin="sm"
+                            stretchToFitHeight={false}
+                            stretchToFitWidth={false}
+                            testID="component-spacer"
                           >
                             <div
-                              className="component-spacer component-spacer--right component-spacer--horizontal"
+                              className="component-spacer component-spacer__margin-sm component-spacer__row component-spacer__justify-flex-end component-spacer__align-center"
+                              data-testid="component-spacer"
                             >
                               <t
                                 active={false}
@@ -78,7 +85,7 @@ exports[`Account rendering renders! 1`] = `
                                 </button>
                               </t>
                             </div>
-                          </ComponentSpacer>
+                          </t>
                         </div>
                       </div>
                     </PanelHeader>
@@ -86,22 +93,29 @@ exports[`Account rendering renders! 1`] = `
                       <div
                         className="panel-body"
                       >
-                        <t>
+                        <t
+                          testID="form-container"
+                        >
                           <form
                             className="form--wrapper"
+                            data-testid="form-container"
                             onSubmit={[Function]}
                           >
                             <t
                               label="Username"
+                              testID="form--element"
                             >
                               <div
                                 className="form--element"
+                                data-testid="form--element"
                               >
                                 <t
                                   label="Username"
+                                  testID="form--label"
                                 >
                                   <label
                                     className="form--label"
+                                    data-testid="form--label"
                                   >
                                     <span>
                                       Username
