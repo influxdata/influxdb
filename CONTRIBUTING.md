@@ -280,3 +280,30 @@ Continuous Integration testing
 InfluxDB uses CircleCI for continuous integration testing. CircleCI executes [test.sh](https://github.com/influxdata/influxdb/blob/master/test.sh), so you may do the same on your local development environment before creating a pull request.
 
 The `test.sh` script executes a test suite with 5 variants (standard 64 bit, 64 bit with race detection, 32 bit, TSI, go version 1.11), each executes with a different arg, 0 through 4. Unless you know differently, `./test.sh 0` is probably all you need.
+
+
+Distributions
+-----
+
+You can build distributions such as `.deb` and `.rpm` files using the scripts in the `releng` directory.
+
+For example, we'll build a distribution for 64-bit Linux.
+From the `influxdb` source directory, first build the source tarball:
+
+```sh
+$ ./releng/source-tarball/build.bash -p `pwd` -s $COMMIT -b $BRANCH -v vX.Y.Z -o $OUTDIR/src
+```
+
+Then build the raw binaries:
+
+```sh
+$ GOOS=linux GOARCH=amd64 ./releng/raw-binaries/build.bash -i $OUTDIR/src/influxdb-src-$COMMIT.tar.gz -o $OUTDIR/bin
+```
+
+Then build the full distribution using the source and binary tarballs:
+
+```sh
+$ ./releng/packages/build.bash -s $OUTDIR/src/influxdb-src-$COMMIT.tar.gz -b $OUTDIR/bin/influxdb_bin_linux_amd64-$COMMIT.tar.gz -O linux -A amd64 -o $OUTDIR/dist
+```
+
+You should find your `.deb`, `.rpm`, and `.tar.gz` distribution files in the `$OUTDIR/dist` directory.
