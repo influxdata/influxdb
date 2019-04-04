@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -10,7 +11,7 @@ import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 // Types
 import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
-import {Run as APIRun} from '@influxdata/influx'
+import {Run as APIRun, Task} from '@influxdata/influx'
 import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
 
 // Actions
@@ -33,6 +34,7 @@ interface DispatchProps {
 interface StateProps {
   runs: Run[]
   runStatus: RemoteDataState
+  currentTask: Task
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -49,7 +51,7 @@ class TaskRunsPage extends PureComponent<Props> {
         <Page titleTag="Runs">
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
-              <PageTitleWithOrg title="Runs" />
+              <PageTitleWithOrg title={this.title} />
             </Page.Header.Left>
             <Page.Header.Right>
               <Button
@@ -73,6 +75,15 @@ class TaskRunsPage extends PureComponent<Props> {
     this.props.getRuns(this.props.params.id)
   }
 
+  private get title() {
+    const {currentTask} = this.props
+
+    if (currentTask) {
+      return `${currentTask.name} - Runs`
+    }
+    return 'Runs'
+  }
+
   private handleRunTask = async () => {
     const {onRunTask, params, getRuns} = this.props
     await onRunTask(params.id)
@@ -81,10 +92,13 @@ class TaskRunsPage extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    tasks: {runs, runStatus},
-  } = state
-  return {runs, runStatus}
+  const {tasks} = state
+
+  return {
+    runs: tasks.runs,
+    runStatus: tasks.runStatus,
+    currentTask: tasks.currentTask,
+  }
 }
 
 const mdtp: DispatchProps = {getRuns: getRuns, onRunTask: runTask}
