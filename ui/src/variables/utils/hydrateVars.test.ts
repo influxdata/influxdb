@@ -190,6 +190,7 @@ describe('hydrate vars', () => {
           k: 'v',
         },
       },
+      labels: [],
     }
 
     const vars = [a, b]
@@ -230,6 +231,7 @@ describe('hydrate vars', () => {
         type: 'constant',
         values: ['v1', 'v2'],
       },
+      labels: [],
     }
 
     const vars = [a, b]
