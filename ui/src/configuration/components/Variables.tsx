@@ -18,11 +18,12 @@ import CreateVariableOverlay from 'src/configuration/components/CreateVariableOv
 import VariableList from 'src/organizations/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import GetLabels from 'src/configuration/components/GetLabels'
 
 // Types
 import {OverlayState} from 'src/types'
 import {AppState} from 'src/types'
-import {Variable, Organization} from '@influxdata/influx'
+import {IVariable as Variable, Organization} from '@influxdata/influx'
 import {IconFont, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 import {VariablesState} from 'src/variables/reducers'
 
@@ -75,21 +76,24 @@ class Variables extends PureComponent<Props, State> {
             onSelectNew={this.handleOpenCreateOverlay}
           />
         </TabbedPageHeader>
-        <FilterList<Variable>
-          searchTerm={searchTerm}
-          searchKeys={['name']}
-          list={this.variableList(variables)}
-          sortByKey="name"
-        >
-          {v => (
-            <VariableList
-              variables={v}
-              emptyState={this.emptyState}
-              onDeleteVariable={this.handleDeleteVariable}
-              onUpdateVariable={this.handleUpdateVariable}
-            />
-          )}
-        </FilterList>
+        <GetLabels>
+          <FilterList<Variable>
+            searchTerm={searchTerm}
+            searchKeys={['name']}
+            list={this.variableList(variables)}
+            sortByKey="name"
+          >
+            {v => (
+              <VariableList
+                variables={v}
+                emptyState={this.emptyState}
+                onDeleteVariable={this.handleDeleteVariable}
+                onUpdateVariable={this.handleUpdateVariable}
+                onFilterChange={this.handleFilterUpdate}
+              />
+            )}
+          </FilterList>
+        </GetLabels>
         <CreateVariableOverlay
           onCreateVariable={this.handleCreateVariable}
           onHideOverlay={this.handleCloseCreateOverlay}
@@ -136,11 +140,16 @@ class Variables extends PureComponent<Props, State> {
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {value} = e.target
-    this.setState({searchTerm: value})
+    this.handleFilterUpdate(e.target.value)
   }
 
-  private handleFilterBlur() {}
+  private handleFilterBlur(e: ChangeEvent<HTMLInputElement>) {
+    this.setState({searchTerm: e.target.value})
+  }
+
+  private handleFilterUpdate = (searchTerm: string) => {
+    this.setState({searchTerm})
+  }
 
   private handleOpenImportOverlay = (): void => {}
 

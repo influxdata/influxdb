@@ -6,7 +6,7 @@ import {Overlay} from 'src/clockface'
 import VariableForm from 'src/organizations/components/VariableForm'
 
 // Types
-import {Variable, Organization} from '@influxdata/influx'
+import {IVariable as Variable, Organization} from '@influxdata/influx'
 
 interface Props {
   onCreateVariable: (variable: Variable) => void
