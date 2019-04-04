@@ -3,7 +3,7 @@ import {isInQuery} from 'src/variables/utils/hydrateVars'
 
 // Types
 import {QueryView} from 'src/types/dashboards'
-import {Variable, View} from '@influxdata/influx'
+import {IVariable as Variable, View} from '@influxdata/influx'
 
 /*
   Given a collection variables and a collection of views, return only the

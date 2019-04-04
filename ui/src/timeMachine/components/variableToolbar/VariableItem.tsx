@@ -6,7 +6,7 @@ import VariableTooltipContents from 'src/timeMachine/components/variableToolbar/
 import BoxTooltip from 'src/shared/components/BoxTooltip'
 
 // Types
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 import VariableLabel from 'src/timeMachine/components/variableToolbar/VariableLabel'
 
 interface Props {

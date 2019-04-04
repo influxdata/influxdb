@@ -1,5 +1,5 @@
 // Types
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 
 export const createVariable = (
   name: string,
@@ -10,6 +10,7 @@ export const createVariable = (
   id: name,
   orgID: 'howdy',
   selected: selected ? [selected] : [],
+  labels: [],
   arguments: {
     type: 'query',
     values: {

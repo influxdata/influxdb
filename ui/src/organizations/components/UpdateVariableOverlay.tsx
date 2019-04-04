@@ -8,7 +8,7 @@ import {Overlay} from 'src/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Types
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 import {
   ButtonType,
   ComponentColor,

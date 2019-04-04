@@ -28,7 +28,7 @@ import {moveVariable} from 'src/variables/actions'
 
 // Types
 import {AppState} from 'src/types'
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 import {ComponentSize} from '@influxdata/clockface'
 
 // Decorators

@@ -1,5 +1,5 @@
 import {TemplateType, LabelIncluded, VariableIncluded} from 'src/types'
-import {ILabel, Variable} from '@influxdata/influx'
+import {ILabel, IVariable as Variable} from '@influxdata/influx'
 
 export function findIncludedsFromRelationships<
   T extends {id: string; type: TemplateType}

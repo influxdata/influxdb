@@ -11,7 +11,7 @@ import {createVariable} from 'src/variables/actions'
 
 // Types
 import {AppState} from 'src/types'
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 interface OwnProps {

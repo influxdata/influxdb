@@ -4,7 +4,7 @@ import {
   taskToTemplate,
   variableToTemplate,
 } from 'src/shared/utils/resourceToTemplate'
-import {TemplateType, Variable} from '@influxdata/influx'
+import {TemplateType, IVariable as Variable} from '@influxdata/influx'
 import {Label, Task, TaskStatus} from 'src/types'
 import {createVariable} from 'src/variables/mocks'
 
@@ -39,6 +39,7 @@ const myVariable: Variable = {
   orgID: '039aa15b38cb0000',
   name: 'beep',
   selected: null,
+  labels: [],
   arguments: {
     type: 'query',
     values: {
