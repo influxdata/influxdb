@@ -306,6 +306,15 @@ func (i *DocumentIndex) FindOrganizationByName(org string) (influxdb.ID, error) 
 	return o.ID, nil
 }
 
+// FindOrganizationByID checks if the org existence by the org id provided.
+func (i *DocumentIndex) FindOrganizationByID(id influxdb.ID) error {
+	_, err := i.service.findOrganizationByID(i.ctx, i.tx, id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetDocumentsAccessors retrieves the list of accessors of a document.
 func (i *DocumentIndex) GetDocumentsAccessors(docID influxdb.ID) ([]influxdb.ID, error) {
 	f := influxdb.UserResourceMappingFilter{

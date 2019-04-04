@@ -103,7 +103,11 @@ paths:
           - in: query
             name: org
             description: specifies the name of the organization of the template
-            required: true
+            schema:
+              type: string
+          - in: query
+            name: orgID
+            description: specifies the organization id of the template
             schema:
               type: string
       responses:

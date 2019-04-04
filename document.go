@@ -57,6 +57,7 @@ type DocumentIndex interface {
 	IsOrgAccessor(userID, orgID ID) error
 
 	FindOrganizationByName(n string) (ID, error)
+	FindOrganizationByID(id ID) error
 	FindLabelByName(n string) (ID, error)
 
 	AddDocumentLabel(docID, labelID ID) error
@@ -334,25 +335,55 @@ func WhereOrg(org string) func(DocumentIndex, DocumentDecorator) ([]ID, error) {
 	}
 }
 
+// AuthorizedWhereOrgID ensures that the authorizer is allowed to access the org provideds documents and then
+// retrieves a list of the ids of the documents that belong to the provided orgID.
+func AuthorizedWhereOrgID(a Authorizer, id ID) func(DocumentIndex, DocumentDecorator) ([]ID, error) {
+	return func(idx DocumentIndex, _ DocumentDecorator) ([]ID, error) {
+		if err := idx.FindOrganizationByID(id); err != nil {
+			return nil, err
+		}
+		return authorizedWhereOrgID(a, id, idx)
+	}
+}
+
+func authorizedWhereOrgID(a Authorizer, id ID, idx DocumentIndex) ([]ID, error) {
+	var isTokenAuth bool
+	switch a.(type) {
+	case *Authorization:
+		isTokenAuth = true
+	}
+	if isTokenAuth {
+		if !a.Allowed(Permission{
+			// TODO(desa): this should be configurable, but should be sufficient for now. In particular this
+			// means that tokens cannot be used to delete documents for now if the AuthorizedWhereOrg is called.
+			Action: ReadAction,
+			Resource: Resource{
+				Type:  OrgsResourceType,
+				OrgID: &id,
+			},
+		}) {
+			return nil, &Error{
+				Code: EUnauthorized,
+				Msg:  "authorizer cannot access documents",
+			}
+		}
+	} else {
+		if err := idx.IsOrgAccessor(a.GetUserID(), id); err != nil {
+			return nil, err
+		}
+	}
+	return idx.GetAccessorsDocuments("org", id)
+}
+
 // AuthorizedWhereOrg ensures that the authorizer is allowed to access the org provideds documents and then
 // retrieves a list of the ids of the documents that belong to the provided org.
 func AuthorizedWhereOrg(a Authorizer, org string) func(DocumentIndex, DocumentDecorator) ([]ID, error) {
-	switch t := a.(type) {
-	case *Authorization:
-		return TokenAuthorizedWhereOrg(t, org)
-	}
-
 	return func(idx DocumentIndex, _ DocumentDecorator) ([]ID, error) {
 		oid, err := idx.FindOrganizationByName(org)
 		if err != nil {
 			return nil, err
 		}
-
-		if err := idx.IsOrgAccessor(a.GetUserID(), oid); err != nil {
-			return nil, err
-		}
-
-		return idx.GetAccessorsDocuments("org", oid)
+		return authorizedWhereOrgID(a, oid, idx)
 	}
 }
 
@@ -364,25 +395,7 @@ func TokenAuthorizedWhereOrg(a *Authorization, org string) func(DocumentIndex, D
 		if err != nil {
 			return nil, err
 		}
-
-		p := Permission{
-			// TODO(desa): this should be configurable, but should be sufficient for now. In particular this
-			// means that tokens cannot be used to delete documents for now if the AuthorizedWhereOrg is called.
-			Action: ReadAction,
-			Resource: Resource{
-				Type:  OrgsResourceType,
-				OrgID: &oid,
-			},
-		}
-
-		if !a.Allowed(p) {
-			return nil, &Error{
-				Code: EUnauthorized,
-				Msg:  "authorizer cannot access documents",
-			}
-		}
-
-		return idx.GetAccessorsDocuments("org", oid)
+		return authorizedWhereOrgID(a, oid, idx)
 	}
 }
 
@@ -423,7 +436,7 @@ func AuthorizedWhere(a Authorizer) func(DocumentIndex, DocumentDecorator) ([]ID,
 	}
 }
 
-// AuthorizedWhere retrieves all documents that the authorization is allowed to access.
+// TokenAuthorizedWhere retrieves all documents that the authorization is allowed to access.
 func TokenAuthorizedWhere(a *Authorization) func(DocumentIndex, DocumentDecorator) ([]ID, error) {
 	// TODO(desa): what to do about retrieving all documents using auth? (e.g. write/read:documents/*)
 	var ids []ID
