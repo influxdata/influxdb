@@ -13,11 +13,11 @@ import {RemoteDataState, AppState} from 'src/types'
 interface OwnProps {
   onChangeBucketName: (selectedBucketName: string) => void
   selectedBucketName: string
-  loading: RemoteDataState
 }
 
 interface StateProps {
   buckets: Bucket[]
+  status: RemoteDataState
 }
 
 type Props = OwnProps & StateProps
@@ -26,11 +26,13 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
   public componentDidMount() {
     this.setSelectedToFirst()
   }
+
   public componentDidUpdate(prevProps: Props) {
     if (this.props.buckets !== prevProps.buckets) {
       this.setSelectedToFirst()
     }
   }
+
   public render() {
     return (
       <Dropdown
@@ -62,9 +64,10 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
       ]
     }
   }
+
   private get status(): ComponentStatus {
-    const {loading, buckets} = this.props
-    if (loading === RemoteDataState.Loading) {
+    const {status, buckets} = this.props
+    if (status === RemoteDataState.Loading) {
       return ComponentStatus.Loading
     }
     if (!buckets || !buckets.length) {
@@ -95,6 +98,7 @@ class TaskOptionsBucketDropdown extends PureComponent<Props> {
 const mstp = ({buckets}: AppState): StateProps => {
   return {
     buckets: buckets.list,
+    status: buckets.status,
   }
 }
 

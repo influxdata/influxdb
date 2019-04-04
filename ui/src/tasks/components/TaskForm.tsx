@@ -28,7 +28,6 @@ import {
   ComponentStatus,
 } from '@influxdata/clockface'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {RemoteDataState} from 'src/types'
 
 interface Props {
   taskOptions: TaskOptions
@@ -135,7 +134,6 @@ export default class TaskForm extends PureComponent<Props, State> {
                     <TaskOptionsBucketDropdown
                       selectedBucketName={toBucketName}
                       onChangeBucketName={onChangeToBucketName}
-                      loading={RemoteDataState.Done}
                     />
                   </GetResources>
                 </Form.Element>

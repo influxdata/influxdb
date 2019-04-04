@@ -22,6 +22,10 @@ import {
   taskRunSuccess,
   taskGetFailed,
 } from 'src/shared/copy/v2/notifications'
+import {
+  importTaskFailed,
+  importTaskSucceeded,
+} from 'src/shared/copy/notifications'
 import {createTaskFromTemplate as createTaskFromTemplateAJAX} from 'src/templates/api'
 
 // Actions
@@ -164,7 +168,7 @@ export const setTaskOption = (taskOption: {
   value: string
 }): SetTaskOption => ({
   type: 'SET_TASK_OPTION',
-  payload: {...taskOption},
+  payload: taskOption,
 })
 
 export const setTasksStatus = (status: RemoteDataState): SetTaskStatus => ({
@@ -174,7 +178,7 @@ export const setTasksStatus = (status: RemoteDataState): SetTaskStatus => ({
 
 export const setAllTaskOptions = (task: Task): SetAllTaskOptions => ({
   type: 'SET_ALL_TASK_OPTIONS',
-  payload: {...task},
+  payload: task,
 })
 
 export const clearTask = (): ClearTask => ({
@@ -232,7 +236,7 @@ export const getTasks = () => async (
   getState: GetStateFunc
 ): Promise<void> => {
   try {
-    setTasksStatus(RemoteDataState.Loading)
+    dispatch(setTasksStatus(RemoteDataState.Loading))
     const {
       orgs: {org},
     } = getState()
@@ -240,9 +244,9 @@ export const getTasks = () => async (
     const tasks = await client.tasks.getAllByOrgID(org.id)
 
     dispatch(setTasks(tasks))
-    setTasksStatus(RemoteDataState.Done)
+    dispatch(setTasksStatus(RemoteDataState.Done))
   } catch (e) {
-    setTasksStatus(RemoteDataState.Error)
+    dispatch(setTasksStatus(RemoteDataState.Error))
     console.error(e)
     const message = getErrorMessage(e)
     dispatch(notify(tasksFetchFailed(message)))
@@ -336,7 +340,7 @@ export const selectTaskByID = (id: string) => async (
   try {
     const task = await client.tasks.get(id)
 
-    return dispatch(setCurrentTask({...task}))
+    dispatch(setCurrentTask(task))
   } catch (e) {
     console.error(e)
     dispatch(goToTasks())
@@ -345,14 +349,10 @@ export const selectTaskByID = (id: string) => async (
   }
 }
 
-export const selectTask = (task: Task, route?: string) => async (
+export const selectTask = (task: Task) => async (
   dispatch,
   getState: GetStateFunc
 ) => {
-  if (route) {
-    dispatch(push(route))
-    return
-  }
   const {
     orgs: {org},
   } = getState()
@@ -413,6 +413,7 @@ export const saveNewScript = (script: string, preamble: string) => async (
     const {
       orgs: {org},
     } = getState()
+
     await client.tasks.createByOrgID(org.id, fluxScript)
 
     dispatch(setNewScript(''))
@@ -531,5 +532,8 @@ export const createTaskFromTemplate = (template: ITaskTemplate) => async (
     await createTaskFromTemplateAJAX(template, org.id)
 
     dispatch(getTasks())
-  } catch (error) {}
+    dispatch(notify(importTaskSucceeded()))
+  } catch (error) {
+    dispatch(notify(importTaskFailed(error)))
+  }
 }
