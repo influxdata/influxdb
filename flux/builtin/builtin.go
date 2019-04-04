@@ -5,12 +5,8 @@ package builtin
 
 import (
 	"github.com/influxdata/flux"
-
-	_ "github.com/influxdata/flux/functions/inputs"          // Import the built-in input functions
-	_ "github.com/influxdata/flux/functions/outputs"         // Import the built-in output functions
-	_ "github.com/influxdata/flux/functions/transformations" // Import the built-in transformations
-	_ "github.com/influxdata/flux/options"                   // Import the built-in options
-	_ "github.com/influxdata/influxdb/flux/functions/inputs" // Import the built-in functions
+	_ "github.com/influxdata/flux/stdlib"
+	_ "github.com/influxdata/influxdb/flux/stdlib"
 )
 
 func init() {

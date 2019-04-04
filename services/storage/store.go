@@ -9,12 +9,12 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/platform/query/functions/inputs/storage"
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/storage/reads/datatypes"
 	"go.uber.org/zap"
 )
 
@@ -211,6 +211,6 @@ func (s *Store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 	return rs, nil
 }
 
-func (s *Store) GetSource(rs storage.ReadSpec) (proto.Message, error) {
+func (s *Store) GetSource(rs influxdb.ReadSpec) (proto.Message, error) {
 	return &ReadSource{Database: rs.Database, RetentionPolicy: rs.RetentionPolicy}, nil
 }
