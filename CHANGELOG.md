@@ -122,6 +122,7 @@ v1.6.0 [2018-07-05]
 -	[#11832](https://github.com/influxdata/influxdb/pull/11832): Ensure that cached series id sets are Go heap backed.
 -	[#11750](https://github.com/influxdata/influxdb/pull/11750): Update tagKeyValue mutex to write lock.
 -	[#10541](https://github.com/influxdata/influxdb/pull/10541): Fix open/close race in SeriesFile.
+-	[#13053](https://github.com/influxdata/influxdb/pull/13053): Add nil check for tagKeyValueEntry.setIDs().
 
 v1.5.4 [2018-06-21]
 -------------------
