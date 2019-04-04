@@ -5907,18 +5907,6 @@ components:
               type: string
             params:
               type: object
-    FluxLinks:
-      type: object
-      properties:
-        ast:
-          type: string
-          format: uri
-        self:
-          type: string
-          format: uri
-        suggestions:
-          type: string
-          format: uri
     Routes:
       properties:
         authorizations:
