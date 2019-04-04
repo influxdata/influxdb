@@ -393,8 +393,8 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
 
     await client.tasks.update(task.id, updatedTask)
 
+    dispatch(goToTasks())
     dispatch(setCurrentTask(null))
-    dispatch(goToTasks)
     dispatch(notify(taskUpdateSuccess()))
   } catch (e) {
     console.error(e)
