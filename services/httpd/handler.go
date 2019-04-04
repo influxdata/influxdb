@@ -1029,6 +1029,7 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 // servePromRead will convert a Prometheus remote read request into a storage
 // query and returns data in Prometheus remote read protobuf format.
 func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user meta.User) {
+	atomic.AddInt64(&h.stats.PromReadRequests, 1)
 	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
