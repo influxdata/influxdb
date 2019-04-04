@@ -7,6 +7,7 @@ import {Page} from 'src/pageLayout'
 import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 const DataExplorerPage: SFC = ({children}) => {
   return (
@@ -14,7 +15,7 @@ const DataExplorerPage: SFC = ({children}) => {
       {children}
       <Page.Header fullWidth={true}>
         <Page.Header.Left>
-          <Page.Title title="Data Explorer" />
+          <PageTitleWithOrg title="Data Explorer" />
         </Page.Header.Left>
         <Page.Header.Right>
           <ViewTypeDropdown />
