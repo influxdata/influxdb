@@ -245,8 +245,9 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"bearer auth disabled"}` {
-		t.Fatalf("unexpected body: %s", body)
+		//} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"bearer auth disabled"}` {
+	} else if !strings.Contains(w.Body.String(), httpd.ErrBearerAuthDisabled.Error()) {
+		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
 	h.Config.SharedSecret = origSecret
 
