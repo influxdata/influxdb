@@ -5,6 +5,7 @@
 1. [13024](https://github.com/influxdata/influxdb/pull/13024): Add the ability to edit token's description
 1. [13078](https://github.com/influxdata/influxdb/pull/13078): Add the option to create a Dashboard from a Template.
 1. [13161](https://github.com/influxdata/influxdb/pull/13161): Add the ability to add labels on variables
+1. [13171](https://github.com/influxdata/influxdb/pull/13171): Add switch organizations dropdown to home navigation menu item.
 
 ### Bug Fixes
 

@@ -205,4 +205,8 @@ $nav--bg-accent: $c-comet;
   &:last-child {
     border-bottom-right-radius: $radius;
   }
+
+  &.back-button {
+    font-weight: bolder;
+  }
 }
