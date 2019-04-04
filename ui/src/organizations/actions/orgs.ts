@@ -1,13 +1,23 @@
 // Libraries
 import {Dispatch} from 'redux'
+import {push, RouterAction} from 'react-router-redux'
 
 // APIs
 import {client} from 'src/utils/api'
 
+// Actions
+import {notify} from 'src/shared/actions/notifications'
+
+// Constants
+import {defaultTemplates} from 'src/templates/constants/'
+import {
+  orgCreateSuccess,
+  orgCreateFailed,
+} from 'src/shared/copy/v2/notifications'
+
 // Types
 import {Organization, RemoteDataState} from 'src/types'
-
-import {defaultTemplates} from 'src/templates/constants/'
+import {PublishNotificationAction} from 'src/types/actions/notifications'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',
@@ -126,7 +136,7 @@ export const getOrganizations = () => async (
 }
 
 export const createOrg = (org: Organization) => async (
-  dispatch: Dispatch<AddOrg>
+  dispatch: Dispatch<Actions | RouterAction | PublishNotificationAction>
 ): Promise<void> => {
   try {
     const createdOrg = await client.organizations.create(org)
@@ -134,9 +144,14 @@ export const createOrg = (org: Organization) => async (
       ...defaultTemplates.systemTemplate(),
       orgID: createdOrg.id,
     })
+
     dispatch(addOrg(createdOrg))
+    dispatch(push(`/orgs/${createdOrg.id}`))
+
+    dispatch(notify(orgCreateSuccess()))
   } catch (e) {
     console.error(e)
+    dispatch(notify(orgCreateFailed()))
   }
 }
 

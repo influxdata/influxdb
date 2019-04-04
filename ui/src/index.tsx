@@ -53,7 +53,7 @@ import VariableImportOverlay from 'src/variables/components/VariableImportOverla
 import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
 import SetOrg from 'src/shared/containers/SetOrg'
 import RouteToOrg from 'src/shared/containers/RouteToOrg'
-
+import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
 
 // Actions
@@ -117,8 +117,9 @@ class Root extends PureComponent {
                   <Route component={GetOrganizations}>
                     <Route path="/">
                       <IndexRoute component={RouteToOrg} />
-                      <Route path="orgs/:orgID" component={App}>
-                        <Route component={SetOrg}>
+                      <Route path="orgs" component={App}>
+                        <Route path="new" component={CreateOrgOverlay} />
+                        <Route path=":orgID" component={SetOrg}>
                           <IndexRoute component={MePage} />
                           <Route path="tasks" component={TasksPage}>
                             <Route

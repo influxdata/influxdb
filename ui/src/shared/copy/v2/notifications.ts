@@ -163,6 +163,16 @@ export const bucketUpdateFailed = (bucketName: string): Notification => ({
   message: `Failed to update bucket: "${bucketName}"`,
 })
 
+export const orgCreateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Organization was successfully created',
+})
+
+export const orgCreateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create organization',
+})
+
 export const scraperDeleteSuccess = (scraperName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Scraper "${scraperName}" was successfully deleted`,
