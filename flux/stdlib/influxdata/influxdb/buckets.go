@@ -1,21 +1,21 @@
-package inputs
+package influxdb
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions/inputs"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
-	"github.com/pkg/errors"
 )
 
 func init() {
-	execute.RegisterSource(inputs.BucketsKind, createBucketsSource)
+	execute.RegisterSource(influxdb.BucketsKind, createBucketsSource)
 }
 
 type BucketsDecoder struct {
@@ -34,7 +34,7 @@ func (bd *BucketsDecoder) Fetch() (bool, error) {
 
 func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	kb := execute.NewGroupKeyBuilder(nil)
-	kb.AddKeyValue("organizationID", values.NewString("influxdb"))
+	kb.AddKeyValue("organizationID", values.NewString(""))
 	gk, err := kb.Build()
 	if err != nil {
 		return nil, err
@@ -42,27 +42,27 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 
 	b := execute.NewColListTableBuilder(gk, bd.alloc)
 
-	b.AddCol(flux.ColMeta{
+	_, _ = b.AddCol(flux.ColMeta{
 		Label: "name",
 		Type:  flux.TString,
 	})
-	b.AddCol(flux.ColMeta{
+	_, _ = b.AddCol(flux.ColMeta{
 		Label: "id",
 		Type:  flux.TString,
 	})
-	b.AddCol(flux.ColMeta{
+	_, _ = b.AddCol(flux.ColMeta{
 		Label: "organization",
 		Type:  flux.TString,
 	})
-	b.AddCol(flux.ColMeta{
+	_, _ = b.AddCol(flux.ColMeta{
 		Label: "organizationID",
 		Type:  flux.TString,
 	})
-	b.AddCol(flux.ColMeta{
+	_, _ = b.AddCol(flux.ColMeta{
 		Label: "retentionPolicy",
 		Type:  flux.TString,
 	})
-	b.AddCol(flux.ColMeta{
+	_, _ = b.AddCol(flux.ColMeta{
 		Label: "retentionPeriod",
 		Type:  flux.TInt,
 	})
@@ -79,30 +79,35 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 		}
 	}
 
-	for _, bucket := range bd.deps.MetaClient.Databases() {
-		if hasAccess(bucket.Name) {
-			rp := bucket.RetentionPolicy(bucket.DefaultRetentionPolicy)
-			b.AppendString(0, bucket.Name)
-			b.AppendString(1, "")
-			b.AppendString(2, "influxdb")
-			b.AppendString(3, "")
-			b.AppendString(4, rp.Name)
-			b.AppendInt(5, rp.Duration.Nanoseconds())
+	for _, db := range bd.deps.MetaClient.Databases() {
+		if hasAccess(db.Name) {
+			for _, rp := range db.RetentionPolicies {
+				_ = b.AppendString(0, db.Name+"/"+rp.Name)
+				_ = b.AppendString(1, "")
+				_ = b.AppendString(2, "influxdb")
+				_ = b.AppendString(3, "")
+				_ = b.AppendString(4, rp.Name)
+				_ = b.AppendInt(5, rp.Duration.Nanoseconds())
+			}
 		}
 	}
 
 	return b.Table()
 }
 
+func (bd *BucketsDecoder) Close() error {
+	return nil
+}
+
 func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	_, ok := prSpec.(*inputs.BucketsProcedureSpec)
+	_, ok := prSpec.(*influxdb.BucketsProcedureSpec)
 	if !ok {
 		return nil, fmt.Errorf("invalid spec type %T", prSpec)
 	}
 
 	// the dependencies used for FromKind are adequate for what we need here
 	// so there's no need to inject custom dependencies for buckets()
-	deps := a.Dependencies()[inputs.BucketsKind].(BucketDependencies)
+	deps := a.Dependencies()[influxdb.BucketsKind].(BucketDependencies)
 
 	var user meta.User
 	if deps.AuthEnabled {
@@ -114,7 +119,7 @@ func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 
 	bd := &BucketsDecoder{deps: deps, alloc: a.Allocator(), user: user}
 
-	return inputs.CreateSourceFromDecoder(bd, dsid, a)
+	return execute.CreateSourceFromDecoder(bd, dsid, a)
 
 }
 
@@ -143,6 +148,6 @@ func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependenc
 	if err := deps.Validate(); err != nil {
 		return err
 	}
-	depsMap[inputs.BucketsKind] = deps
+	depsMap[influxdb.BucketsKind] = deps
 	return nil
 }

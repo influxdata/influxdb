@@ -30,14 +30,6 @@
   version = "v1.4.2"
 
 [[projects]]
-  digest = "1:72fff13e105db55c6d4b1acb69216b88d9d3009433f43d7df3488f842b0b6929"
-  name = "github.com/RoaringBitmap/roaring"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "3d677d3262197ee558b85029301eb69b8239f91a"
-  version = "v0.4.16"
-
-[[projects]]
   digest = "1:c06d9e11d955af78ac3bbb26bd02e01d2f61f689e1a3bce2ef6fb683ef8a7f2d"
   name = "github.com/alecthomas/kingpin"
   packages = ["."]
@@ -253,38 +245,14 @@
   version = "v1.4.0"
 
 [[projects]]
-  digest = "1:84fa2f03428ad6597620424756169cdb2a47ef1ef6c1fc94100f2de809ea0b72"
+  digest = "1:3f7c586d2fd571c4f2e3d313c0638b33b999055de507d5f11fafe27e5adc30db"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
-    "plugin/compare",
-    "plugin/defaultcheck",
-    "plugin/description",
-    "plugin/embedcheck",
-    "plugin/enumstringer",
-    "plugin/equal",
-    "plugin/face",
-    "plugin/gostring",
-    "plugin/marshalto",
-    "plugin/oneofcheck",
-    "plugin/populate",
-    "plugin/size",
-    "plugin/stringer",
-    "plugin/testgen",
-    "plugin/union",
-    "plugin/unmarshal",
     "proto",
-    "protoc-gen-gogo",
     "protoc-gen-gogo/descriptor",
-    "protoc-gen-gogo/generator",
-    "protoc-gen-gogo/generator/internal/remap",
-    "protoc-gen-gogo/grpc",
-    "protoc-gen-gogo/plugin",
-    "protoc-gen-gogofaster",
     "sortkeys",
     "types",
-    "vanity",
-    "vanity/command",
   ]
   pruneopts = "UT"
   revision = "636bf0302bc95575d69441b25a2603156ffdddf1"
@@ -412,7 +380,7 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:9608dc2c0716b655b535fc0f20f42472e43b6cead49f4c9ad20eded341c5df3b"
+  digest = "1:0e29c493c2538a653b6c8787312ba93884f654415d782c85e51d07772baec1de"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -422,10 +390,6 @@
     "control",
     "csv",
     "execute",
-    "functions",
-    "functions/inputs",
-    "functions/outputs",
-    "functions/transformations",
     "influxql",
     "internal/parser",
     "internal/pkg/syncutil",
@@ -434,17 +398,32 @@
     "interpreter",
     "iocounter",
     "lang",
+    "line",
     "memory",
-    "options",
     "parser",
     "plan",
     "repl",
     "semantic",
+    "stdlib",
+    "stdlib/csv",
+    "stdlib/generate",
+    "stdlib/http",
+    "stdlib/influxdata/influxdb",
+    "stdlib/influxdata/influxdb/v1",
+    "stdlib/kafka",
+    "stdlib/math",
+    "stdlib/socket",
+    "stdlib/sql",
+    "stdlib/strings",
+    "stdlib/system",
+    "stdlib/testing",
+    "stdlib/testing/testdata",
+    "stdlib/universe",
     "values",
   ]
   pruneopts = "UT"
-  revision = "8c9d0ad49204d3bbb171e96d872cf663ee7f1b4d"
-  version = "v0.12.0"
+  revision = "bcfc535fb7443776501797df4ba596483c50c7fe"
+  version = "v0.24.0"
 
 [[projects]]
   branch = "master"
@@ -464,44 +443,6 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "32c6aa80de5eb09d190ad284a8214a531c6bce57"
-
-[[projects]]
-  branch = "master"
-  digest = "1:211733975798a6f796a57d0f1bd3e3be2f8ada48c6d3289b98fefa6345a76fbf"
-  name = "github.com/influxdata/platform"
-  packages = [
-    ".",
-    "logger",
-    "models",
-    "pkg/binaryutil",
-    "pkg/bloom",
-    "pkg/bytesutil",
-    "pkg/data/gen",
-    "pkg/encoding/simple8b",
-    "pkg/escape",
-    "pkg/file",
-    "pkg/limiter",
-    "pkg/metrics",
-    "pkg/mmap",
-    "pkg/pool",
-    "pkg/rhh",
-    "pkg/slices",
-    "pkg/snowflake",
-    "query",
-    "query/functions/inputs/storage",
-    "storage/reads",
-    "storage/reads/datatypes",
-    "telegraf/plugins",
-    "telegraf/plugins/inputs",
-    "telegraf/plugins/outputs",
-    "toml",
-    "tsdb",
-    "tsdb/cursors",
-    "tsdb/tsi1",
-    "tsdb/tsm1",
-  ]
-  pruneopts = "UT"
-  revision = "0f79e4ea3248354c789cba274542e0a8e55971db"
 
 [[projects]]
   branch = "master"
@@ -549,17 +490,6 @@
   packages = ["simple8b"]
   pruneopts = "UT"
   revision = "b4e1701a28efcc637d9afcca7d38e495fe909a09"
-
-[[projects]]
-  digest = "1:f5ecd306f6eb9f9902757feaef040afe172292d7ee69e46e81442b81f8b6ea57"
-  name = "github.com/kevinburke/go-bindata"
-  packages = [
-    ".",
-    "go-bindata",
-  ]
-  pruneopts = "UT"
-  revision = "06af60a4461b70d84a2b173d92f9f425d78baf55"
-  version = "v3.11.0"
 
 [[projects]]
   digest = "1:15ec2166e33ef6c60b344a04d050eec79193517e7f5082b6233b2d09ef0d10b8"
@@ -673,18 +603,6 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "ae18d6b8b3205b561c79e8e5f69bff09736185f4"
-
-[[projects]]
-  digest = "1:d4d60a22dc6c84bf1f8d2991cddcb98fb25f433f8a856fb6888fc21885998a13"
-  name = "github.com/mna/pigeon"
-  packages = [
-    ".",
-    "ast",
-    "builder",
-  ]
-  pruneopts = "UT"
-  revision = "9df264905d4734c0133161d8c67828ff522b154a"
-  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -1054,24 +972,21 @@
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
 
 [[projects]]
-  digest = "1:ec626c5a8d1abbb2e052d195da2d089ff6a3afb60fa7cd45638d648da96d41dd"
+  digest = "1:7af71138a81cc2a505e0cd39be2a2d16fd6685b8ce49efe4f7f7cd0181797bdb"
   name = "honnef.co/go/tools"
   packages = [
     "callgraph",
     "callgraph/static",
-    "cmd/megacheck",
     "cmd/staticcheck",
     "deprecated",
     "functions",
     "internal/sharedcheck",
     "lint",
     "lint/lintutil",
-    "simple",
     "ssa",
     "ssa/ssautil",
     "staticcheck",
     "staticcheck/vrp",
-    "unused",
     "version",
   ]
   pruneopts = "UT"
@@ -1085,6 +1000,7 @@
     "collectd.org/api",
     "collectd.org/network",
     "github.com/BurntSushi/toml",
+    "github.com/apache/arrow/go/arrow/array",
     "github.com/bmizerany/pat",
     "github.com/boltdb/bolt",
     "github.com/cespare/xxhash",
@@ -1098,25 +1014,22 @@
     "github.com/google/go-cmp/cmp",
     "github.com/google/go-cmp/cmp/cmpopts",
     "github.com/influxdata/flux",
+    "github.com/influxdata/flux/arrow",
+    "github.com/influxdata/flux/ast",
     "github.com/influxdata/flux/control",
     "github.com/influxdata/flux/csv",
     "github.com/influxdata/flux/execute",
-    "github.com/influxdata/flux/functions/inputs",
-    "github.com/influxdata/flux/functions/outputs",
-    "github.com/influxdata/flux/functions/transformations",
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/memory",
-    "github.com/influxdata/flux/options",
     "github.com/influxdata/flux/plan",
     "github.com/influxdata/flux/repl",
+    "github.com/influxdata/flux/semantic",
+    "github.com/influxdata/flux/stdlib",
+    "github.com/influxdata/flux/stdlib/influxdata/influxdb",
+    "github.com/influxdata/flux/stdlib/influxdata/influxdb/v1",
+    "github.com/influxdata/flux/stdlib/universe",
     "github.com/influxdata/flux/values",
     "github.com/influxdata/influxql",
-    "github.com/influxdata/platform/models",
-    "github.com/influxdata/platform/pkg/data/gen",
-    "github.com/influxdata/platform/query/functions/inputs/storage",
-    "github.com/influxdata/platform/storage/reads",
-    "github.com/influxdata/platform/storage/reads/datatypes",
-    "github.com/influxdata/platform/tsdb/cursors",
     "github.com/influxdata/roaring",
     "github.com/influxdata/usage-client/v1",
     "github.com/jsternberg/zap-logfmt",
@@ -1138,12 +1051,14 @@
     "go.uber.org/zap/zaptest/observer",
     "golang.org/x/crypto/bcrypt",
     "golang.org/x/crypto/ssh/terminal",
+    "golang.org/x/net/context",
     "golang.org/x/sync/errgroup",
     "golang.org/x/sys/unix",
     "golang.org/x/text/encoding/unicode",
     "golang.org/x/text/transform",
     "golang.org/x/time/rate",
     "google.golang.org/grpc",
+    "google.golang.org/grpc/metadata",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -3,16 +3,17 @@ package control
 import (
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/influxdb/coordinator"
 	_ "github.com/influxdata/influxdb/flux/builtin"
-	"github.com/influxdata/influxdb/flux/functions/inputs"
-	fstorage "github.com/influxdata/platform/query/functions/inputs/storage"
+	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
+	v1 "github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb/v1"
 	"go.uber.org/zap"
 )
 
-type MetaClient = inputs.MetaClient
-type Authorizer = inputs.Authorizer
+type MetaClient = coordinator.MetaClient
+type Authorizer = influxdb.Authorizer
 
-func NewController(mc MetaClient, reader fstorage.Reader, auth Authorizer, authEnabled bool, logger *zap.Logger) *control.Controller {
+func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, logger *zap.Logger) *control.Controller {
 	// flux
 	var (
 		concurrencyQuota = 10
@@ -26,13 +27,28 @@ func NewController(mc MetaClient, reader fstorage.Reader, auth Authorizer, authE
 		Logger:               logger,
 	}
 
-	err := inputs.InjectFromDependencies(cc.ExecutorDependencies, inputs.Dependencies{Reader: reader, MetaClient: mc, Authorizer: auth, AuthEnabled: authEnabled})
-	if err != nil {
+	if err := influxdb.InjectFromDependencies(cc.ExecutorDependencies, influxdb.Dependencies{
+		Reader:      reader,
+		MetaClient:  mc,
+		Authorizer:  auth,
+		AuthEnabled: authEnabled,
+	}); err != nil {
 		panic(err)
 	}
 
-	err = inputs.InjectBucketDependencies(cc.ExecutorDependencies, inputs.BucketDependencies{MetaClient: mc, Authorizer: auth, AuthEnabled: authEnabled})
-	if err != nil {
+	if err := v1.InjectDatabaseDependencies(cc.ExecutorDependencies, v1.DatabaseDependencies{
+		MetaClient:  mc,
+		Authorizer:  auth,
+		AuthEnabled: authEnabled,
+	}); err != nil {
+		panic(err)
+	}
+
+	if err := influxdb.InjectBucketDependencies(cc.ExecutorDependencies, influxdb.BucketDependencies{
+		MetaClient:  mc,
+		Authorizer:  auth,
+		AuthEnabled: authEnabled,
+	}); err != nil {
 		panic(err)
 	}
 

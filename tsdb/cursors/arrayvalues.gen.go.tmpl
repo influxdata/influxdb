@@ -1,0 +1,208 @@
+package cursors
+
+{{range .}}
+
+{{ $typename := print .Name "Array" }}
+
+type {{ $typename }} struct {
+	Timestamps []int64
+	Values     []{{.Type}}
+}
+
+func New{{$typename}}Len(sz int) *{{$typename}} {
+	return &{{$typename}}{
+		Timestamps: make([]int64, sz),
+		Values: make([]{{.Type}}, sz),
+	}
+}
+
+func (a *{{ $typename }}) MinTime() int64 {
+	return a.Timestamps[0]
+}
+
+func (a *{{ $typename }}) MaxTime() int64 {
+	return a.Timestamps[len(a.Timestamps)-1]
+}
+
+func (a *{{ $typename }}) Size() int {
+	panic("not implemented")
+}
+
+func (a *{{ $typename}}) Len() int {
+	return len(a.Timestamps)
+}
+
+// Exclude removes the subset of values in [min, max]. The values must
+// be deduplicated and sorted before calling Exclude or the results are undefined.
+func (a *{{ $typename }}) Exclude(min, max int64) {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return
+	}
+
+	// a.Timestamps[rmin] ≥ min
+	// a.Timestamps[rmax] ≥ max
+
+	if rmax < a.Len() {
+		if a.Timestamps[rmax] == max {
+			rmax++
+		}
+		rest := a.Len()-rmax
+		if rest > 0 {
+			ts := a.Timestamps[:rmin+rest]
+			copy(ts[rmin:], a.Timestamps[rmax:])
+			a.Timestamps = ts
+
+			vs := a.Values[:rmin+rest]
+			copy(vs[rmin:], a.Values[rmax:])
+			a.Values = vs
+			return
+		}
+	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
+}
+
+// Include returns the subset values between min and max inclusive. The values must
+// be deduplicated and sorted before calling Include or the results are undefined.
+func (a *{{ $typename }}) Include(min, max int64) {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		a.Timestamps = a.Timestamps[:0]
+		a.Values = a.Values[:0]
+		return
+	}
+
+	// a.Timestamps[rmin] ≥ min
+	// a.Timestamps[rmax] ≥ max
+
+	if rmax < a.Len() && a.Timestamps[rmax] == max {
+		rmax++
+	}
+
+	if rmin > -1 {
+		ts := a.Timestamps[:rmax-rmin]
+		copy(ts, a.Timestamps[rmin:rmax])
+		a.Timestamps = ts
+		vs := a.Values[:rmax-rmin]
+		copy(vs, a.Values[rmin:rmax])
+		a.Values = vs
+	} else {
+		a.Timestamps = a.Timestamps[:rmax]
+		a.Values = a.Values[:rmax]
+	}
+}
+
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a.Timestamps[i] == v is necessary
+// to determine if the value v exists.
+func (a *{{ $typename }}) search(v int64) int {
+	// Define: f(x) → a.Timestamps[x] < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := a.Len()
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max]. The values must
+// be deduplicated and sorted before calling Exclude or the results
+// are undefined.
+func (a *{{ $typename }}) FindRange(min, max int64) (int, int) {
+	if a.Len() == 0 || min > max {
+		return -1, -1
+	}
+
+	minVal := a.MinTime()
+	maxVal := a.MaxTime()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
+}
+
+// Merge overlays b to top of a.  If two values conflict with
+// the same timestamp, b is used.  Both a and b must be sorted
+// in ascending order.
+func (a *{{ $typename }}) Merge(b *{{ $typename }}) {
+	if a.Len() == 0 {
+		*a = *b
+		return
+	}
+
+	if b.Len() == 0 {
+		return
+	}
+
+	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
+	// possible stored blocks might contain duplicate values.  Remove them if they exists before
+	// merging.
+	// a = a.Deduplicate()
+	// b = b.Deduplicate()
+
+	if a.MaxTime() < b.MinTime() {
+		a.Timestamps = append(a.Timestamps, b.Timestamps...)
+		a.Values = append(a.Values, b.Values...)
+		return
+	}
+
+	if b.MaxTime() < a.MinTime() {
+		var tmp {{$typename}}
+		tmp.Timestamps = append(b.Timestamps, a.Timestamps...)
+		tmp.Values = append(b.Values, a.Values...)
+		*a = tmp
+		return
+	}
+
+	out := New{{$typename}}Len(a.Len()+b.Len())
+	i, j, k := 0, 0, 0
+	for i < len(a.Timestamps) && j < len(b.Timestamps) {
+		if a.Timestamps[i] < b.Timestamps[j] {
+			out.Timestamps[k] = a.Timestamps[i]
+			out.Values[k] = a.Values[i]
+			i++
+		} else if a.Timestamps[i] == b.Timestamps[j] {
+			out.Timestamps[k] = b.Timestamps[j]
+			out.Values[k] = b.Values[j]
+			i++
+			j++
+		} else {
+			out.Timestamps[k] = b.Timestamps[j]
+			out.Values[k] = b.Values[j]
+			j++
+		}
+		k++
+	}
+
+	if i < len(a.Timestamps) {
+		n := copy(out.Timestamps[k:], a.Timestamps[i:])
+		copy(out.Values[k:], a.Values[i:])
+		k += n
+	} else if j < len(b.Timestamps) {
+		n := copy(out.Timestamps[k:], b.Timestamps[j:])
+		copy(out.Values[k:], b.Values[j:])
+		k += n
+	}
+
+	a.Timestamps = out.Timestamps[:k]
+	a.Values = out.Values[:k]
+}
+
+{{ end }}

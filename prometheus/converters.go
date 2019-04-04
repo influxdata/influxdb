@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/services/storage"
-	"github.com/influxdata/platform/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 const (

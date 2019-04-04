@@ -5,9 +5,9 @@ import (
 
 	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/services/storage"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/platform/storage/reads"
-	"github.com/influxdata/platform/storage/reads/datatypes"
 )
 
 func TestHasSingleMeasurementNoOR(t *testing.T) {
