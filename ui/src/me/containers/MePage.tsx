@@ -3,7 +3,13 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Panel} from '@influxdata/clockface'
+import {
+  Panel,
+  ComponentSpacer,
+  FlexDirection,
+  ComponentSize,
+  AlignItems,
+} from '@influxdata/clockface'
 import {Grid, Columns} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import Resources from 'src/me/components/Resources'
@@ -34,13 +40,20 @@ export class MePage extends PureComponent<StateProps> {
             <Grid>
               <Grid.Row>
                 <Grid.Column widthSM={Columns.Eight} widthMD={Columns.Nine}>
-                  <Panel>
-                    <Panel.Header title="Getting started with InfluxDB 2.0" />
-                    <Panel.Body>
-                      <GettingStarted />
-                    </Panel.Body>
-                  </Panel>
-                  <Docs />
+                  <ComponentSpacer
+                    direction={FlexDirection.Column}
+                    margin={ComponentSize.Small}
+                    alignItems={AlignItems.Stretch}
+                    stretchToFitWidth={true}
+                  >
+                    <Panel>
+                      <Panel.Header title="Getting started with InfluxDB 2.0" />
+                      <Panel.Body>
+                        <GettingStarted />
+                      </Panel.Body>
+                    </Panel>
+                    <Docs />
+                  </ComponentSpacer>
                 </Grid.Column>
                 <Grid.Column widthSM={Columns.Four} widthMD={Columns.Three}>
                   <Resources me={me} />

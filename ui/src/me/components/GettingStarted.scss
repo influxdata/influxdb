@@ -8,7 +8,7 @@
 $getting-started--gutter: $ix-marg-b;
 
 .getting-started {
-  margin-top: $ix-marg-b;
+  margin: $ix-marg-b 0;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
