@@ -558,7 +558,7 @@ func TestHandler_Query_CloseNotify(t *testing.T) {
 	}
 }
 
-// Ensure the prometheus remote write works
+// Ensure the prometheus remote write works with valid values.
 func TestHandler_PromWrite(t *testing.T) {
 	req := &remote.WriteRequest{
 		Timeseries: []*remote.TimeSeries{
@@ -569,7 +569,8 @@ func TestHandler_PromWrite(t *testing.T) {
 				},
 				Samples: []*remote.Sample{
 					{TimestampMs: 1, Value: 1.2},
-					{TimestampMs: 2, Value: math.NaN()},
+					{TimestampMs: 3, Value: 14.5},
+					{TimestampMs: 6, Value: 222.99},
 				},
 			},
 		},
@@ -586,26 +587,45 @@ func TestHandler_PromWrite(t *testing.T) {
 	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
 		return &meta.DatabaseInfo{}
 	}
-	called := false
+
+	var called bool
 	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
 		called = true
-		point := points[0]
-		if point.UnixNano() != int64(time.Millisecond) {
-			t.Fatalf("Exp point time %d but got %d", int64(time.Millisecond), point.UnixNano())
-		}
-		tags := point.Tags()
-		expectedTags := models.Tags{models.Tag{Key: []byte("host"), Value: []byte("a")}, models.Tag{Key: []byte("region"), Value: []byte("west")}}
-		if !reflect.DeepEqual(tags, expectedTags) {
-			t.Fatalf("tags don't match\n\texp: %v\n\tgot: %v", expectedTags, tags)
+
+		if got, exp := len(points), 3; got != exp {
+			t.Fatalf("got %d points, expected %d\n\npoints:\n%v", got, exp, points)
 		}
 
-		fields, err := point.Fields()
-		if err != nil {
-			t.Fatal(err.Error())
+		expFields := []models.Fields{
+			models.Fields{"value": req.Timeseries[0].Samples[0].Value},
+			models.Fields{"value": req.Timeseries[0].Samples[1].Value},
+			models.Fields{"value": req.Timeseries[0].Samples[2].Value},
 		}
-		expFields := models.Fields{"value": 1.2}
-		if !reflect.DeepEqual(fields, expFields) {
-			t.Fatalf("fields don't match\n\texp: %v\n\tgot: %v", expFields, fields)
+
+		expTS := []int64{
+			req.Timeseries[0].Samples[0].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[1].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[2].TimestampMs * int64(time.Millisecond),
+		}
+
+		for i, point := range points {
+			if got, exp := point.UnixNano(), expTS[i]; got != exp {
+				t.Fatalf("got time %d, expected %d\npoint:\n%v", got, exp, point)
+			}
+
+			exp := models.Tags{models.Tag{Key: []byte("host"), Value: []byte("a")}, models.Tag{Key: []byte("region"), Value: []byte("west")}}
+			if got := point.Tags(); !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got tags: %v, expected: %v\npoint:\n%v", got, exp, point)
+			}
+
+			gotFields, err := point.Fields()
+			if err != nil {
+				t.Fatal(err.Error())
+			}
+
+			if got, exp := gotFields, expFields[i]; !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got fields %v, expected %v\npoint:\n%v", got, exp, point)
+			}
 		}
 		return nil
 	}
@@ -615,8 +635,150 @@ func TestHandler_PromWrite(t *testing.T) {
 	if !called {
 		t.Fatal("WritePoints: expected call")
 	}
+
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure the prometheus remote write works with invalid values.
+func TestHandler_PromWrite_Dropped(t *testing.T) {
+	req := &remote.WriteRequest{
+		Timeseries: []*remote.TimeSeries{
+			{
+				Labels: []*remote.LabelPair{
+					{Name: "host", Value: "a"},
+					{Name: "region", Value: "west"},
+				},
+				Samples: []*remote.Sample{
+					{TimestampMs: 1, Value: 1.2},
+					{TimestampMs: 2, Value: math.NaN()},
+					{TimestampMs: 3, Value: 14.5},
+					{TimestampMs: 4, Value: math.Inf(-1)},
+					{TimestampMs: 5, Value: math.Inf(1)},
+					{TimestampMs: 6, Value: 222.99},
+					{TimestampMs: 7, Value: math.Inf(-1)},
+					{TimestampMs: 8, Value: math.Inf(1)},
+					{TimestampMs: 9, Value: math.Inf(1)},
+				},
+			},
+		},
+	}
+
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+
+	b := bytes.NewReader(compressed)
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	var called bool
+	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+		called = true
+
+		if got, exp := len(points), 3; got != exp {
+			t.Fatalf("got %d points, expected %d\n\npoints:\n%v", got, exp, points)
+		}
+
+		expFields := []models.Fields{
+			models.Fields{"value": req.Timeseries[0].Samples[0].Value},
+			models.Fields{"value": req.Timeseries[0].Samples[2].Value},
+			models.Fields{"value": req.Timeseries[0].Samples[5].Value},
+		}
+
+		expTS := []int64{
+			req.Timeseries[0].Samples[0].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[2].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[5].TimestampMs * int64(time.Millisecond),
+		}
+
+		for i, point := range points {
+			if got, exp := point.UnixNano(), expTS[i]; got != exp {
+				t.Fatalf("got time %d, expected %d\npoint:\n%v", got, exp, point)
+			}
+
+			exp := models.Tags{models.Tag{Key: []byte("host"), Value: []byte("a")}, models.Tag{Key: []byte("region"), Value: []byte("west")}}
+			if got := point.Tags(); !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got tags: %v, expected: %v\npoint:\n%v", got, exp, point)
+			}
+
+			gotFields, err := point.Fields()
+			if err != nil {
+				t.Fatal(err.Error())
+			}
+
+			if got, exp := gotFields, expFields[i]; !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got fields %v, expected %v\npoint:\n%v", got, exp, point)
+			}
+		}
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/write?db=foo", b))
+	if !called {
+		t.Fatal("WritePoints: expected call")
+	}
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+func mustMakeBigString(sz int) string {
+	a := make([]byte, 0, sz)
+	for i := 0; i < cap(a); i++ {
+		a = append(a, 'a')
+	}
+	return string(a)
+}
+
+func TestHandler_PromWrite_Error(t *testing.T) {
+	req := &remote.WriteRequest{
+		Timeseries: []*remote.TimeSeries{
+			{
+				// Invalid tag key
+				Labels:  []*remote.LabelPair{{Name: mustMakeBigString(models.MaxKeyLength), Value: "a"}},
+				Samples: []*remote.Sample{{TimestampMs: 1, Value: 1.2}},
+			},
+		},
+	}
+
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+
+	b := bytes.NewReader(compressed)
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	var called bool
+	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+		called = true
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/write?db=foo", b))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+
+	if got, exp := strings.TrimSpace(w.Body.String()), `{"error":"max key length exceeded: 65572 \u003e 65535"}`; got != exp {
+		t.Fatalf("got error %q, expected %q", got, exp)
+	}
+
+	if called {
+		t.Fatal("WritePoints called but should not be")
 	}
 }
 
