@@ -14,7 +14,7 @@ import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {
-  getVariablesForOrg,
+  extractVariablesList,
   getVariable,
   getHydratedVariables,
 } from 'src/variables/selectors'
@@ -63,8 +63,7 @@ export const refreshTimeMachineVariableValues = () => async (
     ...view,
     properties: {...view.properties, queries: draftQueries},
   }
-  const orgID = getState().orgs.org.id
-  const variables = getVariablesForOrg(getState(), orgID)
+  const variables = extractVariablesList(getState())
   const variablesInUse = filterUnusedVars(variables, [view, draftView])
 
   // Find variables whose values have already been loaded by the TimeMachine
@@ -76,7 +75,7 @@ export const refreshTimeMachineVariableValues = () => async (
     v => variablesInUse.includes(v) || hydratedVariables.includes(v)
   )
 
-  await dispatch(refreshVariableValues(contextID, orgID, variablesToRefresh))
+  await dispatch(refreshVariableValues(contextID, variablesToRefresh))
 }
 
 let pendingResults: Array<WrappedCancelablePromise<ExecuteFluxQueryResult>> = []
@@ -146,7 +145,6 @@ export const addVariableToTimeMachine = (variableID: string) => async (
   getState: GetState
 ) => {
   const contextID = getState().timeMachines.activeTimeMachineID
-  const orgID = getState().orgs.org.id
 
   const variable = getVariable(getState(), variableID)
   const variables = getHydratedVariables(getState(), contextID)
@@ -155,7 +153,7 @@ export const addVariableToTimeMachine = (variableID: string) => async (
     variables.push(variable)
   }
 
-  await dispatch(refreshVariableValues(contextID, orgID, variables))
+  await dispatch(refreshVariableValues(contextID, variables))
 }
 
 export const selectVariableValue = (

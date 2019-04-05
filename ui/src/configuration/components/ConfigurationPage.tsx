@@ -11,7 +11,6 @@ import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSecti
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Settings from 'src/me/components/account/Settings'
 import Telegrafs from 'src/configuration/components/Telegrafs'
-import Variables from 'src/configuration/components/Variables'
 import Scrapers from 'src/configuration/components/Scrapers'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
@@ -70,15 +69,6 @@ class ConfigurationPage extends Component<Props> {
                       <GetResources resource={ResourceTypes.Scrapers}>
                         <Scrapers />
                       </GetResources>
-                    </GetResources>
-                  </TabbedPageSection>
-                  <TabbedPageSection
-                    id="variables_tab"
-                    url="variables_tab"
-                    title="Variables"
-                  >
-                    <GetResources resource={ResourceTypes.Variables}>
-                      <Variables />
                     </GetResources>
                   </TabbedPageSection>
                   <TabbedPageSection

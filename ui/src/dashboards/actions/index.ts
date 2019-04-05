@@ -37,7 +37,10 @@ import {setExportTemplate} from 'src/templates/actions'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {getVariablesForOrg, getHydratedVariables} from 'src/variables/selectors'
+import {
+  extractVariablesList,
+  getHydratedVariables,
+} from 'src/variables/selectors'
 import {getViewsForDashboard} from 'src/dashboards/selectors'
 import {
   getNewDashboardCell,
@@ -267,12 +270,10 @@ export const refreshDashboardVariableValues = (
   dashboard: Dashboard,
   nextViews: View[]
 ) => (dispatch, getState: GetState) => {
-  const variables = getVariablesForOrg(getState(), dashboard.orgID)
+  const variables = extractVariablesList(getState())
   const variablesInUse = filterUnusedVars(variables, nextViews)
 
-  return dispatch(
-    refreshVariableValues(dashboard.id, dashboard.orgID, variablesInUse)
-  )
+  return dispatch(refreshVariableValues(dashboard.id, variablesInUse))
 }
 
 export const getDashboardAsync = (dashboardID: string) => async (
@@ -472,23 +473,24 @@ export const selectVariableValue = (
 
   dispatch(selectValue(dashboardID, variableID, value))
 
-  await dispatch(
-    refreshVariableValues(dashboard.id, dashboard.orgID, variables)
-  )
+  await dispatch(refreshVariableValues(dashboard.id, variables))
 }
 
 export const convertToTemplate = (dashboardID: string) => async (
-  dispatch
+  dispatch,
+  getState: GetState
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-
+    const {
+      orgs: {org},
+    } = getState()
     const dashboard = await getDashboardAJAX(dashboardID)
     const pendingViews = dashboard.cells.map(c =>
       getViewAJAX(dashboardID, c.id)
     )
     const views = await Promise.all(pendingViews)
-    const allVariables = await client.variables.getAll()
+    const allVariables = await client.variables.getAll(org.id)
     const variables = filterUnusedVars(allVariables, views)
     const exportedVariables = exportVariables(variables, allVariables)
     const dashboardTemplate = dashboardToTemplate(
@@ -497,9 +499,7 @@ export const convertToTemplate = (dashboardID: string) => async (
       exportedVariables
     )
 
-    const orgID = dashboard.orgID // TODO remove when org is implicit app state
-
-    dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate, orgID))
+    dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate))
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))

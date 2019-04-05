@@ -2,25 +2,24 @@
 import React, {PureComponent} from 'react'
 
 // Styles
-import 'src/organizations/components/CreateVariableOverlay.scss'
+import 'src/variables/components/CreateVariableOverlay.scss'
 
 // Components
 import {Overlay} from 'src/clockface'
-import VariableForm from 'src/organizations/components/VariableForm'
+import VariableForm from 'src/variables/components/VariableForm'
 
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
 
 interface Props {
-  onCreateVariable: (variable: Variable) => void
+  onCreateVariable: (variable: Pick<Variable, 'name' | 'arguments'>) => void
   onHideOverlay: () => void
-  orgID: string
   initialScript?: string
 }
 
 export default class CreateVariableOverlay extends PureComponent<Props> {
   public render() {
-    const {onHideOverlay, onCreateVariable, orgID, initialScript} = this.props
+    const {onHideOverlay, onCreateVariable, initialScript} = this.props
 
     return (
       <Overlay.Container maxWidth={1000}>
@@ -29,7 +28,6 @@ export default class CreateVariableOverlay extends PureComponent<Props> {
           <VariableForm
             onCreateVariable={onCreateVariable}
             onHideOverlay={onHideOverlay}
-            orgID={orgID}
             initialScript={initialScript}
           />
         </Overlay.Body>

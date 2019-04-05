@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -10,34 +9,21 @@ import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import Variables from 'src/organizations/components/Variables'
-
-//Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
-import * as notifyActions from 'src/shared/actions/notifications'
+import VariablesTab from 'src/variables/components/VariablesTab'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Types
 import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types'
 
-interface RouterProps {
-  params: {
-    orgID: string
-  }
-}
-
-interface DispatchProps {
-  notify: NotificationsActions.PublishNotificationActionCreator
-}
-
 interface StateProps {
   org: Organization
 }
 
-type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
-
 @ErrorHandling
-class OrgVariablesIndex extends Component<Props> {
+class VariablesIndex extends Component<StateProps> {
   public render() {
     const {org, children} = this.props
 
@@ -55,7 +41,9 @@ class OrgVariablesIndex extends Component<Props> {
                     url="variables"
                     title="Variables"
                   >
-                    <Variables org={org} />
+                    <GetResources resource={ResourceTypes.Variables}>
+                      <VariablesTab />
+                    </GetResources>
                   </TabbedPageSection>
                 </Tabs.TabContents>
               </Tabs>
@@ -68,21 +56,9 @@ class OrgVariablesIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: Props) => {
-  const {
-    orgs: {items},
-  } = state
-  const org = items.find(o => o.id === props.params.orgID)
-  return {
-    org,
-  }
-}
+const mstp = ({orgs: {org}}: AppState): StateProps => ({org})
 
-const mdtp: DispatchProps = {
-  notify: notifyActions.notify,
-}
-
-export default connect<StateProps, DispatchProps, {}>(
+export default connect<StateProps, {}, {}>(
   mstp,
-  mdtp
-)(withRouter<{}>(OrgVariablesIndex))
+  null
+)(VariablesIndex)

@@ -15,7 +15,7 @@ import {DocumentCreate} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  params: {id: string; orgID: string}
+  params: {id: string}
 }
 
 interface DispatchProps {
@@ -26,12 +26,11 @@ interface DispatchProps {
 interface StateProps {
   variableTemplate: DocumentCreate
   status: RemoteDataState
-  orgID: string
 }
 
 type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 
-class OrgVariableExportOverlay extends PureComponent<Props> {
+class VariableExportOverlay extends PureComponent<Props> {
   public async componentDidMount() {
     const {
       params: {id},
@@ -49,16 +48,9 @@ class OrgVariableExportOverlay extends PureComponent<Props> {
         resourceName="Variable"
         resource={variableTemplate}
         onDismissOverlay={this.onDismiss}
-        orgID={this.orgID}
         status={status}
       />
     )
-  }
-
-  private get orgID() {
-    const orgFromExistingResource = this.props.orgID
-    const orgInRoutes = this.props.params.orgID
-    return orgFromExistingResource || orgInRoutes
   }
 
   private onDismiss = () => {
@@ -72,7 +64,6 @@ class OrgVariableExportOverlay extends PureComponent<Props> {
 const mstp = (state: AppState): StateProps => ({
   variableTemplate: state.templates.exportTemplate.item,
   status: state.templates.exportTemplate.status,
-  orgID: state.templates.exportTemplate.orgID,
 })
 
 const mdtp: DispatchProps = {
@@ -83,4 +74,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(OrgVariableExportOverlay))
+)(withRouter<Props>(VariableExportOverlay))

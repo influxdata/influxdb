@@ -185,7 +185,7 @@ const createVariablesFromTemplate = async (
   }
   const variablesIncluded = findIncludedVariables(included)
 
-  const existingVariables = await client.variables.getAll()
+  const existingVariables = await client.variables.getAll(orgID)
 
   const variablesToCreate = findVariablesToCreate(
     existingVariables,
