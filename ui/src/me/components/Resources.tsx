@@ -8,8 +8,15 @@ import LogoutButton from 'src/me/components/LogoutButton'
 import OrgsList from 'src/me/components/OrgsList'
 import DashboardsList from 'src/me/components/DashboardsList'
 import ResourceFetcher from 'src/shared/components/resource_fetcher'
-import {Panel} from 'src/clockface'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {
+  SpinnerContainer,
+  TechnoSpinner,
+  Panel,
+  ComponentSpacer,
+  FlexDirection,
+  ComponentSize,
+  AlignItems,
+} from '@influxdata/clockface'
 import VersionInfo from 'src/shared/components/VersionInfo'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
@@ -30,7 +37,12 @@ const getOrganizations = () => client.organizations.getAll()
 class ResourceLists extends PureComponent<Props> {
   public render() {
     return (
-      <>
+      <ComponentSpacer
+        direction={FlexDirection.Column}
+        alignItems={AlignItems.Stretch}
+        stretchToFitWidth={true}
+        margin={ComponentSize.Small}
+      >
         <Panel>
           <Panel.Header title="Account">
             <LogoutButton />
@@ -84,7 +96,7 @@ class ResourceLists extends PureComponent<Props> {
             <VersionInfo />
           </Panel.Footer>
         </Panel>
-      </>
+      </ComponentSpacer>
     )
   }
 }

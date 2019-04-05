@@ -11,7 +11,6 @@ import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
 import Overlay from './components/overlays/Overlay'
-import Panel from './components/panel/Panel'
 import Radio from './components/radio_buttons/RadioButtons'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardOverlay from './components/wizard/WizardOverlay'
@@ -85,7 +84,6 @@ export {
   MultipleInput,
   NavMenuType,
   Overlay,
-  Panel,
   ProgressBar,
   QuestionMarkTooltip,
   Radio,
