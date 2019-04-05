@@ -32,35 +32,39 @@ exports[`Account rendering renders! 1`] = `
               <div
                 className="grid--column col-xs-6"
               >
-                <Panel>
+                <t
+                  size="sm"
+                  testID="panel"
+                >
                   <div
-                    className="panel"
+                    className="panel panel--sm"
+                    data-testID="panel"
                   >
-                    <PanelHeader
+                    <t
+                      testID="panel--header"
                       title="About Me"
                     >
                       <div
-                        className="panel-header"
+                        className="panel--header"
                       >
                         <div
-                          className="panel-title"
+                          className="panel--title"
                         >
                           About Me
                         </div>
                         <div
-                          className="panel-controls"
+                          className="panel--controls"
                         >
                           <t
                             alignItems="center"
                             direction="row"
                             justifyContent="flex-end"
-                            margin="sm"
                             stretchToFitHeight={false}
                             stretchToFitWidth={false}
                             testID="component-spacer"
                           >
                             <div
-                              className="component-spacer component-spacer__margin-sm component-spacer__row component-spacer__justify-flex-end component-spacer__align-center"
+                              className="component-spacer component-spacer__row component-spacer__justify-flex-end component-spacer__align-center"
                               data-testid="component-spacer"
                             >
                               <t
@@ -88,10 +92,12 @@ exports[`Account rendering renders! 1`] = `
                           </t>
                         </div>
                       </div>
-                    </PanelHeader>
-                    <PanelBody>
+                    </t>
+                    <t
+                      testID="panel--body"
+                    >
                       <div
-                        className="panel-body"
+                        className="panel--body"
                       >
                         <t
                           testID="form-container"
@@ -169,9 +175,9 @@ exports[`Account rendering renders! 1`] = `
                           </form>
                         </t>
                       </div>
-                    </PanelBody>
+                    </t>
                   </div>
-                </Panel>
+                </t>
               </div>
             </GridColumn>
           </div>
