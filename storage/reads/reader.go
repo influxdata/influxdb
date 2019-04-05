@@ -74,9 +74,10 @@ type simpleTableIterator struct {
 func (bi *simpleTableIterator) Statistics() cursors.CursorStats { return bi.stats }
 
 func (bi *simpleTableIterator) Do(f func(flux.Table) error) error {
-	orgID := uint64(bi.spec.OrganizationID)
-	bucketID := uint64(bi.spec.BucketID)
-	src := bi.s.GetSourceFrom(orgID, bucketID)
+	src := bi.s.GetSource(
+		uint64(bi.spec.OrganizationID),
+		uint64(bi.spec.BucketID),
+	)
 
 	// Setup read request
 	any, err := types.MarshalAny(src)
@@ -197,10 +198,10 @@ type tableIterator struct {
 func (bi *tableIterator) Statistics() cursors.CursorStats { return bi.stats }
 
 func (bi *tableIterator) Do(f func(flux.Table) error) error {
-	src, err := bi.s.GetSource(bi.readSpec)
-	if err != nil {
-		return err
-	}
+	src := bi.s.GetSource(
+		uint64(bi.readSpec.OrganizationID),
+		uint64(bi.readSpec.BucketID),
+	)
 
 	// Setup read request
 	var req datatypes.ReadRequest

@@ -5,7 +5,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -78,6 +77,5 @@ type Store interface {
 	Read(ctx context.Context, req *datatypes.ReadRequest) (ResultSet, error)
 	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (ResultSet, error)
 	GroupRead(ctx context.Context, req *datatypes.ReadRequest) (GroupResultSet, error)
-	GetSource(rs influxdb.ReadSpec) (proto.Message, error)
-	GetSourceFrom(orgID, bucketID uint64) proto.Message
+	GetSource(orgID, bucketID uint64) proto.Message
 }
