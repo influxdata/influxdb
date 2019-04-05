@@ -32,11 +32,7 @@ import * as copy from 'src/shared/copy/notifications'
 import {Dispatch} from 'redux-thunk'
 import {RemoteDataState, VariableTemplate} from 'src/types'
 import {GetState} from 'src/types'
-import {
-  IVariable as Variable,
-  ILabel as Label,
-  IVariable,
-} from '@influxdata/influx'
+import {IVariable as Variable, ILabel as Label} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
 import {
   addVariableLabelFailed,
@@ -154,7 +150,7 @@ export const getVariables = () => async (
     const {
       orgs: {org},
     } = getState()
-    const variables = (await client.variables.getAll(org.id)) as IVariable[]
+    const variables = await client.variables.getAll(org.id)
 
     dispatch(setVariables(RemoteDataState.Done, variables))
   } catch (e) {
