@@ -2,6 +2,7 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Page} from 'src/pageLayout'
@@ -12,7 +13,12 @@ import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {Run as APIRun, Task} from '@influxdata/influx'
-import {SpinnerContainer, TechnoSpinner, Button} from '@influxdata/clockface'
+import {
+  SpinnerContainer,
+  TechnoSpinner,
+  Button,
+  ComponentColor,
+} from '@influxdata/clockface'
 
 // Actions
 import {getRuns, runTask} from 'src/tasks/actions'
@@ -39,7 +45,7 @@ interface StateProps {
 
 type Props = OwnProps & DispatchProps & StateProps
 
-class TaskRunsPage extends PureComponent<Props> {
+class TaskRunsPage extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {params, runs} = this.props
 
@@ -54,6 +60,11 @@ class TaskRunsPage extends PureComponent<Props> {
               <PageTitleWithOrg title={this.title} />
             </Page.Header.Left>
             <Page.Header.Right>
+              <Button
+                onClick={this.handleEditTask}
+                text="Edit Task"
+                color={ComponentColor.Primary}
+              />
               <Button
                 onClick={this.handleRunTask}
                 text="Run Task"
@@ -89,6 +100,16 @@ class TaskRunsPage extends PureComponent<Props> {
     await onRunTask(params.id)
     getRuns(params.id)
   }
+
+  private handleEditTask = () => {
+    const {
+      router,
+      currentTask,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/tasks/${currentTask.id}`)
+  }
 }
 
 const mstp = (state: AppState): StateProps => {
@@ -101,9 +122,12 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-const mdtp: DispatchProps = {getRuns: getRuns, onRunTask: runTask}
+const mdtp: DispatchProps = {
+  getRuns: getRuns,
+  onRunTask: runTask,
+}
 
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(TaskRunsPage)
+)(withRouter<OwnProps>(TaskRunsPage))
