@@ -7,6 +7,8 @@ import _ from 'lodash'
 // Components
 import NavMenu from 'src/pageLayout/components/NavMenu'
 import CloudNav from 'src/pageLayout/components/CloudNav'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
+import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
@@ -16,13 +18,14 @@ import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
 import {Organization} from '@influxdata/influx'
 
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 
 interface StateProps {
   isHidden: boolean
   me: AppState['me']
   orgs: Organization[]
+  orgName: string
 }
 
 interface State {
@@ -47,6 +50,7 @@ class SideNav extends PureComponent<Props, State> {
       me,
       params: {orgID},
       orgs,
+      orgName,
     } = this.props
     if (isHidden) {
       return null
@@ -57,7 +61,7 @@ class SideNav extends PureComponent<Props, State> {
     return (
       <NavMenu>
         <NavMenu.Item
-          title={`${me.name} (${this.orgName})`}
+          title={`${me.name} (${orgName})`}
           path={`${orgPrefix}`}
           icon={IconFont.CuboNav}
           active={getNavItemActivation(['me', 'account'], location.pathname)}
@@ -87,24 +91,22 @@ class SideNav extends PureComponent<Props, State> {
           active={getNavItemActivation(['tasks'], location.pathname)}
         />
         <NavMenu.Item
-          title="Settings"
+          title={`${orgName} Settings`}
           path={`${orgPrefix}/settings`}
           icon={IconFont.Wrench}
           active={getNavItemActivation(['settings'], location.pathname)}
-        />
+        >
+          <CloudExclude>
+            <NavMenu.SubItem
+              title="Create Organization"
+              path="/orgs/new"
+              active={false}
+            />
+          </CloudExclude>
+        </NavMenu.Item>
         <CloudNav />
       </NavMenu>
     )
-  }
-
-  private get orgName(): string {
-    const {
-      params: {orgID},
-      orgs,
-    } = this.props
-    return orgs.find(org => {
-      return org.id === orgID
-    }).name
   }
 
   private toggleOrganizationsView = (): void => {
@@ -114,9 +116,13 @@ class SideNav extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const {me, orgs} = state
+  const {
+    me,
+    orgs,
+    orgs: {org},
+  } = state
 
-  return {isHidden, me, orgs: orgs.items}
+  return {isHidden, me, orgs: orgs.items, orgName: _.get(org, 'name', '')}
 }
 
 export default connect<StateProps>(mstp)(withRouter(SideNav))

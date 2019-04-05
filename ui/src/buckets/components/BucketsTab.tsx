@@ -72,6 +72,7 @@ class BucketsTab extends PureComponent<Props, State> {
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
             onClick={this.handleOpenModal}
+            testID="Create Bucket"
           />
         </Tabs.TabContentsHeader>
         <FilterList<PrettyBucket>
