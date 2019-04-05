@@ -1,4 +1,10 @@
-import {TemplateType, LabelIncluded, VariableIncluded} from 'src/types'
+import {
+  TemplateType,
+  LabelIncluded,
+  VariableIncluded,
+  Relationships,
+  LabelRelationship,
+} from 'src/types'
 import {ILabel, IVariable as Variable} from '@influxdata/influx'
 
 export function findIncludedsFromRelationships<
@@ -26,15 +32,6 @@ export function findIncludedFromRelationship<
   return includeds.find((i): i is T => i.id === r.id && i.type === r.type) as T
 }
 
-export const findLabelIDsToAdd = (
-  existingLabels: ILabel[],
-  incomingLabels: LabelIncluded[]
-): string[] => {
-  return existingLabels
-    .filter(el => !!incomingLabels.find(l => el.name === l.attributes.name))
-    .map(l => l.id || '')
-}
-
 export const findLabelsToCreate = (
   currentLabels: ILabel[],
   labels: LabelIncluded[]
@@ -58,3 +55,20 @@ export const findVariablesToCreate = (
     v => !existingVariables.find(ev => ev.name === v.attributes.name)
   )
 }
+
+export const hasLabelsRelationships = (resource: {
+  relationships?: Relationships
+}) => !!resource.relationships && !!resource.relationships[TemplateType.Label]
+
+export const getLabelRelationships = (resource: {
+  relationships?: Relationships
+}): LabelRelationship[] => {
+  if (!hasLabelsRelationships(resource)) {
+    return []
+  }
+
+  return [].concat(resource.relationships[TemplateType.Label].data)
+}
+
+export const getIncludedLabels = (included: {type: TemplateType}[]) =>
+  included.filter((i): i is LabelIncluded => i.type === TemplateType.Label)

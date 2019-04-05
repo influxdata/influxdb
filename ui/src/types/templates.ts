@@ -30,21 +30,31 @@ export interface TemplateBase extends Document {
 interface TemplateData {
   type: TemplateType
   attributes: KeyValuePairs
-  relationships: {[key in TemplateType]?: {data: IRelationship[]}}
+  relationships: Relationships
 }
 
 interface TemplateIncluded {
   type: TemplateType
   id: string
   attributes: KeyValuePairs
+  relationships?: Relationships
 }
 
-// Template Relationships
-type IRelationship =
-  | CellRelationship
-  | LabelRelationship
-  | ViewRelationship
-  | VariableRelationship
+// enforces key association with relationship type
+export type Relationships = {
+  [key in keyof RelationshipMap]?: {
+    data: OneOrMany<RelationshipMap[key]>
+  }
+}
+
+type OneOrMany<T> = T | T[]
+
+interface RelationshipMap {
+  [TemplateType.Cell]: CellRelationship
+  [TemplateType.Label]: LabelRelationship
+  [TemplateType.View]: ViewRelationship
+  [TemplateType.Variable]: VariableRelationship
+}
 
 export interface CellRelationship {
   type: TemplateType.Cell
@@ -88,6 +98,9 @@ export interface LabelIncluded extends TemplateIncluded {
 export interface VariableIncluded extends TemplateIncluded {
   type: TemplateType.Variable
   attributes: Variable
+  relationships: {
+    [TemplateType.Label]: {data: LabelRelationship[]}
+  }
 }
 
 export type TaskTemplateIncluded = LabelIncluded

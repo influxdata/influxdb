@@ -158,10 +158,15 @@ export const variableToTemplate = (
   const variableName = _.get(v, 'name', '')
   const templateName = `${variableName}-Template`
   const variableData = variableToIncluded(v)
-  const dependencyRelationships = dependencies.map(d =>
-    variableToRelationship(d)
-  )
+  const variableRelationships = dependencies.map(d => variableToRelationship(d))
   const includedDependencies = dependencies.map(d => variableToIncluded(d))
+  const includedLabels = v.labels.map(l => labelToIncluded(l))
+  const labelRelationships = v.labels.map(l => labelToRelationship(l))
+
+  const includedDependentLabels = _.flatMap(dependencies, d =>
+    d.labels.map(l => labelToIncluded(l))
+  )
+
   return {
     ...baseTemplate,
     meta: {
@@ -176,21 +181,35 @@ export const variableToTemplate = (
         ...variableData,
         relationships: {
           [TemplateType.Variable]: {
-            data: [...dependencyRelationships],
+            data: [...variableRelationships],
+          },
+          [TemplateType.Label]: {
+            data: [...labelRelationships],
           },
         },
       },
-      included: [...includedDependencies],
+      included: [
+        ...includedDependencies,
+        ...includedLabels,
+        ...includedDependentLabels,
+      ],
     },
   }
 }
 
 const variableToIncluded = (v: Variable) => {
   const variableAttributes = _.pick(v, ['name', 'arguments', 'selected'])
+  const labelRelationships = v.labels.map(l => labelToRelationship(l))
+
   return {
     id: v.id,
     type: TemplateType.Variable,
     attributes: variableAttributes,
+    relationships: {
+      [TemplateType.Label]: {
+        data: [...labelRelationships],
+      },
+    },
   }
 }
 
@@ -210,18 +229,25 @@ export const dashboardToTemplate = (
 
   const dashboardAttributes = _.pick(dashboard, ['name', 'description'])
 
-  const labels = getDeep<Label[]>(dashboard, 'labels', [])
-  const includedLabels = labels.map(l => labelToIncluded(l))
-  const relationshipsLabels = labels.map(l => labelToRelationship(l))
+  const dashboardLabels = getDeep<Label[]>(dashboard, 'labels', [])
+  const dashboardIncludedLabels = dashboardLabels.map(l => labelToIncluded(l))
+  const relationshipsLabels = dashboardLabels.map(l => labelToRelationship(l))
 
   const cells = getDeep<Cell[]>(dashboard, 'cells', [])
   const includedCells = cells.map(c => cellToIncluded(c, views))
   const relationshipsCells = cells.map(c => cellToRelationship(c))
 
   const includedVariables = variables.map(v => variableToIncluded(v))
+  const variableIncludedLabels = _.flatMap(variables, v =>
+    v.labels.map(l => labelToIncluded(l))
+  )
   const relationshipsVariables = variables.map(v => variableToRelationship(v))
 
   const includedViews = views.map(v => viewToIncluded(v))
+  const includedLabels = _.uniqBy(
+    [...dashboardIncludedLabels, ...variableIncludedLabels],
+    'id'
+  )
 
   const template = {
     ...baseTemplate,
