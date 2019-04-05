@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
+import {Panel} from '@influxdata/clockface'
 import {Grid, Columns} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import Resources from 'src/me/components/Resources'
@@ -15,8 +16,6 @@ import {AppState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-import {Panel} from 'src/clockface'
 
 interface StateProps {
   me: AppState['me']
