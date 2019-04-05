@@ -5,12 +5,8 @@ import {Link} from 'react-router'
 // Components
 import Support from 'src/me/components/Support'
 import LogoutButton from 'src/me/components/LogoutButton'
-import OrgsList from 'src/me/components/OrgsList'
 import DashboardsList from 'src/me/components/DashboardsList'
-import ResourceFetcher from 'src/shared/components/resource_fetcher'
 import {
-  SpinnerContainer,
-  TechnoSpinner,
   Panel,
   ComponentSpacer,
   FlexDirection,
@@ -18,21 +14,16 @@ import {
   AlignItems,
 } from '@influxdata/clockface'
 import VersionInfo from 'src/shared/components/VersionInfo'
-import CloudExclude from 'src/shared/components/cloud/CloudExclude'
-
-// APIs
-import {getDashboards} from 'src/organizations/apis'
-import {client} from 'src/utils/api'
 
 // Types
-import {Dashboard, AppState} from 'src/types'
-import {Organization} from '@influxdata/influx'
+import {AppState} from 'src/types'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 interface Props {
   me: AppState['me']
 }
-
-const getOrganizations = () => client.organizations.getAll()
 
 class ResourceLists extends PureComponent<Props> {
   public render() {
@@ -55,36 +46,12 @@ class ResourceLists extends PureComponent<Props> {
             </ul>
           </Panel.Body>
         </Panel>
-        <CloudExclude>
-          <Panel>
-            <Panel.Header title="Organizations" />
-            <Panel.Body>
-              <ResourceFetcher<Organization[]> fetcher={getOrganizations}>
-                {(orgs, loading) => (
-                  <SpinnerContainer
-                    loading={loading}
-                    spinnerComponent={<TechnoSpinner diameterPixels={50} />}
-                  >
-                    <OrgsList orgs={orgs} />
-                  </SpinnerContainer>
-                )}
-              </ResourceFetcher>
-            </Panel.Body>
-          </Panel>
-        </CloudExclude>
         <Panel>
           <Panel.Header title="Dashboards" />
           <Panel.Body>
-            <ResourceFetcher<Dashboard[]> fetcher={getDashboards}>
-              {(dashboards, loading) => (
-                <SpinnerContainer
-                  loading={loading}
-                  spinnerComponent={<TechnoSpinner diameterPixels={50} />}
-                >
-                  <DashboardsList dashboards={dashboards} />
-                </SpinnerContainer>
-              )}
-            </ResourceFetcher>
+            <GetResources resource={ResourceTypes.Dashboards}>
+              <DashboardsList />
+            </GetResources>
           </Panel.Body>
         </Panel>
         <Panel>

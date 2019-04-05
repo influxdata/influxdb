@@ -31,7 +31,7 @@ import {dashboardCreateFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {Links, Dashboard, AppState} from 'src/types'
+import {Dashboard, AppState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -45,7 +45,6 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  links: Links
   dashboards: Dashboard[]
 }
 
@@ -199,12 +198,10 @@ class DashboardIndex extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   const {
     dashboards: {list: dashboards},
-    links,
   } = state
 
   return {
     dashboards,
-    links,
   }
 }
 
