@@ -229,9 +229,9 @@ export const dashboardToTemplate = (
 
   const dashboardAttributes = _.pick(dashboard, ['name', 'description'])
 
-  const dashboardLables = getDeep<Label[]>(dashboard, 'labels', [])
-  const dashboardIncludedLabels = dashboardLables.map(l => labelToIncluded(l))
-  const relationshipsLabels = dashboardLables.map(l => labelToRelationship(l))
+  const dashboardLabels = getDeep<Label[]>(dashboard, 'labels', [])
+  const dashboardIncludedLabels = dashboardLabels.map(l => labelToIncluded(l))
+  const relationshipsLabels = dashboardLabels.map(l => labelToRelationship(l))
 
   const cells = getDeep<Cell[]>(dashboard, 'cells', [])
   const includedCells = cells.map(c => cellToIncluded(c, views))
