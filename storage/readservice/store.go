@@ -8,7 +8,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
@@ -27,8 +26,8 @@ func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 		return nil, errors.New("missing read source")
 	}
 
-	var source readSource
-	if err := types.UnmarshalAny(req.ReadSource, &source); err != nil {
+	source, err := getReadSource(*req.ReadSource)
+	if err != nil {
 		return nil, err
 	}
 
@@ -57,7 +56,11 @@ func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 		req.PointsLimit = math.MaxInt64
 	}
 
-	source, err := getReadSource(req)
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +74,7 @@ func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 	}
 
 	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursor(ctx, source, req.Predicate, s.engine); err != nil {
+	if ic, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.engine); err != nil {
 		return nil, err
 	} else if ic == nil {
 		return nil, nil
@@ -99,7 +102,11 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 		req.PointsLimit = math.MaxInt64
 	}
 
-	source, err := getReadSource(req)
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +120,7 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
-		cur, err := newIndexSeriesCursor(ctx, source, req.Predicate, s.engine)
+		cur, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.engine)
 		if cur == nil || err != nil {
 			return nil, err
 		}
@@ -135,28 +142,17 @@ func (r *readSource) Reset()                  { *r = readSource{} }
 func (r *readSource) String() string          { return "readSource{}" }
 func (r *readSource) ProtoMessage()           {}
 
-func (s *store) GetSource(rs influxdb.ReadSpec) (proto.Message, error) {
-	return &readSource{
-		BucketID:       uint64(rs.BucketID),
-		OrganizationID: uint64(rs.OrganizationID),
-	}, nil
-}
-
-func (s *store) GetSourceFrom(orgID, bucketID uint64) proto.Message {
+func (s *store) GetSource(orgID, bucketID uint64) proto.Message {
 	return &readSource{
 		BucketID:       bucketID,
 		OrganizationID: orgID,
 	}
 }
 
-func getReadSource(req *datatypes.ReadRequest) (*readSource, error) {
-	if req.ReadSource == nil {
-		return nil, errors.New("missing read source")
-	}
-
+func getReadSource(any types.Any) (readSource, error) {
 	var source readSource
-	if err := types.UnmarshalAny(req.ReadSource, &source); err != nil {
-		return nil, err
+	if err := types.UnmarshalAny(&any, &source); err != nil {
+		return source, err
 	}
-	return &source, nil
+	return source, nil
 }
