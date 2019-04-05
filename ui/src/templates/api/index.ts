@@ -86,7 +86,7 @@ const createLabelsFromTemplate = async <T extends TemplateBase>(
     labelRelationships
   )
 
-  const existingLabels = await client.labels.getAll()
+  const existingLabels = await client.labels.getAll(orgID)
 
   const labelsToCreate = findLabelsToCreate(existingLabels, labelsIncluded).map(
     l => ({

@@ -27,8 +27,10 @@ import * as notifyActions from 'src/shared/actions/notifications'
 import {Organization, ScraperTargetResponse, Bucket} from '@influxdata/influx'
 import {AppState} from 'src/types'
 
-const getScrapers = async (): Promise<ScraperTargetResponse[]> => {
-  return await client.scrapers.getAll()
+const getScrapers = async (
+  org: Organization
+): Promise<ScraperTargetResponse[]> => {
+  return await client.scrapers.getAll(org.id)
 }
 
 const getBuckets = async (org: Organization): Promise<Bucket[]> => {
