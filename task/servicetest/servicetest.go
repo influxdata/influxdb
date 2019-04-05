@@ -358,13 +358,6 @@ option task = {
 from(bucket: "b")
 	|> http.to(url: "http://example.com")`
 
-	expectedFlux := `import "http"
-
-option task = {name: "task-Options-Update", every: 10s, concurrency: 100}
-
-from(bucket: "b")
-	|> http.to(url: "http://example.com")`
-
 	cr := creds(t, sys)
 
 	ct := influxdb.TaskCreate{
@@ -377,18 +370,52 @@ from(bucket: "b")
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: &options.Duration{}, Every: *(options.MustParseDuration("10s"))}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	savedTask, err := sys.TaskService.FindTaskByID(sys.Ctx, f.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if savedTask.Flux != expectedFlux {
-		diff := cmp.Diff(savedTask.Flux, expectedFlux)
-		t.Fatalf("flux unexpected updated: %s", diff)
-	}
+	t.Run("update task and delete offset", func(t *testing.T) {
+		expectedFlux := `import "http"
+
+option task = {name: "task-Options-Update", every: 10s, concurrency: 100}
+
+from(bucket: "b")
+	|> http.to(url: "http://example.com")`
+		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: &options.Duration{}, Every: *(options.MustParseDuration("10s"))}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		savedTask, err := sys.TaskService.FindTaskByID(sys.Ctx, f.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if savedTask.Flux != expectedFlux {
+			diff := cmp.Diff(savedTask.Flux, expectedFlux)
+			t.Fatalf("flux unexpected updated: %s", diff)
+		}
+	})
+	t.Run("update task with different offset option", func(t *testing.T) {
+		expectedFlux := `import "http"
+
+option task = {
+	name: "task-Options-Update",
+	every: 10s,
+	concurrency: 100,
+	offset: 10s,
+}
+
+from(bucket: "b")
+	|> http.to(url: "http://example.com")`
+		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: options.MustParseDuration("10s")}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		savedTask, err := sys.TaskService.FindTaskByID(sys.Ctx, f.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if savedTask.Flux != expectedFlux {
+			diff := cmp.Diff(savedTask.Flux, expectedFlux)
+			t.Fatalf("flux unexpected updated: %s", diff)
+		}
+	})
+
 }
 
 func testMetaUpdate(t *testing.T, sys *System) {
