@@ -6,10 +6,14 @@ import {connect} from 'react-redux'
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 
 // Actions
-import {createVariableFromTemplate as createVariableFromTemplateAction} from 'src/variables/actions'
+import {
+  createVariableFromTemplate as createVariableFromTemplateAction,
+  getVariables as getVariablesAction,
+} from 'src/variables/actions'
 
 interface DispatchProps {
   createVariableFromTemplate: typeof createVariableFromTemplateAction
+  getVariables: typeof getVariablesAction
 }
 
 type Props = DispatchProps & WithRouterProps
@@ -34,10 +38,11 @@ class VariableImportOverlay extends PureComponent<Props> {
   private handleImportVariable = async (
     uploadContent: string
   ): Promise<void> => {
-    const {createVariableFromTemplate} = this.props
+    const {createVariableFromTemplate, getVariables} = this.props
 
     const template = JSON.parse(uploadContent)
     await createVariableFromTemplate(template)
+    getVariables()
 
     this.onDismiss()
   }
@@ -45,6 +50,7 @@ class VariableImportOverlay extends PureComponent<Props> {
 
 const mdtp: DispatchProps = {
   createVariableFromTemplate: createVariableFromTemplateAction,
+  getVariables: getVariablesAction,
 }
 
 export default connect<{}, DispatchProps, Props>(
