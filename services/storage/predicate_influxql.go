@@ -1,11 +1,14 @@
 package storage
 
-import "github.com/influxdata/influxql"
+import (
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxql"
+)
 
 var measurementRemap = map[string]string{
-	"_measurement": "_name",
-	"_m":           "_name",
-	"_f":           "_field",
+	"_measurement":           "_name",
+	models.MeasurementTagKey: "_name",
+	models.FieldKeyTagKey:    "_field",
 }
 
 func RewriteExprRemoveFieldKeyAndValue(expr influxql.Expr) influxql.Expr {
