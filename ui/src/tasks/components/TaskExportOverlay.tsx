@@ -15,7 +15,7 @@ import {DocumentCreate} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  params: {id: string; orgID: string}
+  params: {id: string}
 }
 
 interface DispatchProps {
@@ -26,7 +26,6 @@ interface DispatchProps {
 interface StateProps {
   taskTemplate: DocumentCreate
   status: RemoteDataState
-  orgID: string
 }
 
 type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
@@ -49,16 +48,9 @@ class TaskExportOverlay extends PureComponent<Props> {
         resourceName="Task"
         resource={taskTemplate}
         onDismissOverlay={this.onDismiss}
-        orgID={this.orgID}
         status={status}
       />
     )
-  }
-
-  private get orgID() {
-    const orgFromExistingResource = this.props.orgID
-    const orgInRoutes = this.props.params.orgID
-    return orgFromExistingResource || orgInRoutes
   }
 
   private onDismiss = () => {
@@ -72,7 +64,6 @@ class TaskExportOverlay extends PureComponent<Props> {
 const mstp = (state: AppState): StateProps => ({
   taskTemplate: state.templates.exportTemplate.item,
   status: state.templates.exportTemplate.status,
-  orgID: state.templates.exportTemplate.orgID,
 })
 
 const mdtp: DispatchProps = {

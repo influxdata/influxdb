@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import VariableList from 'src/organizations/components/VariableList'
+import VariableList from 'src/variables/components/VariableList'
 
 // Constants
 import {variables} from 'mocks/dummyData'

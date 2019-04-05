@@ -47,10 +47,10 @@ import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
 import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
-import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
+import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
 import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
-import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
+import VariableExportOverlay from 'src/variables/components/VariableExportOverlay'
 import SetOrg from 'src/shared/containers/SetOrg'
 import RouteToOrg from 'src/shared/containers/RouteToOrg'
 import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
@@ -199,14 +199,14 @@ class Root extends PureComponent {
                               component={TemplateExportOverlay}
                             />
                           </Route>
-                          <Route path="variables" component={OrgVariablesIndex}>
+                          <Route path="variables" component={VariablesIndex}>
                             <Route
                               path="import"
                               component={VariableImportOverlay}
                             />
                             <Route
                               path=":id/export"
-                              component={OrgVariableExportOverlay}
+                              component={VariableExportOverlay}
                             />
                           </Route>
                           <Route path="scrapers" component={OrgScrapersIndex} />

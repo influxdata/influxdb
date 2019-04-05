@@ -15,9 +15,8 @@ import {
 } from '@influxdata/clockface'
 
 interface Props {
-  onCreateVariable: (variable: Variable) => void
+  onCreateVariable: (variable: Pick<Variable, 'name' | 'arguments'>) => void
   onHideOverlay?: () => void
-  orgID: string
   initialScript?: string
 }
 
@@ -28,7 +27,7 @@ interface State {
   errorMessage: string
 }
 
-export default class CreateOrgOverlay extends PureComponent<Props, State> {
+export default class VariableForm extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -94,11 +93,10 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
   }
 
   private handleSubmit = (): void => {
-    const {onCreateVariable, orgID, onHideOverlay} = this.props
+    const {onCreateVariable, onHideOverlay} = this.props
 
     onCreateVariable({
       name: this.state.name,
-      orgID,
       arguments: {
         type: 'query',
         values: {query: this.state.script, language: 'flux'},

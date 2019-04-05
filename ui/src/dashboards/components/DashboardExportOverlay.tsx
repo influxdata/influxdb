@@ -15,7 +15,7 @@ import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  params: {dashboardID: string; orgID: string}
+  params: {dashboardID: string}
 }
 
 interface DispatchProps {
@@ -26,7 +26,6 @@ interface DispatchProps {
 interface StateProps {
   dashboardTemplate: DocumentCreate
   status: RemoteDataState
-  orgID: string
 }
 
 type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
@@ -49,16 +48,9 @@ class DashboardExportOverlay extends PureComponent<Props> {
         resourceName="Dashboard"
         resource={dashboardTemplate}
         onDismissOverlay={this.onDismiss}
-        orgID={this.orgID}
         status={status}
       />
     )
-  }
-
-  private get orgID() {
-    const orgFromExistingResource = this.props.orgID
-    const orgInRoutes = this.props.params.orgID
-    return orgFromExistingResource || orgInRoutes
   }
 
   private onDismiss = () => {
@@ -72,7 +64,6 @@ class DashboardExportOverlay extends PureComponent<Props> {
 const mstp = (state: AppState): StateProps => ({
   dashboardTemplate: state.templates.exportTemplate.item,
   status: state.templates.exportTemplate.status,
-  orgID: state.templates.exportTemplate.orgID,
 })
 
 const mdtp: DispatchProps = {

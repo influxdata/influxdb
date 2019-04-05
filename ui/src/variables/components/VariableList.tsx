@@ -3,8 +3,8 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {IndexList, Overlay} from 'src/clockface'
-import VariableRow from 'src/organizations/components/VariableRow'
-import UpdateVariableOverlay from 'src/organizations/components/UpdateVariableOverlay'
+import VariableRow from 'src/variables/components/VariableRow'
+import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 
 // Types
 import {IVariable as Variable} from '@influxdata/influx'

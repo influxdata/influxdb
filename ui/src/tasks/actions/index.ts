@@ -504,19 +504,14 @@ export const getLogs = (taskID: string, runID: string) => async (
 }
 
 export const convertToTemplate = (taskID: string) => async (
-  dispatch,
-  getState: GetStateFunc
+  dispatch
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-
-    const {
-      orgs: {org},
-    } = await getState()
     const task = await client.tasks.get(taskID)
     const taskTemplate = taskToTemplate(task)
 
-    dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate, org.id))
+    dispatch(setExportTemplate(RemoteDataState.Done, taskTemplate))
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))

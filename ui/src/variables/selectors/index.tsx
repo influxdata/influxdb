@@ -19,21 +19,16 @@ import {IVariable as Variable} from '@influxdata/influx'
 type VariablesState = AppState['variables']['variables']
 type ValuesState = AppState['variables']['values']['contextID']
 
-const getVariablesForOrgMemoized = memoizeOne(
-  (variablesState: VariablesState, orgID: string) => {
+const extractVariablesListMemoized = memoizeOne(
+  (variablesState: VariablesState): Variable[] => {
     return Object.values(variablesState)
-      .filter(
-        d => d.status === RemoteDataState.Done && d.variable.orgID === orgID
-      )
+      .filter(d => d.status === RemoteDataState.Done)
       .map(d => d.variable)
   }
 )
 
-export const getVariablesForOrg = (
-  state: AppState,
-  orgID: string
-): Variable[] => {
-  return getVariablesForOrgMemoized(state.variables.variables, orgID)
+export const extractVariablesList = (state: AppState): Variable[] => {
+  return extractVariablesListMemoized(state.variables.variables)
 }
 
 const getVariablesForDashboardMemoized = memoizeOne(
