@@ -1,76 +1,112 @@
 // Libraries
-import React, {SFC} from 'react'
+import React, {PureComponent} from 'react'
+import {Link} from 'react-router'
 
 // Components
-import NavMenu from 'src/pageLayout/components/NavMenu'
+import {NavMenu} from '@influxdata/clockface'
 import {Organization} from '@influxdata/influx'
-import {NavMenuType} from 'src/clockface'
 import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
+import DapperScrollbars from 'src/shared/components/dapperScrollbars/DapperScrollbars'
+import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 interface Props {
   orgs: Organization[]
-  showOrganizations: boolean
-  toggleOrganizationsView: () => void
+  isShowingOrganizations: boolean
+  showOrganizationsView: () => void
+  closeOrganizationsView: () => void
 }
 
-const AccountNavSubItem: SFC<Props> = ({
-  orgs,
-  showOrganizations,
-  toggleOrganizationsView,
-}) => {
-  if (showOrganizations) {
+class AccountNavSubItem extends PureComponent<Props> {
+  render() {
+    const {orgs, isShowingOrganizations, showOrganizationsView} = this.props
+
+    if (isShowingOrganizations) {
+      return (
+        <SortingHat list={orgs} sortKey="name">
+          {this.orgs}
+        </SortingHat>
+      )
+    }
+
     return (
       <>
+        <CloudFeatureFlag key="feature-flag">
+          {orgs.length > 1 && (
+            <NavMenu.SubItem
+              titleLink={className => (
+                <div onClick={showOrganizationsView} className={className}>
+                  Switch Organizations
+                </div>
+              )}
+              active={false}
+              key="switch-orgs"
+            />
+          )}
+
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to="/orgs/new" className={className}>
+                Create Organization
+              </Link>
+            )}
+            active={false}
+          />
+        </CloudFeatureFlag>
+
+        <NavMenu.SubItem
+          titleLink={className => (
+            <Link to="/logout" className={className}>
+              Logout
+            </Link>
+          )}
+          active={false}
+          key="logout"
+        />
+      </>
+    )
+  }
+
+  private orgs = (orgs: Organization[]): JSX.Element => {
+    const {closeOrganizationsView} = this.props
+
+    return (
+      <DapperScrollbars>
         {orgs.reduce(
           (acc, org) => {
             acc.push(
               <NavMenu.SubItem
-                title={org.name}
-                path={`/orgs/${org.id}`}
+                titleLink={className => (
+                  <Link
+                    className={className}
+                    to={`/orgs/${org.id}`}
+                    style={{display: 'block'}}
+                  >
+                    {org.name}
+                  </Link>
+                )}
                 key={org.id}
-                type={NavMenuType.RouterLink}
                 active={false}
               />
             )
             return acc
           },
+
           [
             <NavMenu.SubItem
-              title="< Back"
-              onClick={toggleOrganizationsView}
-              type={NavMenuType.ShowDropdown}
+              titleLink={className => (
+                <div className={className} onClick={closeOrganizationsView}>
+                  {'< Back'}
+                </div>
+              )}
               active={false}
               key="back-button"
               className="back-button"
             />,
           ]
         )}
-      </>
+      </DapperScrollbars>
     )
   }
-
-  return (
-    <>
-      <CloudFeatureFlag key="feature-flag">
-        {orgs.length > 1 && (
-          <NavMenu.SubItem
-            title="Switch Organizations"
-            onClick={toggleOrganizationsView}
-            type={NavMenuType.ShowDropdown}
-            active={false}
-            key="switch-orgs"
-          />
-        )}
-      </CloudFeatureFlag>
-
-      <NavMenu.SubItem
-        title="Logout"
-        path="/logout"
-        active={false}
-        key="logout"
-      />
-    </>
-  )
 }
 
 export default AccountNavSubItem
