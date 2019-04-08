@@ -1,12 +1,13 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps, Link} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import NavMenu from 'src/pageLayout/components/NavMenu'
+import {NavMenu, Icon} from '@influxdata/clockface'
 import CloudNav from 'src/pageLayout/components/CloudNav'
+import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
@@ -14,86 +15,152 @@ import {getNavItemActivation} from 'src/pageLayout/utils'
 // Types
 import {AppState} from 'src/types'
 import {IconFont} from 'src/clockface'
+import {Organization} from '@influxdata/influx'
 
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface OwnProps {
+interface StateProps {
   isHidden: boolean
   me: AppState['me']
+  orgs: Organization[]
+  orgName: string
 }
 
-type Props = OwnProps & WithRouterProps
+interface State {
+  isShowingOrganizations: boolean
+}
+
+type Props = StateProps & WithRouterProps
 
 @ErrorHandling
-class SideNav extends PureComponent<Props> {
+class SideNav extends PureComponent<Props, State> {
+  constructor(props) {
+    super(props)
+
+    this.state = {
+      isShowingOrganizations: false,
+    }
+  }
+
   public render() {
     const {
       isHidden,
       me,
       params: {orgID},
+      orgs,
+      orgName,
     } = this.props
+
     if (isHidden) {
       return null
     }
 
     const orgPrefix = `/orgs/${orgID}`
+    const dashboardsLink = `${orgPrefix}/dashboards`
+    const dataExplorerLink = `${orgPrefix}/data-explorer`
+    const tasksLink = `${orgPrefix}/tasks`
+    const settingsLink = `${orgPrefix}/settings`
 
     return (
       <NavMenu>
+        <div onMouseLeave={this.closeOrganizationsView} className="find-me">
+          <NavMenu.Item
+            titleLink={className => (
+              <Link className={className} to={orgPrefix}>
+                {`${me.name} (${orgName})`}
+              </Link>
+            )}
+            iconLink={className => (
+              <Link to={orgPrefix} className={className}>
+                <Icon glyph={IconFont.CuboNav} />
+              </Link>
+            )}
+            active={getNavItemActivation(['me', 'account'], location.pathname)}
+          >
+            <AccountNavSubItem
+              orgs={orgs}
+              isShowingOrganizations={this.state.isShowingOrganizations}
+              showOrganizationsView={this.showOrganizationsView}
+              closeOrganizationsView={this.closeOrganizationsView}
+            />
+          </NavMenu.Item>
+        </div>
         <NavMenu.Item
-          title={me.name}
-          path={`${orgPrefix}/me`}
-          icon={IconFont.CuboNav}
-          active={getNavItemActivation(['me', 'account'], location.pathname)}
-        >
-          <NavMenu.SubItem title="Logout" path="/logout" active={false} />
-        </NavMenu.Item>
-        <NavMenu.Item
-          title="Data Explorer"
-          path={`${orgPrefix}/data-explorer`}
-          icon={IconFont.GraphLine}
+          titleLink={className => (
+            <Link className={className} to={dataExplorerLink}>
+              Data Explorer
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={dataExplorerLink} className={className}>
+              <Icon glyph={IconFont.GraphLine} />
+            </Link>
+          )}
           active={getNavItemActivation(['data-explorer'], location.pathname)}
         />
         <NavMenu.Item
-          title="Dashboards"
-          path={`${orgPrefix}/dashboards`}
-          icon={IconFont.Dashboards}
+          titleLink={className => (
+            <Link className={className} to={dashboardsLink}>
+              Dashboards
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={dashboardsLink} className={className}>
+              <Icon glyph={IconFont.Dashboards} />
+            </Link>
+          )}
           active={getNavItemActivation(['dashboards'], location.pathname)}
         />
         <NavMenu.Item
-          title="Tasks"
-          path={`${orgPrefix}/tasks`}
-          icon={IconFont.Calendar}
+          titleLink={className => (
+            <Link className={className} to={tasksLink}>
+              Tasks
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={tasksLink} className={className}>
+              <Icon glyph={IconFont.Calendar} />
+            </Link>
+          )}
           active={getNavItemActivation(['tasks'], location.pathname)}
         />
         <NavMenu.Item
-          title="Settings"
-          path={`${orgPrefix}/settings`}
-          icon={IconFont.Wrench}
+          titleLink={className => (
+            <Link className={className} to={settingsLink}>
+              Settings
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={settingsLink} className={className}>
+              <Icon glyph={IconFont.Wrench} />
+            </Link>
+          )}
           active={getNavItemActivation(['settings'], location.pathname)}
-        >
-          <NavMenu.SubItem
-            title="Profile"
-            path={`${orgPrefix}/configuration/settings_tab`}
-            active={getNavItemActivation(['settings_tab'], location.pathname)}
-          />
-          <NavMenu.SubItem
-            title="Tokens"
-            path={`${orgPrefix}/configuration/tokens_tab`}
-            active={getNavItemActivation(['tokens_tab'], location.pathname)}
-          />
-        </NavMenu.Item>
+        />
         <CloudNav />
       </NavMenu>
     )
   }
+
+  private showOrganizationsView = (): void => {
+    this.setState({isShowingOrganizations: true})
+  }
+
+  private closeOrganizationsView = (): void => {
+    this.setState({isShowingOrganizations: false})
+  }
 }
 
-const mstp = (state: AppState) => {
+const mstp = (state: AppState): StateProps => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const {me} = state
+  const {
+    me,
+    orgs,
+    orgs: {org},
+  } = state
 
-  return {isHidden, me}
+  return {isHidden, me, orgs: orgs.items, orgName: _.get(org, 'name', '')}
 }
 
-export default connect(mstp)(withRouter<OwnProps>(SideNav))
+export default connect<StateProps>(mstp)(withRouter(SideNav))

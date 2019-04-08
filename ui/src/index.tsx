@@ -36,8 +36,8 @@ import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
 import Notifications from 'src/shared/containers/Notifications'
 import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
-import TaskExportOverlay from 'src/organizations/components/TaskExportOverlay'
-import TaskImportOverlay from 'src/organizations/components/TaskImportOverlay'
+import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
+import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
@@ -47,11 +47,14 @@ import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
 import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
-import OrgVariablesIndex from 'src/organizations/containers/OrgVariablesIndex'
+import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
 import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
-import OrgVariableExportOverlay from 'src/organizations/components/OrgVariableExportOverlay'
+import VariableExportOverlay from 'src/variables/components/VariableExportOverlay'
 import SetOrg from 'src/shared/containers/SetOrg'
+import RouteToOrg from 'src/shared/containers/RouteToOrg'
+import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
+import TokensIndex from 'src/authorizations/containers/TokensIndex'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -112,9 +115,11 @@ class Root extends PureComponent {
               <Route component={Signin}>
                 <Route component={GetMe}>
                   <Route component={GetOrganizations}>
-                    <Route component={SetOrg}>
-                      <Route path="/">
-                        <Route path="orgs/:orgID" component={App}>
+                    <Route path="/">
+                      <IndexRoute component={RouteToOrg} />
+                      <Route path="orgs" component={App}>
+                        <Route path="new" component={CreateOrgOverlay} />
+                        <Route path=":orgID" component={SetOrg}>
                           <IndexRoute component={MePage} />
                           <Route path="tasks" component={TasksPage}>
                             <Route
@@ -178,6 +183,7 @@ class Root extends PureComponent {
                             <IndexRoute component={OrgMembersIndex} />
                           </Route>
                           <Route path="buckets" component={BucketsIndex} />
+                          <Route path="tokens" component={TokensIndex} />
                           <Route path="members" component={OrgMembersIndex} />
                           <Route
                             path="telegrafs"
@@ -193,14 +199,14 @@ class Root extends PureComponent {
                               component={TemplateExportOverlay}
                             />
                           </Route>
-                          <Route path="variables" component={OrgVariablesIndex}>
+                          <Route path="variables" component={VariablesIndex}>
                             <Route
                               path="import"
                               component={VariableImportOverlay}
                             />
                             <Route
                               path=":id/export"
-                              component={OrgVariableExportOverlay}
+                              component={VariableExportOverlay}
                             />
                           </Route>
                           <Route path="scrapers" component={OrgScrapersIndex} />

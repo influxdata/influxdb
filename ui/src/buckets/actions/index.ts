@@ -1,10 +1,10 @@
+import {Dispatch} from 'redux-thunk'
+
 // API
 import {client} from 'src/utils/api'
 
 // Types
-import {RemoteDataState, AppState} from 'src/types'
-import {Bucket} from '@influxdata/influx'
-import {Dispatch} from 'redux-thunk'
+import {RemoteDataState, AppState, Bucket} from 'src/types'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'

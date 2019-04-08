@@ -11,13 +11,11 @@ import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
 import Overlay from './components/overlays/Overlay'
-import Panel from './components/panel/Panel'
 import Radio from './components/radio_buttons/RadioButtons'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardOverlay from './components/wizard/WizardOverlay'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
 import ProgressBar from './components/wizard/ProgressBar'
-import ComponentSpacer from './components/component_spacer/ComponentSpacer'
 import EmptyState from './components/empty_state/EmptyState'
 import IndexList from './components/index_views/IndexList'
 import ResourceList from './components/resource_list/ResourceList'
@@ -62,7 +60,6 @@ export {
   Columns,
   ComponentColor,
   ComponentSize,
-  ComponentSpacer,
   ComponentStatus,
   ConfirmationButton,
   Context,
@@ -87,7 +84,6 @@ export {
   MultipleInput,
   NavMenuType,
   Overlay,
-  Panel,
   ProgressBar,
   QuestionMarkTooltip,
   Radio,

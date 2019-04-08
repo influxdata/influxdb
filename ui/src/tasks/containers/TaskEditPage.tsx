@@ -22,14 +22,12 @@ import {
 } from 'src/tasks/actions'
 
 // Types
-import {Organization, ITask as Task} from '@influxdata/influx'
-import {State as TasksState} from 'src/tasks/reducers'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {Links} from 'src/types'
+import {AppState, Task} from 'src/types'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -37,11 +35,9 @@ interface PassedInProps {
 }
 
 interface ConnectStateProps {
-  orgs: Organization[]
   taskOptions: TaskOptions
   currentTask: Task
   currentScript: string
-  tasksLink: string
 }
 
 interface ConnectDispatchProps {
@@ -77,7 +73,7 @@ class TaskEditPage extends PureComponent<
   }
 
   public render(): JSX.Element {
-    const {currentScript, taskOptions, orgs} = this.props
+    const {currentScript, taskOptions} = this.props
 
     return (
       <Page titleTag={`Edit ${taskOptions.name}`}>
@@ -91,12 +87,10 @@ class TaskEditPage extends PureComponent<
           <div className="task-form">
             <div className="task-form--options">
               <TaskForm
-                orgs={orgs}
                 canSubmit={this.isFormValid}
                 taskOptions={taskOptions}
                 onChangeInput={this.handleChangeInput}
                 onChangeScheduleType={this.handleChangeScheduleType}
-                onChangeTaskOrgID={this.handleChangeTaskOrgID}
               />
             </div>
             <div className="task-form--editor">
@@ -145,26 +139,12 @@ class TaskEditPage extends PureComponent<
 
     this.props.setTaskOption({key, value})
   }
-
-  private handleChangeTaskOrgID = (orgID: string) => {
-    this.props.setTaskOption({key: 'orgID', value: orgID})
-  }
 }
 
-const mstp = ({
-  tasks,
-  links,
-  orgs,
-}: {
-  tasks: TasksState
-  links: Links
-  orgs: Organization[]
-}): ConnectStateProps => {
+const mstp = ({tasks}: AppState): ConnectStateProps => {
   return {
-    orgs,
     taskOptions: tasks.taskOptions,
     currentScript: tasks.currentScript,
-    tasksLink: links.tasks,
     currentTask: tasks.currentTask,
   }
 }

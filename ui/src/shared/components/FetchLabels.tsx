@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -19,9 +20,17 @@ import {Label} from 'src/types/labels'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface PassedInProps {
   children: (labels: Label[]) => JSX.Element
 }
+
+interface RouterProps extends WithRouterProps {
+  params: {
+    orgID: string
+  }
+}
+
+type Props = PassedInProps & RouterProps
 
 interface State {
   labels: Label[]
@@ -40,7 +49,10 @@ class FetchLabels extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const labels = await client.labels.getAll()
+    const {
+      params: {orgID},
+    } = this.props
+    const labels = await client.labels.getAll(orgID)
     this.setState({
       loading: RemoteDataState.Done,
       labels: _.orderBy(labels, ['name']),
@@ -66,4 +78,4 @@ class FetchLabels extends PureComponent<Props, State> {
   }
 }
 
-export default FetchLabels
+export default withRouter<PassedInProps>(FetchLabels)

@@ -8,7 +8,6 @@ import {
 
 // Types
 import {ViewType, ViewShape, Base, Scale} from 'src/types'
-import {HistogramPosition} from '@influxdata/vis'
 import {
   XYView,
   XYViewGeom,
@@ -123,7 +122,7 @@ const NEW_VIEW_CREATORS = {
       xDomain: null,
       xAxisLabel: '',
       fillColumns: null,
-      position: HistogramPosition.Stacked,
+      position: 'stacked',
       binCount: 30,
       colors: DEFAULT_LINE_COLORS,
       note: '',

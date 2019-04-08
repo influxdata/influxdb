@@ -20,10 +20,10 @@ import {setExportTemplate} from 'src/templates/actions'
 import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/templates/api'
 
 // Utils
-import {getValueSelections, getVariablesForOrg} from 'src/variables/selectors'
+import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
-import {exportVariables} from 'src/variables/utils/exportVariables'
+import {findDepedentVariables} from 'src/variables/utils/exportVariables'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -32,8 +32,12 @@ import * as copy from 'src/shared/copy/notifications'
 import {Dispatch} from 'redux-thunk'
 import {RemoteDataState, VariableTemplate} from 'src/types'
 import {GetState} from 'src/types'
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable, ILabel as Label} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
+import {
+  addVariableLabelFailed,
+  removeVariableLabelFailed,
+} from 'src/shared/copy/v2/notifications'
 
 export type Action =
   | SetVariables
@@ -137,11 +141,16 @@ export const selectValue = (
   payload: {contextID, variableID, selectedValue},
 })
 
-export const getVariables = () => async (dispatch: Dispatch<Action>) => {
+export const getVariables = () => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
   try {
     dispatch(setVariables(RemoteDataState.Loading))
-
-    const variables = await client.variables.getAll()
+    const {
+      orgs: {org},
+    } = getState()
+    const variables = await client.variables.getAll(org.id)
 
     dispatch(setVariables(RemoteDataState.Done, variables))
   } catch (e) {
@@ -167,11 +176,17 @@ export const getVariable = (id: string) => async (
   }
 }
 
-export const createVariable = (variable: Variable) => async (
-  dispatch: Dispatch<Action>
-) => {
+export const createVariable = (
+  variable: Pick<Variable, 'name' | 'arguments'>
+) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
-    const createdVariable = await client.variables.create(variable)
+    const {
+      orgs: {org},
+    } = getState()
+    const createdVariable = await client.variables.create({
+      ...variable,
+      orgID: org.id,
+    })
 
     dispatch(
       setVariable(createdVariable.id, RemoteDataState.Done, createdVariable)
@@ -184,13 +199,15 @@ export const createVariable = (variable: Variable) => async (
 }
 
 export const createVariableFromTemplate = (
-  template: VariableTemplate,
-  orgID: string
-) => async (dispatch: Dispatch<Action>) => {
+  template: VariableTemplate
+) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   try {
+    const {
+      orgs: {org},
+    } = getState()
     const createdVariable = await createVariableFromTemplateAJAX(
       template,
-      orgID
+      org.id
     )
 
     dispatch(
@@ -243,15 +260,17 @@ let pendingValueRequests: PendingValueRequests = {}
 
 export const refreshVariableValues = (
   contextID: string,
-  orgID: string,
   variables: Variable[]
 ) => async (dispatch: Dispatch<Action>, getState: GetState): Promise<void> => {
   dispatch(setValues(contextID, RemoteDataState.Loading))
 
   try {
+    const {
+      orgs: {org},
+    } = getState()
     const url = getState().links.query.self
     const selections = getValueSelections(getState(), contextID)
-    const allVariables = getVariablesForOrg(getState(), orgID)
+    const allVariables = extractVariablesList(getState())
 
     if (pendingValueRequests[contextID]) {
       pendingValueRequests[contextID].cancel()
@@ -259,7 +278,7 @@ export const refreshVariableValues = (
 
     pendingValueRequests[contextID] = hydrateVars(variables, allVariables, {
       url,
-      orgID,
+      orgID: org.id,
       selections,
     })
 
@@ -277,21 +296,53 @@ export const refreshVariableValues = (
 }
 
 export const convertToTemplate = (variableID: string) => async (
-  dispatch
+  dispatch,
+  getState: GetState
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-
+    const {
+      orgs: {org},
+    } = getState()
     const variable = await client.variables.get(variableID)
-    const allVariables = await client.variables.getAll()
+    const allVariables = await client.variables.getAll(org.id)
 
-    const dependencies = exportVariables([variable], allVariables)
+    const dependencies = findDepedentVariables(variable, allVariables)
     const variableTemplate = variableToTemplate(variable, dependencies)
-    const orgID = variable.orgID // TODO remove when org is implicit app state
 
-    dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate, orgID))
+    dispatch(setExportTemplate(RemoteDataState.Done, variableTemplate))
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))
+  }
+}
+
+export const addVariableLabelsAsync = (
+  variableID: string,
+  labels: Label[]
+) => async (dispatch): Promise<void> => {
+  try {
+    await client.variables.addLabels(variableID, labels.map(l => l.id))
+    const variable = await client.variables.get(variableID)
+
+    dispatch(setVariable(variableID, RemoteDataState.Done, variable))
+  } catch (error) {
+    console.error(error)
+    dispatch(addVariableLabelFailed())
+  }
+}
+
+export const removeVariableLabelsAsync = (
+  variableID: string,
+  labels: Label[]
+) => async (dispatch): Promise<void> => {
+  try {
+    await client.variables.removeLabels(variableID, labels.map(l => l.id))
+    const variable = await client.variables.get(variableID)
+
+    dispatch(setVariable(variableID, RemoteDataState.Done, variable))
+  } catch (error) {
+    console.error(error)
+    dispatch(removeVariableLabelFailed())
   }
 }

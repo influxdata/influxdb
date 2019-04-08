@@ -16,10 +16,9 @@ import {
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {viewableLabels, labelsInOrg} from 'src/labels/selectors'
 
 // Types
-import {Organization} from 'src/types'
 import {ILabel} from '@influxdata/influx'
 import {AppState, Dashboard} from 'src/types'
 
@@ -32,13 +31,11 @@ interface PassedProps {
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCloneDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  showOwnerColumn: boolean
   onFilterChange: (searchTerm: string) => void
 }
 
 interface StateProps {
   labels: ILabel[]
-  orgs: Organization[]
 }
 
 interface DispatchProps {
@@ -88,7 +85,6 @@ class DashboardCard extends PureComponent<Props> {
           />
         )}
         updatedAt={dashboard.meta.updatedAt}
-        owner={this.ownerOrg}
         contextMenu={() => this.contextMenu}
       />
     )
@@ -136,16 +132,6 @@ class DashboardCard extends PureComponent<Props> {
     )
   }
 
-  private get ownerOrg(): {id: string; name: string} {
-    const {dashboard, orgs, showOwnerColumn} = this.props
-
-    if (showOwnerColumn) {
-      const {id, name} = orgs.find(o => o.id === dashboard.orgID)
-
-      return {id, name}
-    }
-  }
-
   private handleClickDashboard = () => {
     const {
       router,
@@ -180,7 +166,7 @@ class DashboardCard extends PureComponent<Props> {
 
   private handleCreateLabel = async (label: ILabel): Promise<void> => {
     try {
-      await this.props.onCreateLabel(label.orgID, label.name, label.properties)
+      await this.props.onCreateLabel(label.name, label.properties)
 
       // notify success
     } catch (err) {
@@ -201,10 +187,9 @@ class DashboardCard extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels, orgs: {items}}: AppState): StateProps => {
+const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
   return {
-    labels: viewableLabels(labels.list),
-    orgs: items,
+    labels: labelsInOrg(org.id, viewableLabels(labels.list)),
   }
 }
 

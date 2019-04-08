@@ -3,49 +3,17 @@ import {
   labelToIncluded,
   taskToTemplate,
   variableToTemplate,
+  dashboardToTemplate,
 } from 'src/shared/utils/resourceToTemplate'
-import {TemplateType, Variable} from '@influxdata/influx'
-import {Label, Task, TaskStatus} from 'src/types'
-
-const myfavelabel: Label = {
-  id: '1',
-  name: '1label',
-  properties: {color: 'fffff', description: 'omg'},
-}
-
-const myfavetask: Task = {
-  authorizationID: '037b084ed9abc000',
-  every: '24h0m0s',
-  flux:
-    'option task = {name: "lala", every: 24h0m0s, offset: 1m0s}\n\nfrom(bucket: "defnuck")\n\t|> range(start: -task.every)',
-  id: '037b0877b359a000',
-  labels: [
-    {
-      id: '037b0c86a92a2000',
-      name: 'yum',
-      properties: {color: '#FF8564', description: ''},
-    },
-  ],
-  name: 'lala',
-  offset: '1m0s',
-  org: 'org',
-  orgID: '037b084ec8ebc000',
-  status: TaskStatus.Active,
-}
-
-const myVariable: Variable = {
-  id: '039ae3b3b74b0000',
-  orgID: '039aa15b38cb0000',
-  name: 'beep',
-  selected: null,
-  arguments: {
-    type: 'query',
-    values: {
-      query: 'test!',
-      language: 'flux',
-    },
-  },
-}
+import {TemplateType} from '@influxdata/influx'
+import {createVariable} from 'src/variables/mocks'
+import {
+  myDashboard,
+  myView,
+  myVariable,
+  myfavelabel,
+  myfavetask,
+} from 'src/shared/utils/mocks/resourceToTemplate'
 
 describe('resourceToTemplate', () => {
   describe('labelToRelationship', () => {
@@ -56,6 +24,7 @@ describe('resourceToTemplate', () => {
       expect(actual).toEqual(expected)
     })
   })
+
   describe('labelToIncluded', () => {
     it('converts a label to a data structure in included', () => {
       const actual = labelToIncluded(myfavelabel)
@@ -76,8 +45,16 @@ describe('resourceToTemplate', () => {
   })
 
   describe('variableToTemplate', () => {
-    it('converts a variable to a template', () => {
-      const actual = variableToTemplate(myVariable, [])
+    it('converts a variable with dependencies to a template', () => {
+      const a = {
+        ...createVariable('a', 'x.b + 1'),
+        labels: [myfavelabel],
+      }
+      const b = createVariable('b', '9000')
+      const dependencies = [a, b]
+
+      const actual = variableToTemplate(myVariable, dependencies)
+
       const expected = {
         meta: {
           version: '1',
@@ -93,56 +70,7 @@ describe('resourceToTemplate', () => {
               arguments: {
                 type: 'query',
                 values: {
-                  query: 'test!',
-                  language: 'flux',
-                },
-              },
-              selected: null,
-            },
-            relationships: {
-              variable: {
-                data: [],
-              },
-            },
-          },
-          included: [],
-        },
-        labels: [],
-      }
-
-      expect(actual).toEqual(expected)
-    })
-
-    it('converts a variable with dependencies to a template', () => {
-      const parentArgs = {
-        values: {...myVariable.arguments.values, query: `v.${myVariable.name}`},
-      }
-      const parentVar = {
-        ...myVariable,
-        id: '123Parent',
-        name: 'Parent Var',
-        arguments: {
-          ...myVariable.arguments,
-          ...parentArgs,
-        },
-      }
-      const actual = variableToTemplate(parentVar, [myVariable])
-      const expected = {
-        meta: {
-          version: '1',
-          name: 'Parent Var-Template',
-          description: 'template created from variable: Parent Var',
-        },
-        content: {
-          data: {
-            type: 'variable',
-            id: '123Parent',
-            attributes: {
-              name: 'Parent Var',
-              arguments: {
-                type: 'query',
-                values: {
-                  query: 'v.beep',
+                  query: 'f(x: v.a)',
                   language: 'flux',
                 },
               },
@@ -152,27 +80,72 @@ describe('resourceToTemplate', () => {
               variable: {
                 data: [
                   {
+                    id: 'a',
                     type: 'variable',
-                    id: '039ae3b3b74b0000',
+                  },
+                  {
+                    id: 'b',
+                    type: 'variable',
                   },
                 ],
+              },
+              label: {
+                data: [],
               },
             },
           },
           included: [
             {
               type: 'variable',
-              id: '039ae3b3b74b0000',
+              id: 'a',
               attributes: {
-                name: 'beep',
+                name: 'a',
                 arguments: {
                   type: 'query',
                   values: {
-                    query: 'test!',
+                    query: 'x.b + 1',
                     language: 'flux',
                   },
                 },
-                selected: null,
+                selected: [],
+              },
+              relationships: {
+                label: {
+                  data: [
+                    {
+                      type: 'label',
+                      id: '1',
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              type: 'variable',
+              id: 'b',
+              attributes: {
+                name: 'b',
+                arguments: {
+                  type: 'query',
+                  values: {
+                    query: '9000',
+                    language: 'flux',
+                  },
+                },
+                selected: [],
+              },
+              relationships: {
+                label: {
+                  data: [],
+                },
+              },
+            },
+            {
+              id: '1',
+              type: 'label',
+              attributes: {
+                name: '1label',
+                properties: {color: 'fffff', description: 'omg'},
               },
             },
           ],
@@ -230,6 +203,180 @@ describe('resourceToTemplate', () => {
           name: 'lala-Template',
           version: '1',
         },
+      }
+
+      expect(actual).toEqual(expected)
+    })
+  })
+
+  describe('dashboardToTemplate', () => {
+    it('can convert a dashboard to template', () => {
+      const myLabeledVar = {
+        ...createVariable('var_1', 'labeled var!'),
+        labels: [myfavelabel],
+      }
+
+      const dashboardWithDupeLabel = {
+        ...myDashboard,
+        labels: [myfavelabel],
+      }
+
+      const actual = dashboardToTemplate(
+        dashboardWithDupeLabel,
+        [myView],
+        [myLabeledVar]
+      )
+
+      const expected = {
+        meta: {
+          version: '1',
+          name: 'MyDashboard-Template',
+          description: 'template created from dashboard: MyDashboard',
+        },
+        content: {
+          data: {
+            type: 'dashboard',
+            attributes: {
+              name: 'MyDashboard',
+              description: '',
+            },
+            relationships: {
+              label: {
+                data: [
+                  {
+                    id: '1',
+                    type: 'label',
+                  },
+                ],
+              },
+              cell: {
+                data: [
+                  {
+                    type: 'cell',
+                    id: 'cell_view_1',
+                  },
+                ],
+              },
+              variable: {
+                data: [
+                  {
+                    type: 'variable',
+                    id: 'var_1',
+                  },
+                ],
+              },
+            },
+          },
+          included: [
+            {
+              id: '1',
+              type: 'label',
+              attributes: {
+                name: '1label',
+                properties: {color: 'fffff', description: 'omg'},
+              },
+            },
+            {
+              id: 'cell_view_1',
+              type: 'cell',
+              attributes: {
+                x: 0,
+                y: 0,
+                w: 4,
+                h: 4,
+              },
+              relationships: {
+                view: {
+                  data: {
+                    type: 'view',
+                    id: 'cell_view_1',
+                  },
+                },
+              },
+            },
+            {
+              type: 'view',
+              id: 'cell_view_1',
+              attributes: {
+                name: 'My Cell',
+                properties: {
+                  shape: 'chronograf-v2',
+                  queries: [
+                    {
+                      text: 'v.bucket',
+                      editMode: 'builder',
+                      name: 'View Query',
+                      builderConfig: {
+                        buckets: ['bb8'],
+                        tags: [
+                          {
+                            key: '_measurement',
+                            values: ['cpu'],
+                          },
+                          {
+                            key: '_field',
+                            values: [],
+                          },
+                        ],
+                        functions: [],
+                      },
+                    },
+                  ],
+                  axes: {
+                    x: {
+                      bounds: ['', ''],
+                      label: '',
+                      prefix: '',
+                      suffix: '',
+                      base: '10',
+                      scale: 'linear',
+                    },
+                    y: {
+                      bounds: ['', ''],
+                      label: '',
+                      prefix: '',
+                      suffix: '',
+                      base: '10',
+                      scale: 'linear',
+                    },
+                  },
+                  type: 'xy',
+                  legend: {},
+                  geom: 'line',
+                  colors: [],
+                  note: '',
+                  showNoteWhenEmpty: false,
+                },
+              },
+            },
+            {
+              type: 'variable',
+              id: 'var_1',
+              attributes: {
+                name: 'var_1',
+                arguments: {
+                  type: 'query',
+                  values: {
+                    query: 'labeled var!',
+                    language: 'flux',
+                  },
+                },
+                selected: [],
+              },
+              relationships: {
+                label: {
+                  data: [
+                    {
+                      type: 'label',
+                      id: '1',
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+        labels: [],
       }
 
       expect(actual).toEqual(expected)

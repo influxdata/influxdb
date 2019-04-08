@@ -5,11 +5,10 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Button, ComponentColor} from '@influxdata/clockface'
+import {Button, ComponentColor, Panel} from '@influxdata/clockface'
 import {
   Overlay,
   ResponsiveGridSizer,
-  Panel,
   EmptyState,
   ComponentSize,
 } from 'src/clockface'

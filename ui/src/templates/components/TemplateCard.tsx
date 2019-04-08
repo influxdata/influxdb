@@ -115,10 +115,9 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   private handleClone = () => {
     const {
       template: {id},
-      params: {orgID},
       onClone,
     } = this.props
-    onClone(id, orgID)
+    onClone(id)
   }
 
   private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {

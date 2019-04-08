@@ -32,7 +32,7 @@ export const getDashboards = async (): Promise<Dashboard[]> => {
 export const getDashboardsByOrgID = async (
   orgID: string
 ): Promise<Dashboard[]> => {
-  const dashboards = await client.dashboards.getAllByOrgID(orgID)
+  const dashboards = await client.dashboards.getAll(orgID)
 
   return dashboards.map(d => ({
     ...d,

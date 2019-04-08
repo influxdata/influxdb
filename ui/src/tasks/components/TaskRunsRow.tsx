@@ -12,9 +12,10 @@ import {getLogs} from 'src/tasks/actions'
 
 // Types
 import {ComponentSize, ComponentColor, Button} from '@influxdata/clockface'
-import {Run, LogEvent} from '@influxdata/influx'
+import {LogEvent} from '@influxdata/influx'
 import {AppState} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
+import {Run} from 'src/tasks/components/TaskRunsPage'
 
 interface OwnProps {
   taskID: string
@@ -49,15 +50,12 @@ class TaskRunsRow extends PureComponent<Props, State> {
     return (
       <>
         <IndexList.Row>
-          <IndexList.Cell>
-            {this.dateTimeString(run.requestedAt)}
-          </IndexList.Cell>
-          <IndexList.Cell>{this.dateTimeString(run.startedAt)}</IndexList.Cell>
-          <IndexList.Cell>{this.dateTimeString(run.finishedAt)}</IndexList.Cell>
           <IndexList.Cell>{run.status}</IndexList.Cell>
           <IndexList.Cell>
             {this.dateTimeString(run.scheduledFor)}
           </IndexList.Cell>
+          <IndexList.Cell>{this.dateTimeString(run.startedAt)}</IndexList.Cell>
+          <IndexList.Cell>{run.duration}</IndexList.Cell>
           <IndexList.Cell>
             <Button
               key={run.id}

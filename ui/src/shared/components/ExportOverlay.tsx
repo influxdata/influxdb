@@ -1,7 +1,6 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
-import {client} from 'src/utils/api'
 
 // Components
 import {
@@ -15,17 +14,10 @@ import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 import CopyButton from 'src/shared/components/CopyButton'
 
 // Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
-// Constants
-import {
-  resourceSavedAsTemplate,
-  saveResourceAsTemplateFailed,
-} from 'src/shared/copy/notifications'
+import {createTemplateFromResource} from 'src/templates/actions/'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
-import {addOrgIDToTemplate} from 'src/shared/utils/resourceToTemplate'
 
 // Types
 import {DocumentCreate} from '@influxdata/influx'
@@ -36,13 +28,12 @@ interface OwnProps {
   onDismissOverlay: () => void
   resource: DocumentCreate
   resourceName: string
-  orgID: string
   status: RemoteDataState
   isVisible: boolean
 }
 
 interface DispatchProps {
-  notify: typeof notifyAction
+  createTemplateFromResource: typeof createTemplateFromResource
 }
 
 type Props = OwnProps & DispatchProps
@@ -151,21 +142,14 @@ class ExportOverlay extends PureComponent<Props> {
   }
 
   private handleConvertToTemplate = async (): Promise<void> => {
-    const {resource, onDismissOverlay, orgID, notify, resourceName} = this.props
-    const template = addOrgIDToTemplate(resource, orgID)
-
-    try {
-      await client.templates.create(template)
-      notify(resourceSavedAsTemplate(resourceName))
-    } catch (error) {
-      notify(saveResourceAsTemplateFailed(resourceName, error))
-    }
+    const {resource, onDismissOverlay, resourceName} = this.props
+    createTemplateFromResource(resource, resourceName)
     onDismissOverlay()
   }
 }
 
 const mdtp: DispatchProps = {
-  notify: notifyAction,
+  createTemplateFromResource,
 }
 
 export default connect<{}, DispatchProps, OwnProps>(

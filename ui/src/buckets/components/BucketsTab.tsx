@@ -19,9 +19,9 @@ import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
 import {ruleToString} from 'src/utils/formatting'
 
 // Types
-import {Bucket, Organization, BucketRetentionRules} from '@influxdata/influx'
+import {Organization, BucketRetentionRules} from '@influxdata/influx'
 import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
-import {OverlayState, AppState} from 'src/types'
+import {OverlayState, AppState, Bucket} from 'src/types'
 
 interface StateProps {
   org: Organization
@@ -72,6 +72,7 @@ class BucketsTab extends PureComponent<Props, State> {
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
             onClick={this.handleOpenModal}
+            testID="Create Bucket"
           />
         </Tabs.TabContentsHeader>
         <FilterList<PrettyBucket>

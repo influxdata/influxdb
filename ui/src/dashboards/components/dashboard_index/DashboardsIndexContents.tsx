@@ -23,7 +23,6 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
   notify: (message: Notification) => void
   searchTerm: string
-  showOwnerColumn: boolean
   filterComponent?: () => JSX.Element
   onImportDashboard: () => void
 }
@@ -37,7 +36,6 @@ export default class DashboardsIndexContents extends Component<Props> {
       onCreateDashboard,
       onUpdateDashboard,
       searchTerm,
-      showOwnerColumn,
       dashboards,
       filterComponent,
       onFilterChange,
@@ -61,7 +59,6 @@ export default class DashboardsIndexContents extends Component<Props> {
               onCreateDashboard={onCreateDashboard}
               onCloneDashboard={onCloneDashboard}
               onUpdateDashboard={onUpdateDashboard}
-              showOwnerColumn={showOwnerColumn}
               onFilterChange={onFilterChange}
               onImportDashboard={onImportDashboard}
             />

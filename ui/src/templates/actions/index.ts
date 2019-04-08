@@ -5,7 +5,7 @@ import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 
 // Types
 import {TemplateSummary, DocumentCreate} from '@influxdata/influx'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, GetState} from 'src/types'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -72,16 +72,15 @@ export const setTemplatesStatus = (
 
 export interface SetExportTemplate {
   type: ActionTypes.SetExportTemplate
-  payload: {status: RemoteDataState; item?: DocumentCreate; orgID: string}
+  payload: {status: RemoteDataState; item?: DocumentCreate}
 }
 
 export const setExportTemplate = (
   status: RemoteDataState,
-  item?: DocumentCreate,
-  orgID?: string
+  item?: DocumentCreate
 ): SetExportTemplate => ({
   type: ActionTypes.SetExportTemplate,
-  payload: {status, item, orgID},
+  payload: {status, item},
 })
 
 interface RemoveTemplateSummary {
@@ -112,6 +111,22 @@ export const createTemplate = (template: DocumentCreate) => async dispatch => {
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.importTemplateFailed(e)))
+  }
+}
+
+export const createTemplateFromResource = (
+  resource: DocumentCreate,
+  resourceName: string
+) => async (dispatch, getState: GetState) => {
+  try {
+    const {
+      orgs: {org},
+    } = getState()
+    await client.templates.create({...resource, orgID: org.id})
+    dispatch(notify(copy.resourceSavedAsTemplate(resourceName)))
+  } catch (e) {
+    console.error(e)
+    dispatch(copy.saveResourceAsTemplateFailed(resourceName, e))
   }
 }
 
@@ -175,11 +190,16 @@ export const deleteTemplate = (templateID: string) => async (
   }
 }
 
-export const cloneTemplate = (templateID: string, orgID: string) => async (
-  dispatch
+export const cloneTemplate = (templateID: string) => async (
+  dispatch,
+  getState: GetState
 ): Promise<void> => {
   try {
-    const createdTemplate = await client.templates.clone(templateID, orgID)
+    const {
+      orgs: {org},
+    } = getState()
+
+    const createdTemplate = await client.templates.clone(templateID, org.id)
 
     dispatch(
       addTemplateSummary({

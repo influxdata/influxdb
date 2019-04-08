@@ -1,7 +1,9 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`TaskForm rendering renders 1`] = `
-<t>
+<t
+  testID="form-container"
+>
   <Grid>
     <GridRow>
       <GridColumn
@@ -9,6 +11,7 @@ exports[`TaskForm rendering renders 1`] = `
       >
         <t
           label="Name"
+          testID="form--element"
         >
           <t
             autoFocus={false}
@@ -32,10 +35,13 @@ exports[`TaskForm rendering renders 1`] = `
       >
         <t
           label="Schedule Task"
+          testID="form--element"
         >
           <t
-            align="left"
-            stackChildren="rows"
+            alignItems="flex-start"
+            direction="column"
+            justifyContent="flex-start"
+            margin="sm"
             stretchToFitHeight={false}
             stretchToFitWidth={false}
             testID="component-spacer"

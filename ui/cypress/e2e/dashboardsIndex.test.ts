@@ -173,7 +173,7 @@ describe('Dashboards', () => {
         })
       })
 
-      it.skip('can create a label and add to a dashboard', () => {
+      it('can create a label and add to a dashboard', () => {
         const label = 'plerps'
         cy.getByTestID(`inline-labels--add`)
           .first()

@@ -99,7 +99,6 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
     const {createOrg} = this.props
 
     await createOrg(org)
-    this.closeModal()
   }
 
   private closeModal = () => {

@@ -49,7 +49,7 @@ class OrgTemplatesIndex extends Component<Props> {
     return (
       <>
         <Page titleTag={org.name}>
-          <OrgHeader orgID={org.id} />
+          <OrgHeader />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
@@ -81,7 +81,7 @@ class OrgTemplatesIndex extends Component<Props> {
 
   private handleImport = () => {
     const {router, org} = this.props
-    router.push(`/organizations/${org.id}/templates/import`)
+    router.push(`/orgs/${org.id}/templates/import`)
   }
 }
 

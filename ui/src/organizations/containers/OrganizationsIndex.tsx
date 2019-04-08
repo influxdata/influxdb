@@ -14,7 +14,7 @@ import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import {deleteOrg} from 'src/organizations/actions/orgs'
 
 // Types
-import {Organization, Links} from 'src/types'
+import {Organization, Links, AppState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -97,11 +97,11 @@ class OrganizationsIndex extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state): StateProps => {
+const mstp = (state: AppState): StateProps => {
   const {orgs, links} = state
 
   return {
-    orgs,
+    orgs: orgs.items,
     links,
   }
 }

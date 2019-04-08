@@ -8,6 +8,7 @@ import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/D
 import {Page} from 'src/pageLayout'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // APIs
 import {createDashboard, cloneDashboard} from 'src/dashboards/apis/'
@@ -17,8 +18,6 @@ import {
   getDashboardsAsync,
   deleteDashboardAsync,
   updateDashboardAsync,
-  addDashboardLabelsAsync,
-  removeDashboardLabelsAsync,
 } from 'src/dashboards/actions'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -32,7 +31,7 @@ import {dashboardCreateFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {Notification} from 'src/types/notifications'
-import {Links, Dashboard, AppState} from 'src/types'
+import {Dashboard, AppState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -43,12 +42,9 @@ interface DispatchProps {
   handleUpdateDashboard: typeof updateDashboardAsync
   notify: (message: Notification) => void
   retainRangesDashTimeV1: (dashboardIDs: string[]) => void
-  onAddDashboardLabels: typeof addDashboardLabelsAsync
-  onRemoveDashboardLabels: typeof removeDashboardLabelsAsync
 }
 
 interface StateProps {
-  links: Links
   dashboards: Dashboard[]
 }
 
@@ -89,7 +85,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         <Page titleTag="Dashboards">
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
-              <Page.Title title="Dashboards" />
+              <PageTitleWithOrg title="Dashboards" />
             </Page.Header.Left>
             <Page.Header.Right>
               <AddResourceDropdown
@@ -119,7 +115,6 @@ class DashboardIndex extends PureComponent<Props, State> {
                   onUpdateDashboard={handleUpdateDashboard}
                   notify={notify}
                   searchTerm={searchTerm}
-                  showOwnerColumn={true}
                   onFilterChange={this.handleFilterDashboards}
                   onImportDashboard={this.summonImportOverlay}
                 />
@@ -203,12 +198,10 @@ class DashboardIndex extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   const {
     dashboards: {list: dashboards},
-    links,
   } = state
 
   return {
     dashboards,
-    links,
   }
 }
 
@@ -218,8 +211,6 @@ const mdtp: DispatchProps = {
   handleDeleteDashboard: deleteDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
   retainRangesDashTimeV1: retainRangesDashTimeV1Action,
-  onAddDashboardLabels: addDashboardLabelsAsync,
-  onRemoveDashboardLabels: removeDashboardLabelsAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

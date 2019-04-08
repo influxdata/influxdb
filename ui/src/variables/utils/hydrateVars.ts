@@ -9,7 +9,7 @@ import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {
   VariableValues,

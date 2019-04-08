@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
+import {Form, Input, ComponentSpacer} from '@influxdata/clockface'
 import {Grid, Dropdown} from 'src/clockface'
 
 // Constants
@@ -14,11 +14,10 @@ import {
 
 // Types
 import {
-  Stack,
   Columns,
-  Alignment,
   InputType,
-  ComponentSpacer,
+  FlexDirection,
+  AlignItems,
 } from '@influxdata/clockface'
 
 // Decorators
@@ -47,7 +46,10 @@ class TimeFormat extends PureComponent<Props, State> {
     return (
       <Grid.Column widthSM={Columns.Twelve}>
         <Form.Element label="Time Format">
-          <ComponentSpacer stackChildren={Stack.Rows} align={Alignment.Left}>
+          <ComponentSpacer
+            direction={FlexDirection.Column}
+            alignItems={AlignItems.FlexStart}
+          >
             <Dropdown
               selectedID={this.showCustom ? TIME_FORMAT_CUSTOM : format}
               onChange={this.handleChooseFormat}

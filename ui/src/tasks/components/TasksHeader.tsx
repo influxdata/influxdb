@@ -3,9 +3,16 @@ import React, {PureComponent} from 'react'
 import {Page} from 'src/pageLayout'
 
 // Components
-import {SlideToggle, ComponentSize} from '@influxdata/clockface'
-import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
+import {
+  SlideToggle,
+  ComponentSize,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+} from '@influxdata/clockface'
+import {Tabs} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 interface Props {
   onCreateTask: () => void
@@ -40,7 +47,7 @@ export default class TasksHeader extends PureComponent<Props> {
       return (
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title={this.pageTitle} />
+            <PageTitleWithOrg title={this.pageTitle} />
           </Page.Header.Left>
           <Page.Header.Right>
             <SlideToggle.Label text="Show Inactive" />
@@ -62,7 +69,11 @@ export default class TasksHeader extends PureComponent<Props> {
     return (
       <Tabs.TabContentsHeader>
         {filterComponent()}
-        <ComponentSpacer align={Alignment.Right} stackChildren={Stack.Columns}>
+        <ComponentSpacer
+          margin={ComponentSize.Small}
+          direction={FlexDirection.Row}
+          justifyContent={JustifyContent.FlexEnd}
+        >
           <SlideToggle.Label text="Show Inactive" />
           <SlideToggle
             active={showInactive}

@@ -6,14 +6,22 @@ import {
 } from 'src/variables/utils/hydrateVars'
 
 // Types
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 
-export const findDependentVariables = (
+const getDescendantsFromGraph = (
   variable: Variable,
   varGraph: VariableNode[]
 ): Variable[] => {
   const node = varGraph.find(n => n.variable.id === variable.id)
   return collectDescendants(node).map(n => n.variable)
+}
+
+export const findDepedentVariables = (
+  variable: Variable,
+  allVariables: Variable[]
+) => {
+  const varGraph = createVariableGraph(allVariables)
+  return getDescendantsFromGraph(variable, varGraph)
 }
 
 export const exportVariables = (
@@ -29,7 +37,7 @@ export const exportVariables = (
     }
 
     varSet.add(v)
-    for (const d of findDependentVariables(v, varGraph)) {
+    for (const d of getDescendantsFromGraph(v, varGraph)) {
       varSet.add(d)
     }
   }
