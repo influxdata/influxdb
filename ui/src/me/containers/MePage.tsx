@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {get} from 'lodash'
 
 // Components
 import {
@@ -26,16 +27,17 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface StateProps {
   me: AppState['me']
+  orgName: string
 }
 
 @ErrorHandling
 export class MePage extends PureComponent<StateProps> {
   public render() {
-    const {me} = this.props
+    const {me, orgName} = this.props
 
     return (
       <Page className="user-page" titleTag="My Account">
-        <Header userName={me.name} />
+        <Header userName={me.name} orgName={orgName} />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Grid>
@@ -69,9 +71,12 @@ export class MePage extends PureComponent<StateProps> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {me} = state
+  const {
+    me,
+    orgs: {org},
+  } = state
 
-  return {me}
+  return {me, orgName: get(org, 'name', '')}
 }
 
 export default connect<StateProps>(
