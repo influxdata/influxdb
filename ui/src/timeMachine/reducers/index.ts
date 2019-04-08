@@ -57,8 +57,6 @@ export interface TimeMachineState {
   isViewingRawData: boolean
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
-  availableXColumns: string[]
-  availableGroupColumns: string[]
   queryBuilder: QueryBuilderState
   queryResults: QueryResultsState
 }
@@ -77,8 +75,6 @@ export const initialStateHelper = (): TimeMachineState => ({
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
-  availableXColumns: [],
-  availableGroupColumns: [],
   queryResults: initialQueryResultsState(),
   queryBuilder: {
     buckets: [],
@@ -129,8 +125,6 @@ export const timeMachinesReducer = (
           ...initialState,
           activeTab: TimeMachineTab.Queries,
           isViewingRawData: false,
-          availableXColumns: [],
-          availableGroupColumns: [],
           activeQueryIndex: 0,
           draftQueries,
           queryBuilder,
@@ -291,35 +285,6 @@ export const timeMachineReducer = (
       const {scale} = action.payload
 
       return setYAxis(state, {scale})
-    }
-
-    case 'TABLE_LOADED': {
-      return produce(state, draftState => {
-        const {availableXColumns, availableGroupColumns} = action.payload
-
-        draftState.availableXColumns = availableXColumns
-        draftState.availableGroupColumns = availableGroupColumns
-
-        if (draftState.view.properties.type !== ViewType.Histogram) {
-          return
-        }
-
-        const {xColumn, fillColumns} = draftState.view.properties
-        const xColumnStale = !xColumn || !availableXColumns.includes(xColumn)
-        const fillColumnsStale =
-          !fillColumns ||
-          fillColumns.some(name => !availableGroupColumns.includes(name))
-
-        if (xColumnStale && availableXColumns.includes('_value')) {
-          draftState.view.properties.xColumn = '_value'
-        } else if (xColumnStale) {
-          draftState.view.properties.xColumn = availableXColumns[0]
-        }
-
-        if (fillColumnsStale) {
-          draftState.view.properties.fillColumns = []
-        }
-      })
     }
 
     case 'SET_X_COLUMN': {

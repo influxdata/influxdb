@@ -1,42 +1,64 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
+import {connect} from 'react-redux'
+import {AutoSizer} from 'react-virtualized'
 
 // Components
+import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
 import GaugeChart from 'src/shared/components/GaugeChart'
 import SingleStat from 'src/shared/components/SingleStat'
 import SingleStatTransform from 'src/shared/components/SingleStatTransform'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
 import DygraphContainer from 'src/shared/components/DygraphContainer'
 import Histogram from 'src/shared/components/Histogram'
-import HistogramTransform from 'src/shared/components/HistogramTransform'
+import HistogramTransform from 'src/timeMachine/components/HistogramTransform'
+
+// Utils
+import {getActiveTimeMachine, getTables} from 'src/timeMachine/selectors'
 
 // Types
 import {
-  QueryViewProperties,
+  TimeRange,
   ViewType,
-  SingleStatView,
+  QueryViewProperties,
+  FluxTable,
+  RemoteDataState,
   XYView,
   XYViewGeom,
-} from 'src/types/dashboards'
-import {FluxTable, RemoteDataState, TimeRange} from 'src/types'
+  SingleStatView,
+  AppState,
+} from 'src/types'
 
-interface Props {
-  viewID: string
+interface StateProps {
+  files: string[]
   tables: FluxTable[]
   loading: RemoteDataState
+  timeRange: TimeRange
   properties: QueryViewProperties
-  timeRange?: TimeRange
-  onZoom?: (range: TimeRange) => void
+  isViewingRawData: boolean
 }
 
-const QueryViewSwitcher: FunctionComponent<Props> = ({
-  properties,
-  loading,
-  viewID,
+const VisSwitcher: FunctionComponent<StateProps> = ({
+  files,
   tables,
-  onZoom,
+  loading,
   timeRange,
+  properties,
+  isViewingRawData,
 }) => {
+  if (isViewingRawData) {
+    return (
+      <AutoSizer>
+        {({width, height}) =>
+          width &&
+          height && (
+            <RawFluxDataTable files={files} width={width} height={height} />
+          )
+        }
+      </AutoSizer>
+    )
+  }
+
   switch (properties.type) {
     case ViewType.SingleStat:
       return (
@@ -51,33 +73,31 @@ const QueryViewSwitcher: FunctionComponent<Props> = ({
     case ViewType.XY:
       return (
         <DygraphContainer
+          viewID="time-machine"
           tables={tables}
-          viewID={viewID}
-          onZoom={onZoom}
           loading={loading}
           timeRange={timeRange}
           properties={properties}
         />
       )
     case ViewType.LinePlusSingleStat:
-      const xyProperties = {
+      const xyProperties: XYView = {
         ...properties,
         colors: properties.colors.filter(c => c.type === 'scale'),
         type: ViewType.XY,
         geom: XYViewGeom.Line,
-      } as XYView
+      }
 
-      const singleStatProperties = {
+      const singleStatProperties: SingleStatView = {
         ...properties,
         colors: properties.colors.filter(c => c.type !== 'scale'),
         type: ViewType.SingleStat,
-      } as SingleStatView
+      }
 
       return (
         <DygraphContainer
+          viewID="time-machine"
           tables={tables}
-          viewID={viewID}
-          onZoom={onZoom}
           loading={loading}
           timeRange={timeRange}
           properties={xyProperties}
@@ -91,13 +111,38 @@ const QueryViewSwitcher: FunctionComponent<Props> = ({
       )
     case ViewType.Histogram:
       return (
-        <HistogramTransform tables={tables}>
-          {table => <Histogram table={table} properties={properties} />}
+        <HistogramTransform>
+          {({table, xColumn, fillColumns}) => (
+            <Histogram
+              table={table}
+              properties={{...properties, xColumn, fillColumns}}
+            />
+          )}
         </HistogramTransform>
       )
     default:
-      return <div />
+      return null
   }
 }
 
-export default QueryViewSwitcher
+const mstp = (state: AppState) => {
+  const {
+    view: {properties},
+    timeRange,
+    isViewingRawData,
+    queryResults: {status: loading, files},
+  } = getActiveTimeMachine(state)
+
+  const tables = getTables(state)
+
+  return {
+    files,
+    tables,
+    loading,
+    timeRange,
+    properties,
+    isViewingRawData,
+  }
+}
+
+export default connect<StateProps>(mstp)(VisSwitcher)
