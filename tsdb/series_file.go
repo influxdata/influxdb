@@ -48,6 +48,8 @@ type SeriesFile struct {
 	defaultMetricLabels prometheus.Labels
 	metricsEnabled      bool
 
+	LargeWriteThreshold int
+
 	Logger *zap.Logger
 }
 
@@ -57,6 +59,8 @@ func NewSeriesFile(path string) *SeriesFile {
 		path:           path,
 		metricsEnabled: true,
 		Logger:         zap.NewNop(),
+
+		LargeWriteThreshold: DefaultLargeSeriesWriteThreshold,
 	}
 }
 
@@ -121,6 +125,7 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 	for i := 0; i < SeriesFilePartitionN; i++ {
 		// TODO(edd): These partition initialisation should be moved up to NewSeriesFile.
 		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
+		p.LargeWriteThreshold = f.LargeWriteThreshold
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 
 		// For each series file index, rhh trackers are used to track the RHH Hashmap.
