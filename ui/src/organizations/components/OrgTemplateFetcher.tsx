@@ -21,20 +21,20 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  orgName: string
+  orgID: string
 }
 
 type Props = StateProps & DispatchProps & OwnProps
 
 const OrgTemplateFetcher: FunctionComponent<Props> = ({
-  orgName,
+  orgID,
   templatesStatus,
   onGetTemplatesForOrg,
   children,
 }) => {
   useEffect(() => {
     if (templatesStatus === RemoteDataState.NotStarted) {
-      onGetTemplatesForOrg(orgName)
+      onGetTemplatesForOrg(orgID)
     }
   }, [templatesStatus])
 

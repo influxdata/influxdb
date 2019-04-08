@@ -60,7 +60,7 @@ class OrgTemplatesIndex extends Component<Props> {
                     url="templates"
                     title="Templates"
                   >
-                    <OrgTemplateFetcher orgName={org.name}>
+                    <OrgTemplateFetcher orgID={org.id}>
                       <OrgTemplatesPage
                         templates={templates}
                         orgName={org.name}
