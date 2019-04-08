@@ -131,7 +131,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
       template,
       params: {orgID},
     } = this.props
-    router.push(`organizations/${orgID}/templates/${template.id}/export`)
+    router.push(`orgs/${orgID}/templates/${template.id}/export`)
   }
 }
 
