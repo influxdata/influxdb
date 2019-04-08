@@ -28,6 +28,7 @@ import DashboardsIndex from 'src/dashboards/components/dashboard_index/Dashboard
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import DashboardImportFromTemplateOverlay from 'src/dashboards/components/DashboardImportFromTemplateOverlay'
+import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import {MePage, Account} from 'src/me'
@@ -207,6 +208,10 @@ class Root extends PureComponent {
                             <Route
                               path=":id/export"
                               component={VariableExportOverlay}
+                            />
+                            <Route
+                              path="new"
+                              component={CreateVariableOverlay}
                             />
                           </Route>
                           <Route path="scrapers" component={OrgScrapersIndex} />
