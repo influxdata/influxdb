@@ -61,6 +61,8 @@ class SideNav extends PureComponent<Props, State> {
     const dataExplorerLink = `${orgPrefix}/data-explorer`
     const tasksLink = `${orgPrefix}/tasks`
     const settingsLink = `${orgPrefix}/settings`
+    const feedbackLink =
+      'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
 
     return (
       <NavMenu>
@@ -137,6 +139,19 @@ class SideNav extends PureComponent<Props, State> {
             </Link>
           )}
           active={getNavItemActivation(['settings'], location.pathname)}
+        />
+        <NavMenu.Item
+          titleLink={className => (
+            <a className={className} href={feedbackLink} target="_blank">
+              Feedback
+            </a>
+          )}
+          iconLink={className => (
+            <a href={feedbackLink} className={className} target="_blank">
+              <Icon glyph={IconFont.Chat} />
+            </a>
+          )}
+          active={getNavItemActivation(['feedback'], location.pathname)}
         />
         <CloudNav />
       </NavMenu>
