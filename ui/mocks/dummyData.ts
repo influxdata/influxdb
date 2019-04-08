@@ -40,7 +40,6 @@ export const links: Links = {
   query: {
     ast: '/api/v2/query/ast',
     self: '/api/v2/query',
-    spec: '/api/v2/query/spec',
     suggestions: '/api/v2/query/suggestions',
   },
   setup: '/api/v2/setup',

@@ -14,7 +14,6 @@ const links: Links = {
   query: {
     self: '/api/v2/query',
     ast: '/api/v2/query/ast',
-    spec: '/api/v2/query/spec',
     suggestions: '/api/v2/query/suggestions',
   },
   orgs: '/api/v2/orgs',
