@@ -8,6 +8,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
@@ -22,7 +23,10 @@ func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFu
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	i := inmem.NewService()
+	i := kv.NewService(inmem.NewKVStore())
+	if err := i.Initialize(context.Background()); err != nil {
+		t.Fatalf("error initializing kv service: %v", err)
+	}
 
 	backingTS := task.PlatformAdapter(store, rrw, sch, i, i, i)
 

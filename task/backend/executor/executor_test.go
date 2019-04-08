@@ -18,6 +18,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task"
@@ -242,14 +243,14 @@ type system struct {
 	ex   backend.Executor
 	// We really just want an authorization service here, but we take a whole inmem service
 	// to ensure that the authorization service validates org and user existence properly.
-	i *inmem.Service
+	i *kv.Service
 }
 
 type createSysFn func() *system
 
 func createAsyncSystem() *system {
 	svc := newFakeQueryService()
-	i := inmem.NewService()
+	i := kv.NewService(inmem.NewKVStore())
 	ts := task.PlatformAdapter(backend.NewInMemStore(), backend.NopLogReader{}, noopRunCanceler{}, i, i, i)
 	return &system{
 		name: "AsyncExecutor",
@@ -262,7 +263,7 @@ func createAsyncSystem() *system {
 
 func createSyncSystem() *system {
 	svc := newFakeQueryService()
-	i := inmem.NewService()
+	i := kv.NewService(inmem.NewKVStore())
 	ts := task.PlatformAdapter(backend.NewInMemStore(), backend.NopLogReader{}, noopRunCanceler{}, i, i, i)
 	return &system{
 		name: "SynchronousExecutor",
@@ -661,7 +662,7 @@ type testCreds struct {
 	Auth          *platform.Authorization
 }
 
-func createCreds(t *testing.T, i *inmem.Service) testCreds {
+func createCreds(t *testing.T, i *kv.Service) testCreds {
 	t.Helper()
 
 	org := &platform.Organization{Name: t.Name() + "-org"}

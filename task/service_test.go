@@ -8,6 +8,7 @@ import (
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
 	boltstore "github.com/influxdata/influxdb/task/backend/bolt"
@@ -25,7 +26,11 @@ func inMemFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 		st.Close()
 	}()
 
-	i := inmem.NewService()
+	i := kv.NewService(inmem.NewKVStore())
+	if err := i.Initialize(context.Background()); err != nil {
+		t.Fatalf("error initializing kv service: %v", err)
+	}
+
 	return &servicetest.System{
 		TaskControlService: backend.TaskControlAdaptor(st, lrw, lrw),
 		Ctx:                ctx,
@@ -61,7 +66,10 @@ func boltFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
 		}
 	}()
 
-	i := inmem.NewService()
+	i := kv.NewService(inmem.NewKVStore())
+	if err := i.Initialize(context.Background()); err != nil {
+		t.Fatalf("error initializing kv service: %v", err)
+	}
 	return &servicetest.System{
 		TaskControlService: backend.TaskControlAdaptor(st, lrw, lrw),
 		TaskService:        servicetest.UsePlatformAdaptor(st, lrw, mock.NewScheduler(), i),

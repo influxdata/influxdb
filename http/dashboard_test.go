@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
@@ -1259,10 +1260,14 @@ func Test_dashboardCellIDPath(t *testing.T) {
 
 func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (platform.DashboardService, string, func()) {
 	t.Helper()
-	svc := inmem.NewService()
+	ctx := context.Background()
+	svc := kv.NewService(inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
 	svc.WithTime(f.NowFn)
-	ctx := context.Background()
+	if err := svc.Initialize(ctx); err != nil {
+		t.Fatalf("error initializing kv service: %v", err)
+	}
+
 	for _, d := range f.Dashboards {
 		if err := svc.PutDashboard(ctx, d); err != nil {
 			t.Fatalf("failed to populate dashboard")

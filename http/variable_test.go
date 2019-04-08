@@ -14,6 +14,7 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
@@ -843,10 +844,13 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 
 func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
 	t.Helper()
-	svc := inmem.NewService()
-	svc.IDGenerator = f.IDGenerator
-
 	ctx := context.Background()
+	svc := kv.NewService(inmem.NewKVStore())
+	svc.IDGenerator = f.IDGenerator
+	if err := svc.Initialize(ctx); err != nil {
+		t.Fatalf("error initializing kv service: %v", err)
+	}
+
 	for _, variable := range f.Variables {
 		if err := svc.ReplaceVariable(ctx, variable); err != nil {
 			t.Fatalf("failed to populate variables")
