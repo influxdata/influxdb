@@ -2,8 +2,7 @@
 import React, {SFC} from 'react'
 
 // Components
-import {ComponentColor, IconFont} from '@influxdata/clockface'
-import {Alert} from '@influxdata/clockface'
+import {ComponentColor, IconFont, Alert} from '@influxdata/clockface'
 
 interface Props {
   visible: boolean

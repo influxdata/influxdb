@@ -2,8 +2,7 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Form, Radio} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Radio, Grid} from '@influxdata/clockface'
 
 // Types
 import {ButtonShape} from '@influxdata/clockface'

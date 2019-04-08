@@ -1,8 +1,6 @@
 // Import Components
-import Alert from './components/alerts/Alert'
 import AutoInput from './components/auto_input/AutoInput'
 import ConfirmationButton from './components/confirmation_button/ConfirmationButton'
-import ColorPicker from './components/color_picker/ColorPicker'
 import Dropdown, {DropdownMode} from './components/dropdowns/Dropdown'
 import MultiSelectDropdown from './components/dropdowns/MultiSelectDropdown'
 import Form from './components/form_layout/Form'
@@ -11,12 +9,10 @@ import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
 import Overlay from './components/overlays/Overlay'
-import Radio from './components/radio_buttons/RadioButtons'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardOverlay from './components/wizard/WizardOverlay'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
 import ProgressBar from './components/wizard/ProgressBar'
-import EmptyState from './components/empty_state/EmptyState'
 import IndexList from './components/index_views/IndexList'
 import ResourceList from './components/resource_list/ResourceList'
 import Context from './components/context_menu/Context'
@@ -26,7 +22,6 @@ import Label from 'src/clockface/components/label/Label'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 import ResponsiveGridSizer from 'src/clockface/components/grid_sizer/ResponsiveGridSizer'
 import Select from 'src/clockface/components/Select'
-import Grid from 'src/clockface/components/grid_layout/Grid'
 import QuestionMarkTooltip from 'src/clockface/components/tooltips/QuestionMarkTooltip'
 import Tabs from './components/tabs/Tabs'
 
@@ -50,13 +45,11 @@ import {
 
 // Fire de lazer
 export {
-  Alert,
   Alignment,
   AutoComplete,
   AutoInput,
   ButtonType,
   ButtonShape,
-  ColorPicker,
   Columns,
   ComponentColor,
   ComponentSize,
@@ -68,11 +61,9 @@ export {
   DropdownChild,
   DropdownMenuColors,
   DropdownMode,
-  EmptyState,
   Form,
   FormElement,
   Greys,
-  Grid,
   GridSizer,
   IconFont,
   IndexList,
@@ -86,7 +77,6 @@ export {
   Overlay,
   ProgressBar,
   QuestionMarkTooltip,
-  Radio,
   ResourceList,
   ResponsiveGridSizer,
   Select,

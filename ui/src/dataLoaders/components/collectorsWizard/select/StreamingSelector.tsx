@@ -4,8 +4,8 @@ import uuid from 'uuid'
 import _ from 'lodash'
 
 // Components
-import {Input, EmptyState, FormElement} from '@influxdata/clockface'
-import {ResponsiveGridSizer, Grid} from 'src/clockface'
+import {Input, EmptyState, FormElement, Grid} from '@influxdata/clockface'
+import {ResponsiveGridSizer} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 

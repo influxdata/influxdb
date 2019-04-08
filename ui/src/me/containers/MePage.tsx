@@ -9,8 +9,9 @@ import {
   FlexDirection,
   ComponentSize,
   AlignItems,
+  Grid,
+  Columns,
 } from '@influxdata/clockface'
-import {Grid, Columns} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import Resources from 'src/me/components/Resources'
 import Header from 'src/me/components/UserPageHeader'
