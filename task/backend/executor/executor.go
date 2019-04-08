@@ -331,7 +331,6 @@ SelectLoop:
 				break SelectLoop
 			}
 
-
 			rwg.Add(1)
 			go func() {
 				defer rwg.Done()
