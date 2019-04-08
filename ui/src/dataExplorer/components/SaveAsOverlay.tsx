@@ -5,7 +5,8 @@ import {withRouter, WithRouterProps} from 'react-router'
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
 import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
 import SaveAsVariable from 'src/dataExplorer/components/SaveAsVariable'
-import {Radio, Overlay} from 'src/clockface'
+import {Radio} from '@influxdata/clockface'
+import {Overlay} from 'src/clockface'
 
 enum SaveAsOption {
   Dashboard = 'dashboard',
@@ -38,6 +39,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   value={SaveAsOption.Dashboard}
                   onClick={this.handleSetSaveAsOption}
                   data-testid="cell-radio-button"
+                  titleText="Save query as a dashboard cell"
                 >
                   Dashboard Cell
                 </Radio.Button>
@@ -47,6 +49,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   value={SaveAsOption.Task}
                   onClick={this.handleSetSaveAsOption}
                   data-testid="task--radio-button"
+                  titleText="Save query as a task"
                 >
                   Task
                 </Radio.Button>
@@ -56,6 +59,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   value={SaveAsOption.Variable}
                   onClick={this.handleSetSaveAsOption}
                   data-testid="variable-radio-button"
+                  titleText="Save query as a variable"
                 >
                   Variable
                 </Radio.Button>

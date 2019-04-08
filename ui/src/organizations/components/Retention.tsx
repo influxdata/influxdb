@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Radio, ButtonShape} from 'src/clockface'
+import {Radio, ButtonShape} from '@influxdata/clockface'
 import RetentionDuration from 'src/organizations/components/RetentionDuration'
 
 // Utils
@@ -35,6 +35,7 @@ export default class Retention extends PureComponent<Props> {
             active={type === null}
             onClick={this.handleRadioClick}
             value={null}
+            titleText="Never compress data"
           >
             Never
           </Radio.Button>
@@ -43,7 +44,8 @@ export default class Retention extends PureComponent<Props> {
             active={type === BucketRetentionRules.TypeEnum.Expire}
             onClick={this.handleRadioClick}
             value={BucketRetentionRules.TypeEnum.Expire}
-            testID="retention-intervals"
+            data-testid="retention-intervals"
+            titleText="Compress data at regular intervals"
           >
             Periodically
           </Radio.Button>

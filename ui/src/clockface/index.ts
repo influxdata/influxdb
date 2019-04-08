@@ -10,7 +10,6 @@ import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
 import Overlay from './components/overlays/Overlay'
-import Radio from './components/radio_buttons/RadioButtons'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardOverlay from './components/wizard/WizardOverlay'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
@@ -82,7 +81,6 @@ export {
   Overlay,
   ProgressBar,
   QuestionMarkTooltip,
-  Radio,
   ResourceList,
   ResponsiveGridSizer,
   Select,

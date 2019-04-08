@@ -2,8 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Form, Radio} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Radio, Grid} from '@influxdata/clockface'
 
 // Constants
 import {AXES_SCALE_OPTIONS} from 'src/dashboards/constants/cellEditor'
