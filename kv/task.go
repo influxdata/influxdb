@@ -364,10 +364,10 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	}
 
 	orgKey, err := taskOrgKey(task.OrganizationID, task.ID)
-
-	if _, err := taskBucket.Get(taskKey); err != ErrKeyNotFound {
-		panic(err)
+	if err != nil {
+		return nil, err
 	}
+
 	// write the task
 	err = taskBucket.Put(taskKey, taskBytes)
 	if err != nil {
@@ -793,7 +793,7 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 	}
 
 	if runsBytes != nil {
-		if err := json.Unmarshal(runsBytes, runs); err != nil {
+		if err := json.Unmarshal(runsBytes, &runs); err != nil {
 			return nil, err
 		}
 	}
@@ -861,6 +861,9 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 
 	// save manual runs
 	runsBytes, err := json.Marshal(runs)
+	if err != nil {
+		return nil, err
+	}
 
 	key, err := taskManualRunKey(taskID)
 	if err != nil {
