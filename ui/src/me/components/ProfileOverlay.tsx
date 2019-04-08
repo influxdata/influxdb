@@ -54,7 +54,11 @@ export class Settings extends PureComponent<Props, State> {
             </Overlay.Body>
             <Overlay.Footer>
               <Button text="Cancel" onClick={this.handleDismiss} />
-              <Button text="Save" color={ComponentColor.Success} />
+              <Button
+                text="Save"
+                color={ComponentColor.Success}
+                status={ComponentStatus.Disabled}
+              />
             </Overlay.Footer>
           </Form>
         </Overlay.Container>
