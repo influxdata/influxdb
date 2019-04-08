@@ -44,49 +44,70 @@ func UsePlatformAdaptor(s backend.Store, lr backend.LogReader, rc task.RunContro
 // TestTaskService should be called by consumers of the servicetest package.
 // This will call fn once to create a single influxdb.TaskService
 // used across all subtests in TestTaskService.
-func TestTaskService(t *testing.T, fn BackendComponentFactory) {
+func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...string) {
 	sys, cancel := fn(t)
 	defer cancel()
 
-	t.Run("TaskService", func(t *testing.T) {
-		// We're running the subtests in parallel, but if we don't use this wrapper,
-		// the defer cancel() call above would return before the parallel subtests completed.
-		//
-		// Running the subtests in parallel might make them slightly faster,
-		// but more importantly, it should exercise concurrency to catch data races.
+	if len(testCategory) == 0 {
+		testCategory = []string{"transactional", "analytical"}
+	}
 
-		t.Run("Task CRUD", func(t *testing.T) {
-			t.Parallel()
-			testTaskCRUD(t, sys)
-		})
+	for _, category := range testCategory {
+		switch category {
+		case "transactional":
+			t.Run("TransactionalTaskService", func(t *testing.T) {
+				// We're running the subtests in parallel, but if we don't use this wrapper,
+				// the defer cancel() call above would return before the parallel subtests completed.
+				//
+				// Running the subtests in parallel might make them slightly faster,
+				// but more importantly, it should exercise concurrency to catch data races.
 
-		t.Run("Task Update Options Full", func(t *testing.T) {
-			t.Parallel()
-			testTaskOptionsUpdateFull(t, sys)
-		})
+				t.Run("Task CRUD", func(t *testing.T) {
+					t.Parallel()
+					testTaskCRUD(t, sys)
+				})
 
-		t.Run("Task Runs", func(t *testing.T) {
-			t.Parallel()
-			testTaskRuns(t, sys)
-		})
+				t.Run("Task Update Options Full", func(t *testing.T) {
+					t.Parallel()
+					testTaskOptionsUpdateFull(t, sys)
+				})
 
-		t.Run("Task Concurrency", func(t *testing.T) {
-			if testing.Short() {
-				t.Skip("skipping in short mode")
-			}
-			t.Parallel()
-			testTaskConcurrency(t, sys)
-		})
+				t.Run("Task Runs", func(t *testing.T) {
+					// t.Parallel()
+					testTaskRuns(t, sys)
+				})
 
-		t.Run("Task Meta Updates", func(t *testing.T) {
-			t.Parallel()
-			testMetaUpdate(t, sys)
-		})
-		t.Run("Task Manual Run", func(t *testing.T) {
-			t.Parallel()
-			testManualRun(t, sys)
-		})
-	})
+				t.Run("Task Concurrency", func(t *testing.T) {
+					if testing.Short() {
+						t.Skip("skipping in short mode")
+					}
+					t.Parallel()
+					testTaskConcurrency(t, sys)
+				})
+
+				t.Run("Task Updates", func(t *testing.T) {
+					t.Parallel()
+					testUpdate(t, sys)
+				})
+				t.Run("Task Manual Run", func(t *testing.T) {
+					t.Parallel()
+					testManualRun(t, sys)
+				})
+			})
+		case "analytical":
+			t.Run("AnalyticalTaskService", func(t *testing.T) {
+				t.Run("Task Run Storage", func(t *testing.T) {
+					t.Parallel()
+					testRunStorage(t, sys)
+				})
+				t.Run("Task RetryRun", func(t *testing.T) {
+					t.Parallel()
+					testRetryAcrossStorage(t, sys)
+				})
+			})
+		}
+	}
+
 }
 
 // TestCreds encapsulates credentials needed for a system to properly work with tasks.
@@ -96,6 +117,7 @@ type TestCreds struct {
 	Token                          string
 }
 
+// Authorizer returns an authorizer for the credentails in the struct
 func (tc TestCreds) Authorizer() influxdb.Authorizer {
 	return &influxdb.Authorization{
 		ID:     tc.AuthorizationID,
@@ -105,13 +127,21 @@ func (tc TestCreds) Authorizer() influxdb.Authorizer {
 	}
 }
 
-// System, as in "system under test", encapsulates the required parts of a influxdb.TaskAdapter
-// (the underlying Store, LogReader, and LogWriter) for low-level operations.
+// UsedServices is a simple interface that contains all the service we need
+// now we dont have to use a specific implementation of these services.
+type UsedServices interface {
+	influxdb.UserService
+	influxdb.OrganizationService
+	influxdb.UserResourceMappingService
+	influxdb.AuthorizationService
+}
+
+// System  as in "system under test" encapsulates the required parts of a influxdb.TaskAdapter
 type System struct {
 	TaskControlService backend.TaskControlService
 
 	// Used in the Creds function to create valid organizations, users, tokens, etc.
-	I *inmem.Service
+	I UsedServices
 
 	// Set this context, to be used in tests, so that any spawned goroutines watching Ctx.Done()
 	// will clean up after themselves.
@@ -149,14 +179,13 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		t.Fatal("no task ID set")
 	}
 
-	findTask := func(tasks []*influxdb.Task, id influxdb.ID) *influxdb.Task {
+	findTask := func(tasks []*influxdb.Task, id influxdb.ID) (*influxdb.Task, error) {
 		for _, t := range tasks {
 			if t.ID == id {
-				return t
+				return t, nil
 			}
 		}
-		t.Fatalf("failed to find task by id %s", id)
-		return nil
+		return nil, fmt.Errorf("failed to find task by id %s", id)
 	}
 
 	// Look up a task the different ways we can.
@@ -176,14 +205,20 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f = findTask(fs, tsk.ID)
+	f, err = findTask(fs, tsk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	found["FindTasks with Organization filter"] = f
 
 	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{User: &cr.UserID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	f = findTask(fs, tsk.ID)
+	f, err = findTask(fs, tsk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	found["FindTasks with User filter"] = f
 
 	for fn, f := range found {
@@ -418,7 +453,7 @@ from(bucket: "b")
 
 }
 
-func testMetaUpdate(t *testing.T, sys *System) {
+func testUpdate(t *testing.T, sys *System) {
 	cr := creds(t, sys)
 
 	now := time.Now()
@@ -477,7 +512,7 @@ func testMetaUpdate(t *testing.T, sys *System) {
 	}
 
 	if st2.LatestCompleted <= st.LatestCompleted {
-		t.Fatalf("executed task has not updated latest complete: expected > %s", st2.LatestCompleted)
+		t.Fatalf("executed task has not updated latest complete: expected %s > %s", st2.LatestCompleted, st.LatestCompleted)
 	}
 
 	now = time.Now()
@@ -562,16 +597,27 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt, backend.RunStarted); err != nil {
 			t.Fatal(err)
 		}
-		// Mark the second run finished.
-		if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.Created.RunID); err != nil {
+
+		runs, _, err := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 1})
+		if err != nil {
 			t.Fatal(err)
 		}
+
+		if len(runs) != 1 {
+			t.Fatalf("expected 1 run, got %#v", runs)
+		}
+
+		// Mark the second run finished.
 		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
 			t.Fatal(err)
 		}
 
+		if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.Created.RunID); err != nil {
+			t.Fatal(err)
+		}
+
 		// Limit 1 should only return the earlier run.
-		runs, _, err := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 1})
+		runs, _, err = sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -589,40 +635,6 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 		if runs[0].FinishedAt != "" {
 			t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
-		}
-
-		// Unspecified limit returns both runs.
-		runs, _, err = sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(runs) != 2 {
-			t.Fatalf("expected 2 runs, got %v", runs)
-		}
-		if runs[0].ID != rc0.Created.RunID {
-			t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
-		}
-		if exp := startedAt.Format(time.RFC3339Nano); runs[0].StartedAt != exp {
-			t.Fatalf("unexpectedStartedAt; want %s, got %s", exp, runs[0].StartedAt)
-		}
-		if runs[0].Status != backend.RunStarted.String() {
-			t.Fatalf("unexpected run status; want %s, got %s", backend.RunStarted.String(), runs[0].Status)
-		}
-		if runs[0].FinishedAt != "" {
-			t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
-		}
-
-		if runs[1].ID != rc1.Created.RunID {
-			t.Fatalf("retrieved wrong run ID; want %s, got %s", rc1.Created.RunID, runs[1].ID)
-		}
-		if runs[1].StartedAt != runs[0].StartedAt {
-			t.Fatalf("unexpected StartedAt; want %s, got %s", runs[0].StartedAt, runs[1].StartedAt)
-		}
-		if runs[1].Status != backend.RunSuccess.String() {
-			t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[0].Status)
-		}
-		if exp := startedAt.Add(time.Second).Format(time.RFC3339Nano); runs[1].FinishedAt != exp {
-			t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[1].FinishedAt)
 		}
 
 		// Look for a run that doesn't exist.
@@ -645,84 +657,6 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if diff := cmp.Diff(foundRun0, runs[0]); diff != "" {
 			t.Fatalf("difference between listed run and found run: %s", diff)
 		}
-
-		foundRun1, err := sys.TaskService.FindRunByID(sys.Ctx, task.ID, runs[1].ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if diff := cmp.Diff(foundRun1, runs[1]); diff != "" {
-			t.Fatalf("difference between listed run and found run: %s", diff)
-		}
-	})
-
-	t.Run("RetryRun", func(t *testing.T) {
-		t.Parallel()
-
-		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
-		// which makes timing of runs somewhat difficult.
-		ct := influxdb.TaskCreate{
-			OrganizationID: cr.OrgID,
-			Flux:           fmt.Sprintf(scriptFmt, 0),
-			Token:          cr.Token,
-		}
-		task, err := sys.TaskService.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
-		if err != nil {
-			t.Fatal(err)
-		}
-		// Non-existent ID should return the right error.
-		_, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
-		if err != backend.ErrRunNotFound {
-			t.Errorf("expected retrying run that doesn't exist to return %v, got %v", backend.ErrRunNotFound, err)
-		}
-
-		requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make a run.
-
-		rc, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if rc.Created.TaskID != task.ID {
-			t.Fatalf("wrong task ID on created task: got %s, want %s", rc.Created.TaskID, task.ID)
-		}
-
-		startedAt := time.Now().UTC()
-
-		// Update the run state to Started then Failed; normally the scheduler would do this.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, startedAt, backend.RunStarted); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.Created.RunID); err != nil {
-			t.Fatal(err)
-		}
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, startedAt.Add(time.Second), backend.RunFail); err != nil {
-			t.Fatal(err)
-		}
-
-		// Now retry the run.
-		m, err := sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if m.TaskID != task.ID {
-			t.Fatalf("wrong task ID on retried run: got %s, want %s", m.TaskID, task.ID)
-		}
-		if m.Status != "scheduled" {
-			t.Fatal("expected new retried run to have status of scheduled")
-		}
-		nowTime, err := time.Parse(time.RFC3339, m.ScheduledFor)
-		if err != nil {
-			t.Fatalf("expected scheduledFor to be a parsable time in RFC3339, but got %s", m.ScheduledFor)
-		}
-		if nowTime.Unix() != rc.Created.Now {
-			t.Fatalf("wrong scheduledFor on task: got %s, want %s", m.ScheduledFor, time.Unix(rc.Created.Now, 0).Format(time.RFC3339))
-		}
-
-		exp := backend.RequestStillQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
-
-		// Retrying a run which has been queued but not started, should be rejected.
-		if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID); err != exp {
-			t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
-		}
 	})
 
 	t.Run("ForceRun", func(t *testing.T) {
@@ -739,23 +673,24 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		const scheduledFor = 77
-		_, err = sys.TaskService.ForceRun(sys.Ctx, task.ID, scheduledFor)
+		r, err := sys.TaskService.ForceRun(sys.Ctx, task.ID, scheduledFor)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if r.ScheduledFor != "1970-01-01T00:01:17Z" {
+			t.Fatalf("expected: 1970-01-01T00:01:17Z, got %s", r.ScheduledFor)
 		}
 
 		// TODO(lh): Once we have moved over to kv we can list runs and see the manual queue in the list
 
-		exp := backend.RequestStillQueuedError{Start: scheduledFor, End: scheduledFor}
-
 		// Forcing the same run before it's executed should be rejected.
-		if _, err = sys.TaskService.ForceRun(sys.Ctx, task.ID, scheduledFor); err != exp {
-			t.Fatalf("subsequent force should have been rejected with %v; got %v", exp, err)
+		if _, err = sys.TaskService.ForceRun(sys.Ctx, task.ID, scheduledFor); err == nil {
+			t.Fatalf("subsequent force should have been rejected; failed to error: %s", task.ID)
 		}
 	})
 
 	t.Run("FindLogs", func(t *testing.T) {
-		t.Parallel()
+		// t.Parallel()
 
 		ct := influxdb.TaskCreate{
 			OrganizationID: cr.OrgID,
@@ -785,7 +720,6 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), backend.RunStarted); err != nil {
 			t.Fatal(err)
 		}
-
 		// Add a log for the first run.
 		log1Time := time.Now().UTC()
 		if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, log1Time, "entry 1"); err != nil {
@@ -820,7 +754,6 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		expLine2 := &influxdb.Log{Time: log2Time.Format(time.RFC3339Nano), Message: "entry 2"}
 		exp = []*influxdb.Log{expLine1, expLine2}
 		if diff := cmp.Diff(logs, exp); diff != "" {
@@ -962,7 +895,19 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 
 			// Create a run for the last task we found.
 			// The script should run every minute, so use max now.
-			tid := tasks[len(tasks)-1].ID
+			var tid influxdb.ID
+			idMu.Lock()
+			for i := len(tasks) - 1; i >= 0; i-- {
+				_, ok := taskIDs[tasks[i].ID]
+				if ok {
+					tid = tasks[i].ID
+					break
+				}
+			}
+			idMu.Unlock()
+			if !tid.Valid() {
+				continue
+			}
 			if _, err := sys.TaskControlService.CreateNextRun(sys.Ctx, tid, math.MaxInt64>>6); err != nil { // we use the >>6 here because math.MaxInt64 is too large which causes problems when converting back and forth from time
 				// This may have errored due to the task being deleted. Check if the task still exists.
 
@@ -1036,6 +981,214 @@ func testManualRun(t *testing.T, s *System) {
 	if runs[0].ID != run.ID {
 		diff := cmp.Diff(runs[0], run)
 		t.Fatalf("manual run missmatch: %s", diff)
+	}
+}
+
+func testRunStorage(t *testing.T, sys *System) {
+	cr := creds(t, sys)
+
+	// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
+	// which makes timing of runs somewhat difficult.
+	ct := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
+	}
+	task, err := sys.TaskService.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make two runs.
+
+	rc0, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc0.Created.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.Created.TaskID, task.ID)
+	}
+
+	startedAt := time.Now().UTC()
+
+	// Update the run state to Started; normally the scheduler would do this.
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.Created.RunID, startedAt, backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+
+	rc1, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc1.Created.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task run: got %s, want %s", rc1.Created.TaskID, task.ID)
+	}
+
+	// Update the run state to Started; normally the scheduler would do this.
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt, backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mark the second run finished.
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.Created.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Limit 1 should only return the earlier run.
+	runs, _, err := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run, got %v", runs)
+	}
+	if runs[0].ID != rc0.Created.RunID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+	}
+	if exp := startedAt.Format(time.RFC3339Nano); runs[0].StartedAt != exp {
+		t.Fatalf("unexpectedStartedAt; want %s, got %s", exp, runs[0].StartedAt)
+	}
+	if runs[0].Status != backend.RunStarted.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", backend.RunStarted.String(), runs[0].Status)
+	}
+	if runs[0].FinishedAt != "" {
+		t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
+	}
+
+	// Unspecified limit returns both runs.
+	runs, _, err = sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("expected 2 runs, got %v", runs)
+	}
+	if runs[0].ID != rc0.Created.RunID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+	}
+	if exp := startedAt.Format(time.RFC3339Nano); runs[0].StartedAt != exp {
+		t.Fatalf("unexpectedStartedAt; want %s, got %s", exp, runs[0].StartedAt)
+	}
+	if runs[0].Status != backend.RunStarted.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", backend.RunStarted.String(), runs[0].Status)
+	}
+	if runs[0].FinishedAt != "" {
+		t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
+	}
+
+	if runs[1].ID != rc1.Created.RunID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc1.Created.RunID, runs[1].ID)
+	}
+	if runs[1].StartedAt != runs[0].StartedAt {
+		t.Fatalf("unexpected StartedAt; want %s, got %s", runs[0].StartedAt, runs[1].StartedAt)
+	}
+	if runs[1].Status != backend.RunSuccess.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[0].Status)
+	}
+	if exp := startedAt.Add(time.Second).Format(time.RFC3339Nano); runs[1].FinishedAt != exp {
+		t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[1].FinishedAt)
+	}
+
+	// Look for a run that doesn't exist.
+	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
+	if err == nil {
+		t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
+	}
+
+	// look for a taskID that doesn't exist.
+	_, err = sys.TaskService.FindRunByID(sys.Ctx, influxdb.ID(math.MaxUint64), runs[0].ID)
+	if err == nil {
+		t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
+	}
+
+	foundRun0, err := sys.TaskService.FindRunByID(sys.Ctx, task.ID, runs[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(foundRun0, runs[0]); diff != "" {
+		t.Fatalf("difference between listed run and found run: %s", diff)
+	}
+
+	foundRun1, err := sys.TaskService.FindRunByID(sys.Ctx, task.ID, runs[1].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(foundRun1, runs[1]); diff != "" {
+		t.Fatalf("difference between listed run and found run: %s", diff)
+	}
+}
+
+func testRetryAcrossStorage(t *testing.T, sys *System) {
+	cr := creds(t, sys)
+
+	// Script is set to run every minute.
+	ct := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
+	}
+	task, err := sys.TaskService.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Non-existent ID should return the right error.
+	_, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
+	if err != backend.ErrRunNotFound {
+		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", backend.ErrRunNotFound, err)
+	}
+
+	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make a run.
+
+	rc, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.Created.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task: got %s, want %s", rc.Created.TaskID, task.ID)
+	}
+
+	startedAt := time.Now().UTC()
+
+	// Update the run state to Started then Failed; normally the scheduler would do this.
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, startedAt, backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, startedAt.Add(time.Second), backend.RunFail); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.Created.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now retry the run.
+	m, err := sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.TaskID != task.ID {
+		t.Fatalf("wrong task ID on retried run: got %s, want %s", m.TaskID, task.ID)
+	}
+	if m.Status != "scheduled" {
+		t.Fatal("expected new retried run to have status of scheduled")
+	}
+	nowTime, err := time.Parse(time.RFC3339, m.ScheduledFor)
+	if err != nil {
+		t.Fatalf("expected scheduledFor to be a parsable time in RFC3339, but got %s", m.ScheduledFor)
+	}
+	if nowTime.Unix() != rc.Created.Now {
+		t.Fatalf("wrong scheduledFor on task: got %s, want %s", m.ScheduledFor, time.Unix(rc.Created.Now, 0).Format(time.RFC3339))
+	}
+
+	exp := backend.RequestStillQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
+
+	// Retrying a run which has been queued but not started, should be rejected.
+	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID); err != exp {
+		t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
 	}
 }
 

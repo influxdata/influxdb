@@ -66,9 +66,14 @@ type Run struct {
 	Log          []Log  `json:"log"`
 }
 
-// ScheduledForTime gives the time.Time that somethingis scheduled for.
+// ScheduledForTime gives the time.Time that the run is scheduled for.
 func (r *Run) ScheduledForTime() (time.Time, error) {
 	return time.Parse(time.RFC3339, r.ScheduledFor)
+}
+
+// RequestedAtTime gives the time.Time that the run was requested.
+func (r *Run) RequestedAtTime() (time.Time, error) {
+	return time.Parse(time.RFC3339, r.RequestedAt)
 }
 
 // Log represents a link to a log resource
