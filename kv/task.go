@@ -105,8 +105,8 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 			Err: err,
 		}
 	}
-	if latestCompleted != "" {
-		t.LatestCompleted = latestCompleted
+	if !latestCompleted.IsZero() {
+		t.LatestCompleted = latestCompleted.Format(time.RFC3339)
 	} else {
 		t.LatestCompleted = t.CreatedAt
 	}
@@ -1251,7 +1251,31 @@ func (s *Service) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, er
 }
 
 func (s *Service) nextDueRun(ctx context.Context, tx Tx, taskID influxdb.ID) (int64, error) {
-	return 0, nil
+	task, err := s.findTaskByID(ctx, tx, taskID)
+	if err != nil {
+		return 0, err
+	}
+
+	latestCompleted, err := s.findLatestCompletedTime(ctx, tx, taskID)
+	if err != nil {
+		return 0, err
+	}
+
+	if latestCompleted.IsZero() {
+		latestCompleted, err = time.Parse(time.RFC3339, task.CreatedAt)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	// create a run if possible
+	sch, err := cron.Parse(task.EffectiveCron())
+	if err != nil {
+		return 0, err
+	}
+	nextScheduled := sch.Next(latestCompleted).UTC()
+
+	return nextScheduled.Unix(), nil
 }
 
 // UpdateRunState sets the run state at the respective time.
@@ -1378,16 +1402,16 @@ func (s *Service) findLatestCompleted(ctx context.Context, tx Tx, id influxdb.ID
 	return run, nil
 }
 
-func (s *Service) findLatestCompletedTime(ctx context.Context, tx Tx, id influxdb.ID) (string, error) {
+func (s *Service) findLatestCompletedTime(ctx context.Context, tx Tx, id influxdb.ID) (time.Time, error) {
 	run, err := s.findLatestCompleted(ctx, tx, id)
 	if err != nil {
-		return "", err
+		return time.Time{}, err
 	}
 	if run == nil {
-		return "", nil
+		return time.Time{}, nil
 	}
 
-	return run.ScheduledFor, nil
+	return run.ScheduledForTime()
 }
 
 func taskKey(taskID influxdb.ID) ([]byte, error) {
