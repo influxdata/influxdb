@@ -22,7 +22,6 @@ import Label from 'src/clockface/components/label/Label'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 import ResponsiveGridSizer from 'src/clockface/components/grid_sizer/ResponsiveGridSizer'
 import Select from 'src/clockface/components/Select'
-import Grid from 'src/clockface/components/grid_layout/Grid'
 import QuestionMarkTooltip from 'src/clockface/components/tooltips/QuestionMarkTooltip'
 import Tabs from './components/tabs/Tabs'
 
@@ -65,7 +64,6 @@ export {
   Form,
   FormElement,
   Greys,
-  Grid,
   GridSizer,
   IconFont,
   IndexList,

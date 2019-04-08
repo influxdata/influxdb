@@ -3,8 +3,8 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
-import {Grid, Dropdown, AutoInput, MultiSelectDropdown} from 'src/clockface'
+import {Form, Input, Grid} from '@influxdata/clockface'
+import {Dropdown, AutoInput, MultiSelectDropdown} from 'src/clockface'
 import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 

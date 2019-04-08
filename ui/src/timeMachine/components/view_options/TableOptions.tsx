@@ -9,7 +9,7 @@ import ColumnOptions from 'src/shared/components/columns_options/ColumnsOptions'
 import FixFirstColumn from 'src/timeMachine/components/view_options/FixFirstColumn'
 import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 import SortBy from 'src/timeMachine/components/view_options/SortBy'
-import {Grid} from 'src/clockface'
+import {Grid} from '@influxdata/clockface'
 
 // Constants
 import {THRESHOLD_TYPE_BASE} from 'src/shared/constants/thresholds'

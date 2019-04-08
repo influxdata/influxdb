@@ -3,8 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Input, Grid} from '@influxdata/clockface'
 import Rows from 'src/clockface/components/inputs/multipleInput/MultipleRows'
 
 // Utils

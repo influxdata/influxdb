@@ -2,8 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Input, Grid} from '@influxdata/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 import {LineProtocolTab} from 'src/types'

@@ -2,8 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Form} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Grid} from '@influxdata/clockface'
 import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
 
 // Types

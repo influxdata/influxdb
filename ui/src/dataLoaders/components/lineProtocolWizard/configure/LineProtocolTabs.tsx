@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Grid, Columns} from 'src/clockface'
+import {Grid, Columns} from '@influxdata/clockface'
 import PrecisionDropdown from 'src/dataLoaders/components/lineProtocolWizard/configure/PrecisionDropdown'
 import TabSelector from 'src/dataLoaders/components/lineProtocolWizard/configure/TabSelector'
 import TabBody from 'src/dataLoaders/components/lineProtocolWizard/configure/TabBody'
