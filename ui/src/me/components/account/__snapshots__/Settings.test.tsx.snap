@@ -13,177 +13,179 @@ exports[`Account rendering renders! 1`] = `
     }
   }
 >
-  <Grid>
+  <t
+    testID="grid"
+  >
     <div
       className="grid--container"
+      data-testid="grid"
     >
-      <Select
-        type={[Function]}
+      <t
+        testID="grid--row"
       >
-        <GridRow
-          key=".0"
+        <div
+          className="grid--row"
+          data-testid="grid--row"
         >
-          <div
-            className="grid--row"
+          <t
+            testID="grid--column"
+            widthXS={6}
           >
-            <GridColumn
-              widthXS={6}
+            <div
+              className="grid--column col-xs-6"
+              data-testid="grid--column"
             >
-              <div
-                className="grid--column col-xs-6"
+              <t
+                size="sm"
+                testID="panel"
               >
-                <t
-                  size="sm"
-                  testID="panel"
+                <div
+                  className="panel panel--sm"
+                  data-testID="panel"
                 >
-                  <div
-                    className="panel panel--sm"
-                    data-testID="panel"
+                  <t
+                    testID="panel--header"
+                    title="About Me"
                   >
-                    <t
-                      testID="panel--header"
-                      title="About Me"
+                    <div
+                      className="panel--header"
                     >
                       <div
-                        className="panel--header"
+                        className="panel--title"
                       >
-                        <div
-                          className="panel--title"
+                        About Me
+                      </div>
+                      <div
+                        className="panel--controls"
+                      >
+                        <t
+                          alignItems="center"
+                          direction="row"
+                          justifyContent="flex-end"
+                          stretchToFitHeight={false}
+                          stretchToFitWidth={false}
+                          testID="component-spacer"
                         >
-                          About Me
-                        </div>
-                        <div
-                          className="panel--controls"
-                        >
-                          <t
-                            alignItems="center"
-                            direction="row"
-                            justifyContent="flex-end"
-                            stretchToFitHeight={false}
-                            stretchToFitWidth={false}
-                            testID="component-spacer"
+                          <div
+                            className="component-spacer component-spacer__row component-spacer__justify-flex-end component-spacer__align-center"
+                            data-testid="component-spacer"
                           >
-                            <div
-                              className="component-spacer component-spacer__row component-spacer__justify-flex-end component-spacer__align-center"
-                              data-testid="component-spacer"
+                            <t
+                              active={false}
+                              color="default"
+                              shape="none"
+                              size="sm"
+                              status="default"
+                              testID="button"
+                              text="Edit About Me"
+                              type="button"
                             >
-                              <t
-                                active={false}
-                                color="default"
-                                shape="none"
-                                size="sm"
-                                status="default"
-                                testID="button"
-                                text="Edit About Me"
+                              <button
+                                className="button button-sm button-default"
+                                data-testid="button"
+                                disabled={false}
+                                tabIndex={0}
+                                title="Edit About Me"
                                 type="button"
                               >
-                                <button
-                                  className="button button-sm button-default"
-                                  data-testid="button"
-                                  disabled={false}
-                                  tabIndex={0}
-                                  title="Edit About Me"
-                                  type="button"
+                                Edit About Me
+                              </button>
+                            </t>
+                          </div>
+                        </t>
+                      </div>
+                    </div>
+                  </t>
+                  <t
+                    testID="panel--body"
+                  >
+                    <div
+                      className="panel--body"
+                    >
+                      <t
+                        testID="form-container"
+                      >
+                        <form
+                          className="form--wrapper"
+                          data-testid="form-container"
+                          onSubmit={[Function]}
+                        >
+                          <t
+                            label="Username"
+                            testID="form--element"
+                          >
+                            <div
+                              className="form--element"
+                              data-testid="form--element"
+                            >
+                              <t
+                                label="Username"
+                                testID="form--label"
+                              >
+                                <label
+                                  className="form--label"
+                                  data-testid="form--label"
                                 >
-                                  Edit About Me
-                                </button>
+                                  <span>
+                                    Username
+                                  </span>
+                                </label>
+                              </t>
+                              <t
+                                autoFocus={false}
+                                autocomplete="off"
+                                disabledTitleText="This input is disabled"
+                                name=""
+                                onChange={[Function]}
+                                placeholder=""
+                                size="sm"
+                                spellCheck={false}
+                                status="disabled"
+                                testID="nameInput"
+                                titleText="Username"
+                                type="text"
+                                value="groot"
+                              >
+                                <div
+                                  className="input input-sm input--disabled"
+                                  style={
+                                    Object {
+                                      "width": "100%",
+                                    }
+                                  }
+                                >
+                                  <input
+                                    autoComplete="off"
+                                    autoFocus={false}
+                                    className="input-field"
+                                    data-testid="nameInput"
+                                    disabled={true}
+                                    name=""
+                                    onChange={[Function]}
+                                    placeholder=""
+                                    spellCheck={false}
+                                    title="This input is disabled"
+                                    type="text"
+                                    value="groot"
+                                  />
+                                  <div
+                                    className="input-shadow"
+                                  />
+                                </div>
                               </t>
                             </div>
                           </t>
-                        </div>
-                      </div>
-                    </t>
-                    <t
-                      testID="panel--body"
-                    >
-                      <div
-                        className="panel--body"
-                      >
-                        <t
-                          testID="form-container"
-                        >
-                          <form
-                            className="form--wrapper"
-                            data-testid="form-container"
-                            onSubmit={[Function]}
-                          >
-                            <t
-                              label="Username"
-                              testID="form--element"
-                            >
-                              <div
-                                className="form--element"
-                                data-testid="form--element"
-                              >
-                                <t
-                                  label="Username"
-                                  testID="form--label"
-                                >
-                                  <label
-                                    className="form--label"
-                                    data-testid="form--label"
-                                  >
-                                    <span>
-                                      Username
-                                    </span>
-                                  </label>
-                                </t>
-                                <t
-                                  autoFocus={false}
-                                  autocomplete="off"
-                                  disabledTitleText="This input is disabled"
-                                  name=""
-                                  onChange={[Function]}
-                                  placeholder=""
-                                  size="sm"
-                                  spellCheck={false}
-                                  status="disabled"
-                                  testID="nameInput"
-                                  titleText="Username"
-                                  type="text"
-                                  value="groot"
-                                >
-                                  <div
-                                    className="input input-sm input--disabled"
-                                    style={
-                                      Object {
-                                        "width": "100%",
-                                      }
-                                    }
-                                  >
-                                    <input
-                                      autoComplete="off"
-                                      autoFocus={false}
-                                      className="input-field"
-                                      data-testid="nameInput"
-                                      disabled={true}
-                                      name=""
-                                      onChange={[Function]}
-                                      placeholder=""
-                                      spellCheck={false}
-                                      title="This input is disabled"
-                                      type="text"
-                                      value="groot"
-                                    />
-                                    <div
-                                      className="input-shadow"
-                                    />
-                                  </div>
-                                </t>
-                              </div>
-                            </t>
-                          </form>
-                        </t>
-                      </div>
-                    </t>
-                  </div>
-                </t>
-              </div>
-            </GridColumn>
-          </div>
-        </GridRow>
-      </Select>
+                        </form>
+                      </t>
+                    </div>
+                  </t>
+                </div>
+              </t>
+            </div>
+          </t>
+        </div>
+      </t>
     </div>
-  </Grid>
+  </t>
 </Settings>
 `;
