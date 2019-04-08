@@ -1,3 +1,5 @@
+import {Organization} from '@influxdata/influx'
+
 interface TestUser {
   username: string
   password: string
@@ -5,7 +7,7 @@ interface TestUser {
   bucket: string
 }
 
-const defTimeOut = 3000
+//const defTimeOut = 3000
 
 describe('Onboarding', () => {
   let user: TestUser
@@ -21,8 +23,14 @@ describe('Onboarding', () => {
   })
 
   it('Can Onboard to Quick Start', () => {
+
+    cy.server()
+
+    //Will want to capture response from this
+    cy.route('POST','api/v2/setup').as("orgSetup")
+
     //Check splash page
-    cy.location('pathname', {timeout: defTimeOut}).should(
+    cy.location('pathname').should(
       'include',
       'onboarding/0'
     )
@@ -33,7 +41,7 @@ describe('Onboarding', () => {
     //Continue
     cy.get("button[title='Get Started']").click()
 
-    cy.location('pathname', {timeout: defTimeOut}).should(
+    cy.location('pathname').should(
       'include',
       'onboarding/1'
     )
@@ -122,74 +130,88 @@ describe('Onboarding', () => {
       .should('be.enabled')
     cy.get('button:contains("Continue")').click()
 
-    //wait for new page to load
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/2'
-    )
+    cy.wait('@orgSetup')
 
-    cy.getByTestID('notification-success').should($msg => {
-      expect($msg).to.contain('Initial user details have been successfully set')
-    })
+    //used in assertion below
 
-    cy.get('div[data-testid=notification-success] span.icon.checkmark').should(
-      'be.visible'
-    )
-    cy.get(
-      'div[data-testid=notification-success] button.notification-close'
-    ).should('be.visible')
+    cy.get('@orgSetup').then((xhr) => {
 
-    //check navbar
-    cy.get('div.wizard--progress-title.current').should($div => {
-      expect($div).to.contain('Complete')
-    })
-    cy.get('div.wizard--progress-title.checkmark').should($div => {
-      expect($div).to.contain('Welcome')
-      expect($div).to.contain('Initial User Setup')
-    })
+      let orgId: string = xhr.responseBody.org.id
 
-    cy.get('button.button-success')
-      .contains('Quick Start')
-      .should('be.visible')
-    cy.get('button.button-success')
-      .contains('Advanced')
-      .should('be.visible')
-    cy.get('button.button-success')
-      .contains('Configure Later')
-      .should('be.visible')
-
-    //advance to Quick Start
-    cy.get('button.button-success')
-      .contains('Quick Start')
-      .click()
-
-    cy.location('pathname', {timeout: defTimeOut}).should('include', '/me')
-
-    cy.getByTestID('notification-success').should($msg => {
-      expect($msg).to.contain(
-        'The InfluxDB Scraper has been configured for http://localhost:9999/metrics'
+      //wait for new page to load
+      cy.location('pathname').should(
+        'include',
+        'onboarding/2'
       )
+
+      cy.getByTestID('notification-success').should($msg => {
+        expect($msg).to.contain('Initial user details have been successfully set')
+      })
+
+      cy.get('div[data-testid=notification-success] span.icon.checkmark').should(
+        'be.visible'
+      )
+      cy.get(
+        'div[data-testid=notification-success] button.notification-close'
+      ).should('be.visible')
+
+      //check navbar
+      cy.get('div.wizard--progress-title.current').should($div => {
+        expect($div).to.contain('Complete')
+      })
+      cy.get('div.wizard--progress-title.checkmark').should($div => {
+        expect($div).to.contain('Welcome')
+        expect($div).to.contain('Initial User Setup')
+      })
+
+      cy.get('button.button-success')
+        .contains('Quick Start')
+        .should('be.visible')
+      cy.get('button.button-success')
+        .contains('Advanced')
+        .should('be.visible')
+      cy.get('button.button-success')
+        .contains('Configure Later')
+        .should('be.visible')
+
+      //advance to Quick Start
+      cy.get('button.button-success')
+        .contains('Quick Start')
+        .click()
+
+      cy.location('pathname').should('include', orgId)
+
+      cy.getByTestID('notification-success').should($msg => {
+        expect($msg).to.contain(
+          'The InfluxDB Scraper has been configured for http://localhost:9999/metrics'
+        )
+      })
+
+      cy.get('div[data-testid=notification-success] span.icon.checkmark').should(
+        'be.visible'
+      )
+
+      cy.get(
+        'div[data-testid=notification-success] button.notification-close'
+      ).should('be.visible')
     })
-
-    cy.get('div[data-testid=notification-success] span.icon.checkmark').should(
-      'be.visible'
-    )
-
-    cy.get(
-      'div[data-testid=notification-success] button.notification-close'
-    ).should('be.visible')
   })
 
   it('Can onboard to advanced', () => {
+
+    cy.server()
+
+    cy.route('POST','api/v2/setup').as("orgSetup")
+
     //Check splash page
-    cy.location('pathname', {timeout: defTimeOut}).should(
+    cy.location('pathname').should(
       'include',
       'onboarding/0'
     )
 
     //Continue
     cy.get("button[title='Get Started']").click()
-    cy.location('pathname', {timeout: defTimeOut}).should(
+    cy.location('pathname').should(
       'include',
       'onboarding/1'
     )
@@ -203,34 +225,50 @@ describe('Onboarding', () => {
 
     cy.get('button:contains("Continue")').click()
 
-    //wait for new page to load
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/2'
-    )
+    cy.wait('@orgSetup')
 
-    //advance to Advanced
-    cy.get('button.button-success')
-      .contains('Advanced')
-      .click()
+    cy.get('@orgSetup').then((xhr) => {
 
-    //wait for new page to load
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'match',
-      /organizations\/.*\/buckets/
-    )
+      let orgId: string = xhr.responseBody.org.id
+
+      //wait for new page to load
+      cy.location('pathname').should(
+        'include',
+        'onboarding/2'
+      )
+
+      //advance to Advanced
+      cy.get('button.button-success')
+        .contains('Advanced')
+        .click()
+
+      //wait for new page to load
+      cy.location('pathname').should(
+        'match',
+        /orgs\/.*\/buckets/
+      )
+
+      cy.location('pathname').should('include', orgId)
+
+    })
+
   })
 
   it('Can onboard to configure later', () => {
+
+    cy.server()
+
+    cy.route('POST','api/v2/setup').as("orgSetup")
+
     //Check splash page
-    cy.location('pathname', {timeout: defTimeOut}).should(
+    cy.location('pathname').should(
       'include',
       'onboarding/0'
     )
 
     //Continue
     cy.get("button[title='Get Started']").click()
-    cy.location('pathname', {timeout: defTimeOut}).should(
+    cy.location('pathname').should(
       'include',
       'onboarding/1'
     )
@@ -244,18 +282,26 @@ describe('Onboarding', () => {
 
     cy.get('button:contains("Continue")').click()
 
-    //wait for new page to load
-    cy.location('pathname', {timeout: defTimeOut}).should(
-      'include',
-      'onboarding/2'
-    )
+    cy.wait('@orgSetup')
 
-    //advance to Advanced
-    cy.get('button.button-success')
-      .contains('Configure Later')
-      .click()
+    cy.get('@orgSetup').then((xhr) => {
+      let orgId: string = xhr.responseBody.org.id
+      //wait for new page to load
 
-    cy.location('pathname', {timeout: defTimeOut}).should('include', '/me')
+      cy.location('pathname').should(
+        'include',
+        'onboarding/2'
+      )
+
+      //advance to Advanced
+      cy.get('button.button-success')
+        .contains('Configure Later')
+        .click()
+
+      cy.location('pathname').should('include', orgId)
+
+    })
+
   })
 
   it('respects field requirements', () => {
