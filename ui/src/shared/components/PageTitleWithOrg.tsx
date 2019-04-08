@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {startCase} from 'lodash'
 
 // Components
 import PageTitle from 'src/pageLayout/components/PageTitle'
@@ -28,9 +27,7 @@ class PageTitleWithOrg extends PureComponent<Props> {
   render() {
     const {orgName, title, altText} = this.props
 
-    return (
-      <PageTitle title={`${startCase(orgName)} / ${title}`} altText={altText} />
-    )
+    return <PageTitle title={`${orgName} / ${title}`} altText={altText} />
   }
 }
 
