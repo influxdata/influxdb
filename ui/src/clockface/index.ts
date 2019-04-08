@@ -15,7 +15,6 @@ import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardOverlay from './components/wizard/WizardOverlay'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
 import ProgressBar from './components/wizard/ProgressBar'
-import EmptyState from './components/empty_state/EmptyState'
 import IndexList from './components/index_views/IndexList'
 import ResourceList from './components/resource_list/ResourceList'
 import Context from './components/context_menu/Context'
@@ -66,7 +65,6 @@ export {
   DropdownChild,
   DropdownMenuColors,
   DropdownMode,
-  EmptyState,
   Form,
   FormElement,
   Greys,
