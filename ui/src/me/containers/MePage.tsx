@@ -31,39 +31,42 @@ interface StateProps {
 @ErrorHandling
 export class MePage extends PureComponent<StateProps> {
   public render() {
-    const {me} = this.props
+    const {me, children} = this.props
 
     return (
-      <Page className="user-page" titleTag="My Account">
-        <Header userName={me.name} />
-        <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-12">
-            <Grid>
-              <Grid.Row>
-                <Grid.Column widthSM={Columns.Eight} widthMD={Columns.Nine}>
-                  <ComponentSpacer
-                    direction={FlexDirection.Column}
-                    margin={ComponentSize.Small}
-                    alignItems={AlignItems.Stretch}
-                    stretchToFitWidth={true}
-                  >
-                    <Panel>
-                      <Panel.Header title="Getting started with InfluxDB 2.0" />
-                      <Panel.Body>
-                        <GettingStarted />
-                      </Panel.Body>
-                    </Panel>
-                    <Docs />
-                  </ComponentSpacer>
-                </Grid.Column>
-                <Grid.Column widthSM={Columns.Four} widthMD={Columns.Three}>
-                  <Resources me={me} />
-                </Grid.Column>
-              </Grid.Row>
-            </Grid>
-          </div>
-        </Page.Contents>
-      </Page>
+      <>
+        <Page className="user-page" titleTag="My Account">
+          <Header userName={me.name} />
+          <Page.Contents fullWidth={false} scrollable={true}>
+            <div className="col-xs-12">
+              <Grid>
+                <Grid.Row>
+                  <Grid.Column widthSM={Columns.Eight} widthMD={Columns.Nine}>
+                    <ComponentSpacer
+                      direction={FlexDirection.Column}
+                      margin={ComponentSize.Small}
+                      alignItems={AlignItems.Stretch}
+                      stretchToFitWidth={true}
+                    >
+                      <Panel>
+                        <Panel.Header title="Getting started with InfluxDB 2.0" />
+                        <Panel.Body>
+                          <GettingStarted />
+                        </Panel.Body>
+                      </Panel>
+                      <Docs />
+                    </ComponentSpacer>
+                  </Grid.Column>
+                  <Grid.Column widthSM={Columns.Four} widthMD={Columns.Three}>
+                    <Resources me={me} />
+                  </Grid.Column>
+                </Grid.Row>
+              </Grid>
+            </div>
+          </Page.Contents>
+        </Page>
+        {children}
+      </>
     )
   }
 }

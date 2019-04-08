@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Link} from 'react-router'
+import {Link, withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import Support from 'src/me/components/Support'
@@ -21,12 +21,18 @@ import GetResources, {
   ResourceTypes,
 } from 'src/configuration/components/GetResources'
 
-interface Props {
+interface StateProps {
   me: AppState['me']
 }
 
+type Props = StateProps & WithRouterProps
+
 class ResourceLists extends PureComponent<Props> {
   public render() {
+    const {params} = this.props
+
+    const profileLink = `/orgs/${params.orgID}/profile`
+
     return (
       <ComponentSpacer
         direction={FlexDirection.Column}
@@ -41,7 +47,7 @@ class ResourceLists extends PureComponent<Props> {
           <Panel.Body>
             <ul className="link-list">
               <li>
-                <Link to="/configuration/settings_tab">Profile</Link>
+                <Link to={profileLink}>Profile</Link>
               </li>
             </ul>
           </Panel.Body>
@@ -68,4 +74,4 @@ class ResourceLists extends PureComponent<Props> {
   }
 }
 
-export default ResourceLists
+export default withRouter(ResourceLists)
