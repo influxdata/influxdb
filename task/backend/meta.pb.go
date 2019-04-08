@@ -1401,3 +1401,4 @@ var (
 	ErrInvalidLengthMeta = fmt.Errorf("proto: negative length found during unmarshaling")
 	ErrIntOverflowMeta   = fmt.Errorf("proto: integer overflow")
 )
+
