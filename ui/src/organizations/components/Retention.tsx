@@ -44,6 +44,7 @@ export default class Retention extends PureComponent<Props> {
             active={type === BucketRetentionRules.TypeEnum.Expire}
             onClick={this.handleRadioClick}
             value={BucketRetentionRules.TypeEnum.Expire}
+            // Switch back to "testID" prop when radio buttons from clockface support testID
             data-testid="retention-intervals"
             titleText="Compress data at regular intervals"
           >

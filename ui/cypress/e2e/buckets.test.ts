@@ -42,7 +42,9 @@ describe('Buckets', () => {
         cy.contains(name).click()
       })
 
-      cy.getByTestID('retention-intervals').click()
+      cy.contains('Periodically').click()
+      // Switch back to line 47 when radio buttons from clockface support testID
+      // cy.get('retention-intervals').click()
 
       cy.getByInputName('days').type('{uparrow}')
       cy.getByInputName('hours').type('{uparrow}')
