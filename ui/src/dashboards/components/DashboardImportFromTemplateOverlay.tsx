@@ -64,6 +64,9 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 
   render() {
+    const {
+      params: {orgID},
+    } = this.props
     const {selectedTemplateSummary} = this.state
 
     return (
@@ -75,7 +78,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
           />
           <Overlay.Body>
             <div className="import-template-overlay">
-              <OrgTemplateFetcher orgName={this.orgName}>
+              <OrgTemplateFetcher orgID={orgID}>
                 <ResponsiveGridSizer columns={3}>
                   {this.templates}
                 </ResponsiveGridSizer>
@@ -138,16 +141,6 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
         color={ComponentColor.Primary}
       />,
     ]
-  }
-
-  private get orgName(): string {
-    const {
-      params: {orgID},
-      orgs,
-    } = this.props
-    return orgs.find(org => {
-      return org.id === orgID
-    }).name
   }
 
   private get variableItems(): JSX.Element[] {
