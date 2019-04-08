@@ -1,13 +1,9 @@
-import {Organization} from '@influxdata/influx'
-
 interface TestUser {
   username: string
   password: string
   org: string
   bucket: string
 }
-
-//const defTimeOut = 3000
 
 describe('Onboarding', () => {
   let user: TestUser
@@ -23,17 +19,13 @@ describe('Onboarding', () => {
   })
 
   it('Can Onboard to Quick Start', () => {
-
     cy.server()
 
     //Will want to capture response from this
-    cy.route('POST','api/v2/setup').as("orgSetup")
+    cy.route('POST', 'api/v2/setup').as('orgSetup')
 
     //Check splash page
-    cy.location('pathname').should(
-      'include',
-      'onboarding/0'
-    )
+    cy.location('pathname').should('include', 'onboarding/0')
     cy.get('h3.wizard-step--title').contains('Welcome to InfluxDB 2.0')
     cy.get('div.wizard--credits').contains('Powered by')
     cy.get('div.wizard--credits').contains('InfluxData')
@@ -41,10 +33,7 @@ describe('Onboarding', () => {
     //Continue
     cy.get("button[title='Get Started']").click()
 
-    cy.location('pathname').should(
-      'include',
-      'onboarding/1'
-    )
+    cy.location('pathname').should('include', 'onboarding/1')
     //Check navigation bar
     cy.get("div.wizard--progress-title.checkmark:contains('Welcome')").click()
 
@@ -134,23 +123,21 @@ describe('Onboarding', () => {
 
     //used in assertion below
 
-    cy.get('@orgSetup').then((xhr) => {
-
+    cy.get('@orgSetup').then(xhr => {
       let orgId: string = xhr.responseBody.org.id
 
       //wait for new page to load
-      cy.location('pathname').should(
-        'include',
-        'onboarding/2'
-      )
+      cy.location('pathname').should('include', 'onboarding/2')
 
       cy.getByTestID('notification-success').should($msg => {
-        expect($msg).to.contain('Initial user details have been successfully set')
+        expect($msg).to.contain(
+          'Initial user details have been successfully set'
+        )
       })
 
-      cy.get('div[data-testid=notification-success] span.icon.checkmark').should(
-        'be.visible'
-      )
+      cy.get(
+        'div[data-testid=notification-success] span.icon.checkmark'
+      ).should('be.visible')
       cy.get(
         'div[data-testid=notification-success] button.notification-close'
       ).should('be.visible')
@@ -187,9 +174,9 @@ describe('Onboarding', () => {
         )
       })
 
-      cy.get('div[data-testid=notification-success] span.icon.checkmark').should(
-        'be.visible'
-      )
+      cy.get(
+        'div[data-testid=notification-success] span.icon.checkmark'
+      ).should('be.visible')
 
       cy.get(
         'div[data-testid=notification-success] button.notification-close'
@@ -198,23 +185,16 @@ describe('Onboarding', () => {
   })
 
   it('Can onboard to advanced', () => {
-
     cy.server()
 
-    cy.route('POST','api/v2/setup').as("orgSetup")
+    cy.route('POST', 'api/v2/setup').as('orgSetup')
 
     //Check splash page
-    cy.location('pathname').should(
-      'include',
-      'onboarding/0'
-    )
+    cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
     cy.get("button[title='Get Started']").click()
-    cy.location('pathname').should(
-      'include',
-      'onboarding/1'
-    )
+    cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
     cy.get('input[title=Username]').type(user.username)
@@ -227,15 +207,11 @@ describe('Onboarding', () => {
 
     cy.wait('@orgSetup')
 
-    cy.get('@orgSetup').then((xhr) => {
-
+    cy.get('@orgSetup').then(xhr => {
       let orgId: string = xhr.responseBody.org.id
 
       //wait for new page to load
-      cy.location('pathname').should(
-        'include',
-        'onboarding/2'
-      )
+      cy.location('pathname').should('include', 'onboarding/2')
 
       //advance to Advanced
       cy.get('button.button-success')
@@ -243,35 +219,23 @@ describe('Onboarding', () => {
         .click()
 
       //wait for new page to load
-      cy.location('pathname').should(
-        'match',
-        /orgs\/.*\/buckets/
-      )
+      cy.location('pathname').should('match', /orgs\/.*\/buckets/)
 
       cy.location('pathname').should('include', orgId)
-
     })
-
   })
 
   it('Can onboard to configure later', () => {
-
     cy.server()
 
-    cy.route('POST','api/v2/setup').as("orgSetup")
+    cy.route('POST', 'api/v2/setup').as('orgSetup')
 
     //Check splash page
-    cy.location('pathname').should(
-      'include',
-      'onboarding/0'
-    )
+    cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
     cy.get("button[title='Get Started']").click()
-    cy.location('pathname').should(
-      'include',
-      'onboarding/1'
-    )
+    cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
     cy.get('input[title=Username]').type(user.username)
@@ -284,14 +248,11 @@ describe('Onboarding', () => {
 
     cy.wait('@orgSetup')
 
-    cy.get('@orgSetup').then((xhr) => {
+    cy.get('@orgSetup').then(xhr => {
       let orgId: string = xhr.responseBody.org.id
       //wait for new page to load
 
-      cy.location('pathname').should(
-        'include',
-        'onboarding/2'
-      )
+      cy.location('pathname').should('include', 'onboarding/2')
 
       //advance to Advanced
       cy.get('button.button-success')
@@ -299,9 +260,7 @@ describe('Onboarding', () => {
         .click()
 
       cy.location('pathname').should('include', orgId)
-
     })
-
   })
 
   it('respects field requirements', () => {
