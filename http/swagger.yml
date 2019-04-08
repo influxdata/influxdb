@@ -6007,9 +6007,6 @@ components:
         write:
           type: string
           format: uri
-        views:
-          type: string
-          format: uri
     Error:
       properties:
         code:
