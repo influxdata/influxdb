@@ -1,5 +1,4 @@
 // Import Components
-import Alert from './components/alerts/Alert'
 import AutoInput from './components/auto_input/AutoInput'
 import ConfirmationButton from './components/confirmation_button/ConfirmationButton'
 import ColorPicker from './components/color_picker/ColorPicker'
@@ -50,7 +49,6 @@ import {
 
 // Fire de lazer
 export {
-  Alert,
   Alignment,
   AutoComplete,
   AutoInput,
