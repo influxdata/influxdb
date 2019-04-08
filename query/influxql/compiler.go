@@ -74,7 +74,7 @@ func (c *Compiler) Compile(ctx context.Context) (flux.Program, error) {
 	if err != nil {
 		return nil, err
 	}
-	return lang.Program{
+	return &lang.Program{
 		PlanSpec: ps,
 	}, nil
 }
