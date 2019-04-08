@@ -1,37 +1,61 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Styles
 import 'src/variables/components/CreateVariableOverlay.scss'
+
+// Actions
+import {createVariable} from 'src/variables/actions'
 
 // Components
 import {Overlay} from 'src/clockface'
 import VariableForm from 'src/variables/components/VariableForm'
 
-// Types
-import {IVariable as Variable} from '@influxdata/influx'
-
-interface Props {
-  onCreateVariable: (variable: Pick<Variable, 'name' | 'arguments'>) => void
-  onHideOverlay: () => void
-  initialScript?: string
+interface DispatchProps {
+  onCreateVariable: typeof createVariable
 }
 
-export default class CreateVariableOverlay extends PureComponent<Props> {
+type Props = DispatchProps & WithRouterProps
+
+class CreateVariableOverlay extends PureComponent<Props> {
   public render() {
-    const {onHideOverlay, onCreateVariable, initialScript} = this.props
+    const {onCreateVariable} = this.props
 
     return (
-      <Overlay.Container maxWidth={1000}>
-        <Overlay.Heading title="Create Variable" onDismiss={onHideOverlay} />
-        <Overlay.Body>
-          <VariableForm
-            onCreateVariable={onCreateVariable}
-            onHideOverlay={onHideOverlay}
-            initialScript={initialScript}
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={1000}>
+          <Overlay.Heading
+            title="Create Variable"
+            onDismiss={this.handleHideOverlay}
           />
-        </Overlay.Body>
-      </Overlay.Container>
+          <Overlay.Body>
+            <VariableForm
+              onCreateVariable={onCreateVariable}
+              onHideOverlay={this.handleHideOverlay}
+            />
+          </Overlay.Body>
+        </Overlay.Container>
+      </Overlay>
     )
   }
+
+  private handleHideOverlay = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/variables`)
+  }
 }
+
+const mdtp: DispatchProps = {
+  onCreateVariable: createVariable,
+}
+
+export default connect<Props>(
+  null,
+  mdtp
+)(withRouter<{}>(CreateVariableOverlay))

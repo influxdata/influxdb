@@ -5,18 +5,12 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Utils
-import {
-  createVariable,
-  updateVariable,
-  deleteVariable,
-} from 'src/variables/actions'
+import {updateVariable, deleteVariable} from 'src/variables/actions'
 import {extractVariablesList} from 'src/variables/selectors'
 
 // Components
 import {Input, EmptyState} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
-import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import VariableList from 'src/variables/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
@@ -33,7 +27,6 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onCreateVariable: typeof createVariable
   onUpdateVariable: typeof updateVariable
   onDeleteVariable: typeof deleteVariable
 }
@@ -42,20 +35,18 @@ type Props = StateProps & DispatchProps & WithRouterProps
 
 interface State {
   searchTerm: string
-  createOverlayState: OverlayState
   importOverlayState: OverlayState
 }
 
 class VariablesTab extends PureComponent<Props, State> {
   public state: State = {
     searchTerm: '',
-    createOverlayState: OverlayState.Closed,
     importOverlayState: OverlayState.Closed,
   }
 
   public render() {
-    const {variables, onCreateVariable} = this.props
-    const {searchTerm, createOverlayState} = this.state
+    const {variables} = this.props
+    const {searchTerm} = this.state
 
     return (
       <>
@@ -92,12 +83,6 @@ class VariablesTab extends PureComponent<Props, State> {
             )}
           </FilterList>
         </GetLabels>
-        <Overlay visible={createOverlayState === OverlayState.Open}>
-          <CreateVariableOverlay
-            onCreateVariable={onCreateVariable}
-            onHideOverlay={this.handleCloseCreateOverlay}
-          />
-        </Overlay>
       </>
     )
   }
@@ -150,11 +135,12 @@ class VariablesTab extends PureComponent<Props, State> {
   }
 
   private handleOpenCreateOverlay = (): void => {
-    this.setState({createOverlayState: OverlayState.Open})
-  }
+    const {
+      router,
+      params: {orgID},
+    } = this.props
 
-  private handleCloseCreateOverlay = (): void => {
-    this.setState({createOverlayState: OverlayState.Closed})
+    router.push(`/orgs/${orgID}/variables/new`)
   }
 
   private handleUpdateVariable = (variable: Partial<Variable>): void => {
@@ -177,7 +163,6 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onCreateVariable: createVariable,
   onUpdateVariable: updateVariable,
   onDeleteVariable: deleteVariable,
 }
