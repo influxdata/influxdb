@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import TelegrafConfig from 'src/organizations/components/TelegrafConfig'
+import TelegrafConfig from 'src/telegrafs/components/TelegrafConfig'
 import {ComponentColor, Button} from '@influxdata/clockface'
 import {Overlay} from 'src/clockface'
 

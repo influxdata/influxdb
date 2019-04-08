@@ -10,7 +10,7 @@ import OrganizationNavigation from 'src/organizations/components/OrganizationNav
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
-import Collectors from 'src/organizations/components/Collectors'
+import Collectors from 'src/telegrafs/components/Collectors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import GetOrgResources from 'src/organizations/components/GetOrgResources'
