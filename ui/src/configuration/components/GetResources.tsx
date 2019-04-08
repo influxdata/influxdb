@@ -12,6 +12,7 @@ import {getScrapers} from 'src/scrapers/actions'
 import {getDashboardsAsync} from 'src/dashboards/actions'
 import {getTasks} from 'src/tasks/actions'
 import {getAuthorizations} from 'src/authorizations/actions'
+import {getTemplates} from 'src/templates/actions'
 
 // Types
 import {AppState} from 'src/types'
@@ -23,6 +24,7 @@ import {TasksState} from 'src/tasks/reducers/'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {AuthorizationsState} from 'src/authorizations/reducers'
 import {VariablesState} from 'src/variables/reducers'
+import {TemplatesState} from 'src/templates/reducers'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -36,6 +38,7 @@ interface StateProps {
   scrapers: ScrapersState
   tokens: AuthorizationsState
   dashboards: DashboardsState
+  templates: TemplatesState
   tasks: TasksState
 }
 
@@ -48,6 +51,7 @@ interface DispatchProps {
   getAuthorizations: typeof getAuthorizations
   getDashboards: typeof getDashboardsAsync
   getTasks: typeof getTasks
+  getTemplates: typeof getTemplates
 }
 
 interface PassedProps {
@@ -65,6 +69,7 @@ export enum ResourceTypes {
   Scrapers = 'scrapers',
   Dashboards = 'dashboards',
   Tasks = 'tasks',
+  Templates = 'templates',
 }
 
 @ErrorHandling
@@ -103,6 +108,10 @@ class GetResources extends PureComponent<Props, StateProps> {
         return await this.props.getAuthorizations()
       }
 
+      case ResourceTypes.Templates: {
+        return await this.props.getTemplates()
+      }
+
       default: {
         throw new Error('incorrect resource type provided')
       }
@@ -132,6 +141,7 @@ const mstp = ({
   tokens,
   dashboards,
   tasks,
+  templates,
 }: AppState): StateProps => {
   return {
     labels,
@@ -142,6 +152,7 @@ const mstp = ({
     scrapers,
     tokens,
     tasks,
+    templates,
   }
 }
 
@@ -154,6 +165,7 @@ const mdtp = {
   getAuthorizations: getAuthorizations,
   getDashboards: getDashboardsAsync,
   getTasks: getTasks,
+  getTemplates: getTemplates,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

@@ -1,31 +1,35 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
 
 // Components
 import FilterList from 'src/shared/components/Filter'
 import TemplatesHeader from 'src/templates/components/TemplatesHeader'
-import OrgTemplatesList from 'src/organizations/components/OrgTemplatesList'
+import TemplatesList from 'src/templates/components/TemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetLabels from 'src/configuration/components/GetLabels'
 
 // Types
-import {TemplateSummary} from '@influxdata/influx'
+import {TemplateSummary, AppState} from 'src/types'
 
-interface Props {
-  templates: TemplateSummary[]
-  orgName: string
-  orgID: string
+interface OwnProps {
   onImport: () => void
 }
+
+interface StateProps {
+  templates: TemplateSummary[]
+}
+
+type Props = OwnProps & StateProps
 
 interface State {
   searchTerm: string
 }
 
 @ErrorHandling
-class OrgTemplatesPage extends PureComponent<Props, State> {
+class TemplatesPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -53,7 +57,7 @@ class OrgTemplatesPage extends PureComponent<Props, State> {
             list={templates}
           >
             {ts => (
-              <OrgTemplatesList
+              <TemplatesList
                 searchTerm={searchTerm}
                 templates={ts}
                 onFilterChange={this.setSearchTerm}
@@ -82,5 +86,11 @@ class OrgTemplatesPage extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 }
+const mstp = ({templates}: AppState): StateProps => ({
+  templates: templates.items,
+})
 
-export default OrgTemplatesPage
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(TemplatesPage)

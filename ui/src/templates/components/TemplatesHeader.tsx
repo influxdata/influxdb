@@ -32,7 +32,7 @@ export default class TemplatesHeader extends PureComponent<Props> {
       return (
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <PageTitleWithOrg title={this.pageTitle} />
+            <PageTitleWithOrg title="Templates" />
           </Page.Header.Left>
           <Page.Header.Right>{this.importButton}</Page.Header.Right>
         </Page.Header>
@@ -45,16 +45,6 @@ export default class TemplatesHeader extends PureComponent<Props> {
         {this.importButton}
       </Tabs.TabContentsHeader>
     )
-  }
-
-  private get pageTitle() {
-    const {showOrgDropdown} = this.props
-
-    if (showOrgDropdown) {
-      return 'Templates'
-    }
-
-    return ''
   }
 
   private get importButton(): JSX.Element {

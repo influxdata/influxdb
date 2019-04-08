@@ -21,7 +21,7 @@ import {viewableLabels} from 'src/labels/selectors'
 // Types
 import {TemplateSummary, ILabel} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
-import {AppState} from 'src/types'
+import {AppState, Organization} from 'src/types'
 
 // Constants
 import {DEFAULT_TEMPLATE_NAME} from 'src/templates/constants'
@@ -39,6 +39,7 @@ interface DispatchProps {
 
 interface StateProps {
   labels: ILabel[]
+  org: Organization
 }
 
 type Props = DispatchProps & OwnProps & StateProps
@@ -126,17 +127,14 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleExport = () => {
-    const {
-      router,
-      template,
-      params: {orgID},
-    } = this.props
-    router.push(`orgs/${orgID}/templates/${template.id}/export`)
+    const {router, template, org} = this.props
+    router.push(`orgs/${org.id}/templates/${template.id}/export`)
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
+const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
   return {
+    org,
     labels: viewableLabels(labels.list),
   }
 }
