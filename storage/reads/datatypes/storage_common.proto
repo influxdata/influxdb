@@ -223,11 +223,7 @@ message TagsRequest {
 
 // Response message for Storage.TagKeys and Storage.TagValues.
 message TagsResponse {
-  message Frame {
-    repeated bytes values = 1;
-  }
-
-  repeated Frame frames = 1 [(gogoproto.nullable) = false];
+  repeated bytes values = 1;
 }
 
 //message ExplainRequest {
