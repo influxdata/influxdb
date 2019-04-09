@@ -960,6 +960,7 @@ func DeleteDashboard(
 						OrganizationID: 1,
 					},
 				},
+				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 			},
 			args: args{
 				ID: MustIDBase16(dashOneID),
@@ -989,6 +990,7 @@ func DeleteDashboard(
 						OrganizationID: 1,
 					},
 				},
+				NowFn: func() time.Time { return time.Date(2009, time.November, 10, 24, 0, 0, 0, time.UTC) },
 			},
 			args: args{
 				ID: MustIDBase16(dashThreeID),

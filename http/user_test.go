@@ -7,6 +7,7 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap"
@@ -24,10 +25,13 @@ func NewMockUserBackend() *UserBackend {
 
 func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserService, string, func()) {
 	t.Helper()
-	svc := inmem.NewService()
-	svc.IDGenerator = f.IDGenerator
-
 	ctx := context.Background()
+	svc := kv.NewService(inmem.NewKVStore())
+	svc.IDGenerator = f.IDGenerator
+	if err := svc.Initialize(ctx); err != nil {
+		t.Fatalf("error initializing kv service: %v", err)
+	}
+
 	for _, u := range f.Users {
 		if err := svc.PutUser(ctx, u); err != nil {
 			t.Fatalf("failed to populate users")
