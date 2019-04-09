@@ -29,7 +29,7 @@ export default class Retention extends PureComponent<Props> {
 
     return (
       <>
-        <Radio shape={ButtonShape.StretchToFit} customClass="retention--radio">
+        <Radio shape={ButtonShape.StretchToFit} className="retention--radio">
           <Radio.Button
             id="never"
             active={type === null}
