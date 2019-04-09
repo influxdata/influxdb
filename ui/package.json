@@ -136,7 +136,7 @@
     "webpack": "^4.29.0"
   },
   "dependencies": {
-    "@influxdata/clockface": "0.0.9",
+    "@influxdata/clockface": "0.0.10",
     "@influxdata/influx": "github:influxdata/influxdb2-js#dev",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "@influxdata/vis": "^0.2.3",
