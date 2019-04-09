@@ -36,6 +36,7 @@ describe('Onboarding', () => {
     cy.location('pathname').should('include', 'onboarding/1')
 
     cy.location('pathname').should('include', 'onboarding/1')
+
     //Check navigation bar
     cy.getByTestID('nav-step--welcome').click()
 
@@ -379,17 +380,27 @@ describe('Onboarding', () => {
     cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
-    cy.get("button[title='Get Started']").click()
+    cy.getByTestID('button').click()
     cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
-    cy.get('input[title=Username]').type(user.username)
-    cy.get('input[title=Password]').type(user.password)
-    cy.get('input[title="Confirm Password"]').type(user.password)
-    cy.get('input[title="Initial Organization Name"]').type(user.org)
-    cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
+    cy.getByTestID('input-field')
+      .eq(0)
+      .type(user.username)
+    cy.getByTestID('input-field')
+      .eq(1)
+      .type(user.password)
+    cy.getByTestID('input-field')
+      .eq(2)
+      .type(user.password)
+    cy.getByTestID('input-field')
+      .eq(3)
+      .type(user.org)
+    cy.getByTestID('input-field')
+      .eq(4)
+      .type(user.bucket)
 
-    cy.get('button:contains("Continue")').click()
+    cy.getByTestID('button').click()
 
     cy.wait('@orgSetup')
 
@@ -400,7 +411,8 @@ describe('Onboarding', () => {
       cy.location('pathname').should('include', 'onboarding/2')
 
       //advance to Advanced
-      cy.get('button.button-success')
+      cy.getByTestID('button')
+        .eq(1)
         .contains('Advanced')
         .click()
 
@@ -420,17 +432,27 @@ describe('Onboarding', () => {
     cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
-    cy.get("button[title='Get Started']").click()
+    cy.getByTestID('button').click()
     cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
-    cy.get('input[title=Username]').type(user.username)
-    cy.get('input[title=Password]').type(user.password)
-    cy.get('input[title="Confirm Password"]').type(user.password)
-    cy.get('input[title="Initial Organization Name"]').type(user.org)
-    cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
+    cy.getByTestID('input-field')
+      .eq(0)
+      .type(user.username)
+    cy.getByTestID('input-field')
+      .eq(1)
+      .type(user.password)
+    cy.getByTestID('input-field')
+      .eq(2)
+      .type(user.password)
+    cy.getByTestID('input-field')
+      .eq(3)
+      .type(user.org)
+    cy.getByTestID('input-field')
+      .eq(4)
+      .type(user.bucket)
 
-    cy.get('button:contains("Continue")').click()
+    cy.getByTestID('button').click()
 
     cy.wait('@orgSetup')
 
@@ -441,7 +463,8 @@ describe('Onboarding', () => {
       cy.location('pathname').should('include', 'onboarding/2')
 
       //advance to Advanced
-      cy.get('button.button-success')
+      cy.getByTestID('button')
+        .eq(2)
         .contains('Configure Later')
         .click()
 
@@ -451,99 +474,128 @@ describe('Onboarding', () => {
 
   it('respects field requirements', () => {
     //Continue
-    cy.get("button[title='Get Started']").click()
+    cy.getByTestID('button').click()
 
-    cy.get('input[title=Username]').type(user.username)
+    cy.getByTestID('input-field')
+      .eq(0)
+      .type(user.username)
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.get('input[title=Password]').type(user.password)
+    cy.getByTestID('input-field')
+      .eq(1)
+      .type(user.password)
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.get('input[title="Confirm Password"]').type('drowssap')
+    cy.getByTestID('input-field')
+      .eq(2)
+      .type('drowssap')
 
     //check password mismatch
-    cy.get('div.form--element:has(div.input--error)')
-      .children('span.form--element-error')
-      .should('have.text', 'Passwords do not match')
+    cy.getByTestID('form--element-error').should(
+      'have.text',
+      'Passwords do not match'
+    )
 
-    cy.get('span.input-status').should('have.class', 'alert-triangle')
+    cy.getByTestID('input-error').should('have.class', 'alert-triangle')
 
-    cy.get('input[title="Initial Organization Name"]').type(user.org)
-    cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
+    cy.getByTestID('input-field')
+      .eq(3)
+      .type(user.org)
+    cy.getByTestID('input-field')
+      .eq(4)
+      .type(user.bucket)
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.get('input[title="Confirm Password"]')
+    cy.getByTestID('input-field')
+      .eq(2)
       .clear()
       .type(user.password)
 
-    cy.get('div.form--element:has(div.input--error)').should('not.exist')
+    cy.getByTestID('input-error').should('not.exist')
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.enabled')
 
     //check cleared username
-    cy.get('input[title=Username]').clear()
+    cy.getByTestID('input-field')
+      .eq(0)
+      .clear()
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.get('input[title=Username]').type(user.username)
+    cy.getByTestID('input-field')
+      .eq(0)
+      .type(user.username)
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.enabled')
 
     //check cleared password
-    cy.get('input[title=Password]').clear()
+    cy.getByTestID('input-field')
+      .eq(1)
+      .clear()
 
-    cy.get('div.form--element:has(div.input--error)')
-      .children('span.form--element-error')
-      .should('have.text', 'Passwords do not match')
+    cy.getByTestID('form--element-error').should(
+      'have.text',
+      'Passwords do not match'
+    )
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.get('input[title="Password"]').type(user.password)
+    cy.getByTestID('input-field')
+      .eq(1)
+      .type(user.password)
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.enabled')
 
     //check cleared org name
-    cy.get('input[title="Initial Organization Name"]').clear()
+    cy.getByTestID('input-field')
+      .eq(3)
+      .clear()
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.get('input[title="Initial Organization Name"]').type(user.org)
+    cy.getByTestID('input-field')
+      .eq(3)
+      .type(user.org)
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.enabled')
 
     //check cleared bucket name
-    cy.get('input[title="Initial Bucket Name"]').clear()
+    cy.getByTestID('input-field')
+      .eq(4)
+      .clear()
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.get('input[title="Initial Bucket Name"]').type(user.bucket)
+    cy.getByTestID('input-field')
+      .eq(4)
+      .type(user.bucket)
 
-    cy.get('button.button-primary')
+    cy.getByTestID('button')
       .contains('Continue')
       .should('be.enabled')
   })
