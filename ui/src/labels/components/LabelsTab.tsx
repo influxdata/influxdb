@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Input, Button, EmptyState} from '@influxdata/clockface'
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
-import LabelList from 'src/configuration/components/LabelList'
+import LabelList from 'src/labels/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
 // Actions

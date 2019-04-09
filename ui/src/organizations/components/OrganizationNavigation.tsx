@@ -62,6 +62,12 @@ class OrganizationNavigation extends PureComponent<Props> {
           active={'templates' === tab}
         />
         <Tabs.Tab
+          title="Labels"
+          id="labels"
+          url={`${route}/labels`}
+          active={'labels' === tab}
+        />
+        <Tabs.Tab
           title="Tokens"
           id="tokens"
           url={`${route}/tokens`}

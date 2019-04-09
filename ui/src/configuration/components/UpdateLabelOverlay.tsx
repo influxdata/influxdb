@@ -2,7 +2,7 @@
 import React, {Component, ChangeEvent} from 'react'
 
 // Components
-import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
+import LabelOverlayForm from 'src/labels/components/LabelOverlayForm'
 import {Overlay} from 'src/clockface'
 import {ComponentStatus} from '@influxdata/clockface'
 

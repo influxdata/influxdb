@@ -56,6 +56,7 @@ import RouteToOrg from 'src/shared/containers/RouteToOrg'
 import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import MembersIndex from 'src/members/containers/MembersIndex'
+import LabelsIndex from 'src/labels/containers/LabelsIndex'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -215,6 +216,7 @@ class Root extends PureComponent {
                             />
                           </Route>
                           <Route path="scrapers" component={OrgScrapersIndex} />
+                          <Route path="labels" component={LabelsIndex} />
                         </Route>
                       </Route>
                     </Route>

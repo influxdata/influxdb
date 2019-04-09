@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import LabelOverlayForm from 'src/configuration/components/LabelOverlayForm'
+import LabelOverlayForm from 'src/labels/components/LabelOverlayForm'
 import {Overlay, ComponentStatus} from 'src/clockface'
 
 // Types
