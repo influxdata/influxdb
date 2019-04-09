@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
@@ -337,7 +336,7 @@ func (ts *taskServiceValidator) validateBucket(ctx context.Context, script strin
 		return err
 	}
 
-	spec, err := flux.Compile(ctx, script, time.Now())
+	ast, err := flux.Parse(script)
 	if err != nil {
 		return platform.NewError(
 			platform.WithErrorErr(err),
@@ -345,7 +344,7 @@ func (ts *taskServiceValidator) validateBucket(ctx context.Context, script strin
 			platform.WithErrorCode(platform.EInvalid))
 	}
 
-	if err := ts.preAuth.PreAuthorize(ctx, spec, auth, &orgID); err != nil {
+	if err := ts.preAuth.PreAuthorize(ctx, ast, auth, &orgID); err != nil {
 		ts.logger.With(loggerFields...).Info("Task failed preauthorization check",
 			zap.String("user_id", auth.GetUserID().String()),
 			zap.String("org_id", orgID.String()),

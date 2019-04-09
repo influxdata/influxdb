@@ -62,21 +62,11 @@ func (c *Compiler) Compile(ctx context.Context) (flux.Program, error) {
 		return nil, err
 	}
 
-	fs, err := flux.CompileAST(ctx, astPkg, now)
-	if err != nil {
-		return nil, err
+	astCompiler := lang.ASTCompiler{
+		AST: astPkg,
+		Now: now,
 	}
-
-	pb := plan.PlannerBuilder{}
-	pb.AddLogicalOptions(c.logicalPlannerOptions...)
-	planner := pb.Build()
-	ps, err := planner.Plan(fs)
-	if err != nil {
-		return nil, err
-	}
-	return &lang.Program{
-		PlanSpec: ps,
-	}, nil
+	return astCompiler.Compile(ctx)
 }
 
 func (c *Compiler) CompilerType() flux.CompilerType {
