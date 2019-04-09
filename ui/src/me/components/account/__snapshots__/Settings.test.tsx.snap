@@ -41,7 +41,7 @@ exports[`Account rendering renders! 1`] = `
               >
                 <div
                   className="panel panel--sm"
-                  data-testID="panel"
+                  data-testid="panel"
                 >
                   <t
                     testID="panel--header"
