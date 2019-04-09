@@ -739,6 +739,9 @@ func (s *Service) findRunByID(ctx context.Context, tx Tx, taskID, runID influxdb
 	}
 	runBytes, err := bucket.Get(key)
 	if err != nil {
+		if err != ErrKeyNotFound {
+			return nil, ErrRunNotFound
+		}
 		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 	run := &influxdb.Run{}

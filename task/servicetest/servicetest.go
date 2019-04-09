@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
@@ -73,7 +74,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...s
 				})
 
 				t.Run("Task Runs", func(t *testing.T) {
-					// t.Parallel()
+					t.Parallel()
 					testTaskRuns(t, sys)
 				})
 
@@ -690,7 +691,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 	})
 
 	t.Run("FindLogs", func(t *testing.T) {
-		// t.Parallel()
+		t.Parallel()
 
 		ct := influxdb.TaskCreate{
 			OrganizationID: cr.OrgID,
@@ -1095,13 +1096,13 @@ func testRunStorage(t *testing.T, sys *System) {
 
 	// Look for a run that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
-	if err == nil {
+	if err != backend.ErrRunNotFound && err != kv.ErrRunNotFound {
 		t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
 	}
 
 	// look for a taskID that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, influxdb.ID(math.MaxUint64), runs[0].ID)
-	if err == nil {
+	if err != backend.ErrRunNotFound && err != backend.ErrTaskNotFound && err != kv.ErrRunNotFound {
 		t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
 	}
 
