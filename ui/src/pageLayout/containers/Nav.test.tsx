@@ -30,6 +30,7 @@ function Nav(props) {
           </a>
         )}
         active={getNavItemActivation(['dashboards'], pathname)}
+        testID={`nav-menu--item ${DASHBOARDS_NAV_ITEM}`}
       />
       <NavMenu.Item
         titleLink={className => (
@@ -43,6 +44,7 @@ function Nav(props) {
           </a>
         )}
         active={getNavItemActivation(['tasks'], pathname)}
+        testID={`nav-menu--item ${TASKS_NAV_ITEM}`}
       />
     </NavMenu>
   )
