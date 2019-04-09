@@ -6,14 +6,17 @@ import {connect} from 'react-redux'
 // Components
 import {Input, Button, EmptyState, Grid} from '@influxdata/clockface'
 import {Tabs} from 'src/clockface'
-import CollectorList from 'src/organizations/components/CollectorList'
-import TelegrafExplainer from 'src/organizations/components/TelegrafExplainer'
-import TelegrafInstructionsOverlay from 'src/organizations/components/TelegrafInstructionsOverlay'
-import TelegrafConfigOverlay from 'src/organizations/components/TelegrafConfigOverlay'
+import CollectorList from 'src/telegrafs/components/CollectorList'
+import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
+import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
+import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
 import GetLabels from 'src/configuration/components/GetLabels'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -32,7 +35,7 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {OverlayState} from 'src/types'
+import {OverlayState, AppState} from 'src/types'
 import {
   setDataLoadersType,
   setTelegrafConfigID,
@@ -41,7 +44,7 @@ import {
 } from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/dataLoaders'
 
-interface OwnProps {
+interface StateProps {
   collectors: Telegraf[]
   orgName: string
   buckets: Bucket[]
@@ -57,7 +60,7 @@ interface DispatchProps {
   onDeleteTelegraf: typeof deleteTelegraf
 }
 
-type Props = OwnProps & DispatchProps
+type Props = DispatchProps & StateProps
 
 interface State {
   dataLoaderOverlay: OverlayState
@@ -137,11 +140,13 @@ export class Collectors extends PureComponent<Props, State> {
           </Grid.Row>
         </Grid>
         {this.collectorsWizard}
-        <TelegrafInstructionsOverlay
-          visible={this.isInstructionsVisible}
-          collector={this.selectedCollector}
-          onDismiss={this.handleCloseInstructions}
-        />
+        <GetResources resource={ResourceTypes.Authorizations}>
+          <TelegrafInstructionsOverlay
+            visible={this.isInstructionsVisible}
+            collector={this.selectedCollector}
+            onDismiss={this.handleCloseInstructions}
+          />
+        </GetResources>
         <TelegrafConfigOverlay
           visible={this.isTelegrafConfigVisible}
           onDismiss={this.handleCloseTelegrafConfig}
@@ -307,6 +312,11 @@ export class Collectors extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 }
+const mstp = ({telegrafs, orgs: {org}, buckets}: AppState): StateProps => ({
+  collectors: telegrafs.list,
+  orgName: org.name,
+  buckets: buckets.list,
+})
 
 const mdtp: DispatchProps = {
   onSetBucketInfo: setBucketInfo,
@@ -318,7 +328,7 @@ const mdtp: DispatchProps = {
   onDeleteTelegraf: deleteTelegraf,
 }
 
-export default connect<null, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps>(
+  mstp,
   mdtp
 )(Collectors)

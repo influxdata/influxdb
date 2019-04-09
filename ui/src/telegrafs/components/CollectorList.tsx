@@ -4,7 +4,7 @@ import _ from 'lodash'
 
 // Components
 import {IndexList} from 'src/clockface'
-import CollectorRow from 'src/organizations/components/CollectorRow'
+import CollectorRow from 'src/telegrafs/components/CollectorRow'
 
 // DummyData
 import {ITelegraf as Telegraf} from '@influxdata/influx'

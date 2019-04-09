@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import CollectorList from 'src/organizations/components/CollectorList'
+import CollectorList from 'src/telegrafs/components/CollectorList'
 
 // Constants
 import {telegraf} from 'mocks/dummyData'
