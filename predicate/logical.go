@@ -25,7 +25,10 @@ func (op LogicalOperator) Value() (datatypes.Node_Logical, error) {
 	case LogicalAnd:
 		return datatypes.LogicalAnd, nil
 	case LogicalOr:
-		return datatypes.LogicalOr, nil
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "the logical operator OR is not supported for delete predicate yet",
+		}
 	default:
 		return 0, &influxdb.Error{
 			Code: influxdb.EInvalid,

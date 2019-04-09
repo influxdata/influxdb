@@ -58,11 +58,14 @@ func NodeComparison(op influxdb.Operator) (datatypes.Node_Comparison, error) {
 	case influxdb.Equal:
 		return datatypes.ComparisonEqual, nil
 	case influxdb.NotEqual:
-		return datatypes.ComparisonNotEqual, nil
+		fallthrough
 	case influxdb.RegexEqual:
-		return datatypes.ComparisonRegex, nil
+		fallthrough
 	case influxdb.NotRegexEqual:
-		return datatypes.ComparisonNotRegex, nil
+		return 0, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("Operator %s is not supported for delete predicate yet", op),
+		}
 	default:
 		return 0, &influxdb.Error{
 			Code: influxdb.EInvalid,

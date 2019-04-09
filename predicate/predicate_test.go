@@ -6,15 +6,17 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	influxtesting "github.com/influxdata/influxdb/testing"
 
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestMarshal(t *testing.T) {
+func TestMarshalDataTypes(t *testing.T) {
 	cases := []struct {
-		name string
-		node Node
+		name     string
+		node     Node
+		dataType *datatypes.Node
 	}{
 		{
 			name: "empty node",
@@ -26,6 +28,22 @@ func TestMarshal(t *testing.T) {
 				Tag: influxdb.Tag{
 					Key:   "k1",
 					Value: "v1",
+				},
+			},
+			dataType: &datatypes.Node{
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				Children: []*datatypes.Node{
+					{
+						NodeType: datatypes.NodeTypeTagRef,
+						Value:    &datatypes.Node_TagRefValue{TagRefValue: "k1"},
+					},
+					{
+						NodeType: datatypes.NodeTypeLiteral,
+						Value: &datatypes.Node_StringValue{
+							StringValue: "v1",
+						},
+					},
 				},
 			},
 		},
@@ -42,10 +60,50 @@ func TestMarshal(t *testing.T) {
 						},
 					},
 					&TagRuleNode{
-						Operator: influxdb.RegexEqual,
+						Operator: influxdb.Equal,
 						Tag: influxdb.Tag{
 							Key:   "k2",
-							Value: "/v2/",
+							Value: "v2",
+						},
+					},
+				},
+			},
+			dataType: &datatypes.Node{
+				NodeType: datatypes.NodeTypeLogicalExpression,
+				Value: &datatypes.Node_Logical_{
+					Logical: datatypes.LogicalAnd,
+				},
+				Children: []*datatypes.Node{
+					{
+						NodeType: datatypes.NodeTypeComparisonExpression,
+						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+						Children: []*datatypes.Node{
+							{
+								NodeType: datatypes.NodeTypeTagRef,
+								Value:    &datatypes.Node_TagRefValue{TagRefValue: "k1"},
+							},
+							{
+								NodeType: datatypes.NodeTypeLiteral,
+								Value: &datatypes.Node_StringValue{
+									StringValue: "v1",
+								},
+							},
+						},
+					},
+					{
+						NodeType: datatypes.NodeTypeComparisonExpression,
+						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+						Children: []*datatypes.Node{
+							{
+								NodeType: datatypes.NodeTypeTagRef,
+								Value:    &datatypes.Node_TagRefValue{TagRefValue: "k2"},
+							},
+							{
+								NodeType: datatypes.NodeTypeLiteral,
+								Value: &datatypes.Node_StringValue{
+									StringValue: "v2",
+								},
+							},
 						},
 					},
 				},
@@ -57,7 +115,7 @@ func TestMarshal(t *testing.T) {
 				Operator: LogicalAnd,
 				Children: []Node{
 					&LogicalNode{
-						Operator: LogicalOr,
+						Operator: LogicalAnd,
 						Children: []Node{
 							&TagRuleNode{
 								Operator: influxdb.Equal,
@@ -76,10 +134,74 @@ func TestMarshal(t *testing.T) {
 						},
 					},
 					&TagRuleNode{
-						Operator: influxdb.RegexEqual,
+						Operator: influxdb.Equal,
 						Tag: influxdb.Tag{
 							Key:   "k2",
-							Value: "/v2/",
+							Value: "v2",
+						},
+					},
+				},
+			},
+			dataType: &datatypes.Node{
+				NodeType: datatypes.NodeTypeLogicalExpression,
+				Value: &datatypes.Node_Logical_{
+					Logical: datatypes.LogicalAnd,
+				},
+				Children: []*datatypes.Node{
+					{
+						NodeType: datatypes.NodeTypeLogicalExpression,
+						Value: &datatypes.Node_Logical_{
+							Logical: datatypes.LogicalAnd,
+						},
+						Children: []*datatypes.Node{
+							{
+								NodeType: datatypes.NodeTypeComparisonExpression,
+								Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+								Children: []*datatypes.Node{
+									{
+										NodeType: datatypes.NodeTypeTagRef,
+										Value:    &datatypes.Node_TagRefValue{TagRefValue: "k3"},
+									},
+									{
+										NodeType: datatypes.NodeTypeLiteral,
+										Value: &datatypes.Node_StringValue{
+											StringValue: "v3",
+										},
+									},
+								},
+							},
+							{
+								NodeType: datatypes.NodeTypeComparisonExpression,
+								Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+								Children: []*datatypes.Node{
+									{
+										NodeType: datatypes.NodeTypeTagRef,
+										Value:    &datatypes.Node_TagRefValue{TagRefValue: "k4"},
+									},
+									{
+										NodeType: datatypes.NodeTypeLiteral,
+										Value: &datatypes.Node_StringValue{
+											StringValue: "v4",
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						NodeType: datatypes.NodeTypeComparisonExpression,
+						Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+						Children: []*datatypes.Node{
+							{
+								NodeType: datatypes.NodeTypeTagRef,
+								Value:    &datatypes.Node_TagRefValue{TagRefValue: "k2"},
+							},
+							{
+								NodeType: datatypes.NodeTypeLiteral,
+								Value: &datatypes.Node_StringValue{
+									StringValue: "v2",
+								},
+							},
 						},
 					},
 				},
@@ -98,6 +220,16 @@ func TestMarshal(t *testing.T) {
 		if diff := cmp.Diff(c.node, node); diff != "" {
 			t.Fatalf("%s failed nodes are different, diff: %s", c.name, diff)
 		}
+		if node != nil {
+			dataType, err := node.ToDataType()
+			if err != nil {
+				t.Fatalf("%s ToDataType failed, err: %s", c.name, err.Error())
+			}
+			if diff := cmp.Diff(dataType, c.dataType); diff != "" {
+				t.Fatalf("%s failed nodes are different, diff: %s", c.name, diff)
+			}
+		}
+
 		_, err = New(node)
 		if err != nil {
 			t.Fatalf("%s convert to predicate failed, err: %s", c.name, err.Error())
@@ -194,6 +326,10 @@ func TestError(t *testing.T) {
 				"key":"k1",
 				"value":"v1"
 			}`),
+			predErr: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Operator notequal is not supported for delete predicate yet",
+			},
 		},
 		{
 			json: []byte(`
@@ -203,6 +339,10 @@ func TestError(t *testing.T) {
 				"key":"k1",
 				"value":"v1"
 			}`),
+			predErr: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Operator notequalregex is not supported for delete predicate yet",
+			},
 		},
 		{
 			json: []byte(`
