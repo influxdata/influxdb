@@ -37,15 +37,18 @@ type fakeQueryService struct {
 
 var _ query.AsyncQueryService = (*fakeQueryService)(nil)
 
-func makeSpec(q string) *flux.Spec {
-	qs, err := flux.Compile(context.Background(), q, time.Unix(123, 0))
+func makeAST(q string) lang.ASTCompiler {
+	pkg, err := flux.Parse(q)
 	if err != nil {
 		panic(err)
 	}
-	return qs
+	return lang.ASTCompiler{
+		AST: pkg,
+		Now: time.Unix(123, 0),
+	}
 }
 
-func makeSpecString(q *flux.Spec) string {
+func makeASTString(q lang.ASTCompiler) string {
 	b, err := json.Marshal(q)
 	if err != nil {
 		panic(err)
@@ -71,16 +74,16 @@ func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (flux.
 		return nil, err
 	}
 
-	sc, ok := req.Compiler.(lang.SpecCompiler)
+	astc, ok := req.Compiler.(lang.ASTCompiler)
 	if !ok {
-		return nil, fmt.Errorf("fakeQueryService only supports the SpecCompiler, got %T", req.Compiler)
+		return nil, fmt.Errorf("fakeQueryService only supports the ASTCompiler, got %T", req.Compiler)
 	}
 
 	fq := &fakeQuery{
 		wait:    make(chan struct{}),
 		results: make(chan flux.Result),
 	}
-	s.queries[makeSpecString(sc.Spec)] = fq
+	s.queries[makeASTString(astc)] = fq
 
 	go fq.run(ctx)
 
@@ -93,7 +96,7 @@ func (s *fakeQueryService) SucceedQuery(script string) {
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	spec := makeSpecString(makeSpec(script))
+	spec := makeASTString(makeAST(script))
 	close(s.queries[spec].wait)
 	delete(s.queries, spec)
 }
@@ -104,7 +107,7 @@ func (s *fakeQueryService) FailQuery(script string, forced error) {
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	spec := makeSpecString(makeSpec(script))
+	spec := makeASTString(makeAST(script))
 	s.queries[spec].forcedError = forced
 	close(s.queries[spec].wait)
 	delete(s.queries, spec)
@@ -122,7 +125,7 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	t.Helper()
 
 	const attempts = 10
-	spec := makeSpecString(makeSpec(script))
+	spec := makeASTString(makeAST(script))
 	for i := 0; i < attempts; i++ {
 		if i != 0 {
 			time.Sleep(5 * time.Millisecond)

@@ -64,8 +64,10 @@ func (r QueryRequest) WithDefaults() QueryRequest {
 
 // Validate checks the query request and returns an error if the request is invalid.
 func (r QueryRequest) Validate() error {
+	// TODO(jsternberg): Remove this, but we are going to not mention
+	// the spec in the error if it is being used.
 	if r.Query == "" && r.Spec == nil && r.AST == nil {
-		return errors.New(`request body requires either query, spec, or AST`)
+		return errors.New(`request body requires either query or AST`)
 	}
 
 	if r.Spec != nil && r.Extern != nil {
@@ -220,7 +222,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
-	// Query is preferred over spec
+	// Query is preferred over AST
 	var compiler flux.Compiler
 	if r.Query != "" {
 		pkg, err := flux.Parse(r.Query)
