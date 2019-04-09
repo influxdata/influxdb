@@ -98,9 +98,12 @@ export const getTemplateByID = async (id: string) => {
   return template
 }
 
-export const getTemplatesForOrg = (orgID: string) => async dispatch => {
+export const getTemplates = () => async (dispatch, getState: GetState) => {
+  const {
+    orgs: {org},
+  } = getState()
   dispatch(setTemplatesStatus(RemoteDataState.Loading))
-  const items = await client.templates.getAll(orgID)
+  const items = await client.templates.getAll(org.id)
   dispatch(populateTemplateSummaries(items))
 }
 

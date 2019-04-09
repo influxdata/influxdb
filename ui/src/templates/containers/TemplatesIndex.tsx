@@ -9,43 +9,32 @@ import {Page} from 'src/pageLayout'
 import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
 import OrgHeader from 'src/organizations/containers/OrgHeader'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import OrgTemplateFetcher from 'src/organizations/components/OrgTemplateFetcher'
-import OrgTemplatesPage from 'src/organizations/components/OrgTemplatesPage'
+import TemplatesPage from 'src/templates/components/TemplatesPage'
 
 //Actions
 import {setTemplatesStatus as setTemplatesStatusAction} from 'src/templates/actions/index'
 
 // Types
-import {Organization, TemplateSummary} from '@influxdata/influx'
+import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types'
-import {RemoteDataState} from 'src/types'
-
-interface RouterProps {
-  params: {
-    orgID: string
-  }
-}
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 interface StateProps {
   org: Organization
-  templates: TemplateSummary[]
 }
 
 interface DispatchProps {
   setTemplatesStatus: typeof setTemplatesStatusAction
 }
 
-type Props = WithRouterProps & RouterProps & StateProps & DispatchProps
+type Props = WithRouterProps & StateProps & DispatchProps
 
 @ErrorHandling
-class OrgTemplatesIndex extends Component<Props> {
-  public componentWillUnmount() {
-    const {setTemplatesStatus} = this.props
-    setTemplatesStatus(RemoteDataState.NotStarted)
-  }
-
+class TemplatesIndex extends Component<Props> {
   public render() {
-    const {org, templates} = this.props
+    const {org} = this.props
     return (
       <>
         <Page titleTag={org.name}>
@@ -60,14 +49,9 @@ class OrgTemplatesIndex extends Component<Props> {
                     url="templates"
                     title="Templates"
                   >
-                    <OrgTemplateFetcher orgID={org.id}>
-                      <OrgTemplatesPage
-                        templates={templates}
-                        orgName={org.name}
-                        orgID={org.id}
-                        onImport={this.handleImport}
-                      />
-                    </OrgTemplateFetcher>
+                    <GetResources resource={ResourceTypes.Templates}>
+                      <TemplatesPage onImport={this.handleImport} />
+                    </GetResources>
                   </TabbedPageSection>
                 </Tabs.TabContents>
               </Tabs>
@@ -85,25 +69,17 @@ class OrgTemplatesIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, props: Props): StateProps => {
+const mstp = (state: AppState): StateProps => {
   const {
-    orgs: {items},
-    templates,
+    orgs: {org},
   } = state
-
-  const org = items.find(o => o.id === props.params.orgID)
 
   return {
     org,
-    templates: templates.items,
   }
 }
 
-const mdtp = {
-  setTemplatesStatus: setTemplatesStatusAction,
-}
-
-export default connect<StateProps, DispatchProps, {}>(
+export default connect<StateProps, {}, {}>(
   mstp,
-  mdtp
-)(withRouter<{}>(OrgTemplatesIndex))
+  null
+)(withRouter<{}>(TemplatesIndex))
