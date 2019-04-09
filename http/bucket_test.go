@@ -13,7 +13,6 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
@@ -1032,13 +1031,10 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 }
 
 func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, string, func()) {
-	ctx := context.Background()
-	svc := kv.NewService(inmem.NewKVStore())
+	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
 
+	ctx := context.Background()
 	for _, o := range f.Organizations {
 		if err := svc.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate organizations")
