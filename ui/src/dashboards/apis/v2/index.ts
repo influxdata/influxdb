@@ -127,7 +127,8 @@ export const updateView = async (
 
 export const cloneDashboard = async (
   dashboardToClone: Dashboard,
-  dashboards: Dashboard[]
+  dashboards: Dashboard[],
+  orgID: string
 ) => {
   const allDashboardNames = dashboards.map(d => d.name)
 
@@ -138,7 +139,8 @@ export const cloneDashboard = async (
 
   const clonedDashboard = await client.dashboards.clone(
     dashboardToClone.id,
-    clonedName
+    clonedName,
+    orgID
   )
 
   return clonedDashboard
