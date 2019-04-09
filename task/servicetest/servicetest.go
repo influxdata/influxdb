@@ -18,7 +18,6 @@ import (
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
@@ -1096,13 +1095,14 @@ func testRunStorage(t *testing.T, sys *System) {
 
 	// Look for a run that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
-	if err != backend.ErrRunNotFound && err != kv.ErrRunNotFound {
+	// TODO(lh): use kv.ErrRunNotFound in the future. Our error's are not exact
+	if err == nil {
 		t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
 	}
 
 	// look for a taskID that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, influxdb.ID(math.MaxUint64), runs[0].ID)
-	if err != backend.ErrRunNotFound && err != backend.ErrTaskNotFound && err != kv.ErrRunNotFound {
+	if err == nil {
 		t.Fatalf("expected %s but got %s instead", backend.ErrRunNotFound, err)
 	}
 
