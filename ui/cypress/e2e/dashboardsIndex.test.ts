@@ -65,6 +65,8 @@ describe('Dashboards', () => {
 
     cy.getByTestID('card-select-Bashboard-Template').click()
 
+    cy.getByTestID('template-panel').should('exist')
+
     cy.getByTestID('create-dashboard-button').click()
 
     cy.getByTestID('dashboard-card').should('have.length', 1)

@@ -11,6 +11,7 @@ import {
   Panel,
   EmptyState,
   ComponentSize,
+  ComponentStatus,
 } from '@influxdata/clockface'
 import {Overlay, ResponsiveGridSizer} from 'src/clockface'
 import {
@@ -84,7 +85,10 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
               </GetResources>
               {!selectedTemplateSummary && this.emptyState}
               {selectedTemplateSummary && (
-                <Panel className="import-template-overlay--details">
+                <Panel
+                  className="import-template-overlay--details"
+                  testID="template-panel"
+                >
                   <Panel.Header
                     title={_.get(selectedTemplateSummary, 'meta.name')}
                   />
@@ -136,6 +140,11 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
         text="Create Dashboard"
         onClick={this.onSubmit}
         key="submit-button"
+        status={
+          this.state.selectedTemplate
+            ? ComponentStatus.Default
+            : ComponentStatus.Disabled
+        }
         testID="create-dashboard-button"
         color={ComponentColor.Primary}
       />,
@@ -193,9 +202,9 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   private selectTemplate = (
     selectedTemplateSummary: TemplateSummary
   ) => async (): Promise<void> => {
-    this.setState({selectedTemplateSummary})
     const selectedTemplate = await getTemplateByID(selectedTemplateSummary.id)
     this.setState({
+      selectedTemplateSummary,
       selectedTemplate,
       variables: this.getVariablesForTemplate(selectedTemplate),
       cells: this.getCellsForTemplate(selectedTemplate),
