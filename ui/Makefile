@@ -2,8 +2,8 @@ UISOURCES := $(shell find . -type f -not \( -path ./build/\* -o -path ./node_mod
 
 all: build
 
-node_modules: package-lock.json
-	npm ci
+node_modules:
+	npm i
 
  e2e: node_modules
 	npm run test:junit
