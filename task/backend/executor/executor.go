@@ -139,7 +139,7 @@ func (p *syncRunPromise) finish(res *runResult, err error) {
 func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	spec, err := flux.Compile(p.ctx, p.t.Script, time.Unix(p.qr.Now, 0))
+	pkg, err := flux.Parse(p.t.Script)
 	if err != nil {
 		p.finish(nil, err)
 		return
@@ -148,8 +148,9 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 	req := &query.Request{
 		Authorization:  p.auth,
 		OrganizationID: p.t.Org,
-		Compiler: lang.SpecCompiler{
-			Spec: spec,
+		Compiler: lang.ASTCompiler{
+			AST: pkg,
+			Now: time.Unix(p.qr.Now, 0),
 		},
 	}
 	it, err := p.qs.Query(p.ctx, req)
@@ -218,7 +219,7 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 		return nil, err
 	}
 
-	spec, err := flux.Compile(ctx, t.Script, time.Unix(run.Now, 0))
+	pkg, err := flux.Parse(t.Script)
 	if err != nil {
 		return nil, err
 	}
@@ -226,8 +227,9 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 	req := &query.Request{
 		Authorization:  auth,
 		OrganizationID: t.Org,
-		Compiler: lang.SpecCompiler{
-			Spec: spec,
+		Compiler: lang.ASTCompiler{
+			AST: pkg,
+			Now: time.Unix(run.Now, 0),
 		},
 	}
 	// Only set the authorizer on the context where we need it here.
