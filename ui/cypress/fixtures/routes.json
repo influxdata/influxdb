@@ -1,5 +1,5 @@
 {
-  "orgs": "/organizations",
+  "orgs": "/orgs",
   "dashboards": "/dashboards",
   "explorer": "/data-explorer"
 }

@@ -12,12 +12,13 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 
 // Types
 import {
-  DropdownMenuColors,
   ComponentStatus,
   ComponentColor,
   ComponentSize,
   IconFont,
 } from '@influxdata/clockface'
+
+import {DropdownMenuColors} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

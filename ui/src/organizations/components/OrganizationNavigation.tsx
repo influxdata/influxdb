@@ -19,7 +19,7 @@ class OrganizationNavigation extends PureComponent<Props> {
   public render() {
     const {tab, orgID} = this.props
 
-    const route = `/organizations/${orgID}`
+    const route = `/orgs/${orgID}`
 
     return (
       <Tabs.Nav>
@@ -34,18 +34,6 @@ class OrganizationNavigation extends PureComponent<Props> {
           id="buckets"
           url={`${route}/buckets`}
           active={'buckets' === tab}
-        />
-        <Tabs.Tab
-          title="Dashboards"
-          id="dashboards"
-          url={`${route}/dashboards`}
-          active={'dashboards' === tab}
-        />
-        <Tabs.Tab
-          title="Tasks"
-          id="tasks"
-          url={`${route}/tasks`}
-          active={'tasks' === tab}
         />
         <Tabs.Tab
           title="Telegraf"
@@ -72,6 +60,12 @@ class OrganizationNavigation extends PureComponent<Props> {
           id="templates"
           url={`${route}/templates`}
           active={'templates' === tab}
+        />
+        <Tabs.Tab
+          title="Tokens"
+          id="tokens"
+          url={`${route}/tokens`}
+          active={'tokens' === tab}
         />
       </Tabs.Nav>
     )

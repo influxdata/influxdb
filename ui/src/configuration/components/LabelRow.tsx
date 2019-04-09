@@ -2,8 +2,8 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Alignment, ComponentSize} from '@influxdata/clockface'
-import {IndexList, Label, ConfirmationButton} from 'src/clockface'
+import {ComponentSize} from '@influxdata/clockface'
+import {IndexList, Label, Alignment, ConfirmationButton} from 'src/clockface'
 
 // Types
 import {ILabel} from '@influxdata/influx'

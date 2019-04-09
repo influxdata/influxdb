@@ -1,9 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Page} from 'src/pageLayout'
 
 // Components
-import {Tabs, ComponentSpacer, Alignment, Stack} from 'src/clockface'
+import {Page} from 'src/pageLayout'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
+
+// Components
+import {Tabs} from 'src/clockface'
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
@@ -29,7 +32,7 @@ export default class TemplatesHeader extends PureComponent<Props> {
       return (
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title={this.pageTitle} />
+            <PageTitleWithOrg title={this.pageTitle} />
           </Page.Header.Left>
           <Page.Header.Right>{this.importButton}</Page.Header.Right>
         </Page.Header>
@@ -39,9 +42,7 @@ export default class TemplatesHeader extends PureComponent<Props> {
     return (
       <Tabs.TabContentsHeader>
         {filterComponent()}
-        <ComponentSpacer align={Alignment.Right} stackChildren={Stack.Columns}>
-          {this.importButton}
-        </ComponentSpacer>
+        {this.importButton}
       </Tabs.TabContentsHeader>
     )
   }

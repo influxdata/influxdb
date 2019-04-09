@@ -9,13 +9,12 @@ import {refreshVariableValues, selectValue} from 'src/variables/actions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {getActiveOrg} from 'src/organizations/selectors'
 import {getVariableAssignments} from 'src/variables/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {
-  getVariablesForOrg,
+  extractVariablesList,
   getVariable,
   getHydratedVariables,
 } from 'src/variables/selectors'
@@ -64,8 +63,7 @@ export const refreshTimeMachineVariableValues = () => async (
     ...view,
     properties: {...view.properties, queries: draftQueries},
   }
-  const orgID = getActiveOrg(getState()).id
-  const variables = getVariablesForOrg(getState(), orgID)
+  const variables = extractVariablesList(getState())
   const variablesInUse = filterUnusedVars(variables, [view, draftView])
 
   // Find variables whose values have already been loaded by the TimeMachine
@@ -77,7 +75,7 @@ export const refreshTimeMachineVariableValues = () => async (
     v => variablesInUse.includes(v) || hydratedVariables.includes(v)
   )
 
-  await dispatch(refreshVariableValues(contextID, orgID, variablesToRefresh))
+  await dispatch(refreshVariableValues(contextID, variablesToRefresh))
 }
 
 let pendingResults: Array<WrappedCancelablePromise<ExecuteFluxQueryResult>> = []
@@ -95,7 +93,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     await dispatch(refreshTimeMachineVariableValues())
 
-    const orgID = getActiveOrg(getState()).id
+    const orgID = getState().orgs.org.id
     const queryURL = getState().links.query.self
     const activeTimeMachineID = getState().timeMachines.activeTimeMachineID
     const variableAssignments = [
@@ -147,7 +145,6 @@ export const addVariableToTimeMachine = (variableID: string) => async (
   getState: GetState
 ) => {
   const contextID = getState().timeMachines.activeTimeMachineID
-  const orgID = getActiveOrg(getState()).id
 
   const variable = getVariable(getState(), variableID)
   const variables = getHydratedVariables(getState(), contextID)
@@ -156,7 +153,7 @@ export const addVariableToTimeMachine = (variableID: string) => async (
     variables.push(variable)
   }
 
-  await dispatch(refreshVariableValues(contextID, orgID, variables))
+  await dispatch(refreshVariableValues(contextID, variables))
 }
 
 export const selectVariableValue = (

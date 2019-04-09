@@ -123,7 +123,7 @@ class Labels extends PureComponent<Props, State> {
   }
 
   private handleCreateLabel = (label: ILabel) => {
-    this.props.createLabel(label.orgID, label.name, label.properties)
+    this.props.createLabel(label.name, label.properties)
   }
 
   private handleUpdateLabel = (label: ILabel) => {

@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/executor"
 	"go.uber.org/zap"
@@ -229,10 +230,14 @@ func (ts tables) Do(f func(flux.Table) error) error {
 
 func (ts tables) Statistics() flux.Statistics { return flux.Statistics{} }
 
+type noopRunCanceler struct{}
+
+func (noopRunCanceler) CancelRun(ctx context.Context, taskID, runID platform.ID) error { return nil }
+
 type system struct {
 	name string
 	svc  *fakeQueryService
-	st   backend.Store
+	ts   platform.TaskService
 	ex   backend.Executor
 	// We really just want an authorization service here, but we take a whole inmem service
 	// to ensure that the authorization service validates org and user existence properly.
@@ -243,32 +248,32 @@ type createSysFn func() *system
 
 func createAsyncSystem() *system {
 	svc := newFakeQueryService()
-	st := backend.NewInMemStore()
 	i := inmem.NewService()
+	ts := task.PlatformAdapter(backend.NewInMemStore(), backend.NopLogReader{}, noopRunCanceler{}, i, i, i)
 	return &system{
 		name: "AsyncExecutor",
 		svc:  svc,
-		st:   st,
-		ex:   executor.NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, st),
+		ts:   ts,
+		ex:   executor.NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, ts),
 		i:    i,
 	}
 }
 
 func createSyncSystem() *system {
 	svc := newFakeQueryService()
-	st := backend.NewInMemStore()
 	i := inmem.NewService()
+	ts := task.PlatformAdapter(backend.NewInMemStore(), backend.NopLogReader{}, noopRunCanceler{}, i, i, i)
 	return &system{
 		name: "SynchronousExecutor",
 		svc:  svc,
-		st:   st,
+		ts:   ts,
 		ex: executor.NewQueryServiceExecutor(
 			zap.NewNop(),
 			query.QueryServiceBridge{
 				AsyncQueryService: svc,
 			},
 			i,
-			st,
+			ts,
 		),
 		i: i,
 	}
@@ -303,11 +308,12 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 		t.Parallel()
 
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
+		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -353,8 +359,8 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if qa.Identifier() != tc.AuthzID {
-			t.Fatalf("expected query authorizer to have ID %v, got %v", tc.AuthzID, qa.Identifier())
+		if qa.Identifier() != tc.Auth.ID {
+			t.Fatalf("expected query authorizer to have ID %v, got %v", tc.Auth.ID, qa.Identifier())
 		}
 	})
 }
@@ -365,11 +371,12 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
+		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -394,11 +401,12 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
+		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -422,11 +430,12 @@ func testExecutorServiceError(t *testing.T, fn createSysFn) {
 	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
+		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 
 		var forced = errors.New("forced")
 		sys.svc.FailNextQuery(forced)
@@ -489,11 +498,12 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			defer ctxCancel()
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
+			ctx = icontext.SetAuthorizer(ctx, tc.Auth)
+			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 			if err != nil {
 				t.Fatal(err)
 			}
-			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 			if _, err := sys.ex.Execute(ctx, qr); err != nil {
 				t.Fatal(err)
 			}
@@ -526,14 +536,14 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			sys := createSys()
 			tc := createCreds(t, sys.i)
 
-			ctx := context.Background()
+			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
+			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 			if err != nil {
 				t.Fatal(err)
 			}
-			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 			rp, err := sys.ex.Execute(ctx, qr)
 			if err != nil {
 				t.Fatal(err)
@@ -567,14 +577,14 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			sys := createSys()
 			tc := createCreds(t, sys.i)
 
-			ctx := context.Background()
+			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
+			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 			if err != nil {
 				t.Fatal(err)
 			}
-			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 			if _, err := sys.ex.Execute(ctx, qr); err != nil {
 				t.Fatal(err)
 			}
@@ -608,14 +618,13 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			sys := createSys()
 			tc := createCreds(t, sys.i)
 
-			ctx := context.Background()
-
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: tc.OrgID, AuthorizationID: tc.AuthzID, Script: script})
+			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 			if err != nil {
 				t.Fatal(err)
 			}
-			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 			if _, err := sys.ex.Execute(ctx, qr); err != nil {
 				t.Fatal(err)
 			}
@@ -647,7 +656,8 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 }
 
 type testCreds struct {
-	OrgID, UserID, AuthzID platform.ID
+	OrgID, UserID platform.ID
+	Auth          *platform.Authorization
 }
 
 func createCreds(t *testing.T, i *inmem.Service) testCreds {
@@ -674,11 +684,12 @@ func createCreds(t *testing.T, i *inmem.Service) testCreds {
 	auth := &platform.Authorization{
 		OrgID:       org.ID,
 		UserID:      user.ID,
+		Token:       "hifriend!",
 		Permissions: []platform.Permission{*readPerm, *writePerm},
 	}
 	if err := i.CreateAuthorization(context.Background(), auth); err != nil {
 		t.Fatal(err)
 	}
 
-	return testCreds{OrgID: org.ID, AuthzID: auth.ID}
+	return testCreds{OrgID: org.ID, Auth: auth}
 }

@@ -1,64 +1,55 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {useEffect, FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, AppState} from 'src/types'
 
 // Actions
-import {getOrganizations} from 'src/organizations/actions/orgs'
-
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import {getOrganizations as getOrganizationsAction} from 'src/organizations/actions/orgs'
 
 interface PassedInProps {
   children: React.ReactElement<any>
 }
 
-interface ConnectDispatchProps {
-  getOrganizations: typeof getOrganizations
+interface DispatchProps {
+  getOrganizations: typeof getOrganizationsAction
 }
 
-type Props = ConnectDispatchProps & PassedInProps
-
-interface State {
-  loading: RemoteDataState
+interface StateProps {
+  status: RemoteDataState
 }
 
-@ErrorHandling
-class GetOrganizations extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
+type Props = StateProps & DispatchProps & PassedInProps
 
-    this.state = {
-      loading: RemoteDataState.NotStarted,
+const GetOrganizations: FunctionComponent<Props> = ({
+  status,
+  getOrganizations,
+  children,
+}) => {
+  useEffect(() => {
+    if (status === RemoteDataState.NotStarted) {
+      getOrganizations()
     }
-  }
+  })
 
-  public async componentDidMount() {
-    await this.props.getOrganizations()
-    this.setState({loading: RemoteDataState.Done})
-  }
-
-  public render() {
-    const {loading} = this.state
-
-    return (
-      <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
-        {this.props.children && React.cloneElement(this.props.children)}
-      </SpinnerContainer>
-    )
-  }
+  return (
+    <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
+      {children && React.cloneElement(children)}
+    </SpinnerContainer>
+  )
 }
 
 const mdtp = {
-  getOrganizations,
+  getOrganizations: getOrganizationsAction,
 }
 
-export default connect<{}, ConnectDispatchProps, PassedInProps>(
-  null,
+const mstp = ({orgs: {status}}: AppState): StateProps => ({status})
+
+export default connect<StateProps, DispatchProps, PassedInProps>(
+  mstp,
   mdtp
 )(GetOrganizations)

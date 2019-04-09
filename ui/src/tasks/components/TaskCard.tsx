@@ -56,7 +56,6 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         testID="task-card"
         disabled={!this.isTaskActive}
         labels={() => this.labels}
-        owner={{name: task.org, id: task.orgID}}
         contextMenu={() => this.contextMenu}
         name={() => (
           <ResourceList.Name
@@ -124,8 +123,12 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleViewRuns = () => {
-    const {router, task} = this.props
-    router.push(`tasks/${task.id}/runs`)
+    const {
+      router,
+      task,
+      params: {orgID},
+    } = this.props
+    router.push(`/orgs/${orgID}/tasks/${task.id}/runs`)
   }
 
   private handleRenameTask = async (name: string) => {
@@ -171,7 +174,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
 
   private handleCreateLabel = async (label: ILabel): Promise<void> => {
     try {
-      await this.props.onCreateLabel(label.orgID, label.name, label.properties)
+      await this.props.onCreateLabel(label.name, label.properties)
     } catch (err) {
       throw err
     }

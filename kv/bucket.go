@@ -179,7 +179,7 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 	if IsNotFound(err) {
 		return nil, &influxdb.Error{
 			Code: influxdb.ENotFound,
-			Msg:  "bucket not found",
+			Msg:  fmt.Sprintf("bucket %q not found", n),
 		}
 	}
 

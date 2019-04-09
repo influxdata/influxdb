@@ -27,12 +27,14 @@ import * as notifyActions from 'src/shared/actions/notifications'
 import {Organization, ScraperTargetResponse, Bucket} from '@influxdata/influx'
 import {AppState} from 'src/types'
 
-const getScrapers = async (): Promise<ScraperTargetResponse[]> => {
-  return await client.scrapers.getAll()
+const getScrapers = async (
+  org: Organization
+): Promise<ScraperTargetResponse[]> => {
+  return await client.scrapers.getAll(org.id)
 }
 
 const getBuckets = async (org: Organization): Promise<Bucket[]> => {
-  return client.buckets.getAllByOrg(org.name)
+  return client.buckets.getAll(org.id)
 }
 
 interface RouterProps {
@@ -58,7 +60,7 @@ class OrgScrapersIndex extends Component<Props> {
 
     return (
       <Page titleTag={org.name}>
-        <OrgHeader orgID={org.id} />
+        <OrgHeader />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
@@ -113,8 +115,10 @@ class OrgScrapersIndex extends Component<Props> {
 }
 
 const mstp = (state: AppState, props: Props) => {
-  const {orgs} = state
-  const org = orgs.find(o => o.id === props.params.orgID)
+  const {
+    orgs: {items},
+  } = state
+  const org = items.find(o => o.id === props.params.orgID)
   return {
     org,
   }

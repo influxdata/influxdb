@@ -2,7 +2,13 @@
 import React, {SFC} from 'react'
 
 // Components
-import {ComponentSpacer, Stack, Alignment} from 'src/clockface'
+import {
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+  AlignItems,
+  ComponentSize,
+} from '@influxdata/clockface'
 
 interface Props {
   children: JSX.Element | JSX.Element[]
@@ -11,8 +17,10 @@ interface Props {
 const OverlayFooter: SFC<Props> = ({children}) => (
   <div className="overlay--footer">
     <ComponentSpacer
-      stackChildren={Stack.Columns}
-      align={Alignment.Center}
+      margin={ComponentSize.Small}
+      direction={FlexDirection.Row}
+      justifyContent={JustifyContent.Center}
+      alignItems={AlignItems.Center}
       stretchToFitWidth={true}
     >
       {children}

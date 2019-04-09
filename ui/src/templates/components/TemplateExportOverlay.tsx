@@ -17,7 +17,7 @@ import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  params: {id: string; orgID: string}
+  params: {id: string}
 }
 
 interface DispatchProps {
@@ -42,18 +42,13 @@ class TemplateExportOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    const {
-      exportTemplate,
-      status,
-      params: {orgID},
-    } = this.props
+    const {exportTemplate, status} = this.props
 
     return (
       <ExportOverlay
         resourceName="Template"
         resource={exportTemplate}
         onDismissOverlay={this.onDismiss}
-        orgID={orgID}
         status={status}
       />
     )

@@ -1048,7 +1048,7 @@ func FindBucket(
 				err: &platform.Error{
 					Code: platform.ENotFound,
 					Op:   platform.OpFindBucket,
-					Msg:  "bucket not found",
+					Msg:  "bucket \"xyz\" not found",
 				},
 			},
 		},

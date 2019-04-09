@@ -2,8 +2,13 @@
 import React, {Component} from 'react'
 
 // Components
-import {Button, Alignment, ComponentSize} from '@influxdata/clockface'
-import {ComponentSpacer} from 'src/clockface'
+import {
+  Button,
+  ComponentSize,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+} from '@influxdata/clockface'
 import PermissionsWidgetItem from 'src/shared/components/permissionsWidget/PermissionsWidgetItem'
 
 // Types
@@ -52,7 +57,11 @@ class PermissionsWidgetSection extends Component<Props> {
 
     if (mode === PermissionsWidgetMode.Write) {
       return (
-        <ComponentSpacer align={Alignment.Left}>
+        <ComponentSpacer
+          margin={ComponentSize.Small}
+          direction={FlexDirection.Row}
+          justifyContent={JustifyContent.FlexEnd}
+        >
           <Button
             text="Select All"
             size={ComponentSize.ExtraSmall}

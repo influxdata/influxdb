@@ -10,11 +10,9 @@ import GetResources, {
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Settings from 'src/me/components/account/Settings'
-import Tokens from 'src/me/components/account/Tokens'
-import Buckets from 'src/configuration/components/Buckets'
 import Telegrafs from 'src/configuration/components/Telegrafs'
-import Variables from 'src/configuration/components/Variables'
 import Scrapers from 'src/configuration/components/Scrapers'
+import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -38,7 +36,7 @@ class ConfigurationPage extends Component<Props> {
       <Page titleTag="Configuration">
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
-            <Page.Title title="Configuration" />
+            <PageTitleWithOrg title="Configuration" />
           </Page.Header.Left>
           <Page.Header.Right />
         </Page.Header>
@@ -51,15 +49,6 @@ class ConfigurationPage extends Component<Props> {
                   parentUrl="/configuration"
                   activeTabUrl={tab}
                 >
-                  <TabbedPageSection
-                    id="buckets_tab"
-                    url="buckets_tab"
-                    title="Buckets"
-                  >
-                    <GetResources resource={ResourceTypes.Buckets}>
-                      <Buckets />
-                    </GetResources>
-                  </TabbedPageSection>
                   <TabbedPageSection
                     id="telegrafs_tab"
                     url="telegrafs_tab"
@@ -83,22 +72,6 @@ class ConfigurationPage extends Component<Props> {
                     </GetResources>
                   </TabbedPageSection>
                   <TabbedPageSection
-                    id="variables_tab"
-                    url="variables_tab"
-                    title="Variables"
-                  >
-                    <GetResources resource={ResourceTypes.Variables}>
-                      <Variables />
-                    </GetResources>
-                  </TabbedPageSection>
-                  <TabbedPageSection
-                    id="tokens_tab"
-                    url="tokens_tab"
-                    title="Tokens"
-                  >
-                    <Tokens />
-                  </TabbedPageSection>
-                  <TabbedPageSection
                     id="settings_tab"
                     url="settings_tab"
                     title="Profile"
@@ -113,13 +86,6 @@ class ConfigurationPage extends Component<Props> {
                   parentUrl="/configuration"
                   activeTabUrl={tab}
                 >
-                  <TabbedPageSection
-                    id="tokens_tab"
-                    url="tokens_tab"
-                    title="Tokens"
-                  >
-                    <Tokens />
-                  </TabbedPageSection>
                   <TabbedPageSection
                     id="settings_tab"
                     url="settings_tab"

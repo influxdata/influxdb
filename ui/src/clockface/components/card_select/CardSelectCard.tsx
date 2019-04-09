@@ -10,8 +10,10 @@ interface Props {
   onClick: () => void
   name?: string
   image?: StatelessComponent
+  hideImage?: boolean
   checked: boolean
   disabled: boolean
+  testID?: string
 }
 
 @ErrorHandling
@@ -22,15 +24,18 @@ class CardSelectCard extends PureComponent<Props> {
   }
 
   public render() {
-    const {id, label, checked, name, disabled} = this.props
+    const {id, label, checked, name, disabled, testID} = this.props
+
     return (
       <div
         data-toggle="card_toggle"
         onClick={this.handleClick}
+        data-testid={testID}
         className={classnames('card-select--card', {
           'card-select--checked': checked,
           'card-select--disabled': disabled,
           'card-select--active': !disabled,
+          'card-select--no-image': this.props.hideImage,
         })}
       >
         <label className="card-select--container">
@@ -60,7 +65,11 @@ class CardSelectCard extends PureComponent<Props> {
   }
 
   private get cardImage(): JSX.Element {
-    const {image, label} = this.props
+    const {image, label, hideImage} = this.props
+
+    if (hideImage) {
+      return
+    }
 
     if (image) {
       return React.createElement(image)

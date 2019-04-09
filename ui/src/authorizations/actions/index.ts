@@ -81,7 +81,7 @@ export const getAuthorizations = () => async (dispatch: Dispatch<Action>) => {
   try {
     dispatch(setAuthorizations(RemoteDataState.Loading))
 
-    const authorizations = (await client.authorizations.getAll()) as Authorization[]
+    const authorizations = await client.authorizations.getAll()
 
     dispatch(setAuthorizations(RemoteDataState.Done, authorizations))
   } catch (e) {

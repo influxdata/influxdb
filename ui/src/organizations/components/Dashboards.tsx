@@ -81,7 +81,9 @@ class Dashboards extends PureComponent<Props, State> {
           <AddResourceDropdown
             onSelectNew={this.handleCreateDashboard}
             onSelectImport={this.summonImportOverlay}
+            onSelectTemplate={this.summonImportFromTemplateOverlay}
             resourceName="Dashboard"
+            canImportFromTemplate={true}
           />
         </Tabs.TabContentsHeader>
         <DashboardsIndexContents
@@ -92,7 +94,6 @@ class Dashboards extends PureComponent<Props, State> {
           onUpdateDashboard={handleUpdateDashboard}
           notify={notify}
           searchTerm={searchTerm}
-          showOwnerColumn={false}
           onFilterChange={this.handleFilterUpdate}
           onImportDashboard={this.summonImportOverlay}
         />
@@ -113,8 +114,19 @@ class Dashboards extends PureComponent<Props, State> {
   }
 
   private summonImportOverlay = (): void => {
-    const {router, params} = this.props
-    router.push(`/organizations/${params.orgID}/dashboards/import`)
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    router.push(`/orgs/${orgID}/dashboards/import`)
+  }
+
+  private summonImportFromTemplateOverlay = (): void => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    router.push(`/orgs/${orgID}/dashboards/import/template`)
   }
 
   private handleCreateDashboard = async (): Promise<void> => {

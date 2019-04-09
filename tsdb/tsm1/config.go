@@ -11,6 +11,10 @@ var DefaultMaxConcurrentOpens = runtime.GOMAXPROCS(0)
 
 const (
 	DefaultMADVWillNeed = false
+
+	// DefaultLargeSeriesWriteThreshold is the number of series per write
+	// that requires the series index be pregrown before insert.
+	DefaultLargeSeriesWriteThreshold = 10000
 )
 
 // Config contains all of the configuration necessary to run a tsm1 engine.
@@ -25,6 +29,10 @@ type Config struct {
 	// slow disks.
 	MADVWillNeed bool `toml:"use-madv-willneed"`
 
+	// LargeSeriesWriteThreshold is the threshold before a write requires
+	// preallocation to improve throughput. Currently used in the series file.
+	LargeSeriesWriteThreshold int `toml:"large-series-write-threshold"`
+
 	Compaction CompactionConfig `toml:"compaction"`
 	Cache      CacheConfig      `toml:"cache"`
 }
@@ -32,8 +40,9 @@ type Config struct {
 // NewConfig constructs a Config with the default values.
 func NewConfig() Config {
 	return Config{
-		MaxConcurrentOpens: DefaultMaxConcurrentOpens,
-		MADVWillNeed:       DefaultMADVWillNeed,
+		MaxConcurrentOpens:        DefaultMaxConcurrentOpens,
+		MADVWillNeed:              DefaultMADVWillNeed,
+		LargeSeriesWriteThreshold: DefaultLargeSeriesWriteThreshold,
 
 		Cache: NewCacheConfig(),
 		Compaction: CompactionConfig{

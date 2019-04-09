@@ -163,6 +163,16 @@ export const bucketUpdateFailed = (bucketName: string): Notification => ({
   message: `Failed to update bucket: "${bucketName}"`,
 })
 
+export const orgCreateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Organization was successfully created',
+})
+
+export const orgCreateFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create organization',
+})
+
 export const scraperDeleteSuccess = (scraperName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Scraper "${scraperName}" was successfully deleted`,
@@ -271,4 +281,14 @@ export const memberRemoveSuccess = (memberName: string): Notification => ({
 export const memberRemoveFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to remove members: "${message}"`,
+})
+
+export const addVariableLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to add label to variables`,
+})
+
+export const removeVariableLabelFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to remove label from variables`,
 })

@@ -233,14 +233,14 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const {
-    orgs,
     dashboards: {list: dashboards},
+    orgs: {items},
     timeMachines: {
       timeMachines: {de},
     },
   } = state
   const {view} = de
-  return {dashboards, view, orgs}
+  return {dashboards, view, orgs: items}
 }
 
 const mdtp: DispatchProps = {

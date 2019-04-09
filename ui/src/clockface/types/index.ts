@@ -184,3 +184,9 @@ export enum Stack {
   Rows = 'rows',
   Columns = 'columns',
 }
+
+export enum NavMenuType {
+  RouterLink = 'router',
+  HTTPLink = 'http',
+  ShowDropdown = 'showDropdown',
+}

@@ -3,7 +3,6 @@
   ------------------------------------------------------------------------------
 */
 
-
 .responsive-grid-sizer {
   width: 100%;
   position: relative;
@@ -11,7 +10,7 @@
 
 .responsive-grid-sizer--cells {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   position: relative;
   flex-wrap: wrap;
 }

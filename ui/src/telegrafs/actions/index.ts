@@ -161,7 +161,7 @@ export const removeTelelgrafLabelsAsync = (
   labels: Label[]
 ) => async (dispatch): Promise<void> => {
   try {
-    await client.telegrafConfigs.addLabels(telegrafID, labels)
+    await client.telegrafConfigs.removeLabels(telegrafID, labels)
     const telegraf = await client.telegrafConfigs.get(telegrafID)
 
     dispatch(editTelegraf(telegraf))

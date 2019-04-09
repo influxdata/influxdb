@@ -6,14 +6,11 @@ import {replace} from 'react-router-redux'
 import {
   getDashboard as getDashboardAJAX,
   getDashboards as getDashboardsAJAX,
-  createDashboard as createDashboardAJAX,
   deleteDashboard as deleteDashboardAJAX,
   updateDashboard as updateDashboardAJAX,
   updateCells as updateCellsAJAX,
   addCell as addCellAJAX,
   deleteCell as deleteCellAJAX,
-  addDashboardLabels as addDashboardLabelsAJAX,
-  removeDashboardLabels as removeDashboardLabelsAJAX,
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis'
@@ -40,7 +37,10 @@ import {setExportTemplate} from 'src/templates/actions'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
-import {getVariablesForOrg, getHydratedVariables} from 'src/variables/selectors'
+import {
+  extractVariablesList,
+  getHydratedVariables,
+} from 'src/variables/selectors'
 import {getViewsForDashboard} from 'src/dashboards/selectors'
 import {
   getNewDashboardCell,
@@ -48,7 +48,7 @@ import {
 } from 'src/dashboards/utils/cellGetters'
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {client} from 'src/utils/api'
-import {exportVariables} from 'src/variables/utils/hydrateVars'
+import {exportVariables} from 'src/variables/utils/exportVariables'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -212,12 +212,18 @@ export const removeDashboardLabels = (
 // Thunks
 
 export const getDashboardsAsync = () => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ): Promise<Dashboard[]> => {
   try {
+    const {
+      orgs: {org},
+    } = getState()
+
     dispatch(setDashboards(RemoteDataState.Loading))
-    const dashboards = await getDashboardsAJAX()
+    const dashboards = await getDashboardsAJAX(org.id)
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
+
     return dashboards
   } catch (error) {
     dispatch(setDashboards(RemoteDataState.Error))
@@ -233,25 +239,12 @@ export const createDashboardFromTemplate = (
   try {
     await createDashboardFromTemplateAJAX(template, orgID)
 
+    const dashboards = await getDashboardsAJAX(orgID)
+
+    dispatch(setDashboards(RemoteDataState.Done, dashboards))
     dispatch(notify(importDashboardSucceeded()))
   } catch (error) {
     dispatch(notify(importDashboardFailed(error)))
-  }
-}
-
-export const importDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>
-): Promise<void> => {
-  try {
-    await createDashboardAJAX(dashboard)
-    const dashboards = await getDashboardsAJAX()
-
-    dispatch(setDashboards(RemoteDataState.Done, dashboards))
-    dispatch(notify(copy.dashboardImported()))
-  } catch (error) {
-    dispatch(setDashboards(RemoteDataState.Error))
-    dispatch(notify(copy.dashboardImportFailed('Could not upload dashboard')))
-    console.error(error)
   }
 }
 
@@ -277,12 +270,10 @@ export const refreshDashboardVariableValues = (
   dashboard: Dashboard,
   nextViews: View[]
 ) => (dispatch, getState: GetState) => {
-  const variables = getVariablesForOrg(getState(), dashboard.orgID)
+  const variables = extractVariablesList(getState())
   const variablesInUse = filterUnusedVars(variables, nextViews)
 
-  return dispatch(
-    refreshVariableValues(dashboard.id, dashboard.orgID, variablesInUse)
-  )
+  return dispatch(refreshVariableValues(dashboard.id, variablesInUse))
 }
 
 export const getDashboardAsync = (dashboardID: string) => async (
@@ -446,7 +437,10 @@ export const addDashboardLabelsAsync = (
   labels: ILabel[]
 ) => async (dispatch: Dispatch<Action>) => {
   try {
-    const newLabels = await addDashboardLabelsAJAX(dashboardID, labels)
+    const newLabels = await client.dashboards.addLabels(
+      dashboardID,
+      labels.map(l => l.id)
+    )
 
     dispatch(addDashboardLabels(dashboardID, newLabels))
   } catch (error) {
@@ -460,7 +454,8 @@ export const removeDashboardLabelsAsync = (
   labels: ILabel[]
 ) => async (dispatch: Dispatch<Action>) => {
   try {
-    await removeDashboardLabelsAJAX(dashboardID, labels)
+    await client.dashboards.removeLabels(dashboardID, labels.map(l => l.id))
+
     dispatch(removeDashboardLabels(dashboardID, labels))
   } catch (error) {
     console.error(error)
@@ -478,23 +473,24 @@ export const selectVariableValue = (
 
   dispatch(selectValue(dashboardID, variableID, value))
 
-  await dispatch(
-    refreshVariableValues(dashboard.id, dashboard.orgID, variables)
-  )
+  await dispatch(refreshVariableValues(dashboard.id, variables))
 }
 
 export const convertToTemplate = (dashboardID: string) => async (
-  dispatch
+  dispatch,
+  getState: GetState
 ): Promise<void> => {
   try {
     dispatch(setExportTemplate(RemoteDataState.Loading))
-
+    const {
+      orgs: {org},
+    } = getState()
     const dashboard = await getDashboardAJAX(dashboardID)
     const pendingViews = dashboard.cells.map(c =>
       getViewAJAX(dashboardID, c.id)
     )
     const views = await Promise.all(pendingViews)
-    const allVariables = await client.variables.getAll()
+    const allVariables = await client.variables.getAll(org.id)
     const variables = filterUnusedVars(allVariables, views)
     const exportedVariables = exportVariables(variables, allVariables)
     const dashboardTemplate = dashboardToTemplate(
@@ -503,9 +499,7 @@ export const convertToTemplate = (dashboardID: string) => async (
       exportedVariables
     )
 
-    const orgID = dashboard.orgID // TODO remove when org is implicit app state
-
-    dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate, orgID))
+    dispatch(setExportTemplate(RemoteDataState.Done, dashboardTemplate))
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))

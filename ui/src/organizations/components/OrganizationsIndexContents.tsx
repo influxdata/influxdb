@@ -12,7 +12,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Organization} from 'src/types'
-import {Alignment, ComponentSize} from '@influxdata/clockface'
+import {ComponentSize} from '@influxdata/clockface'
+import {Alignment} from 'src/clockface'
 import {deleteOrg} from 'src/organizations/actions/orgs'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
@@ -45,7 +46,7 @@ class OrganizationsPageContents extends Component<Props> {
     return orgs.map(o => (
       <IndexList.Row key={o.id}>
         <IndexList.Cell>
-          <Link to={`/organizations/${o.id}/members`}>{o.name}</Link>
+          <Link to={`/orgs/${o.id}/members`}>{o.name}</Link>
         </IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
           <CloudExclude>

@@ -52,7 +52,7 @@ class OrgDashboardsIndex extends Component<Props, State> {
     return (
       <>
         <Page titleTag={org.name}>
-          <OrgHeader orgID={org.id} />
+          <OrgHeader />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
@@ -79,7 +79,11 @@ class OrgDashboardsIndex extends Component<Props, State> {
 }
 
 const mstp = (state: AppState, props: Props): StateProps => {
-  const org = state.orgs.find(o => o.id === props.params.orgID)
+  const {
+    orgs: {items},
+  } = state
+
+  const org = items.find(o => o.id === props.params.orgID)
 
   return {
     org,

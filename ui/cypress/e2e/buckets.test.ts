@@ -22,7 +22,7 @@ describe('Buckets', () => {
       const newBucket = '🅱️ucket'
       cy.getByTestID('table-row').should('have.length', 1)
 
-      cy.contains('Create').click()
+      cy.getByTestID('Create Bucket').click()
       cy.getByTestID('overlay--container').within(() => {
         cy.getByInputName('name').type(newBucket)
         cy.get('.button')

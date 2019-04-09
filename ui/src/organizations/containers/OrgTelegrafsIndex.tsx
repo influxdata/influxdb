@@ -26,7 +26,7 @@ import {client} from 'src/utils/api'
 import {RemoteDataState} from 'src/types'
 
 const getBuckets = async (org: Organization) => {
-  return client.buckets.getAllByOrg(org.name)
+  return client.buckets.getAll(org.id)
 }
 
 interface RouterProps {
@@ -78,7 +78,7 @@ class OrgTelegrafsIndex extends Component<Props, State> {
 
     return (
       <Page titleTag={org.name}>
-        <OrgHeader orgID={org.id} />
+        <OrgHeader />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
@@ -123,10 +123,10 @@ class OrgTelegrafsIndex extends Component<Props, State> {
 
 const mstp = (state: AppState, props: WithRouterProps): StateProps => {
   const {
-    orgs,
+    orgs: {items},
     telegrafs: {list},
   } = state
-  const org = orgs.find(o => o.id === props.params.orgID)
+  const org = items.find(o => o.id === props.params.orgID)
   return {
     org,
     telegrafs: list,

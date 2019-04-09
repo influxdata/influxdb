@@ -9,7 +9,11 @@ describe('Tasks', () => {
       cy.wrap(body.bucket).as('bucket')
     })
 
-    cy.visit('/tasks')
+    cy.fixture('routes').then(({orgs}) => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.visit(`${orgs}/${id}/tasks`)
+      })
+    })
   })
 
   it('can create a task', () => {
@@ -45,7 +49,9 @@ describe('Tasks', () => {
       cy.createTask(id)
       cy.createTask(id)
 
-      cy.visit('/tasks')
+      cy.fixture('routes').then(({orgs}) => {
+        cy.visit(`${orgs}/${id}/tasks`)
+      })
 
       cy.getByTestID('task-card').should('have.length', 2)
 
@@ -90,7 +96,11 @@ describe('Tasks', () => {
         .type('{enter}')
     })
 
-    cy.visit('/tasks')
+    cy.fixture('routes').then(({orgs}) => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.visit(`${orgs}/${id}/tasks`)
+      })
+    })
 
     cy.getByTestID('task-card').should('contain', newName)
   })
@@ -129,7 +139,11 @@ describe('Tasks', () => {
         })
       })
 
-      cy.visit('/tasks')
+      cy.fixture('routes').then(({orgs}) => {
+        cy.get<Organization>('@org').then(({id}) => {
+          cy.visit(`${orgs}/${id}/tasks`)
+        })
+      })
 
       cy.getByTestID('task-card').should('have.length', 2)
 
@@ -147,7 +161,11 @@ describe('Tasks', () => {
         cy.createTask(id)
       })
 
-      cy.visit('/tasks')
+      cy.fixture('routes').then(({orgs}) => {
+        cy.get<Organization>('@org').then(({id}) => {
+          cy.visit(`${orgs}/${id}/tasks`)
+        })
+      })
 
       cy.getByTestID('search-widget').type('bEE')
 

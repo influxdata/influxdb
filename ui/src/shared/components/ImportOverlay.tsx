@@ -1,18 +1,14 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {get} from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
-import {connect} from 'react-redux'
 
 // Components
 import {Form, Radio, Button} from '@influxdata/clockface'
 import {Overlay} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import OrgDropdown from 'src/shared/components/OrgDropdown'
 import TextArea from 'src/clockface/components/inputs/TextArea'
 
 // Types
-import {AppState, Organization} from 'src/types'
 import {
   ButtonType,
   ComponentColor,
@@ -31,17 +27,12 @@ interface OwnProps {
   isVisible?: boolean
 }
 
-interface StateProps {
-  orgs: Organization[]
-}
-
 interface State {
   selectedImportOption: ImportOption
   importContent: string
-  orgID: string
 }
 
-type Props = StateProps & OwnProps & WithRouterProps
+type Props = OwnProps & WithRouterProps
 
 class ImportOverlay extends PureComponent<Props, State> {
   public static defaultProps: {isVisible: boolean} = {
@@ -51,12 +42,11 @@ class ImportOverlay extends PureComponent<Props, State> {
   public state: State = {
     selectedImportOption: ImportOption.Upload,
     importContent: '',
-    orgID: this.startingOrgID,
   }
 
   public render() {
     const {isVisible, resourceName} = this.props
-    const {orgID, selectedImportOption} = this.state
+    const {selectedImportOption} = this.state
 
     return (
       <Overlay visible={isVisible}>
@@ -90,28 +80,12 @@ class ImportOverlay extends PureComponent<Props, State> {
                 </Radio>
               </div>
               {this.importBody}
-              <div className="import--dropdown">
-                <Form.Element label="Destination Organization">
-                  <OrgDropdown
-                    selectedOrgID={orgID}
-                    onSelectOrg={this.handleSelectOrg}
-                  />
-                </Form.Element>
-              </div>
             </Overlay.Body>
             <Overlay.Footer>{this.submitButton}</Overlay.Footer>
           </Form>
         </Overlay.Container>
       </Overlay>
     )
-  }
-
-  private get startingOrgID(): string {
-    return get(this.props.params, 'orgID', '') || this.firstOrgID
-  }
-
-  private get firstOrgID(): string {
-    return get(this.props.orgs, '0.id', '')
   }
 
   private get importBody(): JSX.Element {
@@ -159,15 +133,18 @@ class ImportOverlay extends PureComponent<Props, State> {
   }
 
   private submit = () => {
-    const {importContent, orgID} = this.state
-    const {onSubmit} = this.props
+    const {importContent} = this.state
+    const {
+      onSubmit,
+      params: {orgID},
+    } = this.props
 
     onSubmit(importContent, orgID)
     this.clearImportContent()
   }
+
   private clearImportContent = () => {
     this.handleSetImportContent('')
-    this.handleSelectOrg(this.startingOrgID)
   }
 
   private onDismiss = () => {
@@ -184,15 +161,6 @@ class ImportOverlay extends PureComponent<Props, State> {
   private handleSetImportContent = (importContent: string): void => {
     this.setState({importContent})
   }
-
-  private handleSelectOrg = (orgID: string) => {
-    this.setState({orgID})
-  }
 }
 
-const mstp = ({orgs}: AppState): StateProps => ({orgs})
-
-export default connect<StateProps, {}, OwnProps>(
-  mstp,
-  null
-)(withRouter<OwnProps>(ImportOverlay))
+export default withRouter<OwnProps>(ImportOverlay)

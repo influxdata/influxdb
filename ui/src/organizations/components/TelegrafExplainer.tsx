@@ -2,7 +2,7 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Panel} from 'src/clockface'
+import {Panel} from '@influxdata/clockface'
 
 const TelegrafExplainer: SFC = () => (
   <Panel className="telegraf-explainer">

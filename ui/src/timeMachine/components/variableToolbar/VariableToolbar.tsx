@@ -8,11 +8,10 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import VariableItem from 'src/timeMachine/components/variableToolbar/VariableItem'
 
 // Utils
-import {getVariablesForOrg} from 'src/variables/selectors'
-import {getActiveOrg} from 'src/organizations/selectors'
+import {extractVariablesList} from 'src/variables/selectors'
 
 // Types
-import {Variable} from '@influxdata/influx'
+import {IVariable as Variable} from '@influxdata/influx'
 import {AppState} from 'src/types'
 
 interface OwnProps {
@@ -49,12 +48,10 @@ const VariableToolbar: FunctionComponent<OwnProps & StateProps> = ({
   )
 }
 
-const mstp = (state: AppState) => {
-  const org = getActiveOrg(state)
-  const variables = getVariablesForOrg(state, org.id)
-  const {status: variablesStatus} = state.variables
+const mstp = (state: AppState): StateProps => {
+  const variables = extractVariablesList(state)
 
-  return {variables, variablesStatus}
+  return {variables}
 }
 
 export default connect<StateProps>(mstp)(VariableToolbar)

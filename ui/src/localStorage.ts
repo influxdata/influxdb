@@ -6,6 +6,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 import {LocalStorage} from 'src/types/localStorage'
+import {RemoteDataState} from '@influxdata/clockface'
 
 export const loadLocalStorage = (): LocalStorage => {
   try {
@@ -32,6 +33,7 @@ export const saveToLocalStorage = ({
   ranges,
   variables,
   userSettings,
+  orgs: {org},
 }: LocalStorage): void => {
   try {
     const appPersisted = {app: {persisted}}
@@ -43,6 +45,10 @@ export const saveToLocalStorage = ({
         ranges: normalizer(ranges),
         variables,
         userSettings,
+        orgs: {
+          status: RemoteDataState.NotStarted,
+          org,
+        },
       })
     )
   } catch (err) {

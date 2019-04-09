@@ -192,10 +192,24 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	opt := influxdb.AuthorizedWhere(a)
+	var opt func(influxdb.DocumentIndex, influxdb.DocumentDecorator) ([]influxdb.ID, error)
 
-	if req.Org != "" {
+	if req.Org != "" && req.OrgID != nil {
+		EncodeError(ctx, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Please provide either org or orgID, not both",
+		}, w)
+		return
+	} else if req.OrgID != nil && req.OrgID.Valid() {
+		opt = influxdb.AuthorizedWhereOrgID(a, *req.OrgID)
+	} else if req.Org != "" {
 		opt = influxdb.AuthorizedWhereOrg(a, req.Org)
+	} else {
+		EncodeError(ctx, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Please provide either org or orgID",
+		}, w)
+		return
 	}
 
 	ds, err := s.FindDocuments(ctx, opt, influxdb.IncludeLabels)
@@ -213,6 +227,7 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 type getDocumentsRequest struct {
 	Namespace string
 	Org       string
+	OrgID     *influxdb.ID
 }
 
 func decodeGetDocumentsRequest(ctx context.Context, r *http.Request) (*getDocumentsRequest, error) {
@@ -226,9 +241,22 @@ func decodeGetDocumentsRequest(ctx context.Context, r *http.Request) (*getDocume
 	}
 
 	qp := r.URL.Query()
+	var oid *influxdb.ID
+	var err error
+
+	if oidStr := qp.Get("orgID"); oidStr != "" {
+		oid, err = influxdb.IDFromString(oidStr)
+		if err != nil {
+			return nil, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Invalid orgID",
+			}
+		}
+	}
 	return &getDocumentsRequest{
 		Namespace: ns,
 		Org:       qp.Get("org"),
+		OrgID:     oid,
 	}, nil
 }
 

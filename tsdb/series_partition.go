@@ -44,7 +44,8 @@ type SeriesPartition struct {
 	compacting          bool
 	compactionsDisabled int
 
-	CompactThreshold int
+	CompactThreshold    int
+	LargeWriteThreshold int
 
 	tracker *seriesPartitionTracker
 	Logger  *zap.Logger
@@ -53,13 +54,14 @@ type SeriesPartition struct {
 // NewSeriesPartition returns a new instance of SeriesPartition.
 func NewSeriesPartition(id int, path string) *SeriesPartition {
 	p := &SeriesPartition{
-		id:               id,
-		path:             path,
-		closing:          make(chan struct{}),
-		CompactThreshold: DefaultSeriesPartitionCompactThreshold,
-		tracker:          newSeriesPartitionTracker(newSeriesFileMetrics(nil), nil),
-		Logger:           zap.NewNop(),
-		seq:              uint64(id) + 1,
+		id:                  id,
+		path:                path,
+		closing:             make(chan struct{}),
+		CompactThreshold:    DefaultSeriesPartitionCompactThreshold,
+		LargeWriteThreshold: DefaultLargeSeriesWriteThreshold,
+		tracker:             newSeriesPartitionTracker(newSeriesFileMetrics(nil), nil),
+		Logger:              zap.NewNop(),
+		seq:                 uint64(id) + 1,
 	}
 	p.index = NewSeriesIndex(p.IndexPath())
 	return p
@@ -182,9 +184,7 @@ func (p *SeriesPartition) IndexPath() string { return filepath.Join(p.path, "ind
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
 // If the type does not match the existing type for the key, a zero id is stored.
-func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollection,
-	keyPartitionIDs []int) error {
-
+func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollection, keyPartitionIDs []int) error {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -225,6 +225,13 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 	// Preallocate the space we'll need before grabbing the lock.
 	newKeyRanges := make([]keyRange, 0, writeRequired)
 	newIDs := make(map[string]SeriesIDTyped, writeRequired)
+
+	// Pre-grow index for large writes.
+	if writeRequired >= p.LargeWriteThreshold {
+		p.mu.Lock()
+		p.index.GrowBy(writeRequired)
+		p.mu.Unlock()
+	}
 
 	// Obtain write lock to create new series.
 	p.mu.Lock()

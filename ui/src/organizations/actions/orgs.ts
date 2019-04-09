@@ -1,34 +1,84 @@
 // Libraries
 import {Dispatch} from 'redux'
+import {push, RouterAction} from 'react-router-redux'
 
 // APIs
 import {client} from 'src/utils/api'
 
-// Types
-import {Organization} from 'src/types'
+// Actions
+import {notify} from 'src/shared/actions/notifications'
 
+// Constants
 import {defaultTemplates} from 'src/templates/constants/'
+import {
+  orgCreateSuccess,
+  orgCreateFailed,
+} from 'src/shared/copy/v2/notifications'
+
+// Types
+import {Organization, RemoteDataState} from 'src/types'
+import {PublishNotificationAction} from 'src/types/actions/notifications'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',
+  SetOrgsStatus = 'SET_ORGS_STATUS',
   AddOrg = 'ADD_ORG',
   RemoveOrg = 'REMOVE_ORG',
   EditOrg = 'EDIT_ORG',
+  SetOrg = 'SET_ORG',
 }
 
-export interface SetOrganizations {
+export type Actions =
+  | SetOrgs
+  | AddOrg
+  | RemoveOrg
+  | EditOrg
+  | SetOrgsStatus
+  | SetOrg
+
+export interface SetOrgs {
   type: ActionTypes.SetOrgs
   payload: {
-    organizations: Organization[]
+    status: RemoteDataState
+    orgs: Organization[]
   }
 }
 
-export type Actions = SetOrganizations | AddOrg | RemoveOrg | EditOrg
-
-export const setOrgs = (organizations: Organization[]): SetOrganizations => {
+export const setOrgs = (
+  orgs: Organization[],
+  status: RemoteDataState
+): SetOrgs => {
   return {
     type: ActionTypes.SetOrgs,
-    payload: {organizations},
+    payload: {status, orgs},
+  }
+}
+
+export interface SetOrgsStatus {
+  type: ActionTypes.SetOrgsStatus
+  payload: {
+    status: RemoteDataState
+  }
+}
+
+export interface SetOrg {
+  type: ActionTypes.SetOrg
+  payload: {
+    org: Organization
+  }
+}
+
+export const setOrg = (org: Organization): SetOrg => {
+  return {
+    type: ActionTypes.SetOrg,
+    payload: {org},
+  }
+}
+
+export const setOrgsStatus = (status: RemoteDataState): SetOrgsStatus => {
+  return {
+    type: ActionTypes.SetOrgsStatus,
+    payload: {status},
   }
 }
 
@@ -71,18 +121,22 @@ export const editOrg = (org: Organization): EditOrg => ({
 // Async Actions
 
 export const getOrganizations = () => async (
-  dispatch: Dispatch<SetOrganizations>
-): Promise<void> => {
+  dispatch
+): Promise<Organization[]> => {
   try {
+    dispatch(setOrgsStatus(RemoteDataState.Loading))
+
     const organizations = await client.organizations.getAll()
-    dispatch(setOrgs(organizations))
+    dispatch(setOrgs(organizations, RemoteDataState.Done))
+    return organizations
   } catch (e) {
     console.error(e)
+    dispatch(setOrgs(null, RemoteDataState.Error))
   }
 }
 
 export const createOrg = (org: Organization) => async (
-  dispatch: Dispatch<AddOrg>
+  dispatch: Dispatch<Actions | RouterAction | PublishNotificationAction>
 ): Promise<void> => {
   try {
     const createdOrg = await client.organizations.create(org)
@@ -90,9 +144,14 @@ export const createOrg = (org: Organization) => async (
       ...defaultTemplates.systemTemplate(),
       orgID: createdOrg.id,
     })
+
     dispatch(addOrg(createdOrg))
+    dispatch(push(`/orgs/${createdOrg.id}`))
+
+    dispatch(notify(orgCreateSuccess()))
   } catch (e) {
     console.error(e)
+    dispatch(notify(orgCreateFailed()))
   }
 }
 

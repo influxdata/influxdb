@@ -32,29 +32,40 @@ exports[`Account rendering renders! 1`] = `
               <div
                 className="grid--column col-xs-6"
               >
-                <Panel>
+                <t
+                  size="sm"
+                  testID="panel"
+                >
                   <div
-                    className="panel"
+                    className="panel panel--sm"
+                    data-testID="panel"
                   >
-                    <PanelHeader
+                    <t
+                      testID="panel--header"
                       title="About Me"
                     >
                       <div
-                        className="panel-header"
+                        className="panel--header"
                       >
                         <div
-                          className="panel-title"
+                          className="panel--title"
                         >
                           About Me
                         </div>
                         <div
-                          className="panel-controls"
+                          className="panel--controls"
                         >
-                          <ComponentSpacer
-                            align="right"
+                          <t
+                            alignItems="center"
+                            direction="row"
+                            justifyContent="flex-end"
+                            stretchToFitHeight={false}
+                            stretchToFitWidth={false}
+                            testID="component-spacer"
                           >
                             <div
-                              className="component-spacer component-spacer--right component-spacer--horizontal"
+                              className="component-spacer component-spacer__row component-spacer__justify-flex-end component-spacer__align-center"
+                              data-testid="component-spacer"
                             >
                               <t
                                 active={false}
@@ -78,30 +89,39 @@ exports[`Account rendering renders! 1`] = `
                                 </button>
                               </t>
                             </div>
-                          </ComponentSpacer>
+                          </t>
                         </div>
                       </div>
-                    </PanelHeader>
-                    <PanelBody>
+                    </t>
+                    <t
+                      testID="panel--body"
+                    >
                       <div
-                        className="panel-body"
+                        className="panel--body"
                       >
-                        <t>
+                        <t
+                          testID="form-container"
+                        >
                           <form
                             className="form--wrapper"
+                            data-testid="form-container"
                             onSubmit={[Function]}
                           >
                             <t
                               label="Username"
+                              testID="form--element"
                             >
                               <div
                                 className="form--element"
+                                data-testid="form--element"
                               >
                                 <t
                                   label="Username"
+                                  testID="form--label"
                                 >
                                   <label
                                     className="form--label"
+                                    data-testid="form--label"
                                   >
                                     <span>
                                       Username
@@ -155,9 +175,9 @@ exports[`Account rendering renders! 1`] = `
                           </form>
                         </t>
                       </div>
-                    </PanelBody>
+                    </t>
                   </div>
-                </Panel>
+                </t>
               </div>
             </GridColumn>
           </div>
