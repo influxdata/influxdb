@@ -15,7 +15,8 @@ type Coordinator struct {
 	logger *zap.Logger
 	sch    backend.Scheduler
 
-	limit int
+	limit         int
+	claimExisting bool
 }
 
 type Option func(*Coordinator)
@@ -26,19 +27,29 @@ func WithLimit(i int) Option {
 	}
 }
 
+// WithoutExistingTasks allows us to skip claiming tasks already in the system.
+func WithoutExistingTasks() Option {
+	return func(c *Coordinator) {
+		c.claimExisting = false
+	}
+}
+
 func New(logger *zap.Logger, scheduler backend.Scheduler, ts platform.TaskService, opts ...Option) *Coordinator {
 	c := &Coordinator{
-		logger:      logger,
-		sch:         scheduler,
-		TaskService: ts,
-		limit:       1000,
+		logger:        logger,
+		sch:           scheduler,
+		TaskService:   ts,
+		limit:         1000,
+		claimExisting: true,
 	}
 
 	for _, opt := range opts {
 		opt(c)
 	}
 
-	go c.claimExistingTasks()
+	if c.claimExisting {
+		go c.claimExistingTasks()
+	}
 
 	return c
 }
