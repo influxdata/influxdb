@@ -36,6 +36,7 @@ export interface OnboardingStepProps {
   onSetSubstepIndex: (index: number, subStep: number | 'streaming') => void
   stepStatuses: StepStatus[]
   stepTitles: string[]
+  stepTestIds: string[]
   setupParams: ISetupParams
   handleSetSetupParams: (setupParams: ISetupParams) => void
   notify: (message: Notification | NotificationFunc) => void
@@ -74,6 +75,11 @@ type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 @ErrorHandling
 class OnboardingWizard extends PureComponent<Props> {
   public stepTitles = ['Welcome', 'Initial User Setup', 'Complete']
+  public stepTestIds = [
+    'nav-step--welcome',
+    'nav-step--setup',
+    'nav-step--complete',
+  ]
 
   public stepSkippable = [true, false, false]
 
@@ -123,6 +129,7 @@ class OnboardingWizard extends PureComponent<Props> {
           handleSetCurrentStep={onSetCurrentStepIndex}
           stepStatuses={stepStatuses}
           stepTitles={this.stepTitles}
+          stepTestIds={this.stepTestIds}
           stepSkippable={this.stepSkippable}
         />
       </WizardProgressHeader>
@@ -154,6 +161,7 @@ class OnboardingWizard extends PureComponent<Props> {
     return {
       stepStatuses,
       stepTitles: this.stepTitles,
+      stepTestIds: this.stepTestIds,
       currentStepIndex,
       onSetCurrentStepIndex,
       onSetSubstepIndex,

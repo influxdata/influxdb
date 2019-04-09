@@ -74,8 +74,16 @@ class AdminStep extends PureComponent<Props, State> {
           <div className="wizard-step--scroll-area">
             <FancyScrollbar autoHide={false}>
               <div className="wizard-step--scroll-content">
-                <h3 className="wizard-step--title">Setup Initial User</h3>
-                <h5 className="wizard-step--sub-title">
+                <h3
+                  className="wizard-step--title"
+                  data-testid="admin-step--head-main"
+                >
+                  Setup Initial User
+                </h3>
+                <h5
+                  className="wizard-step--sub-title"
+                  data-testid="admin-step--head-sub"
+                >
                   You will be able to create additional Users, Buckets and
                   Organizations later
                 </h5>
