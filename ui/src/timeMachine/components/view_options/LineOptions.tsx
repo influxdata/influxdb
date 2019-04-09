@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Grid} from 'src/clockface'
+import {Grid} from '@influxdata/clockface'
 import Geom from 'src/timeMachine/components/view_options/Geom'
 import YAxisTitle from 'src/timeMachine/components/view_options/YAxisTitle'
 import YAxisBounds from 'src/timeMachine/components/view_options/YAxisBounds'

@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Grid} from 'src/clockface'
+import {Grid} from '@influxdata/clockface'
 import Affixes from 'src/timeMachine/components/view_options/Affixes'
 import DecimalPlacesOption from 'src/timeMachine/components/view_options/DecimalPlaces'
 import ThresholdList from 'src/timeMachine/components/view_options/ThresholdList'

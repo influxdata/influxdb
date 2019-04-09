@@ -28,6 +28,7 @@ import DashboardsIndex from 'src/dashboards/components/dashboard_index/Dashboard
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import DashboardImportFromTemplateOverlay from 'src/dashboards/components/DashboardImportFromTemplateOverlay'
+import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import {MePage, Account} from 'src/me'
@@ -44,7 +45,7 @@ import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
 import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
-import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
+import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
@@ -189,7 +190,7 @@ class Root extends PureComponent {
                             path="telegrafs"
                             component={OrgTelegrafsIndex}
                           />
-                          <Route path="templates" component={OrgTemplatesIndex}>
+                          <Route path="templates" component={TemplatesIndex}>
                             <Route
                               path="import"
                               component={TemplateImportOverlay}
@@ -207,6 +208,10 @@ class Root extends PureComponent {
                             <Route
                               path=":id/export"
                               component={VariableExportOverlay}
+                            />
+                            <Route
+                              path="new"
+                              component={CreateVariableOverlay}
                             />
                           </Route>
                           <Route path="scrapers" component={OrgScrapersIndex} />

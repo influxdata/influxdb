@@ -116,6 +116,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 	// Initialize series file.
 	e.sfile = tsdb.NewSeriesFile(c.GetSeriesFilePath(path))
+	e.sfile.LargeWriteThreshold = c.TSDB.LargeSeriesWriteThreshold
 
 	// Initialise index.
 	e.index = tsi1.NewIndex(e.sfile, c.Index,

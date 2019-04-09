@@ -3,8 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form, Input, Button, Panel} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Input, Button, Panel, Grid} from '@influxdata/clockface'
 
 // Types
 import {AppState} from 'src/types'

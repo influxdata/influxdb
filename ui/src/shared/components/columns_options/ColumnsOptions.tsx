@@ -4,8 +4,7 @@ import {DragDropContext} from 'react-dnd'
 import HTML5Backend from 'react-dnd-html5-backend'
 
 // Components
-import {Form, EmptyState} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, EmptyState, Grid} from '@influxdata/clockface'
 import DraggableColumn from 'src/shared/components/draggable_column/DraggableColumn'
 
 // Types

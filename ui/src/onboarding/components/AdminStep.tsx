@@ -3,8 +3,8 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {getDeep} from 'src/utils/wrappers'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
-import {Grid, QuestionMarkTooltip} from 'src/clockface'
+import {Form, Input, Grid} from '@influxdata/clockface'
+import {QuestionMarkTooltip} from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 

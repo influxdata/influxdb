@@ -155,6 +155,14 @@ func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 	return nil
 }
 
+// GrowBy preallocates the in-memory hashmap to a larger size.
+func (idx *SeriesIndex) GrowBy(delta int) {
+	if delta < 0 {
+		return
+	}
+	idx.keyIDMap.Grow(((idx.keyIDMap.Len() + int64(delta)) * 100) / int64(idx.keyIDMap.LoadFactor()))
+}
+
 // Count returns the number of series in the index.
 func (idx *SeriesIndex) Count() uint64 {
 	return idx.OnDiskCount() + idx.InMemCount()

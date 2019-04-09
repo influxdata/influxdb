@@ -8,7 +8,7 @@ import {setType} from 'src/timeMachine/actions'
 // Components
 import OptionsSwitcher from 'src/timeMachine/components/view_options/OptionsSwitcher'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
-import {Grid} from 'src/clockface'
+import {Grid} from '@influxdata/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'

@@ -2,8 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form, Input, Button} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Input, Button, Grid} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Types

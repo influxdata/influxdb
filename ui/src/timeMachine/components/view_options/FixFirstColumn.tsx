@@ -2,8 +2,7 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Form, SlideToggle, ComponentSpacer} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, SlideToggle, ComponentSpacer, Grid} from '@influxdata/clockface'
 
 // Types
 import {Columns, FlexDirection, ComponentSize} from '@influxdata/clockface'

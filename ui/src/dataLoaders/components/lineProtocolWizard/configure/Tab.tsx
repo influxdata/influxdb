@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 
-import {Radio} from 'src/clockface'
+import {Radio} from '@influxdata/clockface'
 
 import {LineProtocolTab} from 'src/types'
 

@@ -67,80 +67,37 @@ func (l StaticLookup) Watch() <-chan struct{} {
 
 // source performs storage reads
 type source struct {
-	id       execute.DatasetID
+	Source
+
 	reader   Reader
 	readSpec ReadSpec
 	window   execute.Window
 	bounds   execute.Bounds
-	alloc    *memory.Allocator
-
-	ts []execute.Transformation
 
 	currentTime execute.Time
 	overflow    bool
-
-	stats cursors.CursorStats
 }
 
 func NewSource(id execute.DatasetID, r Reader, readSpec ReadSpec, bounds execute.Bounds, w execute.Window, currentTime execute.Time, alloc *memory.Allocator) execute.Source {
-	return &source{
-		id:          id,
+	src := &source{
 		reader:      r,
 		readSpec:    readSpec,
 		bounds:      bounds,
 		window:      w,
 		currentTime: currentTime,
-		alloc:       alloc,
 	}
-}
-
-func (s *source) AddTransformation(t execute.Transformation) {
-	s.ts = append(s.ts, t)
-}
-
-func (s *source) Run(ctx context.Context) {
-	err := s.run(ctx)
-	for _, t := range s.ts {
-		t.Finish(s.id, err)
-	}
-}
-
-func (s *source) Metadata() flux.Metadata {
-	return flux.Metadata{
-		"influxdb/scanned-bytes":  []interface{}{s.stats.ScannedBytes},
-		"influxdb/scanned-values": []interface{}{s.stats.ScannedValues},
-	}
+	src.id = id
+	src.alloc = alloc
+	src.runner = src
+	return src
 }
 
 func (s *source) run(ctx context.Context) error {
 	//TODO(nathanielc): Pass through context to actual network I/O.
 	for tables, mark, ok := s.next(ctx); ok; tables, mark, ok = s.next(ctx) {
-		err := tables.Do(func(tbl flux.Table) error {
-			for _, t := range s.ts {
-				if err := t.Process(s.id, tbl); err != nil {
-					return err
-				}
-				//TODO(nathanielc): Also add mechanism to send UpdateProcessingTime calls, when no data is arriving.
-				// This is probably not needed for this source, but other sources should do so.
-				if err := t.UpdateProcessingTime(s.id, execute.Now()); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
+		err := s.processTables(ctx, tables, mark)
 		if err != nil {
 			return err
-		}
-
-		// Track the number of bytes and values scanned.
-		stats := tables.Statistics()
-		s.stats.ScannedValues += stats.ScannedValues
-		s.stats.ScannedBytes += stats.ScannedBytes
-
-		for _, t := range s.ts {
-			if err := t.UpdateWatermark(s.id, mark); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -240,8 +197,18 @@ type ReadSpec struct {
 	RetentionPolicy string // required by InfluxDB OSS
 }
 
+type ReadFilterSpec struct {
+	OrganizationID platform.ID
+	BucketID       platform.ID
+
+	Bounds execute.Bounds
+
+	Predicate *semantic.FunctionExpression
+}
+
 type Reader interface {
 	Read(ctx context.Context, rs ReadSpec, start, stop execute.Time, alloc *memory.Allocator) (TableIterator, error)
+	ReadFilter(ctx context.Context, spec ReadFilterSpec, alloc *memory.Allocator) (TableIterator, error)
 	Close()
 }
 

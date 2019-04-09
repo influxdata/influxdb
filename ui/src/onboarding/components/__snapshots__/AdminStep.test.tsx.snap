@@ -33,10 +33,15 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           >
             You will be able to create additional Users, Buckets and Organizations later
           </h5>
-          <Grid>
-            <GridRow>
-              <GridColumn
+          <t
+            testID="grid"
+          >
+            <t
+              testID="grid--row"
+            >
+              <t
                 offsetMD={1}
+                testID="grid--column"
                 widthMD={10}
                 widthXS={12}
               >
@@ -61,9 +66,10 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     value=""
                   />
                 </t>
-              </GridColumn>
-              <GridColumn
+              </t>
+              <t
                 offsetMD={1}
+                testID="grid--column"
                 widthMD={5}
                 widthXS={6}
               >
@@ -88,8 +94,9 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     value=""
                   />
                 </t>
-              </GridColumn>
-              <GridColumn
+              </t>
+              <t
+                testID="grid--column"
                 widthMD={5}
                 widthXS={6}
               >
@@ -115,9 +122,10 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     value=""
                   />
                 </t>
-              </GridColumn>
-              <GridColumn
+              </t>
+              <t
                 offsetMD={1}
+                testID="grid--column"
                 widthMD={10}
                 widthXS={12}
               >
@@ -143,9 +151,10 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     value=""
                   />
                 </t>
-              </GridColumn>
-              <GridColumn
+              </t>
+              <t
                 offsetMD={1}
+                testID="grid--column"
                 widthMD={10}
                 widthXS={12}
               >
@@ -171,9 +180,9 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     value=""
                   />
                 </t>
-              </GridColumn>
-            </GridRow>
-          </Grid>
+              </t>
+            </t>
+          </t>
         </div>
       </FancyScrollbar>
     </div>

@@ -12,11 +12,16 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
       ]
     }
   />
-  <Grid>
-    <GridRow>
-      <GridColumn
+  <t
+    testID="grid"
+  >
+    <t
+      testID="grid--row"
+    >
+      <t
         offsetLG={2}
         offsetMD={1}
+        testID="grid--column"
         widthLG={8}
         widthMD={10}
         widthXS={12}
@@ -34,8 +39,8 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
           </div>
           <PrecisionDropdown />
         </div>
-      </GridColumn>
-    </GridRow>
-  </Grid>
+      </t>
+    </t>
+  </t>
 </div>
 `;
