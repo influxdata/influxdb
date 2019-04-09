@@ -15,6 +15,70 @@ import (
 	cron "gopkg.in/robfig/cron.v2"
 )
 
+var (
+	// ErrInvalidTaskID error object for bad id's
+	ErrInvalidTaskID = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "invalid id",
+	}
+
+	// ErrTaskNotFound error when task cant be found
+	ErrTaskNotFound = &influxdb.Error{
+		Code: influxdb.ENotFound,
+		Msg:  "task not found",
+	}
+
+	// ErrRunNotFound error when run cant be found
+	ErrRunNotFound = &influxdb.Error{
+		Code: influxdb.ENotFound,
+		Msg:  "run not found",
+	}
+
+	ErrPageSizeTooSmall = &influxdb.Error{
+		Msg:  "cannot have negative page limit",
+		Code: influxdb.EInvalid,
+	}
+
+	ErrPageSizeTooLarge = &influxdb.Error{
+		Msg:  fmt.Sprintf("cannot use page size larger then %d", influxdb.MaxPageSize),
+		Code: influxdb.EInvalid,
+	}
+
+	ErrOrgNotFound = &influxdb.Error{
+		Msg:  "organization not found",
+		Code: influxdb.ENotFound,
+	}
+)
+
+func ErrInternalTaskServiceError(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("unexpected error in tasks; Err: %v", err),
+		Op:   "kv/task",
+		Err:  err,
+	}
+}
+
+// ErrUnexpectedTaskBucketErr a generic error we can use when we rail to retrieve a bucket
+func ErrUnexpectedTaskBucketErr(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  fmt.Sprintf("unexpected error retrieving task bucket; Err: %v", err),
+		Op:   "kv/taskBucket",
+		Err:  err,
+	}
+}
+
+// ErrTaskTimeParse an error for time parsing errors
+func ErrTaskTimeParse(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  fmt.Sprintf("unexpected error parsing time; Err: %v", err),
+		Op:   "kv/taskCron",
+		Err:  err,
+	}
+}
+
 // Task Storage Schema
 // taskBucket:
 //   <taskID>: task data storage
@@ -55,12 +119,7 @@ func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.T
 	err := s.kv.View(ctx, func(tx Tx) error {
 		task, err := s.findTaskByID(ctx, tx, id)
 		if err != nil {
-			if err == backend.ErrTaskNotFound {
-				return err
-			}
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		t = task
 		return nil
@@ -73,20 +132,17 @@ func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.T
 }
 
 func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Task, error) {
-	encodedID, err := id.Encode()
-	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Err:  err,
-		}
-	}
-
-	b, err := tx.Bucket(taskBucket)
+	taskKey, err := taskKey(id)
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := b.Get(encodedID)
+	b, err := tx.Bucket(taskBucket)
+	if err != nil {
+		return nil, ErrUnexpectedTaskBucketErr(err)
+	}
+
+	v, err := b.Get(taskKey)
 	if IsNotFound(err) {
 		return nil, backend.ErrTaskNotFound
 	}
@@ -95,15 +151,11 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 	}
 	t := &influxdb.Task{}
 	if err := json.Unmarshal(v, t); err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
+		return nil, ErrInternalTaskServiceError(err)
 	}
 	latestCompleted, err := s.findLatestCompletedTime(ctx, tx, t.ID)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
+		return nil, err
 	}
 	if !latestCompleted.IsZero() {
 		t.LatestCompleted = latestCompleted.Format(time.RFC3339)
@@ -121,9 +173,7 @@ func (s *Service) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]
 	err := s.kv.View(ctx, func(tx Tx) error {
 		tasks, _, err := s.findTasks(ctx, tx, filter)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		ts = tasks
 		return nil
@@ -154,10 +204,10 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 	}
 
 	if filter.Limit < 0 {
-		return nil, 0, errors.New("ListTasks: PageSize must be positive")
+		return nil, 0, ErrPageSizeTooSmall
 	}
 	if filter.Limit > influxdb.TaskMaxPageSize {
-		return nil, 0, fmt.Errorf("ListTasks: PageSize exceeds maximum of %d", influxdb.TaskMaxPageSize)
+		return nil, 0, ErrPageSizeTooLarge
 	}
 	if filter.Limit == 0 {
 		filter.Limit = influxdb.TaskDefaultPageSize
@@ -198,12 +248,12 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 	} else {
 		indexBucket, err := tx.Bucket(taskIndexBucket)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, ErrUnexpectedTaskBucketErr(err)
 		}
 
 		c, err := indexBucket.Cursor()
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, ErrUnexpectedTaskBucketErr(err)
 		}
 		// we can filter by orgID
 		if filter.After != nil {
@@ -219,13 +269,13 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 			// orgID
 			key, err := org.ID.Encode()
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, ErrInvalidTaskID
 			}
 			k, v := c.Seek(key)
 			if k != nil {
 				id, err := influxdb.IDFromString(string(v))
 				if err != nil {
-					return nil, 0, err
+					return nil, 0, ErrInvalidTaskID
 				}
 
 				t, err := s.findTaskByID(ctx, tx, *id)
@@ -246,7 +296,7 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 
 			id, err := influxdb.IDFromString(string(v))
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, ErrInvalidTaskID
 			}
 
 			t, err := s.findTaskByID(ctx, tx, *id)
@@ -279,9 +329,7 @@ func (s *Service) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*infl
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		task, err := s.createTask(ctx, tx, tc)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		t = task
 		return nil
@@ -317,7 +365,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		}
 	}
 	if org == nil {
-		return nil, errors.New("organization not found")
+		return nil, ErrOrgNotFound
 	}
 
 	opt, err := options.FromScript(tc.Flux)
@@ -345,17 +393,17 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 
 	taskBucket, err := tx.Bucket(taskBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	indexBucket, err := tx.Bucket(taskIndexBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	taskBytes, err := json.Marshal(task)
 	if err != nil {
-		return nil, err
+		return nil, ErrInternalTaskServiceError(err)
 	}
 
 	taskKey, err := taskKey(task.ID)
@@ -371,13 +419,13 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	// write the task
 	err = taskBucket.Put(taskKey, taskBytes)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	// write the org index
 	err = indexBucket.Put(orgKey, taskKey)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 	if err := s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
 		ResourceType: influxdb.TasksResourceType,
@@ -454,7 +502,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 	// save the updated task
 	bucket, err := tx.Bucket(taskBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 	key, err := taskKey(id)
 	if err != nil {
@@ -463,7 +511,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 	taskBytes, err := json.Marshal(task)
 	if err != nil {
-		return nil, err
+		return nil, ErrInternalTaskServiceError(err)
 	}
 
 	return task, bucket.Put(key, taskBytes)
@@ -474,9 +522,7 @@ func (s *Service) DeleteTask(ctx context.Context, id influxdb.ID) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.deleteTask(ctx, tx, id)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		return nil
 	})
@@ -490,17 +536,17 @@ func (s *Service) DeleteTask(ctx context.Context, id influxdb.ID) error {
 func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 	taskBucket, err := tx.Bucket(taskBucket)
 	if err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	runBucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	indexBucket, err := tx.Bucket(taskIndexBucket)
 	if err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	// retrieve the task
@@ -516,7 +562,7 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 	}
 
 	if err := indexBucket.Delete(orgKey); err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	// remove latest completed
@@ -526,7 +572,7 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 	}
 
 	if err := runBucket.Delete(lastCompletedKey); err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	// remove the runs
@@ -542,7 +588,7 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 		}
 
 		if err := runBucket.Delete(key); err != nil {
-			return err
+			return ErrUnexpectedTaskBucketErr(err)
 		}
 	}
 	// remove the task
@@ -551,7 +597,10 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 		return err
 	}
 
-	return taskBucket.Delete(key)
+	if err := taskBucket.Delete(key); err != nil {
+		return ErrUnexpectedTaskBucketErr(err)
+	}
+	return nil
 }
 
 // FindLogs returns logs for a run.
@@ -560,9 +609,7 @@ func (s *Service) FindLogs(ctx context.Context, filter influxdb.LogFilter) ([]*i
 	err := s.kv.View(ctx, func(tx Tx) error {
 		ls, _, err := s.findLogs(ctx, tx, filter)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		logs = ls
 		return nil
@@ -606,9 +653,7 @@ func (s *Service) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([]*i
 	err := s.kv.View(ctx, func(tx Tx) error {
 		rs, _, err := s.findRuns(ctx, tx, filter)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		runs = rs
 		return nil
@@ -658,12 +703,7 @@ func (s *Service) FindRunByID(ctx context.Context, taskID, runID influxdb.ID) (*
 	err := s.kv.View(ctx, func(tx Tx) error {
 		r, err := s.findRunByID(ctx, tx, taskID, runID)
 		if err != nil {
-			if err == ErrKeyNotFound {
-				return backend.ErrRunNotFound
-			}
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		run = r
 		return nil
@@ -678,7 +718,7 @@ func (s *Service) FindRunByID(ctx context.Context, taskID, runID influxdb.ID) (*
 func (s *Service) findRunByID(ctx context.Context, tx Tx, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	key, err := taskRunKey(taskID, runID)
@@ -687,12 +727,12 @@ func (s *Service) findRunByID(ctx context.Context, tx Tx, taskID, runID influxdb
 	}
 	runBytes, err := bucket.Get(key)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 	run := &influxdb.Run{}
 	err = json.Unmarshal(runBytes, run)
 	if err != nil {
-		return nil, err
+		return nil, ErrInternalTaskServiceError(err)
 	}
 
 	return run, nil
@@ -703,9 +743,7 @@ func (s *Service) CancelRun(ctx context.Context, taskID, runID influxdb.ID) erro
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.cancelRun(ctx, tx, taskID, runID)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		return nil
 	})
@@ -725,12 +763,12 @@ func (s *Service) cancelRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	// save
 	bucket, err := tx.Bucket(taskBucket)
 	if err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	runBytes, err := json.Marshal(run)
 	if err != nil {
-		return err
+		return ErrInternalTaskServiceError(err)
 	}
 
 	runKey, err := taskRunKey(taskID, runID)
@@ -738,7 +776,11 @@ func (s *Service) cancelRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 		return err
 	}
 
-	return bucket.Put(runKey, runBytes)
+	if err := bucket.Put(runKey, runBytes); err != nil {
+		return ErrUnexpectedTaskBucketErr(err)
+	}
+
+	return nil
 }
 
 // RetryRun creates and returns a new run (which is a retry of another run).
@@ -747,12 +789,7 @@ func (s *Service) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*inf
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		run, err := s.retryRun(ctx, tx, taskID, runID)
 		if err != nil {
-			if err == ErrKeyNotFound {
-				return backend.ErrRunNotFound
-			}
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		r = run
 		return nil
@@ -788,13 +825,15 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 	runsBytes, err := bucket.Get(key)
 	if err != nil {
 		if err != ErrKeyNotFound {
-			return nil, err
+			return nil, ErrRunNotFound
 		}
+		return nil, ErrUnexpectedTaskBucketErr(err)
+
 	}
 
 	if runsBytes != nil {
 		if err := json.Unmarshal(runsBytes, &runs); err != nil {
-			return nil, err
+			return nil, ErrInternalTaskServiceError(err)
 		}
 	}
 
@@ -803,11 +842,11 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 	// save manual runs
 	runsBytes, err = json.Marshal(runs)
 	if err != nil {
-		return nil, err
+		return nil, ErrInternalTaskServiceError(err)
 	}
 
 	if err := bucket.Put(key, runsBytes); err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	return r, nil
@@ -820,9 +859,7 @@ func (s *Service) ForceRun(ctx context.Context, taskID influxdb.ID, scheduledFor
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		run, err := s.forceRun(ctx, tx, taskID, scheduledFor)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		r = run
 		return nil
@@ -843,7 +880,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	// add a clean copy of the run to the manual runs
 	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	runs, err := s.manualRuns(ctx, tx, taskID)
@@ -854,7 +891,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	// check to see if this run is already queued
 	for _, run := range runs {
 		if run.ScheduledFor == r.ScheduledFor {
-			return nil, errors.New("run already queued")
+			return nil, &influxdb.Error{Msg: "run already queued", Code: influxdb.EConflict}
 		}
 	}
 	runs = append(runs, r)
@@ -862,7 +899,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	// save manual runs
 	runsBytes, err := json.Marshal(runs)
 	if err != nil {
-		return nil, err
+		return nil, ErrInternalTaskServiceError(err)
 	}
 
 	key, err := taskManualRunKey(taskID)
@@ -871,7 +908,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	}
 
 	if err := bucket.Put(key, runsBytes); err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	return r, nil
@@ -884,9 +921,7 @@ func (s *Service) CreateNextRun(ctx context.Context, taskID influxdb.ID, now int
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		runCreate, err := s.createNextRun(ctx, tx, taskID, now)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		rc = runCreate
 		return nil
@@ -913,11 +948,11 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		// save manual runs
 		b, err := tx.Bucket(taskRunBucket)
 		if err != nil {
-			return backend.RunCreation{}, err
+			return backend.RunCreation{}, ErrUnexpectedTaskBucketErr(err)
 		}
 		mRunsBytes, err := json.Marshal(mRuns)
 		if err != nil {
-			return backend.RunCreation{}, err
+			return backend.RunCreation{}, ErrInternalTaskServiceError(err)
 		}
 
 		runsKey, err := taskManualRunKey(taskID)
@@ -926,12 +961,12 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		}
 
 		if err := b.Put(runsKey, mRunsBytes); err != nil {
-			return backend.RunCreation{}, err
+			return backend.RunCreation{}, ErrUnexpectedTaskBucketErr(err)
 		}
 		// add mRun to the list of currently running
 		mRunBytes, err := json.Marshal(mRun)
 		if err != nil {
-			return backend.RunCreation{}, err
+			return backend.RunCreation{}, ErrUnexpectedTaskBucketErr(err)
 		}
 
 		runKey, err := taskRunKey(taskID, mRun.ID)
@@ -940,7 +975,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		}
 
 		if err := b.Put(runKey, mRunBytes); err != nil {
-			return backend.RunCreation{}, err
+			return backend.RunCreation{}, ErrUnexpectedTaskBucketErr(err)
 		}
 
 		// return mRun
@@ -999,18 +1034,18 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 	// create a run if possible
 	sch, err := cron.Parse(task.EffectiveCron())
 	if err != nil {
-		return backend.RunCreation{}, err
+		return backend.RunCreation{}, ErrTaskTimeParse(err)
 	}
 	nowTime := time.Unix(now, 0)
 	nextScheduled := sch.Next(latestCompleted).UTC()
 	nextScheduledUnix := nextScheduled.Unix()
 	offset := &options.Duration{}
 	if err := offset.Parse(task.Offset); err != nil {
-		return backend.RunCreation{}, err
+		return backend.RunCreation{}, ErrTaskTimeParse(err)
 	}
 	dueAt, err := offset.Add(nextScheduled)
 	if err != nil {
-		return backend.RunCreation{}, err
+		return backend.RunCreation{}, ErrTaskTimeParse(err)
 	}
 	if dueAt.After(nowTime) {
 		return backend.RunCreation{}, backend.RunNotYetDueError{DueAt: dueAt.Unix()}
@@ -1026,12 +1061,12 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 	}
 	b, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return backend.RunCreation{}, err
+		return backend.RunCreation{}, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	runBytes, err := json.Marshal(run)
 	if err != nil {
-		return backend.RunCreation{}, err
+		return backend.RunCreation{}, ErrInternalTaskServiceError(err)
 	}
 
 	runKey, err := taskRunKey(taskID, run.ID)
@@ -1039,12 +1074,12 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		return backend.RunCreation{}, err
 	}
 	if err := b.Put(runKey, runBytes); err != nil {
-		return backend.RunCreation{}, err
+		return backend.RunCreation{}, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	nextDue, err := offset.Add(sch.Next(nextScheduled))
 	if err != nil {
-		return backend.RunCreation{}, err
+		return backend.RunCreation{}, ErrTaskTimeParse(err)
 	}
 	// populate RunCreation
 	return backend.RunCreation{
@@ -1063,9 +1098,7 @@ func (s *Service) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*
 	err := s.kv.View(ctx, func(tx Tx) error {
 		rs, err := s.currentlyRunning(ctx, tx, taskID)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		runs = rs
 		return nil
@@ -1080,12 +1113,12 @@ func (s *Service) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*
 func (s *Service) currentlyRunning(ctx context.Context, tx Tx, taskID influxdb.ID) ([]*influxdb.Run, error) {
 	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	c, err := bucket.Cursor()
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 	var runs []*influxdb.Run
 
@@ -1105,7 +1138,7 @@ func (s *Service) currentlyRunning(ctx context.Context, tx Tx, taskID influxdb.I
 		}
 		r := &influxdb.Run{}
 		if err := json.Unmarshal(v, r); err != nil {
-			return nil, err
+			return nil, ErrInternalTaskServiceError(err)
 		}
 
 		// if the run no longer belongs to the task we are done
@@ -1123,9 +1156,7 @@ func (s *Service) ManualRuns(ctx context.Context, taskID influxdb.ID) ([]*influx
 	err := s.kv.View(ctx, func(tx Tx) error {
 		rs, err := s.manualRuns(ctx, tx, taskID)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		runs = rs
 		return nil
@@ -1140,7 +1171,7 @@ func (s *Service) ManualRuns(ctx context.Context, taskID influxdb.ID) ([]*influx
 func (s *Service) manualRuns(ctx context.Context, tx Tx, taskID influxdb.ID) ([]*influxdb.Run, error) {
 	b, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 	key, err := taskManualRunKey(taskID)
 	if err != nil {
@@ -1153,10 +1184,10 @@ func (s *Service) manualRuns(ctx context.Context, tx Tx, taskID influxdb.ID) ([]
 		if err == ErrKeyNotFound {
 			return runs, nil
 		}
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 	if err := json.Unmarshal(val, &runs); err != nil {
-		return nil, err
+		return nil, ErrInternalTaskServiceError(err)
 	}
 
 	return runs, nil
@@ -1168,9 +1199,7 @@ func (s *Service) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*in
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		r, err := s.finishRun(ctx, tx, taskID, runID)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		run = r
 		return nil
@@ -1203,13 +1232,13 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	}
 	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	if rTime.After(lTime) {
 		rb, err := json.Marshal(r)
 		if err != nil {
-			return nil, err
+			return nil, ErrInternalTaskServiceError(err)
 		}
 		lKey, err := taskLatestCompletedKey(taskID)
 		if err != nil {
@@ -1217,7 +1246,7 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 		}
 
 		if err := bucket.Put(lKey, rb); err != nil {
-			return nil, err
+			return nil, ErrUnexpectedTaskBucketErr(err)
 		}
 	}
 
@@ -1226,7 +1255,11 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	if err != nil {
 		return nil, err
 	}
-	return r, bucket.Delete(key)
+	if err := bucket.Delete(key); err != nil {
+		return nil, ErrUnexpectedTaskBucketErr(err)
+	}
+
+	return r, nil
 }
 
 // NextDueRun returns the Unix timestamp of when the next call to CreateNextRun will be ready.
@@ -1236,9 +1269,7 @@ func (s *Service) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, er
 	err := s.kv.View(ctx, func(tx Tx) error {
 		due, err := s.nextDueRun(ctx, tx, taskID)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		nextDue = due
 		return nil
@@ -1264,14 +1295,14 @@ func (s *Service) nextDueRun(ctx context.Context, tx Tx, taskID influxdb.ID) (in
 	if latestCompleted.IsZero() {
 		latestCompleted, err = time.Parse(time.RFC3339, task.CreatedAt)
 		if err != nil {
-			return 0, err
+			return 0, ErrTaskTimeParse(err)
 		}
 	}
 
 	// create a run if possible
 	sch, err := cron.Parse(task.EffectiveCron())
 	if err != nil {
-		return 0, err
+		return 0, ErrTaskTimeParse(err)
 	}
 	nextScheduled := sch.Next(latestCompleted).UTC()
 
@@ -1283,9 +1314,7 @@ func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID,
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.updateRunState(ctx, tx, taskID, runID, when, state)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		return nil
 	})
@@ -1311,12 +1340,12 @@ func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influ
 	// save run
 	b, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	runBytes, err := json.Marshal(run)
 	if err != nil {
-		return err
+		return ErrInternalTaskServiceError(err)
 	}
 
 	runKey, err := taskRunKey(taskID, run.ID)
@@ -1324,7 +1353,7 @@ func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influ
 		return err
 	}
 	if err := b.Put(runKey, runBytes); err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	return nil
@@ -1335,9 +1364,7 @@ func (s *Service) AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.addRunLog(ctx, tx, taskID, runID, when, log)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		return nil
 	})
@@ -1356,12 +1383,12 @@ func (s *Service) addRunLog(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	// save run
 	b, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	runBytes, err := json.Marshal(run)
 	if err != nil {
-		return err
+		return ErrInternalTaskServiceError(err)
 	}
 
 	runKey, err := taskRunKey(taskID, run.ID)
@@ -1370,7 +1397,7 @@ func (s *Service) addRunLog(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	}
 
 	if err := b.Put(runKey, runBytes); err != nil {
-		return err
+		return ErrUnexpectedTaskBucketErr(err)
 	}
 
 	return nil
@@ -1379,7 +1406,7 @@ func (s *Service) addRunLog(ctx context.Context, tx Tx, taskID, runID influxdb.I
 func (s *Service) findLatestCompleted(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Run, error) {
 	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 	key, err := taskLatestCompletedKey(id)
 	if err != nil {
@@ -1391,12 +1418,12 @@ func (s *Service) findLatestCompleted(ctx context.Context, tx Tx, id influxdb.ID
 		if err == ErrKeyNotFound {
 			return nil, nil
 		}
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	run := &influxdb.Run{}
 	if err = json.Unmarshal(bytes, run); err != nil {
-		return nil, err
+		return nil, ErrInternalTaskServiceError(err)
 	}
 
 	return run, nil
@@ -1417,7 +1444,7 @@ func (s *Service) findLatestCompletedTime(ctx context.Context, tx Tx, id influxd
 func taskKey(taskID influxdb.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidTaskID
 	}
 	return encodedID, nil
 }
@@ -1425,7 +1452,7 @@ func taskKey(taskID influxdb.ID) ([]byte, error) {
 func taskLatestCompletedKey(taskID influxdb.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidTaskID
 	}
 	return []byte(string(encodedID) + "/latestCompleted"), nil
 }
@@ -1433,7 +1460,7 @@ func taskLatestCompletedKey(taskID influxdb.ID) ([]byte, error) {
 func taskManualRunKey(taskID influxdb.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidTaskID
 	}
 	return []byte(string(encodedID) + "/manualRuns"), nil
 }
@@ -1441,11 +1468,11 @@ func taskManualRunKey(taskID influxdb.ID) ([]byte, error) {
 func taskOrgKey(orgID, taskID influxdb.ID) ([]byte, error) {
 	encodedOrgID, err := orgID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidTaskID
 	}
 	encodedID, err := taskID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidTaskID
 	}
 
 	return []byte(string(encodedOrgID) + "/" + string(encodedID)), nil
@@ -1454,11 +1481,11 @@ func taskOrgKey(orgID, taskID influxdb.ID) ([]byte, error) {
 func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidTaskID
 	}
 	encodedRunID, err := runID.Encode()
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidTaskID
 	}
 
 	return []byte(string(encodedID) + "/" + string(encodedRunID)), nil
