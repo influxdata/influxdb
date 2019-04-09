@@ -16,7 +16,6 @@ import (
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
@@ -56,7 +55,7 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 				return org, nil
 			},
 		},
-		UserResourceMappingService: mock.NewUserResourceMappingService(),
+		UserResourceMappingService: inmem.NewService(),
 		LabelService:               mock.NewLabelService(),
 		UserService:                mock.NewUserService(),
 	}
@@ -735,11 +734,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	// Ensure that the HTTP handlers return 404s for missing resources, and OKs for matching.
 
-	im := kv.NewService(inmem.NewKVStore())
-	if err := im.Initialize(context.Background()); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
-
+	im := inmem.NewService()
 	taskBackend := NewMockTaskBackend(t)
 	h := NewTaskHandler(taskBackend)
 	h.UserResourceMappingService = im
@@ -1124,11 +1119,8 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 // Test that org name to org ID translation happens properly in the HTTP layer.
 // Regression test for https://github.com/influxdata/influxdb/issues/12089.
 func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
+	i := inmem.NewService()
 	ctx := context.Background()
-	i := kv.NewService(inmem.NewKVStore())
-	if err := i.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
 
 	// Set up user and org.
 	u := &platform.User{Name: "u"}
@@ -1223,12 +1215,9 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 
 func TestTaskHandler_Sessions(t *testing.T) {
 	// Common setup to get a working base for using tasks.
+	i := inmem.NewService()
 
 	ctx := context.Background()
-	i := kv.NewService(inmem.NewKVStore())
-	if err := i.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
 
 	// Set up user and org.
 	u := &platform.User{Name: "u"}

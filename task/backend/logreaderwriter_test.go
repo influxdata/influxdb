@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
 	pcontrol "github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/storage"
@@ -58,7 +57,7 @@ type fullStackAwareLogReaderWriter struct {
 	rootDir       string
 	storageEngine *storage.Engine
 
-	i *kv.Service
+	i *inmem.Service
 }
 
 func (lrw *fullStackAwareLogReaderWriter) Close(t *testing.T) {
@@ -118,10 +117,7 @@ func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWrit
 		}
 	}()
 
-	svc := kv.NewService(inmem.NewKVStore())
-	if err := svc.Initialize(context.Background()); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
+	svc := inmem.NewService()
 
 	const (
 		concurrencyQuota = 10
