@@ -43,7 +43,6 @@ import VEO from 'src/dashboards/components/VEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
-import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
 import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
@@ -56,6 +55,7 @@ import SetOrg from 'src/shared/containers/SetOrg'
 import RouteToOrg from 'src/shared/containers/RouteToOrg'
 import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
+import MembersIndex from 'src/members/containers/MembersIndex'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -181,11 +181,11 @@ class Root extends PureComponent {
                             component={ConfigurationPage}
                           />
                           <Route path="settings">
-                            <IndexRoute component={OrgMembersIndex} />
+                            <IndexRoute component={MembersIndex} />
                           </Route>
                           <Route path="buckets" component={BucketsIndex} />
                           <Route path="tokens" component={TokensIndex} />
-                          <Route path="members" component={OrgMembersIndex} />
+                          <Route path="members" component={MembersIndex} />
                           <Route
                             path="telegrafs"
                             component={OrgTelegrafsIndex}

@@ -10,7 +10,6 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/errors"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
@@ -98,10 +97,7 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 func TestPreAuthorizer_RequiredPermissions(t *testing.T) {
 	ctx := context.Background()
 
-	i := kv.NewService(inmem.NewKVStore())
-	if err := i.Initialize(context.Background()); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
+	i := inmem.NewService()
 
 	o := platform.Organization{Name: "o"}
 	if err := i.CreateOrganization(ctx, &o); err != nil {

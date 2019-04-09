@@ -10,7 +10,6 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
@@ -24,14 +23,11 @@ func NewMockSetupBackend() *SetupBackend {
 
 func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platform.OnboardingService, func()) {
 	t.Helper()
-	ctx := context.Background()
-	svc := kv.NewService(inmem.NewKVStore())
+	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
 
+	ctx := context.Background()
 	if err := svc.PutOnboardingStatus(ctx, !f.IsOnboarding); err != nil {
 		t.Fatalf("failed to set new onboarding finished: %v", err)
 	}

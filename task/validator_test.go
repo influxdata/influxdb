@@ -9,17 +9,13 @@ import (
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/task"
 	"go.uber.org/zap/zaptest"
 )
 
 func TestOnboardingValidation(t *testing.T) {
-	svc := kv.NewService(inmem.NewKVStore())
-	if err := svc.Initialize(context.Background()); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
+	svc := inmem.NewService()
 	validator := task.NewValidator(zaptest.NewLogger(t), mockTaskService(3, 2, 1), svc)
 
 	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
@@ -118,10 +114,7 @@ func TestValidations(t *testing.T) {
 		runID  influxdb.ID = 0x402
 	)
 
-	inmem := kv.NewService(inmem.NewKVStore())
-	if err := inmem.Initialize(context.Background()); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
+	inmem := inmem.NewService()
 
 	r, err := inmem.Generate(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",

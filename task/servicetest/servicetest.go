@@ -17,7 +17,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
@@ -37,7 +37,7 @@ func init() {
 type BackendComponentFactory func(t *testing.T) (*System, context.CancelFunc)
 
 // UsePlatformAdaptor allows you to set the platform adaptor as your TaskService.
-func UsePlatformAdaptor(s backend.Store, lr backend.LogReader, rc task.RunController, i *kv.Service) influxdb.TaskService {
+func UsePlatformAdaptor(s backend.Store, lr backend.LogReader, rc task.RunController, i *inmem.Service) influxdb.TaskService {
 	return task.PlatformAdapter(s, lr, rc, i, i, i)
 }
 
@@ -111,7 +111,7 @@ type System struct {
 	TaskControlService backend.TaskControlService
 
 	// Used in the Creds function to create valid organizations, users, tokens, etc.
-	I *kv.Service
+	I *inmem.Service
 
 	// Set this context, to be used in tests, so that any spawned goroutines watching Ctx.Done()
 	// will clean up after themselves.

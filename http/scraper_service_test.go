@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -14,11 +15,9 @@ import (
 	platcontext "github.com/influxdata/influxdb/context"
 	httpMock "github.com/influxdata/influxdb/http/mock"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap"
 )
 
 const (
@@ -790,21 +789,17 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 
 func initScraperService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, string, func()) {
 	t.Helper()
-	ctx := context.Background()
-	svc := kv.NewService(inmem.NewKVStore())
+	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
-	if err := svc.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing kv service: %v", err)
-	}
 
+	ctx := context.Background()
 	for _, target := range f.Targets {
 		if err := svc.PutTarget(ctx, target); err != nil {
 			t.Fatalf("failed to populate scraper targets")
 		}
 	}
-
 	for _, m := range f.UserResourceMappings {
-		if err := svc.CreateUserResourceMapping(ctx, m); err != nil {
+		if err := svc.PutUserResourceMapping(ctx, m); err != nil {
 			t.Fatalf("failed to populate user resource mapping")
 		}
 	}

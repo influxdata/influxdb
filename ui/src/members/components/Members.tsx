@@ -1,46 +1,40 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
 
 // Components
 import {Input, Button, EmptyState} from '@influxdata/clockface'
 import {Tabs, Overlay} from 'src/clockface'
-import MemberList from 'src/organizations/components/MemberList'
+import MemberList from 'src/members/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
-import AddMembersOverlay from 'src/organizations/components/AddMembersOverlay'
+import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
 
 // Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
+import {addMember, deleteMember} from 'src/members/actions'
 
 // Types
-import {
-  ResourceOwner,
-  AddResourceMemberRequestBody,
-  User,
-} from '@influxdata/influx'
+import {User} from '@influxdata/influx'
 import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
-import {OverlayState} from 'src/types'
+import {OverlayState, AppState, Member} from 'src/types'
 
-// APIs
+// API
 import {client} from 'src/utils/api'
-import {
-  memberAddSuccess,
-  memberAddFailed,
-  memberRemoveSuccess,
-  memberRemoveFailed,
-} from 'src/shared/copy/v2/notifications'
 
 export interface UsersMap {
   [userID: string]: User
 }
 
-interface Props {
-  members: ResourceOwner[]
-  orgName: string
-  orgID: string
-  onChange: () => void
-  notify: NotificationsActions.PublishNotificationActionCreator
+interface StateProps {
+  members: Member[]
 }
+
+interface DispatchProps {
+  onAddMember: typeof addMember
+  onRemoveMember: typeof deleteMember
+}
+
+type Props = StateProps & DispatchProps
 
 interface State {
   searchTerm: string
@@ -48,7 +42,7 @@ interface State {
   users: UsersMap
 }
 
-export default class Members extends PureComponent<Props, State> {
+class Members extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -78,7 +72,7 @@ export default class Members extends PureComponent<Props, State> {
             onClick={this.handleOpenModal}
           />
         </Tabs.TabContentsHeader>
-        <FilterList<ResourceOwner>
+        <FilterList<Member>
           list={this.props.members}
           searchKeys={['name']}
           searchTerm={searchTerm}
@@ -100,6 +94,16 @@ export default class Members extends PureComponent<Props, State> {
         </Overlay>
       </>
     )
+  }
+
+  private removeMember = (member: Member) => {
+    const {onRemoveMember} = this.props
+    onRemoveMember(member)
+  }
+
+  private addMember = (member: Member) => {
+    const {onAddMember} = this.props
+    onAddMember(member)
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -124,45 +128,14 @@ export default class Members extends PureComponent<Props, State> {
     this.setState({users})
   }
 
-  private addMember = async (user: AddResourceMemberRequestBody) => {
-    const {notify, onChange} = this.props
-
-    try {
-      await client.organizations.addMember(this.props.orgID, user)
-      this.setState({overlayState: OverlayState.Closed})
-      onChange()
-      notify(memberAddSuccess(user.name))
-    } catch (e) {
-      console.error(e)
-      this.setState({overlayState: OverlayState.Closed})
-      const message = _.get(e, 'response.data.message', 'Unknown error')
-      notify(memberAddFailed(message))
-    }
-  }
-
-  private removeMember = async (member: ResourceOwner) => {
-    const {orgID, notify, onChange} = this.props
-
-    try {
-      await client.organizations.removeMember(orgID, member.id)
-      onChange()
-      notify(memberRemoveSuccess(member.name))
-    } catch (e) {
-      console.error(e)
-      const message = _.get(e, 'response.data.message', 'Unknown error')
-      notify(memberRemoveFailed(message))
-    }
-  }
-
   private get emptyState(): JSX.Element {
-    const {orgName} = this.props
     const {searchTerm} = this.state
 
     if (_.isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Medium}>
           <EmptyState.Text
-            text={`${orgName} doesn't have any Members , why not invite some?`}
+            text={`Looks like there aren't any Members , why not invite some?`}
             highlightWords={['Members']}
           />
         </EmptyState>
@@ -176,3 +149,17 @@ export default class Members extends PureComponent<Props, State> {
     )
   }
 }
+
+const mstp = ({members: {list}}: AppState): StateProps => {
+  return {members: list}
+}
+
+const mdtp: DispatchProps = {
+  onAddMember: addMember,
+  onRemoveMember: deleteMember,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(Members)
