@@ -28,6 +28,7 @@ import {authorizationsReducer} from 'src/authorizations/reducers'
 import templatesReducer from 'src/templates/reducers'
 import {scrapersReducer} from 'src/scrapers/reducers'
 import {userSettingsReducer} from 'src/userSettings/reducers'
+import {membersReducer} from 'src/members/reducers'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -56,6 +57,7 @@ export const rootReducer = combineReducers<ReducerState>({
   scrapers: scrapersReducer,
   templates: templatesReducer,
   userSettings: userSettingsReducer,
+  members: membersReducer,
   VERSION: () => '',
 })
 
