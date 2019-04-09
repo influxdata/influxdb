@@ -88,7 +88,7 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	for _, bucket := range bd.buckets {
 		_ = b.AppendString(0, bucket.Name)
 		_ = b.AppendString(1, bucket.ID.String())
-		_ = b.AppendString(2, bucket.Organization)
+		_ = b.AppendString(2, bucket.Org)
 		_ = b.AppendString(3, bucket.OrganizationID.String())
 		_ = b.AppendString(4, bucket.RetentionPolicyName)
 		_ = b.AppendInt(5, bucket.RetentionPeriod.Nanoseconds())

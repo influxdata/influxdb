@@ -108,7 +108,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if writeFlags.Org != "" {
-		filter.Organization = &writeFlags.Org
+		filter.Org = &writeFlags.Org
 	}
 
 	buckets, n, err := bs.FindBuckets(ctx, filter)

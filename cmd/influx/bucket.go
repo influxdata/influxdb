@@ -76,7 +76,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	if bucketCreateFlags.org != "" {
-		b.Organization = bucketCreateFlags.org
+		b.Org = bucketCreateFlags.org
 	}
 
 	if bucketCreateFlags.orgID != "" {
@@ -96,14 +96,14 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 		"ID",
 		"Name",
 		"Retention",
-		"Organization",
+		"Org",
 		"OrganizationID",
 	)
 	w.Write(map[string]interface{}{
 		"ID":             b.ID.String(),
 		"Name":           b.Name,
 		"Retention":      b.RetentionPeriod,
-		"Organization":   b.Organization,
+		"Org":            b.Org,
 		"OrganizationID": b.OrganizationID.String(),
 	})
 	w.Flush()
@@ -168,7 +168,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	if bucketFindFlags.org != "" {
-		filter.Organization = &bucketFindFlags.org
+		filter.Org = &bucketFindFlags.org
 	}
 
 	buckets, _, err := s.FindBuckets(context.Background(), filter)
@@ -181,7 +181,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 		"ID",
 		"Name",
 		"Retention",
-		"Organization",
+		"Org",
 		"OrganizationID",
 	)
 	for _, b := range buckets {
@@ -189,7 +189,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 			"ID":             b.ID.String(),
 			"Name":           b.Name,
 			"Retention":      b.RetentionPeriod,
-			"Organization":   b.Organization,
+			"Org":            b.Org,
 			"OrganizationID": b.OrganizationID.String(),
 		})
 	}
@@ -258,7 +258,7 @@ func bucketUpdateF(cmd *cobra.Command, args []string) error {
 		"ID":             b.ID.String(),
 		"Name":           b.Name,
 		"Retention":      b.RetentionPeriod,
-		"Organization":   b.Organization,
+		"Org":            b.Org,
 		"OrganizationID": b.OrganizationID.String(),
 	})
 	w.Flush()
@@ -307,7 +307,7 @@ func bucketDeleteF(cmd *cobra.Command, args []string) error {
 		"ID":             b.ID.String(),
 		"Name":           b.Name,
 		"Retention":      b.RetentionPeriod,
-		"Organization":   b.Organization,
+		"Org":            b.Org,
 		"OrganizationID": b.OrganizationID.String(),
 		"Deleted":        true,
 	})

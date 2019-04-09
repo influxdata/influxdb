@@ -40,7 +40,7 @@ func (c *Client) setOrganizationOnBucket(ctx context.Context, tx *bolt.Tx, b *pl
 			Err: err,
 		}
 	}
-	b.Organization = o.Name
+	b.Org = o.Name
 	return nil
 }
 
@@ -189,8 +189,8 @@ func (c *Client) FindBucket(ctx context.Context, filter platform.BucketFilter) (
 	}
 
 	err = c.db.View(func(tx *bolt.Tx) error {
-		if filter.Organization != nil {
-			o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
+		if filter.Org != nil {
+			o, err := c.findOrganizationByName(ctx, tx, *filter.Org)
 			if err != nil {
 				return err
 			}
@@ -299,8 +299,8 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 	defer span.Finish()
 
 	bs := []*platform.Bucket{}
-	if filter.Organization != nil {
-		o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
+	if filter.Org != nil {
+		o, err := c.findOrganizationByName(ctx, tx, *filter.Org)
 		if err != nil {
 			return nil, &platform.Error{
 				Err: err,
@@ -359,7 +359,7 @@ func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 				}
 			}
 		} else {
-			o, pe := c.findOrganizationByName(ctx, tx, b.Organization)
+			o, pe := c.findOrganizationByName(ctx, tx, b.Org)
 			if pe != nil {
 				return &platform.Error{
 					Err: pe,
@@ -442,7 +442,7 @@ func (c *Client) createBucketUserResourceMappings(ctx context.Context, tx *bolt.
 }
 
 func (c *Client) putBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) *platform.Error {
-	b.Organization = ""
+	b.Org = ""
 	v, err := json.Marshal(b)
 	if err != nil {
 		return &platform.Error{

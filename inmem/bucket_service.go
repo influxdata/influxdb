@@ -44,7 +44,7 @@ func (s *Service) setOrganizationNameOnBucket(ctx context.Context, b *platform.B
 		return err
 	}
 
-	b.Organization = o.Name
+	b.Org = o.Name
 	return nil
 }
 
@@ -185,8 +185,8 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 		return []*platform.Bucket{b}, nil
 	}
 
-	if filter.Organization != nil {
-		o, err := s.findOrganizationByName(ctx, *filter.Organization)
+	if filter.Org != nil {
+		o, err := s.findOrganizationByName(ctx, *filter.Org)
 		if err != nil {
 			return nil, &platform.Error{
 				Err: err,
@@ -251,7 +251,7 @@ func (s *Service) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 			}
 		}
 	} else {
-		o, pe := s.findOrganizationByName(ctx, b.Organization)
+		o, pe := s.findOrganizationByName(ctx, b.Org)
 		if pe != nil {
 			return &platform.Error{
 				Err: pe,

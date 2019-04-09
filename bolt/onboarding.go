@@ -102,7 +102,7 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 	}
 	bucket := &platform.Bucket{
 		Name:            req.Bucket,
-		Organization:    o.Name,
+		Org:             o.Name,
 		OrganizationID:  o.ID,
 		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
 	}

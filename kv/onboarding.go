@@ -116,7 +116,7 @@ func (s *Service) Generate(ctx context.Context, req *influxdb.OnboardingRequest)
 	o := &influxdb.Organization{Name: req.Org}
 	bucket := &influxdb.Bucket{
 		Name:            req.Bucket,
-		Organization:    o.Name,
+		Org:             o.Name,
 		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
 	}
 	mapping := &influxdb.UserResourceMapping{

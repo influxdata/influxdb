@@ -57,7 +57,7 @@ func (s *Service) setOrganizationOnBucket(ctx context.Context, tx Tx, b *influxd
 			Err: err,
 		}
 	}
-	b.Organization = o.Name
+	b.Org = o.Name
 	return nil
 }
 
@@ -221,8 +221,8 @@ func (s *Service) FindBucket(ctx context.Context, filter influxdb.BucketFilter) 
 	}
 
 	err = s.kv.View(ctx, func(tx Tx) error {
-		if filter.Organization != nil {
-			o, err := s.findOrganizationByName(ctx, tx, *filter.Organization)
+		if filter.Org != nil {
+			o, err := s.findOrganizationByName(ctx, tx, *filter.Org)
 			if err != nil {
 				return err
 			}
@@ -330,8 +330,8 @@ func (s *Service) findBuckets(ctx context.Context, tx Tx, filter influxdb.Bucket
 	defer span.Finish()
 
 	bs := []*influxdb.Bucket{}
-	if filter.Organization != nil {
-		o, err := s.findOrganizationByName(ctx, tx, *filter.Organization)
+	if filter.Org != nil {
+		o, err := s.findOrganizationByName(ctx, tx, *filter.Org)
 		if err != nil {
 			return nil, &influxdb.Error{
 				Err: err,
@@ -395,7 +395,7 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) e
 			}
 		}
 	} else {
-		o, pe := s.findOrganizationByName(ctx, tx, b.Organization)
+		o, pe := s.findOrganizationByName(ctx, tx, b.Org)
 		if pe != nil {
 			return &influxdb.Error{
 				Err: pe,
@@ -474,7 +474,7 @@ func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) erro
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	b.Organization = ""
+	b.Org = ""
 	v, err := json.Marshal(b)
 	if err != nil {
 		return &influxdb.Error{
