@@ -29,6 +29,7 @@ type APIHandler struct {
 	TelegrafHandler      *TelegrafHandler
 	QueryHandler         *FluxHandler
 	WriteHandler         *WriteHandler
+	DeleteHandler        *DeleteHandler
 	DocumentHandler      *DocumentHandler
 	SetupHandler         *SetupHandler
 	SessionHandler       *SessionHandler
@@ -132,6 +133,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	writeBackend := NewWriteBackend(b)
 	h.WriteHandler = NewWriteHandler(writeBackend)
+
+	deleteBackend := NewDeleteBackend(b)
+	h.DeleteHandler = NewDeleteHandler(deleteBackend)
 
 	fluxBackend := NewFluxBackend(b)
 	h.QueryHandler = NewFluxHandler(fluxBackend)
