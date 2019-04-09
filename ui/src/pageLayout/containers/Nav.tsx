@@ -14,7 +14,7 @@ import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
 import {AppState} from 'src/types'
-import {IconFont} from 'src/clockface'
+import {IconFont} from '@influxdata/clockface'
 import {Organization} from '@influxdata/influx'
 
 // Decorators
@@ -148,7 +148,7 @@ class SideNav extends PureComponent<Props, State> {
           )}
           iconLink={className => (
             <a href={feedbackLink} className={className} target="_blank">
-              <Icon glyph={IconFont.Chat} />
+              <Icon glyph={IconFont.NavChat} />
             </a>
           )}
           active={getNavItemActivation(['feedback'], location.pathname)}
