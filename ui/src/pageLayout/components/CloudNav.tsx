@@ -1,7 +1,10 @@
 import React, {PureComponent} from 'react'
 
+// Components
+import {NavMenu, Icon} from '@influxdata/clockface'
+
 // Types
-import {IconFont} from 'src/clockface'
+import {IconFont} from '@influxdata/clockface'
 
 export default class CloudNav extends PureComponent {
   render() {
@@ -10,22 +13,36 @@ export default class CloudNav extends PureComponent {
     }
 
     return (
-      <div className="nav--item">
-        <a className="nav--item-icon">
-          <span className={`icon sidebar--icon ${IconFont.CuboNav}`} />
-        </a>
-        <div className="nav--item-menu">
-          <a className="nav--item-header" href="">
-            Cloud
-          </a>
-          <a className="nav--sub-item" href={this.usageURL}>
+      <NavMenu.Item
+        active={false}
+        titleLink={className => (
+          <a className={className} href={this.usageURL}>
             Usage
           </a>
-          <a className="nav--sub-item" href={this.billingURL}>
-            Billing
+        )}
+        iconLink={className => (
+          <a className={className} href={this.usageURL}>
+            <Icon glyph={IconFont.Cloud} />
           </a>
-        </div>
-      </div>
+        )}
+      >
+        <NavMenu.SubItem
+          active={false}
+          titleLink={className => (
+            <a className={className} href={this.usageURL}>
+              Usage
+            </a>
+          )}
+        />
+        <NavMenu.SubItem
+          active={false}
+          titleLink={className => (
+            <a className={className} href={this.billingURL}>
+              Billing
+            </a>
+          )}
+        />
+      </NavMenu.Item>
     )
   }
 
