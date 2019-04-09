@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {IndexList} from 'src/clockface'
-import ScraperRow from 'src/organizations/components/ScraperRow'
+import ScraperRow from 'src/scrapers/components/ScraperRow'
 
 // Types
 import {ScraperTargetResponse} from '@influxdata/influx'

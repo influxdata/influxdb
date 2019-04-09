@@ -1,29 +1,31 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import {AppState} from 'src/types'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
-import OrgHeader from 'src/organizations/containers/OrgHeader'
-import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
-import Collectors from 'src/telegrafs/components/Collectors'
+import {Tabs} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
+import OrgHeader from 'src/organizations/containers/OrgHeader'
+import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
 import GetResources, {
   ResourceTypes,
 } from 'src/configuration/components/GetResources'
+import Scrapers from 'src/scrapers/components/Scrapers'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Organization} from '@influxdata/influx'
+import {AppState} from 'src/types'
 
 interface StateProps {
   org: Organization
 }
 
 @ErrorHandling
-class TelegrafsPage extends PureComponent<StateProps> {
+class ScrapersIndex extends Component<StateProps> {
   public render() {
     const {org} = this.props
 
@@ -34,16 +36,16 @@ class TelegrafsPage extends PureComponent<StateProps> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
-                <OrganizationNavigation tab="telegrafs" orgID={org.id} />
+                <OrganizationNavigation tab="scrapers" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
-                    id="org-view-tab--telegrafs"
-                    url="telegrafs"
-                    title="Telegraf"
+                    id="org-view-tab--scrapers"
+                    url="scrapers"
+                    title="Scrapers"
                   >
-                    <GetResources resource={ResourceTypes.Buckets}>
-                      <GetResources resource={ResourceTypes.Telegrafs}>
-                        <Collectors />
+                    <GetResources resource={ResourceTypes.Scrapers}>
+                      <GetResources resource={ResourceTypes.Buckets}>
+                        <Scrapers orgName={org.name} />
                         {this.props.children}
                       </GetResources>
                     </GetResources>
@@ -58,8 +60,16 @@ class TelegrafsPage extends PureComponent<StateProps> {
   }
 }
 
-const mstp = ({orgs: {org}}: AppState): StateProps => ({
-  org,
-})
+const mstp = (state: AppState) => {
+  const {
+    orgs: {org},
+  } = state
+  return {
+    org,
+  }
+}
 
-export default connect<StateProps>(mstp)(TelegrafsPage)
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(ScrapersIndex)

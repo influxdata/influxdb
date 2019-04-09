@@ -28,27 +28,30 @@ class BucketsIndex extends Component<StateProps> {
     const {org} = this.props
 
     return (
-      <Page titleTag={org.name}>
-        <OrgHeader />
-        <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-12">
-            <Tabs>
-              <OrganizationNavigation tab="buckets" orgID={org.id} />
-              <Tabs.TabContents>
-                <TabbedPageSection
-                  id="org-view-tab--buckets"
-                  url="buckets"
-                  title="Buckets"
-                >
-                  <GetResources resource={ResourceTypes.Buckets}>
-                    <BucketsTab />
-                  </GetResources>
-                </TabbedPageSection>
-              </Tabs.TabContents>
-            </Tabs>
-          </div>
-        </Page.Contents>
-      </Page>
+      <>
+        <Page titleTag={org.name}>
+          <OrgHeader />
+          <Page.Contents fullWidth={false} scrollable={true}>
+            <div className="col-xs-12">
+              <Tabs>
+                <OrganizationNavigation tab="buckets" orgID={org.id} />
+                <Tabs.TabContents>
+                  <TabbedPageSection
+                    id="org-view-tab--buckets"
+                    url="buckets"
+                    title="Buckets"
+                  >
+                    <GetResources resource={ResourceTypes.Buckets}>
+                      <BucketsTab />
+                      {this.props.children}
+                    </GetResources>
+                  </TabbedPageSection>
+                </Tabs.TabContents>
+              </Tabs>
+            </div>
+          </Page.Contents>
+        </Page>
+      </>
     )
   }
 }

@@ -30,7 +30,7 @@ interface Props {
   bucket: PrettyBucket
   onEditBucket: (b: PrettyBucket) => void
   onDeleteBucket: (b: PrettyBucket) => void
-  onAddData: (b: PrettyBucket, d: DataLoaderType) => void
+  onAddData: (b: PrettyBucket, d: DataLoaderType, l: string) => void
   onUpdateBucket: (b: PrettyBucket) => void
   onFilterChange: (searchTerm: string) => void
 }
@@ -101,15 +101,33 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleAddCollector = (): void => {
-    this.props.onAddData(this.props.bucket, DataLoaderType.Streaming)
+    const {
+      params: {orgID},
+      bucket: {id},
+    } = this.props
+
+    const link = `/orgs/${orgID}/buckets/${id}/telegrafs/new`
+    this.props.onAddData(this.props.bucket, DataLoaderType.Streaming, link)
   }
 
   private handleAddLineProtocol = (): void => {
-    this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol)
+    const {
+      params: {orgID},
+      bucket: {id},
+    } = this.props
+
+    const link = `/orgs/${orgID}/buckets/${id}/line-protocols/new`
+    this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol, link)
   }
 
   private handleAddScraper = (): void => {
-    this.props.onAddData(this.props.bucket, DataLoaderType.Scraping)
+    const {
+      params: {orgID},
+      bucket: {id},
+    } = this.props
+
+    const link = `/orgs/${orgID}/buckets/${id}/scrapers/new`
+    this.props.onAddData(this.props.bucket, DataLoaderType.Scraping, link)
   }
 }
 

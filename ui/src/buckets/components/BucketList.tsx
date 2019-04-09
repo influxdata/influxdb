@@ -2,13 +2,12 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 import BucketRow, {PrettyBucket} from 'src/buckets/components/BucketRow'
 import {Overlay, IndexList} from 'src/clockface'
-import DataLoaderSwitcher from 'src/dataLoaders/components/DataLoaderSwitcher'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -41,39 +40,21 @@ type Props = OwnProps & StateProps & DispatchProps
 interface State {
   bucketID: string
   bucketOverlayState: OverlayState
-  dataLoadersOverlayState: OverlayState
 }
 
 class BucketList extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
-
-    const openDataLoaderOverlay = _.get(
-      this,
-      'props.location.query.openDataLoaderOverlay',
-      false
-    )
-    const firstBucketID = _.get(this, 'props.buckets.0.id', null)
-    const bucketID = openDataLoaderOverlay ? firstBucketID : null
+    const bucketID = get(this, 'props.buckets.0.id', null)
 
     this.state = {
       bucketID,
       bucketOverlayState: OverlayState.Closed,
-      dataLoadersOverlayState: openDataLoaderOverlay
-        ? OverlayState.Open
-        : OverlayState.Closed,
     }
   }
 
   public render() {
-    const {
-      dataLoaderType,
-      buckets,
-      emptyState,
-      onDeleteBucket,
-      onFilterChange,
-    } = this.props
-    const {bucketID} = this.state
+    const {buckets, emptyState, onDeleteBucket, onFilterChange} = this.props
 
     return (
       <>
@@ -104,13 +85,6 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
             onUpdateBucket={this.handleUpdateBucket}
           />
         </Overlay>
-        <DataLoaderSwitcher
-          type={dataLoaderType}
-          visible={this.isDataLoadersWizardVisible}
-          onCompleteSetup={this.handleDismissDataLoaders}
-          buckets={buckets}
-          overrideBucketIDSelection={bucketID}
-        />
       </>
     )
   }
@@ -129,33 +103,23 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
 
   private handleStartAddData = (
     bucket: PrettyBucket,
-    dataLoaderType: DataLoaderType
+    dataLoaderType: DataLoaderType,
+    link: string
   ) => {
-    this.props.onSetBucketInfo(
+    const {onSetBucketInfo, onSetDataLoadersType, router} = this.props
+    onSetBucketInfo(
       bucket.organization,
       bucket.organizationID,
       bucket.name,
       bucket.id
     )
 
-    this.props.onSetDataLoadersType(dataLoaderType)
-
     this.setState({
       bucketID: bucket.id,
-      dataLoadersOverlayState: OverlayState.Open,
     })
-  }
 
-  private handleDismissDataLoaders = () => {
-    this.setState({
-      bucketID: '',
-      dataLoadersOverlayState: OverlayState.Closed,
-    })
-  }
-
-  private get isDataLoadersWizardVisible(): boolean {
-    const {bucketID, dataLoadersOverlayState} = this.state
-    return !!bucketID && dataLoadersOverlayState === OverlayState.Open
+    onSetDataLoadersType(dataLoaderType)
+    router.push(link)
   }
 
   private get isBucketOverlayVisible(): boolean {

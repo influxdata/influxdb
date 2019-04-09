@@ -1,19 +1,17 @@
 // Libraries
-import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
-
-// APIs
-import {client} from 'src/utils/api'
+import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Components
 import {Input, Button, EmptyState} from '@influxdata/clockface'
 import {Tabs} from 'src/clockface'
-import ScraperList from 'src/organizations/components/ScraperList'
-import CreateScraperOverlay from 'src/organizations/components/CreateScraperOverlay'
+import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
 
 // Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
+import {updateScraper, deleteScraper} from 'src/scrapers/actions'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -27,25 +25,26 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {OverlayState} from 'src/types'
-import {
-  scraperDeleteSuccess,
-  scraperDeleteFailed,
-  scraperUpdateSuccess,
-  scraperUpdateFailed,
-} from 'src/shared/copy/v2/notifications'
+import {AppState} from 'src/types'
 import FilterList from 'src/shared/components/Filter'
 
-interface Props {
+interface StateProps {
   scrapers: ScraperTargetResponse[]
-  onChange: () => void
-  orgName: string
   buckets: Bucket[]
-  notify: NotificationsActions.PublishNotificationActionCreator
 }
 
+interface DispatchProps {
+  onUpdateScraper: typeof updateScraper
+  onDeleteScraper: typeof deleteScraper
+}
+
+interface OwnProps {
+  orgName: string
+}
+
+type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+
 interface State {
-  overlayState: OverlayState
   searchTerm: string
 }
 
@@ -55,7 +54,6 @@ class Scrapers extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      overlayState: OverlayState.Closed,
       searchTerm: '',
     }
   }
@@ -93,7 +91,6 @@ class Scrapers extends PureComponent<Props, State> {
             />
           )}
         </FilterList>
-        {this.createScraperOverlay}
       </>
     )
   }
@@ -106,35 +103,6 @@ class Scrapers extends PureComponent<Props, State> {
     }
 
     return false
-  }
-
-  private get createScraperOverlay(): JSX.Element {
-    const {buckets} = this.props
-
-    if (this.hasNoBuckets) {
-      return
-    }
-
-    return (
-      <CreateScraperOverlay
-        visible={this.isOverlayVisible}
-        buckets={buckets}
-        onDismiss={this.handleDismissOverlay}
-      />
-    )
-  }
-
-  private get isOverlayVisible(): boolean {
-    return this.state.overlayState === OverlayState.Open
-  }
-
-  private handleShowOverlay = () => {
-    this.setState({overlayState: OverlayState.Open})
-  }
-
-  private handleDismissOverlay = () => {
-    this.setState({overlayState: OverlayState.Closed})
-    this.props.onChange()
   }
 
   private createScraperButton = (testID: string): JSX.Element => {
@@ -183,27 +151,26 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleUpdateScraper = async (scraper: ScraperTargetResponse) => {
-    const {onChange, notify} = this.props
-    try {
-      await client.scrapers.update(scraper.id, scraper)
-      onChange()
-      notify(scraperUpdateSuccess(scraper.name))
-    } catch (e) {
-      console.error(e)
-      notify(scraperUpdateFailed(scraper.name))
-    }
+    const {onUpdateScraper} = this.props
+    onUpdateScraper(scraper)
   }
 
   private handleDeleteScraper = async (scraper: ScraperTargetResponse) => {
-    const {onChange, notify} = this.props
-    try {
-      await client.scrapers.delete(scraper.id)
-      onChange()
-      notify(scraperDeleteSuccess(scraper.name))
-    } catch (e) {
-      notify(scraperDeleteFailed(scraper.name))
-      console.error(e)
+    const {onDeleteScraper} = this.props
+    onDeleteScraper(scraper)
+  }
+
+  private handleShowOverlay = (): void => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    if (this.hasNoBuckets) {
+      return
     }
+
+    router.push(`/orgs/${orgID}/scrapers/new`)
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -215,4 +182,17 @@ class Scrapers extends PureComponent<Props, State> {
   }
 }
 
-export default Scrapers
+const mstp = ({scrapers, buckets}: AppState): StateProps => ({
+  scrapers: scrapers.list,
+  buckets: buckets.list,
+})
+
+const mdtp: DispatchProps = {
+  onDeleteScraper: deleteScraper,
+  onUpdateScraper: updateScraper,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(withRouter<OwnProps>(Scrapers))

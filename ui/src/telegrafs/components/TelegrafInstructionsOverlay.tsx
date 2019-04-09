@@ -2,11 +2,15 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Constants
 import {TOKEN_LABEL} from 'src/labels/constants'
@@ -15,43 +19,38 @@ import {TOKEN_LABEL} from 'src/labels/constants'
 import {AppState} from 'src/types'
 import {Telegraf} from '@influxdata/influx'
 
-interface OwnProps {
-  visible: boolean
-  onDismiss: () => void
-  collector?: Telegraf
-}
-
 interface StateProps {
   username: string
   telegrafs: AppState['telegrafs']['list']
   tokens: AppState['tokens']['list']
+  collectors: Telegraf[]
 }
 
-type Props = StateProps & OwnProps
-
 @ErrorHandling
-export class TelegrafInstructionsOverlay extends PureComponent<Props> {
+export class TelegrafInstructionsOverlay extends PureComponent<
+  StateProps & WithRouterProps
+> {
   public render() {
-    const {collector, visible, onDismiss} = this.props
-
     return (
-      <WizardOverlay
-        visible={visible}
-        title="Telegraf Setup Instructions"
-        onDismiss={onDismiss}
-      >
-        <TelegrafInstructions
-          token={this.token}
-          configID={get(collector, 'id', '')}
-        />
-      </WizardOverlay>
+      <GetResources resource={ResourceTypes.Authorizations}>
+        <WizardOverlay
+          title="Telegraf Setup Instructions"
+          onDismiss={this.handleDismiss}
+        >
+          <TelegrafInstructions
+            token={this.token}
+            configID={get(this.collector, 'id', '')}
+          />
+        </WizardOverlay>
+      </GetResources>
     )
   }
 
   private get token(): string {
-    const {collector, telegrafs, tokens} = this.props
+    const {telegrafs, tokens} = this.props
     const config =
-      telegrafs.find(t => get(collector, 'id', '') === t.id) || collector
+      telegrafs.find(t => get(this.collector, 'id', '') === t.id) ||
+      this.collector
 
     if (!config) {
       return 'no config found'
@@ -68,15 +67,36 @@ export class TelegrafInstructionsOverlay extends PureComponent<Props> {
 
     return auth.token
   }
+
+  private get collector() {
+    const {
+      params: {id},
+      collectors,
+    } = this.props
+    return collectors.find(c => c.id === id)
+  }
+
+  private handleDismiss = (): void => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    this.setState({
+      collectorID: null,
+    })
+
+    router.push(`/orgs/${orgID}/telegrafs/`)
+  }
 }
 
 const mstp = ({me: {name}, telegrafs, tokens}: AppState): StateProps => ({
   username: name,
   telegrafs: telegrafs.list,
   tokens: tokens.list,
+  collectors: telegrafs.list,
 })
 
-export default connect<StateProps, {}, OwnProps>(
+export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(TelegrafInstructionsOverlay)
+)(withRouter<StateProps>(TelegrafInstructionsOverlay))
