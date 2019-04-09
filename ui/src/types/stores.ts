@@ -21,6 +21,7 @@ import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {OrgsState} from 'src/organizations/reducers/orgs'
+import {MembersState} from 'src/members/reducers'
 
 export interface AppState {
   VERSION: string
@@ -47,6 +48,7 @@ export interface AppState {
   templates: TemplatesState
   scrapers: ScrapersState
   userSettings: UserSettingsState
+  members: MembersState
 }
 
 export type GetState = () => AppState

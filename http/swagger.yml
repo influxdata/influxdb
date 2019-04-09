@@ -5927,18 +5927,6 @@ components:
               type: string
             params:
               type: object
-    FluxLinks:
-      type: object
-      properties:
-        ast:
-          type: string
-          format: uri
-        self:
-          type: string
-          format: uri
-        suggestions:
-          type: string
-          format: uri
     Routes:
       properties:
         authorizations:
@@ -6017,9 +6005,6 @@ components:
           type: string
           format: uri
         write:
-          type: string
-          format: uri
-        views:
           type: string
           format: uri
     Error:
@@ -6608,18 +6593,6 @@ components:
             - $ref: "#/components/schemas/V1ViewProperties"
             - $ref: "#/components/schemas/EmptyViewProperties"
             - $ref: "#/components/schemas/LogViewProperties"
-    Views:
-      type: object
-      properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-        views:
-          type: array
-          items:
-            $ref: "#/components/schemas/View"
     CellUpdate:
       type: object
       properties:

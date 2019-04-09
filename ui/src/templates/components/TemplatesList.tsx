@@ -26,7 +26,7 @@ interface State {
   sortDirection: Sort
 }
 
-export default class OrgTemplatesList extends PureComponent<Props, State> {
+export default class TemplatesList extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {

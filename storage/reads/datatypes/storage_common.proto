@@ -16,6 +16,9 @@ service Storage {
   // Read performs a read operation using the given ReadRequest
   rpc Read (ReadRequest) returns (stream ReadResponse);
 
+  // ReadFilter performs a filter operation at storage
+  rpc ReadFilter (ReadFilterRequest) returns (stream ReadResponse);
+
   // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
   rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
 
@@ -23,6 +26,12 @@ service Storage {
 
   // Explain describes the costs associated with executing a given Read request
   // rpc Explain(google.protobuf.Empty) returns (ExplainResponse){}
+}
+
+message ReadFilterRequest {
+  google.protobuf.Any read_source = 1 [(gogoproto.customname) = "ReadSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
 }
 
 // Request message for Storage.Read.

@@ -21,7 +21,6 @@ import {
   IDashboardTemplateIncluded,
 } from '@influxdata/influx'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import OrgTemplateFetcher from 'src/organizations/components/OrgTemplateFetcher'
 
 // Actions
 import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
@@ -29,6 +28,9 @@ import {getTemplateByID} from 'src/templates/actions'
 
 // Types
 import {AppState, RemoteDataState, DashboardTemplate} from 'src/types'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 interface StateProps {
   templates: TemplateSummary[]
@@ -75,11 +77,11 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
           />
           <Overlay.Body>
             <div className="import-template-overlay">
-              <OrgTemplateFetcher orgName={this.orgName}>
+              <GetResources resource={ResourceTypes.Templates}>
                 <ResponsiveGridSizer columns={3}>
                   {this.templates}
                 </ResponsiveGridSizer>
-              </OrgTemplateFetcher>
+              </GetResources>
               {!selectedTemplateSummary && this.emptyState}
               {selectedTemplateSummary && (
                 <Panel className="import-template-overlay--details">
@@ -138,16 +140,6 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
         color={ComponentColor.Primary}
       />,
     ]
-  }
-
-  private get orgName(): string {
-    const {
-      params: {orgID},
-      orgs,
-    } = this.props
-    return orgs.find(org => {
-      return org.id === orgID
-    }).name
   }
 
   private get variableItems(): JSX.Element[] {

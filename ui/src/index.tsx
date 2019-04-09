@@ -28,6 +28,7 @@ import DashboardsIndex from 'src/dashboards/components/dashboard_index/Dashboard
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import DashboardImportFromTemplateOverlay from 'src/dashboards/components/DashboardImportFromTemplateOverlay'
+import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import {MePage, Account} from 'src/me'
@@ -42,9 +43,8 @@ import VEO from 'src/dashboards/components/VEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
-import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
 import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
-import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
+import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
@@ -56,6 +56,7 @@ import RouteToOrg from 'src/shared/containers/RouteToOrg'
 import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import ProfileOverlay from 'src/me/components/ProfileOverlay'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
+import MembersIndex from 'src/members/containers/MembersIndex'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -184,16 +185,16 @@ class Root extends PureComponent {
                             component={ConfigurationPage}
                           />
                           <Route path="settings">
-                            <IndexRoute component={OrgMembersIndex} />
+                            <IndexRoute component={MembersIndex} />
                           </Route>
                           <Route path="buckets" component={BucketsIndex} />
                           <Route path="tokens" component={TokensIndex} />
-                          <Route path="members" component={OrgMembersIndex} />
+                          <Route path="members" component={MembersIndex} />
                           <Route
                             path="telegrafs"
                             component={OrgTelegrafsIndex}
                           />
-                          <Route path="templates" component={OrgTemplatesIndex}>
+                          <Route path="templates" component={TemplatesIndex}>
                             <Route
                               path="import"
                               component={TemplateImportOverlay}
@@ -211,6 +212,10 @@ class Root extends PureComponent {
                             <Route
                               path=":id/export"
                               component={VariableExportOverlay}
+                            />
+                            <Route
+                              path="new"
+                              component={CreateVariableOverlay}
                             />
                           </Route>
                           <Route path="scrapers" component={OrgScrapersIndex} />
