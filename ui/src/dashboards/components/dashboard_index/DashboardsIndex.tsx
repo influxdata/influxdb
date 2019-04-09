@@ -161,7 +161,8 @@ class DashboardIndex extends PureComponent<Props, State> {
           ...dashboard,
           orgID,
         },
-        dashboards
+        dashboards,
+        orgID
       )
       router.push(`/orgs/${orgID}/dashboards/${data.id}`)
     } catch (error) {
