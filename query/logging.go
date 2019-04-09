@@ -7,18 +7,20 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
-// LoggingServiceBridge implements ProxyQueryService and logs the queries while consuming a QueryService interface.
-type LoggingServiceBridge struct {
-	QueryService QueryService
-	QueryLogger  Logger
+// LoggingProxyQueryService wraps a ProxyQueryService and logs the queries.
+type LoggingProxyQueryService struct {
+	ProxyQueryService ProxyQueryService
+	QueryLogger       Logger
+	NowFunction       func() time.Time
 }
 
 // Query executes and logs the query.
-func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (stats flux.Statistics, err error) {
+func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (stats flux.Statistics, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -28,42 +30,32 @@ func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *Prox
 		if r != nil {
 			err = fmt.Errorf("panic: %v", r)
 		}
+		var now time.Time
+		if s.NowFunction != nil {
+			now = s.NowFunction()
+		} else {
+			now = time.Now()
+		}
 		log := Log{
 			OrganizationID: req.Request.OrganizationID,
 			ProxyRequest:   req,
 			ResponseSize:   n,
-			Time:           time.Now(),
+			Time:           now,
 			Statistics:     stats,
-		}
-		if err != nil {
-			log.Error = err
+			Error:          err,
 		}
 		s.QueryLogger.Log(log)
 	}()
 
-	results, err := s.QueryService.Query(ctx, &req.Request)
+	wc := &iocounter.Writer{Writer: w}
+	stats, err = s.ProxyQueryService.Query(ctx, wc, req)
 	if err != nil {
 		return stats, tracing.LogError(span, err)
 	}
-	// Check if this result iterator reports stats. We call this defer before cancel because
-	// the query needs to be finished before it will have valid statistics.
-	defer func() {
-		results.Release()
-		stats = results.Statistics()
-	}()
-
-	encoder := req.Dialect.Encoder()
-	n, err = encoder.Encode(w, results)
-	if err != nil {
-		return stats, tracing.LogError(span, err)
-	}
-	// The results iterator may have had an error independent of encoding errors.
-	if err = results.Err(); err != nil {
-		return stats, tracing.LogError(span, err)
-	}
+	n = wc.Count()
 	return stats, nil
 }
 
-func (s *LoggingServiceBridge) Check(ctx context.Context) check.Response {
-	return s.QueryService.Check(ctx)
+func (s *LoggingProxyQueryService) Check(ctx context.Context) check.Response {
+	return s.ProxyQueryService.Check(ctx)
 }
