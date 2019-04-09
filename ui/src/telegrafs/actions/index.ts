@@ -2,13 +2,11 @@
 import {client} from 'src/utils/api'
 
 // Types
-import {RemoteDataState} from 'src/types'
-import {
-  ITelegraf as Telegraf,
-  Organization,
-  ILabel as Label,
-} from '@influxdata/influx'
+import {RemoteDataState, AppState} from 'src/types'
+import {ITelegraf as Telegraf, ILabel as Label} from '@influxdata/influx'
 import {Dispatch} from 'redux-thunk'
+
+type GetState = () => AppState
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -74,21 +72,11 @@ export const removeTelegraf = (id: string): RemoveTelegraf => ({
   payload: {id},
 })
 
-export const getTelegrafs = () => async (dispatch: Dispatch<Action>) => {
-  try {
-    dispatch(setTelegrafs(RemoteDataState.Loading))
+export const getTelegrafs = () => async (dispatch, getState: GetState) => {
+  const {
+    orgs: {org},
+  } = getState()
 
-    const telegrafs = await client.telegrafConfigs.getAll()
-
-    dispatch(setTelegrafs(RemoteDataState.Done, telegrafs))
-  } catch (e) {
-    console.error(e)
-    dispatch(setTelegrafs(RemoteDataState.Error))
-    dispatch(notify(telegrafGetFailed()))
-  }
-}
-
-export const getOrgTelegrafs = (org: Organization) => async dispatch => {
   try {
     dispatch(setTelegrafs(RemoteDataState.Loading))
 

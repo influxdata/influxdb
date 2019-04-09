@@ -143,9 +143,9 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
   }
 
   private async handleCreateDashboardsForPlugins() {
-    const {notify, telegrafPlugins, org, orgID} = this.props
+    const {notify, telegrafPlugins, orgID} = this.props
     try {
-      const templatesEntries = await client.templates.getAll(org)
+      const templatesEntries = await client.templates.getAll(orgID)
 
       const configuredPlugins = telegrafPlugins.filter(
         tp => tp.configured === ConfigurationState.Configured

@@ -1,6 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {AppState} from 'src/types'
 
@@ -11,70 +10,22 @@ import OrgHeader from 'src/organizations/containers/OrgHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import Collectors from 'src/telegrafs/components/Collectors'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import GetOrgResources from 'src/organizations/components/GetOrgResources'
-
-// Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
-import * as notifyActions from 'src/shared/actions/notifications'
-import {getOrgTelegrafs} from 'src/telegrafs/actions'
+import GetResources, {
+  ResourceTypes,
+} from 'src/configuration/components/GetResources'
 
 // Types
-import {Bucket, Organization, ITelegraf as Telegraf} from '@influxdata/influx'
-import {client} from 'src/utils/api'
-import {RemoteDataState} from 'src/types'
-
-const getBuckets = async (org: Organization) => {
-  return client.buckets.getAll(org.id)
-}
-
-interface RouterProps {
-  params: {
-    orgID: string
-  }
-}
-
-interface DispatchProps {
-  notify: NotificationsActions.PublishNotificationActionCreator
-  getOrgTelegrafs: typeof getOrgTelegrafs
-}
+import {Organization} from '@influxdata/influx'
 
 interface StateProps {
   org: Organization
-  telegrafs: Telegraf[]
-}
-
-type Props = WithRouterProps & RouterProps & DispatchProps & StateProps
-
-interface State {
-  loading: RemoteDataState
 }
 
 @ErrorHandling
-class OrgTelegrafsIndex extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {loading: RemoteDataState.NotStarted}
-  }
-
-  public async componentDidMount() {
-    const {org} = this.props
-
-    this.setState({loading: RemoteDataState.Loading})
-    try {
-      await this.props.getOrgTelegrafs(org)
-      this.setState({loading: RemoteDataState.Done})
-    } catch (error) {
-      //TODO: notify of errors
-      this.setState({loading: RemoteDataState.Error})
-    }
-  }
-
+class TelegrafsPage extends PureComponent<StateProps> {
   public render() {
-    const {org, telegrafs} = this.props
-    const {loading: loadingTelegrafs} = this.state
+    const {org} = this.props
 
     return (
       <Page titleTag={org.name}>
@@ -89,28 +40,11 @@ class OrgTelegrafsIndex extends Component<Props, State> {
                   url="telegrafs"
                   title="Telegraf"
                 >
-                  <SpinnerContainer
-                    loading={loadingTelegrafs}
-                    spinnerComponent={<TechnoSpinner />}
-                  >
-                    <GetOrgResources<Bucket>
-                      organization={org}
-                      fetcher={getBuckets}
-                    >
-                      {(buckets, loadingBuckets) => (
-                        <SpinnerContainer
-                          loading={loadingBuckets}
-                          spinnerComponent={<TechnoSpinner />}
-                        >
-                          <Collectors
-                            collectors={telegrafs}
-                            buckets={buckets}
-                            orgName={org.name}
-                          />
-                        </SpinnerContainer>
-                      )}
-                    </GetOrgResources>
-                  </SpinnerContainer>
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <GetResources resource={ResourceTypes.Telegrafs}>
+                      <Collectors />
+                    </GetResources>
+                  </GetResources>
                 </TabbedPageSection>
               </Tabs.TabContents>
             </Tabs>
@@ -121,24 +55,8 @@ class OrgTelegrafsIndex extends Component<Props, State> {
   }
 }
 
-const mstp = (state: AppState, props: WithRouterProps): StateProps => {
-  const {
-    orgs: {items},
-    telegrafs: {list},
-  } = state
-  const org = items.find(o => o.id === props.params.orgID)
-  return {
-    org,
-    telegrafs: list,
-  }
-}
+const mstp = ({orgs: {org}}: AppState): StateProps => ({
+  org,
+})
 
-const mdtp: DispatchProps = {
-  notify: notifyActions.notify,
-  getOrgTelegrafs,
-}
-
-export default connect<StateProps, DispatchProps, {}>(
-  mstp,
-  mdtp
-)(withRouter<{}>(OrgTelegrafsIndex))
+export default connect<StateProps>(mstp)(TelegrafsPage)
