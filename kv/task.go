@@ -48,6 +48,11 @@ var (
 		Msg:  "organization not found",
 		Code: influxdb.ENotFound,
 	}
+
+	ErrTaskRunAlreadyQueued = &influxdb.Error{
+		Msg:  "run already queued",
+		Code: influxdb.EConflict,
+	}
 )
 
 func ErrInternalTaskServiceError(err error) *influxdb.Error {
@@ -75,6 +80,15 @@ func ErrTaskTimeParse(err error) *influxdb.Error {
 		Code: influxdb.EInvalid,
 		Msg:  fmt.Sprintf("unexpected error parsing time; Err: %v", err),
 		Op:   "kv/taskCron",
+		Err:  err,
+	}
+}
+
+func ErrTaskOptionParse(err error) *influxdb.Error {
+	return &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  fmt.Sprintf("invalid options; Err: %v", err),
+		Op:   "kv/taskOptions",
 		Err:  err,
 	}
 }
@@ -370,7 +384,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 
 	opt, err := options.FromScript(tc.Flux)
 	if err != nil {
-		return nil, err
+		return nil, ErrTaskOptionParse(err)
 	}
 
 	if tc.Status == "" {
@@ -445,9 +459,7 @@ func (s *Service) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.T
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		task, err := s.updateTask(ctx, tx, id, upd)
 		if err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
+			return err
 		}
 		t = task
 		return nil
@@ -475,7 +487,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 		options, err := options.FromScript(*upd.Flux)
 		if err != nil {
-			return nil, err
+			return nil, ErrTaskOptionParse(err)
 		}
 		task.Name = options.Name
 		task.Every = options.Every.String()
@@ -813,7 +825,7 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 	// add a clean copy of the run to the manual runs
 	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
-		return nil, err
+		return nil, ErrUnexpectedTaskBucketErr(err)
 	}
 
 	key, err := taskManualRunKey(taskID)
@@ -891,7 +903,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	// check to see if this run is already queued
 	for _, run := range runs {
 		if run.ScheduledFor == r.ScheduledFor {
-			return nil, &influxdb.Error{Msg: "run already queued", Code: influxdb.EConflict}
+			return nil, ErrTaskRunAlreadyQueued
 		}
 	}
 	runs = append(runs, r)
@@ -966,7 +978,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		// add mRun to the list of currently running
 		mRunBytes, err := json.Marshal(mRun)
 		if err != nil {
-			return backend.RunCreation{}, ErrUnexpectedTaskBucketErr(err)
+			return backend.RunCreation{}, ErrInternalTaskServiceError(err)
 		}
 
 		runKey, err := taskRunKey(taskID, mRun.ID)
@@ -1013,7 +1025,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 	// the earliest it could have been completed is "created at"
 	latestCompleted, err := time.Parse(time.RFC3339, task.CreatedAt)
 	if err != nil {
-		return backend.RunCreation{}, err
+		return backend.RunCreation{}, ErrTaskTimeParse(err)
 	}
 
 	lRun, err := s.findLatestCompleted(ctx, tx, taskID)
