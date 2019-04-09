@@ -3,10 +3,10 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import MemberList from 'src/organizations/components/MemberList'
+import MemberList from 'src/members/components/MemberList'
 
 // Constants
-import {resouceOwner} from 'src/organizations/dummyData'
+import {resouceOwner} from 'src/members/dummyData'
 
 const setup = (override?) => {
   const props = {
