@@ -99,38 +99,38 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
       onDelete,
     } = this.props
     return (
-      <Context>
-        <ComponentSpacer
-          margin={ComponentSize.Medium}
-          direction={FlexDirection.Row}
-          justifyContent={JustifyContent.FlexEnd}
-        >
-          <Button
-            text="Create"
-            color={ComponentColor.Primary}
-            size={ComponentSize.ExtraSmall}
-            onClick={this.handleCreate}
-          />
+      <ComponentSpacer
+        margin={ComponentSize.Medium}
+        direction={FlexDirection.Row}
+        justifyContent={JustifyContent.FlexEnd}
+      >
+        <Button
+          text="Create"
+          color={ComponentColor.Primary}
+          size={ComponentSize.ExtraSmall}
+          onClick={this.handleCreate}
+        />
+        <Context>
           <Context.Menu
             icon={IconFont.Duplicate}
             color={ComponentColor.Secondary}
           >
             <Context.Item label="Clone" action={this.handleClone} value={id} />
           </Context.Menu>
-        </ComponentSpacer>
-        <Context.Menu
-          icon={IconFont.Trash}
-          color={ComponentColor.Danger}
-          testID="context-delete-menu"
-        >
-          <Context.Item
-            label="Delete"
-            action={onDelete}
-            value={id}
-            testID="context-delete-task"
-          />
-        </Context.Menu>
-      </Context>
+          <Context.Menu
+            icon={IconFont.Trash}
+            color={ComponentColor.Danger}
+            testID="context-delete-menu"
+          >
+            <Context.Item
+              label="Delete"
+              action={onDelete}
+              value={id}
+              testID="context-delete-task"
+            />
+          </Context.Menu>
+        </Context>
+      </ComponentSpacer>
     )
   }
 
