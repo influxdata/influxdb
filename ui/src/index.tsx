@@ -57,6 +57,7 @@ import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
+import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -196,6 +197,10 @@ class Root extends PureComponent {
                             <Route
                               path=":id/export"
                               component={TemplateExportOverlay}
+                            />
+                            <Route
+                              path=":id/view"
+                              component={TemplateViewOverlay}
                             />
                           </Route>
                           <Route path="variables" component={VariablesIndex}>

@@ -123,12 +123,12 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
-    this.handleExport()
+    this.handleViewTemplate()
   }
 
-  private handleExport = () => {
+  private handleViewTemplate = () => {
     const {router, template, org} = this.props
-    router.push(`orgs/${org.id}/templates/${template.id}/export`)
+    router.push(`/orgs/${org.id}/templates/${template.id}/view`)
   }
 }
 

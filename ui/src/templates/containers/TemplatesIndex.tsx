@@ -11,9 +11,6 @@ import OrgHeader from 'src/organizations/containers/OrgHeader'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
 
-//Actions
-import {setTemplatesStatus as setTemplatesStatusAction} from 'src/templates/actions/index'
-
 // Types
 import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types'
@@ -25,11 +22,7 @@ interface StateProps {
   org: Organization
 }
 
-interface DispatchProps {
-  setTemplatesStatus: typeof setTemplatesStatusAction
-}
-
-type Props = WithRouterProps & StateProps & DispatchProps
+type Props = WithRouterProps & StateProps
 
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
