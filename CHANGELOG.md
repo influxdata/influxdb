@@ -6,10 +6,15 @@
 1. [13078](https://github.com/influxdata/influxdb/pull/13078): Add the option to create a Dashboard from a Template.
 1. [13161](https://github.com/influxdata/influxdb/pull/13161): Add the ability to add labels on variables
 1. [13171](https://github.com/influxdata/influxdb/pull/13171): Add switch organizations dropdown to home navigation menu item.
+1. [13173](https://github.com/influxdata/influxdb/pull/13173): Add create org to side nav
 
 ### Bug Fixes
+1. [13284](https://github.com/influxdata/influxdb/pull/13284): Update shift to timeShift in the flux functions side bar
 
 ### UI Improvements
+1. [13287](https://github.com/influxdata/influxdb/pull/13287): Update cursor to grab when hovering draggable areas
+1. [13311](https://github.com/influxdata/influxdb/pull/13311): Sync note editor text and preview scrolling
+1. [13249](https://github.com/influxdata/influxdb/pull/13249): Add the ability to create a bucket when creating an organization
 
 ## v2.0.0-alpha.7 [2019-03-28]
 
