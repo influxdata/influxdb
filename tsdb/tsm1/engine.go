@@ -1115,7 +1115,7 @@ func (s *compactionStrategy) Apply(ctx context.Context) {
 
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup(ctx context.Context) {
-	span, ctx := tracing.StartSpanFromContext(ctx)
+	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	now := time.Now()
