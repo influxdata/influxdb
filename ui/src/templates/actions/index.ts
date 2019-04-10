@@ -125,6 +125,7 @@ export const createTemplateFromResource = (
     const {
       orgs: {org},
     } = getState()
+
     await client.templates.create({...resource, orgID: org.id})
     dispatch(notify(copy.resourceSavedAsTemplate(resourceName)))
   } catch (e) {
