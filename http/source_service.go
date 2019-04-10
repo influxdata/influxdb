@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/influxql"
@@ -164,8 +165,8 @@ func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
 		req.Request.Compiler = lang.FluxCompiler{
 			Query: request.Query,
 		}
-	case lang.SpecCompilerType:
-		req.Request.Compiler = lang.SpecCompiler{
+	case repl.CompilerType:
+		req.Request.Compiler = repl.Compiler{
 			Spec: request.Spec,
 		}
 	case influxql.CompilerType:
