@@ -2,6 +2,13 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
+import {
+  Button,
+  ComponentSize,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+} from '@influxdata/clockface'
 
 // Components
 import {ResourceList, Context, IconFont} from 'src/clockface'
@@ -91,12 +98,24 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     } = this.props
     return (
       <Context>
-        <Context.Menu
-          icon={IconFont.Duplicate}
-          color={ComponentColor.Secondary}
+        <ComponentSpacer
+          margin={ComponentSize.Medium}
+          direction={FlexDirection.Row}
+          justifyContent={JustifyContent.FlexEnd}
         >
-          <Context.Item label="Clone" action={this.handleClone} value={id} />
-        </Context.Menu>
+          <Button
+            text="Create"
+            color={ComponentColor.Primary}
+            size={ComponentSize.ExtraSmall}
+            onClick={this.handleCreate}
+          />
+          <Context.Menu
+            icon={IconFont.Duplicate}
+            color={ComponentColor.Secondary}
+          >
+            <Context.Item label="Clone" action={this.handleClone} value={id} />
+          </Context.Menu>
+        </ComponentSpacer>
         <Context.Menu
           icon={IconFont.Trash}
           color={ComponentColor.Danger}
@@ -112,6 +131,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
       </Context>
     )
   }
+
+  private handleCreate = () => {}
 
   private handleClone = () => {
     const {
