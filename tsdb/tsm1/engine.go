@@ -25,7 +25,6 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxql"
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -869,7 +868,7 @@ func (e *Engine) compactCache() {
 				continue
 			}
 
-			span, ctx := opentracing.StartSpanFromContext(context.Background(), "Engine.compactCache <-t.C")
+			span, ctx := tracing.StartSpanFromContextWithOperationName(context.Background(), "Engine.compactCache <-t.C")
 			span.LogKV("path", e.path)
 
 			start := time.Now()
@@ -952,6 +951,8 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 
 		case <-t.C:
 
+			span, ctx := tracing.StartSpanFromContext(context.Background())
+
 			// Find our compaction plans
 			level1Groups := e.CompactionPlan.PlanLevel(1)
 			level2Groups := e.CompactionPlan.PlanLevel(2)
@@ -977,22 +978,24 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			e.scheduler.setDepth(4, len(level4Groups))
 
 			// Find the next compaction that can run and try to kick it off
-			if level, runnable := e.scheduler.next(); runnable {
+			level, runnable := e.scheduler.next()
+			if runnable {
+				span.LogKV("level", level)
 				switch level {
 				case 1:
-					if e.compactHiPriorityLevel(level1Groups[0], 1, false, wg) {
+					if e.compactHiPriorityLevel(ctx, level1Groups[0], 1, false, wg) {
 						level1Groups = level1Groups[1:]
 					}
 				case 2:
-					if e.compactHiPriorityLevel(level2Groups[0], 2, false, wg) {
+					if e.compactHiPriorityLevel(ctx, level2Groups[0], 2, false, wg) {
 						level2Groups = level2Groups[1:]
 					}
 				case 3:
-					if e.compactLoPriorityLevel(level3Groups[0], 3, true, wg) {
+					if e.compactLoPriorityLevel(ctx, level3Groups[0], 3, true, wg) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
-					if e.compactFull(level4Groups[0], wg) {
+					if e.compactFull(ctx, level4Groups[0], wg) {
 						level4Groups = level4Groups[1:]
 					}
 				}
@@ -1003,13 +1006,17 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			e.CompactionPlan.Release(level2Groups)
 			e.CompactionPlan.Release(level3Groups)
 			e.CompactionPlan.Release(level4Groups)
+
+			if runnable {
+				span.Finish()
+			}
 		}
 	}
 }
 
 // compactHiPriorityLevel kicks off compactions using the high priority policy. It returns
 // true if the compaction was started
-func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLevel, fast bool, wg *sync.WaitGroup) bool {
+func (e *Engine) compactHiPriorityLevel(ctx context.Context, grp CompactionGroup, level compactionLevel, fast bool, wg *sync.WaitGroup) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
@@ -1024,7 +1031,7 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLev
 			defer wg.Done()
 			defer e.compactionTracker.DecActive(level)
 			defer e.compactionLimiter.Release()
-			s.Apply()
+			s.Apply(ctx)
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
 		}()
@@ -1037,7 +1044,7 @@ func (e *Engine) compactHiPriorityLevel(grp CompactionGroup, level compactionLev
 
 // compactLoPriorityLevel kicks off compactions using the lo priority policy. It returns
 // the plans that were not able to be started
-func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level compactionLevel, fast bool, wg *sync.WaitGroup) bool {
+func (e *Engine) compactLoPriorityLevel(ctx context.Context, grp CompactionGroup, level compactionLevel, fast bool, wg *sync.WaitGroup) bool {
 	s := e.levelCompactionStrategy(grp, fast, level)
 	if s == nil {
 		return false
@@ -1051,7 +1058,7 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level compactionLev
 			defer wg.Done()
 			defer e.compactionTracker.DecActive(level)
 			defer e.compactionLimiter.Release()
-			s.Apply()
+			s.Apply(ctx)
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
 		}()
@@ -1062,7 +1069,7 @@ func (e *Engine) compactLoPriorityLevel(grp CompactionGroup, level compactionLev
 
 // compactFull kicks off full and optimize compactions using the lo priority policy. It returns
 // the plans that were not able to be started.
-func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
+func (e *Engine) compactFull(ctx context.Context, grp CompactionGroup, wg *sync.WaitGroup) bool {
 	s := e.fullCompactionStrategy(grp, false)
 	if s == nil {
 		return false
@@ -1076,7 +1083,7 @@ func (e *Engine) compactFull(grp CompactionGroup, wg *sync.WaitGroup) bool {
 			defer wg.Done()
 			defer e.compactionTracker.DecFullActive()
 			defer e.compactionLimiter.Release()
-			s.Apply()
+			s.Apply(ctx)
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
 		}()
@@ -1102,20 +1109,25 @@ type compactionStrategy struct {
 }
 
 // Apply concurrently compacts all the groups in a compaction strategy.
-func (s *compactionStrategy) Apply() {
-	s.compactGroup()
+func (s *compactionStrategy) Apply(ctx context.Context) {
+	s.compactGroup(ctx)
 }
 
 // compactGroup executes the compaction strategy against a single CompactionGroup.
-func (s *compactionStrategy) compactGroup() {
+func (s *compactionStrategy) compactGroup(ctx context.Context) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	now := time.Now()
 	group := s.group
 	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group")
 	defer logEnd()
 
 	log.Info("Beginning compaction", zap.Int("tsm1_files_n", len(group)))
+	span.LogKV("file qty", len(group), "fast", s.fast)
 	for i, f := range group {
 		log.Info("Compacting file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
+		span.LogKV("compact file", "start", "tsm1_index", i, "tsm1_file", f)
 	}
 
 	var (
@@ -1130,6 +1142,7 @@ func (s *compactionStrategy) compactGroup() {
 	}
 
 	if err != nil {
+		tracing.LogError(span, err)
 		_, inProgress := err.(errCompactionInProgress)
 		if err == errCompactionsDisabled || inProgress {
 			log.Info("Aborted compaction", zap.Error(err))
@@ -1147,6 +1160,7 @@ func (s *compactionStrategy) compactGroup() {
 	}
 
 	if err := s.fileStore.ReplaceWithCallback(group, files, nil); err != nil {
+		tracing.LogError(span, err)
 		log.Info("Error replacing new TSM files", zap.Error(err))
 		s.tracker.Attempted(s.level, false, "", 0)
 		time.Sleep(time.Second)
@@ -1155,6 +1169,7 @@ func (s *compactionStrategy) compactGroup() {
 
 	for i, f := range files {
 		log.Info("Compacted file", zap.Int("tsm1_index", i), zap.String("tsm1_file", f))
+		span.LogKV("compact file", "end", "tsm1_index", i, "tsm1_file", f)
 	}
 	log.Info("Finished compacting files", zap.Int("tsm1_files_n", len(files)))
 	s.tracker.Attempted(s.level, true, "", time.Since(now))

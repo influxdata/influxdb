@@ -592,7 +592,7 @@ func mockDependencies() influxdb.ToDependencies {
 
 type mockBucketLookup struct{}
 
-func (mockBucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
+func (mockBucketLookup) Lookup(_ context.Context, orgID platform.ID, name string) (platform.ID, bool) {
 	if name == "my-bucket" {
 		return platform.ID(1), true
 	}
