@@ -47,7 +47,17 @@ describe('Onboarding', () => {
     cy.getByTestID('button').click()
 
     //Check onboarding page - nav bar
-    cy.getByTestID('nav-step--setup').contains('Initial User Setup')
+    cy.getByTestID('nav-step--welcome').contains('Welcome')
+    cy.getByTestID('nav-step--welcome')
+      .parent()
+      .children('span')
+      .should($span => {
+        expect($span).to.have.class('checkmark')
+      })
+
+    cy.getByTestID('nav-step--setup')
+      .contains('Initial User Setup')
+      .should('be.visible')
     cy.getByTestID('nav-step--setup').should('have.class', 'current')
     cy.getByTestID('nav-step--setup')
       .parent()
