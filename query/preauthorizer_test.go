@@ -28,7 +28,6 @@ func newBucketServiceWithOneBucket(bucket platform.Bucket) platform.BucketServic
 }
 
 func TestPreAuthorizer_PreAuthorize(t *testing.T) {
-	t.Skip("Re-enable when pre-authorizer works again")
 	ctx := context.Background()
 	// fresh pre-authorizer
 	auth := &platform.Authorization{Status: platform.Active}
