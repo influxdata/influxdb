@@ -116,7 +116,7 @@ func TestToOpSpec_BucketsAccessed(t *testing.T) {
 
 func TestTo_Process(t *testing.T) {
 	oid, _ := (mockOrgLookup{}).Lookup(context.Background(), "my-org")
-	bid, _ := (mockBucketLookup{}).Lookup(oid, "my-bucket")
+	bid, _ := (mockBucketLookup{}).Lookup(nil, oid, "my-bucket")
 	type wanted struct {
 		result *mock.PointsWriter
 		tables []*executetest.Table
