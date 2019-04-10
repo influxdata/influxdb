@@ -415,7 +415,10 @@ func decodePostLabelMappingRequest(ctx context.Context, r *http.Request, rt plat
 
 	mapping := &platform.LabelMapping{}
 	if err := json.NewDecoder(r.Body).Decode(mapping); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "Invalid post label map request",
+		}
 	}
 
 	mapping.ResourceID = rid
