@@ -77,6 +77,10 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return err
 		}
 
+		if err := s.initializeTasks(ctx, tx); err != nil {
+			return err
+		}
+
 		if err := s.initializePasswords(ctx, tx); err != nil {
 			return err
 		}

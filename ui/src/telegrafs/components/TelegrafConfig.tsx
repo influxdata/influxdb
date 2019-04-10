@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import FetchTelegrafConfig from 'src/organizations/components/FetchTelegrafConfig'
+import FetchTelegrafConfig from 'src/telegrafs/components/FetchTelegrafConfig'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 
 // Actions

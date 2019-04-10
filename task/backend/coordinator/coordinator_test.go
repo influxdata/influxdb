@@ -109,7 +109,7 @@ func TestCoordinator(t *testing.T) {
 	ts := inmemTaskService()
 	sched := mock.NewScheduler()
 
-	coord := coordinator.New(zaptest.NewLogger(t), sched, ts)
+	coord := coordinator.New(zaptest.NewLogger(t), sched, ts, coordinator.WithoutExistingTasks())
 	createChan := sched.TaskCreateChan()
 	releaseChan := sched.TaskReleaseChan()
 	updateChan := sched.TaskUpdateChan()
@@ -211,7 +211,7 @@ func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 	ts := inmemTaskService()
 	sched := mock.NewScheduler()
 
-	coord := coordinator.New(zaptest.NewLogger(t), sched, ts)
+	coord := coordinator.New(zaptest.NewLogger(t), sched, ts, coordinator.WithoutExistingTasks())
 
 	// Create an isolated task directly through the store so the coordinator doesn't know about it.
 	task, err := ts.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})
@@ -281,7 +281,7 @@ func TestCoordinator_ForceRun(t *testing.T) {
 	ts := inmemTaskService()
 	sched := mock.NewScheduler()
 
-	coord := coordinator.New(zaptest.NewLogger(t), sched, ts)
+	coord := coordinator.New(zaptest.NewLogger(t), sched, ts, coordinator.WithoutExistingTasks())
 
 	// Create an isolated task directly through the store so the coordinator doesn't know about it.
 	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})

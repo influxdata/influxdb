@@ -1,11 +1,10 @@
 // Libraries
 import React from 'react'
 import {render} from 'react-testing-library'
-import {IconFont} from 'src/clockface'
 import _ from 'lodash'
 
 // Components
-import NavMenu from 'src/pageLayout/components/NavMenu'
+import {NavMenu, Icon, IconFont} from '@influxdata/clockface'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
@@ -20,16 +19,32 @@ function Nav(props) {
   return (
     <NavMenu>
       <NavMenu.Item
-        title={DASHBOARDS_NAV_ITEM}
-        path="/orgs/036ef4599dddb000/dashboards"
-        icon={IconFont.Dashboards}
+        titleLink={className => (
+          <a href="#" className={className}>
+            {DASHBOARDS_NAV_ITEM}
+          </a>
+        )}
+        iconLink={className => (
+          <a href="#" className={className}>
+            <Icon glyph={IconFont.Dashboards} />
+          </a>
+        )}
         active={getNavItemActivation(['dashboards'], pathname)}
+        testID={`nav-menu--item ${DASHBOARDS_NAV_ITEM}`}
       />
       <NavMenu.Item
-        title={TASKS_NAV_ITEM}
-        path="/orgs/036ef4599dddb000/tasks"
-        icon={IconFont.Calendar}
+        titleLink={className => (
+          <a href="#" className={className}>
+            {TASKS_NAV_ITEM}
+          </a>
+        )}
+        iconLink={className => (
+          <a href="#" className={className}>
+            <Icon glyph={IconFont.Calendar} />
+          </a>
+        )}
         active={getNavItemActivation(['tasks'], pathname)}
+        testID={`nav-menu--item ${TASKS_NAV_ITEM}`}
       />
     </NavMenu>
   )

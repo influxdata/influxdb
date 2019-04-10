@@ -6,14 +6,14 @@ import {connect} from 'react-redux'
 import {Input, Button, EmptyState} from '@influxdata/clockface'
 import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
-import LabelList from 'src/configuration/components/LabelList'
+import LabelList from 'src/labels/components/LabelList'
 import FilterList from 'src/shared/components/Filter'
 
 // Actions
 import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {viewableLabels, labelsInOrg} from 'src/labels/selectors'
 
 // Utils
 import {validateLabelUniqueness} from 'src/configuration/utils/labels'
@@ -169,8 +169,12 @@ class Labels extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
+  const {
+    labels: {list},
+    orgs: {org},
+  } = state
   return {
-    labels: viewableLabels(state.labels.list),
+    labels: labelsInOrg(org.id, viewableLabels(list)),
   }
 }
 

@@ -3,17 +3,18 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {Overlay} from 'src/clockface'
-import AddMembersForm from './AddMembersForm'
+import AddMembersForm from 'src/members/components/AddMembersForm'
 import FilterList from 'src/shared/components/Filter'
 
 // Types
-import {UsersMap} from 'src/organizations/components/Members'
-import {AddResourceMemberRequestBody, User} from '@influxdata/influx'
+import {UsersMap} from 'src/members/components/Members'
+import {User} from '@influxdata/influx'
+import {Member} from 'src/types'
 
 interface Props {
   onCloseModal: () => void
   users: UsersMap
-  addMember: (user: AddResourceMemberRequestBody) => void
+  addMember: (member: Member) => void
 }
 
 interface State {
@@ -98,11 +99,13 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
   }
 
   private handleSave = () => {
-    const {addMember} = this.props
+    const {addMember, onCloseModal} = this.props
     const {selectedMembers} = this.state
 
     Object.keys(selectedMembers).map(id => {
       addMember({id: id, name: selectedMembers[id].name})
     })
+
+    onCloseModal()
   }
 }

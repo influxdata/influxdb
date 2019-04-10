@@ -3,15 +3,15 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {IndexList} from 'src/clockface'
-import MemberRow from 'src/organizations/components/MemberRow'
+import MemberRow from 'src/members/components/MemberRow'
 
 // Types
-import {ResourceOwner} from '@influxdata/influx'
+import {Member} from 'src/types'
 
 interface Props {
-  members: ResourceOwner[]
+  members: Member[]
   emptyState: JSX.Element
-  onDelete: (member: ResourceOwner) => void
+  onDelete: (member: Member) => void
 }
 
 export default class MemberList extends PureComponent<Props> {

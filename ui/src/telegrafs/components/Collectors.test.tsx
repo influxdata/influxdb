@@ -3,24 +3,28 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import MemberList from 'src/organizations/components/MemberList'
+import CollectorList from 'src/telegrafs/components/CollectorList'
 
 // Constants
-import {resouceOwner} from 'src/organizations/dummyData'
+import {telegraf} from 'mocks/dummyData'
 
 const setup = (override?) => {
   const props = {
-    members: resouceOwner,
+    collectors: telegraf,
     emptyState: <></>,
+    onDelete: jest.fn(),
+    onUpdate: jest.fn(),
+    onOpenInstructions: jest.fn(),
+    onOpenTelegrafConfig: jest.fn(),
     ...override,
   }
 
-  const wrapper = shallow(<MemberList {...props} />)
+  const wrapper = shallow(<CollectorList {...props} />)
 
   return {wrapper}
 }
 
-describe('MemberList', () => {
+describe('CollectorList', () => {
   describe('rendering', () => {
     it('renders', () => {
       const {wrapper} = setup()

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {ResourceOwner} from '@influxdata/influx'
+import {Member} from 'src/types'
 import {
   IndexList,
   ConfirmationButton,
@@ -11,8 +11,8 @@ import {
 } from 'src/clockface'
 
 interface Props {
-  member: ResourceOwner
-  onDelete: (member: ResourceOwner) => void
+  member: Member
+  onDelete: (member: Member) => void
 }
 
 export default class MemberRow extends PureComponent<Props> {

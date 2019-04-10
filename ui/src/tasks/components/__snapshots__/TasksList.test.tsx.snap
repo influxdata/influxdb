@@ -11,12 +11,6 @@ exports[`TasksList rendering renders 1`] = `
         sortKey="name"
       />
       <ResourceListSorter
-        name="Owner"
-        onClick={[Function]}
-        sort="none"
-        sortKey="organization.name"
-      />
-      <ResourceListSorter
         name="Active"
         onClick={[Function]}
         sort="none"
