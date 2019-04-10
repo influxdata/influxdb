@@ -417,7 +417,7 @@ func (s *Service) deleteOrganizationsBuckets(ctx context.Context, tx Tx, id infl
 	}
 	for _, b := range bs {
 		if err := s.deleteBucket(ctx, tx, b.ID); err != nil {
-			s.Logger.Warn("bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrganizationID))
+			s.Logger.Warn("bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrgID))
 		}
 	}
 	return nil
@@ -583,7 +583,7 @@ func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.Re
 		if err != nil {
 			return influxdb.InvalidID(), err
 		}
-		return r.OrganizationID, nil
+		return r.OrgID, nil
 	case influxdb.OrgsResourceType:
 		r, err := s.FindOrganizationByID(ctx, id)
 		if err != nil {

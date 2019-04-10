@@ -29,23 +29,7 @@ func (s *Service) loadBucket(ctx context.Context, id platform.ID) (*platform.Buc
 		}
 	}
 
-	if err := s.setOrganizationNameOnBucket(ctx, &b); err != nil {
-		return nil, &platform.Error{
-			Err: err,
-		}
-	}
-
 	return &b, nil
-}
-
-func (s *Service) setOrganizationNameOnBucket(ctx context.Context, b *platform.Bucket) error {
-	o, err := s.loadOrganization(b.OrganizationID)
-	if err != nil {
-		return err
-	}
-
-	b.Org = o.Name
-	return nil
 }
 
 // FindBucketByID returns a single bucket by ID.
@@ -199,7 +183,7 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 
 	if filter.Name != nil && filter.OrganizationID != nil {
 		filterFunc = func(b *platform.Bucket) bool {
-			return b.Name == *filter.Name && b.OrganizationID == *filter.OrganizationID
+			return b.Name == *filter.Name && b.OrgID == *filter.OrganizationID
 		}
 	} else if filter.Name != nil {
 		// filter by bucket name
@@ -209,7 +193,7 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 	} else if filter.OrganizationID != nil {
 		// filter by organization id
 		filterFunc = func(b *platform.Bucket) bool {
-			return b.OrganizationID == *filter.OrganizationID
+			return b.OrgID == *filter.OrganizationID
 		}
 	}
 
@@ -232,37 +216,23 @@ func (s *Service) FindBuckets(ctx context.Context, filter platform.BucketFilter,
 		err = pe
 		return nil, 0, err
 	}
-	for _, b := range bs {
-		if err := s.setOrganizationNameOnBucket(ctx, b); err != nil {
-			return nil, 0, err
-		}
-	}
 	return bs, len(bs), nil
 }
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
 func (s *Service) CreateBucket(ctx context.Context, b *platform.Bucket) error {
-	if b.OrganizationID.Valid() {
-		_, pe := s.FindOrganizationByID(ctx, b.OrganizationID)
+	if b.OrgID.Valid() {
+		_, pe := s.FindOrganizationByID(ctx, b.OrgID)
 		if pe != nil {
 			return &platform.Error{
 				Err: pe,
 				Op:  OpPrefix + platform.OpCreateBucket,
 			}
 		}
-	} else {
-		o, pe := s.findOrganizationByName(ctx, b.Org)
-		if pe != nil {
-			return &platform.Error{
-				Err: pe,
-				Op:  OpPrefix + platform.OpCreateBucket,
-			}
-		}
-		b.OrganizationID = o.ID
 	}
 	filter := platform.BucketFilter{
 		Name:           &b.Name,
-		OrganizationID: &b.OrganizationID,
+		OrganizationID: &b.OrgID,
 	}
 	if _, err := s.FindBucket(ctx, filter); err == nil {
 		return &platform.Error{

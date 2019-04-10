@@ -88,8 +88,8 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 						Name: "o1",
 					})
 					return s.CreateBucket(ctx, &influxdb.Bucket{
-						Name:           "b1",
-						OrganizationID: testID,
+						Name:  "b1",
+						OrgID: testID,
 					})
 				},
 			},

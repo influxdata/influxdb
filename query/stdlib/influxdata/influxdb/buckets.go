@@ -40,7 +40,7 @@ func (bd *BucketsDecoder) Fetch() (bool, error) {
 
 func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	kb := execute.NewGroupKeyBuilder(nil)
-	kb.AddKeyValue("organizationID", values.NewString(bd.buckets[0].OrganizationID.String()))
+	kb.AddKeyValue("organizationID", values.NewString(bd.buckets[0].OrgID.String()))
 	gk, err := kb.Build()
 	if err != nil {
 		return nil, err
@@ -56,12 +56,6 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	}
 	if _, err := b.AddCol(flux.ColMeta{
 		Label: "id",
-		Type:  flux.TString,
-	}); err != nil {
-		return nil, err
-	}
-	if _, err := b.AddCol(flux.ColMeta{
-		Label: "organization",
 		Type:  flux.TString,
 	}); err != nil {
 		return nil, err
@@ -88,10 +82,9 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	for _, bucket := range bd.buckets {
 		_ = b.AppendString(0, bucket.Name)
 		_ = b.AppendString(1, bucket.ID.String())
-		_ = b.AppendString(2, bucket.Org)
-		_ = b.AppendString(3, bucket.OrganizationID.String())
-		_ = b.AppendString(4, bucket.RetentionPolicyName)
-		_ = b.AppendInt(5, bucket.RetentionPeriod.Nanoseconds())
+		_ = b.AppendString(2, bucket.OrgID.String())
+		_ = b.AppendString(3, bucket.RetentionPolicyName)
+		_ = b.AppendInt(4, bucket.RetentionPeriod.Nanoseconds())
 	}
 
 	return b.Table()

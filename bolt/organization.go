@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb"
 	influxdbcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -507,7 +507,7 @@ func (c *Client) FindResourceOrganizationID(ctx context.Context, rt influxdb.Res
 		if err != nil {
 			return influxdb.InvalidID(), err
 		}
-		return r.OrganizationID, nil
+		return r.OrgID, nil
 	case influxdb.DashboardsResourceType:
 		r, err := c.FindDashboardByID(ctx, id)
 		if err != nil {

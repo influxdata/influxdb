@@ -1133,11 +1133,11 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 	}
 
 	// Source and destination buckets for use in task.
-	bSrc := platform.Bucket{OrganizationID: o.ID, Name: "b-src"}
+	bSrc := platform.Bucket{OrgID: o.ID, Name: "b-src"}
 	if err := i.CreateBucket(ctx, &bSrc); err != nil {
 		t.Fatal(err)
 	}
-	bDst := platform.Bucket{OrganizationID: o.ID, Name: "b-dst"}
+	bDst := platform.Bucket{OrgID: o.ID, Name: "b-dst"}
 	if err := i.CreateBucket(ctx, &bDst); err != nil {
 		t.Fatal(err)
 	}
@@ -1240,11 +1240,11 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	}
 
 	// Source and destination buckets for use in task.
-	bSrc := platform.Bucket{OrganizationID: o.ID, Name: "b-src"}
+	bSrc := platform.Bucket{OrgID: o.ID, Name: "b-src"}
 	if err := i.CreateBucket(ctx, &bSrc); err != nil {
 		t.Fatal(err)
 	}
-	bDst := platform.Bucket{OrganizationID: o.ID, Name: "b-dst"}
+	bDst := platform.Bucket{OrgID: o.ID, Name: "b-dst"}
 	if err := i.CreateBucket(ctx, &bDst); err != nil {
 		t.Fatal(err)
 	}

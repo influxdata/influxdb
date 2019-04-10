@@ -127,8 +127,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 // bucket is used for serialization/deserialization with duration string syntax.
 type bucket struct {
 	ID                  influxdb.ID     `json:"id,omitempty"`
-	OrganizationID      influxdb.ID     `json:"organizationID,omitempty"`
-	Org                 string          `json:"org,omitempty"`
+	OrgID               influxdb.ID     `json:"orgID,omitempty"`
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
 	RetentionRules      []retentionRule `json:"retentionRules"`
@@ -160,8 +159,7 @@ func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 
 	return &influxdb.Bucket{
 		ID:                  b.ID,
-		OrganizationID:      b.OrganizationID,
-		Org:                 b.Org,
+		OrgID:               b.OrgID,
 		Name:                b.Name,
 		RetentionPolicyName: b.RetentionPolicyName,
 		RetentionPeriod:     d,
@@ -184,8 +182,7 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 
 	return &bucket{
 		ID:                  pb.ID,
-		OrganizationID:      pb.OrganizationID,
-		Org:                 pb.Org,
+		OrgID:               pb.OrgID,
 		Name:                pb.Name,
 		RetentionPolicyName: pb.RetentionPolicyName,
 		RetentionRules:      rules,
@@ -253,10 +250,10 @@ func newBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResp
 			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
 			"logs":    fmt.Sprintf("/api/v2/buckets/%s/logs", b.ID),
 			"members": fmt.Sprintf("/api/v2/buckets/%s/members", b.ID),
-			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
+			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrgID),
 			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
 			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
-			"write":   fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", b.OrganizationID, b.ID),
+			"write":   fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", b.OrgID, b.ID),
 		},
 		bucket: *newBucket(b),
 		Labels: []influxdb.Label{},
@@ -296,16 +293,6 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !req.Bucket.OrganizationID.Valid() {
-		// Resolve organization name to ID before create
-		o, err := h.OrganizationService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &req.Bucket.Org})
-		if err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-		req.Bucket.OrganizationID = o.ID
-	}
-
 	if err := h.BucketService.CreateBucket(ctx, req.Bucket); err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -322,7 +309,7 @@ type postBucketRequest struct {
 }
 
 func (b postBucketRequest) Validate() error {
-	if b.Bucket.Org == "" && !b.Bucket.OrganizationID.Valid() {
+	if !b.Bucket.OrgID.Valid() {
 		return fmt.Errorf("bucket requires an organization")
 	}
 	return nil

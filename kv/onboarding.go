@@ -116,7 +116,6 @@ func (s *Service) Generate(ctx context.Context, req *influxdb.OnboardingRequest)
 	o := &influxdb.Organization{Name: req.Org}
 	bucket := &influxdb.Bucket{
 		Name:            req.Bucket,
-		Org:             o.Name,
 		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
 	}
 	mapping := &influxdb.UserResourceMapping{
@@ -142,7 +141,7 @@ func (s *Service) Generate(ctx context.Context, req *influxdb.OnboardingRequest)
 			return err
 		}
 
-		bucket.OrganizationID = o.ID
+		bucket.OrgID = o.ID
 		if err := s.createBucket(ctx, tx, bucket); err != nil {
 			return err
 		}

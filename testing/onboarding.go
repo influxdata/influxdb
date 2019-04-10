@@ -159,8 +159,7 @@ func Generate(
 					Bucket: &platform.Bucket{
 						ID:              MustIDBase16(threeID),
 						Name:            "bucket1",
-						Org:             "org1",
-						OrganizationID:  MustIDBase16(twoID),
+						OrgID:           MustIDBase16(twoID),
 						RetentionPeriod: time.Hour * 24 * 7,
 					},
 					Auth: &platform.Authorization{

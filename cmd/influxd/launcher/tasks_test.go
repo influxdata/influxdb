@@ -26,11 +26,11 @@ func TestLauncher_Task(t *testing.T) {
 	now := time.Now().Unix() // Need to track now at the start of the test, for a query later.
 	org := be.Org
 
-	bIn := &influxdb.Bucket{OrganizationID: org.ID, Org: org.Name, Name: "my_bucket_in"}
+	bIn := &influxdb.Bucket{OrgID: org.ID, Name: "my_bucket_in"}
 	if err := be.BucketService().CreateBucket(context.Background(), bIn); err != nil {
 		t.Fatal(err)
 	}
-	bOut := &influxdb.Bucket{OrganizationID: org.ID, Org: org.Name, Name: "my_bucket_out"}
+	bOut := &influxdb.Bucket{OrgID: org.ID, Name: "my_bucket_out"}
 	if err := be.BucketService().CreateBucket(context.Background(), bOut); err != nil {
 		t.Fatal(err)
 	}

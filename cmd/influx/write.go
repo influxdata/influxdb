@@ -126,7 +126,7 @@ func fluxWriteF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	bucketID, orgID := buckets[0].ID, buckets[0].OrganizationID
+	bucketID, orgID := buckets[0].ID, buckets[0].OrgID
 
 	var r io.Reader
 	if args[0] == "-" {

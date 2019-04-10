@@ -85,8 +85,7 @@ func (s *Service) Generate(ctx context.Context, req *platform.OnboardingRequest)
 	}
 	bucket := &platform.Bucket{
 		Name:            req.Bucket,
-		Org:             o.Name,
-		OrganizationID:  o.ID,
+		OrgID:           o.ID,
 		RetentionPeriod: time.Duration(req.RetentionPeriod) * time.Hour,
 	}
 	if err = s.CreateBucket(ctx, bucket); err != nil {
