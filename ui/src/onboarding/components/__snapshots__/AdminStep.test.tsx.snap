@@ -25,11 +25,13 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
         >
           <h3
             className="wizard-step--title"
+            data-testid="admin-step--head-main"
           >
             Setup Initial User
           </h3>
           <h5
             className="wizard-step--sub-title"
+            data-testid="admin-step--head-sub"
           >
             You will be able to create additional Users, Buckets and Organizations later
           </h5>
