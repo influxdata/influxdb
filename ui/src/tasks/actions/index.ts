@@ -469,7 +469,7 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
 
       return {
         ...run,
-        duration: `${finished.getTime() - started.getTime()} seconds`,
+        duration: `${runDuration(finished, started)}`,
       }
     })
 
@@ -534,4 +534,17 @@ export const createTaskFromTemplate = (template: ITaskTemplate) => async (
   } catch (error) {
     dispatch(notify(importTaskFailed(error)))
   }
+}
+
+export const runDuration = (finishedAt: Date, startedAt: Date): string => {
+  let timeTag = 'seconds'
+
+  let diff = (finishedAt.getTime() - startedAt.getTime()) / 1000
+
+  if (diff > 60) {
+    diff = Math.round(diff / 60)
+    timeTag = 'minutes'
+  }
+
+  return diff + ' ' + timeTag
 }
