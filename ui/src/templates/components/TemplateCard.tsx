@@ -21,6 +21,7 @@ import {
   deleteTemplate,
   cloneTemplate,
   updateTemplate,
+  createResourceFromTemplate,
 } from 'src/templates/actions'
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -42,6 +43,7 @@ interface DispatchProps {
   onDelete: typeof deleteTemplate
   onClone: typeof cloneTemplate
   onUpdate: typeof updateTemplate
+  onCreateFromTemplate: typeof createResourceFromTemplate
 }
 
 interface StateProps {
@@ -132,7 +134,11 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleCreate = () => {}
+  private handleCreate = () => {
+    const {onCreateFromTemplate, template} = this.props
+
+    onCreateFromTemplate(template.id)
+  }
 
   private handleClone = () => {
     const {
@@ -164,6 +170,7 @@ const mdtp: DispatchProps = {
   onDelete: deleteTemplate,
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
+  onCreateFromTemplate: createResourceFromTemplate,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
