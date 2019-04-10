@@ -614,7 +614,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		LookupService:                   lookupSvc,
 		DocumentService:                 m.kvService,
 		OrgLookupService:                m.kvService,
+		WriteEventRecorder:              infprom.NewEventRecorder("write"),
+		QueryEventRecorder:              infprom.NewEventRecorder("query"),
 	}
+
+	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
 
 	// HTTP server
 	httpLogger := m.logger.With(zap.String("service", "http"))

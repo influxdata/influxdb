@@ -478,7 +478,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := decodeQueryRequest(tt.args.ctx, tt.args.r, tt.args.svc)
+			got, _, err := decodeQueryRequest(tt.args.ctx, tt.args.r, tt.args.svc)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("decodeQueryRequest() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -684,7 +684,7 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 	cmpOptions := append(cmpOptions, cmpopts.IgnoreFields(lang.ASTCompiler{}, "Now"))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := decodeProxyQueryRequest(tt.args.ctx, tt.args.r, tt.args.auth, tt.args.svc)
+			got, _, err := decodeProxyQueryRequest(tt.args.ctx, tt.args.r, tt.args.auth, tt.args.svc)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("decodeProxyQueryRequest() error = %v, wantErr %v", err, tt.wantErr)
 				return
