@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
 	platformhttp "github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/kit/check"
@@ -52,9 +53,9 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 	case lang.FluxCompiler:
 		request.Query = c.Query
 		request.Type = lang.FluxCompilerType
-	case lang.SpecCompiler:
+	case repl.Compiler:
 		request.Spec = c.Spec
-		request.Type = lang.SpecCompilerType
+		request.Type = repl.CompilerType
 	default:
 		return flux.Statistics{}, tracing.LogError(span, fmt.Errorf("compiler type not supported: %s", c.CompilerType()))
 	}
