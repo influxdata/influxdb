@@ -308,11 +308,12 @@ describe('Onboarding', () => {
       .type('drowssap')
 
     //check password mismatch
-    cy.get('div.form--element:has(div.input--error)')
-      .children('span.form--element-error')
-      .should('have.text', 'Passwords do not match')
+    cy.getByTestID('form--element-error').should(
+      'have.text',
+      'Passwords do not match'
+    )
 
-    cy.get('span.input-status').should('have.class', 'alert-triangle')
+    cy.getByTestID('input-error').should('have.class', 'alert-triangle')
 
     cy.getByTestID('input-field')
       .eq(3)
@@ -330,7 +331,7 @@ describe('Onboarding', () => {
       .clear()
       .type(user.password)
 
-    cy.get('div.form--element:has(div.input--error)').should('not.exist')
+    cy.getByTestID('input-error').should('not.exist')
 
     cy.getByTestID('button')
       .contains('Continue')
@@ -358,9 +359,10 @@ describe('Onboarding', () => {
       .eq(1)
       .clear()
 
-    cy.get('div.form--element:has(div.input--error)')
-      .children('span.form--element-error')
-      .should('have.text', 'Passwords do not match')
+    cy.getByTestID('form--element-error').should(
+      'have.text',
+      'Passwords do not match'
+    )
 
     cy.getByTestID('button')
       .contains('Continue')
