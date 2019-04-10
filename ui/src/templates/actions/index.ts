@@ -107,9 +107,16 @@ export const getTemplates = () => async (dispatch, getState: GetState) => {
   dispatch(populateTemplateSummaries(items))
 }
 
-export const createTemplate = (template: DocumentCreate) => async dispatch => {
+export const createTemplate = (template: DocumentCreate) => async (
+  dispatch,
+  getState: GetState
+) => {
   try {
-    await client.templates.create(template)
+    const {
+      orgs: {org},
+    } = getState()
+
+    await client.templates.create({...template, orgID: org.id})
     dispatch(notify(copy.importTemplateSucceeded()))
   } catch (e) {
     console.error(e)
