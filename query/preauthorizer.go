@@ -29,10 +29,10 @@ type preAuthorizer struct {
 // PreAuthorize finds all the buckets read and written by the given spec, and ensures that execution is allowed
 // given the Authorizer.  Returns nil on success, and an error with an appropriate message otherwise.
 func (a *preAuthorizer) PreAuthorize(ctx context.Context, ast *ast.Package, auth platform.Authorizer, orgID *platform.ID) error {
-	// TODO(cwolff): re-enable the ability to pre-authorize by determining the buckets accessed by a Flux script
-	//  See https://github.com/influxdata/influxdb/issues/13278
-	readBuckets := make([]platform.BucketFilter, 0)
-	writeBuckets := make([]platform.BucketFilter, 0)
+	readBuckets, writeBuckets, err := BucketsAccessed(ast, orgID)
+	if err != nil {
+		return errors.Wrap(err, "could not retrieve buckets for query.Spec")
+	}
 
 	for _, readBucketFilter := range readBuckets {
 		bucket, err := a.bucketService.FindBucket(ctx, readBucketFilter)
@@ -75,10 +75,11 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, ast *ast.Package, auth
 // RequiredPermissions returns a slice of permissions required for the query contained in spec.
 // This method also validates that the buckets exist.
 func (a *preAuthorizer) RequiredPermissions(ctx context.Context, ast *ast.Package, orgID *platform.ID) ([]platform.Permission, error) {
-	// TODO(cwolff): re-enable the ability to pre-authorize by determining the buckets accessed by a Flux script
-	//  See https://github.com/influxdata/influxdb/issues/13278
-	readBuckets := make([]platform.BucketFilter, 0)
-	writeBuckets := make([]platform.BucketFilter, 0)
+	readBuckets, writeBuckets, err := BucketsAccessed(ast, orgID)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not retrieve buckets for query.Spec")
+	}
+
 	ps := make([]platform.Permission, 0, len(readBuckets)+len(writeBuckets))
 	for _, readBucketFilter := range readBuckets {
 		bucket, err := a.bucketService.FindBucket(ctx, readBucketFilter)
