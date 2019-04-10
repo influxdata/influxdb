@@ -166,7 +166,7 @@ describe('Onboarding', () => {
         .contains('Quick Start')
         .click()
 
-      cy.location('pathname').should('include', orgId)
+      cy.location('pathname').should('equal', '/orgs/' + orgId)
 
       cy.getByTestID('notification-success').should($msg => {
         expect($msg).to.contain(
