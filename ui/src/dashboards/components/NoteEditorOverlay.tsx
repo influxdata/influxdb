@@ -5,7 +5,13 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import NoteEditor from 'src/dashboards/components/NoteEditor'
-import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
+import {
+  Button,
+  ComponentColor,
+  ComponentStatus,
+  SpinnerContainer,
+  TechnoSpinner,
+} from '@influxdata/clockface'
 import {Overlay} from 'src/clockface'
 
 // Actions
@@ -26,6 +32,7 @@ import {AppState, NoteEditorMode} from 'src/types'
 
 interface StateProps {
   mode: NoteEditorMode
+  viewsStatus: RemoteDataState
 }
 
 interface DispatchProps {
@@ -50,7 +57,39 @@ interface State {
 }
 
 class NoteEditorOverlay extends PureComponent<Props, State> {
-  public state: State = {savingStatus: RemoteDataState.NotStarted}
+  public state: State = {
+    savingStatus: RemoteDataState.NotStarted,
+  }
+
+  componentDidMount() {
+    const {
+      params: {cellID},
+    } = this.props
+
+    if (cellID) {
+      this.props.loadNote(cellID)
+    } else {
+      this.props.resetNote()
+    }
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    const {
+      params: {cellID},
+      viewsStatus,
+    } = this.props
+
+    if (
+      prevProps.viewsStatus !== RemoteDataState.Done &&
+      viewsStatus === RemoteDataState.Done
+    ) {
+      if (cellID) {
+        this.props.loadNote(cellID)
+      } else {
+        this.props.resetNote()
+      }
+    }
+  }
 
   public render() {
     return (
@@ -59,7 +98,12 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
           <Overlay.Container maxWidth={900}>
             <Overlay.Heading title={this.overlayTitle} onDismiss={this.close} />
             <Overlay.Body>
-              <NoteEditor />
+              <SpinnerContainer
+                loading={this.props.viewsStatus}
+                spinnerComponent={<TechnoSpinner />}
+              >
+                <NoteEditor />
+              </SpinnerContainer>
             </Overlay.Body>
             <Overlay.Footer>
               <Button text="Cancel" onClick={this.close} />
@@ -74,17 +118,6 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
         </Overlay>
       </div>
     )
-  }
-
-  componentDidMount() {
-    const {
-      params: {cellID},
-    } = this.props
-    if (cellID) {
-      this.props.loadNote(cellID)
-    } else {
-      this.props.resetNote()
-    }
   }
 
   private get overlayTitle(): string {
@@ -140,10 +173,11 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {mode} = state.noteEditor
+const mstp = ({noteEditor, views}: AppState): StateProps => {
+  const {mode} = noteEditor
+  const {status} = views
 
-  return {mode}
+  return {mode, viewsStatus: status}
 }
 
 const mdtp = {
