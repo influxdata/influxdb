@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
@@ -247,7 +248,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 		}
 		compiler = c
 	} else if r.Spec != nil {
-		compiler = lang.SpecCompiler{
+		compiler = repl.Compiler{
 			Spec: r.Spec,
 		}
 	}
@@ -284,7 +285,7 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	case lang.FluxCompiler:
 		qr.Type = "flux"
 		qr.Query = c.Query
-	case lang.SpecCompiler:
+	case repl.Compiler:
 		qr.Type = "flux"
 		qr.Spec = c.Spec
 	case lang.ASTCompiler:
