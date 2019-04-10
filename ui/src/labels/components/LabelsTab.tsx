@@ -13,7 +13,7 @@ import FilterList from 'src/shared/components/Filter'
 import {createLabel, updateLabel, deleteLabel} from 'src/labels/actions'
 
 // Selectors
-import {viewableLabels} from 'src/labels/selectors'
+import {viewableLabels, labelsInOrg} from 'src/labels/selectors'
 
 // Utils
 import {validateLabelUniqueness} from 'src/configuration/utils/labels'
@@ -169,8 +169,12 @@ class Labels extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState): StateProps => {
+  const {
+    labels: {list},
+    orgs: {org},
+  } = state
   return {
-    labels: viewableLabels(state.labels.list),
+    labels: labelsInOrg(org.id, viewableLabels(list)),
   }
 }
 
