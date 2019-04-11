@@ -71,6 +71,10 @@
   unused-packages = true
 
 [[constraint]]
+  name = "github.com/influxdata/influxql"
+  version = "1.0.0"
+
+[[constraint]]
   name = "github.com/influxdata/flux"
   version = "= 0.24.0"
 
