@@ -55,8 +55,8 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             id,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    id,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 				},
@@ -81,8 +81,8 @@ func TestLabelService_FindLabelByID(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             id,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    id,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 				},
@@ -144,16 +144,16 @@ func TestLabelService_FindLabels(t *testing.T) {
 					FindLabelsFn: func(ctx context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID:             1,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    1,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             2,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    2,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             3,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    3,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -170,16 +170,16 @@ func TestLabelService_FindLabels(t *testing.T) {
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:             1,
-						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						ID:    1,
+						OrgID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 					{
-						ID:             2,
-						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						ID:    2,
+						OrgID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 					{
-						ID:             3,
-						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						ID:    3,
+						OrgID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -191,16 +191,16 @@ func TestLabelService_FindLabels(t *testing.T) {
 					FindLabelsFn: func(ctx context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID:             1,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    1,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             2,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    2,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             3,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    3,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -218,8 +218,8 @@ func TestLabelService_FindLabels(t *testing.T) {
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:             1,
-						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						ID:    1,
+						OrgID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -231,16 +231,16 @@ func TestLabelService_FindLabels(t *testing.T) {
 					FindLabelsFn: func(ctx context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID:             1,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    1,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             2,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    2,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             3,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    3,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -302,14 +302,14 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					UpdateLabelFn: func(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 				},
@@ -336,14 +336,14 @@ func TestLabelService_UpdateLabel(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					UpdateLabelFn: func(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 				},
@@ -406,8 +406,8 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelFn: func(ctx context.Context, id influxdb.ID) error {
@@ -438,8 +438,8 @@ func TestLabelService_DeleteLabel(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelFn: func(ctx context.Context, id influxdb.ID) error {
@@ -554,7 +554,7 @@ func TestLabelService_CreateLabel(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateLabel(ctx, &influxdb.Label{Name: "name", OrganizationID: influxdbtesting.MustIDBase16(orgOneID)})
+			err := s.CreateLabel(ctx, &influxdb.Label{Name: "name", OrgID: influxdbtesting.MustIDBase16(orgOneID)})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -585,16 +585,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID:             1,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    1,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             2,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    2,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             3,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    3,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -625,16 +625,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				err: nil,
 				labels: []*influxdb.Label{
 					{
-						ID:             1,
-						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						ID:    1,
+						OrgID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 					{
-						ID:             2,
-						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						ID:    2,
+						OrgID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 					{
-						ID:             3,
-						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						ID:    3,
+						OrgID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -646,16 +646,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID:             1,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    1,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             2,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    2,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             3,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    3,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -687,8 +687,8 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 				err: nil,
 				labels: []*influxdb.Label{
 					{
-						ID:             3,
-						OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+						ID:    3,
+						OrgID: influxdbtesting.MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -700,16 +700,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID:             1,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    1,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             2,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    2,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             3,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    3,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -741,16 +741,16 @@ func TestLabelService_FindResourceLabels(t *testing.T) {
 					FindResourceLabelsFn: func(ctx context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 						return []*influxdb.Label{
 							{
-								ID:             1,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    1,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             2,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    2,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 							{
-								ID:             3,
-								OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+								ID:    3,
+								OrgID: influxdbtesting.MustIDBase16(orgOneID),
 							},
 						}, nil
 					},
@@ -820,8 +820,8 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
@@ -861,8 +861,8 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
@@ -898,8 +898,8 @@ func TestLabelService_CreateLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					CreateLabelMappingFn: func(ctx context.Context, lm *influxdb.LabelMapping) error {
@@ -968,8 +968,8 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
@@ -1009,8 +1009,8 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {
@@ -1046,8 +1046,8 @@ func TestLabelService_DeleteLabelMapping(t *testing.T) {
 				LabelService: &mock.LabelService{
 					FindLabelByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
-							ID:             1,
-							OrganizationID: influxdbtesting.MustIDBase16(orgOneID),
+							ID:    1,
+							OrgID: influxdbtesting.MustIDBase16(orgOneID),
 						}, nil
 					},
 					DeleteLabelMappingFn: func(ctx context.Context, m *influxdb.LabelMapping) error {

@@ -78,7 +78,7 @@ func (b postLabelRequest) Validate() error {
 			Msg:  "label requires a name",
 		}
 	}
-	if !b.Label.OrganizationID.Valid() {
+	if !b.Label.OrgID.Valid() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "label requires a valid orgID",
@@ -364,7 +364,7 @@ type getLabelMappingsRequest struct {
 }
 
 func decodeGetLabelMappingsRequest(ctx context.Context, r *http.Request, rt influxdb.ResourceType) (*getLabelMappingsRequest, error) {
-	req := &getLabelsMappingRequest{}
+	req := &getLabelMappingsRequest{}
 
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
