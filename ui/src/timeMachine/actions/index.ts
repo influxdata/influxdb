@@ -19,6 +19,7 @@ import {
   FieldOption,
   TableOptions,
   TimeMachineTab,
+  AutoRefresh,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition} from '@influxdata/vis'
@@ -30,6 +31,7 @@ export type Action =
   | SetActiveTabAction
   | SetNameAction
   | SetTimeRangeAction
+  | SetAutoRefreshAction
   | SetTypeAction
   | SetActiveQueryText
   | SetIsViewingRawDataAction
@@ -119,6 +121,18 @@ export const setTimeRange = (timeRange: TimeRange) => dispatch => {
   dispatch(saveAndExecuteQueries())
   dispatch(reloadTagSelectors())
 }
+
+interface SetAutoRefreshAction {
+  type: 'SET_AUTO_REFRESH'
+  payload: {autoRefresh: AutoRefresh}
+}
+
+export const setAutoRefresh = (
+  autoRefresh: AutoRefresh
+): SetAutoRefreshAction => ({
+  type: 'SET_AUTO_REFRESH',
+  payload: {autoRefresh},
+})
 
 interface SetTypeAction {
   type: 'SET_VIEW_TYPE'
