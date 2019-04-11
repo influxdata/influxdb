@@ -85,8 +85,8 @@ func (s *Service) findLabelByID(ctx context.Context, tx Tx, id influxdb.ID) (*in
 
 func filterLabelsFn(filter influxdb.LabelFilter) func(l *influxdb.Label) bool {
 	return func(label *influxdb.Label) bool {
-		return ((filter.Name == "" || (filter.Name == label.Name)) &&
-			(filter.OrgID == nil || filter.OrgID != nil && (*filter.OrgID == label.OrgID)))
+		return (filter.Name == "" || (filter.Name == label.Name)) &&
+			((filter.OrgID == nil) || (filter.OrgID != nil && *filter.OrgID == label.OrgID))
 	}
 }
 
