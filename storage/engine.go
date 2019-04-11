@@ -535,7 +535,7 @@ func (e *Engine) deleteBucketRangeLocked(orgID, bucketID platform.ID, min, max i
 	encoded := tsdb.EncodeName(orgID, bucketID)
 	name := models.EscapeMeasurement(encoded[:])
 
-	return e.engine.DeleteBucketRange(name, min, max)
+	return e.engine.DeletePrefixRange(name, min, max, nil)
 }
 
 // SeriesCardinality returns the number of series in the engine.
