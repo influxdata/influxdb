@@ -7,16 +7,14 @@ import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 import {
   TemplateSummary,
   DocumentCreate,
-  ITemplate,
-  TemplateType,
   ITaskTemplate,
+  TemplateType,
 } from '@influxdata/influx'
 import {
   RemoteDataState,
   GetState,
   DashboardTemplate,
   VariableTemplate,
-  TaskTemplate,
 } from 'src/types'
 
 // Actions
@@ -250,13 +248,13 @@ export const createResourceFromTemplate = (templateID: string) => async (
     } = template
 
     switch (type) {
-      case 'dashboard':
+      case TemplateType.Dashboard:
         return dispatch(
           createDashboardFromTemplate(template as DashboardTemplate, org.id)
         )
-      case 'task':
+      case TemplateType.Task:
         return dispatch(createTaskFromTemplate(template as ITaskTemplate))
-      case 'variable':
+      case TemplateType.Variable:
         return dispatch(
           createVariableFromTemplate(template as VariableTemplate)
         )
