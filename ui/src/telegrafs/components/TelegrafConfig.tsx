@@ -1,33 +1,48 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import FetchTelegrafConfig from 'src/telegrafs/components/FetchTelegrafConfig'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
+import {RemoteDataState} from '@influxdata/clockface'
 
 // Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {getTelegrafConfigToml} from 'src/telegrafs/actions'
 
 // Types
 import {AppState} from 'src/types'
 
-interface OwnProps {}
-
 interface DispatchProps {
-  notify: typeof notifyAction
+  getTelegrafConfigToml: typeof getTelegrafConfigToml
 }
 
 interface StateProps {
-  telegrafConfigID: string
+  telegrafConfig: string
+  status: RemoteDataState
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & DispatchProps
 
 @ErrorHandling
-export class TelegrafConfig extends PureComponent<Props> {
+export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
+  public componentDidMount() {
+    const {
+      params: {id},
+      getTelegrafConfigToml,
+    } = this.props
+    getTelegrafConfigToml(id)
+  }
+
   public render() {
+    return <>{this.overlayBody}</>
+  }
+
+  private onBeforeChange = () => {}
+  private onTouchStart = () => {}
+
+  private get overlayBody(): JSX.Element {
     const options = {
       tabIndex: 1,
       mode: 'toml',
@@ -37,43 +52,30 @@ export class TelegrafConfig extends PureComponent<Props> {
       theme: 'time-machine',
       completeSingle: false,
     }
-
+    const {telegrafConfig} = this.props
     return (
-      <FetchTelegrafConfig
-        telegrafConfigID={this.props.telegrafConfigID}
-        notify={this.props.notify}
-      >
-        {telegrafConfig => (
-          <ReactCodeMirror
-            autoFocus={true}
-            autoCursor={true}
-            value={telegrafConfig}
-            options={options}
-            onBeforeChange={this.onBeforeChange}
-            onTouchStart={this.onTouchStart}
-          />
-        )}
-      </FetchTelegrafConfig>
+      <ReactCodeMirror
+        autoFocus={true}
+        autoCursor={true}
+        value={telegrafConfig}
+        options={options}
+        onBeforeChange={this.onBeforeChange}
+        onTouchStart={this.onTouchStart}
+      />
     )
   }
-
-  private onBeforeChange = () => {}
-  private onTouchStart = () => {}
 }
 
-const mstp = ({
-  dataLoading: {
-    dataLoaders: {telegrafConfigID},
-  },
-}: AppState): StateProps => ({
-  telegrafConfigID,
+const mstp = (state: AppState): StateProps => ({
+  telegrafConfig: state.telegrafs.currentConfig.item,
+  status: state.telegrafs.currentConfig.status,
 })
 
 const mdtp: DispatchProps = {
-  notify: notifyAction,
+  getTelegrafConfigToml: getTelegrafConfigToml,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(TelegrafConfig)
+)(withRouter<Props>(TelegrafConfig))

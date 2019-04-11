@@ -9,11 +9,13 @@ import {ITelegraf as Telegraf} from '@influxdata/influx'
 const initialState = (): TelegrafsState => ({
   status: RemoteDataState.NotStarted,
   list: [],
+  currentConfig: {status: RemoteDataState.NotStarted, item: ''},
 })
 
 export interface TelegrafsState {
   status: RemoteDataState
   list: Telegraf[]
+  currentConfig: {status: RemoteDataState; item: string}
 }
 
 export const telegrafsReducer = (
@@ -65,6 +67,19 @@ export const telegrafsReducer = (
         })
 
         draftState.list = deleted
+        return
+      }
+
+      case 'SET_CURRENT_CONFIG': {
+        const {status, item} = action.payload
+        draftState.currentConfig.status = status
+
+        if (item) {
+          draftState.currentConfig.item = item
+        } else {
+          draftState.currentConfig.item = null
+        }
+
         return
       }
     }

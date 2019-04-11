@@ -9,7 +9,6 @@ import {Tabs} from 'src/clockface'
 import CollectorList from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
-import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
@@ -67,7 +66,6 @@ interface State {
   searchTerm: string
   instructionsOverlay: OverlayState
   collectorID?: string
-  telegrafConfig: OverlayState
 }
 
 @ErrorHandling
@@ -80,7 +78,6 @@ export class Collectors extends PureComponent<Props, State> {
       searchTerm: '',
       instructionsOverlay: OverlayState.Closed,
       collectorID: null,
-      telegrafConfig: OverlayState.Closed,
     }
   }
 
@@ -122,7 +119,6 @@ export class Collectors extends PureComponent<Props, State> {
                       onDelete={this.handleDeleteTelegraf}
                       onUpdate={this.handleUpdateTelegraf}
                       onOpenInstructions={this.handleOpenInstructions}
-                      onOpenTelegrafConfig={this.handleOpenTelegrafConfig}
                       onFilterChange={this.handleFilterUpdate}
                     />
                   )}
@@ -147,10 +143,6 @@ export class Collectors extends PureComponent<Props, State> {
             onDismiss={this.handleCloseInstructions}
           />
         </GetResources>
-        <TelegrafConfigOverlay
-          visible={this.isTelegrafConfigVisible}
-          onDismiss={this.handleCloseTelegrafConfig}
-        />
       </>
     )
   }
@@ -205,28 +197,6 @@ export class Collectors extends PureComponent<Props, State> {
     this.setState({
       instructionsOverlay: OverlayState.Closed,
       collectorID: null,
-    })
-  }
-
-  private get isTelegrafConfigVisible(): boolean {
-    return this.state.telegrafConfig === OverlayState.Open
-  }
-
-  private handleOpenTelegrafConfig = (
-    telegrafID: string,
-    telegrafName: string
-  ): void => {
-    this.props.onSetTelegrafConfigID(telegrafID)
-    this.props.onSetTelegrafConfigName(telegrafName)
-    this.setState({
-      telegrafConfig: OverlayState.Open,
-    })
-  }
-
-  private handleCloseTelegrafConfig = (): void => {
-    this.props.onClearDataLoaders()
-    this.setState({
-      telegrafConfig: OverlayState.Closed,
     })
   }
 

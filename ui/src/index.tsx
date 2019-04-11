@@ -58,6 +58,7 @@ import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
 import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
+import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -188,7 +189,12 @@ class Root extends PureComponent {
                           <Route path="buckets" component={BucketsIndex} />
                           <Route path="tokens" component={TokensIndex} />
                           <Route path="members" component={MembersIndex} />
-                          <Route path="telegrafs" component={TelegrafsPage} />
+                          <Route path="telegrafs" component={TelegrafsPage}>
+                            <Route
+                              path=":id/view"
+                              component={TelegrafConfigOverlay}
+                            />
+                          </Route>
                           <Route path="templates" component={TemplatesIndex}>
                             <Route
                               path="import"
