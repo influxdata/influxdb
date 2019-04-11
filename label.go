@@ -47,10 +47,10 @@ type LabelService interface {
 
 // Label is a tag set on a resource, typically used for filtering on a UI.
 type Label struct {
-	ID             ID                `json:"id,omitempty"`
-	OrganizationID ID                `json:"orgID,omitempty"`
-	Name           string            `json:"name"`
-	Properties     map[string]string `json:"properties,omitempty"`
+	ID         ID                `json:"id,omitempty"`
+	OrgID      ID                `json:"orgID,omitempty"`
+	Name       string            `json:"name"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 // Validate returns an error if the label is invalid.
@@ -62,10 +62,10 @@ func (l *Label) Validate() error {
 		}
 	}
 
-	if !l.OrganizationID.Valid() {
+	if !l.OrgID.Valid() {
 		return &Error{
 			Code: EInvalid,
-			Msg:  "organization ID is required",
+			Msg:  "orgID is required",
 		}
 	}
 

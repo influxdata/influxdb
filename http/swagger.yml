@@ -1820,6 +1820,13 @@ paths:
       tags:
         - Labels
       summary: Create a label
+      parameters:
+          - $ref: '#/components/parameters/TraceSpan'
+          - in: query
+            name: orgID
+            description: return only labels that belong to the specified organization
+            schema:
+              type: string
       requestBody:
           description: label to create
           required: true
