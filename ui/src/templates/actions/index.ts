@@ -284,7 +284,7 @@ export const addTemplateLabelsAsync = (
     await client.templates.addLabels(templateID, labels.map(l => l.id))
     const template = await client.templates.get(templateID)
 
-    dispatch(updateTemplate(templateID, templateToSummary(template)))
+    dispatch(setTemplateSummary(templateID, templateToSummary(template)))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.addTemplateLabelFailed()))
@@ -299,7 +299,7 @@ export const removeTemplateLabelsAsync = (
     await client.templates.removeLabels(templateID, labels.map(l => l.id))
     const template = await client.templates.get(templateID)
 
-    dispatch(updateTemplate(templateID, templateToSummary(template)))
+    dispatch(setTemplateSummary(templateID, templateToSummary(template)))
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.removeTemplateLabelFailed()))
