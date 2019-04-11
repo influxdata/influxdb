@@ -10,7 +10,6 @@ import {Dispatch} from 'redux-thunk'
 import {notify} from 'src/shared/actions/notifications'
 
 // Utils
-import {downloadTextFile} from 'src/shared/utils/download'
 import {
   telegrafGetFailed,
   telegrafCreateFailed,
@@ -21,7 +20,12 @@ import {
   getTelegrafConfigFailed,
 } from 'src/shared/copy/v2/notifications'
 
-export type Action = SetTelegrafs | AddTelegraf | EditTelegraf | RemoveTelegraf
+export type Action =
+  | SetTelegrafs
+  | AddTelegraf
+  | EditTelegraf
+  | RemoveTelegraf
+  | SetCurrentConfig
 
 interface SetTelegrafs {
   type: 'SET_TELEGRAFS'
@@ -71,6 +75,19 @@ interface RemoveTelegraf {
 export const removeTelegraf = (id: string): RemoveTelegraf => ({
   type: 'REMOVE_TELEGRAF',
   payload: {id},
+})
+
+export interface SetCurrentConfig {
+  type: 'SET_CURRENT_CONFIG'
+  payload: {status: RemoteDataState; item?: string}
+}
+
+export const setCurrentConfig = (
+  status: RemoteDataState,
+  item?: string
+): SetCurrentConfig => ({
+  type: 'SET_CURRENT_CONFIG',
+  payload: {status, item},
 })
 
 export const getTelegrafs = () => async (dispatch, getState: GetState) => {
@@ -160,14 +177,15 @@ export const removeTelelgrafLabelsAsync = (
   }
 }
 
-export const downloadTelegrafConfig = (
-  telegrafConfigID: string,
-  telegrafConfigName: string
-) => async (dispatch): Promise<void> => {
+export const getTelegrafConfigToml = (telegrafConfigID: string) => async (
+  dispatch
+): Promise<void> => {
   try {
+    dispatch(setCurrentConfig(RemoteDataState.Loading))
     const config = await client.telegrafConfigs.getTOML(telegrafConfigID)
-    downloadTextFile(config, `${telegrafConfigName || 'config'}.toml`)
+    dispatch(setCurrentConfig(RemoteDataState.Done, config))
   } catch (error) {
+    dispatch(setCurrentConfig(RemoteDataState.Error))
     dispatch(notify(getTelegrafConfigFailed()))
   }
 }

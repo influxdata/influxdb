@@ -25,10 +25,6 @@ import {
   removeTelelgrafLabelsAsync,
 } from 'src/telegrafs/actions'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
-import {
-  setTelegrafConfigID,
-  setTelegrafConfigName,
-} from 'src/dataLoaders/actions/dataLoaders'
 
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -58,8 +54,6 @@ interface DispatchProps {
   onAddLabels: typeof addTelelgrafLabelsAsync
   onRemoveLabels: typeof removeTelelgrafLabelsAsync
   onCreateLabel: typeof createLabelAsync
-  onSetTelegrafConfigID: typeof setTelegrafConfigID
-  onSetTelegrafConfigName: typeof setTelegrafConfigName
 }
 
 type Props = OwnProps & StateProps & DispatchProps
@@ -173,15 +167,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleOpenConfig = (): void => {
-    const {
-      collector,
-      router,
-      org,
-      onSetTelegrafConfigID,
-      onSetTelegrafConfigName,
-    } = this.props
-    onSetTelegrafConfigID(collector.id)
-    onSetTelegrafConfigName(collector.name)
+    const {collector, router, org} = this.props
     router.push(`/orgs/${org.id}/telegrafs/${collector.id}/view`)
   }
 
@@ -202,8 +188,6 @@ const mdtp: DispatchProps = {
   onAddLabels: addTelelgrafLabelsAsync,
   onRemoveLabels: removeTelelgrafLabelsAsync,
   onCreateLabel: createLabelAsync,
-  onSetTelegrafConfigID: setTelegrafConfigID,
-  onSetTelegrafConfigName: setTelegrafConfigName,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

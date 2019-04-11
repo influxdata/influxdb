@@ -2,58 +2,80 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TelegrafConfig from 'src/telegrafs/components/TelegrafConfig'
-import {ComponentColor, Button} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
+import {
+  ComponentColor,
+  Button,
+  RemoteDataState,
+  SpinnerContainer,
+  TechnoSpinner,
+} from '@influxdata/clockface'
+import {Overlay, ComponentStatus} from 'src/clockface'
 
-// Actions
-import {downloadTelegrafConfig} from 'src/telegrafs/actions'
+// Utils
+import {downloadTextFile} from 'src/shared/utils/download'
 
 // Types
 import {AppState} from 'src/types'
+import {ITelegraf as Telegraf} from '@influxdata/influx'
 
 interface StateProps {
-  telegrafConfigName: string
-  telegrafConfigID: string
+  telegraf: Telegraf
+  status: RemoteDataState
+  telegrafConfig: string
+  configStatus: RemoteDataState
 }
 
-interface DispatchProps {
-  onDownloadTelegrafConfig: typeof downloadTelegrafConfig
-}
-
-type Props = StateProps & DispatchProps
+type Props = StateProps & WithRouterProps
 
 @ErrorHandling
-class TelegrafConfigOverlay extends PureComponent<Props & WithRouterProps> {
+class TelegrafConfigOverlay extends PureComponent<Props> {
   public render() {
-    const {telegrafConfigName} = this.props
+    return <>{this.overlay}</>
+  }
+
+  private get overlay(): JSX.Element {
+    const {telegraf, status} = this.props
 
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={1200}>
           <Overlay.Heading
-            title={`Telegraf Configuration - ${telegrafConfigName}`}
+            title={`Telegraf Configuration - ${_.get(telegraf, 'name', '')}`}
             onDismiss={this.handleDismiss}
           />
-
           <Overlay.Body>
-            <div className="config-overlay">
-              <TelegrafConfig />
-            </div>
+            <SpinnerContainer
+              loading={status}
+              spinnerComponent={<TechnoSpinner />}
+            >
+              <div className="config-overlay">
+                <TelegrafConfig />
+              </div>
+            </SpinnerContainer>
           </Overlay.Body>
           <Overlay.Footer>
             <Button
               color={ComponentColor.Secondary}
               text="Download Config"
               onClick={this.handleDownloadConfig}
+              status={this.buttonStatus}
             />
           </Overlay.Footer>
         </Overlay.Container>
       </Overlay>
     )
+  }
+  private get buttonStatus(): ComponentStatus {
+    const {configStatus} = this.props
+    if (configStatus === RemoteDataState.Done) {
+      return ComponentStatus.Default
+    }
+    return ComponentStatus.Disabled
   }
 
   private handleDismiss = () => {
@@ -67,27 +89,29 @@ class TelegrafConfigOverlay extends PureComponent<Props & WithRouterProps> {
 
   private handleDownloadConfig = async () => {
     const {
-      onDownloadTelegrafConfig,
-      telegrafConfigName,
-      telegrafConfigID,
+      telegrafConfig,
+      telegraf: {name},
     } = this.props
-    onDownloadTelegrafConfig(telegrafConfigID, telegrafConfigName)
+    downloadTextFile(telegrafConfig, `${name || 'config'}.toml`)
   }
 }
 
-const mstp = ({
-  dataLoading: {
-    dataLoaders: {telegrafConfigName, telegrafConfigID},
-  },
-}: AppState): StateProps => {
-  return {telegrafConfigName, telegrafConfigID}
+const mstp = ({telegrafs}: AppState, props: Props): StateProps => {
+  const {
+    params: {id},
+  } = props
+
+  return {
+    telegraf: telegrafs.list.find(t => {
+      return t.id === id
+    }),
+    status: telegrafs.status,
+    telegrafConfig: telegrafs.currentConfig.item,
+    configStatus: telegrafs.currentConfig.status,
+  }
 }
 
-const mdtp: DispatchProps = {
-  onDownloadTelegrafConfig: downloadTelegrafConfig,
-}
-
-export default connect<StateProps, DispatchProps, {}>(
+export default connect<StateProps, {}, {}>(
   mstp,
-  mdtp
+  null
 )(withRouter<Props>(TelegrafConfigOverlay))
