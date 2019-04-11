@@ -682,7 +682,7 @@ func UpdateAuthorization(
 			defer done()
 			ctx := context.Background()
 
-			err := s.UpdateAuthorization(ctx, tt.args.id, tt.args.upd)
+			updatedAuth, err := s.UpdateAuthorization(ctx, tt.args.id, tt.args.upd)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if tt.wants.err == nil {
@@ -691,6 +691,9 @@ func UpdateAuthorization(
 					t.Errorf("%s failed, got error %s", tt.name, err.Error())
 				}
 				if diff := cmp.Diff(authorization, tt.wants.authorization, authorizationCmpOptions...); diff != "" {
+					t.Errorf("authorization is different -got/+want\ndiff %s", diff)
+				}
+				if diff := cmp.Diff(authorization, updatedAuth, authorizationCmpOptions...); diff != "" {
 					t.Errorf("authorization is different -got/+want\ndiff %s", diff)
 				}
 			}

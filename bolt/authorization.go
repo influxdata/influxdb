@@ -383,9 +383,12 @@ func (c *Client) deleteAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (c *Client) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) error {
-	return c.db.Update(func(tx *bolt.Tx) error {
-		if pe := c.updateAuthorization(ctx, tx, id, upd); pe != nil {
+func (c *Client) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+	var a *platform.Authorization
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		var pe *platform.Error
+		a, pe = c.updateAuthorization(ctx, tx, id, upd)
+		if pe != nil {
 			return &platform.Error{
 				Err: pe,
 				Op:  platform.OpUpdateAuthorization,
@@ -393,12 +396,13 @@ func (c *Client) UpdateAuthorization(ctx context.Context, id platform.ID, upd *p
 		}
 		return nil
 	})
+	return a, err
 }
 
-func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platform.ID, upd *platform.AuthorizationUpdate) *platform.Error {
+func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, *platform.Error) {
 	a, pe := c.findAuthorizationByID(ctx, tx, id)
 	if pe != nil {
-		return pe
+		return nil, pe
 	}
 
 	if upd.Status != nil {
@@ -410,22 +414,22 @@ func (c *Client) updateAuthorization(ctx context.Context, tx *bolt.Tx, id platfo
 
 	b, err := encodeAuthorization(a)
 	if err != nil {
-		return &platform.Error{
+		return nil, &platform.Error{
 			Err: err,
 		}
 	}
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return &platform.Error{
+		return nil, &platform.Error{
 			Err: err,
 		}
 	}
 
 	if err = tx.Bucket(authorizationBucket).Put(encodedID, b); err != nil {
-		return &platform.Error{
+		return nil, &platform.Error{
 			Err: err,
 		}
 	}
-	return nil
+	return a, nil
 }

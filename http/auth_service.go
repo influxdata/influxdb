@@ -476,7 +476,8 @@ func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, 
 		return
 	}
 
-	if err := h.AuthorizationService.UpdateAuthorization(ctx, a.ID, req.AuthorizationUpdate); err != nil {
+	a, err = h.AuthorizationService.UpdateAuthorization(ctx, a.ID, req.AuthorizationUpdate)
+	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -743,20 +744,20 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) error {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
 	u, err := newURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	b, err := json.Marshal(upd)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(b))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -766,15 +767,20 @@ func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platf
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	var res authResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, err
+	}
+
+	return res.toPlatform(), nil
 }
 
 // DeleteAuthorization removes a authorization by id.

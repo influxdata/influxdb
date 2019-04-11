@@ -193,11 +193,11 @@ func (s *Service) DeleteAuthorization(ctx context.Context, id platform.ID) error
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) error {
+func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
 	op := OpPrefix + platform.OpUpdateAuthorization
 	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
-		return &platform.Error{
+		return nil, &platform.Error{
 			Err: err,
 			Op:  op,
 		}
@@ -208,7 +208,7 @@ func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *
 		switch status {
 		case platform.Active, platform.Inactive:
 		default:
-			return &platform.Error{
+			return nil, &platform.Error{
 				Code: platform.EInvalid,
 				Msg:  "unknown authorization status",
 				Op:   op,
@@ -221,5 +221,5 @@ func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *
 		a.Description = *upd.Description
 	}
 
-	return s.PutAuthorization(ctx, a)
+	return a, s.PutAuthorization(ctx, a)
 }

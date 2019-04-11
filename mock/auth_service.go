@@ -21,7 +21,7 @@ type AuthorizationService struct {
 	FindAuthorizationsFn       func(context.Context, platform.AuthorizationFilter, ...platform.FindOptions) ([]*platform.Authorization, int, error)
 	CreateAuthorizationFn      func(context.Context, *platform.Authorization) error
 	DeleteAuthorizationFn      func(context.Context, platform.ID) error
-	UpdateAuthorizationFn      func(context.Context, platform.ID, *platform.AuthorizationUpdate) error
+	UpdateAuthorizationFn      func(context.Context, platform.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error)
 }
 
 // NewAuthorizationService returns a mock AuthorizationService where its methods will return
@@ -35,7 +35,9 @@ func NewAuthorizationService() *AuthorizationService {
 		},
 		CreateAuthorizationFn: func(context.Context, *platform.Authorization) error { return nil },
 		DeleteAuthorizationFn: func(context.Context, platform.ID) error { return nil },
-		UpdateAuthorizationFn: func(context.Context, platform.ID, *platform.AuthorizationUpdate) error { return nil },
+		UpdateAuthorizationFn: func(context.Context, platform.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+			return nil, nil
+		},
 	}
 }
 
@@ -64,6 +66,6 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) error {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
 	return s.UpdateAuthorizationFn(ctx, id, upd)
 }
