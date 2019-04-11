@@ -103,7 +103,7 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
                     shape="none"
                     size="lg"
                     status="default"
-                    testID="button"
+                    testID="button--conf-later"
                     text="Configure Later"
                     type="button"
                   />

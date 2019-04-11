@@ -104,6 +104,7 @@ class AdminStep extends PureComponent<Props, State> {
                           status={status}
                           disabledTitleText="Username has been set"
                           autoFocus={true}
+                          testID="input-field--username"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -122,6 +123,7 @@ class AdminStep extends PureComponent<Props, State> {
                           icon={icon}
                           status={status}
                           disabledTitleText="Password has been set"
+                          testID="input-field--password"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -141,6 +143,7 @@ class AdminStep extends PureComponent<Props, State> {
                           icon={icon}
                           status={this.passwordStatus}
                           disabledTitleText="password has been set"
+                          testID="input-field--password-chk"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -152,6 +155,7 @@ class AdminStep extends PureComponent<Props, State> {
                       <Form.Element
                         label="Initial Organization Name"
                         labelAddOn={this.orgTip}
+                        testID="form-elem--orgname"
                       >
                         <Input
                           value={org}
@@ -162,6 +166,7 @@ class AdminStep extends PureComponent<Props, State> {
                           status={ComponentStatus.Default}
                           placeholder="An organization is a workspace for a group of users."
                           disabledTitleText="Initial organization name has been set"
+                          testID="input-field--orgname"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -173,6 +178,7 @@ class AdminStep extends PureComponent<Props, State> {
                       <Form.Element
                         label="Initial Bucket Name"
                         labelAddOn={this.bucketTip}
+                        testID="form-elem--bucketname"
                       >
                         <Input
                           value={bucket}
@@ -183,6 +189,7 @@ class AdminStep extends PureComponent<Props, State> {
                           status={status}
                           placeholder="A bucket is where your time series data is stored with a retention policy."
                           disabledTitleText="Initial bucket name has been set"
+                          testID="input-field--bucketname"
                         />
                       </Form.Element>
                     </Grid.Column>

@@ -83,8 +83,8 @@ describe('Onboarding', () => {
       .should('be.disabled')
 
     //Check tooltips
-    cy.getByTestID('form--label')
-      .eq(3)
+    cy.getByTestID('form-elem--orgname')
+      .children('[data-testid=form--label]')
       .children('div.question-mark-tooltip')
       .trigger('mouseenter')
       .children('div[data-id=tooltip]')
@@ -93,8 +93,8 @@ describe('Onboarding', () => {
         expect($tt).to.have.class('show')
       })
 
-    cy.getByTestID('form--label')
-      .eq(4)
+    cy.getByTestID('form-elem--bucketname')
+      .children('[data-testid=form--label]')
       .children('div.question-mark-tooltip')
       .trigger('mouseenter')
       .children('div[data-id=tooltip]')
@@ -104,21 +104,11 @@ describe('Onboarding', () => {
       })
 
     //Input fields
-    cy.getByTestID('input-field')
-      .eq(0)
-      .type(user.username)
-    cy.getByTestID('input-field')
-      .eq(1)
-      .type(user.password)
-    cy.getByTestID('input-field')
-      .eq(2)
-      .type(user.password)
-    cy.getByTestID('input-field')
-      .eq(3)
-      .type(user.org)
-    cy.getByTestID('input-field')
-      .eq(4)
-      .type(user.bucket)
+    cy.getByTestID('input-field--username').type(user.username)
+    cy.getByTestID('input-field--password').type(user.password)
+    cy.getByTestID('input-field--password-chk').type(user.password)
+    cy.getByTestID('input-field--orgname').type(user.org)
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
 
     cy.getByTestID('button')
       .contains('Continue')
@@ -150,21 +140,12 @@ describe('Onboarding', () => {
       cy.getByTestID('nav-step--welcome').should('have.class', 'checkmark')
       cy.getByTestID('nav-step--setup').should('have.class', 'checkmark')
 
-      cy.getByTestID('button')
-        .eq(1)
-        .contains('Advanced')
-        .should('be.visible')
+      cy.getByTestID('button--advanced').should('be.visible')
 
-      cy.getByTestID('button')
-        .eq(2)
-        .contains('Configure Later')
-        .should('be.visible')
+      cy.getByTestID('button--conf-later').should('be.visible')
 
       //advance to Quick Start
-      cy.getByTestID('button')
-        .eq(0)
-        .contains('Quick Start')
-        .click()
+      cy.getByTestID('button--quick-start').click()
 
       cy.location('pathname').should('equal', '/orgs/' + orgId)
 
@@ -205,21 +186,11 @@ describe('Onboarding', () => {
     cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
-    cy.getByTestID('input-field')
-      .eq(0)
-      .type(user.username)
-    cy.getByTestID('input-field')
-      .eq(1)
-      .type(user.password)
-    cy.getByTestID('input-field')
-      .eq(2)
-      .type(user.password)
-    cy.getByTestID('input-field')
-      .eq(3)
-      .type(user.org)
-    cy.getByTestID('input-field')
-      .eq(4)
-      .type(user.bucket)
+    cy.getByTestID('input-field--username').type(user.username)
+    cy.getByTestID('input-field--password').type(user.password)
+    cy.getByTestID('input-field--password-chk').type(user.password)
+    cy.getByTestID('input-field--orgname').type(user.org)
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
 
     cy.getByTestID('button').click()
 
@@ -232,10 +203,7 @@ describe('Onboarding', () => {
       cy.location('pathname').should('include', 'onboarding/2')
 
       //advance to Advanced
-      cy.getByTestID('button')
-        .eq(1)
-        .contains('Advanced')
-        .click()
+      cy.getByTestID('button--advanced').click()
 
       //wait for new page to load
       cy.location('pathname').should('match', /orgs\/.*\/buckets/)
@@ -257,21 +225,11 @@ describe('Onboarding', () => {
     cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
-    cy.getByTestID('input-field')
-      .eq(0)
-      .type(user.username)
-    cy.getByTestID('input-field')
-      .eq(1)
-      .type(user.password)
-    cy.getByTestID('input-field')
-      .eq(2)
-      .type(user.password)
-    cy.getByTestID('input-field')
-      .eq(3)
-      .type(user.org)
-    cy.getByTestID('input-field')
-      .eq(4)
-      .type(user.bucket)
+    cy.getByTestID('input-field--username').type(user.username)
+    cy.getByTestID('input-field--password').type(user.password)
+    cy.getByTestID('input-field--password-chk').type(user.password)
+    cy.getByTestID('input-field--orgname').type(user.org)
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
 
     cy.getByTestID('button').click()
 
@@ -284,10 +242,7 @@ describe('Onboarding', () => {
       cy.location('pathname').should('include', 'onboarding/2')
 
       //advance to Advanced
-      cy.getByTestID('button')
-        .eq(2)
-        .contains('Configure Later')
-        .click()
+      cy.getByTestID('button--conf-later').click()
 
       cy.location('pathname').should('include', orgId)
     })
@@ -297,25 +252,19 @@ describe('Onboarding', () => {
     //Continue
     cy.getByTestID('button').click()
 
-    cy.getByTestID('input-field')
-      .eq(0)
-      .type(user.username)
+    cy.getByTestID('input-field--username').type(user.username)
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.getByTestID('input-field')
-      .eq(1)
-      .type(user.password)
+    cy.getByTestID('input-field--password').type(user.password)
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.getByTestID('input-field')
-      .eq(2)
-      .type('drowssap')
+    cy.getByTestID('input-field--password-chk').type('drowssap')
 
     //check password mismatch
     cy.getByTestID('form--element-error').should(
@@ -325,19 +274,14 @@ describe('Onboarding', () => {
 
     cy.getByTestID('input-error').should('have.class', 'alert-triangle')
 
-    cy.getByTestID('input-field')
-      .eq(3)
-      .type(user.org)
-    cy.getByTestID('input-field')
-      .eq(4)
-      .type(user.bucket)
+    cy.getByTestID('input-field--orgname').type(user.org)
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.getByTestID('input-field')
-      .eq(2)
+    cy.getByTestID('input-field--password-chk')
       .clear()
       .type(user.password)
 
@@ -348,26 +292,20 @@ describe('Onboarding', () => {
       .should('be.enabled')
 
     //check cleared username
-    cy.getByTestID('input-field')
-      .eq(0)
-      .clear()
+    cy.getByTestID('input-field--username').clear()
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.getByTestID('input-field')
-      .eq(0)
-      .type(user.username)
+    cy.getByTestID('input-field--username').type(user.username)
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.enabled')
 
     //check cleared password
-    cy.getByTestID('input-field')
-      .eq(1)
-      .clear()
+    cy.getByTestID('input-field--password').clear()
 
     cy.getByTestID('form--element-error').should(
       'have.text',
@@ -378,43 +316,33 @@ describe('Onboarding', () => {
       .contains('Continue')
       .should('be.disabled')
 
-    cy.getByTestID('input-field')
-      .eq(1)
-      .type(user.password)
+    cy.getByTestID('input-field--password').type(user.password)
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.enabled')
 
     //check cleared org name
-    cy.getByTestID('input-field')
-      .eq(3)
-      .clear()
+    cy.getByTestID('input-field--orgname').clear()
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.getByTestID('input-field')
-      .eq(3)
-      .type(user.org)
+    cy.getByTestID('input-field--orgname').type(user.org)
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.enabled')
 
     //check cleared bucket name
-    cy.getByTestID('input-field')
-      .eq(4)
-      .clear()
+    cy.getByTestID('input-field--bucketname').clear()
 
     cy.getByTestID('button')
       .contains('Continue')
       .should('be.disabled')
 
-    cy.getByTestID('input-field')
-      .eq(4)
-      .type(user.bucket)
+    cy.getByTestID('input-field--bucketname').type(user.bucket)
 
     cy.getByTestID('button')
       .contains('Continue')

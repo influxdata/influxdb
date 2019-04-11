@@ -118,6 +118,7 @@ class CompletionStep extends PureComponent<Props> {
                           color={ComponentColor.Success}
                           size={ComponentSize.Large}
                           onClick={onExit}
+                          testID="button--conf-later"
                         />
                         <dt>I've got this...</dt>
                         <dd>
