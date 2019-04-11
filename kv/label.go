@@ -85,8 +85,8 @@ func (s *Service) findLabelByID(ctx context.Context, tx Tx, id influxdb.ID) (*in
 
 func filterLabelsFn(filter influxdb.LabelFilter) func(l *influxdb.Label) bool {
 	return func(label *influxdb.Label) bool {
-		return (filter.Name == "" || (filter.Name == label.Name) &&
-			filter.OrgID == nil || (*filter.OrgID == label.OrganizationID))
+		return ((filter.Name == "" || (filter.Name == label.Name)) &&
+			(filter.OrgID == nil || filter.OrgID != nil && (*filter.OrgID == label.OrgID)))
 	}
 }
 
@@ -287,7 +287,7 @@ func (s *Service) createLabelUserResourceMappings(ctx context.Context, tx Tx, l 
 
 	ms, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
 		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   l.OrganizationID,
+		ResourceID:   l.OrgID,
 	})
 	if err != nil {
 		return &influxdb.Error{
