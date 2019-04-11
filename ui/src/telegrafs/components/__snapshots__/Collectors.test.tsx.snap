@@ -24,7 +24,7 @@ exports[`CollectorList rendering renders 1`] = `
       columnCount={3}
       emptyState={<React.Fragment />}
     >
-      <Connect(CollectorRow)
+      <Connect(withRouter(CollectorRow))
         bucket=""
         collector={
           Object {
@@ -36,10 +36,9 @@ exports[`CollectorList rendering renders 1`] = `
         key="03636a150fb51000"
         onDelete={[MockFunction]}
         onOpenInstructions={[MockFunction]}
-        onOpenTelegrafConfig={[MockFunction]}
         onUpdate={[MockFunction]}
       />
-      <Connect(CollectorRow)
+      <Connect(withRouter(CollectorRow))
         bucket=""
         collector={
           Object {
@@ -51,7 +50,6 @@ exports[`CollectorList rendering renders 1`] = `
         key="03636a150fb51001"
         onDelete={[MockFunction]}
         onOpenInstructions={[MockFunction]}
-        onOpenTelegrafConfig={[MockFunction]}
         onUpdate={[MockFunction]}
       />
     </IndexListBody>

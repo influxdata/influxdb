@@ -9,6 +9,8 @@ import {Dispatch} from 'redux-thunk'
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
+// Utils
+import {downloadTextFile} from 'src/shared/utils/download'
 import {
   telegrafGetFailed,
   telegrafCreateFailed,
@@ -16,6 +18,7 @@ import {
   telegrafDeleteFailed,
   addTelelgrafLabelFailed,
   removeTelelgrafLabelFailed,
+  getTelegrafConfigFailed,
 } from 'src/shared/copy/v2/notifications'
 
 export type Action = SetTelegrafs | AddTelegraf | EditTelegraf | RemoveTelegraf
@@ -154,5 +157,17 @@ export const removeTelelgrafLabelsAsync = (
   } catch (error) {
     console.error(error)
     dispatch(removeTelelgrafLabelFailed())
+  }
+}
+
+export const downloadTelegrafConfig = (
+  telegrafConfigID: string,
+  telegrafConfigName: string
+) => async (dispatch): Promise<void> => {
+  try {
+    const config = await client.telegrafConfigs.getTOML(telegrafConfigID)
+    downloadTextFile(config, `${telegrafConfigName || 'config'}.toml`)
+  } catch (error) {
+    dispatch(notify(getTelegrafConfigFailed()))
   }
 }
