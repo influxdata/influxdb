@@ -5,69 +5,46 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/semantic/semantictest"
-	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/query"
 )
 
-type BucketAwareQueryTestCase struct {
+type BucketsAccessedTestCase struct {
 	Name             string
 	Raw              string
-	Want             *flux.Spec
 	WantErr          bool
 	WantReadBuckets  *[]platform.BucketFilter
 	WantWriteBuckets *[]platform.BucketFilter
 }
 
-var opts = append(
-	semantictest.CmpOptions,
-	cmp.AllowUnexported(flux.Spec{}),
-	cmp.AllowUnexported(universe.JoinOpSpec{}),
-	cmpopts.IgnoreUnexported(flux.Spec{}),
-	cmpopts.IgnoreUnexported(universe.JoinOpSpec{}),
-)
-
-func BucketAwareQueryTestHelper(t *testing.T, tc BucketAwareQueryTestCase) {
-	t.Skip("BucketsAccessed needs re-implementing; see https://github.com/influxdata/influxdb/issues/13278")
+func BucketsAccessedTestHelper(t *testing.T, tc BucketsAccessedTestCase) {
 	t.Helper()
 
-	//now := time.Now().UTC()
-	//got, err := flux.Compile(context.Background(), tc.Raw, now)
-	//if (err != nil) != tc.WantErr {
-	//	t.Errorf("error compiling spec error: %v, wantErr %v", err, tc.WantErr)
-	//	return
-	//}
-	//if tc.WantErr {
-	//	return
-	//}
-	//if tc.Want != nil {
-	//	tc.Want.Now = now
-	//	if !cmp.Equal(tc.Want, got, opts...) {
-	//		t.Errorf("unexpected specs -want/+got %s", cmp.Diff(tc.Want, got, opts...))
-	//	}
-	//}
-	//
-	//var gotReadBuckets, gotWriteBuckets []platform.BucketFilter
-	//if tc.WantReadBuckets != nil || tc.WantWriteBuckets != nil {
-	//	gotReadBuckets, gotWriteBuckets, err = query.BucketsAccessed(got, nil)
-	//	if err != nil {
-	//		t.Fatal(err)
-	//	}
-	//}
-	//
-	//if tc.WantReadBuckets != nil {
-	//	if diagnostic := verifyBuckets(*tc.WantReadBuckets, gotReadBuckets); diagnostic != "" {
-	//		t.Errorf("Could not verify read buckets: %v", diagnostic)
-	//	}
-	//}
-	//
-	//if tc.WantWriteBuckets != nil {
-	//	if diagnostic := verifyBuckets(*tc.WantWriteBuckets, gotWriteBuckets); diagnostic != "" {
-	//		t.Errorf("Could not verify write buckets: %v", diagnostic)
-	//	}
-	//}
+	ast, err := flux.Parse(tc.Raw)
+	if err != nil {
+		t.Fatalf("could not parse flux: %v", err)
+	}
+
+	var gotReadBuckets, gotWriteBuckets []platform.BucketFilter
+	if tc.WantReadBuckets != nil || tc.WantWriteBuckets != nil {
+		gotReadBuckets, gotWriteBuckets, err = query.BucketsAccessed(ast, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if tc.WantReadBuckets != nil {
+		if diagnostic := verifyBuckets(*tc.WantReadBuckets, gotReadBuckets); diagnostic != "" {
+			t.Errorf("Could not verify read buckets: %v", diagnostic)
+		}
+	}
+
+	if tc.WantWriteBuckets != nil {
+		if diagnostic := verifyBuckets(*tc.WantWriteBuckets, gotWriteBuckets); diagnostic != "" {
+			t.Errorf("Could not verify write buckets: %v", diagnostic)
+		}
+	}
 }
 
 func verifyBuckets(wantBuckets, gotBuckets []platform.BucketFilter) string {
