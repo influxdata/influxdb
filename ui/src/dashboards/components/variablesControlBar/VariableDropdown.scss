@@ -28,6 +28,7 @@
   background-color: $g3-castle;
   background-attachment: fixed;
   display: flex;
+  cursor: grab;
 
   > span {
     @include gradient-h($c-comet, $c-laser);

@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/flux/stdlib/kafka"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
@@ -439,6 +440,9 @@ func (s Stats) Update(o Stats) {
 }
 
 func writeTable(t *ToTransformation, tbl flux.Table) error {
+	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	defer span.Finish()
+
 	var bucketID, orgID *platform.ID
 	var err error
 
@@ -458,7 +462,7 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 
 	// Get bucket ID
 	if spec.Bucket != "" {
-		bID, ok := d.BucketLookup.Lookup(*orgID, spec.Bucket)
+		bID, ok := d.BucketLookup.Lookup(ctx, *orgID, spec.Bucket)
 		if !ok {
 			return fmt.Errorf("failed to look up bucket %q in org %q", spec.Bucket, spec.Org)
 		}

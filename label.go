@@ -76,7 +76,7 @@ func (l *Label) Validate() error {
 // It should not be shared directly over the HTTP API.
 type LabelMapping struct {
 	LabelID      ID `json:"labelID"`
-	ResourceID   ID `json:"resourceID"`
+	ResourceID   ID `json:"resourceID,omitempty"`
 	ResourceType `json:"resourceType"`
 }
 

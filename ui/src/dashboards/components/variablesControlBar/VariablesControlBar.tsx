@@ -2,8 +2,6 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {isEmpty} from 'lodash'
-import {DragDropContext} from 'react-dnd'
-import HTML5Backend from 'react-dnd-html5-backend'
 import classnames from 'classnames'
 
 // Components
@@ -35,6 +33,7 @@ import {ComponentSize} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {RemoteDataState} from 'src/types'
 import DraggableDropdown from 'src/dashboards/components/variablesControlBar/DraggableDropdown'
+import withDragDropContext from 'src/shared/decorators/withDragDropContext'
 
 interface OwnProps {
   dashboardID: string
@@ -160,7 +159,7 @@ const mstp = (state: AppState, props: OwnProps): StateProps => {
   return {variables, valuesStatus, variablesStatus, inPresentationMode}
 }
 
-export default DragDropContext(HTML5Backend)(
+export default withDragDropContext(
   connect<StateProps, DispatchProps, OwnProps>(
     mstp,
     mdtp

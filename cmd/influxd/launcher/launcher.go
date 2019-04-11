@@ -14,15 +14,6 @@ import (
 
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/influxdb/kit/signals"
-	"github.com/influxdata/influxdb/telemetry"
-	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/cobra"
-	jaegerconfig "github.com/uber/jaeger-client-go/config"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
@@ -32,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kit/signals"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
@@ -48,10 +40,17 @@ import (
 	taskbolt "github.com/influxdata/influxdb/task/backend/bolt"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
+	"github.com/influxdata/influxdb/telemetry"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/cobra"
+	jaegerconfig "github.com/uber/jaeger-client-go/config"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -625,7 +624,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	h := http.NewHandlerFromRegistry("platform", m.reg)
 	h.Handler = platformHandler
 	h.Logger = httpLogger
-	h.Tracer = opentracing.GlobalTracer()
 
 	m.httpServer.Handler = h
 	// If we are in testing mode we allow all data to be flushed and removed.

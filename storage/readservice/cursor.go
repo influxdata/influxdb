@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
@@ -13,7 +14,6 @@ import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	opentracing "github.com/opentracing/opentracing-go"
 )
 
 const (
@@ -45,11 +45,8 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datat
 		return nil, nil
 	}
 
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		span = opentracing.StartSpan("index_cursor.create", opentracing.ChildOf(span.Context()))
-		defer span.Finish()
-	}
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
 
 	opt := query.IteratorOptions{
 		Aux:        []influxql.VarRef{{Val: "key"}},
