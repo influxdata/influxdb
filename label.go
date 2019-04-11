@@ -5,7 +5,7 @@ import (
 )
 
 // ErrLabelNotFound is the error for a missing Label.
-const ErrLabelNotFound = ChronografError("label not found")
+const ErrLabelNotFound = "label not found"
 
 const (
 	OpFindLabels         = "FindLabels"

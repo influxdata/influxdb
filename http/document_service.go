@@ -112,7 +112,6 @@ func (h *DocumentHandler) handlePostDocument(w http.ResponseWriter, r *http.Requ
 		EncodeError(ctx, err, w)
 		return
 	}
-
 	s, err := h.DocumentService.FindDocumentStore(ctx, req.Namespace)
 	if err != nil {
 		EncodeError(ctx, err, w)
@@ -149,16 +148,20 @@ func (h *DocumentHandler) handlePostDocument(w http.ResponseWriter, r *http.Requ
 
 type postDocumentRequest struct {
 	*influxdb.Document
-	Namespace string      `json:"-"`
-	Org       string      `json:"org"`
-	OrgID     influxdb.ID `json:"orgID,omitempty"`
-	Labels    []string    `json:"labels"` // TODO(desa): should this be IDs or strings?
+	Namespace string        `json:"-"`
+	Org       string        `json:"org"`
+	OrgID     influxdb.ID   `json:"orgID,omitempty"`
+	Labels    []influxdb.ID `json:"labels"`
 }
 
 func decodePostDocumentRequest(ctx context.Context, r *http.Request) (*postDocumentRequest, error) {
 	req := &postDocumentRequest{}
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-		return nil, err
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "document body error",
+			Err:  err,
+		}
 	}
 
 	if req.Document == nil {
