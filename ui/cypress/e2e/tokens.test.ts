@@ -214,7 +214,7 @@ describe('tokens', () => {
       .should('not.exist')
   })
 
-  it('can generate a read/write token', () => {
+  it.only('can generate a read/write token', () => {
     cy.getByTestID('table-row').should('have.length', 4)
 
     //create some extra buckets for filters
