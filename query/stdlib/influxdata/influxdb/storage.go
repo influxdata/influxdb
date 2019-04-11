@@ -21,7 +21,7 @@ type HostLookup interface {
 }
 
 type BucketLookup interface {
-	Lookup(orgID platform.ID, name string) (platform.ID, bool)
+	Lookup(ctx context.Context, orgID platform.ID, name string) (platform.ID, bool)
 }
 
 type OrganizationLookup interface {

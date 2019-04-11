@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -114,6 +115,9 @@ func (s *readFilterSource) run(ctx context.Context) error {
 }
 
 func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	defer span.Finish()
+
 	spec := s.(*ReadRangePhysSpec)
 
 	bounds := a.StreamContext().Bounds()
@@ -133,7 +137,7 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 	// Determine bucketID
 	switch {
 	case spec.Bucket != "":
-		b, ok := deps.BucketLookup.Lookup(orgID, spec.Bucket)
+		b, ok := deps.BucketLookup.Lookup(ctx, orgID, spec.Bucket)
 		if !ok {
 			return nil, fmt.Errorf("could not find bucket %q", spec.Bucket)
 		}
