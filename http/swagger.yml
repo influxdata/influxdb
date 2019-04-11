@@ -7059,7 +7059,7 @@ components:
           description: must specify one of orgID and org
         labels:
           type: array
-          description: this is an array of label strings that will be added as labels to the document
+          description: this is an array of label IDs that will be added as labels to the document
           items:
             type: string
       required:

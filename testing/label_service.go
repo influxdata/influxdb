@@ -300,7 +300,7 @@ func FindLabelByID(
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpFindLabelByID,
-					Err:  influxdb.ErrLabelNotFound,
+					Msg:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -490,7 +490,7 @@ func UpdateLabel(
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpUpdateLabel,
-					Err:  influxdb.ErrLabelNotFound,
+					Msg:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -587,7 +587,7 @@ func DeleteLabel(
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpDeleteLabel,
-					Err:  influxdb.ErrLabelNotFound,
+					Msg:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -675,7 +675,7 @@ func CreateLabelMapping(
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpDeleteLabel,
-					Err:  influxdb.ErrLabelNotFound,
+					Msg:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},

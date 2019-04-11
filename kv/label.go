@@ -65,7 +65,7 @@ func (s *Service) findLabelByID(ctx context.Context, tx Tx, id influxdb.ID) (*in
 	if IsNotFound(err) {
 		return nil, &influxdb.Error{
 			Code: influxdb.ENotFound,
-			Err:  influxdb.ErrLabelNotFound,
+			Msg:  influxdb.ErrLabelNotFound,
 		}
 	}
 
