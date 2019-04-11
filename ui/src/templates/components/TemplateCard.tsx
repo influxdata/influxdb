@@ -2,6 +2,13 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
+import {
+  Button,
+  ComponentSize,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+} from '@influxdata/clockface'
 
 // Components
 import {ResourceList, Context, IconFont} from 'src/clockface'
@@ -14,6 +21,7 @@ import {
   deleteTemplate,
   cloneTemplate,
   updateTemplate,
+  createResourceFromTemplate,
 } from 'src/templates/actions'
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
@@ -35,6 +43,7 @@ interface DispatchProps {
   onDelete: typeof deleteTemplate
   onClone: typeof cloneTemplate
   onUpdate: typeof updateTemplate
+  onCreateFromTemplate: typeof createResourceFromTemplate
 }
 
 interface StateProps {
@@ -90,27 +99,45 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
       onDelete,
     } = this.props
     return (
-      <Context>
-        <Context.Menu
-          icon={IconFont.Duplicate}
-          color={ComponentColor.Secondary}
-        >
-          <Context.Item label="Clone" action={this.handleClone} value={id} />
-        </Context.Menu>
-        <Context.Menu
-          icon={IconFont.Trash}
-          color={ComponentColor.Danger}
-          testID="context-delete-menu"
-        >
-          <Context.Item
-            label="Delete"
-            action={onDelete}
-            value={id}
-            testID="context-delete-task"
-          />
-        </Context.Menu>
-      </Context>
+      <ComponentSpacer
+        margin={ComponentSize.Medium}
+        direction={FlexDirection.Row}
+        justifyContent={JustifyContent.FlexEnd}
+      >
+        <Button
+          text="Create"
+          color={ComponentColor.Primary}
+          size={ComponentSize.ExtraSmall}
+          onClick={this.handleCreate}
+        />
+        <Context>
+          <Context.Menu
+            icon={IconFont.Duplicate}
+            color={ComponentColor.Secondary}
+          >
+            <Context.Item label="Clone" action={this.handleClone} value={id} />
+          </Context.Menu>
+          <Context.Menu
+            icon={IconFont.Trash}
+            color={ComponentColor.Danger}
+            testID="context-delete-menu"
+          >
+            <Context.Item
+              label="Delete"
+              action={onDelete}
+              value={id}
+              testID="context-delete-task"
+            />
+          </Context.Menu>
+        </Context>
+      </ComponentSpacer>
     )
+  }
+
+  private handleCreate = () => {
+    const {onCreateFromTemplate, template} = this.props
+
+    onCreateFromTemplate(template.id)
   }
 
   private handleClone = () => {
@@ -143,6 +170,7 @@ const mdtp: DispatchProps = {
   onDelete: deleteTemplate,
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
+  onCreateFromTemplate: createResourceFromTemplate,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

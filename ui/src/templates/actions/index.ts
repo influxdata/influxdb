@@ -4,8 +4,18 @@ import _ from 'lodash'
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 
 // Types
-import {TemplateSummary, DocumentCreate} from '@influxdata/influx'
-import {RemoteDataState, GetState} from 'src/types'
+import {
+  TemplateSummary,
+  DocumentCreate,
+  ITaskTemplate,
+  TemplateType,
+} from '@influxdata/influx'
+import {
+  RemoteDataState,
+  GetState,
+  DashboardTemplate,
+  VariableTemplate,
+} from 'src/types'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -15,6 +25,9 @@ import * as copy from 'src/shared/copy/notifications'
 
 // API
 import {client} from 'src/utils/api'
+import {createDashboardFromTemplate} from 'src/dashboards/actions'
+import {createVariableFromTemplate} from 'src/variables/actions'
+import {createTaskFromTemplate} from 'src/tasks/actions'
 
 export enum ActionTypes {
   GetTemplateSummariesForOrg = 'GET_TEMPLATE_SUMMARIES_FOR_ORG',
@@ -222,5 +235,41 @@ export const cloneTemplate = (templateID: string) => async (
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.cloneTemplateFailed(e)))
+  }
+}
+
+export const createResourceFromTemplate = (templateID: string) => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const template = await client.templates.get(templateID)
+    const {
+      orgs: {org},
+    } = getState()
+
+    const {
+      content: {
+        data: {type},
+      },
+    } = template
+
+    switch (type) {
+      case TemplateType.Dashboard:
+        return dispatch(
+          createDashboardFromTemplate(template as DashboardTemplate, org.id)
+        )
+      case TemplateType.Task:
+        return dispatch(createTaskFromTemplate(template as ITaskTemplate))
+      case TemplateType.Variable:
+        return dispatch(
+          createVariableFromTemplate(template as VariableTemplate)
+        )
+      default:
+        throw new Error(`Cannot create template: ${type}`)
+    }
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.createResourceFromTemplateFailed(e)))
   }
 }
