@@ -10,22 +10,17 @@ import {createDashboardFromTemplate as createDashboardFromTemplateAction} from '
 
 // Types
 import ImportOverlay from 'src/shared/components/ImportOverlay'
-import {AppState, Organization} from 'src/types'
 
 interface DispatchProps {
   createDashboardFromTemplate: typeof createDashboardFromTemplateAction
   populateDashboards: typeof getDashboardsAsync
 }
 
-interface StateProps {
-  orgs: Organization[]
-}
-
 interface OwnProps extends WithRouterProps {
   params: {orgID: string}
 }
 
-type Props = OwnProps & StateProps & DispatchProps
+type Props = OwnProps & DispatchProps
 
 class DashboardImportOverlay extends PureComponent<Props> {
   public render() {
@@ -42,19 +37,14 @@ class DashboardImportOverlay extends PureComponent<Props> {
   private handleImportDashboard = async (
     uploadContent: string
   ): Promise<void> => {
-    const {
-      createDashboardFromTemplate,
-      populateDashboards,
-      params: {orgID},
-      orgs,
-    } = this.props
+    const {createDashboardFromTemplate, populateDashboards} = this.props
     const template = JSON.parse(uploadContent)
 
     if (_.isEmpty(template)) {
       this.onDismiss()
     }
 
-    await createDashboardFromTemplate(template, orgID || orgs[0].id)
+    await createDashboardFromTemplate(template)
 
     await populateDashboards()
 
@@ -72,11 +62,7 @@ const mdtp: DispatchProps = {
   populateDashboards: getDashboardsAsync,
 }
 
-const mstp = ({orgs: {items}}: AppState): StateProps => {
-  return {orgs: items}
-}
-
-export default connect<StateProps, DispatchProps, OwnProps>(
-  mstp,
+export default connect<{}, DispatchProps, OwnProps>(
+  null,
   mdtp
 )(withRouter(DashboardImportOverlay))

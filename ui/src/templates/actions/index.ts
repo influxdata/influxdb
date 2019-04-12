@@ -241,15 +241,10 @@ export const cloneTemplate = (templateID: string) => async (
 }
 
 export const createResourceFromTemplate = (templateID: string) => async (
-  dispatch,
-  getState: GetState
+  dispatch
 ): Promise<void> => {
   try {
     const template = await client.templates.get(templateID)
-    const {
-      orgs: {org},
-    } = getState()
-
     const {
       content: {
         data: {type},
@@ -259,7 +254,7 @@ export const createResourceFromTemplate = (templateID: string) => async (
     switch (type) {
       case TemplateType.Dashboard:
         return dispatch(
-          createDashboardFromTemplate(template as DashboardTemplate, org.id)
+          createDashboardFromTemplate(template as DashboardTemplate)
         )
       case TemplateType.Task:
         return dispatch(createTaskFromTemplate(template as ITaskTemplate))
