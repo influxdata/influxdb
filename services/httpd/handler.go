@@ -1069,6 +1069,25 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
+	respond := func(resp *remote.ReadResponse) {
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/x-protobuf")
+		w.Header().Set("Content-Encoding", "snappy")
+
+		compressed = snappy.Encode(nil, data)
+		if _, err := w.Write(compressed); err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
+	}
+
 	ctx := context.Background()
 	rs, err := h.Store.Read(ctx, readRequest)
 	if err != nil {
@@ -1080,6 +1099,12 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	resp := &remote.ReadResponse{
 		Results: []*remote.QueryResult{{}},
 	}
+
+	if rs == nil {
+		respond(resp)
+		return
+	}
+
 	for rs.Next() {
 		cur := rs.Cursor()
 		if cur == nil {
@@ -1137,22 +1162,8 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 			)
 		}
 	}
-	data, err := proto.Marshal(resp)
-	if err != nil {
-		h.httpError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.Header().Set("Content-Encoding", "snappy")
-
-	compressed = snappy.Encode(nil, data)
-	if _, err := w.Write(compressed); err != nil {
-		h.httpError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
+	respond(resp)
 }
 
 func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user meta.User) {
