@@ -42,8 +42,10 @@ class BucketsIndex extends Component<StateProps> {
                     title="Buckets"
                   >
                     <GetResources resource={ResourceTypes.Buckets}>
-                      <BucketsTab />
-                      {this.props.children}
+                      <GetResources resource={ResourceTypes.Telegrafs}>
+                        <BucketsTab />
+                        {this.props.children}
+                      </GetResources>
                     </GetResources>
                   </TabbedPageSection>
                 </Tabs.TabContents>
