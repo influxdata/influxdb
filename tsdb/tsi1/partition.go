@@ -1,7 +1,6 @@
 package tsi1
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,9 +37,6 @@ const (
 const (
 	// ManifestFileName is the name of the index manifest file.
 	ManifestFileName = "MANIFEST"
-
-	// StatsFileName is the name of the file containing cardinality stats.
-	StatsFileName = "STATS"
 )
 
 // Partition represents a collection of layered index files and WAL.
@@ -55,7 +51,8 @@ type Partition struct {
 	fileSet       *FileSet // current file set
 	seq           int      // file id sequence
 
-	// Measurement stats
+	// Computed measurements stats since last compaction.
+	// NOTE: Does not include active log file stats.
 	stats MeasurementCardinalityStats
 
 	tracker *partitionTracker
@@ -88,9 +85,8 @@ type Partition struct {
 
 	logger *zap.Logger
 
-	// Current size of MANIFEST & STATS. Used to determine partition size.
+	// Current size of MANIFEST. Used to determine partition size.
 	manifestSize int64
-	statsSize    int64
 
 	// Index's version.
 	version int
@@ -202,11 +198,6 @@ func (p *Partition) Open() (err error) {
 		return err
 	}
 
-	// Read stats file.
-	if err := p.readStatsFile(); err != nil {
-		return err
-	}
-
 	// Copy compaction levels to the index.
 	p.levels = make([]CompactionLevel, len(m.Levels))
 	copy(p.levels, m.Levels)
@@ -286,6 +277,9 @@ func (p *Partition) Open() (err error) {
 	p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
 	p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
 
+	// Compute initial stats.
+	p.computeStats()
+
 	// Mark opened.
 	p.opened = true
 
@@ -333,7 +327,7 @@ func (p *Partition) deleteNonManifestFiles(m *Manifest) error {
 	// Loop over all files and remove any not in the manifest.
 	for _, fi := range fis {
 		filename := filepath.Base(fi.Name())
-		if filename == ManifestFileName || filename == StatsFileName || m.HasFile(filename) {
+		if filename == ManifestFileName || m.HasFile(filename) {
 			continue
 		}
 
@@ -478,11 +472,6 @@ func (p *Partition) manifest(fs *FileSet) *Manifest {
 	return m
 }
 
-// StatsPath returns the path to the partition's stats file.
-func (p *Partition) StatsPath() string {
-	return filepath.Join(p.path, StatsFileName)
-}
-
 // WithLogger sets the logger for the index.
 func (p *Partition) WithLogger(logger *zap.Logger) {
 	p.logger = logger.With(zap.String("index", "tsi"))
@@ -518,11 +507,6 @@ func (p *Partition) FileN() int { return len(p.fileSet.files) }
 
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
 func (p *Partition) prependActiveLogFile() error {
-	// Add active stats to total stats.
-	if p.activeLogFile != nil {
-		p.stats.Add(p.activeLogFile.MeasurementCardinalityStats())
-	}
-
 	// Open file and insert it into the first position.
 	f, err := p.openLogFile(filepath.Join(p.path, FormatLogFileName(p.nextSequence())))
 	if err != nil {
@@ -543,16 +527,13 @@ func (p *Partition) prependActiveLogFile() error {
 		return err
 	}
 
-	// Write new stats.
-	if err := p.writeStatsFile(); err != nil {
-		fileSet.Release()
-		return err
-	}
-
 	// Now that we can no longer error, update the partition state.
 	p.activeLogFile = f
 	p.replaceFileSet(fileSet)
 	p.manifestSize = manifestSize
+
+	// Compute new stats after fileset has been replaced.
+	p.computeStats()
 
 	// Set the file metrics again.
 	p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
@@ -1127,19 +1108,13 @@ func (p *Partition) compactToLevel(files []*IndexFile, frefs lifecycle.Reference
 			return err
 		}
 
-		// Write new stats file.
-		if err := p.writeStatsFile(); err != nil {
-			fileSet.Release()
-			return err
-		}
-
 		// Now that we can no longer error, update the local state.
 		p.replaceFileSet(fileSet)
 		p.manifestSize = manifestSize
 
 		return nil
 	}(); err != nil {
-		log.Error("Cannot write manifest or stats", zap.Error(err))
+		log.Error("Cannot write manifest", zap.Error(err))
 		return
 	}
 
@@ -1290,12 +1265,6 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 			return err
 		}
 
-		// Write new stats file.
-		if err := p.writeStatsFile(); err != nil {
-			fileSet.Release()
-			return err
-		}
-
 		// Now that we can no longer error, update the local state.
 		p.replaceFileSet(fileSet)
 		p.manifestSize = manifestSize
@@ -1323,52 +1292,6 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 	}
 }
 
-// readStatsFile reads the stats file into memory and updates the stats size.
-func (p *Partition) readStatsFile() error {
-	p.stats = NewMeasurementCardinalityStats()
-
-	f, err := os.Open(p.StatsPath())
-	if os.IsNotExist(err) {
-		p.statsSize = 0
-		return nil
-	} else if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	n, err := p.stats.ReadFrom(bufio.NewReader(f))
-	if err != nil {
-		return err
-	}
-	p.statsSize = n
-
-	return nil
-}
-
-// writeStatsFile writes the stats file and updates the stats size.
-func (p *Partition) writeStatsFile() error {
-	tmpPath := p.StatsPath() + ".tmp"
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	n, err := p.stats.WriteTo(f)
-	if err != nil {
-		return err
-	}
-
-	if err := f.Close(); err != nil {
-		return err
-	} else if err := os.Rename(tmpPath, p.StatsPath()); err != nil {
-		return err
-	}
-
-	p.statsSize = n
-	return nil
-}
-
 // MeasurementCardinalityStats returns cardinality stats for all measurements.
 func (p *Partition) MeasurementCardinalityStats() MeasurementCardinalityStats {
 	p.mu.RLock()
@@ -1380,6 +1303,30 @@ func (p *Partition) MeasurementCardinalityStats() MeasurementCardinalityStats {
 		stats.Add(p.activeLogFile.MeasurementCardinalityStats())
 	}
 	return stats
+}
+
+// ComputeMeasurementCardinalityStats computes cardinality stats from raw data.
+func (p *Partition) ComputeMeasurementCardinalityStats() (MeasurementCardinalityStats, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	fs, err := p.fileSet.Duplicate()
+	if err != nil {
+		return nil, err
+	}
+	defer fs.Release()
+	return fs.Stats(), nil
+}
+
+// computeStats calculates the measurement stats from all files except the active log.
+// FileSet must already be retained when calling this function.
+func (p *Partition) computeStats() {
+	// Shallow copy the fileset and trim initial active log file.
+	fs := *p.fileSet
+	fs.files = fs.files[1:]
+
+	// Compute stats on the remaining files.
+	p.stats = fs.Stats()
 }
 
 type partitionTracker struct {
