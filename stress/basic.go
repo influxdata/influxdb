@@ -46,7 +46,7 @@ func (t AbstractTags) Template() string {
 // defines a field
 type AbstractField struct {
 	Key  string `toml:"key"`
-	Type string `toml:"type"`
+	Type string `toml:"value"`
 }
 
 // AbstractFields is a slice of abstract fields
