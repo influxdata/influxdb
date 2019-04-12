@@ -1,38 +1,35 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {get} from 'lodash'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Form, Button} from '@influxdata/clockface'
 import {Overlay} from 'src/clockface'
-import CreateScraperForm from 'src/organizations/components/CreateScraperForm'
+import CreateScraperForm from 'src/scrapers/components/CreateScraperForm'
 
 // Actions
-import {notify as notifyAction, notify} from 'src/shared/actions/notifications'
-import {createScraper} from 'src/organizations/actions/orgView'
+import {createScraper} from 'src/scrapers/actions'
 
 // Types
 import {Bucket, ScraperTargetRequest} from '@influxdata/influx'
 import {ComponentColor, ComponentStatus} from '@influxdata/clockface'
-import {
-  scraperCreateSuccess,
-  scraperCreateFailed,
-} from 'src/shared/copy/v2/notifications'
+import {AppState} from 'src/types'
 
 interface OwnProps {
   visible: boolean
+}
+
+interface StateProps {
   buckets: Bucket[]
-  onDismiss: () => void
-  overrideBucketIDSelection?: string
 }
 
 interface DispatchProps {
-  notify: typeof notifyAction
   onCreateScraper: typeof createScraper
 }
 
-type Props = OwnProps & DispatchProps
+type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 
 interface State {
   scraper: ScraperTargetRequest
@@ -42,10 +39,12 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
-    const bucketID =
-      this.props.overrideBucketIDSelection || this.props.buckets[0].id
+    const {
+      params: {bucketID, orgID},
+      buckets,
+    } = this.props
 
-    const orgID = this.props.buckets.find(b => b.id === bucketID).organizationID
+    const firstBucketID = get(buckets, '0.id', '')
 
     this.state = {
       scraper: {
@@ -53,38 +52,19 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
         type: ScraperTargetRequest.TypeEnum.Prometheus,
         url: `${this.origin}/metrics`,
         orgID,
-        bucketID,
+        bucketID: bucketID ? bucketID : firstBucketID,
       },
-    }
-  }
-
-  componentDidUpdate(prevProps) {
-    if (
-      prevProps.visible === false &&
-      this.props.visible === true &&
-      this.props.overrideBucketIDSelection
-    ) {
-      const bucketID = this.props.overrideBucketIDSelection
-      const orgID = this.props.buckets.find(b => b.id === bucketID)
-        .organizationID
-
-      const scraper = {
-        ...this.state.scraper,
-        bucketID,
-        orgID,
-      }
-      this.setState({scraper})
     }
   }
 
   public render() {
     const {scraper} = this.state
-    const {onDismiss, visible, buckets} = this.props
+    const {buckets} = this.props
 
     return (
-      <Overlay visible={visible}>
+      <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
-          <Overlay.Heading title="Create Scraper" onDismiss={onDismiss} />
+          <Overlay.Heading title="Create Scraper" onDismiss={this.onDismiss} />
           <Form onSubmit={this.handleSubmit}>
             <Overlay.Body>
               <h5 className="wizard-step--sub-title">
@@ -103,7 +83,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
             <Overlay.Footer>
               <Button
                 text="Cancel"
-                onClick={onDismiss}
+                onClick={this.onDismiss}
                 testID="create-scraper--cancel"
               />
               <Button
@@ -148,30 +128,31 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   }
 
   private handleSubmit = async () => {
-    try {
-      const {onCreateScraper, onDismiss, notify} = this.props
-      const {scraper} = this.state
+    const {onCreateScraper} = this.props
+    const {scraper} = this.state
 
-      await onCreateScraper(scraper)
-      onDismiss()
-      notify(scraperCreateSuccess())
-    } catch (e) {
-      console.error(e)
-      notify(scraperCreateFailed())
-    }
+    onCreateScraper(scraper)
+    this.onDismiss()
   }
 
   private get origin(): string {
     return window.location.origin
   }
+
+  private onDismiss = (): void => {
+    this.props.router.goBack()
+  }
 }
 
+const mstp = ({buckets}: AppState): StateProps => ({
+  buckets: buckets.list,
+})
+
 const mdtp: DispatchProps = {
-  notify: notifyAction,
   onCreateScraper: createScraper,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
   mdtp
-)(CreateScraperOverlay)
+)(withRouter<StateProps & DispatchProps & OwnProps>(CreateScraperOverlay))

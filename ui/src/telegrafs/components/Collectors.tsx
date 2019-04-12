@@ -2,20 +2,16 @@
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Input, Button, EmptyState, Grid} from '@influxdata/clockface'
 import {Tabs} from 'src/clockface'
 import CollectorList from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
-import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
-import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
 import GetLabels from 'src/configuration/components/GetLabels'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -59,7 +55,7 @@ interface DispatchProps {
   onDeleteTelegraf: typeof deleteTelegraf
 }
 
-type Props = DispatchProps & StateProps
+type Props = DispatchProps & StateProps & WithRouterProps
 
 interface State {
   dataLoaderOverlay: OverlayState
@@ -69,7 +65,7 @@ interface State {
 }
 
 @ErrorHandling
-export class Collectors extends PureComponent<Props, State> {
+class Collectors extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
@@ -135,14 +131,6 @@ export class Collectors extends PureComponent<Props, State> {
             </Grid.Column>
           </Grid.Row>
         </Grid>
-        {this.collectorsWizard}
-        <GetResources resource={ResourceTypes.Authorizations}>
-          <TelegrafInstructionsOverlay
-            visible={this.isInstructionsVisible}
-            collector={this.selectedCollector}
-            onDismiss={this.handleCloseInstructions}
-          />
-        </GetResources>
       </>
     )
   }
@@ -157,47 +145,16 @@ export class Collectors extends PureComponent<Props, State> {
     return false
   }
 
-  private get collectorsWizard(): JSX.Element {
-    const {buckets} = this.props
-
-    if (this.hasNoBuckets) {
-      return
-    }
-
-    return (
-      <CollectorsWizard
-        visible={this.isDataLoaderVisible}
-        onCompleteSetup={this.handleDismissDataLoaders}
-        startingStep={0}
-        buckets={buckets}
-      />
-    )
-  }
-
-  private get selectedCollector() {
-    return this.props.collectors.find(c => c.id === this.state.collectorID)
-  }
-
-  private get isDataLoaderVisible(): boolean {
-    return this.state.dataLoaderOverlay === OverlayState.Open
-  }
-
-  private get isInstructionsVisible(): boolean {
-    return this.state.instructionsOverlay === OverlayState.Open
-  }
-
   private handleOpenInstructions = (collectorID: string): void => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
     this.setState({
-      instructionsOverlay: OverlayState.Open,
       collectorID,
     })
-  }
 
-  private handleCloseInstructions = (): void => {
-    this.setState({
-      instructionsOverlay: OverlayState.Closed,
-      collectorID: null,
-    })
+    router.push(`/orgs/${orgID}/telegrafs/${collectorID}/instructions`)
   }
 
   private get createButton(): JSX.Element {
@@ -223,7 +180,13 @@ export class Collectors extends PureComponent<Props, State> {
   }
 
   private handleAddCollector = () => {
-    const {buckets, onSetBucketInfo, onSetDataLoadersType} = this.props
+    const {
+      buckets,
+      onSetBucketInfo,
+      onSetDataLoadersType,
+      router,
+      params: {orgID},
+    } = this.props
 
     if (buckets && buckets.length) {
       const {organization, organizationID, name, id} = buckets[0]
@@ -232,11 +195,7 @@ export class Collectors extends PureComponent<Props, State> {
 
     onSetDataLoadersType(DataLoaderType.Scraping)
 
-    this.setState({dataLoaderOverlay: OverlayState.Open})
-  }
-
-  private handleDismissDataLoaders = () => {
-    this.setState({dataLoaderOverlay: OverlayState.Closed})
+    router.push(`/orgs/${orgID}/telegrafs/new`)
   }
 
   private get emptyState(): JSX.Element {
@@ -301,4 +260,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(Collectors)
+)(withRouter<StateProps & DispatchProps>(Collectors))

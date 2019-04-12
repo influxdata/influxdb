@@ -11,7 +11,6 @@ import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSecti
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import Settings from 'src/me/components/account/Settings'
 import Telegrafs from 'src/configuration/components/Telegrafs'
-import Scrapers from 'src/configuration/components/Scrapers'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Decorators
@@ -64,13 +63,7 @@ class ConfigurationPage extends Component<Props> {
                     id="scrapers_tab"
                     url="scrapers_tab"
                     title="Scrapers"
-                  >
-                    <GetResources resource={ResourceTypes.Buckets}>
-                      <GetResources resource={ResourceTypes.Scrapers}>
-                        <Scrapers />
-                      </GetResources>
-                    </GetResources>
-                  </TabbedPageSection>
+                  />
                   <TabbedPageSection
                     id="settings_tab"
                     url="settings_tab"

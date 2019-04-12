@@ -3,7 +3,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import ScraperList from 'src/organizations/components/ScraperList'
+import ScraperList from 'src/scrapers/components/ScraperList'
 
 // Constants
 import {scraperTargets} from 'mocks/dummyData'
