@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -103,6 +104,10 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...s
 				t.Run("Task RetryRun", func(t *testing.T) {
 					t.Parallel()
 					testRetryAcrossStorage(t, sys)
+				})
+				t.Run("task Log Storage", func(t *testing.T) {
+					t.Parallel()
+					testLogsAcrossStorage(t, sys)
 				})
 			})
 		}
@@ -499,6 +504,10 @@ func testUpdate(t *testing.T, sys *System) {
 
 	rc, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, time.Now(), backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1139,7 +1148,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 	}
 	// Non-existent ID should return the right error.
 	_, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
-	if err != backend.ErrRunNotFound {
+	if !strings.Contains(err.Error(), "run not found") {
 		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", backend.ErrRunNotFound, err)
 	}
 
@@ -1188,9 +1197,99 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 	exp := backend.RequestStillQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
 
 	// Retrying a run which has been queued but not started, should be rejected.
-	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID); err != exp {
+	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID); err != exp && err.Error() != "<conflict> run already queued" {
 		t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
 	}
+}
+
+func testLogsAcrossStorage(t *testing.T, sys *System) {
+	cr := creds(t, sys)
+
+	// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
+	// which makes timing of runs somewhat difficult.
+	ct := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
+	}
+	task, err := sys.TaskService.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make two runs.
+
+	rc0, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc0.Created.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.Created.TaskID, task.ID)
+	}
+
+	startedAt := time.Now().UTC()
+
+	// Update the run state to Started; normally the scheduler would do this.
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.Created.RunID, startedAt, backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+
+	rc1, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc1.Created.TaskID != task.ID {
+		t.Fatalf("wrong task ID on created task run: got %s, want %s", rc1.Created.TaskID, task.ID)
+	}
+
+	// Update the run state to Started; normally the scheduler would do this.
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt, backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mark the second run finished.
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
+		t.Fatal(err)
+	}
+
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-0")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-1")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-2")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), "1-0")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), "1-1")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), "1-2")
+	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc1.Created.RunID, time.Now(), "1-3")
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc1.Created.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	logs, _, err := sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 7 {
+		for _, log := range logs {
+			fmt.Printf("log: %+v\n", log)
+		}
+		t.Fatalf("failed to get all logs: expected: 7 got: %d", len(logs))
+	}
+
+	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc1.Created.RunID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 4 {
+		t.Fatalf("failed to get all logs: expected: 4 got: %d", len(logs))
+	}
+
+	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc0.Created.RunID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 3 {
+		t.Fatalf("failed to get all logs: expected: 3 got: %d", len(logs))
+	}
+
 }
 
 func creds(t *testing.T, s *System) TestCreds {

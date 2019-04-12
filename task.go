@@ -71,6 +71,11 @@ func (r *Run) ScheduledForTime() (time.Time, error) {
 	return time.Parse(time.RFC3339, r.ScheduledFor)
 }
 
+// StartedAtTime gives the time.Time that the run is scheduled for.
+func (r *Run) StartedAtTime() (time.Time, error) {
+	return time.Parse(time.RFC3339Nano, r.StartedAt)
+}
+
 // RequestedAtTime gives the time.Time that the run was requested.
 func (r *Run) RequestedAtTime() (time.Time, error) {
 	return time.Parse(time.RFC3339, r.RequestedAt)

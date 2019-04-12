@@ -652,8 +652,9 @@ func (s *Service) findLogs(ctx context.Context, tx Tx, filter influxdb.LogFilter
 	}
 	var logs []*influxdb.Log
 	for _, run := range runs {
-		for _, log := range run.Log {
-			logs = append(logs, &log)
+		for i := 0; i < len(run.Log); i++ {
+			logs = append(logs, &run.Log[i])
+
 		}
 	}
 	return logs, len(logs), nil
@@ -739,7 +740,7 @@ func (s *Service) findRunByID(ctx context.Context, tx Tx, taskID, runID influxdb
 	}
 	runBytes, err := bucket.Get(key)
 	if err != nil {
-		if err != ErrKeyNotFound {
+		if IsNotFound(err) {
 			return nil, ErrRunNotFound
 		}
 		return nil, ErrUnexpectedTaskBucketErr(err)
@@ -820,7 +821,7 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 	}
 
 	r.ID = s.IDGenerator.ID()
-	r.Status = ""
+	r.Status = backend.RunScheduled.String()
 	r.StartedAt = ""
 	r.FinishedAt = ""
 	r.RequestedAt = ""
@@ -888,8 +889,10 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 	r := &influxdb.Run{
 		ID:           s.IDGenerator.ID(),
 		TaskID:       taskID,
+		Status:       backend.RunScheduled.String(),
 		RequestedAt:  time.Now().UTC().Format(time.RFC3339),
 		ScheduledFor: t.Format(time.RFC3339),
+		Log:          []influxdb.Log{},
 	}
 
 	// add a clean copy of the run to the manual runs
@@ -1073,6 +1076,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		TaskID:       task.ID,
 		ScheduledFor: nextScheduled.Format(time.RFC3339),
 		Status:       backend.RunScheduled.String(),
+		Log:          []influxdb.Log{},
 	}
 	b, err := tx.Bucket(taskRunBucket)
 	if err != nil {
