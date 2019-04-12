@@ -1330,7 +1330,7 @@ export const gettingStartedWithFluxTemplate = () => ({
     "attributes": {
      "name": "Name this Cell",
      "properties": {
-      "note": "## Your First Flux Query\n\nThe Graph vizualization in the cell to the right contains all the data that Telegraf is sending to InfluxDB, using the most basic Flux query we can construct.\n\nEvery Flux query needs at least two things to be valid: first, we'll need a `from()` function to specify where we the data we are going to query is coming from:\n\n```flux\nfrom(bucket: v.buckets)\n```\nWait, what's `v.buckets`? That's a predefined variable that we provided so that you could name your bucket whatever you'd like. Learn more about them [here](https://v2.docs.influxdata.com/v2.0/visualize-data/variables/).\n\nThe second piece we need is to use Flux's \"pipe forward\" (`|>`) operator to forward the data into our next function, `range()`. This will put bounds on the time range of the data being queried.\n\nInfluxDB 2.0 provides built-in variables to make it easier to build dashboards. Here, we're using the `v.timeRange*` variables as parameters in our range function. The dashboard should be set to \"Past 5m\" by default, so this will limit our query to the last five minutes of data. The setting is in the upper-right hand corner; if it's been changed, you should change it back before continuing.\n```\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n```\n\nIf you roll over the graph, you can scroll through the pop-up legend to see all the various time series that Telegraf is collecting. There's a lot there! Too much, actually. This isn't generally a query you'd want to run in production. In fact, we're going to limit the number of results, just in case:\n\n```\n  |> limit(n: 5000)\n```\n\nFor more information, check out the documentation for the [from](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/inputs/from/), [range](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/filter/), and [limit](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/limit/) functions.",
+      "note": "## Your First Flux Query\n\nThe Graph vizualization in the cell to the right contains all the data that Telegraf is sending to InfluxDB, using the most basic Flux query we can construct.\n\nEvery Flux query needs at least two things to be valid: first, we'll need a `from()` function to specify where we the data we are going to query is coming from:\n\n```flux\nfrom(bucket: v.bucket)\n```\nWait, what's `v.bucket`? That's a predefined variable that we provided so that you could name your bucket whatever you'd like. Learn more about them [here](https://v2.docs.influxdata.com/v2.0/visualize-data/variables/).\n\nThe second piece we need is to use Flux's \"pipe forward\" (`|>`) operator to forward the data into our next function, `range()`. This will put bounds on the time range of the data being queried.\n\nInfluxDB 2.0 provides built-in variables to make it easier to build dashboards. Here, we're using the `v.timeRange*` variables as parameters in our range function. The dashboard should be set to \"Past 5m\" by default, so this will limit our query to the last five minutes of data. The setting is in the upper-right hand corner; if it's been changed, you should change it back before continuing.\n```\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n```\n\nIf you roll over the graph, you can scroll through the pop-up legend to see all the various time series that Telegraf is collecting. There's a lot there! Too much, actually. This isn't generally a query you'd want to run in production. In fact, we're going to limit the number of results, just in case:\n\n```\n  |> limit(n: 5000)\n```\n\nFor more information, check out the documentation for the [from](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/inputs/from/), [range](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/filter/), and [limit](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/limit/) functions.",
       "shape": "chronograf-v2",
       "type": "markdown"
      }
@@ -1411,7 +1411,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> limit(n: 5000)"
+        "text": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> limit(n: 5000)"
        }
       ],
       "shape": "chronograf-v2",
@@ -1426,7 +1426,7 @@ export const gettingStartedWithFluxTemplate = () => ({
     "attributes": {
      "name": "Name this Cell",
      "properties": {
-      "note": "# Windowing Data\n\nWindowing is a common function that can be used to compute aggregates of the data.\n\n```flux\nfrom(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n```\n\nAnd then we add:\n\n```flux\n  |> window(every: 15s)\n```\n\nThe data is returned to us as an individual time series for each window. If you edit the cell to the right, you can toggle the [\"Raw Data\" view](https://v2.docs.influxdata.com/v2.0/visualize-data/explore-metrics/#visualize-your-query).\n\nYou'll see each of the individual tables. These are each graphed in a different color. If you notice, there are gaps between the windows. This is because Flux only connects the points within the same time series, but all the data is still represented.\n\nFor more information, check out the documentation for the [window](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/window/) function.",
+      "note": "# Windowing Data\n\nWindowing is a common function that can be used to compute aggregates of the data.\n\n```flux\nfrom(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n```\n\nAnd then we add:\n\n```flux\n  |> window(every: 15s)\n```\n\nThe data is returned to us as an individual time series for each window. If you edit the cell to the right, you can toggle the [\"Raw Data\" view](https://v2.docs.influxdata.com/v2.0/visualize-data/explore-metrics/#visualize-your-query).\n\nYou'll see each of the individual tables. These are each graphed in a different color. If you notice, there are gaps between the windows. This is because Flux only connects the points within the same time series, but all the data is still represented.\n\nFor more information, check out the documentation for the [window](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/window/) function.",
       "shape": "chronograf-v2",
       "type": "markdown"
      }
@@ -1511,7 +1511,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  |> window(every: 30s)"
+        "text": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  |> window(every: 30s)"
        }
       ],
       "shape": "chronograf-v2",
@@ -1526,7 +1526,7 @@ export const gettingStartedWithFluxTemplate = () => ({
     "attributes": {
      "name": "Name this Cell",
      "properties": {
-      "note": "## Filtering Data\n\nThat first graph has a lot of data on it, which can make it hard to read. We can use the `filter()` function to continue to narrow down the number of series we return.\n\nWe'll use the same query as before:\n\n```flux\nfrom(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n```\nBut this time we'll continue to narrow down our results using additional `filter()` functions:\n\n```flux\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n```\n\nThe filter function takes a function as a paremeter. This function takes one parameter itself, `r`, which are the results of a query. It then looks for every row where the function returns true. The result, graphed on the right, is a single time series which represents the overall CPU usage across all cores by the user.\n\nFor more information, check out the documentation for the [filter](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/filter/) function.",
+      "note": "## Filtering Data\n\nThat first graph has a lot of data on it, which can make it hard to read. We can use the `filter()` function to continue to narrow down the number of series we return.\n\nWe'll use the same query as before:\n\n```flux\nfrom(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n```\nBut this time we'll continue to narrow down our results using additional `filter()` functions:\n\n```flux\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n```\n\nThe filter function takes a function as a paremeter. This function takes one parameter itself, `r`, which are the results of a query. It then looks for every row where the function returns true. The result, graphed on the right, is a single time series which represents the overall CPU usage across all cores by the user.\n\nFor more information, check out the documentation for the [filter](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/filter/) function.",
       "shape": "chronograf-v2",
       "type": "markdown"
      }
@@ -1611,7 +1611,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")"
+        "text": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")"
        }
       ],
       "shape": "chronograf-v2",
@@ -1626,7 +1626,7 @@ export const gettingStartedWithFluxTemplate = () => ({
     "attributes": {
      "name": "Name this Cell",
      "properties": {
-      "note": "# Aggregation\n\nOnce we've windowed the data, using those windows to calculate an aggregate is a common next step. We'll use the same `from()`, `range()`, and `filter()` functions as before:\n\n```flux\nfrom(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n```\n\nbut instead of using the `window()` function we'll use `aggregateWindow()`, a function written in Flux that will first window the data and then apply an aggregate:\n\n```flux\n  |> aggregateWindow(every: 15s, fn: mean)\n```\n\nChronograf lets us add additional queries in tabs in the cell editor, and we can use that functionality to graph the original data alongside the aggregated data. It's the same query, minus the `aggregateWindow` line.\n\nFor more information, check out the documentation for the [aggregateWindow](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/aggregatewindow/) function.",
+      "note": "# Aggregation\n\nOnce we've windowed the data, using those windows to calculate an aggregate is a common next step. We'll use the same `from()`, `range()`, and `filter()` functions as before:\n\n```flux\nfrom(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n```\n\nbut instead of using the `window()` function we'll use `aggregateWindow()`, a function written in Flux that will first window the data and then apply an aggregate:\n\n```flux\n  |> aggregateWindow(every: 15s, fn: mean)\n```\n\nChronograf lets us add additional queries in tabs in the cell editor, and we can use that functionality to graph the original data alongside the aggregated data. It's the same query, minus the `aggregateWindow` line.\n\nFor more information, check out the documentation for the [aggregateWindow](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/aggregatewindow/) function.",
       "shape": "chronograf-v2",
       "type": "markdown"
      }
@@ -1711,7 +1711,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  |> aggregateWindow(every: 30s, fn: mean)"
+        "text": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  |> aggregateWindow(every: 30s, fn: mean)"
        },
        {
         "builderConfig": {
@@ -1817,7 +1817,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "usage_user_series = from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  \nusage_system_series = from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_system\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  \njoin(tables: {key1: usage_user_series, key2: usage_system_series}, \n     on: [\"_time\", \"_measurement\", \"_start\", \"_stop\", \"cpu\", \"host\"], \n     method: \"inner\")\n  |> map(fn: (r) => ({\n    _time: r._time,\n    _value: r._value_key1 + r._value_key2,\n    _field: r._field_key1 + \"+\" + r._field_key2\n  }))\n  |> group(columns: [\"_start\", \"_stop\", \"_measurement\", \"_field\", \"cpu\", \"host\"])\n  |> drop(columns: [\"_field_key1\", \"_field_key2\"])"
+        "text": "usage_user_series = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  \nusage_system_series = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_system\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  \njoin(tables: {key1: usage_user_series, key2: usage_system_series}, \n     on: [\"_time\", \"_measurement\", \"_start\", \"_stop\", \"cpu\", \"host\"], \n     method: \"inner\")\n  |> map(fn: (r) => ({\n    _time: r._time,\n    _value: r._value_key1 + r._value_key2,\n    _field: r._field_key1 + \"+\" + r._field_key2\n  }))\n  |> group(columns: [\"_start\", \"_stop\", \"_measurement\", \"_field\", \"cpu\", \"host\"])\n  |> drop(columns: [\"_field_key1\", \"_field_key2\"])"
        },
        {
         "builderConfig": {
@@ -1834,7 +1834,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_system\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")"
+        "text": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_system\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")"
        },
        {
         "builderConfig": {
@@ -1851,7 +1851,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")"
+        "text": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")"
        }
       ],
       "shape": "chronograf-v2",
@@ -1866,7 +1866,7 @@ export const gettingStartedWithFluxTemplate = () => ({
     "attributes": {
      "name": "Name this Cell",
      "properties": {
-      "note": "# Multiple aggregates using Flux variables\n\nOne thing to be aware of with aggregations is the way it changes the shape of our data. We'll use another feature of Flux, variables, to calculate several aggregates based on stored data. First, we'll create a variable to store the same data we've been working with so far:\n\n```flux\ncpu_usage_user = from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n```\n\nNow that the result has been stored in a variable, we can invoke it and pipe-forward the data first to an aggregateWindow function, and then to the yield function, which will let us specify what the resulting time series will be named:\n\n```flux\ncpu_usage_user \n  |> aggregateWindow(every: 15s, fn: mean)\n  |> yield(name: \"mean_result\")\n```\n\nAnd we can have a second function that applies a different aggregate:\n\n```  \ncpu_usage_user \n  |> aggregateWindow(every: 15s, fn: count)\n  |> yield(name: \"count_result\")\n```\n\nFor more information, check out the documentation for the [yield](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/outputs/yield/) function.",
+      "note": "# Multiple aggregates using Flux variables\n\nOne thing to be aware of with aggregations is the way it changes the shape of our data. We'll use another feature of Flux, variables, to calculate several aggregates based on stored data. First, we'll create a variable to store the same data we've been working with so far:\n\n```flux\ncpu_usage_user = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n```\n\nNow that the result has been stored in a variable, we can invoke it and pipe-forward the data first to an aggregateWindow function, and then to the yield function, which will let us specify what the resulting time series will be named:\n\n```flux\ncpu_usage_user \n  |> aggregateWindow(every: 15s, fn: mean)\n  |> yield(name: \"mean_result\")\n```\n\nAnd we can have a second function that applies a different aggregate:\n\n```  \ncpu_usage_user \n  |> aggregateWindow(every: 15s, fn: count)\n  |> yield(name: \"count_result\")\n```\n\nFor more information, check out the documentation for the [yield](https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/outputs/yield/) function.",
       "shape": "chronograf-v2",
       "type": "markdown"
      }
@@ -1951,7 +1951,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "cpu_usage_user = from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  \ncpu_usage_user\n  |> aggregateWindow(every: 30s, fn: mean)\n  |> yield(name: \"mean_result\")\n  \ncpu_usage_user\n  |> aggregateWindow(every: 30s, fn: count)\n  |> yield(name: \"count_result\")"
+        "text": "cpu_usage_user = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")\n  \ncpu_usage_user\n  |> aggregateWindow(every: 30s, fn: mean)\n  |> yield(name: \"mean_result\")\n  \ncpu_usage_user\n  |> aggregateWindow(every: 30s, fn: count)\n  |> yield(name: \"count_result\")"
        },
        {
         "builderConfig": {
@@ -1968,7 +1968,7 @@ export const gettingStartedWithFluxTemplate = () => ({
         },
         "editMode": "advanced",
         "name": "",
-        "text": "from(bucket: v.buckets)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")"
+        "text": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"cpu\")\n  |> filter(fn: (r) => r._field == \"usage_user\")\n  |> filter(fn: (r) => r.cpu == \"cpu-total\")"
        }
       ],
       "shape": "chronograf-v2",
