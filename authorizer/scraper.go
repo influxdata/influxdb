@@ -12,11 +12,15 @@ var _ influxdb.ScraperTargetStoreService = (*ScraperTargetStoreService)(nil)
 // against it appropriately.
 type ScraperTargetStoreService struct {
 	influxdb.UserResourceMappingService
+	influxdb.OrganizationService
 	s influxdb.ScraperTargetStoreService
 }
 
 // NewScraperTargetStoreService constructs an instance of an authorizing scraper target store serivce.
-func NewScraperTargetStoreService(s influxdb.ScraperTargetStoreService, urm influxdb.UserResourceMappingService) *ScraperTargetStoreService {
+func NewScraperTargetStoreService(s influxdb.ScraperTargetStoreService,
+	urm influxdb.UserResourceMappingService,
+	org influxdb.OrganizationService,
+) *ScraperTargetStoreService {
 	return &ScraperTargetStoreService{
 		UserResourceMappingService: urm,
 		s:                          s,
@@ -68,10 +72,10 @@ func (s *ScraperTargetStoreService) GetTargetByID(ctx context.Context, id influx
 }
 
 // ListTargets retrieves all scraper targets that match the provided filter and then filters the list down to only the resources that are authorized.
-func (s *ScraperTargetStoreService) ListTargets(ctx context.Context) ([]influxdb.ScraperTarget, error) {
+func (s *ScraperTargetStoreService) ListTargets(ctx context.Context, filter influxdb.ScraperTargetFilter) ([]influxdb.ScraperTarget, error) {
 	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
 	// will likely be expensive.
-	ss, err := s.s.ListTargets(ctx)
+	ss, err := s.s.ListTargets(ctx, filter)
 	if err != nil {
 		return nil, err
 	}

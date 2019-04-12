@@ -104,7 +104,7 @@ func TestScraperTargetStoreService_GetTargetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(), mock.NewOrganizationService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
@@ -137,7 +137,7 @@ func TestScraperTargetStoreService_ListTargets(t *testing.T) {
 			name: "authorized to see all scrapers",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					ListTargetsF: func(ctx context.Context) ([]influxdb.ScraperTarget, error) {
+					ListTargetsF: func(ctx context.Context, filter influxdb.ScraperTargetFilter) ([]influxdb.ScraperTarget, error) {
 						return []influxdb.ScraperTarget{
 							{
 								ID:    1,
@@ -184,7 +184,7 @@ func TestScraperTargetStoreService_ListTargets(t *testing.T) {
 			name: "authorized to access a single orgs scrapers",
 			fields: fields{
 				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
-					ListTargetsF: func(ctx context.Context) ([]influxdb.ScraperTarget, error) {
+					ListTargetsF: func(ctx context.Context, filter influxdb.ScraperTargetFilter) ([]influxdb.ScraperTarget, error) {
 						return []influxdb.ScraperTarget{
 							{
 								ID:    1,
@@ -228,12 +228,13 @@ func TestScraperTargetStoreService_ListTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(),
+				mock.NewOrganizationService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			ts, err := s.ListTargets(ctx)
+			ts, err := s.ListTargets(ctx, influxdb.ScraperTargetFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(ts, tt.wants.scrapers, scraperCmpOptions...); diff != "" {
@@ -343,7 +344,8 @@ func TestScraperTargetStoreService_UpdateTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(),
+				mock.NewOrganizationService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
@@ -448,7 +450,8 @@ func TestScraperTargetStoreService_RemoveTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(),
+				mock.NewOrganizationService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
@@ -530,7 +533,8 @@ func TestScraperTargetStoreService_AddTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService())
+			s := authorizer.NewScraperTargetStoreService(tt.fields.ScraperTargetStoreService, mock.NewUserResourceMappingService(),
+				mock.NewOrganizationService())
 
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})

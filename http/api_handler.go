@@ -132,7 +132,9 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	h.AuthorizationHandler = NewAuthorizationHandler(authorizationBackend)
 
 	scraperBackend := NewScraperBackend(b)
-	scraperBackend.ScraperStorageService = authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService, b.UserResourceMappingService)
+	scraperBackend.ScraperStorageService = authorizer.NewScraperTargetStoreService(b.ScraperTargetStoreService,
+		b.UserResourceMappingService,
+		b.OrganizationService)
 	h.ScraperHandler = NewScraperHandler(scraperBackend)
 
 	sourceBackend := NewSourceBackend(b)
