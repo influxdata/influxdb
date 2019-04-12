@@ -36,7 +36,7 @@ class TemplatesIndex extends Component<Props> {
                 <SettingsNavigation tab="templates" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
-                    id="org-view-tab--templates"
+                    id="settings-tab--templates"
                     url="templates"
                     title="Templates"
                   >

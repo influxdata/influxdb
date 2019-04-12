@@ -35,7 +35,7 @@ class VariablesIndex extends Component<StateProps> {
                 <SettingsNavigation tab="variables" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
-                    id="org-view-tab--variables"
+                    id="settings-tab--variables"
                     url="variables"
                     title="Variables"
                   >

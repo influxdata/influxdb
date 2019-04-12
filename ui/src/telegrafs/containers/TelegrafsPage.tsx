@@ -35,7 +35,7 @@ class TelegrafsPage extends PureComponent<StateProps> {
                 <SettingsNavigation tab="telegrafs" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
-                    id="org-view-tab--telegrafs"
+                    id="settings-tab--telegrafs"
                     url="telegrafs"
                     title="Telegraf"
                   >

@@ -37,7 +37,7 @@ class ScrapersIndex extends Component<StateProps> {
                 <SettingsNavigation tab="scrapers" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
-                    id="org-view-tab--scrapers"
+                    id="settings-tab--scrapers"
                     url="scrapers"
                     title="Scrapers"
                   >

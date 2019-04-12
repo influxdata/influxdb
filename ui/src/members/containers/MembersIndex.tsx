@@ -48,7 +48,7 @@ class MembersIndex extends Component<Props> {
               <SettingsNavigation tab="members" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
-                  id="org-view-tab--members"
+                  id="settings-tab--members"
                   url="members"
                   title="Members"
                 >

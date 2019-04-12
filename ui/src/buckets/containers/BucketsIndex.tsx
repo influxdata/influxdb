@@ -35,7 +35,7 @@ class BucketsIndex extends Component<StateProps> {
                 <SettingsNavigation tab="buckets" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
-                    id="org-view-tab--buckets"
+                    id="settings-tab--buckets"
                     url="buckets"
                     title="Buckets"
                   >

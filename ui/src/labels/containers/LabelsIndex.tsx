@@ -34,7 +34,7 @@ class LabelsIndex extends PureComponent<StateProps> {
               <SettingsNavigation tab="labels" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
-                  id="org-view-tab--labels"
+                  id="settings-tab--labels"
                   url="labels"
                   title="Labels"
                 >
