@@ -144,14 +144,14 @@ func VerifyPermissions(ctx context.Context, ps []influxdb.Permission) error {
 }
 
 // UpdateAuthorization checks to see if the authorizer on context has write access to the authorization provided.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) error {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 	a, err := s.s.FindAuthorizationByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := authorizeWriteAuthorization(ctx, a.UserID); err != nil {
-		return err
+		return nil, err
 	}
 
 	return s.s.UpdateAuthorization(ctx, id, upd)

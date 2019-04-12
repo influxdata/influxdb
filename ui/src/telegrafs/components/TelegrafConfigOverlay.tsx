@@ -1,102 +1,117 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
+import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TelegrafConfig from 'src/telegrafs/components/TelegrafConfig'
-import {ComponentColor, Button} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
+import {
+  ComponentColor,
+  Button,
+  RemoteDataState,
+  SpinnerContainer,
+  TechnoSpinner,
+} from '@influxdata/clockface'
+import {Overlay, ComponentStatus} from 'src/clockface'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
 
-// Constants
-import {getTelegrafConfigFailed} from 'src/shared/copy/v2/notifications'
-
-// APIs
-import {client} from 'src/utils/api'
-
-// Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
 // Types
 import {AppState} from 'src/types'
-
-interface OwnProps {
-  visible: boolean
-  onDismiss: () => void
-}
+import {ITelegraf as Telegraf} from '@influxdata/influx'
 
 interface StateProps {
-  telegrafConfigName: string
-  telegrafConfigID
+  telegraf: Telegraf
+  status: RemoteDataState
+  telegrafConfig: string
+  configStatus: RemoteDataState
 }
 
-interface DispatchProps {
-  notify: typeof notifyAction
-}
-
-type Props = OwnProps & StateProps & DispatchProps
+type Props = StateProps & WithRouterProps
 
 @ErrorHandling
-export class TelegrafConfigOverlay extends PureComponent<Props> {
+class TelegrafConfigOverlay extends PureComponent<Props> {
   public render() {
-    const {visible, onDismiss, telegrafConfigName} = this.props
+    return <>{this.overlay}</>
+  }
+
+  private get overlay(): JSX.Element {
+    const {telegraf, status} = this.props
 
     return (
-      <Overlay visible={visible}>
+      <Overlay visible={true}>
         <Overlay.Container maxWidth={1200}>
           <Overlay.Heading
-            title={`Telegraf Configuration - ${telegrafConfigName}`}
-            onDismiss={onDismiss}
+            title={`Telegraf Configuration - ${_.get(telegraf, 'name', '')}`}
+            onDismiss={this.handleDismiss}
           />
-
           <Overlay.Body>
-            <div className="config-overlay">
-              <TelegrafConfig />
-            </div>
+            <SpinnerContainer
+              loading={status}
+              spinnerComponent={<TechnoSpinner />}
+            >
+              <div className="config-overlay">
+                <TelegrafConfig />
+              </div>
+            </SpinnerContainer>
           </Overlay.Body>
           <Overlay.Footer>
             <Button
               color={ComponentColor.Secondary}
               text="Download Config"
               onClick={this.handleDownloadConfig}
+              status={this.buttonStatus}
             />
           </Overlay.Footer>
         </Overlay.Container>
       </Overlay>
     )
   }
+  private get buttonStatus(): ComponentStatus {
+    const {configStatus} = this.props
+    if (configStatus === RemoteDataState.Done) {
+      return ComponentStatus.Default
+    }
+    return ComponentStatus.Disabled
+  }
+
+  private handleDismiss = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/telegrafs`)
+  }
 
   private handleDownloadConfig = async () => {
-    try {
-      const config = await client.telegrafConfigs.getTOML(
-        this.props.telegrafConfigID
-      )
-      downloadTextFile(
-        config,
-        `${this.props.telegrafConfigName || 'config'}.toml`
-      )
-    } catch (error) {
-      this.props.notify(getTelegrafConfigFailed())
-    }
+    const {
+      telegrafConfig,
+      telegraf: {name},
+    } = this.props
+    downloadTextFile(telegrafConfig, `${name || 'config'}.toml`)
   }
 }
 
-const mstp = ({
-  dataLoading: {
-    dataLoaders: {telegrafConfigName, telegrafConfigID},
-  },
-}: AppState): StateProps => {
-  return {telegrafConfigName, telegrafConfigID}
+const mstp = ({telegrafs}: AppState, props: Props): StateProps => {
+  const {
+    params: {id},
+  } = props
+
+  return {
+    telegraf: telegrafs.list.find(t => {
+      return t.id === id
+    }),
+    status: telegrafs.status,
+    telegrafConfig: telegrafs.currentConfig.item,
+    configStatus: telegrafs.currentConfig.status,
+  }
 }
 
-const mdtp: DispatchProps = {
-  notify: notifyAction,
-}
-
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, {}, {}>(
   mstp,
-  mdtp
-)(TelegrafConfigOverlay)
+  null
+)(withRouter<Props>(TelegrafConfigOverlay))

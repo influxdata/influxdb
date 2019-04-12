@@ -13,7 +13,7 @@ func (s *Service) loadLabel(ctx context.Context, id influxdb.ID) (*influxdb.Labe
 	if !ok {
 		return nil, &influxdb.Error{
 			Code: influxdb.ENotFound,
-			Err:  influxdb.ErrLabelNotFound,
+			Msg:  influxdb.ErrLabelNotFound,
 		}
 	}
 
@@ -160,7 +160,7 @@ func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.
 		return nil, &influxdb.Error{
 			Code: influxdb.ENotFound,
 			Op:   OpPrefix + influxdb.OpUpdateLabel,
-			Err:  influxdb.ErrLabelNotFound,
+			Msg:  influxdb.ErrLabelNotFound,
 		}
 	}
 
@@ -207,7 +207,7 @@ func (s *Service) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 		return &influxdb.Error{
 			Code: influxdb.ENotFound,
 			Op:   OpPrefix + influxdb.OpDeleteLabel,
-			Err:  influxdb.ErrLabelNotFound,
+			Msg:  influxdb.ErrLabelNotFound,
 		}
 	}
 

@@ -412,27 +412,21 @@ func (s *Service) deleteAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 	return nil
 }
 
-// SetAuthorizationStatus updates the status of the authorization. Useful
-// for setting an authorization to inactive or active.
-func (s *Service) SetAuthorizationStatus(ctx context.Context, id influxdb.ID, status influxdb.Status) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.updateAuthorization(ctx, tx, id, &influxdb.AuthorizationUpdate{
-			Status: &status,
-		})
-	})
-}
-
 // UpdateAuthorization updates the status and description if available.
-func (s *Service) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.updateAuthorization(ctx, tx, id, upd)
+func (s *Service) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+	var a *influxdb.Authorization
+	var err error
+	err = s.kv.Update(ctx, func(tx Tx) error {
+		a, err = s.updateAuthorization(ctx, tx, id, upd)
+		return err
 	})
+	return a, err
 }
 
-func (s *Service) updateAuthorization(ctx context.Context, tx Tx, id influxdb.ID, upd *influxdb.AuthorizationUpdate) error {
+func (s *Service) updateAuthorization(ctx context.Context, tx Tx, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 	a, err := s.findAuthorizationByID(ctx, tx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if upd.Status != nil {
@@ -444,29 +438,29 @@ func (s *Service) updateAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 
 	v, err := encodeAuthorization(a)
 	if err != nil {
-		return &influxdb.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return &influxdb.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
 
 	b, err := tx.Bucket(authBucket)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err = b.Put(encodedID, v); err != nil {
-		return &influxdb.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
-	return nil
+	return a, nil
 }
 
 func authIndexBucket(tx Tx) (Bucket, error) {
