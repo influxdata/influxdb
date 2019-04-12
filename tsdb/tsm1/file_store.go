@@ -303,42 +303,67 @@ type fileTracker struct {
 	metrics   *fileMetrics
 	labels    prometheus.Labels
 	diskBytes uint64
-	fileCount uint64
+	levels    uint64
 }
 
 func newFileTracker(metrics *fileMetrics, defaultLabels prometheus.Labels) *fileTracker {
 	return &fileTracker{metrics: metrics, labels: defaultLabels}
 }
 
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
 func (t *fileTracker) Labels() prometheus.Labels {
-	return t.labels
+	labels := make(prometheus.Labels, len(t.labels))
+	for k, v := range t.labels {
+		labels[k] = v
+	}
+	return labels
 }
 
 // Bytes returns the number of bytes in use on disk.
 func (t *fileTracker) Bytes() uint64 { return atomic.LoadUint64(&t.diskBytes) }
 
 // SetBytes sets the number of bytes in use on disk.
-func (t *fileTracker) SetBytes(bytes uint64) {
-	atomic.StoreUint64(&t.diskBytes, bytes)
-
+func (t *fileTracker) SetBytes(bytes map[int]uint64) {
+	total := uint64(0)
 	labels := t.Labels()
-	t.metrics.DiskSize.With(labels).Set(float64(bytes))
+	for k, v := range bytes {
+		labels["level"] = fmt.Sprintf("%d", k)
+		t.metrics.DiskSize.With(labels).Set(float64(v))
+	}
+	atomic.StoreUint64(&t.diskBytes, total)
 }
 
 // AddBytes increases the number of bytes.
-func (t *fileTracker) AddBytes(bytes uint64) {
+func (t *fileTracker) AddBytes(bytes uint64, level int) {
 	atomic.AddUint64(&t.diskBytes, bytes)
 
 	labels := t.Labels()
+	labels["level"] = fmt.Sprintf("%d", level)
 	t.metrics.DiskSize.With(labels).Add(float64(bytes))
 }
 
 // SetFileCount sets the number of files in the FileStore.
-func (t *fileTracker) SetFileCount(files uint64) {
-	atomic.StoreUint64(&t.fileCount, files)
-
+func (t *fileTracker) SetFileCount(files map[int]uint64) {
 	labels := t.Labels()
-	t.metrics.Files.With(labels).Set(float64(files))
+	level := uint64(0)
+	for k, v := range files {
+		labels["level"] = fmt.Sprintf("%d", k)
+		if uint64(k) > level {
+			level = uint64(k)
+		}
+		t.metrics.Files.With(labels).Set(float64(v))
+	}
+	atomic.StoreUint64(&t.levels, level)
+}
+
+func (t *fileTracker) ClearFileCounts() {
+	labels := t.Labels()
+	for i := uint64(0); i <= atomic.LoadUint64(&t.levels); i++ {
+		labels["level"] = fmt.Sprintf("%d", i)
+		t.metrics.Files.With(labels).Set(float64(0))
+	}
+	atomic.StoreUint64(&t.levels, uint64(0))
 }
 
 // Count returns the number of TSM files currently loaded.
@@ -623,6 +648,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 	}
 
 	var lm int64
+	counts := make(map[int]uint64, 5)
 	for range files {
 		res := <-readerC
 		if res.err != nil {
@@ -631,13 +657,19 @@ func (f *FileStore) Open(ctx context.Context) error {
 			continue
 		}
 		f.files = append(f.files, res.r)
+		name := filepath.Base(res.r.Stats().Path)
+		_, seq, err := f.parseFileName(name)
+		if err != nil {
+			return err
+		}
+		counts[seq]++
 
 		// Accumulate file store size stats
 		totalSize := uint64(res.r.Size())
 		for _, ts := range res.r.TombstoneFiles() {
 			totalSize += uint64(ts.Size)
 		}
-		f.tracker.AddBytes(totalSize)
+		f.tracker.AddBytes(totalSize, seq)
 
 		// Re-initialize the lastModified time for the file store
 		if res.r.LastModified() > lm {
@@ -649,7 +681,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 	close(readerC)
 
 	sort.Sort(tsmReaders(f.files))
-	f.tracker.SetFileCount(uint64(len(f.files)))
+	f.tracker.SetFileCount(counts)
 	return nil
 }
 
@@ -662,7 +694,7 @@ func (f *FileStore) Close() error {
 
 	f.lastFileStats = nil
 	f.files = nil
-	f.tracker.SetFileCount(uint64(0))
+	f.tracker.ClearFileCounts()
 
 	// Let other methods access this closed object while we do the actual closing.
 	f.mu.Unlock()
@@ -948,18 +980,22 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	f.lastFileStats = nil
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
-	f.tracker.SetFileCount(uint64(len(f.files)))
+	f.tracker.ClearFileCounts()
 
 	// Recalculate the disk size stat
-	var totalSize uint64
+	sizes := make(map[int]uint64, 5)
 	for _, file := range f.files {
-		totalSize += uint64(file.Size())
+		size := uint64(file.Size())
 		for _, ts := range file.TombstoneFiles() {
-			totalSize += uint64(ts.Size)
+			size += uint64(ts.Size)
 		}
-
+		_, seq, err := f.parseFileName(file.Path())
+		if err != nil {
+			return err
+		}
+		sizes[seq] += size
 	}
-	f.tracker.SetBytes(totalSize)
+	f.tracker.SetBytes(sizes)
 
 	return nil
 }
