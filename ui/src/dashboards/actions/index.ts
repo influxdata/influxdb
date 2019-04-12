@@ -233,9 +233,8 @@ export const getDashboardsAsync = () => async (
 }
 
 export const createDashboardFromTemplate = (
-  template: DashboardTemplate,
-  getState: GetState
-) => async dispatch => {
+  template: DashboardTemplate
+) => async (dispatch, getState: GetState) => {
   try {
     const {
       orgs: {org},
