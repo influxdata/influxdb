@@ -234,12 +234,16 @@ export const getDashboardsAsync = () => async (
 
 export const createDashboardFromTemplate = (
   template: DashboardTemplate,
-  orgID: string
+  getState: GetState
 ) => async dispatch => {
   try {
-    await createDashboardFromTemplateAJAX(template, orgID)
+    const {
+      orgs: {org},
+    } = getState()
 
-    const dashboards = await getDashboardsAJAX(orgID)
+    await createDashboardFromTemplateAJAX(template, org.id)
+
+    const dashboards = await getDashboardsAJAX(org.id)
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
     dispatch(notify(importDashboardSucceeded()))
