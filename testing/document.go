@@ -130,6 +130,10 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 		*dl1 = *d1
 		dl1.Labels = append([]*influxdb.Label{}, l1)
 
+		dl2 := new(influxdb.Document)
+		*dl2 = *d2
+		dl2.Labels = append([]*influxdb.Label{}, d2.Labels...)
+
 		t.Run("bare call to find returns all documents", func(t *testing.T) {
 			ds, err := ss.FindDocuments(ctx)
 			if err != nil {
@@ -166,7 +170,7 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 				t.Fatalf("failed to retrieve documents: %v", err)
 			}
 
-			if exp, got := []*influxdb.Document{dl1, d2}, ds; !docsEqual(exp, got) {
+			if exp, got := []*influxdb.Document{dl1, dl2}, ds; !docsEqual(exp, got) {
 				t.Errorf("documents are different -got/+want\ndiff %s", docsDiff(exp, got))
 			}
 		})
