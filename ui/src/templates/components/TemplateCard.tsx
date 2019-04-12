@@ -178,11 +178,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleCreateLabel = async (label: ILabel): Promise<void> => {
-    try {
-      await this.props.onCreateLabel(label.name, label.properties)
-    } catch (err) {
-      throw err
-    }
+    await this.props.onCreateLabel(label.name, label.properties)
   }
 }
 
