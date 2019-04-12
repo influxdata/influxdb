@@ -108,7 +108,8 @@ func (t *TSMReader) applyTombstones() error {
 	if err := t.tombstoner.Walk(func(ts Tombstone) error {
 		// TODO(jeff): maybe we need to do batches of prefixes
 		if ts.Prefix {
-			t.index.DeletePrefix(ts.Key, ts.Min, ts.Max, nil)
+			// TODO(jeff): pass the predicate
+			t.index.DeletePrefix(ts.Key, ts.Min, ts.Max, nil, nil)
 			return nil
 		}
 
@@ -298,6 +299,20 @@ func (t *TSMReader) MaybeContainsValue(key []byte, ts int64) bool {
 	return t.index.MaybeContainsValue(key, ts)
 }
 
+// Delete deletes blocks indicated by keys.
+func (t *TSMReader) Delete(keys [][]byte) error {
+	if !t.index.Delete(keys) {
+		return nil
+	}
+	if err := t.tombstoner.Add(keys); err != nil {
+		return err
+	}
+	if err := t.tombstoner.Flush(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // DeleteRange removes the given points for keys between minTime and maxTime. The series
 // keys passed in must be sorted.
 func (t *TSMReader) DeleteRange(keys [][]byte, minTime, maxTime int64) error {
@@ -315,25 +330,15 @@ func (t *TSMReader) DeleteRange(keys [][]byte, minTime, maxTime int64) error {
 
 // DeletePrefix removes the given points for keys beginning with prefix. It calls dead with
 // any keys that became dead as a result of this call.
-func (t *TSMReader) DeletePrefix(prefix []byte, minTime, maxTime int64, dead func([]byte)) error {
-	if !t.index.DeletePrefix(prefix, minTime, maxTime, dead) {
-		return nil
-	}
-	if err := t.tombstoner.AddPrefixRange(prefix, minTime, maxTime); err != nil {
-		return err
-	}
-	if err := t.tombstoner.Flush(); err != nil {
-		return err
-	}
-	return nil
-}
+func (t *TSMReader) DeletePrefix(prefix []byte, minTime, maxTime int64,
+	pred Predicate, dead func([]byte)) error {
 
-// Delete deletes blocks indicated by keys.
-func (t *TSMReader) Delete(keys [][]byte) error {
-	if !t.index.Delete(keys) {
+	if !t.index.DeletePrefix(prefix, minTime, maxTime, pred, dead) {
 		return nil
 	}
-	if err := t.tombstoner.Add(keys); err != nil {
+
+	// TODO(jeff): pass predicate into the tombstoner
+	if err := t.tombstoner.AddPrefixRange(prefix, minTime, maxTime); err != nil {
 		return err
 	}
 	if err := t.tombstoner.Flush(); err != nil {

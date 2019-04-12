@@ -1,9 +1,12 @@
 package tsm1
 
 import (
+	"bytes"
 	"fmt"
 	"math"
+	"math/rand"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"testing"
 )
@@ -154,6 +157,8 @@ func TestIndirectIndex_DeleteRange(t *testing.T) {
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 16), false)
 }
 
+// TODO(jeff): predicate tests
+
 func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	check := func(t *testing.T, got, exp bool) {
 		t.Helper()
@@ -170,7 +175,7 @@ func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	index.Add([]byte("mem"), BlockInteger, 0, 10, 10, 20)
 	ind := loadIndex(t, index)
 
-	ind.DeletePrefix([]byte("c"), 5, 15, nil)
+	ind.DeletePrefix([]byte("c"), 5, 15, nil, nil)
 
 	check(t, ind.Contains([]byte("mem")), true)
 	check(t, ind.Contains([]byte("cpu1")), true)
@@ -186,7 +191,7 @@ func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 15), false)
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 16), true)
 
-	ind.DeletePrefix([]byte("cp"), 0, 5, nil)
+	ind.DeletePrefix([]byte("cp"), 0, 5, nil, nil)
 
 	check(t, ind.Contains([]byte("mem")), true)
 	check(t, ind.Contains([]byte("cpu1")), true)
@@ -202,7 +207,7 @@ func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 15), false)
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 16), true)
 
-	ind.DeletePrefix([]byte("cpu"), 15, 20, nil)
+	ind.DeletePrefix([]byte("cpu"), 15, 20, nil, nil)
 
 	check(t, ind.Contains([]byte("mem")), true)
 	check(t, ind.Contains([]byte("cpu1")), false)
@@ -231,8 +236,8 @@ func TestIndirectIndex_DeletePrefix_NoMatch(t *testing.T) {
 	index.Add([]byte("cpu"), BlockInteger, 0, 10, 10, 20)
 	ind := loadIndex(t, index)
 
-	ind.DeletePrefix([]byte("b"), 5, 5, nil)
-	ind.DeletePrefix([]byte("d"), 5, 5, nil)
+	ind.DeletePrefix([]byte("b"), 5, 5, nil, nil)
+	ind.DeletePrefix([]byte("d"), 5, 5, nil, nil)
 
 	check(t, ind.Contains([]byte("cpu")), true)
 	check(t, ind.MaybeContainsValue([]byte("cpu"), 5), true)
@@ -261,17 +266,69 @@ func TestIndirectIndex_DeletePrefix_Dead(t *testing.T) {
 	index.Add([]byte("dpu"), BlockInteger, 0, 10, 10, 20)
 	ind := loadIndex(t, index)
 
-	ind.DeletePrefix([]byte("b"), 5, 5, dead)
+	ind.DeletePrefix([]byte("b"), 5, 5, nil, dead)
 	check(t, keys, b())
 
-	ind.DeletePrefix([]byte("c"), 0, 9, dead)
+	ind.DeletePrefix([]byte("c"), 0, 9, nil, dead)
 	check(t, keys, b())
 
-	ind.DeletePrefix([]byte("c"), 9, 10, dead)
+	ind.DeletePrefix([]byte("c"), 9, 10, nil, dead)
 	check(t, keys, b("cpu"))
 
-	ind.DeletePrefix([]byte("d"), -50, 50, dead)
+	ind.DeletePrefix([]byte("d"), -50, 50, nil, dead)
 	check(t, keys, b("cpu", "dpu"))
+}
+
+func TestIndirectIndex_DeletePrefix_Dead_Fuzz(t *testing.T) {
+	key := bytes.Repeat([]byte("X"), 32)
+	check := func(t *testing.T, got, exp interface{}) {
+		t.Helper()
+		if !reflect.DeepEqual(exp, got) {
+			t.Fatalf("expected: %v but got: %v", exp, got)
+		}
+	}
+
+	for i := 0; i < 5000; i++ {
+		// Create an index with the key in it
+		writer := NewIndexWriter()
+		writer.Add(key, BlockInteger, 0, 10, 10, 20)
+		ind := loadIndex(t, writer)
+
+		// Keep track if dead is ever called.
+		happened := uint64(0)
+		dead := func([]byte) { atomic.AddUint64(&happened, 1) }
+
+		// Build up a random set of operations to delete the key.
+		ops := make([]func(), 9)
+		for j := range ops {
+			n := int64(j)
+			if rand.Intn(2) == 0 {
+				kn := key[:rand.Intn(len(key))]
+				ops[j] = func() { ind.DeletePrefix(kn, n, n+1, nil, dead) }
+			} else {
+				ops[j] = func() { ind.DeleteRange([][]byte{key}, n, n+1) }
+			}
+		}
+
+		// Since we will run the ops concurrently, this shuffle is unnecessary
+		// but it might provide more coverage of random orderings than the
+		// scheduler randomness alone.
+		rand.Shuffle(len(ops), func(i, j int) { ops[i], ops[j] = ops[j], ops[i] })
+
+		// Run the operations concurrently. The key should never be dead.
+		var wg sync.WaitGroup
+		for _, op := range ops {
+			op := op
+			wg.Add(1)
+			go func() { op(); wg.Done() }()
+		}
+		wg.Wait()
+		check(t, happened, uint64(0))
+
+		// Run the last delete operation. It should kill the key.
+		ind.DeletePrefix(key, 9, 10, nil, dead)
+		check(t, happened, uint64(1))
+	}
 }
 
 //
@@ -549,7 +606,7 @@ func BenchmarkIndirectIndex_DeletePrefixFull(b *testing.B) {
 			indirect, _ = getIndex(b, name)
 			b.StartTimer()
 
-			indirect.DeletePrefix(prefix, 10, 50, nil)
+			indirect.DeletePrefix(prefix, 10, 50, nil, nil)
 		}
 
 		if faultBufferEnabled {
@@ -574,7 +631,7 @@ func BenchmarkIndirectIndex_DeletePrefixFull_Covered(b *testing.B) {
 			indirect, _ = getIndex(b, name)
 			b.StartTimer()
 
-			indirect.DeletePrefix(prefix, 0, math.MaxInt64, nil)
+			indirect.DeletePrefix(prefix, 0, math.MaxInt64, nil, nil)
 		}
 
 		if faultBufferEnabled {
