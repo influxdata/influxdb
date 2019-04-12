@@ -4,9 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'

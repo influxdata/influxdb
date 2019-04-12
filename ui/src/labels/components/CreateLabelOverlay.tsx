@@ -10,7 +10,7 @@ import {Overlay, ComponentStatus} from 'src/clockface'
 import {ILabel} from '@influxdata/influx'
 
 // Constants
-import {EMPTY_LABEL} from 'src/configuration/constants/LabelColors'
+import {EMPTY_LABEL} from 'src/labels/constants'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

@@ -10,8 +10,8 @@ import {Tabs} from 'src/clockface'
 import CollectorList from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import FilterList from 'src/shared/components/Filter'
-import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
-import GetLabels from 'src/configuration/components/GetLabels'
+import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
+import GetLabels from 'src/labels/components/GetLabels'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'

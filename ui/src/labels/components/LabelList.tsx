@@ -3,11 +3,11 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {IndexList, Overlay} from 'src/clockface'
-import UpdateLabelOverlay from 'src/configuration/components/UpdateLabelOverlay'
+import UpdateLabelOverlay from 'src/labels/components/UpdateLabelOverlay'
 import LabelRow from 'src/labels/components/LabelRow'
 
 // Utils
-import {validateLabelUniqueness} from 'src/configuration/utils/labels'
+import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
 import {ILabel} from '@influxdata/influx'

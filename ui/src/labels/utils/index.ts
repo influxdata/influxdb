@@ -1,9 +1,6 @@
 import _ from 'lodash'
 
-import {
-  HEX_CODE_CHAR_LENGTH,
-  PRESET_LABEL_COLORS,
-} from 'src/configuration/constants/LabelColors'
+import {HEX_CODE_CHAR_LENGTH, PRESET_LABEL_COLORS} from 'src/labels/constants/'
 
 export const randomPresetColor = () =>
   _.sample(PRESET_LABEL_COLORS.slice(1)).colorHex
