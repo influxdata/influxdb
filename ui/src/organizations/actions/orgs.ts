@@ -152,6 +152,10 @@ export const createOrgWithBucket = (
       ...defaultTemplates.systemTemplate(),
       orgID: createdOrg.id,
     })
+    await client.templates.create({
+      ...defaultTemplates.gettingStartedWithFluxTemplate(),
+      orgID: createdOrg.id,
+    })
     dispatch(notify(orgCreateSuccess()))
 
     dispatch(addOrg(createdOrg))
