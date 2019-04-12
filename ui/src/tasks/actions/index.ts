@@ -263,7 +263,7 @@ export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
     dispatch(updateTask(task))
   } catch (error) {
     console.error(error)
-    dispatch(copy.addTaskLabelFailed())
+    dispatch(notify(copy.addTaskLabelFailed()))
   }
 }
 
@@ -278,7 +278,7 @@ export const removeTaskLabelsAsync = (
     dispatch(updateTask(task))
   } catch (error) {
     console.error(error)
-    dispatch(copy.removeTaskLabelFailed())
+    dispatch(notify(copy.removeTaskLabelFailed()))
   }
 }
 

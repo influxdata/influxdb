@@ -158,7 +158,7 @@ export const addTelelgrafLabelsAsync = (
     dispatch(editTelegraf(telegraf))
   } catch (error) {
     console.error(error)
-    dispatch(addTelelgrafLabelFailed())
+    dispatch(notify(addTelelgrafLabelFailed()))
   }
 }
 
@@ -173,7 +173,7 @@ export const removeTelelgrafLabelsAsync = (
     dispatch(editTelegraf(telegraf))
   } catch (error) {
     console.error(error)
-    dispatch(removeTelelgrafLabelFailed())
+    dispatch(notify(removeTelelgrafLabelFailed()))
   }
 }
 

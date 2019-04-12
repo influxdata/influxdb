@@ -798,12 +798,12 @@ export const importFailed = (): Notification => ({
 })
 
 // Templates
-export const addTemplatLabelFailed = (): Notification => ({
+export const addTemplateLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to add label to template',
 })
 
-export const removedTemplateLabelFailed = (): Notification => ({
+export const removeTemplateLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to remove label from template',
 })
