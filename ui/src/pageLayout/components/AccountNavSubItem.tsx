@@ -6,7 +6,6 @@ import {Link} from 'react-router'
 import {NavMenu} from '@influxdata/clockface'
 import {Organization} from '@influxdata/influx'
 import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
-import DapperScrollbars from 'src/shared/components/dapperScrollbars/DapperScrollbars'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 interface Props {
@@ -70,7 +69,7 @@ class AccountNavSubItem extends PureComponent<Props> {
     const {closeOrganizationsView} = this.props
 
     return (
-      <DapperScrollbars>
+      <>
         {orgs.reduce(
           (acc, org) => {
             acc.push(
@@ -104,7 +103,7 @@ class AccountNavSubItem extends PureComponent<Props> {
             />,
           ]
         )}
-      </DapperScrollbars>
+      </>
     )
   }
 }
