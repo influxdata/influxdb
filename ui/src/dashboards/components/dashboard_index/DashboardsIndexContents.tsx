@@ -5,7 +5,7 @@ import _ from 'lodash'
 // Components
 import Table from 'src/dashboards/components/dashboard_index/Table'
 import FilterList from 'src/shared/components/Filter'
-import GetLabels from 'src/configuration/components/GetLabels'
+import GetLabels from 'src/labels/components/GetLabels'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

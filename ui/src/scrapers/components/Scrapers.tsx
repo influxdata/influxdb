@@ -8,7 +8,7 @@ import _ from 'lodash'
 import {Input, Button, EmptyState} from '@influxdata/clockface'
 import {Tabs} from 'src/clockface'
 import ScraperList from 'src/scrapers/components/ScraperList'
-import NoBucketsWarning from 'src/organizations/components/NoBucketsWarning'
+import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 
 // Actions
 import {updateScraper, deleteScraper} from 'src/scrapers/actions'

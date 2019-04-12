@@ -4,12 +4,12 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
-import OrgHeader from 'src/organizations/containers/OrgHeader'
+import SettingsNavigation from 'src/settings/components/SettingsNavigation'
+import SettingsHeader from 'src/settings/components/SettingsHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import GetResources from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import Members from 'src/members/components/Members'
 
 //Actions
@@ -19,7 +19,6 @@ import * as notifyActions from 'src/shared/actions/notifications'
 // Types
 import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types'
-import {ResourceTypes} from 'src/configuration/components/GetResources'
 
 interface DispatchProps {
   notify: NotificationsActions.PublishNotificationActionCreator
@@ -42,11 +41,11 @@ class MembersIndex extends Component<Props> {
 
     return (
       <Page titleTag={org.name}>
-        <OrgHeader />
+        <SettingsHeader />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab="members" orgID={org.id} />
+              <SettingsNavigation tab="members" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--members"

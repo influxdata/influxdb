@@ -27,9 +27,8 @@ import {getTemplateByID} from 'src/templates/actions'
 
 // Types
 import {AppState, RemoteDataState, DashboardTemplate} from 'src/types'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+
 
 interface StateProps {
   templates: TemplateSummary[]

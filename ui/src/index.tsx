@@ -36,7 +36,6 @@ import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
 import Notifications from 'src/shared/containers/Notifications'
-import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
 import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
@@ -183,10 +182,6 @@ class Root extends PureComponent {
                           </Route>
                           <Route path="me" component={MePage} />
                           <Route path="account/:tab" component={Account} />
-                          <Route
-                            path="configuration/:tab"
-                            component={ConfigurationPage}
-                          />
                           <Route path="settings">
                             <IndexRoute component={MembersIndex} />
                           </Route>

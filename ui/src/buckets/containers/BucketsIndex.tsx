@@ -4,15 +4,13 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
-import OrgHeader from 'src/organizations/containers/OrgHeader'
+import SettingsNavigation from 'src/settings/components/SettingsNavigation'
+import SettingsHeader from 'src/settings/components/SettingsHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import BucketsTab from 'src/buckets/components/BucketsTab'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Types
 import {Organization} from '@influxdata/influx'
@@ -30,11 +28,11 @@ class BucketsIndex extends Component<StateProps> {
     return (
       <>
         <Page titleTag={org.name}>
-          <OrgHeader />
+          <SettingsHeader />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
-                <OrganizationNavigation tab="buckets" orgID={org.id} />
+                <SettingsNavigation tab="buckets" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
                     id="org-view-tab--buckets"

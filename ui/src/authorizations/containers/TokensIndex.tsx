@@ -4,14 +4,12 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
-import OrgHeader from 'src/organizations/containers/OrgHeader'
+import SettingsNavigation from 'src/settings/components/SettingsNavigation'
+import SettingsHeader from 'src/settings/components/SettingsHeader'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import TokensTab from 'src/authorizations/components/TokensTab'
 
 // Types
@@ -29,11 +27,11 @@ class TokensIndex extends Component<StateProps> {
 
     return (
       <Page titleTag={org.name}>
-        <OrgHeader />
+        <SettingsHeader />
         <Page.Contents fullWidth={false} scrollable={true}>
           <div className="col-xs-12">
             <Tabs>
-              <OrganizationNavigation tab="tokens" orgID={org.id} />
+              <SettingsNavigation tab="tokens" orgID={org.id} />
               <Tabs.TabContents>
                 <TabbedPageSection
                   id="org-view-tab--buckets"

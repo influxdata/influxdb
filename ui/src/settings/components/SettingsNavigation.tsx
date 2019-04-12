@@ -15,7 +15,7 @@ interface Props {
 }
 
 @ErrorHandling
-class OrganizationNavigation extends PureComponent<Props> {
+class SettingsNavigation extends PureComponent<Props> {
   public render() {
     const {tab, orgID} = this.props
 
@@ -78,4 +78,4 @@ class OrganizationNavigation extends PureComponent<Props> {
   }
 }
 
-export default OrganizationNavigation
+export default SettingsNavigation
