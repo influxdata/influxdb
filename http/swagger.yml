@@ -5724,6 +5724,9 @@ components:
           type: string
           description: Time event occurred, RFC3339Nano.
           format: date-time
+        userID:
+          type: string
+          description: ID of the user who operated the event.
         links:
           type: object
           properties:
