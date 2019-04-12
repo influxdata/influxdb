@@ -2012,7 +2012,7 @@ export const gettingStartedWithFluxTemplate = () => ({
        "query": "buckets()\n  |> distinct(column: \"name\")"
       }
      },
-     "name": "buckets",
+     "name": "bucket",
      "selected": null
     },
     "id": "039d86a307713000",
