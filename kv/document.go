@@ -429,8 +429,9 @@ func (s *Service) findDocumentByID(ctx context.Context, tx Tx, ns string, id inf
 	}
 
 	return &influxdb.Document{
-		ID:   id,
-		Meta: *m,
+		ID:     id,
+		Meta:   *m,
+		Labels: []*influxdb.Label{},
 	}, nil
 }
 
