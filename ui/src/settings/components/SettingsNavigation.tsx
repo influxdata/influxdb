@@ -7,7 +7,7 @@ import {Tabs} from 'src/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 interface Props {
   tab: string
@@ -41,14 +41,14 @@ class SettingsNavigation extends PureComponent<Props> {
           url={`${route}/telegrafs`}
           active={'telegrafs' === tab}
         />
-        <CloudFeatureFlag>
+        <CloudExclude>
           <Tabs.Tab
             title="Scrapers"
             id="scrapers"
             url={`${route}/scrapers`}
             active={'scrapers' === tab}
           />
-        </CloudFeatureFlag>
+        </CloudExclude>
         <Tabs.Tab
           title="Variables"
           id="variables"
