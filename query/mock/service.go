@@ -61,7 +61,7 @@ type Query struct {
 	done  bool
 }
 
-var _ flux.Query = &Query{}
+var _ flux.Query = (*Query)(nil)
 
 // NewQuery constructs a new asynchronous query.
 func NewQuery(spec *flux.Spec) *Query {
