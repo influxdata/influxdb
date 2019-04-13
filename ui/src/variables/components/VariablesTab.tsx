@@ -14,7 +14,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import VariableList from 'src/variables/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import GetLabels from 'src/labels/components/GetLabels'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Types
 import {OverlayState} from 'src/types'
@@ -65,7 +65,7 @@ class VariablesTab extends PureComponent<Props, State> {
             onSelectNew={this.handleOpenCreateOverlay}
           />
         </TabbedPageHeader>
-        <GetLabels>
+        <GetResources resource={ResourceTypes.Labels}>
           <FilterList<Variable>
             searchTerm={searchTerm}
             searchKeys={['name', 'labels[].name']}
@@ -82,7 +82,7 @@ class VariablesTab extends PureComponent<Props, State> {
               />
             )}
           </FilterList>
-        </GetLabels>
+        </GetResources>
       </>
     )
   }

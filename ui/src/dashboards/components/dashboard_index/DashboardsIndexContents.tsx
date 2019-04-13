@@ -5,7 +5,7 @@ import _ from 'lodash'
 // Components
 import Table from 'src/dashboards/components/dashboard_index/Table'
 import FilterList from 'src/shared/components/Filter'
-import GetLabels from 'src/labels/components/GetLabels'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -43,7 +43,7 @@ export default class DashboardsIndexContents extends Component<Props> {
     } = this.props
 
     return (
-      <GetLabels>
+      <GetResources resource={ResourceTypes.Labels}>
         <FilterList<Dashboard>
           list={dashboards}
           searchTerm={searchTerm}
@@ -64,7 +64,7 @@ export default class DashboardsIndexContents extends Component<Props> {
             />
           )}
         </FilterList>
-      </GetLabels>
+      </GetResources>
     )
   }
 }
