@@ -86,6 +86,19 @@ func filterAuthorizationsFn(filter platform.AuthorizationFilter) func(a *platfor
 		}
 	}
 
+	// Filter by org and user
+	if filter.OrgID != nil && filter.UserID != nil {
+		return func(a *platform.Authorization) bool {
+			return a.OrgID == *filter.OrgID && a.UserID == *filter.UserID
+		}
+	}
+
+	if filter.OrgID != nil {
+		return func(a *platform.Authorization) bool {
+			return a.OrgID == *filter.OrgID
+		}
+	}
+
 	if filter.UserID != nil {
 		return func(a *platform.Authorization) bool {
 			return a.UserID == *filter.UserID
@@ -121,6 +134,18 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 		}
 		filter.UserID = &u.ID
 	}
+
+	if filter.Org != nil {
+		o, err := s.findOrganizationByName(ctx, *filter.Org)
+		if err != nil {
+			return nil, 0, &platform.Error{
+				Op:  op,
+				Err: err,
+			}
+		}
+		filter.OrgID = &o.ID
+	}
+
 	var err error
 	filterF := filterAuthorizationsFn(filter)
 	s.authorizationKV.Range(func(k, v interface{}) bool {

@@ -2806,6 +2806,16 @@ paths:
           schema:
             type: string
           description: filter authorizations belonging to a user name
+        - in: query
+          name: orgID
+          schema:
+            type: string
+          description: filter authorizations belonging to a org id
+        - in: query
+          name: org
+          schema:
+            type: string
+          description: filter authorizations belonging to a org name
       responses:
         '200':
           description: A list of authorizations
