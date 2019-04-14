@@ -266,7 +266,7 @@ func (r dashboardCellViewResponse) MarshalJSON() ([]byte, error) {
 func newDashboardCellViewResponse(dashID, cellID platform.ID, v *platform.View) dashboardCellViewResponse {
 	return dashboardCellViewResponse{
 		Links: viewLinks{
-			Self: fmt.Sprintf("/api/v2/dashboards/%s/cells/%s", dashID, cellID),
+			Self: fmt.Sprintf("/api/v2/dashboards/%s/cells/%s/view", dashID, cellID),
 		},
 		View: *v,
 	}

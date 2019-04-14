@@ -332,8 +332,6 @@ func (s *Service) createCellView(ctx context.Context, tx Tx, dashID, cellID infl
 		// If not view exists create the view
 		view = &influxdb.View{}
 	}
-	// TODO: this is temporary until we can fully remove the view service.
-	view.ID = cellID
 	return s.putDashboardCellView(ctx, tx, dashID, cellID, view)
 }
 
