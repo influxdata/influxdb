@@ -8,7 +8,13 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 import {toMinardTable} from 'src/shared/utils/toMinardTable'
 
 // Types
-import {FluxTable, QueryView, AppState, DashboardDraftQuery} from 'src/types'
+import {
+  FluxTable,
+  QueryView,
+  AppState,
+  DashboardDraftQuery,
+  ViewType,
+} from 'src/types'
 
 export const getActiveTimeMachine = (state: AppState) => {
   const {activeTimeMachineID, timeMachines} = state.timeMachines
@@ -120,12 +126,23 @@ export const getFillColumnsSelection = (state: AppState): string[] => {
 export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
   const {view, draftQueries} = getActiveTimeMachine(state)
 
-  const saveableView: QueryView & {id?: string} = {
+  let saveableView: QueryView & {id?: string} = {
     ...view,
     properties: {
       ...view.properties,
       queries: draftQueries,
     },
+  }
+
+  if (saveableView.properties.type === ViewType.Histogram) {
+    saveableView = {
+      ...saveableView,
+      properties: {
+        ...saveableView.properties,
+        xColumn: getXColumnSelection(state),
+        fillColumns: getFillColumnsSelection(state),
+      },
+    }
   }
 
   return saveableView
