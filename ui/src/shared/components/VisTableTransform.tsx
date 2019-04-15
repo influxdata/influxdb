@@ -13,10 +13,10 @@ interface Props {
   children: (table: Table) => JSX.Element
 }
 
-const HistogramTransform: FunctionComponent<Props> = ({tables, children}) => {
+const VisTableTransform: FunctionComponent<Props> = ({tables, children}) => {
   const {table} = useMemo(() => toMinardTable(tables), [tables])
 
   return children(table)
 }
 
-export default HistogramTransform
+export default VisTableTransform

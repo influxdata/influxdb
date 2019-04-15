@@ -8,7 +8,7 @@ import SingleStatTransform from 'src/shared/components/SingleStatTransform'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
 import DygraphContainer from 'src/shared/components/DygraphContainer'
 import Histogram from 'src/shared/components/Histogram'
-import HistogramTransform from 'src/shared/components/HistogramTransform'
+import VisTableTransform from 'src/shared/components/VisTableTransform'
 
 // Types
 import {
@@ -29,7 +29,7 @@ interface Props {
   onZoom?: (range: TimeRange) => void
 }
 
-const QueryViewSwitcher: FunctionComponent<Props> = ({
+const RefreshingViewSwitcher: FunctionComponent<Props> = ({
   properties,
   loading,
   viewID,
@@ -91,13 +91,13 @@ const QueryViewSwitcher: FunctionComponent<Props> = ({
       )
     case ViewType.Histogram:
       return (
-        <HistogramTransform tables={tables}>
+        <VisTableTransform tables={tables}>
           {table => <Histogram table={table} properties={properties} />}
-        </HistogramTransform>
+        </VisTableTransform>
       )
     default:
       return <div />
   }
 }
 
-export default QueryViewSwitcher
+export default RefreshingViewSwitcher
