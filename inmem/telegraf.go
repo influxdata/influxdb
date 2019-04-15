@@ -58,7 +58,7 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, filter platform.Teleg
 		}
 		if tc != nil {
 			// Restrict results by organization ID, if it has been provided
-			if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
+			if filter.OrgID != nil && filter.OrgID.Valid() && tc.OrgID != *filter.OrgID {
 				continue
 			}
 			tcs = append(tcs, tc)
@@ -88,10 +88,10 @@ func (s *Service) putTelegrafConfig(ctx context.Context, tc *platform.TelegrafCo
 			Err:  platform.ErrInvalidID,
 		}
 	}
-	if !tc.OrganizationID.Valid() {
+	if !tc.OrgID.Valid() {
 		return &platform.Error{
 			Code: platform.EEmptyValue,
-			Msg:  platform.ErrTelegrafConfigInvalidOrganizationID,
+			Msg:  platform.ErrTelegrafConfigInvalidOrgID,
 		}
 	}
 	s.telegrafConfigKV.Store(tc.ID, *tc)
@@ -135,7 +135,7 @@ func (s *Service) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *
 	}
 	tc.ID = id
 	// OrganizationID can not be updated
-	tc.OrganizationID = current.OrganizationID
+	tc.OrgID = current.OrgID
 	pErr = s.putTelegrafConfig(ctx, tc)
 	if pErr != nil {
 		pErr.Op = op

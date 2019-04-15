@@ -80,7 +80,7 @@ func (c *Client) findTelegrafConfigs(ctx context.Context, tx *bolt.Tx, filter pl
 		}
 		if tc != nil {
 			// Restrict results by organization ID, if it has been provided
-			if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
+			if filter.OrgID != nil && filter.OrgID.Valid() && tc.OrgID != *filter.OrgID {
 				continue
 			}
 			tcs = append(tcs, tc)
@@ -119,10 +119,10 @@ func (c *Client) putTelegrafConfig(ctx context.Context, tx *bolt.Tx, tc *platfor
 			Err:  err,
 		}
 	}
-	if !tc.OrganizationID.Valid() {
+	if !tc.OrgID.Valid() {
 		return &platform.Error{
 			Code: platform.EEmptyValue,
-			Msg:  platform.ErrTelegrafConfigInvalidOrganizationID,
+			Msg:  platform.ErrTelegrafConfigInvalidOrgID,
 		}
 	}
 	err = tx.Bucket(telegrafBucket).Put(encodedID, v)
@@ -172,8 +172,8 @@ func (c *Client) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *p
 			return err
 		}
 		tc.ID = id
-		// OrganizationID can not be updated
-		tc.OrganizationID = current.OrganizationID
+		// OrgID can not be updated
+		tc.OrgID = current.OrgID
 		pErr = c.putTelegrafConfig(ctx, tx, tc)
 		if pErr != nil {
 			return &platform.Error{
