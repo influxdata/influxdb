@@ -6,7 +6,15 @@ import _ from 'lodash'
 
 // Components
 import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
-import {Overlay, ResponsiveGridSizer} from 'src/clockface'
+import {Overlay} from 'src/clockface'
+import DashboardTemplateBrowser from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateBrowser'
+import DashboardTemplatesEmpty from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplatesEmpty'
+
+// Actions
+import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
+import {getTemplateByID} from 'src/templates/actions'
+
+// Types
 import {
   TemplateSummary,
   ITemplate,
@@ -14,18 +22,7 @@ import {
   TemplateType,
   IDashboardTemplateIncluded,
 } from '@influxdata/influx'
-import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import DashboardTemplateDetails from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateDetails'
-
-// Actions
-import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
-import {getTemplateByID} from 'src/templates/actions'
-
-// Types
 import {AppState, RemoteDataState, DashboardTemplate} from 'src/types'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
 
 interface StateProps {
   templates: TemplateSummary[]
@@ -61,13 +58,6 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 
   render() {
-    const {
-      selectedTemplateSummary,
-      cells,
-      variables,
-      selectedTemplate,
-    } = this.state
-
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={900}>
@@ -75,64 +65,56 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
             title="Create Dashboard from a Template"
             onDismiss={this.onDismiss}
           />
-          <Overlay.Body>
-            <div className="import-template-overlay">
-              <GetResources resource={ResourceTypes.Templates}>
-                <ResponsiveGridSizer columns={2}>
-                  {this.templates}
-                </ResponsiveGridSizer>
-              </GetResources>
-              <DashboardTemplateDetails
-                cells={cells}
-                variables={variables}
-                selectedTemplateSummary={selectedTemplateSummary}
-                selectedTemplate={selectedTemplate}
-              />
-            </div>
-          </Overlay.Body>
-          <Overlay.Footer>{this.buttons}</Overlay.Footer>
+          <Overlay.Body>{this.overlayBody}</Overlay.Body>
+          <Overlay.Footer>
+            <Button
+              text="Cancel"
+              onClick={this.onDismiss}
+              key="cancel-button"
+            />
+            <Button
+              text="Create Dashboard"
+              onClick={this.onSubmit}
+              key="submit-button"
+              testID="create-dashboard-button"
+              color={ComponentColor.Primary}
+              status={this.submitStatus}
+            />
+          </Overlay.Footer>
         </Overlay.Container>
       </Overlay>
     )
   }
 
-  private get templates(): JSX.Element[] {
+  private get overlayBody(): JSX.Element {
+    const {
+      selectedTemplateSummary,
+      cells,
+      variables,
+      selectedTemplate,
+    } = this.state
     const {templates} = this.props
-    const {selectedTemplateSummary} = this.state
 
-    return templates.map(t => {
-      return (
-        <CardSelectCard
-          key={t.id}
-          id={t.id}
-          onClick={this.selectTemplate(t)}
-          checked={_.get(selectedTemplateSummary, 'id', '') === t.id}
-          label={t.meta.name}
-          hideImage={true}
-          testID={`card-select-${t.meta.name}`}
-        />
-      )
-    })
+    if (!templates.length) {
+      return <DashboardTemplatesEmpty />
+    }
+
+    return (
+      <DashboardTemplateBrowser
+        templates={templates}
+        cells={cells}
+        variables={variables}
+        selectedTemplate={selectedTemplate}
+        selectedTemplateSummary={selectedTemplateSummary}
+        onSelectTemplate={this.handleSelectTemplate}
+      />
+    )
   }
 
-  private get buttons(): JSX.Element[] {
+  private get submitStatus(): ComponentStatus {
     const {selectedTemplate} = this.state
 
-    const submitStatus = selectedTemplate
-      ? ComponentStatus.Default
-      : ComponentStatus.Disabled
-
-    return [
-      <Button text="Cancel" onClick={this.onDismiss} key="cancel-button" />,
-      <Button
-        text="Create Dashboard"
-        onClick={this.onSubmit}
-        key="submit-button"
-        testID="create-dashboard-button"
-        color={ComponentColor.Primary}
-        status={submitStatus}
-      />,
-    ]
+    return selectedTemplate ? ComponentStatus.Default : ComponentStatus.Disabled
   }
 
   private getVariablesForTemplate(template: ITemplate): string[] {
@@ -159,7 +141,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
     return cells
   }
 
-  private selectTemplate = (
+  private handleSelectTemplate = (
     selectedTemplateSummary: TemplateSummary
   ) => async (): Promise<void> => {
     this.setState({selectedTemplateSummary})
