@@ -154,7 +154,8 @@ func (s *Service) PutDashboard(ctx context.Context, d *platform.Dashboard) error
 // PutCellView puts the view for a cell.
 func (s *Service) PutCellView(ctx context.Context, cell *platform.Cell) error {
 	v := &platform.View{}
-	return s.PutView(ctx, cell.ID, v)
+	v.ID = cell.ID
+	return s.PutView(ctx, v)
 }
 
 // PutDashboardWithMeta sets a dashboard while updating the meta field of a dashboard.
@@ -249,7 +250,8 @@ func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *pl
 func (s *Service) createCellView(ctx context.Context, cell *platform.Cell) *platform.Error {
 	// If not view exists create the view
 	view := &platform.View{}
-	if err := s.PutView(ctx, cell.ID, view); err != nil {
+	view.ID = cell.ID
+	if err := s.PutView(ctx, view); err != nil {
 		return &platform.Error{
 			Err: err,
 		}
@@ -265,7 +267,8 @@ func (s *Service) PutDashboardCell(ctx context.Context, id platform.ID, cell *pl
 		return err
 	}
 	view := &platform.View{}
-	if err := s.PutView(ctx, cell.ID, view); err != nil {
+	view.ID = cell.ID
+	if err := s.PutView(ctx, view); err != nil {
 		return err
 	}
 
@@ -433,7 +436,7 @@ func (s *Service) UpdateDashboardCellView(ctx context.Context, dashboardID, cell
 		}
 	}
 
-	if err := s.PutView(ctx, cellID, v); err != nil {
+	if err := s.PutView(ctx, v); err != nil {
 		return nil, &platform.Error{
 			Err: err,
 			Op:  op,
@@ -471,12 +474,12 @@ func (s *Service) FindViewByID(ctx context.Context, id platform.ID) (*platform.V
 	return v, nil
 }
 
-// PutView sets view with the cell ID.
-func (s *Service) PutView(ctx context.Context, cellID platform.ID, v *platform.View) error {
-	if v.Properties == nil {
-		v.Properties = platform.EmptyViewProperties{}
+// PutView sets view with the current ID.
+func (s *Service) PutView(ctx context.Context, c *platform.View) error {
+	if c.Properties == nil {
+		c.Properties = platform.EmptyViewProperties{}
 	}
-	s.viewKV.Store(cellID.String(), v)
+	s.viewKV.Store(c.ID.String(), c)
 	return nil
 }
 
