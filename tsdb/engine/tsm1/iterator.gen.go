@@ -264,20 +264,22 @@ func (itr *floatIterator) Next() (*query.FloatPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Read from condition field cursors.
-		for i := range itr.conds.curs {
-			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
-		}
-
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
-			continue
+		if itr.opt.Condition != nil {
+			// Read from condition field cursors.
+			for i := range itr.conds.curs {
+				itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+			}
+
+			valuer := influxql.ValuerEval{
+				Valuer: influxql.MultiValuer(
+					query.MathValuer{},
+					influxql.MapValuer(itr.m),
+				),
+			}
+			if !valuer.EvalBool(itr.opt.Condition) {
+				continue
+			}
 		}
 
 		// Track points returned.
@@ -742,20 +744,22 @@ func (itr *integerIterator) Next() (*query.IntegerPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Read from condition field cursors.
-		for i := range itr.conds.curs {
-			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
-		}
-
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
-			continue
+		if itr.opt.Condition != nil {
+			// Read from condition field cursors.
+			for i := range itr.conds.curs {
+				itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+			}
+
+			valuer := influxql.ValuerEval{
+				Valuer: influxql.MultiValuer(
+					query.MathValuer{},
+					influxql.MapValuer(itr.m),
+				),
+			}
+			if !valuer.EvalBool(itr.opt.Condition) {
+				continue
+			}
 		}
 
 		// Track points returned.
@@ -1220,20 +1224,22 @@ func (itr *unsignedIterator) Next() (*query.UnsignedPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Read from condition field cursors.
-		for i := range itr.conds.curs {
-			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
-		}
-
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
-			continue
+		if itr.opt.Condition != nil {
+			// Read from condition field cursors.
+			for i := range itr.conds.curs {
+				itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+			}
+
+			valuer := influxql.ValuerEval{
+				Valuer: influxql.MultiValuer(
+					query.MathValuer{},
+					influxql.MapValuer(itr.m),
+				),
+			}
+			if !valuer.EvalBool(itr.opt.Condition) {
+				continue
+			}
 		}
 
 		// Track points returned.
@@ -1698,20 +1704,22 @@ func (itr *stringIterator) Next() (*query.StringPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Read from condition field cursors.
-		for i := range itr.conds.curs {
-			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
-		}
-
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
-			continue
+		if itr.opt.Condition != nil {
+			// Read from condition field cursors.
+			for i := range itr.conds.curs {
+				itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+			}
+
+			valuer := influxql.ValuerEval{
+				Valuer: influxql.MultiValuer(
+					query.MathValuer{},
+					influxql.MapValuer(itr.m),
+				),
+			}
+			if !valuer.EvalBool(itr.opt.Condition) {
+				continue
+			}
 		}
 
 		// Track points returned.
@@ -2176,20 +2184,22 @@ func (itr *booleanIterator) Next() (*query.BooleanPoint, error) {
 			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
 		}
 
-		// Read from condition field cursors.
-		for i := range itr.conds.curs {
-			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
-		}
-
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
-			continue
+		if itr.opt.Condition != nil {
+			// Read from condition field cursors.
+			for i := range itr.conds.curs {
+				itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+			}
+
+			valuer := influxql.ValuerEval{
+				Valuer: influxql.MultiValuer(
+					query.MathValuer{},
+					influxql.MapValuer(itr.m),
+				),
+			}
+			if !valuer.EvalBool(itr.opt.Condition) {
+				continue
+			}
 		}
 
 		// Track points returned.
