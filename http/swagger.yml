@@ -7022,6 +7022,8 @@ components:
       properties:
         name:
           type: string
+        type:
+          type: string
         version:
           type: string
       required:

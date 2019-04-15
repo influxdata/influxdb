@@ -61,6 +61,7 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 			d1 = &influxdb.Document{
 				Meta: influxdb.DocumentMeta{
 					Name: "i1",
+					Type: "type1",
 				},
 				Content: map[string]interface{}{
 					"v1": "v1",
