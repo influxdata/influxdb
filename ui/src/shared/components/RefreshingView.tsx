@@ -6,7 +6,7 @@ import _ from 'lodash'
 // Components
 import TimeSeries from 'src/shared/components/TimeSeries'
 import EmptyQueryView from 'src/shared/components/EmptyQueryView'
-import QueryViewSwitcher from 'src/shared/components/QueryViewSwitcher'
+import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -97,7 +97,7 @@ class RefreshingView extends PureComponent<Props, State> {
                 queries={this.queries}
                 fallbackNote={this.fallbackNote}
               >
-                <QueryViewSwitcher
+                <RefreshingViewSwitcher
                   tables={tables}
                   viewID={viewID}
                   onZoom={onZoom}
