@@ -140,6 +140,7 @@ class SideNav extends PureComponent<Props, State> {
           )}
           active={getNavItemActivation(['settings'], location.pathname)}
         />
+        <CloudNav />
         <NavMenu.Item
           titleLink={className => (
             <a className={className} href={feedbackLink} target="_blank">
@@ -153,7 +154,6 @@ class SideNav extends PureComponent<Props, State> {
           )}
           active={getNavItemActivation(['feedback'], location.pathname)}
         />
-        <CloudNav />
       </NavMenu>
     )
   }
