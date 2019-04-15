@@ -1,7 +1,11 @@
-.import-template-overlay {
-  display: flex;
-  align-items: stretch;
+.import-template-overlay,
+.import-template-overlay--empty {
   height: 500px;
+  display: flex;
+}
+
+.import-template-overlay {
+  align-items: stretch;
 }
 
 .import-template-overlay--details {
@@ -27,6 +31,9 @@
 }
 
 .import-template-overlay--empty {
-  min-width: 65%;
-  margin-left: $ix-marg-c;
+  background-color: $g3-castle;
+  border-radius: $ix-radius;
+  align-content: center;
+  align-items: center;
+  justify-content: center;
 }
