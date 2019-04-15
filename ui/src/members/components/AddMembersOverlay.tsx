@@ -1,20 +1,31 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Overlay} from 'src/clockface'
 import AddMembersForm from 'src/members/components/AddMembersForm'
 import FilterList from 'src/shared/components/Filter'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+
+// Actions
+import {getUsers, addNewMember} from 'src/members/actions'
 
 // Types
-import {UsersMap} from 'src/members/components/Members'
+import {UsersMap} from 'src/members/reducers'
 import {User} from '@influxdata/influx'
-import {Member} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
-interface Props {
-  onCloseModal: () => void
+interface StateProps {
+  status: RemoteDataState
   users: UsersMap
-  addMember: (member: Member) => void
+}
+
+interface DispatchProps {
+  getUsers: typeof getUsers
+  addMember: typeof addNewMember
 }
 
 interface State {
@@ -23,7 +34,9 @@ interface State {
   selectedMembers: UsersMap
 }
 
-export default class AddMembersOverlay extends PureComponent<Props, State> {
+type Props = StateProps & DispatchProps & WithRouterProps
+
+class AddMembersOverlay extends PureComponent<Props, State> {
   public state: State = {
     searchTerm: '',
     selectedUserIDs: [],
@@ -35,34 +48,46 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onCloseModal} = this.props
+    const {status} = this.props
     const {selectedUserIDs, searchTerm, selectedMembers} = this.state
 
     return (
-      <Overlay.Container maxWidth={500}>
-        <Overlay.Heading title="Add Member" onDismiss={onCloseModal} />
-        <Overlay.Body>
-          <FilterList<User>
-            list={this.filteredList}
-            searchTerm={searchTerm}
-            searchKeys={['name']}
-          >
-            {ts => (
-              <AddMembersForm
-                onCloseModal={onCloseModal}
-                users={ts}
-                onSelect={this.handleSelectUserID}
-                selectedUserIDs={selectedUserIDs}
-                onSave={this.handleSave}
-                searchTerm={searchTerm}
-                onFilterChange={this.handleFilterChange}
-                onFilterBlur={this.handleFilterBlur}
-                selectedMembers={selectedMembers}
-              />
-            )}
-          </FilterList>
-        </Overlay.Body>
-      </Overlay.Container>
+      <GetResources resource={ResourceTypes.Users}>
+        <Overlay visible={true}>
+          <Overlay.Container maxWidth={500}>
+            <Overlay.Heading
+              title="Add Member"
+              onDismiss={this.handleDismiss}
+            />
+            <Overlay.Body>
+              <SpinnerContainer
+                loading={status}
+                spinnerComponent={<TechnoSpinner />}
+              >
+                <FilterList<User>
+                  list={this.filteredList}
+                  searchTerm={searchTerm}
+                  searchKeys={['name']}
+                >
+                  {ts => (
+                    <AddMembersForm
+                      onCloseModal={this.handleDismiss}
+                      users={ts}
+                      onSelect={this.handleSelectUserID}
+                      selectedUserIDs={selectedUserIDs}
+                      onSave={this.handleSave}
+                      searchTerm={searchTerm}
+                      onFilterChange={this.handleFilterChange}
+                      onFilterBlur={this.handleFilterBlur}
+                      selectedMembers={selectedMembers}
+                    />
+                  )}
+                </FilterList>
+              </SpinnerContainer>
+            </Overlay.Body>
+          </Overlay.Container>
+        </Overlay>
+      </GetResources>
     )
   }
 
@@ -98,14 +123,37 @@ export default class AddMembersOverlay extends PureComponent<Props, State> {
     })
   }
 
+  private handleDismiss = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/members`)
+  }
+
   private handleSave = () => {
-    const {addMember, onCloseModal} = this.props
+    const {addMember} = this.props
     const {selectedMembers} = this.state
 
     Object.keys(selectedMembers).map(id => {
       addMember({id: id, name: selectedMembers[id].name})
     })
 
-    onCloseModal()
+    this.handleDismiss()
   }
 }
+
+const mstp = ({members: {users}}: AppState): StateProps => {
+  return {status: users.status, users: users.item}
+}
+
+const mdtp: DispatchProps = {
+  getUsers: getUsers,
+  addMember: addNewMember,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(withRouter<Props>(AddMembersOverlay))

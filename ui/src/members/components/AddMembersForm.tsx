@@ -4,7 +4,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
 import SelectUsers from 'src/members/components/SelectUsers'
-import {UsersMap} from 'src/members/components/Members'
+import {UsersMap} from 'src/members/reducers'
 
 // Types
 import {User} from '@influxdata/influx'
