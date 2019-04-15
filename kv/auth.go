@@ -140,6 +140,19 @@ func filterAuthorizationsFn(filter influxdb.AuthorizationFilter) func(a *influxd
 		}
 	}
 
+	// Filter by org and user
+	if filter.OrgID != nil && filter.UserID != nil {
+		return func(a *influxdb.Authorization) bool {
+			return a.OrgID == *filter.OrgID && a.UserID == *filter.UserID
+		}
+	}
+
+	if filter.OrgID != nil {
+		return func(a *influxdb.Authorization) bool {
+			return a.OrgID == *filter.OrgID
+		}
+	}
+
 	if filter.UserID != nil {
 		return func(a *influxdb.Authorization) bool {
 			return a.UserID == *filter.UserID
@@ -202,6 +215,14 @@ func (s *Service) findAuthorizations(ctx context.Context, tx Tx, f influxdb.Auth
 			return nil, err
 		}
 		f.UserID = &u.ID
+	}
+
+	if f.Org != nil {
+		o, err := s.findOrganizationByName(ctx, tx, *f.Org)
+		if err != nil {
+			return nil, err
+		}
+		f.OrgID = &o.ID
 	}
 
 	as := []*influxdb.Authorization{}

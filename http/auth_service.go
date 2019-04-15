@@ -381,6 +381,20 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 		req.filter.User = &user
 	}
 
+	orgID := qp.Get("orgID")
+	if orgID != "" {
+		id, err := platform.IDFromString(orgID)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.OrgID = id
+	}
+
+	org := qp.Get("org")
+	if org != "" {
+		req.filter.Org = &org
+	}
+
 	authID := qp.Get("id")
 	if authID != "" {
 		id, err := platform.IDFromString(authID)
@@ -663,6 +677,14 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 
 	if filter.User != nil {
 		query.Add("user", *filter.User)
+	}
+
+	if filter.OrgID != nil {
+		query.Add("orgID", filter.OrgID.String())
+	}
+
+	if filter.Org != nil {
+		query.Add("org", *filter.Org)
 	}
 
 	req.URL.RawQuery = query.Encode()
