@@ -13,7 +13,7 @@ import {getDashboardsAsync} from 'src/dashboards/actions'
 import {getTasks} from 'src/tasks/actions'
 import {getAuthorizations} from 'src/authorizations/actions'
 import {getTemplates} from 'src/templates/actions'
-import {getMembers} from 'src/members/actions'
+import {getMembers, getUsers} from 'src/members/actions'
 
 // Types
 import {AppState} from 'src/types'
@@ -26,11 +26,15 @@ import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {AuthorizationsState} from 'src/authorizations/reducers'
 import {VariablesState} from 'src/variables/reducers'
 import {TemplatesState} from 'src/templates/reducers'
-import {MembersState} from 'src/members/reducers'
+import {MembersState, UsersMap} from 'src/members/reducers'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
+import {
+  TechnoSpinner,
+  SpinnerContainer,
+  RemoteDataState,
+} from '@influxdata/clockface'
 
 interface StateProps {
   labels: LabelsState
@@ -43,6 +47,7 @@ interface StateProps {
   templates: TemplatesState
   tasks: TasksState
   members: MembersState
+  users: {status: RemoteDataState; item: UsersMap}
 }
 
 interface DispatchProps {
@@ -56,6 +61,7 @@ interface DispatchProps {
   getTasks: typeof getTasks
   getTemplates: typeof getTemplates
   getMembers: typeof getMembers
+  getUsers: typeof getUsers
 }
 
 interface PassedProps {
@@ -75,6 +81,7 @@ export enum ResourceTypes {
   Tasks = 'tasks',
   Templates = 'templates',
   Members = 'members',
+  Users = 'users',
 }
 
 @ErrorHandling
@@ -121,6 +128,10 @@ class GetResources extends PureComponent<Props, StateProps> {
         return await this.props.getMembers()
       }
 
+      case ResourceTypes.Users: {
+        return await this.props.getUsers()
+      }
+
       default: {
         throw new Error('incorrect resource type provided')
       }
@@ -164,6 +175,7 @@ const mstp = ({
     tasks,
     templates,
     members,
+    users: members.users,
   }
 }
 
@@ -178,6 +190,7 @@ const mdtp = {
   getTasks: getTasks,
   getTemplates: getTemplates,
   getMembers: getMembers,
+  getUsers: getUsers,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
