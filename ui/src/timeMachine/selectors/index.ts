@@ -8,9 +8,7 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 import {toMinardTable} from 'src/shared/utils/toMinardTable'
 
 // Types
-import {FluxTable} from 'src/types'
-import {AppState} from 'src/types'
-import {DashboardDraftQuery} from 'src/types/dashboards'
+import {FluxTable, QueryView, AppState, DashboardDraftQuery} from 'src/types'
 
 export const getActiveTimeMachine = (state: AppState) => {
   const {activeTimeMachineID, timeMachines} = state.timeMachines
@@ -117,4 +115,18 @@ export const getFillColumnsSelection = (state: AppState): string[] => {
   )
 
   return getFillColumnsSelectionMemoized(validFillColumns, preference)
+}
+
+export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
+  const {view, draftQueries} = getActiveTimeMachine(state)
+
+  const saveableView: QueryView & {id?: string} = {
+    ...view,
+    properties: {
+      ...view.properties,
+      queries: draftQueries,
+    },
+  }
+
+  return saveableView
 }
