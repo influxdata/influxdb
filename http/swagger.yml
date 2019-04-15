@@ -6717,9 +6717,6 @@ components:
           properties:
             self:
               type: string
-        id:
-          readOnly: true
-          type: string
         name:
           type: string
         properties:
