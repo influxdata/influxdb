@@ -6,7 +6,7 @@ import {Overlay, ComponentStatus} from 'src/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Constants
-import {DEFAULT_SECONDS} from 'src/organizations/components/Retention'
+import {DEFAULT_SECONDS} from 'src/buckets/components/Retention'
 
 // Types
 import {Bucket, BucketRetentionRules} from '@influxdata/influx'

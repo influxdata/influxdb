@@ -14,7 +14,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import VariableList from 'src/variables/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import GetLabels from 'src/configuration/components/GetLabels'
+import GetLabels from 'src/labels/components/GetLabels'
 
 // Types
 import {OverlayState} from 'src/types'

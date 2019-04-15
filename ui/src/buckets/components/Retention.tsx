@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
 import {Radio, ButtonShape} from '@influxdata/clockface'
-import RetentionDuration from 'src/organizations/components/RetentionDuration'
+import RetentionDuration from 'src/buckets/components/RetentionDuration'
 
 // Utils
 import {

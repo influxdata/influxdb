@@ -1,4 +1,12 @@
-## v2.0.0-alpha.8 [unreleased]
+## v2.0.0-alpha.9 [unreleased]
+
+### Features
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.8 [2019-04-12]
 
 ### Features
 
@@ -7,6 +15,7 @@
 1. [13161](https://github.com/influxdata/influxdb/pull/13161): Add the ability to add labels on variables
 1. [13171](https://github.com/influxdata/influxdb/pull/13171): Add switch organizations dropdown to home navigation menu item.
 1. [13173](https://github.com/influxdata/influxdb/pull/13173): Add create org to side nav
+1. [13345](https://github.com/influxdata/influxdb/pull/13345): Added a new Getting Started with Flux Template
 
 ### Bug Fixes
 1. [13284](https://github.com/influxdata/influxdb/pull/13284): Update shift to timeShift in the flux functions side bar

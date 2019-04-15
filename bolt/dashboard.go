@@ -304,8 +304,6 @@ func (c *Client) createCellView(ctx context.Context, tx *bolt.Tx, dashID, cellID
 		// If not view exists create the view
 		view = &platform.View{}
 	}
-	// TODO: this is temporary until we can fully remove the view service.
-	view.ID = cellID
 	return c.putDashboardCellView(ctx, tx, dashID, cellID, view)
 }
 

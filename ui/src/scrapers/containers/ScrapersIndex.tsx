@@ -3,14 +3,16 @@ import React, {Component} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import SettingsNavigation from 'src/settings/components/SettingsNavigation'
-import SettingsHeader from 'src/settings/components/SettingsHeader'
-import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
+import {Tabs} from 'src/clockface'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
-import VariablesTab from 'src/variables/components/VariablesTab'
+import SettingsHeader from 'src/settings/components/SettingsHeader'
+import SettingsNavigation from 'src/settings/components/SettingsNavigation'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import Scrapers from 'src/scrapers/components/Scrapers'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {Organization} from '@influxdata/influx'
@@ -21,9 +23,9 @@ interface StateProps {
 }
 
 @ErrorHandling
-class VariablesIndex extends Component<StateProps> {
+class ScrapersIndex extends Component<StateProps> {
   public render() {
-    const {org, children} = this.props
+    const {org} = this.props
 
     return (
       <>
@@ -32,15 +34,18 @@ class VariablesIndex extends Component<StateProps> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
-                <SettingsNavigation tab="variables" orgID={org.id} />
+                <SettingsNavigation tab="scrapers" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
-                    id="settings-tab--variables"
-                    url="variables"
-                    title="Variables"
+                    id="settings-tab--scrapers"
+                    url="scrapers"
+                    title="Scrapers"
                   >
-                    <GetResources resource={ResourceTypes.Variables}>
-                      <VariablesTab />
+                    <GetResources resource={ResourceTypes.Scrapers}>
+                      <GetResources resource={ResourceTypes.Buckets}>
+                        <Scrapers orgName={org.name} />
+                        {this.props.children}
+                      </GetResources>
                     </GetResources>
                   </TabbedPageSection>
                 </Tabs.TabContents>
@@ -48,15 +53,14 @@ class VariablesIndex extends Component<StateProps> {
             </div>
           </Page.Contents>
         </Page>
-        {children}
       </>
     )
   }
 }
 
-const mstp = ({orgs: {org}}: AppState): StateProps => ({org})
+const mstp = ({orgs: {org}}: AppState) => ({org})
 
 export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(VariablesIndex)
+)(ScrapersIndex)

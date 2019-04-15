@@ -12,9 +12,7 @@ import {
 
 // Components
 import {ResourceList, Context, IconFont} from 'src/clockface'
-import InlineLabels, {
-  LabelsEditMode,
-} from 'src/shared/components/inlineLabels/InlineLabels'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
@@ -22,7 +20,11 @@ import {
   cloneTemplate,
   updateTemplate,
   createResourceFromTemplate,
+  removeTemplateLabelsAsync,
+  addTemplateLabelsAsync,
 } from 'src/templates/actions'
+import {createLabel as createLabelAsync} from 'src/labels/actions'
+
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
 
@@ -44,6 +46,9 @@ interface DispatchProps {
   onClone: typeof cloneTemplate
   onUpdate: typeof updateTemplate
   onCreateFromTemplate: typeof createResourceFromTemplate
+  onAddTemplateLabels: typeof addTemplateLabelsAsync
+  onRemoveTemplateLabels: typeof removeTemplateLabelsAsync
+  onCreateLabel: typeof createLabelAsync
 }
 
 interface StateProps {
@@ -77,7 +82,9 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
             selectedLabels={template.labels}
             labels={labels}
             onFilterChange={onFilterChange}
-            editMode={LabelsEditMode.Readonly}
+            onAddLabel={this.handleAddLabel}
+            onRemoveLabel={this.handleRemoveLabel}
+            onCreateLabel={this.handleCreateLabel}
           />
         )}
       />
@@ -157,6 +164,22 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     const {router, template, org} = this.props
     router.push(`/orgs/${org.id}/templates/${template.id}/view`)
   }
+
+  private handleAddLabel = (label: ILabel): void => {
+    const {template, onAddTemplateLabels} = this.props
+
+    onAddTemplateLabels(template.id, [label])
+  }
+
+  private handleRemoveLabel = (label: ILabel): void => {
+    const {template, onRemoveTemplateLabels} = this.props
+
+    onRemoveTemplateLabels(template.id, [label])
+  }
+
+  private handleCreateLabel = async (label: ILabel): Promise<void> => {
+    await this.props.onCreateLabel(label.name, label.properties)
+  }
 }
 
 const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
@@ -171,6 +194,9 @@ const mdtp: DispatchProps = {
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
   onCreateFromTemplate: createResourceFromTemplate,
+  onAddTemplateLabels: addTemplateLabelsAsync,
+  onRemoveTemplateLabels: removeTemplateLabelsAsync,
+  onCreateLabel: createLabelAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

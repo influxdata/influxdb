@@ -117,4 +117,7 @@ type AuthorizationFilter struct {
 
 	UserID *ID
 	User   *string
+
+	OrgID *ID
+	Org   *string
 }

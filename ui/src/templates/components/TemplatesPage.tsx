@@ -9,7 +9,7 @@ import TemplatesHeader from 'src/templates/components/TemplatesHeader'
 import TemplatesList from 'src/templates/components/TemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetLabels from 'src/configuration/components/GetLabels'
+import GetLabels from 'src/labels/components/GetLabels'
 
 // Types
 import {TemplateSummary, AppState} from 'src/types'

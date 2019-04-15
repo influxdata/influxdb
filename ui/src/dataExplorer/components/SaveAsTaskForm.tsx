@@ -155,6 +155,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
 const mstp = (state: AppState): StateProps => {
   const {
     tasks: {newScript, taskOptions},
+    orgs: {org},
   } = state
 
   const {draftQueries, activeQueryIndex, timeRange} = getActiveTimeMachine(
@@ -163,7 +164,7 @@ const mstp = (state: AppState): StateProps => {
 
   return {
     newScript,
-    taskOptions,
+    taskOptions: {...taskOptions, toOrgName: org.name},
     timeRange,
     draftQueries,
     activeQueryIndex,

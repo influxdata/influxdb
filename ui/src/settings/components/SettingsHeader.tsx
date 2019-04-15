@@ -4,7 +4,7 @@ import React, {Component} from 'react'
 import {Page} from 'src/pageLayout'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
-class OrgHeader extends Component {
+class SettingsHeader extends Component {
   public render() {
     return (
       <Page.Header fullWidth={false}>
@@ -17,4 +17,4 @@ class OrgHeader extends Component {
   }
 }
 
-export default OrgHeader
+export default SettingsHeader

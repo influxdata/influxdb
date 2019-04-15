@@ -9,6 +9,8 @@ import {
   DocumentCreate,
   ITaskTemplate,
   TemplateType,
+  ITemplate,
+  ILabel as Label,
 } from '@influxdata/influx'
 import {
   RemoteDataState,
@@ -239,15 +241,10 @@ export const cloneTemplate = (templateID: string) => async (
 }
 
 export const createResourceFromTemplate = (templateID: string) => async (
-  dispatch,
-  getState: GetState
+  dispatch
 ): Promise<void> => {
   try {
     const template = await client.templates.get(templateID)
-    const {
-      orgs: {org},
-    } = getState()
-
     const {
       content: {
         data: {type},
@@ -257,7 +254,7 @@ export const createResourceFromTemplate = (templateID: string) => async (
     switch (type) {
       case TemplateType.Dashboard:
         return dispatch(
-          createDashboardFromTemplate(template as DashboardTemplate, org.id)
+          createDashboardFromTemplate(template as DashboardTemplate)
         )
       case TemplateType.Task:
         return dispatch(createTaskFromTemplate(template as ITaskTemplate))
@@ -273,3 +270,39 @@ export const createResourceFromTemplate = (templateID: string) => async (
     dispatch(notify(copy.createResourceFromTemplateFailed(e)))
   }
 }
+
+export const addTemplateLabelsAsync = (
+  templateID: string,
+  labels: Label[]
+) => async (dispatch): Promise<void> => {
+  try {
+    await client.templates.addLabels(templateID, labels.map(l => l.id))
+    const template = await client.templates.get(templateID)
+
+    dispatch(setTemplateSummary(templateID, templateToSummary(template)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.addTemplateLabelFailed()))
+  }
+}
+
+export const removeTemplateLabelsAsync = (
+  templateID: string,
+  labels: Label[]
+) => async (dispatch): Promise<void> => {
+  try {
+    await client.templates.removeLabels(templateID, labels.map(l => l.id))
+    const template = await client.templates.get(templateID)
+
+    dispatch(setTemplateSummary(templateID, templateToSummary(template)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.removeTemplateLabelFailed()))
+  }
+}
+
+const templateToSummary = (template: ITemplate): TemplateSummary => ({
+  id: template.id,
+  meta: template.meta,
+  labels: template.labels,
+})

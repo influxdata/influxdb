@@ -10,10 +10,8 @@ import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetLabels from 'src/configuration/components/GetLabels'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetLabels from 'src/labels/components/GetLabels'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Actions
 import {

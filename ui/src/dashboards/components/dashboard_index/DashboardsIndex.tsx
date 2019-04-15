@@ -21,9 +21,7 @@ import {
 } from 'src/dashboards/actions'
 import {retainRangesDashTimeV1 as retainRangesDashTimeV1Action} from 'src/dashboards/actions/ranges'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Constants
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'

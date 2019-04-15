@@ -328,7 +328,7 @@ export const addVariableLabelsAsync = (
     dispatch(setVariable(variableID, RemoteDataState.Done, variable))
   } catch (error) {
     console.error(error)
-    dispatch(addVariableLabelFailed())
+    dispatch(notify(addVariableLabelFailed()))
   }
 }
 
@@ -343,6 +343,6 @@ export const removeVariableLabelsAsync = (
     dispatch(setVariable(variableID, RemoteDataState.Done, variable))
   } catch (error) {
     console.error(error)
-    dispatch(removeVariableLabelFailed())
+    dispatch(notify(removeVariableLabelFailed()))
   }
 }

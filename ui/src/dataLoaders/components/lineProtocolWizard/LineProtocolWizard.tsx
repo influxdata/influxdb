@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -35,8 +36,6 @@ export interface LineProtocolStepProps {
 
 interface OwnProps {
   onCompleteSetup: () => void
-  visible: boolean
-  buckets: Bucket[]
   startingStep?: number
 }
 
@@ -54,35 +53,23 @@ interface StateProps {
   currentStepIndex: number
   username: string
   bucket: string
+  buckets: Bucket[]
 }
 
 type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
-class CollectorsWizard extends PureComponent<Props> {
+class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
   public componentDidMount() {
     this.handleSetBucketInfo()
     this.handleSetStartingValues()
   }
 
-  public componentDidUpdate(prevProps: Props) {
-    const hasBecomeVisible = !prevProps.visible && this.props.visible
-
-    if (hasBecomeVisible) {
-      this.handleSetBucketInfo()
-      this.handleSetStartingValues()
-    }
-  }
-
   public render() {
-    const {visible, buckets} = this.props
+    const {buckets} = this.props
 
     return (
-      <WizardOverlay
-        visible={visible}
-        title="Add Line Protocol"
-        onDismiss={this.handleDismiss}
-      >
+      <WizardOverlay title="Add Line Protocol" onDismiss={this.handleDismiss}>
         <div className="wizard-contents">
           <div className="wizard-step--container">
             <LineProtocolStepSwitcher
@@ -115,9 +102,11 @@ class CollectorsWizard extends PureComponent<Props> {
   }
 
   private handleDismiss = () => {
-    this.props.onCompleteSetup()
-    this.props.onClearDataLoaders()
-    this.props.onClearSteps()
+    const {router, onClearDataLoaders, onClearSteps} = this.props
+
+    onClearDataLoaders()
+    onClearSteps()
+    router.goBack()
   }
 
   private get stepProps(): LineProtocolStepProps {
@@ -143,10 +132,12 @@ const mstp = ({
     steps: {currentStep, bucket},
   },
   me: {name},
+  buckets,
 }: AppState): StateProps => ({
   currentStepIndex: currentStep,
   username: name,
   bucket,
+  buckets: buckets.list,
 })
 
 const mdtp: DispatchProps = {
@@ -162,4 +153,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(CollectorsWizard)
+)(withRouter<Props>(LineProtocolWizard))

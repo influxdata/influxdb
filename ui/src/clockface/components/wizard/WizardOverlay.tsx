@@ -8,7 +8,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: any
-  visible: boolean
   title: string
   maxWidth: number
   onDismiss: () => void
@@ -21,10 +20,10 @@ class WizardOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    const {visible, title, maxWidth, children, onDismiss} = this.props
+    const {title, maxWidth, children, onDismiss} = this.props
 
     return (
-      <Overlay visible={visible}>
+      <Overlay visible={true}>
         <Overlay.Container maxWidth={maxWidth}>
           <Overlay.Heading title={title} onDismiss={onDismiss} />
           <Overlay.Body>

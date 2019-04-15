@@ -85,6 +85,10 @@ export const setupAdmin = (params: ISetupParams) => async (
     await client.auth.signin(username, password)
 
     await client.templates.create({...defaultTemplates.systemTemplate(), orgID})
+    await client.templates.create({
+      ...defaultTemplates.gettingStartedWithFluxTemplate(),
+      orgID,
+    })
 
     dispatch(notify(SetupSuccess))
     dispatch(setStepStatus(1, StepStatus.Complete))
