@@ -6717,6 +6717,9 @@ components:
           properties:
             self:
               type: string
+        id:
+          readOnly: true
+          type: string
         name:
           type: string
         properties:
@@ -6746,6 +6749,9 @@ components:
         h:
           type: integer
           format: int32
+        viewID:
+          type: string
+          description: uses the view provided in the request
         usingView:
           type: string
           description: makes a copy of the provided view
@@ -6789,6 +6795,9 @@ components:
         h:
           type: integer
           format: int32
+        viewID:
+          type: string
+          description: The reference to a view from the views API
     Cells:
       type: array
       items:

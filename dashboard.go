@@ -288,8 +288,9 @@ type View struct {
 	Properties ViewProperties
 }
 
-// ViewContents holds the non properties content of a View.
+// ViewContents is the id and name of a specific view.
 type ViewContents struct {
+	ID   ID     `json:"id,omitempty"`
 	Name string `json:"name"`
 }
 
