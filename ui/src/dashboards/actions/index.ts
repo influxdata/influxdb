@@ -49,6 +49,7 @@ import {
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {client} from 'src/utils/api'
 import {exportVariables} from 'src/variables/utils/exportVariables'
+import {getSaveableView} from 'src/timeMachine/selectors'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -506,5 +507,23 @@ export const convertToTemplate = (dashboardID: string) => async (
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))
+  }
+}
+
+export const saveVEOView = (dashboard: Dashboard) => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  const view = getSaveableView(getState())
+
+  try {
+    if (view.id) {
+      await dispatch(updateView(dashboard, view))
+    } else {
+      await dispatch(createCellWithView(dashboard, view))
+    }
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.cellAddFailed()))
   }
 }
