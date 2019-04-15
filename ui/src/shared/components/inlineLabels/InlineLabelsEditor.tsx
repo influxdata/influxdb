@@ -10,10 +10,10 @@ import {
   ComponentColor,
 } from '@influxdata/clockface'
 import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPopover'
-import CreateLabelOverlay from 'src/configuration/components/CreateLabelOverlay'
+import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 
 // Utils
-import {validateLabelUniqueness} from 'src/configuration/utils/labels'
+import {validateLabelUniqueness} from 'src/labels/utils/'
 
 // Types
 import {ILabel} from '@influxdata/influx'

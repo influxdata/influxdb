@@ -10,10 +10,7 @@ import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetLabels from 'src/configuration/components/GetLabels'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Actions
 import {
@@ -108,7 +105,7 @@ class TasksPage extends PureComponent<Props, State> {
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <GetResources resource={ResourceTypes.Tasks}>
-                <GetLabels>
+                <GetResources resource={ResourceTypes.Labels}>
                   <FilterList<Task>
                     list={this.filteredTasks}
                     searchTerm={searchTerm}
@@ -135,7 +132,7 @@ class TasksPage extends PureComponent<Props, State> {
                     )}
                   </FilterList>
                   {this.hiddenTaskAlert}
-                </GetLabels>
+                </GetResources>
               </GetResources>
             </div>
           </Page.Contents>

@@ -34,7 +34,7 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 		l1 := &influxdb.Label{Name: "l1"}
 		l2 := &influxdb.Label{Name: "l2"}
 		mustCreateLabels(ctx, svc, l1, l2)
-		lBad := &influxdb.Label{Name: "bad"}
+		lBad := &influxdb.Label{ID: MustIDBase16(oneID), Name: "bad"}
 
 		o1 := &influxdb.Organization{Name: "foo"}
 		o2 := &influxdb.Organization{Name: "bar"}
@@ -66,7 +66,7 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 					"v1": "v1",
 				},
 			}
-			if err := s.CreateDocument(ctx, d1, influxdb.AuthorizedWithOrg(s1, o1.Name), influxdb.WithLabel(l1.Name)); err != nil {
+			if err := s.CreateDocument(ctx, d1, influxdb.AuthorizedWithOrg(s1, o1.Name), influxdb.WithLabel(l1.ID)); err != nil {
 				t.Errorf("failed to create document: %v", err)
 			}
 		})
@@ -80,7 +80,7 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 					"i2": "i2",
 				},
 			}
-			if err := s.CreateDocument(ctx, d2, influxdb.AuthorizedWithOrg(s2, o1.Name), influxdb.WithLabel(l2.Name)); err == nil {
+			if err := s.CreateDocument(ctx, d2, influxdb.AuthorizedWithOrg(s2, o1.Name), influxdb.WithLabel(l2.ID)); err == nil {
 				t.Fatalf("should not have be authorized to create document")
 			}
 
@@ -119,7 +119,7 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 					"k4": "v4",
 				},
 			}
-			err = s.CreateDocument(ctx, d4, influxdb.WithLabel(lBad.Name))
+			err = s.CreateDocument(ctx, d4, influxdb.WithLabel(lBad.ID))
 			ErrorsEqual(t, err, &influxdb.Error{
 				Code: influxdb.ENotFound,
 				Msg:  "label not found",
@@ -129,6 +129,10 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 		dl1 := new(influxdb.Document)
 		*dl1 = *d1
 		dl1.Labels = append([]*influxdb.Label{}, l1)
+
+		dl2 := new(influxdb.Document)
+		*dl2 = *d2
+		dl2.Labels = append([]*influxdb.Label{}, d2.Labels...)
 
 		t.Run("bare call to find returns all documents", func(t *testing.T) {
 			ds, err := ss.FindDocuments(ctx)
@@ -166,7 +170,7 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 				t.Fatalf("failed to retrieve documents: %v", err)
 			}
 
-			if exp, got := []*influxdb.Document{dl1, d2}, ds; !docsEqual(exp, got) {
+			if exp, got := []*influxdb.Document{dl1, dl2}, ds; !docsEqual(exp, got) {
 				t.Errorf("documents are different -got/+want\ndiff %s", docsDiff(exp, got))
 			}
 		})

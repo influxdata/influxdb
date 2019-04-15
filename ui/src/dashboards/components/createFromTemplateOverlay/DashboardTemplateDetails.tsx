@@ -26,7 +26,10 @@ class DashboardTemplateDetails extends PureComponent<Props> {
     }
 
     return (
-      <Panel className="import-template-overlay--details">
+      <Panel
+        className="import-template-overlay--details"
+        testID="template-panel"
+      >
         <Panel.Header title={_.get(selectedTemplateSummary, 'meta.name')} />
         <Panel.Body>
           <div className="import-template-overlay--columns">

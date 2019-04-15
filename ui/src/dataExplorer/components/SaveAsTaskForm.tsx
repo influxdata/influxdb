@@ -26,7 +26,7 @@ import {
 } from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {AppState, Organization, TimeRange} from 'src/types'
+import {AppState, TimeRange} from 'src/types'
 import {
   TaskSchedule,
   TaskOptions,
@@ -46,7 +46,6 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  orgs: Organization[]
   taskOptions: TaskOptions
   draftQueries: DashboardDraftQuery[]
   activeQueryIndex: number
@@ -155,8 +154,8 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
 
 const mstp = (state: AppState): StateProps => {
   const {
-    orgs: {items},
     tasks: {newScript, taskOptions},
+    orgs: {org},
   } = state
 
   const {draftQueries, activeQueryIndex, timeRange} = getActiveTimeMachine(
@@ -164,9 +163,8 @@ const mstp = (state: AppState): StateProps => {
   )
 
   return {
-    orgs: items,
     newScript,
-    taskOptions,
+    taskOptions: {...taskOptions, toOrgName: org.name},
     timeRange,
     draftQueries,
     activeQueryIndex,

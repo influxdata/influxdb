@@ -2,19 +2,29 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
+import {
+  Button,
+  ComponentSize,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+} from '@influxdata/clockface'
 
 // Components
 import {ResourceList, Context, IconFont} from 'src/clockface'
-import InlineLabels, {
-  LabelsEditMode,
-} from 'src/shared/components/inlineLabels/InlineLabels'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
 import {
   deleteTemplate,
   cloneTemplate,
   updateTemplate,
+  createResourceFromTemplate,
+  removeTemplateLabelsAsync,
+  addTemplateLabelsAsync,
 } from 'src/templates/actions'
+import {createLabel as createLabelAsync} from 'src/labels/actions'
+
 // Selectors
 import {viewableLabels} from 'src/labels/selectors'
 
@@ -35,6 +45,10 @@ interface DispatchProps {
   onDelete: typeof deleteTemplate
   onClone: typeof cloneTemplate
   onUpdate: typeof updateTemplate
+  onCreateFromTemplate: typeof createResourceFromTemplate
+  onAddTemplateLabels: typeof addTemplateLabelsAsync
+  onRemoveTemplateLabels: typeof removeTemplateLabelsAsync
+  onCreateLabel: typeof createLabelAsync
 }
 
 interface StateProps {
@@ -68,7 +82,9 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
             selectedLabels={template.labels}
             labels={labels}
             onFilterChange={onFilterChange}
-            editMode={LabelsEditMode.Readonly}
+            onAddLabel={this.handleAddLabel}
+            onRemoveLabel={this.handleRemoveLabel}
+            onCreateLabel={this.handleCreateLabel}
           />
         )}
       />
@@ -90,27 +106,45 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
       onDelete,
     } = this.props
     return (
-      <Context>
-        <Context.Menu
-          icon={IconFont.Duplicate}
-          color={ComponentColor.Secondary}
-        >
-          <Context.Item label="Clone" action={this.handleClone} value={id} />
-        </Context.Menu>
-        <Context.Menu
-          icon={IconFont.Trash}
-          color={ComponentColor.Danger}
-          testID="context-delete-menu"
-        >
-          <Context.Item
-            label="Delete"
-            action={onDelete}
-            value={id}
-            testID="context-delete-task"
-          />
-        </Context.Menu>
-      </Context>
+      <ComponentSpacer
+        margin={ComponentSize.Medium}
+        direction={FlexDirection.Row}
+        justifyContent={JustifyContent.FlexEnd}
+      >
+        <Button
+          text="Create"
+          color={ComponentColor.Primary}
+          size={ComponentSize.ExtraSmall}
+          onClick={this.handleCreate}
+        />
+        <Context>
+          <Context.Menu
+            icon={IconFont.Duplicate}
+            color={ComponentColor.Secondary}
+          >
+            <Context.Item label="Clone" action={this.handleClone} value={id} />
+          </Context.Menu>
+          <Context.Menu
+            icon={IconFont.Trash}
+            color={ComponentColor.Danger}
+            testID="context-delete-menu"
+          >
+            <Context.Item
+              label="Delete"
+              action={onDelete}
+              value={id}
+              testID="context-delete-task"
+            />
+          </Context.Menu>
+        </Context>
+      </ComponentSpacer>
     )
+  }
+
+  private handleCreate = () => {
+    const {onCreateFromTemplate, template} = this.props
+
+    onCreateFromTemplate(template.id)
   }
 
   private handleClone = () => {
@@ -123,12 +157,28 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault()
-    this.handleExport()
+    this.handleViewTemplate()
   }
 
-  private handleExport = () => {
+  private handleViewTemplate = () => {
     const {router, template, org} = this.props
-    router.push(`orgs/${org.id}/templates/${template.id}/export`)
+    router.push(`/orgs/${org.id}/templates/${template.id}/view`)
+  }
+
+  private handleAddLabel = (label: ILabel): void => {
+    const {template, onAddTemplateLabels} = this.props
+
+    onAddTemplateLabels(template.id, [label])
+  }
+
+  private handleRemoveLabel = (label: ILabel): void => {
+    const {template, onRemoveTemplateLabels} = this.props
+
+    onRemoveTemplateLabels(template.id, [label])
+  }
+
+  private handleCreateLabel = async (label: ILabel): Promise<void> => {
+    await this.props.onCreateLabel(label.name, label.properties)
   }
 }
 
@@ -143,6 +193,10 @@ const mdtp: DispatchProps = {
   onDelete: deleteTemplate,
   onClone: cloneTemplate,
   onUpdate: updateTemplate,
+  onCreateFromTemplate: createResourceFromTemplate,
+  onAddTemplateLabels: addTemplateLabelsAsync,
+  onRemoveTemplateLabels: removeTemplateLabelsAsync,
+  onCreateLabel: createLabelAsync,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

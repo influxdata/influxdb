@@ -63,7 +63,7 @@ func (c *Client) findLabelByID(ctx context.Context, tx *bolt.Tx, id influxdb.ID)
 	if len(v) == 0 {
 		return nil, &influxdb.Error{
 			Code: influxdb.ENotFound,
-			Err:  influxdb.ErrLabelNotFound,
+			Msg:  influxdb.ErrLabelNotFound,
 		}
 	}
 

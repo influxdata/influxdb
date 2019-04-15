@@ -49,6 +49,7 @@ import {
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {client} from 'src/utils/api'
 import {exportVariables} from 'src/variables/utils/exportVariables'
+import {getSaveableView} from 'src/timeMachine/selectors'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -233,13 +234,16 @@ export const getDashboardsAsync = () => async (
 }
 
 export const createDashboardFromTemplate = (
-  template: DashboardTemplate,
-  orgID: string
-) => async dispatch => {
+  template: DashboardTemplate
+) => async (dispatch, getState: GetState) => {
   try {
-    await createDashboardFromTemplateAJAX(template, orgID)
+    const {
+      orgs: {org},
+    } = getState()
 
-    const dashboards = await getDashboardsAJAX(orgID)
+    await createDashboardFromTemplateAJAX(template, org.id)
+
+    const dashboards = await getDashboardsAJAX(org.id)
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
     dispatch(notify(importDashboardSucceeded()))
@@ -503,5 +507,23 @@ export const convertToTemplate = (dashboardID: string) => async (
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))
+  }
+}
+
+export const saveVEOView = (dashboard: Dashboard) => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  const view = getSaveableView(getState())
+
+  try {
+    if (view.id) {
+      await dispatch(updateView(dashboard, view))
+    } else {
+      await dispatch(createCellWithView(dashboard, view))
+    }
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.cellAddFailed()))
   }
 }

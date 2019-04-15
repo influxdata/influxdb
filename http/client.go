@@ -4,6 +4,8 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/url"
+
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 // Service connects to an InfluxDB via HTTP.
@@ -90,6 +92,7 @@ type traceClient struct {
 
 // Do injects the trace and then performs the request.
 func (c *traceClient) Do(r *http.Request) (*http.Response, error) {
-	InjectTrace(r)
+	span, _ := tracing.StartSpanFromContext(r.Context())
+	tracing.InjectToHTTPRequest(span, r)
 	return c.Client.Do(r)
 }

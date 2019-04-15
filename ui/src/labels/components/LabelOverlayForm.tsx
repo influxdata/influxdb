@@ -16,11 +16,11 @@ import {
 } from '@influxdata/clockface'
 
 // Constants
-import {INPUT_ERROR_COLOR} from 'src/configuration/constants/LabelColors'
+import {INPUT_ERROR_COLOR} from 'src/labels/constants'
 const MAX_LABEL_CHARS = 50
 
 // Utils
-import {validateHexCode} from 'src/configuration/utils/labels'
+import {validateHexCode} from 'src/labels/utils/'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

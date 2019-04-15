@@ -33,7 +33,7 @@ interface OwnProps {
 }
 
 interface DispatchProps {
-  createTemplateFromResource: typeof createTemplateFromResource
+  onCreateTemplateFromResource: typeof createTemplateFromResource
 }
 
 type Props = OwnProps & DispatchProps
@@ -142,14 +142,20 @@ class ExportOverlay extends PureComponent<Props> {
   }
 
   private handleConvertToTemplate = async (): Promise<void> => {
-    const {resource, onDismissOverlay, resourceName} = this.props
-    createTemplateFromResource(resource, resourceName)
+    const {
+      resource,
+      onDismissOverlay,
+      resourceName,
+      onCreateTemplateFromResource,
+    } = this.props
+
+    onCreateTemplateFromResource(resource, resourceName)
     onDismissOverlay()
   }
 }
 
 const mdtp: DispatchProps = {
-  createTemplateFromResource,
+  onCreateTemplateFromResource: createTemplateFromResource,
 }
 
 export default connect<{}, DispatchProps, OwnProps>(

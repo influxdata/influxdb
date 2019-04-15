@@ -3,7 +3,7 @@ import {client} from 'src/utils/api'
 import * as authAPI from 'src/authorizations/apis'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, AppState} from 'src/types'
 import {Authorization} from '@influxdata/influx'
 import {Dispatch} from 'redux-thunk'
 
@@ -77,11 +77,17 @@ export const removeAuthorization = (id: string): RemoveAuthorization => ({
   payload: {id},
 })
 
-export const getAuthorizations = () => async (dispatch: Dispatch<Action>) => {
+export const getAuthorizations = () => async (
+  dispatch: Dispatch<Action>,
+  getState: () => AppState
+) => {
   try {
     dispatch(setAuthorizations(RemoteDataState.Loading))
+    const {
+      orgs: {org},
+    } = getState()
 
-    const authorizations = await client.authorizations.getAll()
+    const authorizations = await client.authorizations.getAll(org.id)
 
     dispatch(setAuthorizations(RemoteDataState.Done, authorizations))
   } catch (e) {

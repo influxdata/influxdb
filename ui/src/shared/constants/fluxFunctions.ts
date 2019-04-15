@@ -1223,12 +1223,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/set',
   },
   {
-    name: 'shift',
+    name: 'timeShift',
     args: [
       {
-        name: 'shift',
+        name: 'duration',
         desc:
-          'The amount of time to add to each time value. The shift may be a negative duration.',
+          'The amount of time to add to each time value. May be a negative duration.',
         type: 'String',
       },
       {
@@ -1240,7 +1240,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     desc:
       'Adds a fixed duration to time columns. The output table schema is the same as the input table.',
-    example: 'shift(shift: 10h, columns: ["_start", "_stop", "_time"])',
+    example: 'timeShift(duration: 10h, columns: ["_start", "_stop", "_time"])',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/transformations/shift',

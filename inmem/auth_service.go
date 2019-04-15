@@ -86,6 +86,19 @@ func filterAuthorizationsFn(filter platform.AuthorizationFilter) func(a *platfor
 		}
 	}
 
+	// Filter by org and user
+	if filter.OrgID != nil && filter.UserID != nil {
+		return func(a *platform.Authorization) bool {
+			return a.OrgID == *filter.OrgID && a.UserID == *filter.UserID
+		}
+	}
+
+	if filter.OrgID != nil {
+		return func(a *platform.Authorization) bool {
+			return a.OrgID == *filter.OrgID
+		}
+	}
+
 	if filter.UserID != nil {
 		return func(a *platform.Authorization) bool {
 			return a.UserID == *filter.UserID
@@ -121,6 +134,18 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter platform.Author
 		}
 		filter.UserID = &u.ID
 	}
+
+	if filter.Org != nil {
+		o, err := s.findOrganizationByName(ctx, *filter.Org)
+		if err != nil {
+			return nil, 0, &platform.Error{
+				Op:  op,
+				Err: err,
+			}
+		}
+		filter.OrgID = &o.ID
+	}
+
 	var err error
 	filterF := filterAuthorizationsFn(filter)
 	s.authorizationKV.Range(func(k, v interface{}) bool {
@@ -193,11 +218,11 @@ func (s *Service) DeleteAuthorization(ctx context.Context, id platform.ID) error
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) error {
+func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
 	op := OpPrefix + platform.OpUpdateAuthorization
 	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
-		return &platform.Error{
+		return nil, &platform.Error{
 			Err: err,
 			Op:  op,
 		}
@@ -208,7 +233,7 @@ func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *
 		switch status {
 		case platform.Active, platform.Inactive:
 		default:
-			return &platform.Error{
+			return nil, &platform.Error{
 				Code: platform.EInvalid,
 				Msg:  "unknown authorization status",
 				Op:   op,
@@ -221,5 +246,5 @@ func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *
 		a.Description = *upd.Description
 	}
 
-	return s.PutAuthorization(ctx, a)
+	return a, s.PutAuthorization(ctx, a)
 }

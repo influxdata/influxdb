@@ -78,7 +78,7 @@ export const getBuckets = () => async (
       orgs: {org},
     } = getState()
 
-    const buckets = (await client.buckets.getAll(org.id)) as Bucket[]
+    const buckets = await client.buckets.getAll(org.id)
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
   } catch (e) {

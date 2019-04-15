@@ -18,7 +18,6 @@ import {getTemplateByID} from 'src/templates/actions'
 import {
   TemplateSummary,
   ITemplate,
-  Organization,
   TemplateType,
   IDashboardTemplateIncluded,
 } from '@influxdata/influx'
@@ -27,7 +26,6 @@ import {AppState, RemoteDataState, DashboardTemplate} from 'src/types'
 interface StateProps {
   templates: TemplateSummary[]
   templateStatus: RemoteDataState
-  orgs: Organization[]
 }
 
 interface DispatchProps {
@@ -144,9 +142,9 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   private handleSelectTemplate = (
     selectedTemplateSummary: TemplateSummary
   ) => async (): Promise<void> => {
-    this.setState({selectedTemplateSummary})
     const selectedTemplate = await getTemplateByID(selectedTemplateSummary.id)
     this.setState({
+      selectedTemplateSummary,
       selectedTemplate,
       variables: this.getVariablesForTemplate(selectedTemplate),
       cells: this.getCellsForTemplate(selectedTemplate),
@@ -159,23 +157,17 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 
   private onSubmit = async (): Promise<void> => {
-    const {
-      createDashboardFromTemplate,
-      params: {orgID},
-    } = this.props
+    const {createDashboardFromTemplate} = this.props
 
-    await createDashboardFromTemplate(
-      this.state.selectedTemplate as DashboardTemplate,
-      orgID
-    )
+    await createDashboardFromTemplate(this.state
+      .selectedTemplate as DashboardTemplate)
     this.onDismiss()
   }
 }
 
-const mstp = ({templates: {items, status}, orgs}: AppState): StateProps => ({
+const mstp = ({templates: {items, status}}: AppState): StateProps => ({
   templates: items,
   templateStatus: status,
-  orgs: orgs.items,
 })
 
 const mdtp: DispatchProps = {

@@ -38,17 +38,6 @@ export const getDashboard = async (id: string): Promise<Dashboard> => {
   }
 }
 
-export const getDashboardsByOrgID = async (
-  orgID: string
-): Promise<Dashboard[]> => {
-  const dashboards = await client.dashboards.getAll(orgID)
-
-  return dashboards.map(d => ({
-    ...d,
-    cells: addDashboardIDToCells(d.cells, d.id),
-  }))
-}
-
 export const createDashboard = async (
   props: CreateDashboardRequest
 ): Promise<Dashboard> => {

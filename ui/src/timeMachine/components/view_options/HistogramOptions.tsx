@@ -20,7 +20,12 @@ import {
 } from 'src/timeMachine/actions'
 
 // Utils
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {
+  getXColumnSelection,
+  getNumericColumns,
+  getGroupableColumns,
+  getFillColumnsSelection,
+} from 'src/timeMachine/selectors'
 
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
@@ -29,6 +34,8 @@ import {Color} from 'src/types/colors'
 import {AppState} from 'src/types'
 
 interface StateProps {
+  xColumn: string
+  fillColumns: string[]
   availableXColumns: string[]
   availableGroupColumns: string[]
 }
@@ -44,8 +51,6 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  xColumn: string
-  fillColumns: string[]
   position: HistogramPosition
   binCount: number
   colors: Color[]
@@ -157,9 +162,12 @@ const HistogramOptions: SFC<Props> = props => {
 }
 
 const mstp = (state: AppState) => {
-  const {availableXColumns, availableGroupColumns} = getActiveTimeMachine(state)
+  const availableXColumns = getNumericColumns(state)
+  const availableGroupColumns = getGroupableColumns(state)
+  const xColumn = getXColumnSelection(state)
+  const fillColumns = getFillColumnsSelection(state)
 
-  return {availableXColumns, availableGroupColumns}
+  return {availableXColumns, availableGroupColumns, xColumn, fillColumns}
 }
 
 const mdtp = {

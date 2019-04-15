@@ -73,13 +73,11 @@ export const getLabels = () => async (
 ) => {
   try {
     const {
-      orgs: {
-        org: {id},
-      },
+      orgs: {org},
     } = getState()
     dispatch(setLabels(RemoteDataState.Loading))
 
-    const labels = await client.labels.getAll(id)
+    const labels = await client.labels.getAll(org.id)
 
     dispatch(setLabels(RemoteDataState.Done, labels))
   } catch (e) {

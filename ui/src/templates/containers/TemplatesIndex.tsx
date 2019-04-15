@@ -6,30 +6,21 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
-import OrganizationNavigation from 'src/organizations/components/OrganizationNavigation'
-import OrgHeader from 'src/organizations/containers/OrgHeader'
+import SettingsNavigation from 'src/settings/components/SettingsNavigation'
+import SettingsHeader from 'src/settings/components/SettingsHeader'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
-
-//Actions
-import {setTemplatesStatus as setTemplatesStatusAction} from 'src/templates/actions/index'
 
 // Types
 import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 interface StateProps {
   org: Organization
 }
 
-interface DispatchProps {
-  setTemplatesStatus: typeof setTemplatesStatusAction
-}
-
-type Props = WithRouterProps & StateProps & DispatchProps
+type Props = WithRouterProps & StateProps
 
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
@@ -38,14 +29,14 @@ class TemplatesIndex extends Component<Props> {
     return (
       <>
         <Page titleTag={org.name}>
-          <OrgHeader />
+          <SettingsHeader />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <Tabs>
-                <OrganizationNavigation tab="templates" orgID={org.id} />
+                <SettingsNavigation tab="templates" orgID={org.id} />
                 <Tabs.TabContents>
                   <TabbedPageSection
-                    id="org-view-tab--templates"
+                    id="settings-tab--templates"
                     url="templates"
                     title="Templates"
                   >

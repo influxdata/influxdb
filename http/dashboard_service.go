@@ -140,10 +140,14 @@ type dashboardLinks struct {
 }
 
 type dashboardResponse struct {
-	platform.Dashboard
-	Cells  []dashboardCellResponse `json:"cells"`
-	Labels []platform.Label        `json:"labels"`
-	Links  dashboardLinks          `json:"links"`
+	ID             platform.ID             `json:"id,omitempty"`
+	OrganizationID platform.ID             `json:"orgID,omitempty"`
+	Name           string                  `json:"name"`
+	Description    string                  `json:"description"`
+	Meta           platform.DashboardMeta  `json:"meta"`
+	Cells          []dashboardCellResponse `json:"cells"`
+	Labels         []platform.Label        `json:"labels"`
+	Links          dashboardLinks          `json:"links"`
 }
 
 func (d dashboardResponse) toPlatform() *platform.Dashboard {
@@ -174,9 +178,13 @@ func newDashboardResponse(d *platform.Dashboard, labels []*platform.Label) dashb
 			Labels:       fmt.Sprintf("/api/v2/dashboards/%s/labels", d.ID),
 			Organization: fmt.Sprintf("/api/v2/orgs/%s", d.OrganizationID),
 		},
-		Dashboard: *d,
-		Labels:    []platform.Label{},
-		Cells:     []dashboardCellResponse{},
+		ID:             d.ID,
+		OrganizationID: d.OrganizationID,
+		Name:           d.Name,
+		Description:    d.Description,
+		Meta:           d.Meta,
+		Labels:         []platform.Label{},
+		Cells:          []dashboardCellResponse{},
 	}
 
 	for _, l := range labels {

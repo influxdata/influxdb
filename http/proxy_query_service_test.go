@@ -12,8 +12,8 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/query/mock"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +34,7 @@ func TestProxyQueryService_Query(t *testing.T) {
 		t.Fatalf("error adding dialect mappings: %v", err)
 	}
 	h.ProxyQueryService = &mock.ProxyQueryService{
-		QueryFn: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+		QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
 			if _, err := io.WriteString(w, "boo"); err != nil {
 				return flux.Statistics{}, err
 			}

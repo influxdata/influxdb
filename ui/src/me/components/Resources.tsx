@@ -17,9 +17,7 @@ import VersionInfo from 'src/shared/components/VersionInfo'
 
 // Types
 import {AppState} from 'src/types'
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 interface Props {
   me: AppState['me']

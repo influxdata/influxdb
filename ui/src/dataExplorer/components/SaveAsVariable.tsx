@@ -8,10 +8,12 @@ import VariableForm from 'src/variables/components/VariableForm'
 
 // Utils
 import {createVariable} from 'src/variables/actions'
+import {extractVariablesList} from 'src/variables/selectors'
 
 // Types
 import {AppState} from 'src/types'
 import {getActiveQuery} from 'src/timeMachine/selectors'
+import {IVariable as Variable} from '@influxdata/influx'
 
 interface OwnProps {
   onHideOverlay: () => void
@@ -23,19 +25,26 @@ interface DispatchProps {
 
 interface StateProps {
   initialScript?: string
+  variables: Variable[]
 }
 
 type Props = StateProps & DispatchProps & OwnProps
 
 class SaveAsVariable extends PureComponent<Props & WithRouterProps> {
   render() {
-    const {onHideOverlay, onCreateVariable, initialScript} = this.props
+    const {
+      onHideOverlay,
+      onCreateVariable,
+      initialScript,
+      variables,
+    } = this.props
 
     return (
       <VariableForm
         onHideOverlay={onHideOverlay}
         onCreateVariable={onCreateVariable}
         initialScript={initialScript}
+        variables={variables}
       />
     )
   }
@@ -43,8 +52,11 @@ class SaveAsVariable extends PureComponent<Props & WithRouterProps> {
 
 const mstp = (state: AppState): StateProps => {
   const activeQuery = getActiveQuery(state)
+  const variables = extractVariablesList(state)
+
   return {
     initialScript: activeQuery.text,
+    variables,
   }
 }
 

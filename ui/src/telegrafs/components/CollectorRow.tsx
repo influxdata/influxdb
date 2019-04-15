@@ -1,6 +1,7 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {IndexList, Alignment, ConfirmationButton} from 'src/clockface'
@@ -13,7 +14,7 @@ import {
   JustifyContent,
   AlignItems,
 } from '@influxdata/clockface'
-import {ITelegraf as Telegraf} from '@influxdata/influx'
+import {ITelegraf as Telegraf, Organization} from '@influxdata/influx'
 import EditableName from 'src/shared/components/EditableName'
 import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
@@ -41,13 +42,14 @@ interface OwnProps {
   onDelete: (telegraf: Telegraf) => void
   onUpdate: (telegraf: Telegraf) => void
   onOpenInstructions: (telegrafID: string) => void
-  onOpenTelegrafConfig: (telegrafID: string, telegrafName: string) => void
   onFilterChange: (searchTerm: string) => void
 }
 
 interface StateProps {
   labels: ILabel[]
+  org: Organization
 }
+
 interface DispatchProps {
   onAddLabels: typeof addTelelgrafLabelsAsync
   onRemoveLabels: typeof removeTelelgrafLabelsAsync
@@ -56,7 +58,7 @@ interface DispatchProps {
 
 type Props = OwnProps & StateProps & DispatchProps
 
-class CollectorRow extends PureComponent<Props> {
+class CollectorRow extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {collector, bucket} = this.props
 
@@ -74,7 +76,7 @@ class CollectorRow extends PureComponent<Props> {
                 onUpdate={this.handleUpdateName}
                 name={collector.name}
                 noNameString={DEFAULT_COLLECTOR_NAME}
-                onEditName={this.handleOpenConfig}
+                onEditName={this.handleNameClick}
               />
               <EditableDescription
                 description={collector.description}
@@ -159,11 +161,14 @@ class CollectorRow extends PureComponent<Props> {
     }
   }
 
+  private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+    this.handleOpenConfig()
+  }
+
   private handleOpenConfig = (): void => {
-    this.props.onOpenTelegrafConfig(
-      this.props.collector.id,
-      this.props.collector.name
-    )
+    const {collector, router, org} = this.props
+    router.push(`/orgs/${org.id}/telegrafs/${collector.id}/view`)
   }
 
   private handleDeleteConfig = (): void => {
@@ -175,8 +180,8 @@ class CollectorRow extends PureComponent<Props> {
   }
 }
 
-const mstp = ({labels}: AppState): StateProps => {
-  return {labels: viewableLabels(labels.list)}
+const mstp = ({labels, orgs: {org}}: AppState): StateProps => {
+  return {org, labels: viewableLabels(labels.list)}
 }
 
 const mdtp: DispatchProps = {
@@ -188,4 +193,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(CollectorRow)
+)(withRouter<Props>(CollectorRow))

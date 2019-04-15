@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
@@ -549,7 +548,7 @@ func (l *WAL) Close() error {
 	}
 
 	l.once.Do(func() {
-		span := opentracing.StartSpan("WAL.Close once.Do")
+		span, _ := tracing.StartSpanFromContextWithOperationName(context.Background(), "WAL.Close once.Do")
 		defer span.Finish()
 
 		span.LogKV("path", l.path)

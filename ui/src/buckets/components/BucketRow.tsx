@@ -5,8 +5,8 @@ import _ from 'lodash'
 
 // Components
 import {IndexList, ConfirmationButton, Context} from 'src/clockface'
-import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
 import EditableName from 'src/shared/components/EditableName'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 // Constants
 import {DEFAULT_BUCKET_NAME} from 'src/dashboards/constants'
@@ -30,7 +30,7 @@ interface Props {
   bucket: PrettyBucket
   onEditBucket: (b: PrettyBucket) => void
   onDeleteBucket: (b: PrettyBucket) => void
-  onAddData: (b: PrettyBucket, d: DataLoaderType) => void
+  onAddData: (b: PrettyBucket, d: DataLoaderType, l: string) => void
   onUpdateBucket: (b: PrettyBucket) => void
   onFilterChange: (searchTerm: string) => void
 }
@@ -77,13 +77,13 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
                   description="Quickly load an existing line protocol file."
                   action={this.handleAddLineProtocol}
                 />
-                <CloudFeatureFlag>
+                <CloudExclude>
                   <Context.Item
                     label="Scrape Metrics"
                     description="Add a scrape target to pull data into your bucket."
                     action={this.handleAddScraper}
                   />
-                </CloudFeatureFlag>
+                </CloudExclude>
               </Context.Menu>
             </Context>
           </IndexList.Cell>
@@ -101,15 +101,33 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleAddCollector = (): void => {
-    this.props.onAddData(this.props.bucket, DataLoaderType.Streaming)
+    const {
+      params: {orgID},
+      bucket: {id},
+    } = this.props
+
+    const link = `/orgs/${orgID}/buckets/${id}/telegrafs/new`
+    this.props.onAddData(this.props.bucket, DataLoaderType.Streaming, link)
   }
 
   private handleAddLineProtocol = (): void => {
-    this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol)
+    const {
+      params: {orgID},
+      bucket: {id},
+    } = this.props
+
+    const link = `/orgs/${orgID}/buckets/${id}/line-protocols/new`
+    this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol, link)
   }
 
   private handleAddScraper = (): void => {
-    this.props.onAddData(this.props.bucket, DataLoaderType.Scraping)
+    const {
+      params: {orgID},
+      bucket: {id},
+    } = this.props
+
+    const link = `/orgs/${orgID}/buckets/${id}/scrapers/new`
+    this.props.onAddData(this.props.bucket, DataLoaderType.Scraping, link)
   }
 }
 
