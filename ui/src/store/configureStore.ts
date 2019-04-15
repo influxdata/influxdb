@@ -10,7 +10,7 @@ import sharedReducers from 'src/shared/reducers'
 import persistStateEnhancer from './persistStateEnhancer'
 
 // v2 reducers
-import meReducer from 'src/shared/reducers/v2/me'
+import meReducer from 'src/shared/reducers/me'
 import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
 import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'

@@ -1,4 +1,4 @@
-import {Actions, ActionTypes} from 'src/shared/actions/v2/me'
+import {Actions, ActionTypes} from 'src/shared/actions/me'
 
 export interface MeLinks {
   self: string

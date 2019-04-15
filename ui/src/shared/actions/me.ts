@@ -1,4 +1,4 @@
-import {MeState} from 'src/shared/reducers/v2/me'
+import {MeState} from 'src/shared/reducers/me'
 import {client} from 'src/utils/api'
 
 export enum ActionTypes {
