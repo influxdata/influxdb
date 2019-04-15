@@ -12,7 +12,7 @@ import {
   EmptyState,
   ComponentSize,
 } from '@influxdata/clockface'
-import {Overlay, ResponsiveGridSizer} from 'src/clockface'
+import {Overlay, ResponsiveGridSizer, ComponentStatus} from 'src/clockface'
 import {
   TemplateSummary,
   ITemplate,
@@ -70,15 +70,15 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
 
     return (
       <Overlay visible={true}>
-        <Overlay.Container maxWidth={800}>
+        <Overlay.Container maxWidth={900}>
           <Overlay.Heading
-            title="Import Dashboard from a Template"
+            title="Create Dashboard from a Template"
             onDismiss={this.onDismiss}
           />
           <Overlay.Body>
             <div className="import-template-overlay">
               <GetResources resource={ResourceTypes.Templates}>
-                <ResponsiveGridSizer columns={3}>
+                <ResponsiveGridSizer columns={2}>
                   {this.templates}
                 </ResponsiveGridSizer>
               </GetResources>
@@ -130,6 +130,12 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 
   private get buttons(): JSX.Element[] {
+    const {selectedTemplate} = this.state
+
+    const submitStatus = selectedTemplate
+      ? ComponentStatus.Default
+      : ComponentStatus.Disabled
+
     return [
       <Button text="Cancel" onClick={this.onDismiss} key="cancel-button" />,
       <Button
@@ -138,6 +144,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
         key="submit-button"
         testID="create-dashboard-button"
         color={ComponentColor.Primary}
+        status={submitStatus}
       />,
     ]
   }
@@ -159,7 +166,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
       <Panel className="import-template-overlay--empty">
         <Panel.Body>
           <EmptyState size={ComponentSize.Medium}>
-            <EmptyState.Text text="Select a Template on the left" />
+            <EmptyState.Text text="Select a Template from the left" />
           </EmptyState>
         </Panel.Body>
       </Panel>

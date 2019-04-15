@@ -1,14 +1,11 @@
-@import 'src/style/modules';
-
 .import-template-overlay {
   display: flex;
-  flex-direction: row;
-  width: 90%;
-  justify-content: center;
+  align-items: stretch;
+  height: 500px;
 }
 
 .import-template-overlay--details {
-  min-width: 65%;
+  flex: 3 0 0;
   margin-left: $ix-marg-c;
 }
 
