@@ -5,14 +5,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  Panel,
-  EmptyState,
-  ComponentSize,
-} from '@influxdata/clockface'
-import {Overlay, ResponsiveGridSizer, ComponentStatus} from 'src/clockface'
+import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
+import {Overlay, ResponsiveGridSizer} from 'src/clockface'
 import {
   TemplateSummary,
   ITemplate,
@@ -21,6 +15,7 @@ import {
   IDashboardTemplateIncluded,
 } from '@influxdata/influx'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
+import DashboardTemplateDetails from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateDetails'
 
 // Actions
 import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
@@ -66,7 +61,12 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 
   render() {
-    const {selectedTemplateSummary} = this.state
+    const {
+      selectedTemplateSummary,
+      cells,
+      variables,
+      selectedTemplate,
+    } = this.state
 
     return (
       <Overlay visible={true}>
@@ -82,26 +82,12 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
                   {this.templates}
                 </ResponsiveGridSizer>
               </GetResources>
-              {!selectedTemplateSummary && this.emptyState}
-              {selectedTemplateSummary && (
-                <Panel className="import-template-overlay--details">
-                  <Panel.Header
-                    title={_.get(selectedTemplateSummary, 'meta.name')}
-                  />
-                  <Panel.Body>
-                    <div className="import-template-overlay--columns">
-                      <div className="import-template-overlay--variables-column">
-                        <h5>Variables:</h5>
-                        {this.variableItems}
-                      </div>
-                      <div className="import-template-overlay--cells-column">
-                        <h5>Cells:</h5>
-                        {this.cellItems}
-                      </div>
-                    </div>
-                  </Panel.Body>
-                </Panel>
-              )}
+              <DashboardTemplateDetails
+                cells={cells}
+                variables={variables}
+                selectedTemplateSummary={selectedTemplateSummary}
+                selectedTemplate={selectedTemplate}
+              />
             </div>
           </Overlay.Body>
           <Overlay.Footer>{this.buttons}</Overlay.Footer>
@@ -147,30 +133,6 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
         status={submitStatus}
       />,
     ]
-  }
-
-  private get variableItems(): JSX.Element[] {
-    return this.state.variables.map(v => {
-      return <p key={v}>{v}</p>
-    })
-  }
-
-  private get cellItems(): JSX.Element[] {
-    return this.state.cells.map(c => {
-      return <p key={c}>{c}</p>
-    })
-  }
-
-  private get emptyState(): JSX.Element {
-    return (
-      <Panel className="import-template-overlay--empty">
-        <Panel.Body>
-          <EmptyState size={ComponentSize.Medium}>
-            <EmptyState.Text text="Select a Template from the left" />
-          </EmptyState>
-        </Panel.Body>
-      </Panel>
-    )
   }
 
   private getVariablesForTemplate(template: ITemplate): string[] {
