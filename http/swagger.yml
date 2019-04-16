@@ -6749,9 +6749,6 @@ components:
         h:
           type: integer
           format: int32
-        viewID:
-          type: string
-          description: uses the view provided in the request
         usingView:
           type: string
           description: makes a copy of the provided view

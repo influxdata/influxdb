@@ -1373,7 +1373,9 @@ func UpdateDashboardCell(
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
-								X:  10,
+								CellProperty: platform.CellProperty{
+									X: 10,
+								},
 							},
 							{
 								ID: MustIDBase16(dashOneID),
@@ -1576,11 +1578,15 @@ func ReplaceDashboardCells(
 				cells: []*platform.Cell{
 					{
 						ID: MustIDBase16(dashTwoID),
-						X:  10,
+						CellProperty: platform.CellProperty{
+							X: 10,
+						},
 					},
 					{
 						ID: MustIDBase16(dashOneID),
-						Y:  11,
+						CellProperty: platform.CellProperty{
+							Y: 11,
+						},
 					},
 				},
 			},
@@ -1596,11 +1602,15 @@ func ReplaceDashboardCells(
 						Cells: []*platform.Cell{
 							{
 								ID: MustIDBase16(dashTwoID),
-								X:  10,
+								CellProperty: platform.CellProperty{
+									X: 10,
+								},
 							},
 							{
 								ID: MustIDBase16(dashOneID),
-								Y:  11,
+								CellProperty: platform.CellProperty{
+									Y: 11,
+								},
 							},
 						},
 					},
@@ -1641,11 +1651,15 @@ func ReplaceDashboardCells(
 				cells: []*platform.Cell{
 					{
 						ID: MustIDBase16(dashTwoID),
-						X:  10,
+						CellProperty: platform.CellProperty{
+							X: 10,
+						},
 					},
 					{
 						ID: MustIDBase16(dashOneID),
-						Y:  11,
+						CellProperty: platform.CellProperty{
+							Y: 11,
+						},
 					},
 				},
 			},
