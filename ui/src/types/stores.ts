@@ -22,6 +22,7 @@ import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {OrgsState} from 'src/organizations/reducers/orgs'
 import {MembersState} from 'src/members/reducers'
+import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 
 export interface AppState {
   VERSION: string
@@ -31,6 +32,7 @@ export interface AppState {
   links: Links
   app: AppPresentationState
   ranges: RangeState
+  autoRefresh: AutoRefreshState
   views: ViewsState
   dashboards: DashboardsState
   notifications: Notification[]

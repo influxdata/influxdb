@@ -15,7 +15,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface OwnProps {
   view: View
   timeRange: TimeRange
-  autoRefresh: number
   manualRefresh: number
   onZoom: (range: TimeRange) => void
   onEditCell: () => void

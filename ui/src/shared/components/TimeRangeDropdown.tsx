@@ -18,9 +18,14 @@ import {
 // Types
 import {TimeRange} from 'src/types'
 
+export enum RangeType {
+  Absolute = 'absolute',
+  Relative = 'relative',
+}
+
 interface Props {
   timeRange: TimeRange
-  onSetTimeRange: (timeRange: TimeRange) => void
+  onSetTimeRange: (timeRange: TimeRange, rangeType?: RangeType) => void
 }
 
 interface State {
@@ -140,7 +145,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
   }
 
   private handleApplyTimeRange = (timeRange: TimeRange) => {
-    this.props.onSetTimeRange(timeRange)
+    this.props.onSetTimeRange(timeRange, RangeType.Absolute)
     this.handleHideDatePicker()
   }
 

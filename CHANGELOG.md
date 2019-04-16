@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.9 [unreleased]
 
 ### Features
+1. [13423](https://github.com/influxdata/influxdb/pull/13423): Set autorefresh of dashboard to pause if absolute time range is selected
 
 ### Bug Fixes
 

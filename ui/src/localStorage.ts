@@ -31,6 +31,7 @@ export const loadLocalStorage = (): LocalStorage => {
 export const saveToLocalStorage = ({
   app: {persisted},
   ranges,
+  autoRefresh,
   variables,
   userSettings,
   orgs: {org},
@@ -43,6 +44,7 @@ export const saveToLocalStorage = ({
         ...appPersisted,
         VERSION,
         ranges: normalizer(ranges),
+        autoRefresh,
         variables,
         userSettings,
         orgs: {

@@ -31,7 +31,6 @@ interface StateProps {
 interface OwnProps {
   cell: Cell
   timeRange: TimeRange
-  autoRefresh: number
   manualRefresh: number
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
@@ -105,7 +104,6 @@ class CellComponent extends Component<Props> {
   private get view(): JSX.Element {
     const {
       timeRange,
-      autoRefresh,
       manualRefresh,
       onZoom,
       view,
@@ -122,7 +120,6 @@ class CellComponent extends Component<Props> {
           view={view}
           onZoom={onZoom}
           timeRange={timeRange}
-          autoRefresh={autoRefresh}
           manualRefresh={manualRefresh}
           onEditCell={onEditCell}
         />
