@@ -25,6 +25,7 @@ type Document struct {
 // data in the meta should be indexed and queryable.
 type DocumentMeta struct {
 	Name    string `json:"name"`
+	Type    string `json:"type,omitempty"`
 	Version string `json:"version,omitempty"`
 }
 
