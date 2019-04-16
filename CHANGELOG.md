@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 ### UI Improvements
+1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay
 
 ## v2.0.0-alpha.8 [2019-04-12]
 
