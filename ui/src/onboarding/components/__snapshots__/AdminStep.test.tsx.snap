@@ -25,11 +25,13 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
         >
           <h3
             className="wizard-step--title"
+            data-testid="admin-step--head-main"
           >
             Setup Initial User
           </h3>
           <h5
             className="wizard-step--sub-title"
+            data-testid="admin-step--head-sub"
           >
             You will be able to create additional Users, Buckets and Organizations later
           </h5>
@@ -60,7 +62,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
-                    testID="input-field"
+                    testID="input-field--username"
                     titleText="Username"
                     type="text"
                     value=""
@@ -88,7 +90,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
-                    testID="input-field"
+                    testID="input-field--password"
                     titleText="Password"
                     type="password"
                     value=""
@@ -116,7 +118,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
-                    testID="input-field"
+                    testID="input-field--password-chk"
                     titleText="Confirm Password"
                     type="password"
                     value=""
@@ -132,7 +134,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 <t
                   label="Initial Organization Name"
                   labelAddOn={[Function]}
-                  testID="form--element"
+                  testID="form-elem--orgname"
                 >
                   <t
                     autoFocus={false}
@@ -145,7 +147,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
-                    testID="input-field"
+                    testID="input-field--orgname"
                     titleText="Initial Organization Name"
                     type="text"
                     value=""
@@ -161,7 +163,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 <t
                   label="Initial Bucket Name"
                   labelAddOn={[Function]}
-                  testID="form--element"
+                  testID="form-elem--bucketname"
                 >
                   <t
                     autoFocus={false}
@@ -174,7 +176,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     size="md"
                     spellCheck={false}
                     status="default"
-                    testID="input-field"
+                    testID="input-field--bucketname"
                     titleText="Initial Bucket Name"
                     type="text"
                     value=""
