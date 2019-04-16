@@ -6,11 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	// temp for displaying
 	"github.com/influxdata/flux"
-	// "github.com/influxdata/flux/execute"
-	// "os"
-
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
@@ -83,7 +79,6 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influx
 		if err != nil {
 			return run, err
 		}
-		// fmt.Println("writing point: ", point.String())
 		return run, as.pw.WritePoints(ctx, points)
 	}
 	return run, err
@@ -156,7 +151,6 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 
 	  `, filter.Task.String(), filterPart)
 
-	// fmt.Println("runscript:", runsScript)
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		return nil, 0, err
@@ -166,25 +160,6 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	}
 	request := &query.Request{Authorization: auth.(*influxdb.Authorization), OrganizationID: task.OrganizationID, Compiler: lang.FluxCompiler{Query: runsScript}}
 
-	// {
-	// 	ittr, err := as.qs.Query(ctx, request)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	for ittr.More() {
-	// 		result := ittr.Next()
-	// 		tables := result.Tables()
-	// 		fmt.Println("Result:", result.Name())
-	// 		err := tables.Do(func(tbl flux.Table) error {
-	// 			_, err := execute.NewFormatter(tbl, nil).WriteTo(os.Stdout)
-	// 			return err
-	// 		})
-	// 		if err != nil {
-	// 			panic(err)
-	// 		}
-	// 	}
-	// 	ittr.Release()
-	// }
 	ittr, err := as.qs.Query(ctx, request)
 	if err != nil {
 		return nil, 0, err
@@ -240,26 +215,6 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 		return nil, influxdb.ErrAuthorizerNotSupported
 	}
 	request := &query.Request{Authorization: auth.(*influxdb.Authorization), OrganizationID: task.OrganizationID, Compiler: lang.FluxCompiler{Query: findRunScript}}
-
-	// {
-	// 	ittr, err := as.qs.Query(ctx, request)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	for ittr.More() {
-	// 		result := ittr.Next()
-	// 		tables := result.Tables()
-	// 		fmt.Println("Result:", result.Name())
-	// 		err := tables.Do(func(tbl flux.Table) error {
-	// 			_, err := execute.NewFormatter(tbl, nil).WriteTo(os.Stdout)
-	// 			return err
-	// 		})
-	// 		if err != nil {
-	// 			panic(err)
-	// 		}
-	// 	}
-	// 	ittr.Release()
-	// }
 
 	ittr, err := as.qs.Query(ctx, request)
 	if err != nil {
