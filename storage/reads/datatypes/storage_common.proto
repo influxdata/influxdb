@@ -24,6 +24,12 @@ service Storage {
 
   rpc Hints (google.protobuf.Empty) returns (HintsResponse);
 
+  // TagKeys performs a read operation for tag keys
+  rpc TagKeys (TagKeysRequest) returns (stream StringValuesResponse);
+
+  // TagValues performs a read operation for tag values
+  rpc TagValues (TagValuesRequest) returns (stream StringValuesResponse);
+
   // Explain describes the costs associated with executing a given Read request
   // rpc Explain(google.protobuf.Empty) returns (ExplainResponse){}
 }
@@ -206,6 +212,26 @@ message TimestampRange {
 
   // End defines the inclusive upper bound.
   int64 end = 2;
+}
+
+// TagKeysRequest is the request message for Storage.TagKeys.
+message TagKeysRequest {
+  google.protobuf.Any tags_source = 1 [(gogoproto.customname) = "TagsSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+}
+
+// TagValuesRequest is the request message for Storage.TagValues.
+message TagValuesRequest {
+  google.protobuf.Any tags_source = 1 [(gogoproto.customname) = "TagsSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+  string tag_key = 4;
+}
+
+// Response message for Storage.TagKeys and Storage.TagValues.
+message StringValuesResponse {
+  repeated bytes values = 1;
 }
 
 //message ExplainRequest {
