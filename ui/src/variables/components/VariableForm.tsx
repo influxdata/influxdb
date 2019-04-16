@@ -2,11 +2,21 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form, Input, Button, Grid} from '@influxdata/clockface'
+import {
+  Form,
+  Input,
+  Button,
+  Grid,
+  Columns,
+  Dropdown,
+} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Utils
 import {validateVariableName} from 'src/variables/utils/validation'
+
+// Constant
+import {variableItemTypes} from 'src/variables/constants'
 
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
@@ -49,7 +59,7 @@ export default class VariableForm extends PureComponent<Props, State> {
       <Form onSubmit={this.handleSubmit}>
         <Grid>
           <Grid.Row>
-            <Grid.Column>
+            <Grid.Column widthXS={Columns.Six}>
               <div className="overlay-flux-editor--spacing">
                 <Form.ValidationElement
                   label="Name"
@@ -69,6 +79,20 @@ export default class VariableForm extends PureComponent<Props, State> {
                   )}
                 </Form.ValidationElement>
               </div>
+            </Grid.Column>
+            <Grid.Column widthXS={Columns.Six}>
+              <Form.Element label="Type" required={true}>
+                <Dropdown
+                  selectedID={selectedType}
+                  onChange={this.handleChangeType}
+                >
+                  {variableItemTypes.map(v => (
+                    <Dropdown.Item key={v.type} id={v.type} value={v.type}>
+                      {v.label}
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown>
+              </Form.Element>
             </Grid.Column>
             <Grid.Column>
               <Form.Element label="Value">
@@ -109,14 +133,17 @@ export default class VariableForm extends PureComponent<Props, State> {
 
   private handleSubmit = (): void => {
     const {onCreateVariable, onHideOverlay} = this.props
+    const {selectedType} = this.state
 
-    onCreateVariable({
-      name: this.state.name,
-      arguments: {
-        type: 'query',
-        values: {query: this.state.script, language: 'flux'},
-      },
-    })
+    if (selectedType === 'query') {
+      onCreateVariable({
+        name: this.state.name,
+        arguments: {
+          type: 'query',
+          values: {query: this.state.script, language: 'flux'},
+        },
+      })
+    }
 
     onHideOverlay()
   }
