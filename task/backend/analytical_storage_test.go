@@ -2,7 +2,6 @@ package backend_test
 
 import (
 	"context"
-	// "fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -101,6 +100,7 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 	defer func() {
 		if t.Failed() {
 			engine.Close()
+			os.RemoveAll(rootDir)
 		}
 	}()
 

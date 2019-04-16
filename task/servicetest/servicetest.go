@@ -1252,6 +1252,8 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
+	// Create several run logs in both rc0 and rc1
+	//
 	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-0")
 	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-1")
 	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-2")
@@ -1269,7 +1271,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 	}
 	if len(logs) != 7 {
 		for _, log := range logs {
-			fmt.Printf("log: %+v\n", log)
+			t.Logf("log: %+v\n", log)
 		}
 		t.Fatalf("failed to get all logs: expected: 7 got: %d", len(logs))
 	}
