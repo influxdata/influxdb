@@ -128,21 +128,13 @@ class DashboardTemplateDetails extends PureComponent<Props> {
   private get templateName(): JSX.Element {
     const {selectedTemplateSummary} = this.props
     const name = _.get(selectedTemplateSummary, 'meta.name')
-    const version = _.get(selectedTemplateSummary, 'meta.version')
 
     let templateName = name || 'Untitled'
+    let className = name
+      ? 'import-template-overlay--name'
+      : 'import-template-overlay--name missing'
 
-    if (version) {
-      templateName = `${name || 'Untitled'} (v${version})`
-    }
-
-    if (name) {
-      return <h3 className="import-template-overlay--name">{templateName}</h3>
-    }
-
-    return (
-      <h3 className="import-template-overlay--name missing">{templateName}</h3>
-    )
+    return <h3 className={className}>{templateName}</h3>
   }
 }
 
