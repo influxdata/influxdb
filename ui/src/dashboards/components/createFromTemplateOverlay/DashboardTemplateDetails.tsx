@@ -11,11 +11,11 @@ import {
   Columns,
   DapperScrollbars,
 } from '@influxdata/clockface'
-import {TemplateSummary, ITemplate} from '@influxdata/influx'
+import {TemplateSummary, Template} from 'src/types'
 
 interface Props {
   selectedTemplateSummary: TemplateSummary
-  selectedTemplate: ITemplate
+  selectedTemplate: Template
   variables: string[]
   cells: string[]
 }

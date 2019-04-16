@@ -3,14 +3,14 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {TemplateSummary, ITemplate} from '@influxdata/influx'
+import {TemplateSummary, Template} from 'src/types'
 import DashboardTemplateDetails from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateDetails'
 import DashboardTemplateList from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateList'
 
 interface Props {
   templates: TemplateSummary[]
   selectedTemplateSummary: TemplateSummary
-  selectedTemplate: ITemplate
+  selectedTemplate: Template
   variables: string[]
   cells: string[]
   onSelectTemplate: (selectedTemplateSummary: TemplateSummary) => void
