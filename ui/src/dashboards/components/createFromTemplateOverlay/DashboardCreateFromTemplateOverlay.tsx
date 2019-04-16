@@ -17,10 +17,10 @@ import {getTemplateByID} from 'src/templates/actions'
 // Types
 import {
   TemplateSummary,
-  ITemplate,
+  Template,
   TemplateType,
-  IDashboardTemplateIncluded,
-} from '@influxdata/influx'
+  DashboardTemplateIncluded,
+} from 'src/types'
 import {AppState, RemoteDataState, DashboardTemplate} from 'src/types'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
@@ -35,7 +35,7 @@ interface DispatchProps {
 
 interface State {
   selectedTemplateSummary: TemplateSummary
-  selectedTemplate: ITemplate
+  selectedTemplate: Template
   variables: string[]
   cells: string[]
 }
@@ -118,9 +118,9 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
     return selectedTemplate ? ComponentStatus.Default : ComponentStatus.Disabled
   }
 
-  private getVariablesForTemplate(template: ITemplate): string[] {
+  private getVariablesForTemplate(template: Template): string[] {
     const variables = []
-    const included = template.content.included as IDashboardTemplateIncluded[]
+    const included = template.content.included as DashboardTemplateIncluded[]
     included.forEach(data => {
       if (data.type === TemplateType.Variable) {
         variables.push(data.attributes.name)
@@ -130,9 +130,9 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
     return variables
   }
 
-  private getCellsForTemplate(template: ITemplate): string[] {
+  private getCellsForTemplate(template: Template): string[] {
     const cells = []
-    const included = template.content.included as IDashboardTemplateIncluded[]
+    const included = template.content.included as DashboardTemplateIncluded[]
     included.forEach(data => {
       if (data.type === TemplateType.View) {
         cells.push(data.attributes.name)
@@ -146,6 +146,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
     selectedTemplateSummary: TemplateSummary
   ): Promise<void> => {
     const selectedTemplate = await getTemplateByID(selectedTemplateSummary.id)
+
     this.setState({
       selectedTemplateSummary,
       selectedTemplate,
