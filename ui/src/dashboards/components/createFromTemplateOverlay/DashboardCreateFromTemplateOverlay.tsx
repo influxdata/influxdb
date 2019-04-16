@@ -161,9 +161,9 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
 
   private onSubmit = async (): Promise<void> => {
     const {createDashboardFromTemplate} = this.props
+    const dashboardTemplate = this.state.selectedTemplate as DashboardTemplate
 
-    await createDashboardFromTemplate(this.state
-      .selectedTemplate as DashboardTemplate)
+    await createDashboardFromTemplate(dashboardTemplate)
     this.onDismiss()
   }
 }
