@@ -241,7 +241,7 @@ export const getTasks = () => async (
       orgs: {org},
     } = getState()
 
-    const tasks = await client.tasks.getAllByOrgID(org.id)
+    const tasks = await client.tasks.getAll(org.id)
 
     dispatch(setTasks(tasks))
     dispatch(setTasksStatus(RemoteDataState.Done))

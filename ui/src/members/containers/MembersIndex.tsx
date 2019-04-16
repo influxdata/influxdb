@@ -54,6 +54,7 @@ class MembersIndex extends Component<Props> {
                 >
                   <GetResources resource={ResourceTypes.Members}>
                     <Members />
+                    {this.props.children}
                   </GetResources>
                 </TabbedPageSection>
               </Tabs.TabContents>

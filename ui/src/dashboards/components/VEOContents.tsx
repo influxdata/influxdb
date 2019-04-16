@@ -9,33 +9,26 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Actions
 import {setName} from 'src/timeMachine/actions'
-import * as viewActions from 'src/dashboards/actions/views'
-import * as dashboardActions from 'src/dashboards/actions'
-import {notify} from 'src/shared/actions/notifications'
+import {saveVEOView} from 'src/dashboards/actions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, DashboardQuery} from 'src/types'
-import {QueryView} from 'src/types/dashboards'
+import {AppState} from 'src/types'
 import {Dashboard} from 'src/types'
 
 // Nofication Messages
-import {cellAddFailed} from 'src/shared/copy/notifications'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 
 interface StateProps {
-  draftView: QueryView
-  draftQueries: DashboardQuery[]
+  name: string
   dashboard: Dashboard
 }
 
 interface DispatchProps {
   onSetName: typeof setName
-  onCreateCellWithView: typeof dashboardActions.createCellWithView
-  onUpdateView: typeof viewActions.updateView
-  notify: typeof notify
+  onSaveView: typeof saveVEOView
   executeQueries: typeof executeQueries
 }
 
@@ -52,13 +45,13 @@ class VEOContents extends PureComponent<Props, {}> {
   }
 
   public render() {
-    const {draftView, onSetName} = this.props
+    const {name, onSetName} = this.props
 
     return (
       <>
         <VEOHeader
-          key={draftView.name}
-          name={draftView.name}
+          key={name}
+          name={name}
           onSetName={onSetName}
           onCancel={this.props.onClose}
           onSave={this.handleSave}
@@ -71,35 +64,10 @@ class VEOContents extends PureComponent<Props, {}> {
   }
 
   private handleSave = async (): Promise<void> => {
-    const {
-      draftView,
-      draftQueries,
-      dashboard,
-      onCreateCellWithView,
-      onUpdateView,
-      notify,
-      onClose,
-    } = this.props
+    const {dashboard, onSaveView, onClose} = this.props
 
-    const view: QueryView & {id?: string} = {
-      ...draftView,
-      properties: {
-        ...draftView.properties,
-        queries: draftQueries,
-      },
-    }
-
-    try {
-      if (view.id) {
-        await onUpdateView(dashboard.id, view)
-      } else {
-        await onCreateCellWithView(dashboard, view)
-      }
-      onClose()
-    } catch (error) {
-      console.error(error)
-      notify(cellAddFailed())
-    }
+    onSaveView(dashboard)
+    onClose()
   }
 }
 
@@ -107,16 +75,16 @@ const mstp = (state: AppState, {dashboardID}): StateProps => {
   const {dashboards} = state
   const dashboard = dashboards.list.find(d => d.id === dashboardID)
 
-  const {view, draftQueries} = getActiveTimeMachine(state)
+  const {
+    view: {name},
+  } = getActiveTimeMachine(state)
 
-  return {draftView: view, draftQueries, dashboard}
+  return {name, dashboard}
 }
 
 const mdtp: DispatchProps = {
   onSetName: setName,
-  onCreateCellWithView: dashboardActions.createCellWithView,
-  onUpdateView: viewActions.updateView,
-  notify,
+  onSaveView: saveVEOView,
   executeQueries,
 }
 

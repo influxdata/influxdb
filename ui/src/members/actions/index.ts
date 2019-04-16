@@ -12,7 +12,7 @@ import {Member} from 'src/types'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
-
+import {UsersMap} from 'src/members/reducers'
 import {
   memberAddSuccess,
   memberAddFailed,
@@ -20,7 +20,7 @@ import {
   memberRemoveFailed,
 } from 'src/shared/copy/v2/notifications'
 
-export type Action = SetMembers | AddMember | RemoveMember
+export type Action = SetMembers | AddMember | RemoveMember | SetUsers
 
 interface SetMembers {
   type: 'SET_MEMBERS'
@@ -58,6 +58,22 @@ interface RemoveMember {
 export const removeMember = (id: string): RemoveMember => ({
   type: 'REMOVE_MEMBER',
   payload: {id},
+})
+
+interface SetUsers {
+  type: 'SET_USERS'
+  payload: {
+    status: RemoteDataState
+    list: UsersMap
+  }
+}
+
+export const setUsers = (
+  status: RemoteDataState,
+  list?: UsersMap
+): SetUsers => ({
+  type: 'SET_USERS',
+  payload: {status, list},
 })
 
 export const getMembers = () => async (
@@ -127,5 +143,25 @@ export const deleteMember = (member: Member) => async (
   } catch (e) {
     console.error(e)
     dispatch(notify(memberRemoveFailed(member.name)))
+  }
+}
+
+export const getUsers = () => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  try {
+    const {
+      members: {list},
+    } = getState()
+
+    const apiUsers = await client.users.getAll()
+    const allUsers = apiUsers.reduce((acc, u) => _.set(acc, u.id, u), {})
+    const users = _.omit(allUsers, list.map(m => m.id))
+
+    dispatch(setUsers(RemoteDataState.Done, users))
+  } catch (e) {
+    console.error(e)
+    dispatch(setMembers(RemoteDataState.Error))
   }
 }

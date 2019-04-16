@@ -9,7 +9,7 @@ import TemplatesHeader from 'src/templates/components/TemplatesHeader'
 import TemplatesList from 'src/templates/components/TemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetLabels from 'src/labels/components/GetLabels'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Types
 import {TemplateSummary, AppState} from 'src/types'
@@ -50,7 +50,7 @@ class TemplatesPage extends PureComponent<Props, State> {
           isFullPage={false}
           filterComponent={() => this.filterComponent}
         />
-        <GetLabels>
+        <GetResources resource={ResourceTypes.Labels}>
           <FilterList<TemplateSummary>
             searchTerm={searchTerm}
             searchKeys={['meta.name', 'labels[].name']}
@@ -65,7 +65,7 @@ class TemplatesPage extends PureComponent<Props, State> {
               />
             )}
           </FilterList>
-        </GetLabels>
+        </GetResources>
       </>
     )
   }

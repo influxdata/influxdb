@@ -5,25 +5,23 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
+// Utils
+import {validateVariableName} from 'src/variables/utils/validation'
+
 // Types
-import {Variable} from '@influxdata/influx'
-import {
-  ButtonType,
-  ComponentColor,
-  ComponentStatus,
-} from '@influxdata/clockface'
+import {IVariable as Variable} from '@influxdata/influx'
+import {ButtonType, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
   onCreateVariable: (variable: Pick<Variable, 'name' | 'arguments'>) => void
   onHideOverlay?: () => void
   initialScript?: string
+  variables: Variable[]
 }
 
 interface State {
   name: string
   script: string
-  nameInputStatus: ComponentStatus
-  errorMessage: string
 }
 
 export default class VariableForm extends PureComponent<Props, State> {
@@ -32,14 +30,12 @@ export default class VariableForm extends PureComponent<Props, State> {
     this.state = {
       name: '',
       script: this.props.initialScript || '',
-      nameInputStatus: ComponentStatus.Default,
-      errorMessage: '',
     }
   }
 
   public render() {
     const {onHideOverlay} = this.props
-    const {nameInputStatus, name, script} = this.state
+    const {name, script} = this.state
 
     return (
       <Form onSubmit={this.handleSubmit}>
@@ -47,16 +43,23 @@ export default class VariableForm extends PureComponent<Props, State> {
           <Grid.Row>
             <Grid.Column>
               <div className="overlay-flux-editor--spacing">
-                <Form.Element label="Name">
-                  <Input
-                    placeholder="Give your variable a name"
-                    name="name"
-                    autoFocus={true}
-                    value={name}
-                    onChange={this.handleChangeInput}
-                    status={nameInputStatus}
-                  />
-                </Form.Element>
+                <Form.ValidationElement
+                  label="Name"
+                  value={name}
+                  required={true}
+                  validationFunc={this.handleNameValidation}
+                >
+                  {status => (
+                    <Input
+                      placeholder="Give your variable a name"
+                      name="name"
+                      autoFocus={true}
+                      value={name}
+                      onChange={this.handleChangeInput}
+                      status={status}
+                    />
+                  )}
+                </Form.ValidationElement>
               </div>
             </Grid.Column>
             <Grid.Column>
@@ -103,6 +106,12 @@ export default class VariableForm extends PureComponent<Props, State> {
     })
 
     onHideOverlay()
+  }
+
+  private handleNameValidation = (name: string) => {
+    const {variables} = this.props
+
+    return validateVariableName(name, variables).error
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {

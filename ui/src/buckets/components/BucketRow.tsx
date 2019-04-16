@@ -5,8 +5,8 @@ import _ from 'lodash'
 
 // Components
 import {IndexList, ConfirmationButton, Context} from 'src/clockface'
-import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
 import EditableName from 'src/shared/components/EditableName'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 // Constants
 import {DEFAULT_BUCKET_NAME} from 'src/dashboards/constants'
@@ -77,13 +77,13 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
                   description="Quickly load an existing line protocol file."
                   action={this.handleAddLineProtocol}
                 />
-                <CloudFeatureFlag>
+                <CloudExclude>
                   <Context.Item
                     label="Scrape Metrics"
                     description="Add a scrape target to pull data into your bucket."
                     action={this.handleAddScraper}
                   />
-                </CloudFeatureFlag>
+                </CloudExclude>
               </Context.Menu>
             </Context>
           </IndexList.Cell>
