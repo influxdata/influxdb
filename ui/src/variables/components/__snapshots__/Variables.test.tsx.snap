@@ -45,6 +45,21 @@ exports[`VariableList rendering renders 1`] = `
     <UpdateVariableOverlay
       onCloseOverlay={[Function]}
       onUpdateVariable={[Function]}
+      variables={
+        Array [
+          Object {
+            "arguments": Object {
+              "type": "query",
+              "values": Object {
+                "language": "flux",
+                "query": "1 + 1 ",
+              },
+            },
+            "name": "a little variable",
+            "orgID": "0",
+          },
+        ]
+      }
     />
   </Overlay>
 </Fragment>
