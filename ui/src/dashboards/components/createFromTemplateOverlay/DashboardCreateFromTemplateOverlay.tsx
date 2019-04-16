@@ -20,8 +20,10 @@ import {
   Template,
   TemplateType,
   DashboardTemplateIncluded,
+  AppState,
+  RemoteDataState,
+  DashboardTemplate,
 } from 'src/types'
-import {AppState, RemoteDataState, DashboardTemplate} from 'src/types'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 interface StateProps {
