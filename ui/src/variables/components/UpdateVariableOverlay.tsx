@@ -7,6 +7,9 @@ import {Form, Input, Button} from '@influxdata/clockface'
 import {Overlay} from 'src/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
+// Utils
+import {validateVariableName} from 'src/variables/utils/validation'
+
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
 import {
@@ -17,26 +20,23 @@ import {
 
 interface Props {
   variable: Variable
+  variables: Variable[]
   onCloseOverlay: () => void
   onUpdateVariable: (variable: Variable) => Promise<void>
 }
 
 interface State {
   variable: Variable
-  nameErrorMessage: string
-  nameInputStatus: ComponentStatus
 }
 
 export default class UpdateVariableOverlay extends PureComponent<Props, State> {
   public state: State = {
     variable: this.props.variable,
-    nameInputStatus: ComponentStatus.Default,
-    nameErrorMessage: '',
   }
 
   public render() {
     const {onCloseOverlay} = this.props
-    const {variable, nameInputStatus, nameErrorMessage} = this.state
+    const {variable} = this.state
 
     return (
       <Overlay.Container maxWidth={1000}>
@@ -48,18 +48,24 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
         <Form onSubmit={this.handleSubmit}>
           <Overlay.Body>
             <div className="overlay-flux-editor--spacing">
-              <Form.Element label="Name" errorMessage={nameErrorMessage}>
-                <Input
-                  placeholder="Give your variable a name"
-                  name="name"
-                  autoFocus={true}
-                  value={variable.name}
-                  onChange={this.handleChangeInput}
-                  status={nameInputStatus}
-                />
-              </Form.Element>
+              <Form.ValidationElement
+                label="Name"
+                value={variable.name}
+                required={true}
+                validationFunc={this.handleNameValidation}
+              >
+                {status => (
+                  <Input
+                    placeholder="Give your variable a name"
+                    name="name"
+                    autoFocus={true}
+                    value={variable.name}
+                    onChange={this.handleChangeInput}
+                    status={status}
+                  />
+                )}
+              </Form.ValidationElement>
             </div>
-
             <Form.Element label="Value">
               <div className="overlay-flux-editor">
                 <FluxEditor
@@ -70,7 +76,6 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
                 />
               </div>
             </Form.Element>
-
             <Overlay.Footer>
               <Button
                 text="Cancel"
@@ -129,24 +134,19 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
 
     this.setState({variable: newVariable})
   }
+  private handleNameValidation = (name: string) => {
+    const {variables} = this.props
+
+    return validateVariableName(name, variables).error
+  }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     const key = e.target.name
     const variable = {...this.state.variable, [key]: value}
 
-    if (!value) {
-      return this.setState({
-        variable,
-        nameInputStatus: ComponentStatus.Error,
-        nameErrorMessage: `Variable ${key} cannot be empty`,
-      })
-    }
-
     this.setState({
       variable,
-      nameInputStatus: ComponentStatus.Valid,
-      nameErrorMessage: '',
     })
   }
 }

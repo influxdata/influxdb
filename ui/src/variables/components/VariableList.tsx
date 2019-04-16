@@ -65,6 +65,7 @@ class VariableList extends PureComponent<Props, State> {
         <Overlay visible={this.isVariableOverlayVisible}>
           <UpdateVariableOverlay
             variable={this.variable}
+            variables={variables}
             onCloseOverlay={this.handleCloseOverlay}
             onUpdateVariable={this.handleUpdateVariable}
           />
