@@ -54,8 +54,10 @@ import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
 import * as NotificationsActions from 'src/types/actions/notifications'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
+import {Organization} from '@influxdata/influx'
 
 interface StateProps {
+  org: Organization
   links: Links
   zoomedTimeRange: TimeRange
   timeRange: TimeRange
@@ -162,6 +164,7 @@ class DashboardPage extends Component<Props, State> {
 
   public render() {
     const {
+      org,
       timeRange,
       zoomedTimeRange,
       dashboard,
@@ -179,6 +182,7 @@ class DashboardPage extends Component<Props, State> {
       <Page titleTag={this.pageTitle}>
         <HoverTimeProvider>
           <DashboardHeader
+            org={org}
             dashboard={dashboard}
             timeRange={timeRange}
             autoRefresh={autoRefresh}
@@ -353,6 +357,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     dashboards,
     views: {views},
     userSettings: {showVariablesControls},
+    orgs: {org},
   } = state
 
   const timeRange =
@@ -363,6 +368,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   const dashboard = dashboards.list.find(d => d.id === dashboardID)
 
   return {
+    org,
     links,
     views,
     zoomedTimeRange: {lower: null, upper: null},

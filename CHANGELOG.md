@@ -3,6 +3,7 @@
 ### Features
 1. [13423](https://github.com/influxdata/influxdb/pull/13423): Set autorefresh of dashboard to pause if absolute time range is selected
 1. [13493](https://github.com/influxdata/influxdb/pull/13493): Add org profile tab with ability to edit organization name
+1. [13510](https://github.com/influxdata/influxdb/pull/13510): Add org name to dahboard page title 
 
 ### Bug Fixes
 
