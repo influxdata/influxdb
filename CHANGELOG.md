@@ -1,11 +1,25 @@
-v1.7.6 [unreleased]
+v1.7.7 [unreleased]
 -------------------
 
--	[#13167](https://github.com/influxdata/influxdb/pull/13168): Track prom remote read request stats.
+v1.7.6 [2019-04-16]
+-------------------
 
 ### Bugfixes
 
+-	[#13067](https://github.com/influxdata/influxdb/pull/13067): Ensure credentials are passed for Flux queries when using influx command.
+-	[#13098](https://github.com/influxdata/influxdb/pull/13098): Back port of data generate improvements.
+-	[#13132](https://github.com/influxdata/influxdb/pull/13132): Fix security vulnerability when shared secret is blank.
 -	[#13150](https://github.com/influxdata/influxdb/pull/13150): Add nil check for tagKeyValueEntry.setIDs().
+-	[#13160](https://github.com/influxdata/influxdb/pull/13160): Drop all unsupported Prometheus values written to the remote write endpoint.
+-	[#13206](https://github.com/influxdata/influxdb/pull/13206): Update predicate key mapping to match 2.x behavior.
+-	[#13330](https://github.com/influxdata/influxdb/pull/13330): Fix panic in Prometheus read API.
+-	[#13338](https://github.com/influxdata/influxdb/pull/13338): Add a version constraint for influxql.
+
+### Features
+
+-	[#13049](https://github.com/influxdata/influxdb/pull/13049): Upgrade flux to the latest version and remove the platform dependency.
+-	[#13121](https://github.com/influxdata/influxdb/pull/13121): Upgrade flux to 0.24.0.
+-	[#13168](https://github.com/influxdata/influxdb/pull/13168): track remote read requests to prometheus remote read handler.
 
 v1.7.5 [2019-03-26]
 -------------------
