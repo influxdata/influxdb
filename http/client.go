@@ -1,7 +1,6 @@
 package http
 
 import (
-	"crypto/tls"
 	"net/http"
 	"net/url"
 
