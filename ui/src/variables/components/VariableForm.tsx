@@ -27,6 +27,7 @@ interface State {
   name: string
   script: string
   isFormValid: boolean
+  selectedType: string
 }
 
 export default class VariableForm extends PureComponent<Props, State> {
@@ -36,12 +37,13 @@ export default class VariableForm extends PureComponent<Props, State> {
       name: '',
       script: this.props.initialScript || '',
       isFormValid: false,
+      selectedType: 'query',
     }
   }
 
   public render() {
     const {onHideOverlay} = this.props
-    const {name, script, isFormValid} = this.state
+    const {name, script, isFormValid, selectedType} = this.state
 
     return (
       <Form onSubmit={this.handleSubmit}>
@@ -117,6 +119,13 @@ export default class VariableForm extends PureComponent<Props, State> {
     })
 
     onHideOverlay()
+  }
+
+  private handleChangeType = (selectedType: string) => {
+    this.setState({
+      selectedType,
+      script: '',
+    })
   }
 
   private handleNameValidation = (name: string) => {
