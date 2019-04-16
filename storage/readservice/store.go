@@ -69,11 +69,11 @@ func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 	}
 
 	if req.TimestampRange.Start == 0 {
-		req.TimestampRange.Start = models.MinNanoTime
+		req.TimestampRange.Start = math.MaxInt64
 	}
 
 	if req.TimestampRange.End == 0 {
-		req.TimestampRange.End = models.MaxNanoTime
+		req.TimestampRange.End = math.MaxInt64
 	}
 
 	var cur reads.SeriesCursor
@@ -115,11 +115,11 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 	}
 
 	if req.TimestampRange.Start <= 0 {
-		req.TimestampRange.Start = models.MinNanoTime
+		req.TimestampRange.Start = math.MinInt64
 	}
 
 	if req.TimestampRange.End <= 0 {
-		req.TimestampRange.End = models.MaxNanoTime
+		req.TimestampRange.End = math.MaxInt64
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
