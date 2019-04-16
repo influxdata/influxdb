@@ -27,7 +27,7 @@ import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
-import DashboardImportFromTemplateOverlay from 'src/dashboards/components/DashboardImportFromTemplateOverlay'
+import DashboardCreateFromTemplateOverlay from 'src/dashboards/components/createFromTemplateOverlay/DashboardCreateFromTemplateOverlay'
 import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
@@ -158,7 +158,7 @@ class Root extends PureComponent {
                             />
                             <Route
                               path="import/template"
-                              component={DashboardImportFromTemplateOverlay}
+                              component={DashboardCreateFromTemplateOverlay}
                             />
                             <Route
                               path=":dashboardID/export"

@@ -63,7 +63,7 @@ describe('Dashboards', () => {
 
     cy.getByTestID('dropdown--item From a Template').click()
 
-    cy.getByTestID('card-select-Bashboard-Template').click()
+    cy.getByTestID('template--Bashboard-Template').click()
 
     cy.getByTestID('template-panel').should('exist')
 
