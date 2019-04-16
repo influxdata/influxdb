@@ -4,7 +4,7 @@ import _ from 'lodash'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
-import {TemplateSummary} from '@influxdata/influx'
+import {TemplateSummary} from 'src/types'
 import DashboardTemplateListItem from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateListItem'
 
 interface Props {
