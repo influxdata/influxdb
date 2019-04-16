@@ -55,14 +55,6 @@ func NewService(addr, token string) *Service {
 	}
 }
 
-// Shared transports for all clients to prevent leaking connections
-var (
-	skipVerifyTransport = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	defaultTransport = &http.Transport{}
-)
-
 func newURL(addr, path string) (*url.URL, error) {
 	u, err := url.Parse(addr)
 	if err != nil {
