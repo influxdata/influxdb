@@ -10,7 +10,11 @@ import {validateVariableName} from 'src/variables/utils/validation'
 
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
-import {ButtonType, ComponentColor} from '@influxdata/clockface'
+import {
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 interface Props {
   onCreateVariable: (variable: Pick<Variable, 'name' | 'arguments'>) => void
@@ -22,6 +26,7 @@ interface Props {
 interface State {
   name: string
   script: string
+  isFormValid: boolean
 }
 
 export default class VariableForm extends PureComponent<Props, State> {
@@ -30,12 +35,13 @@ export default class VariableForm extends PureComponent<Props, State> {
     this.state = {
       name: '',
       script: this.props.initialScript || '',
+      isFormValid: false,
     }
   }
 
   public render() {
     const {onHideOverlay} = this.props
-    const {name, script} = this.state
+    const {name, script, isFormValid} = this.state
 
     return (
       <Form onSubmit={this.handleSubmit}>
@@ -85,6 +91,11 @@ export default class VariableForm extends PureComponent<Props, State> {
                   text="Create"
                   type={ButtonType.Submit}
                   color={ComponentColor.Primary}
+                  status={
+                    isFormValid
+                      ? ComponentStatus.Default
+                      : ComponentStatus.Disabled
+                  }
                 />
               </Form.Footer>
             </Grid.Column>
@@ -110,8 +121,11 @@ export default class VariableForm extends PureComponent<Props, State> {
 
   private handleNameValidation = (name: string) => {
     const {variables} = this.props
+    const {error} = validateVariableName(name, variables)
 
-    return validateVariableName(name, variables).error
+    this.setState({isFormValid: !error})
+
+    return error
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
