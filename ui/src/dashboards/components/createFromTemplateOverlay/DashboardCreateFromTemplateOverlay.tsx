@@ -22,6 +22,7 @@ import {
   IDashboardTemplateIncluded,
 } from '@influxdata/influx'
 import {AppState, RemoteDataState, DashboardTemplate} from 'src/types'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 interface StateProps {
   templates: TemplateSummary[]
@@ -57,30 +58,32 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
 
   render() {
     return (
-      <Overlay visible={true}>
-        <Overlay.Container maxWidth={900}>
-          <Overlay.Heading
-            title="Create Dashboard from a Template"
-            onDismiss={this.onDismiss}
-          />
-          <Overlay.Body>{this.overlayBody}</Overlay.Body>
-          <Overlay.Footer>
-            <Button
-              text="Cancel"
-              onClick={this.onDismiss}
-              key="cancel-button"
+      <GetResources resource={ResourceTypes.Templates}>
+        <Overlay visible={true}>
+          <Overlay.Container maxWidth={900}>
+            <Overlay.Heading
+              title="Create Dashboard from a Template"
+              onDismiss={this.onDismiss}
             />
-            <Button
-              text="Create Dashboard"
-              onClick={this.onSubmit}
-              key="submit-button"
-              testID="create-dashboard-button"
-              color={ComponentColor.Primary}
-              status={this.submitStatus}
-            />
-          </Overlay.Footer>
-        </Overlay.Container>
-      </Overlay>
+            <Overlay.Body>{this.overlayBody}</Overlay.Body>
+            <Overlay.Footer>
+              <Button
+                text="Cancel"
+                onClick={this.onDismiss}
+                key="cancel-button"
+              />
+              <Button
+                text="Create Dashboard"
+                onClick={this.onSubmit}
+                key="submit-button"
+                testID="create-dashboard-button"
+                color={ComponentColor.Success}
+                status={this.submitStatus}
+              />
+            </Overlay.Footer>
+          </Overlay.Container>
+        </Overlay>
+      </GetResources>
     )
   }
 
@@ -139,9 +142,9 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
     return cells
   }
 
-  private handleSelectTemplate = (
+  private handleSelectTemplate = async (
     selectedTemplateSummary: TemplateSummary
-  ) => async (): Promise<void> => {
+  ): Promise<void> => {
     const selectedTemplate = await getTemplateByID(selectedTemplateSummary.id)
     this.setState({
       selectedTemplateSummary,

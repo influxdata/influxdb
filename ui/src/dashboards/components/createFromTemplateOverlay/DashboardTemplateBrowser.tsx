@@ -3,15 +3,9 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {ResponsiveGridSizer} from 'src/clockface'
 import {TemplateSummary, ITemplate} from '@influxdata/influx'
-import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 import DashboardTemplateDetails from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateDetails'
-
-// Types
-import GetResources, {
-  ResourceTypes,
-} from 'src/configuration/components/GetResources'
+import DashboardTemplateList from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateList'
 
 interface Props {
   templates: TemplateSummary[]
@@ -30,25 +24,16 @@ class DashboardTemplateBrowser extends PureComponent<Props> {
       variables,
       selectedTemplate,
       templates,
+      onSelectTemplate,
     } = this.props
 
     return (
       <div className="import-template-overlay">
-        <GetResources resource={ResourceTypes.Templates}>
-          <ResponsiveGridSizer columns={2}>
-            {templates.map(t => (
-              <CardSelectCard
-                key={t.id}
-                id={t.id}
-                onClick={this.handleCardClick(t)}
-                checked={_.get(selectedTemplateSummary, 'id', '') === t.id}
-                label={t.meta.name}
-                hideImage={true}
-                testID={`card-select-${t.meta.name}`}
-              />
-            ))}
-          </ResponsiveGridSizer>
-        </GetResources>
+        <DashboardTemplateList
+          templates={templates}
+          onSelectTemplate={onSelectTemplate}
+          selectedTemplateSummary={selectedTemplateSummary}
+        />
         <DashboardTemplateDetails
           cells={cells}
           variables={variables}
@@ -57,12 +42,6 @@ class DashboardTemplateBrowser extends PureComponent<Props> {
         />
       </div>
     )
-  }
-
-  private handleCardClick = (template: TemplateSummary) => (): void => {
-    const {onSelectTemplate} = this.props
-
-    onSelectTemplate(template)
   }
 }
 
