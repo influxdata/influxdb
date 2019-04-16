@@ -6157,6 +6157,7 @@ components:
             - empty value
             - unavailable
             - forbidden
+            - too many requests
             - unauthorized
             - method not allowed
         message:
