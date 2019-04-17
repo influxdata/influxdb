@@ -150,6 +150,12 @@ type TSMFile interface {
 	// allows sequential iteration to each and every block.
 	BlockIterator() *BlockIterator
 
+	// TimeRangeIterator returns an iterator over the keys, starting at the provided
+	// key. Calling the HasData accessor will return true if data exists for the
+	// interval [min, max] for the current key.
+	// Next must be called before calling any of the accessors.
+	TimeRangeIterator(key []byte, min, max int64) *TimeRangeIterator
+
 	// Free releases any resources held by the FileStore to free up system resources.
 	Free() error
 

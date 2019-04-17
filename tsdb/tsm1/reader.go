@@ -456,6 +456,25 @@ func (t *TSMReader) BlockIterator() *BlockIterator {
 	}
 }
 
+// TimeRangeIterator returns an iterator over the keys, starting at the provided
+// key. Calling the HasData accessor will return true if data exists for the
+// interval [min, max] for the current key.
+// Next must be called before calling any of the accessors.
+func (t *TSMReader) TimeRangeIterator(key []byte, min, max int64) *TimeRangeIterator {
+	t.mu.RLock()
+	iter := t.index.Iterator(key)
+	t.mu.RUnlock()
+
+	return &TimeRangeIterator{
+		r:    t,
+		iter: iter,
+		tr: TimeRange{
+			Min: min,
+			Max: max,
+		},
+	}
+}
+
 type BatchDeleter interface {
 	DeleteRange(keys [][]byte, min, max int64) error
 	Commit() error
