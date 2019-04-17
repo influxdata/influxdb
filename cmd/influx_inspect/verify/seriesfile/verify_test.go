@@ -102,8 +102,13 @@ func NewTest(t *testing.T) *Test {
 			tagsSlice = append(tagsSlice, nil)
 		}
 
-		_, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
+		ids, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
 		if err != nil {
+			return err
+		}
+
+		// delete one series
+		if err := seriesFile.DeleteSeriesID(ids[0]); err != nil {
 			return err
 		}
 
