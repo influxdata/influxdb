@@ -4,6 +4,7 @@ v1.6.7 [unreleased]
 ### Bugfixes
 
 -	[#13151](https://github.com/influxdata/influxdb/pull/13151): Add nil check for tagKeyValueEntry.setIDs().
+-	[#13443](https://github.com/influxdata/influxdb/pull/13443): Fix the sort order for aggregates so that they are sorted by tag and then time.
 
 v1.6.6 [2019-02-28]
 -------------------
