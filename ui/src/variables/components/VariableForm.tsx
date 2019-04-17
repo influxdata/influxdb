@@ -10,12 +10,12 @@ import {
   Columns,
   Dropdown,
 } from '@influxdata/clockface'
-import FluxEditor from 'src/shared/components/FluxEditor'
+import VariableArgumentsEditor from 'src/variables/components/VariableArgumentsEditor'
 
 // Utils
 import {validateVariableName} from 'src/variables/utils/validation'
 
-// Constant
+// Constants
 import {variableItemTypes} from 'src/variables/constants'
 
 // Types
@@ -25,6 +25,7 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
+import {VariableArguments} from 'src/types'
 
 interface Props {
   onCreateVariable: (variable: Pick<Variable, 'name' | 'arguments'>) => void
@@ -35,9 +36,10 @@ interface Props {
 
 interface State {
   name: string
-  script: string
-  isFormValid: boolean
-  selectedType: string
+  args: VariableArguments
+  isNameValid: boolean
+  hasValidArgs: boolean
+  selected: string[]
 }
 
 export default class VariableForm extends PureComponent<Props, State> {
@@ -45,15 +47,22 @@ export default class VariableForm extends PureComponent<Props, State> {
     super(props)
     this.state = {
       name: '',
-      script: this.props.initialScript || '',
-      isFormValid: false,
-      selectedType: 'query',
+      args: {
+        type: 'query',
+        values: {
+          query: '',
+          language: 'flux',
+        },
+      },
+      isNameValid: false,
+      hasValidArgs: false,
+      selected: null,
     }
   }
 
   public render() {
     const {onHideOverlay} = this.props
-    const {name, script, isFormValid, selectedType} = this.state
+    const {name, args, selected} = this.state
 
     return (
       <Form onSubmit={this.handleSubmit}>
@@ -83,7 +92,7 @@ export default class VariableForm extends PureComponent<Props, State> {
             <Grid.Column widthXS={Columns.Six}>
               <Form.Element label="Type" required={true}>
                 <Dropdown
-                  selectedID={selectedType}
+                  selectedID={args.type}
                   onChange={this.handleChangeType}
                 >
                   {variableItemTypes.map(v => (
@@ -94,18 +103,18 @@ export default class VariableForm extends PureComponent<Props, State> {
                 </Dropdown>
               </Form.Element>
             </Grid.Column>
+          </Grid.Row>
+          <Grid.Row>
             <Grid.Column>
-              <Form.Element label="Value">
-                <div className="overlay-flux-editor">
-                  <FluxEditor
-                    script={script}
-                    onChangeScript={this.handleChangeScript}
-                    visibility="visible"
-                    suggestions={[]}
-                  />
-                </div>
-              </Form.Element>
+              <VariableArgumentsEditor
+                onChange={this.handleChangeArgs}
+                onSelectMapDefault={this.handleSelectMapDefault}
+                selected={selected}
+                args={args}
+              />
             </Grid.Column>
+          </Grid.Row>
+          <Grid.Row>
             <Grid.Column>
               <Form.Footer>
                 <Button
@@ -118,7 +127,7 @@ export default class VariableForm extends PureComponent<Props, State> {
                   type={ButtonType.Submit}
                   color={ComponentColor.Primary}
                   status={
-                    isFormValid
+                    this.isFormValid
                       ? ComponentStatus.Default
                       : ComponentStatus.Disabled
                   }
@@ -131,35 +140,70 @@ export default class VariableForm extends PureComponent<Props, State> {
     )
   }
 
+  private get isFormValid(): boolean {
+    const {hasValidArgs, isNameValid} = this.state
+
+    return hasValidArgs && isNameValid
+  }
+
   private handleSubmit = (): void => {
     const {onCreateVariable, onHideOverlay} = this.props
-    const {selectedType} = this.state
+    const {args} = this.state
 
-    if (selectedType === 'query') {
-      onCreateVariable({
-        name: this.state.name,
-        arguments: {
-          type: 'query',
-          values: {query: this.state.script, language: 'flux'},
-        },
-      })
-    }
+    onCreateVariable({
+      name: this.state.name,
+      arguments: args,
+    })
 
     onHideOverlay()
   }
 
   private handleChangeType = (selectedType: string) => {
-    this.setState({
-      selectedType,
-      script: '',
-    })
+    const {isNameValid} = this.state
+    const defaults = {selected: null, hasValidArgs: false, isNameValid}
+
+    switch (selectedType) {
+      case 'query':
+        return this.setState({
+          ...defaults,
+          args: {
+            type: 'query',
+            values: {
+              query: '',
+              language: 'flux',
+            },
+          },
+        })
+      case 'map':
+        return this.setState({
+          ...defaults,
+          args: {
+            type: 'map',
+            values: {},
+          },
+        })
+    }
+  }
+
+  private handleSelectMapDefault = (selected: string) => {
+    this.setState({selected: [selected]})
+  }
+
+  private handleChangeArgs = ({
+    args,
+    isValid,
+  }: {
+    args: VariableArguments
+    isValid: boolean
+  }) => {
+    this.setState({args, hasValidArgs: isValid})
   }
 
   private handleNameValidation = (name: string) => {
     const {variables} = this.props
     const {error} = validateVariableName(name, variables)
 
-    this.setState({isFormValid: !error})
+    this.setState({isNameValid: !error})
 
     return error
   }
@@ -170,9 +214,5 @@ export default class VariableForm extends PureComponent<Props, State> {
     const newState = {...this.state}
     newState[name] = value
     this.setState(newState)
-  }
-
-  private handleChangeScript = (script: string): void => {
-    this.setState({script})
   }
 }
