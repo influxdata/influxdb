@@ -1,6 +1,10 @@
 v1.7.7 [unreleased]
 -------------------
 
+### Bugfixes
+
+-	[#13441](https://github.com/influxdata/influxdb/pull/13441): Fix the sort order for aggregates so that they are sorted by tag and then time.
+
 v1.7.6 [2019-04-16]
 -------------------
 
