@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {isEqual} from 'lodash'
 
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
@@ -10,31 +11,43 @@ import {AutoRefresher} from 'src/utils/AutoRefresher'
 
 // Actions
 import {executeQueries} from 'src/timeMachine/actions/queries'
+import {AutoRefreshStatus, AutoRefresh, AppState} from 'src/types'
+import {setAutoRefresh} from 'src/timeMachine/actions'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 interface DispatchProps {
   onExecuteQueries: typeof executeQueries
+  onSetAutoRefresh: typeof setAutoRefresh
 }
 
-interface State {
-  autoRefreshInterval: number
+interface StateProps {
+  autoRefresh: AutoRefresh
 }
 
-class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
-  public state: State = {autoRefreshInterval: 0}
+type Props = StateProps & DispatchProps
+
+class TimeMachineRefreshDropdown extends PureComponent<Props> {
   private autoRefresher = new AutoRefresher()
 
   public componentDidMount() {
-    const {autoRefreshInterval} = this.state
+    const {autoRefresh} = this.props
+    if (autoRefresh.status === AutoRefreshStatus.Active) {
+      this.autoRefresher.poll(autoRefresh.interval)
+    }
 
-    this.autoRefresher.poll(autoRefreshInterval)
     this.autoRefresher.subscribe(this.executeQueries)
   }
 
-  public componentDidUpdate(__, prevState) {
-    const {autoRefreshInterval} = this.state
+  public componentDidUpdate(prevProps) {
+    const {autoRefresh} = this.props
 
-    if (autoRefreshInterval !== prevState.autoRefreshInterval) {
-      this.autoRefresher.poll(autoRefreshInterval)
+    if (!isEqual(autoRefresh, prevProps.autoRefresh)) {
+      if (autoRefresh.status === AutoRefreshStatus.Active) {
+        this.autoRefresher.poll(autoRefresh.interval)
+        return
+      }
+
+      this.autoRefresher.stopPolling()
     }
   }
 
@@ -44,19 +57,34 @@ class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
   }
 
   public render() {
-    const {autoRefreshInterval} = this.state
+    const {autoRefresh} = this.props
 
     return (
       <AutoRefreshDropdown
-        selected={autoRefreshInterval}
-        onChoose={this.handleChooseInterval}
+        selected={autoRefresh}
+        onChoose={this.handleChooseAutoRefresh}
         onManualRefresh={this.executeQueries}
       />
     )
   }
 
-  private handleChooseInterval = (autoRefreshInterval: number) => {
-    this.setState({autoRefreshInterval})
+  private handleChooseAutoRefresh = (interval: number) => {
+    const {onSetAutoRefresh, autoRefresh} = this.props
+
+    if (interval === 0) {
+      onSetAutoRefresh({
+        ...autoRefresh,
+        status: AutoRefreshStatus.Paused,
+        interval,
+      })
+      return
+    }
+
+    onSetAutoRefresh({
+      ...autoRefresh,
+      interval,
+      status: AutoRefreshStatus.Active,
+    })
   }
 
   private executeQueries = () => {
@@ -64,11 +92,18 @@ class TimeMachineRefreshDropdown extends PureComponent<DispatchProps, State> {
   }
 }
 
-const mdtp: DispatchProps = {
-  onExecuteQueries: executeQueries,
+const mstp = (state: AppState): StateProps => {
+  const {autoRefresh} = getActiveTimeMachine(state)
+
+  return {autoRefresh}
 }
 
-export default connect<{}, DispatchProps>(
-  null,
+const mdtp: DispatchProps = {
+  onExecuteQueries: executeQueries,
+  onSetAutoRefresh: setAutoRefresh,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
   mdtp
 )(TimeMachineRefreshDropdown)

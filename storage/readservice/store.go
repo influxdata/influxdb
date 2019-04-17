@@ -7,11 +7,13 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxql"
 )
 
 type store struct {
@@ -20,6 +22,28 @@ type store struct {
 
 func newStore(engine *storage.Engine) *store {
 	return &store{engine: engine}
+}
+
+func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error) {
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := getReadSource(*req.ReadSource)
+	if err != nil {
+		return nil, err
+	}
+
+	var cur reads.SeriesCursor
+	if ic, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.engine); err != nil {
+		return nil, err
+	} else if ic == nil {
+		return nil, nil
+	} else {
+		cur = ic
+	}
+
+	return reads.NewResultSetFromFilter(ctx, req, cur), nil
 }
 
 func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
@@ -35,21 +59,25 @@ func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 		req.PointsLimit = math.MaxInt64
 	}
 
-	source, err := getReadSource(req)
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
 	if req.TimestampRange.Start == 0 {
-		req.TimestampRange.Start = models.MinNanoTime
+		req.TimestampRange.Start = math.MaxInt64
 	}
 
 	if req.TimestampRange.End == 0 {
-		req.TimestampRange.End = models.MaxNanoTime
+		req.TimestampRange.End = math.MaxInt64
 	}
 
 	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursor(ctx, source, req, s.engine); err != nil {
+	if ic, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.engine); err != nil {
 		return nil, err
 	} else if ic == nil {
 		return nil, nil
@@ -77,21 +105,25 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 		req.PointsLimit = math.MaxInt64
 	}
 
-	source, err := getReadSource(req)
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
 	if req.TimestampRange.Start <= 0 {
-		req.TimestampRange.Start = models.MinNanoTime
+		req.TimestampRange.Start = math.MinInt64
 	}
 
 	if req.TimestampRange.End <= 0 {
-		req.TimestampRange.End = models.MaxNanoTime
+		req.TimestampRange.End = math.MaxInt64
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
-		cur, err := newIndexSeriesCursor(ctx, source, req, s.engine)
+		cur, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.engine)
 		if cur == nil || err != nil {
 			return nil, err
 		}
@@ -99,6 +131,92 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 	}
 
 	return reads.NewGroupResultSet(ctx, req, newCursor), nil
+}
+
+func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (storage.StringIterator, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if req.TagsSource == nil {
+		return nil, errors.New("missing tags source")
+	}
+
+	if req.Range.Start == 0 {
+		req.Range.Start = models.MinNanoTime
+	}
+	if req.Range.End == 0 {
+		req.Range.End = models.MaxNanoTime
+	}
+
+	var expr influxql.Expr
+	var err error
+	if root := req.Predicate.GetRoot(); root != nil {
+		expr, err = reads.NodeToExpr(root, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if found := reads.HasFieldValueKey(expr); found {
+			return nil, errors.New("field values unsupported")
+		}
+		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+		if reads.IsTrueBooleanLiteral(expr) {
+			expr = nil
+		}
+	}
+
+	readSource, err := getReadSource(*req.TagsSource)
+	if err != nil {
+		return nil, err
+	}
+	si := s.engine.TagKeys(influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.Range.Start, req.Range.End, expr)
+
+	return si, nil
+}
+
+func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (storage.StringIterator, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if req.TagsSource == nil {
+		return nil, errors.New("missing tags source")
+	}
+
+	if req.Range.Start == 0 {
+		req.Range.Start = models.MinNanoTime
+	}
+	if req.Range.End == 0 {
+		req.Range.End = models.MaxNanoTime
+	}
+
+	if req.TagKey == "" {
+		return nil, errors.New("missing tag key")
+	}
+
+	var expr influxql.Expr
+	var err error
+	if root := req.Predicate.GetRoot(); root != nil {
+		expr, err = reads.NodeToExpr(root, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if found := reads.HasFieldValueKey(expr); found {
+			return nil, errors.New("field values unsupported")
+		}
+		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+		if reads.IsTrueBooleanLiteral(expr) {
+			expr = nil
+		}
+	}
+
+	readSource, err := getReadSource(*req.TagsSource)
+	if err != nil {
+		return nil, err
+	}
+	si := s.engine.TagValues(influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.TagKey, req.Range.Start, req.Range.End, expr)
+
+	return si, nil
 }
 
 // this is easier than fooling around with .proto files.
@@ -113,21 +231,17 @@ func (r *readSource) Reset()                  { *r = readSource{} }
 func (r *readSource) String() string          { return "readSource{}" }
 func (r *readSource) ProtoMessage()           {}
 
-func (s *store) GetSource(rs influxdb.ReadSpec) (proto.Message, error) {
+func (s *store) GetSource(orgID, bucketID uint64) proto.Message {
 	return &readSource{
-		BucketID:       uint64(rs.BucketID),
-		OrganizationID: uint64(rs.OrganizationID),
-	}, nil
+		BucketID:       bucketID,
+		OrganizationID: orgID,
+	}
 }
 
-func getReadSource(req *datatypes.ReadRequest) (*readSource, error) {
-	if req.ReadSource == nil {
-		return nil, errors.New("missing read source")
-	}
-
+func getReadSource(any types.Any) (readSource, error) {
 	var source readSource
-	if err := types.UnmarshalAny(req.ReadSource, &source); err != nil {
-		return nil, err
+	if err := types.UnmarshalAny(&any, &source); err != nil {
+		return source, err
 	}
-	return &source, nil
+	return source, nil
 }

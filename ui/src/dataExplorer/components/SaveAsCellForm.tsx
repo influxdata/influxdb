@@ -6,8 +6,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Form, Input, Button} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Input, Button, Grid} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardsDropdown from 'src/dataExplorer/components/DashboardsDropdown'
 
@@ -25,7 +24,7 @@ import {createDashboard} from 'src/dashboards/apis'
 import {notify} from 'src/shared/actions/notifications'
 
 // Types
-import {AppState, Dashboard, View, Organization} from 'src/types'
+import {AppState, Dashboard, View} from 'src/types'
 import {
   Columns,
   InputType,
@@ -44,7 +43,7 @@ interface State {
 interface StateProps {
   dashboards: Dashboard[]
   view: View
-  orgs: Organization[]
+  orgID: string
 }
 
 interface DispatchProps {
@@ -187,10 +186,10 @@ class SaveAsCellForm extends PureComponent<Props, State> {
     dashboardName: string,
     view: View
   ): Promise<void> => {
-    const {onCreateCellWithView, orgs} = this.props
+    const {onCreateCellWithView, orgID} = this.props
     try {
       const newDashboard = {
-        orgID: orgs[0].id,
+        orgID,
         name: dashboardName || DEFAULT_DASHBOARD_NAME,
         cells: [],
       }
@@ -234,13 +233,13 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 const mstp = (state: AppState): StateProps => {
   const {
     dashboards: {list: dashboards},
-    orgs: {items},
+    orgs: {org},
     timeMachines: {
       timeMachines: {de},
     },
   } = state
   const {view} = de
-  return {dashboards, view, orgs: items}
+  return {dashboards, view, orgID: _.get(org, 'id', '')}
 }
 
 const mdtp: DispatchProps = {

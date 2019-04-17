@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
-	platform "github.com/influxdata/influxdb"
+	influxdb "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -20,7 +20,7 @@ type LabelHandler struct {
 
 	Logger *zap.Logger
 
-	LabelService platform.LabelService
+	LabelService influxdb.LabelService
 }
 
 const (
@@ -29,7 +29,7 @@ const (
 )
 
 // NewLabelHandler returns a new instance of LabelHandler
-func NewLabelHandler(s platform.LabelService) *LabelHandler {
+func NewLabelHandler(s influxdb.LabelService) *LabelHandler {
 	h := &LabelHandler{
 		Router:       NewRouter(),
 		Logger:       zap.NewNop(),
@@ -68,19 +68,19 @@ func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 }
 
 type postLabelRequest struct {
-	Label *platform.Label
+	Label *influxdb.Label
 }
 
 func (b postLabelRequest) Validate() error {
 	if b.Label.Name == "" {
-		return &platform.Error{
-			Code: platform.EInvalid,
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "label requires a name",
 		}
 	}
-	if !b.Label.OrganizationID.Valid() {
-		return &platform.Error{
-			Code: platform.EInvalid,
+	if !b.Label.OrgID.Valid() {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "label requires a valid orgID",
 		}
 	}
@@ -89,10 +89,10 @@ func (b postLabelRequest) Validate() error {
 
 // TODO(jm): ensure that the specified org actually exists
 func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelRequest, error) {
-	l := &platform.Label{}
+	l := &influxdb.Label{}
 	if err := json.NewDecoder(r.Body).Decode(l); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "unable to decode label request",
 			Err:  err,
 		}
@@ -109,7 +109,13 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	labels, err := h.LabelService.FindLabels(ctx, platform.LabelFilter{})
+	req, err := decodeGetLabelsRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	labels, err := h.LabelService.FindLabels(ctx, req.filter)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -120,6 +126,25 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, err, w)
 		return
 	}
+}
+
+type getLabelsRequest struct {
+	filter influxdb.LabelFilter
+}
+
+func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsRequest, error) {
+	qp := r.URL.Query()
+	req := &getLabelsRequest{}
+
+	if orgID := qp.Get("orgID"); orgID != "" {
+		id, err := influxdb.IDFromString(orgID)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.OrgID = id
+	}
+
+	return req, nil
 }
 
 // handleGetLabel is the HTTP handler for the GET /api/v2/labels/id route.
@@ -145,20 +170,20 @@ func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
 }
 
 type getLabelRequest struct {
-	LabelID platform.ID
+	LabelID influxdb.ID
 }
 
 func decodeGetLabelRequest(ctx context.Context, r *http.Request) (*getLabelRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "label id is not valid",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -188,20 +213,20 @@ func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request)
 }
 
 type deleteLabelRequest struct {
-	LabelID platform.ID
+	LabelID influxdb.ID
 }
 
 func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabelRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -235,26 +260,26 @@ func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) 
 }
 
 type patchLabelRequest struct {
-	Update  platform.LabelUpdate
-	LabelID platform.ID
+	Update  influxdb.LabelUpdate
+	LabelID influxdb.ID
 }
 
 func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
-	upd := &platform.LabelUpdate{}
+	upd := &influxdb.LabelUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
 		return nil, err
 	}
@@ -276,10 +301,10 @@ type LabelService struct {
 
 type labelResponse struct {
 	Links map[string]string `json:"links"`
-	Label platform.Label    `json:"label"`
+	Label influxdb.Label    `json:"label"`
 }
 
-func newLabelResponse(l *platform.Label) *labelResponse {
+func newLabelResponse(l *influxdb.Label) *labelResponse {
 	return &labelResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/labels/%s", l.ID),
@@ -290,10 +315,10 @@ func newLabelResponse(l *platform.Label) *labelResponse {
 
 type labelsResponse struct {
 	Links  map[string]string `json:"links"`
-	Labels []*platform.Label `json:"labels"`
+	Labels []*influxdb.Label `json:"labels"`
 }
 
-func newLabelsResponse(ls []*platform.Label) *labelsResponse {
+func newLabelsResponse(ls []*influxdb.Label) *labelsResponse {
 	return &labelsResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/labels"),
@@ -306,8 +331,8 @@ func newLabelsResponse(ls []*platform.Label) *labelsResponse {
 // label handlers.
 type LabelBackend struct {
 	Logger       *zap.Logger
-	LabelService platform.LabelService
-	ResourceType platform.ResourceType
+	LabelService influxdb.LabelService
+	ResourceType influxdb.ResourceType
 }
 
 // newGetLabelsHandler returns a handler func for a GET to /labels endpoints
@@ -315,7 +340,7 @@ func newGetLabelsHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		req, err := decodeGetLabelsRequest(ctx, r, b.ResourceType)
+		req, err := decodeGetLabelMappingsRequest(ctx, r, b.ResourceType)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -334,23 +359,23 @@ func newGetLabelsHandler(b *LabelBackend) http.HandlerFunc {
 	}
 }
 
-type getLabelsRequest struct {
-	filter platform.LabelMappingFilter
+type getLabelMappingsRequest struct {
+	filter influxdb.LabelMappingFilter
 }
 
-func decodeGetLabelsRequest(ctx context.Context, r *http.Request, rt platform.ResourceType) (*getLabelsRequest, error) {
-	req := &getLabelsRequest{}
+func decodeGetLabelMappingsRequest(ctx context.Context, r *http.Request, rt influxdb.ResourceType) (*getLabelMappingsRequest, error) {
+	req := &getLabelMappingsRequest{}
 
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i platform.ID
+	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -395,27 +420,30 @@ func newPostLabelHandler(b *LabelBackend) http.HandlerFunc {
 }
 
 type postLabelMappingRequest struct {
-	Mapping platform.LabelMapping
+	Mapping influxdb.LabelMapping
 }
 
-func decodePostLabelMappingRequest(ctx context.Context, r *http.Request, rt platform.ResourceType) (*postLabelMappingRequest, error) {
+func decodePostLabelMappingRequest(ctx context.Context, r *http.Request, rt influxdb.ResourceType) (*postLabelMappingRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var rid platform.ID
+	var rid influxdb.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
-	mapping := &platform.LabelMapping{}
+	mapping := &influxdb.LabelMapping{}
 	if err := json.NewDecoder(r.Body).Decode(mapping); err != nil {
-		return nil, err
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Invalid post label map request",
+		}
 	}
 
 	mapping.ResourceID = rid
@@ -443,7 +471,7 @@ func newDeleteLabelHandler(b *LabelBackend) http.HandlerFunc {
 			return
 		}
 
-		mapping := &platform.LabelMapping{
+		mapping := &influxdb.LabelMapping{
 			LabelID:      req.LabelID,
 			ResourceID:   req.ResourceID,
 			ResourceType: b.ResourceType,
@@ -459,34 +487,34 @@ func newDeleteLabelHandler(b *LabelBackend) http.HandlerFunc {
 }
 
 type deleteLabelMappingRequest struct {
-	ResourceID platform.ID
-	LabelID    platform.ID
+	ResourceID influxdb.ID
+	LabelID    influxdb.ID
 }
 
 func decodeDeleteLabelMappingRequest(ctx context.Context, r *http.Request) (*deleteLabelMappingRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "url missing resource id",
 		}
 	}
 
-	var rid platform.ID
+	var rid influxdb.ID
 	if err := rid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
 	id = params.ByName("lid")
 	if id == "" {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "label id is missing",
 		}
 	}
 
-	var lid platform.ID
+	var lid influxdb.ID
 	if err := lid.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -497,12 +525,12 @@ func decodeDeleteLabelMappingRequest(ctx context.Context, r *http.Request) (*del
 	}, nil
 }
 
-func labelIDPath(id platform.ID) string {
+func labelIDPath(id influxdb.ID) string {
 	return path.Join(labelsPath, id.String())
 }
 
 // FindLabelByID returns a single label by ID.
-func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*platform.Label, error) {
+func (s *LabelService) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 	u, err := newURL(s.Addr, labelIDPath(id))
 	if err != nil {
 		return nil, err
@@ -532,12 +560,12 @@ func (s *LabelService) FindLabelByID(ctx context.Context, id platform.ID) (*plat
 	return &lr.Label, nil
 }
 
-func (s *LabelService) FindLabels(ctx context.Context, filter platform.LabelFilter, opt ...platform.FindOptions) ([]*platform.Label, error) {
+func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilter, opt ...influxdb.FindOptions) ([]*influxdb.Label, error) {
 	return nil, nil
 }
 
 // FindResourceLabels returns a list of labels, derived from a label mapping filter.
-func (s *LabelService) FindResourceLabels(ctx context.Context, filter platform.LabelMappingFilter) ([]*platform.Label, error) {
+func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
 	url, err := newURL(s.Addr, resourceIDPath(s.BasePath, filter.ResourceID))
 	if err != nil {
 		return nil, err
@@ -571,7 +599,7 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter platform.L
 }
 
 // CreateLabel creates a new label.
-func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error {
+func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	u, err := newURL(s.Addr, labelsPath)
 	if err != nil {
 		return err
@@ -611,7 +639,7 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *platform.Label) error
 	return nil
 }
 
-func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
@@ -654,7 +682,7 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *platform.Label
 }
 
 // UpdateLabel updates a label and returns the updated label.
-func (s *LabelService) UpdateLabel(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	u, err := newURL(s.Addr, labelIDPath(id))
 	if err != nil {
 		return nil, err
@@ -693,7 +721,7 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id platform.ID, upd plat
 }
 
 // DeleteLabel removes a label by ID.
-func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
+func (s *LabelService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 	u, err := newURL(s.Addr, labelIDPath(id))
 	if err != nil {
 		return err
@@ -715,7 +743,7 @@ func (s *LabelService) DeleteLabel(ctx context.Context, id platform.ID) error {
 	return CheckError(resp)
 }
 
-func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *platform.LabelMapping) error {
+func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	url, err := newURL(s.Addr, labelNamePath(s.BasePath, m.ResourceID, m.LabelID))
 	if err != nil {
 		return err
@@ -737,6 +765,6 @@ func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *platform.Label
 	return CheckError(resp)
 }
 
-func labelNamePath(basePath string, resourceID platform.ID, labelID platform.ID) string {
+func labelNamePath(basePath string, resourceID influxdb.ID, labelID influxdb.ID) string {
 	return path.Join(basePath, resourceID.String(), "labels", labelID.String())
 }

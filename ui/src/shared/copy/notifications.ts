@@ -798,12 +798,12 @@ export const importFailed = (): Notification => ({
 })
 
 // Templates
-export const addTemplatLabelFailed = (): Notification => ({
+export const addTemplateLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to add label to template',
 })
 
-export const removedTemplateLabelFailed = (): Notification => ({
+export const removeTemplateLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to remove label from template',
 })
@@ -853,6 +853,13 @@ export const importTemplateFailed = (error: string): Notification => ({
 export const createTemplateFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to export resource as template: ${error}`,
+})
+
+export const createResourceFromTemplateFailed = (
+  error: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to create from template: ${error}`,
 })
 
 export const updateTemplateSucceeded = (): Notification => ({

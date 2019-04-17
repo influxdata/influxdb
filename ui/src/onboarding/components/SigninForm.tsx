@@ -5,8 +5,7 @@ import {connect} from 'react-redux'
 import _, {get} from 'lodash'
 
 // Components
-import {Form, Input, Button} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Input, Button, Grid} from '@influxdata/clockface'
 
 // APIs
 import {client} from 'src/utils/api'

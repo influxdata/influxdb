@@ -1,16 +1,14 @@
 // Libraries
 import React, {Component} from 'react'
-import {DragDropContext} from 'react-dnd'
-import HTML5Backend from 'react-dnd-html5-backend'
 
 // Components
-import {Form, EmptyState} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, EmptyState, Grid} from '@influxdata/clockface'
 import DraggableColumn from 'src/shared/components/draggable_column/DraggableColumn'
 
 // Types
 import {FieldOption} from 'src/types/dashboards'
 import {ComponentSize} from '@influxdata/clockface'
+import withDragDropContext from 'src/shared/decorators/withDragDropContext'
 
 interface Props {
   className?: string
@@ -60,4 +58,4 @@ class ColumnsOptions extends Component<Props> {
   }
 }
 
-export default DragDropContext(HTML5Backend)(ColumnsOptions)
+export default withDragDropContext(ColumnsOptions)

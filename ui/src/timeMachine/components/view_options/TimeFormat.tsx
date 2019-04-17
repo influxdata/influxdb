@@ -1,8 +1,8 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Form, Input, ComponentSpacer} from '@influxdata/clockface'
-import {Grid, Dropdown} from 'src/clockface'
+import {Form, Input, ComponentSpacer, Grid} from '@influxdata/clockface'
+import {Dropdown} from 'src/clockface'
 
 // Constants
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'

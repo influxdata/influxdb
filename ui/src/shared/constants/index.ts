@@ -1,4 +1,5 @@
 import _ from 'lodash'
+import {AutoRefreshStatus} from 'src/types'
 
 export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
@@ -393,7 +394,12 @@ export const HTTP_UNAUTHORIZED = 401
 export const HTTP_FORBIDDEN = 403
 export const HTTP_NOT_FOUND = 404
 
-export const AUTOREFRESH_DEFAULT = 0 // in milliseconds
+export const AUTOREFRESH_DEFAULT_INTERVAL = 0 // in milliseconds
+export const AUTOREFRESH_DEFAULT_STATUS = AutoRefreshStatus.Paused
+export const AUTOREFRESH_DEFAULT = {
+  status: AUTOREFRESH_DEFAULT_STATUS,
+  interval: AUTOREFRESH_DEFAULT_INTERVAL,
+}
 
 export const GRAPH = 'graph'
 export const TABLE = 'table'

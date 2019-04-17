@@ -36,7 +36,7 @@ interface Props {
   onImportTask: () => void
 }
 
-type SortKey = keyof Task | 'organization.name'
+type SortKey = keyof Task
 
 interface State {
   sortKey: SortKey
@@ -66,13 +66,7 @@ export default class TasksList extends PureComponent<Props, State> {
     } = this.props
     const {sortKey, sortDirection} = this.state
 
-    const headerKeys: SortKey[] = [
-      'name',
-      'status',
-      'every',
-      'organization.name',
-      'latestCompleted',
-    ]
+    const headerKeys: SortKey[] = ['name', 'status', 'every', 'latestCompleted']
 
     return (
       <>
@@ -82,12 +76,6 @@ export default class TasksList extends PureComponent<Props, State> {
               name="Name"
               sortKey={headerKeys[0]}
               sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
-            />
-            <ResourceList.Sorter
-              name="Owner"
-              sortKey={headerKeys[3]}
-              sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
             <ResourceList.Sorter
@@ -104,8 +92,8 @@ export default class TasksList extends PureComponent<Props, State> {
             />
             <ResourceList.Sorter
               name="Last Completed"
-              sortKey={headerKeys[4]}
-              sort={sortKey === headerKeys[4] ? sortDirection : Sort.None}
+              sortKey={headerKeys[3]}
+              sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
               onClick={this.handleClickColumn}
             />
           </ResourceList.Header>

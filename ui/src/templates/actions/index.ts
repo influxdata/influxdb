@@ -4,8 +4,21 @@ import _ from 'lodash'
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 
 // Types
-import {TemplateSummary, DocumentCreate} from '@influxdata/influx'
-import {RemoteDataState, GetState} from 'src/types'
+import {
+  TemplateSummary,
+  DocumentCreate,
+  ITaskTemplate,
+  TemplateType,
+  ITemplate,
+  ILabel as Label,
+} from '@influxdata/influx'
+import {
+  RemoteDataState,
+  GetState,
+  DashboardTemplate,
+  VariableTemplate,
+  Template,
+} from 'src/types'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -15,6 +28,9 @@ import * as copy from 'src/shared/copy/notifications'
 
 // API
 import {client} from 'src/utils/api'
+import {createDashboardFromTemplate} from 'src/dashboards/actions'
+import {createVariableFromTemplate} from 'src/variables/actions'
+import {createTaskFromTemplate} from 'src/tasks/actions'
 
 export enum ActionTypes {
   GetTemplateSummariesForOrg = 'GET_TEMPLATE_SUMMARIES_FOR_ORG',
@@ -94,19 +110,29 @@ const removeTemplateSummary = (templateID: string): RemoveTemplateSummary => ({
 })
 
 export const getTemplateByID = async (id: string) => {
-  const template = await client.templates.get(id)
+  const template = (await client.templates.get(id)) as Template
   return template
 }
 
-export const getTemplatesForOrg = (orgName: string) => async dispatch => {
+export const getTemplates = () => async (dispatch, getState: GetState) => {
+  const {
+    orgs: {org},
+  } = getState()
   dispatch(setTemplatesStatus(RemoteDataState.Loading))
-  const items = await client.templates.getAll(orgName)
+  const items = await client.templates.getAll(org.id)
   dispatch(populateTemplateSummaries(items))
 }
 
-export const createTemplate = (template: DocumentCreate) => async dispatch => {
+export const createTemplate = (template: DocumentCreate) => async (
+  dispatch,
+  getState: GetState
+) => {
   try {
-    await client.templates.create(template)
+    const {
+      orgs: {org},
+    } = getState()
+
+    await client.templates.create({...template, orgID: org.id})
     dispatch(notify(copy.importTemplateSucceeded()))
   } catch (e) {
     console.error(e)
@@ -122,6 +148,7 @@ export const createTemplateFromResource = (
     const {
       orgs: {org},
     } = getState()
+
     await client.templates.create({...resource, orgID: org.id})
     dispatch(notify(copy.resourceSavedAsTemplate(resourceName)))
   } catch (e) {
@@ -213,3 +240,70 @@ export const cloneTemplate = (templateID: string) => async (
     dispatch(notify(copy.cloneTemplateFailed(e)))
   }
 }
+
+export const createResourceFromTemplate = (templateID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    const template = await client.templates.get(templateID)
+    const {
+      content: {
+        data: {type},
+      },
+    } = template
+
+    switch (type) {
+      case TemplateType.Dashboard:
+        return dispatch(
+          createDashboardFromTemplate(template as DashboardTemplate)
+        )
+      case TemplateType.Task:
+        return dispatch(createTaskFromTemplate(template as ITaskTemplate))
+      case TemplateType.Variable:
+        return dispatch(
+          createVariableFromTemplate(template as VariableTemplate)
+        )
+      default:
+        throw new Error(`Cannot create template: ${type}`)
+    }
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.createResourceFromTemplateFailed(e)))
+  }
+}
+
+export const addTemplateLabelsAsync = (
+  templateID: string,
+  labels: Label[]
+) => async (dispatch): Promise<void> => {
+  try {
+    await client.templates.addLabels(templateID, labels.map(l => l.id))
+    const template = await client.templates.get(templateID)
+
+    dispatch(setTemplateSummary(templateID, templateToSummary(template)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.addTemplateLabelFailed()))
+  }
+}
+
+export const removeTemplateLabelsAsync = (
+  templateID: string,
+  labels: Label[]
+) => async (dispatch): Promise<void> => {
+  try {
+    await client.templates.removeLabels(templateID, labels.map(l => l.id))
+    const template = await client.templates.get(templateID)
+
+    dispatch(setTemplateSummary(templateID, templateToSummary(template)))
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.removeTemplateLabelFailed()))
+  }
+}
+
+const templateToSummary = (template: ITemplate): TemplateSummary => ({
+  id: template.id,
+  meta: template.meta,
+  labels: template.labels,
+})

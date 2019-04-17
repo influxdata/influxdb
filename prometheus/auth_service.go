@@ -110,7 +110,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 }
 
 // UpdateAuthorization updates the status and description.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (err error) {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (a *platform.Authorization, err error) {
 	defer func(start time.Time) {
 		labels := prometheus.Labels{
 			"method": "setAuthorizationStatus",

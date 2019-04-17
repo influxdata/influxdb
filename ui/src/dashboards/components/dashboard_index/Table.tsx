@@ -33,7 +33,7 @@ interface State {
   sortType: SortTypes
 }
 
-type SortKey = keyof Dashboard | 'modified' | 'owner' | 'default' // owner and modified are currently hardcoded
+type SortKey = keyof Dashboard | 'modified'
 
 type Props = OwnProps & WithRouterProps
 
@@ -66,9 +66,9 @@ class DashboardsTable extends PureComponent<Props, State> {
             onClick={this.handleClickColumn}
           />
           <ResourceList.Sorter
-            name={this.headerKeys[2]}
-            sortKey={this.headerKeys[2]}
-            sort={sortKey === this.headerKeys[2] ? sortDirection : Sort.None}
+            name={this.headerKeys[1]}
+            sortKey={this.headerKeys[1]}
+            sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
         </ResourceList.Header>
@@ -91,7 +91,7 @@ class DashboardsTable extends PureComponent<Props, State> {
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name', 'owner', 'modified', 'default']
+    return ['name', 'modified']
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {

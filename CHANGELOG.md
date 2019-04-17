@@ -1,4 +1,14 @@
-## v2.0.0-alpha.8 [unreleased]
+## v2.0.0-alpha.9 [unreleased]
+
+### Features
+1. [13423](https://github.com/influxdata/influxdb/pull/13423): Set autorefresh of dashboard to pause if absolute time range is selected
+
+### Bug Fixes
+
+### UI Improvements
+1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay
+
+## v2.0.0-alpha.8 [2019-04-12]
 
 ### Features
 
@@ -6,10 +16,16 @@
 1. [13078](https://github.com/influxdata/influxdb/pull/13078): Add the option to create a Dashboard from a Template.
 1. [13161](https://github.com/influxdata/influxdb/pull/13161): Add the ability to add labels on variables
 1. [13171](https://github.com/influxdata/influxdb/pull/13171): Add switch organizations dropdown to home navigation menu item.
+1. [13173](https://github.com/influxdata/influxdb/pull/13173): Add create org to side nav
+1. [13345](https://github.com/influxdata/influxdb/pull/13345): Added a new Getting Started with Flux Template
 
 ### Bug Fixes
+1. [13284](https://github.com/influxdata/influxdb/pull/13284): Update shift to timeShift in the flux functions side bar
 
 ### UI Improvements
+1. [13287](https://github.com/influxdata/influxdb/pull/13287): Update cursor to grab when hovering draggable areas
+1. [13311](https://github.com/influxdata/influxdb/pull/13311): Sync note editor text and preview scrolling
+1. [13249](https://github.com/influxdata/influxdb/pull/13249): Add the ability to create a bucket when creating an organization
 
 ## v2.0.0-alpha.7 [2019-03-28]
 

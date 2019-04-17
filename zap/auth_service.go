@@ -71,7 +71,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 }
 
 // UpdateAuthorization updates an authorization's status, description and logs any errors.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (err error) {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (a *platform.Authorization, err error) {
 	defer func() {
 		if err != nil {
 			s.Logger.Info("error updating authorization", zap.Error(err))

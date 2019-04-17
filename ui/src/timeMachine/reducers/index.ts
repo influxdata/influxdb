@@ -14,7 +14,7 @@ import {
 } from 'src/timeMachine/constants'
 
 // Types
-import {TimeRange, View} from 'src/types'
+import {TimeRange, View, AutoRefresh} from 'src/types'
 import {
   ViewType,
   DashboardDraftQuery,
@@ -28,6 +28,7 @@ import {Action} from 'src/timeMachine/actions'
 import {TimeMachineTab} from 'src/types/timeMachine'
 import {RemoteDataState} from 'src/types'
 import {Color} from 'src/types/colors'
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 interface QueryBuilderState {
   buckets: string[]
@@ -53,12 +54,11 @@ interface QueryResultsState {
 export interface TimeMachineState {
   view: QueryView
   timeRange: TimeRange
+  autoRefresh: AutoRefresh
   draftQueries: DashboardDraftQuery[]
   isViewingRawData: boolean
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
-  availableXColumns: string[]
-  availableGroupColumns: string[]
   queryBuilder: QueryBuilderState
   queryResults: QueryResultsState
 }
@@ -72,13 +72,12 @@ export interface TimeMachinesState {
 
 export const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
+  autoRefresh: AUTOREFRESH_DEFAULT,
   view: createView(),
   draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
-  availableXColumns: [],
-  availableGroupColumns: [],
   queryResults: initialQueryResultsState(),
   queryBuilder: {
     buckets: [],
@@ -129,8 +128,6 @@ export const timeMachinesReducer = (
           ...initialState,
           activeTab: TimeMachineTab.Queries,
           isViewingRawData: false,
-          availableXColumns: [],
-          availableGroupColumns: [],
           activeQueryIndex: 0,
           draftQueries,
           queryBuilder,
@@ -178,6 +175,14 @@ export const timeMachineReducer = (
     case 'SET_TIME_RANGE': {
       return produce(state, draftState => {
         draftState.timeRange = action.payload.timeRange
+
+        buildAllQueries(draftState)
+      })
+    }
+
+    case 'SET_AUTO_REFRESH': {
+      return produce(state, draftState => {
+        draftState.autoRefresh = action.payload.autoRefresh
 
         buildAllQueries(draftState)
       })
@@ -291,35 +296,6 @@ export const timeMachineReducer = (
       const {scale} = action.payload
 
       return setYAxis(state, {scale})
-    }
-
-    case 'TABLE_LOADED': {
-      return produce(state, draftState => {
-        const {availableXColumns, availableGroupColumns} = action.payload
-
-        draftState.availableXColumns = availableXColumns
-        draftState.availableGroupColumns = availableGroupColumns
-
-        if (draftState.view.properties.type !== ViewType.Histogram) {
-          return
-        }
-
-        const {xColumn, fillColumns} = draftState.view.properties
-        const xColumnStale = !xColumn || !availableXColumns.includes(xColumn)
-        const fillColumnsStale =
-          !fillColumns ||
-          fillColumns.some(name => !availableGroupColumns.includes(name))
-
-        if (xColumnStale && availableXColumns.includes('_value')) {
-          draftState.view.properties.xColumn = '_value'
-        } else if (xColumnStale) {
-          draftState.view.properties.xColumn = availableXColumns[0]
-        }
-
-        if (fillColumnsStale) {
-          draftState.view.properties.fillColumns = []
-        }
-      })
     }
 
     case 'SET_X_COLUMN': {

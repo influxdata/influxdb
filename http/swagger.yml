@@ -226,6 +226,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/documents/templates/{templateID}/labels':
+    get:
+      tags:
+        - Templates
+      summary: list all labels for a template
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: templateID
+          schema:
+            type: string
+          required: true
+          description: ID of template
+      responses:
+        '200':
+          description: a list of all labels for a template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Templates
+      summary: add a label to a template
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: templateID
+          schema:
+            type: string
+          required: true
+          description: ID of template
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '201':
+          description: "the label added to the template"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/documents/templates/{templateID}/labels/{labelID}':
+    delete:
+      tags:
+        - Templates
+      summary: delete a label from a template
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: templateID
+          schema:
+            type: string
+          required: true
+          description: ID of template
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label ID
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /telegrafs:
     get:
       tags:
@@ -679,6 +771,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}':
+    get:
+      tags:
+        - ScraperTargets
+      summary: get a scraper target by id
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: scraperTargetID
+          required: true
+          schema:
+            type: string
+          description: id of the scraper target
+      responses:
+        '200':
+          description: scraper target updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScraperTargetResponse"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     delete:
       tags:
         - ScraperTargets
@@ -1703,6 +1820,13 @@ paths:
       tags:
         - Labels
       summary: Create a label
+      parameters:
+          - $ref: '#/components/parameters/TraceSpan'
+          - in: query
+            name: orgID
+            description: return only labels that belong to the specified organization
+            schema:
+              type: string
       requestBody:
           description: label to create
           required: true
@@ -2650,6 +2774,16 @@ paths:
           schema:
             type: string
           description: filter authorizations belonging to a user name
+        - in: query
+          name: orgID
+          schema:
+            type: string
+          description: filter authorizations belonging to a org id
+        - in: query
+          name: org
+          schema:
+            type: string
+          description: filter authorizations belonging to a org name
       responses:
         '200':
           description: A list of authorizations
@@ -5838,18 +5972,6 @@ components:
               type: string
             params:
               type: object
-    FluxLinks:
-      type: object
-      properties:
-        ast:
-          type: string
-          format: uri
-        self:
-          type: string
-          format: uri
-        suggestions:
-          type: string
-          format: uri
     Routes:
       properties:
         authorizations:
@@ -5925,9 +6047,6 @@ components:
           type: string
           format: uri
         write:
-          type: string
-          format: uri
-        views:
           type: string
           format: uri
     Error:
@@ -6516,18 +6635,6 @@ components:
             - $ref: "#/components/schemas/V1ViewProperties"
             - $ref: "#/components/schemas/EmptyViewProperties"
             - $ref: "#/components/schemas/LogViewProperties"
-    Views:
-      type: object
-      properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-        views:
-          type: array
-          items:
-            $ref: "#/components/schemas/View"
     CellUpdate:
       type: object
       properties:
@@ -6831,6 +6938,8 @@ components:
       properties:
         name:
           type: string
+        type:
+          type: string
         version:
           type: string
       required:
@@ -6876,7 +6985,7 @@ components:
           description: must specify one of orgID and org
         labels:
           type: array
-          description: this is an array of label strings that will be added as labels to the document
+          description: this is an array of label IDs that will be added as labels to the document
           items:
             type: string
       required:

@@ -6,8 +6,8 @@ import {AXES_SCALE_OPTIONS} from 'src/dashboards/constants/cellEditor'
 const {LOG} = AXES_SCALE_OPTIONS
 
 // Components
-import {Form} from '@influxdata/clockface'
-import {Grid, AutoInput} from 'src/clockface'
+import {Form, Grid} from '@influxdata/clockface'
+import {AutoInput} from 'src/clockface'
 
 // Types
 import {Columns} from '@influxdata/clockface'

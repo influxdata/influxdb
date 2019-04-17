@@ -108,12 +108,12 @@ func (s *DocumentStore) CreateDocument(ctx context.Context, d *influxdb.Document
 			writable: true,
 		}
 		for _, opt := range opts {
-			if err := opt(d.ID, idx); err != nil {
+			if err = opt(d.ID, idx); err != nil {
 				return err
 			}
 		}
 
-		if err := s.decorateDocumentWithLabels(ctx, tx, d); err != nil {
+		if err = s.decorateDocumentWithLabels(ctx, tx, d); err != nil {
 			return err
 		}
 
@@ -157,31 +157,10 @@ func (i *DocumentIndex) RemoveDocumentLabel(docID, labelID influxdb.ID) error {
 	return nil
 }
 
-// FindLabelByName retrieves a label by name.
-func (i *DocumentIndex) FindLabelByName(name string) (influxdb.ID, error) {
-	// TODO(desa): this should be scoped by organization eventually. As of now labels are
-	// global to the application.
-	m := influxdb.LabelFilter{
-		Name: name,
-	}
-	ls, err := i.service.findLabels(i.ctx, i.tx, m)
-	if err != nil {
-		return influxdb.InvalidID(), err
-	}
-	if len(ls) == 0 {
-		return influxdb.InvalidID(), &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  "label not found",
-		}
-	}
-	if len(ls) > 1 {
-		return influxdb.InvalidID(), &influxdb.Error{
-			Code: influxdb.EInternal,
-			Msg:  "found multiple labels matching the name provided",
-		}
-	}
-
-	return ls[0].ID, nil
+// FindLabelByID retrieves a label by id.
+func (i *DocumentIndex) FindLabelByID(id influxdb.ID) error {
+	_, err := i.service.findLabelByID(i.ctx, i.tx, id)
+	return err
 }
 
 // AddDocumentOwner creates a urm for the document id and owner id provided.
@@ -450,8 +429,9 @@ func (s *Service) findDocumentByID(ctx context.Context, tx Tx, ns string, id inf
 	}
 
 	return &influxdb.Document{
-		ID:   id,
-		Meta: *m,
+		ID:     id,
+		Meta:   *m,
+		Labels: []*influxdb.Label{},
 	}, nil
 }
 

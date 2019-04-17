@@ -29,7 +29,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   cells: Cell[]
   timeRange: TimeRange
-  autoRefresh: number
   manualRefresh: number
   onZoom: (range: TimeRange) => void
   onCloneCell?: (cell: Cell) => void
@@ -60,7 +59,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
       onDeleteCell,
       onCloneCell,
       timeRange,
-      autoRefresh,
       manualRefresh,
       onEditNote,
     } = this.props
@@ -84,7 +82,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
             <CellComponent
               cell={cell}
               onZoom={onZoom}
-              autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
               timeRange={timeRange}
               onCloneCell={onCloneCell}

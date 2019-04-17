@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
@@ -13,7 +14,6 @@ import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	opentracing "github.com/opentracing/opentracing-go"
 )
 
 const (
@@ -35,7 +35,7 @@ type indexSeriesCursor struct {
 	hasValueExpr bool
 }
 
-func newIndexSeriesCursor(ctx context.Context, src *readSource, req *datatypes.ReadRequest, engine *storage.Engine) (*indexSeriesCursor, error) {
+func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datatypes.Predicate, engine *storage.Engine) (*indexSeriesCursor, error) {
 	queries, err := engine.CreateCursorIterator(ctx)
 	if err != nil {
 		return nil, err
@@ -45,11 +45,8 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, req *datatypes.R
 		return nil, nil
 	}
 
-	span := opentracing.SpanFromContext(ctx)
-	if span != nil {
-		span = opentracing.StartSpan("index_cursor.create", opentracing.ChildOf(span.Context()))
-		defer span.Finish()
-	}
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
 
 	opt := query.IteratorOptions{
 		Aux:        []influxql.VarRef{{Val: "key"}},
@@ -59,7 +56,7 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, req *datatypes.R
 	}
 	p := &indexSeriesCursor{row: reads.SeriesRow{Query: tsdb.CursorIterators{queries}}}
 
-	if root := req.Predicate.GetRoot(); root != nil {
+	if root := predicate.GetRoot(); root != nil {
 		if p.cond, err = reads.NodeToExpr(root, nil); err != nil {
 			return nil, err
 		}

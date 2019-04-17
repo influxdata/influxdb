@@ -1,0 +1,58 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`CollectorList rendering renders 1`] = `
+<Fragment>
+  <IndexList>
+    <IndexListHeader>
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Name"
+        width="50%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName="Bucket"
+        width="25%"
+      />
+      <IndexListHeaderCell
+        alignment="left"
+        columnName=""
+        width="25%"
+      />
+    </IndexListHeader>
+    <IndexListBody
+      columnCount={3}
+      emptyState={<React.Fragment />}
+    >
+      <Connect(withRouter(CollectorRow))
+        bucket=""
+        collector={
+          Object {
+            "id": "03636a150fb51000",
+            "name": "Name this Configuration",
+            "organizationID": "03636a0aabb51000",
+          }
+        }
+        key="03636a150fb51000"
+        onDelete={[MockFunction]}
+        onOpenInstructions={[MockFunction]}
+        onUpdate={[MockFunction]}
+      />
+      <Connect(withRouter(CollectorRow))
+        bucket=""
+        collector={
+          Object {
+            "id": "03636a150fb51001",
+            "name": "Name this Configuration",
+            "organizationID": "03636a0aabb51000",
+          }
+        }
+        key="03636a150fb51001"
+        onDelete={[MockFunction]}
+        onOpenInstructions={[MockFunction]}
+        onUpdate={[MockFunction]}
+      />
+    </IndexListBody>
+  </IndexList>
+</Fragment>
+`;

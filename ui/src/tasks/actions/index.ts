@@ -241,7 +241,7 @@ export const getTasks = () => async (
       orgs: {org},
     } = getState()
 
-    const tasks = await client.tasks.getAllByOrgID(org.id)
+    const tasks = await client.tasks.getAll(org.id)
 
     dispatch(setTasks(tasks))
     dispatch(setTasksStatus(RemoteDataState.Done))
@@ -263,7 +263,7 @@ export const addTaskLabelsAsync = (taskID: string, labels: Label[]) => async (
     dispatch(updateTask(task))
   } catch (error) {
     console.error(error)
-    dispatch(copy.addTaskLabelFailed())
+    dispatch(notify(copy.addTaskLabelFailed()))
   }
 }
 
@@ -278,7 +278,7 @@ export const removeTaskLabelsAsync = (
     dispatch(updateTask(task))
   } catch (error) {
     console.error(error)
-    dispatch(copy.removeTaskLabelFailed())
+    dispatch(notify(copy.removeTaskLabelFailed()))
   }
 }
 
@@ -469,7 +469,7 @@ export const getRuns = (taskID: string) => async (dispatch): Promise<void> => {
 
       return {
         ...run,
-        duration: `${finished.getTime() - started.getTime()} seconds`,
+        duration: `${runDuration(finished, started)}`,
       }
     })
 
@@ -534,4 +534,17 @@ export const createTaskFromTemplate = (template: ITaskTemplate) => async (
   } catch (error) {
     dispatch(notify(importTaskFailed(error)))
   }
+}
+
+export const runDuration = (finishedAt: Date, startedAt: Date): string => {
+  let timeTag = 'seconds'
+
+  let diff = (finishedAt.getTime() - startedAt.getTime()) / 1000
+
+  if (diff > 60) {
+    diff = Math.round(diff / 60)
+    timeTag = 'minutes'
+  }
+
+  return diff + ' ' + timeTag
 }

@@ -42,11 +42,15 @@ export const templatesReducer = (
       }
 
       case ActionTypes.SetTemplateSummary: {
-        const filtered = draftState.items.filter(t => {
-          return t.id !== action.payload.id
+        const updated = draftState.items.map(t => {
+          if (t.id === action.payload.id) {
+            return action.payload.templateSummary
+          }
+
+          return t
         })
 
-        draftState.items = [...filtered, action.payload.templateSummary]
+        draftState.items = updated
 
         return
       }

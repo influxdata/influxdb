@@ -56,17 +56,17 @@
 @import 'src/shared/components/SearchableDropdown.scss';
 @import 'src/shared/components/BoxTooltip.scss';
 @import 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown.scss';
-@import 'src/organizations/components/Retention.scss';
-@import 'src/organizations/components/TelegrafConfigOverlay.scss';
-@import 'src/organizations/components/TelegrafExplainer.scss';
+@import 'src/buckets/components/Retention.scss';
+@import 'src/telegrafs/components/TelegrafConfigOverlay.scss';
+@import 'src/telegrafs/components/TelegrafExplainer.scss';
 @import 'src/variables/components/CreateVariableOverlay.scss';
 @import 'src/tasks/components/TaskForm.scss';
 @import 'src/tasks/components/TasksPage.scss';
 @import 'src/tasks/components/RunLogsList.scss';
 @import 'src/tasks/components/TaskForm.scss';
 @import 'src/tasks/components/TasksPage.scss';
-@import 'src/configuration/components/LabelOverlayForm.scss';
-@import 'src/configuration/components/RandomLabelColor.scss';
+@import 'src/labels/components/LabelOverlayForm.scss';
+@import 'src/labels/components/RandomLabelColor.scss';
 @import 'src/dataExplorer/components/SaveAsButton.scss';
 @import 'src/dataExplorer/components/DataExplorer.scss';
 @import 'src/dataExplorer/components/SaveAsButton.scss';
@@ -105,7 +105,7 @@
 @import 'src/dataLoaders/components/DataLoadersOverlay.scss';
 @import 'src/shared/components/EmptyGraphError.scss';
 @import 'src/shared/components/dapperScrollbars/DapperScrollbars.scss';
-@import 'src/dashboards/components/DashboardImportFromTemplateOverlay.scss';
+@import 'src/dashboards/components/createFromTemplateOverlay/DashboardCreateFromTemplateOverlay.scss';
 
 // External
 @import '../../node_modules/@influxdata/react-custom-scrollbars/dist/styles.css';

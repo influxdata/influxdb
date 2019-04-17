@@ -2,8 +2,8 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Form} from '@influxdata/clockface'
-import {Dropdown, Grid} from 'src/clockface'
+import {Form, Grid} from '@influxdata/clockface'
+import {Dropdown} from 'src/clockface'
 
 // Types
 import {XYViewGeom} from 'src/types'

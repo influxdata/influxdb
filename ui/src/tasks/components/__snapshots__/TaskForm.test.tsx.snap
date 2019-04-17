@@ -4,9 +4,14 @@ exports[`TaskForm rendering renders 1`] = `
 <t
   testID="form-container"
 >
-  <Grid>
-    <GridRow>
-      <GridColumn
+  <t
+    testID="grid"
+  >
+    <t
+      testID="grid--row"
+    >
+      <t
+        testID="grid--column"
         widthXS={12}
       >
         <t
@@ -29,8 +34,9 @@ exports[`TaskForm rendering renders 1`] = `
             value=""
           />
         </t>
-      </GridColumn>
-      <GridColumn
+      </t>
+      <t
+        testID="grid--column"
         widthXS={12}
       >
         <t
@@ -58,6 +64,7 @@ exports[`TaskForm rendering renders 1`] = `
                 disabledTitleText="This option is disabled"
                 id="every"
                 onClick={[Function]}
+                testID="radio--button"
                 titleText="Run task at regular intervals"
                 value="interval"
               >
@@ -69,6 +76,7 @@ exports[`TaskForm rendering renders 1`] = `
                 disabledTitleText="This option is disabled"
                 id="cron"
                 onClick={[Function]}
+                testID="radio--button"
                 titleText="Use cron syntax for more control over scheduling"
                 value="cron"
               >
@@ -77,11 +85,11 @@ exports[`TaskForm rendering renders 1`] = `
             </t>
           </t>
         </t>
-      </GridColumn>
+      </t>
       <TaskScheduleFormFields
         onChangeInput={[MockFunction]}
       />
-    </GridRow>
-  </Grid>
+    </t>
+  </t>
 </t>
 `;

@@ -2,8 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Input, FormElement} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Input, FormElement, Grid} from '@influxdata/clockface'
 
 // Types
 import {Columns} from '@influxdata/clockface'

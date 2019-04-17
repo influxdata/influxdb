@@ -13,9 +13,12 @@ import {defaultTemplates} from 'src/templates/constants/'
 import {
   orgCreateSuccess,
   orgCreateFailed,
+  bucketCreateSuccess,
+  bucketCreateFailed,
 } from 'src/shared/copy/v2/notifications'
 
 // Types
+import {Bucket} from '@influxdata/influx'
 import {Organization, RemoteDataState} from 'src/types'
 import {PublishNotificationAction} from 'src/types/actions/notifications'
 
@@ -132,6 +135,45 @@ export const getOrganizations = () => async (
   } catch (e) {
     console.error(e)
     dispatch(setOrgs(null, RemoteDataState.Error))
+  }
+}
+
+export const createOrgWithBucket = (
+  org: Organization,
+  bucket: Bucket
+) => async (
+  dispatch: Dispatch<Actions | RouterAction | PublishNotificationAction>
+) => {
+  let createdOrg: Organization
+
+  try {
+    createdOrg = await client.organizations.create(org)
+    await client.templates.create({
+      ...defaultTemplates.systemTemplate(),
+      orgID: createdOrg.id,
+    })
+    await client.templates.create({
+      ...defaultTemplates.gettingStartedWithFluxTemplate(),
+      orgID: createdOrg.id,
+    })
+    dispatch(notify(orgCreateSuccess()))
+
+    dispatch(addOrg(createdOrg))
+    dispatch(push(`/orgs/${createdOrg.id}`))
+
+    await client.buckets.create({
+      ...bucket,
+      organizationID: createdOrg.id,
+    })
+
+    dispatch(notify(bucketCreateSuccess()))
+  } catch (e) {
+    console.error(e)
+
+    if (!createdOrg) {
+      dispatch(notify(orgCreateFailed()))
+    }
+    dispatch(notify(bucketCreateFailed()))
   }
 }
 

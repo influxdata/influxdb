@@ -46,7 +46,7 @@ func (s MeasurementCardinalityStats) Inc(name []byte) {
 // Dec decrements a measurement count by 1. Deleted if zero.
 func (s MeasurementCardinalityStats) Dec(name []byte) {
 	v := s[string(name)]
-	if v == 1 {
+	if v <= 1 {
 		delete(s, string(name))
 	} else {
 		s[string(name)] = v - 1

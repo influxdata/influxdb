@@ -1,7 +1,9 @@
 package influxdb
 
 import (
+	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/kit/tracing"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -649,6 +651,9 @@ func (FromKeysRule) Rewrite(keysNode plan.Node) (plan.Node, bool, error) {
 }
 
 func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
+	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	defer span.Finish()
+
 	spec := prSpec.(*PhysicalFromProcedureSpec)
 	var w execute.Window
 	bounds := a.StreamContext().Bounds()
@@ -685,7 +690,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 	// Determine bucketID
 	switch {
 	case spec.Bucket != "":
-		b, ok := deps.BucketLookup.Lookup(orgID, spec.Bucket)
+		b, ok := deps.BucketLookup.Lookup(ctx, orgID, spec.Bucket)
 		if !ok {
 			return nil, fmt.Errorf("could not find bucket %q", spec.Bucket)
 		}

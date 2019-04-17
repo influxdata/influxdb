@@ -408,6 +408,31 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 	})
 }
 
+func BenchmarkIndex_ComputeMeasurementCardinalityStats(b *testing.B) {
+	idx := MustOpenIndex(1, tsi1.NewConfig())
+	defer idx.Close()
+
+	const n = 10000
+	for i := 0; i < n; i++ {
+		name := []byte(fmt.Sprintf("%08x", i))
+		a := make([]Series, 1000)
+		for j := range a {
+			a[j] = Series{Name: name, Tags: models.NewTags(map[string]string{"region": fmt.Sprintf("east%04d", j)})}
+		}
+		if err := idx.CreateSeriesSliceIfNotExists(a); err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	b.Run("", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if _, err := idx.ComputeMeasurementCardinalityStats(); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index

@@ -3,8 +3,8 @@ import _ from 'lodash'
 import React from 'react'
 
 // Component
-import {Form} from '@influxdata/clockface'
-import {Grid, Dropdown} from 'src/clockface'
+import {Form, Grid} from '@influxdata/clockface'
+import {Dropdown} from 'src/clockface'
 
 // Types
 import {DropdownMode} from 'src/clockface'

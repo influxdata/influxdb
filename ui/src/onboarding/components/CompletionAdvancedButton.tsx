@@ -26,6 +26,7 @@ class CompletionAdvancedButton extends PureComponent<Props> {
         color={ComponentColor.Success}
         size={ComponentSize.Large}
         onClick={this.handleAdvanced}
+        testID="button--advanced"
       />
     )
   }

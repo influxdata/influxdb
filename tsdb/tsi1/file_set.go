@@ -403,6 +403,39 @@ func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.Serie
 	return tsdb.NewSeriesIDSetIterator(ss), nil
 }
 
+// Stats computes aggregate measurement cardinality stats from the raw index data.
+func (fs *FileSet) Stats() MeasurementCardinalityStats {
+	stats := make(MeasurementCardinalityStats)
+	mitr := fs.MeasurementIterator()
+	if mitr == nil {
+		return stats
+	}
+
+	for {
+		// Iterate over each measurement and set cardinality.
+		mm := mitr.Next()
+		if mm == nil {
+			return stats
+		}
+
+		// Obtain all series for measurement.
+		sitr := fs.MeasurementSeriesIDIterator(mm.Name())
+		if sitr == nil {
+			continue
+		}
+
+		// All iterators should be series id set iterators except legacy 1.x data.
+		// Skip if it does not conform as aggregation would be too slow.
+		ssitr, ok := sitr.(tsdb.SeriesIDSetIterator)
+		if !ok {
+			continue
+		}
+
+		// Set cardinality for the given measurement.
+		stats[string(mm.Name())] = int(ssitr.SeriesIDSet().Cardinality())
+	}
+}
+
 // File represents a log or index file.
 type File interface {
 	Close() error

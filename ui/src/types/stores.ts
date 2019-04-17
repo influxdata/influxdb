@@ -5,7 +5,7 @@ import {TimeMachinesState} from 'src/timeMachine/reducers'
 import {AppState as AppPresentationState} from 'src/shared/reducers/app'
 import {TasksState} from 'src/tasks/reducers'
 import {RouterState} from 'react-router-redux'
-import {MeState} from 'src/shared/reducers/v2/me'
+import {MeState} from 'src/shared/reducers/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
@@ -21,6 +21,8 @@ import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {OrgsState} from 'src/organizations/reducers/orgs'
+import {MembersState} from 'src/members/reducers'
+import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 
 export interface AppState {
   VERSION: string
@@ -30,6 +32,7 @@ export interface AppState {
   links: Links
   app: AppPresentationState
   ranges: RangeState
+  autoRefresh: AutoRefreshState
   views: ViewsState
   dashboards: DashboardsState
   notifications: Notification[]
@@ -47,6 +50,7 @@ export interface AppState {
   templates: TemplatesState
   scrapers: ScrapersState
   userSettings: UserSettingsState
+  members: MembersState
 }
 
 export type GetState = () => AppState

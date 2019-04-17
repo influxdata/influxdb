@@ -24,8 +24,8 @@ import {
   ComponentColor,
   ComponentSize,
   Columns,
+  Grid,
 } from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
 import {Organization, Dashboard, ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
@@ -118,6 +118,7 @@ class CompletionStep extends PureComponent<Props> {
                           color={ComponentColor.Success}
                           size={ComponentSize.Large}
                           onClick={onExit}
+                          testID="button--conf-later"
                         />
                         <dt>I've got this...</dt>
                         <dd>

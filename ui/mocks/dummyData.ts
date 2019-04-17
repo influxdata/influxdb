@@ -285,6 +285,7 @@ export const defaultOnboardingStepProps: OnboardingStepProps = {
   onSetStepStatus: jest.fn(),
   stepStatuses: [],
   stepTitles: [],
+  stepTestIds: [],
   setupParams: {username: '', password: '', org: '', bucket: ''},
   handleSetSetupParams: jest.fn(),
   notify: jest.fn(),

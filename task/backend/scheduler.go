@@ -14,7 +14,6 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/task/options"
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -639,8 +638,7 @@ func (r *runner) startFromWorking(now int64) {
 		return
 	}
 
-	span := opentracing.StartSpan("runner.startFromWorking")
-	ctx := opentracing.ContextWithSpan(r.ctx, span)
+	span, ctx := tracing.StartSpanFromContext(r.ctx)
 	defer span.Finish()
 
 	ctx, cancel := context.WithCancel(ctx)

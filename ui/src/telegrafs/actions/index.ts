@@ -2,17 +2,14 @@
 import {client} from 'src/utils/api'
 
 // Types
-import {RemoteDataState} from 'src/types'
-import {
-  ITelegraf as Telegraf,
-  Organization,
-  ILabel as Label,
-} from '@influxdata/influx'
+import {RemoteDataState, GetState} from 'src/types'
+import {ITelegraf as Telegraf, ILabel as Label} from '@influxdata/influx'
 import {Dispatch} from 'redux-thunk'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
+// Utils
 import {
   telegrafGetFailed,
   telegrafCreateFailed,
@@ -20,9 +17,15 @@ import {
   telegrafDeleteFailed,
   addTelelgrafLabelFailed,
   removeTelelgrafLabelFailed,
+  getTelegrafConfigFailed,
 } from 'src/shared/copy/v2/notifications'
 
-export type Action = SetTelegrafs | AddTelegraf | EditTelegraf | RemoveTelegraf
+export type Action =
+  | SetTelegrafs
+  | AddTelegraf
+  | EditTelegraf
+  | RemoveTelegraf
+  | SetCurrentConfig
 
 interface SetTelegrafs {
   type: 'SET_TELEGRAFS'
@@ -74,25 +77,28 @@ export const removeTelegraf = (id: string): RemoveTelegraf => ({
   payload: {id},
 })
 
-export const getTelegrafs = () => async (dispatch: Dispatch<Action>) => {
-  try {
-    dispatch(setTelegrafs(RemoteDataState.Loading))
-
-    const telegrafs = await client.telegrafConfigs.getAll()
-
-    dispatch(setTelegrafs(RemoteDataState.Done, telegrafs))
-  } catch (e) {
-    console.error(e)
-    dispatch(setTelegrafs(RemoteDataState.Error))
-    dispatch(notify(telegrafGetFailed()))
-  }
+export interface SetCurrentConfig {
+  type: 'SET_CURRENT_CONFIG'
+  payload: {status: RemoteDataState; item?: string}
 }
 
-export const getOrgTelegrafs = (org: Organization) => async dispatch => {
+export const setCurrentConfig = (
+  status: RemoteDataState,
+  item?: string
+): SetCurrentConfig => ({
+  type: 'SET_CURRENT_CONFIG',
+  payload: {status, item},
+})
+
+export const getTelegrafs = () => async (dispatch, getState: GetState) => {
+  const {
+    orgs: {org},
+  } = getState()
+
   try {
     dispatch(setTelegrafs(RemoteDataState.Loading))
 
-    const telegrafs = await client.telegrafConfigs.getAllByOrg(org)
+    const telegrafs = await client.telegrafConfigs.getAll(org.id)
 
     dispatch(setTelegrafs(RemoteDataState.Done, telegrafs))
   } catch (e) {
@@ -152,7 +158,7 @@ export const addTelelgrafLabelsAsync = (
     dispatch(editTelegraf(telegraf))
   } catch (error) {
     console.error(error)
-    dispatch(addTelelgrafLabelFailed())
+    dispatch(notify(addTelelgrafLabelFailed()))
   }
 }
 
@@ -167,6 +173,19 @@ export const removeTelelgrafLabelsAsync = (
     dispatch(editTelegraf(telegraf))
   } catch (error) {
     console.error(error)
-    dispatch(removeTelelgrafLabelFailed())
+    dispatch(notify(removeTelelgrafLabelFailed()))
+  }
+}
+
+export const getTelegrafConfigToml = (telegrafConfigID: string) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    dispatch(setCurrentConfig(RemoteDataState.Loading))
+    const config = await client.telegrafConfigs.getTOML(telegrafConfigID)
+    dispatch(setCurrentConfig(RemoteDataState.Done, config))
+  } catch (error) {
+    dispatch(setCurrentConfig(RemoteDataState.Error))
+    dispatch(notify(getTelegrafConfigFailed()))
   }
 }

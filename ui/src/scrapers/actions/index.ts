@@ -76,13 +76,12 @@ export const getScrapers = () => async (
 ) => {
   try {
     const {
-      orgs: {
-        org: {id},
-      },
+      orgs: {org},
     } = getState()
+
     dispatch(setScrapers(RemoteDataState.Loading))
 
-    const scrapers = await client.scrapers.getAll(id)
+    const scrapers = await client.scrapers.getAll(org.id)
 
     dispatch(setScrapers(RemoteDataState.Done, scrapers))
   } catch (e) {

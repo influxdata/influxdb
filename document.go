@@ -25,6 +25,7 @@ type Document struct {
 // data in the meta should be indexed and queryable.
 type DocumentMeta struct {
 	Name    string `json:"name"`
+	Type    string `json:"type,omitempty"`
 	Version string `json:"version,omitempty"`
 }
 
@@ -58,7 +59,7 @@ type DocumentIndex interface {
 
 	FindOrganizationByName(n string) (ID, error)
 	FindOrganizationByID(id ID) error
-	FindLabelByName(n string) (ID, error)
+	FindLabelByID(id ID) error
 
 	AddDocumentLabel(docID, labelID ID) error
 	RemoveDocumentLabel(docID, labelID ID) error
@@ -222,11 +223,11 @@ func TokenAuthorizedWithOrgID(a *Authorization, orgID ID) func(ID, DocumentIndex
 }
 
 // WithLabel adds a label to the documents where it is applied.
-func WithLabel(label string) func(ID, DocumentIndex) error {
+func WithLabel(lid ID) func(ID, DocumentIndex) error {
 	return func(id ID, idx DocumentIndex) error {
 		// TODO(desa): turns out that labels are application global, at somepoint we'll
 		// want to scope these by org. We should add auth at that point.
-		lid, err := idx.FindLabelByName(label)
+		err := idx.FindLabelByID(lid)
 		if err != nil {
 			return err
 		}
@@ -236,11 +237,11 @@ func WithLabel(label string) func(ID, DocumentIndex) error {
 }
 
 // WithoutLabel removes a label to the documents where it is applied.
-func WithoutLabel(label string) func(ID, DocumentIndex) error {
+func WithoutLabel(lid ID) func(ID, DocumentIndex) error {
 	return func(id ID, idx DocumentIndex) error {
 		// TODO(desa): turns out that labels are application global, at somepoint we'll
 		// want to scope these by org. We should add auth at that point.
-		lid, err := idx.FindLabelByName(label)
+		err := idx.FindLabelByID(lid)
 		if err != nil {
 			return err
 		}

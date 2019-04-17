@@ -456,14 +456,14 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.TODO()
-	a, err := s.FindAuthorizationByID(ctx, id)
-	if err != nil {
+	if _, err := s.FindAuthorizationByID(ctx, id); err != nil {
 		return err
 	}
 
-	if err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
+	a, err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
 		Status: platform.Active.Ptr(),
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
@@ -527,14 +527,14 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.TODO()
-	a, err := s.FindAuthorizationByID(ctx, id)
-	if err != nil {
+	if _, err = s.FindAuthorizationByID(ctx, id); err != nil {
 		return err
 	}
 
-	if err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
+	a, err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
 		Status: platform.Inactive.Ptr(),
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 

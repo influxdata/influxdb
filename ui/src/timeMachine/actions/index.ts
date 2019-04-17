@@ -19,9 +19,10 @@ import {
   FieldOption,
   TableOptions,
   TimeMachineTab,
+  AutoRefresh,
 } from 'src/types'
 import {Color} from 'src/types/colors'
-import {Table, HistogramPosition, isNumeric} from '@influxdata/vis'
+import {HistogramPosition} from '@influxdata/vis'
 
 export type Action =
   | QueryBuilderAction
@@ -30,6 +31,7 @@ export type Action =
   | SetActiveTabAction
   | SetNameAction
   | SetTimeRangeAction
+  | SetAutoRefreshAction
   | SetTypeAction
   | SetActiveQueryText
   | SetIsViewingRawDataAction
@@ -63,7 +65,6 @@ export type Action =
   | SetFillColumnsAction
   | SetBinCountAction
   | SetHistogramPositionAction
-  | TableLoadedAction
   | SetXDomainAction
   | SetXAxisLabelAction
 
@@ -120,6 +121,18 @@ export const setTimeRange = (timeRange: TimeRange) => dispatch => {
   dispatch(saveAndExecuteQueries())
   dispatch(reloadTagSelectors())
 }
+
+interface SetAutoRefreshAction {
+  type: 'SET_AUTO_REFRESH'
+  payload: {autoRefresh: AutoRefresh}
+}
+
+export const setAutoRefresh = (
+  autoRefresh: AutoRefresh
+): SetAutoRefreshAction => ({
+  type: 'SET_AUTO_REFRESH',
+  payload: {autoRefresh},
+})
 
 interface SetTypeAction {
   type: 'SET_VIEW_TYPE'
@@ -494,34 +507,6 @@ export const setHistogramPosition = (
   type: 'SET_HISTOGRAM_POSITION',
   payload: {position},
 })
-
-interface TableLoadedAction {
-  type: 'TABLE_LOADED'
-  payload: {
-    availableXColumns: string[]
-    availableGroupColumns: string[]
-  }
-}
-
-export const tableLoaded = (table: Table): TableLoadedAction => {
-  const availableXColumns = Object.entries(table.columns)
-    .filter(([__, {type}]) => isNumeric(type) && type !== 'time')
-    .map(([name]) => name)
-
-  const invalidGroupColumns = new Set(['_value', '_start', '_stop', '_time'])
-
-  const availableGroupColumns = Object.keys(table.columns).filter(
-    name => !invalidGroupColumns.has(name)
-  )
-
-  return {
-    type: 'TABLE_LOADED',
-    payload: {
-      availableXColumns,
-      availableGroupColumns,
-    },
-  }
-}
 
 interface SetXDomainAction {
   type: 'SET_VIEW_X_DOMAIN'

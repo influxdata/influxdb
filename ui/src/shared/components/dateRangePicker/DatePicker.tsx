@@ -3,8 +3,7 @@ import React, {PureComponent} from 'react'
 import ReactDatePicker from 'react-datepicker'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
-import {Grid} from 'src/clockface'
+import {Form, Input, Grid} from '@influxdata/clockface'
 
 // Styles
 import 'react-datepicker/dist/react-datepicker.css'

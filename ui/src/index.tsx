@@ -27,7 +27,8 @@ import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
-import DashboardImportFromTemplateOverlay from 'src/dashboards/components/DashboardImportFromTemplateOverlay'
+import DashboardCreateFromTemplateOverlay from 'src/dashboards/components/createFromTemplateOverlay/DashboardCreateFromTemplateOverlay'
+import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
 import {MePage, Account} from 'src/me'
@@ -35,26 +36,33 @@ import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
 import Notifications from 'src/shared/containers/Notifications'
-import ConfigurationPage from 'src/configuration/components/ConfigurationPage'
 import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import VEO from 'src/dashboards/components/VEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
-import OrgMembersIndex from 'src/organizations/containers/OrgMembersIndex'
-import OrgTelegrafsIndex from 'src/organizations/containers/OrgTelegrafsIndex'
-import OrgTemplatesIndex from 'src/organizations/containers/OrgTemplatesIndex'
+import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
+import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
-import OrgScrapersIndex from 'src/organizations/containers/OrgScrapersIndex'
+import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
 import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
 import VariableExportOverlay from 'src/variables/components/VariableExportOverlay'
 import SetOrg from 'src/shared/containers/SetOrg'
 import RouteToOrg from 'src/shared/containers/RouteToOrg'
 import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
+import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
+import MembersIndex from 'src/members/containers/MembersIndex'
+import LabelsIndex from 'src/labels/containers/LabelsIndex'
+import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
+import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
+import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
+import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
+import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
+import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -150,7 +158,7 @@ class Root extends PureComponent {
                             />
                             <Route
                               path="import/template"
-                              component={DashboardImportFromTemplateOverlay}
+                              component={DashboardCreateFromTemplateOverlay}
                             />
                             <Route
                               path=":dashboardID/export"
@@ -175,21 +183,39 @@ class Root extends PureComponent {
                           </Route>
                           <Route path="me" component={MePage} />
                           <Route path="account/:tab" component={Account} />
-                          <Route
-                            path="configuration/:tab"
-                            component={ConfigurationPage}
-                          />
                           <Route path="settings">
-                            <IndexRoute component={OrgMembersIndex} />
+                            <IndexRoute component={MembersIndex} />
                           </Route>
-                          <Route path="buckets" component={BucketsIndex} />
+                          <Route path="buckets" component={BucketsIndex}>
+                            <Route
+                              path=":bucketID/line-protocols/new"
+                              component={LineProtocolWizard}
+                            />
+                            <Route
+                              path=":bucketID/telegrafs/new"
+                              component={CollectorsWizard}
+                            />
+                            <Route
+                              path=":bucketID/scrapers/new"
+                              component={CreateScraperOverlay}
+                            />
+                          </Route>
                           <Route path="tokens" component={TokensIndex} />
-                          <Route path="members" component={OrgMembersIndex} />
-                          <Route
-                            path="telegrafs"
-                            component={OrgTelegrafsIndex}
-                          />
-                          <Route path="templates" component={OrgTemplatesIndex}>
+                          <Route path="members" component={MembersIndex}>
+                            <Route path="new" component={AddMembersOverlay} />
+                          </Route>
+                          <Route path="telegrafs" component={TelegrafsPage}>
+                            <Route
+                              path=":id/view"
+                              component={TelegrafConfigOverlay}
+                            />
+                            <Route
+                              path=":id/instructions"
+                              component={TelegrafInstructionsOverlay}
+                            />
+                            <Route path="new" component={CollectorsWizard} />
+                          </Route>
+                          <Route path="templates" component={TemplatesIndex}>
                             <Route
                               path="import"
                               component={TemplateImportOverlay}
@@ -197,6 +223,10 @@ class Root extends PureComponent {
                             <Route
                               path=":id/export"
                               component={TemplateExportOverlay}
+                            />
+                            <Route
+                              path=":id/view"
+                              component={TemplateViewOverlay}
                             />
                           </Route>
                           <Route path="variables" component={VariablesIndex}>
@@ -208,8 +238,18 @@ class Root extends PureComponent {
                               path=":id/export"
                               component={VariableExportOverlay}
                             />
+                            <Route
+                              path="new"
+                              component={CreateVariableOverlay}
+                            />
                           </Route>
-                          <Route path="scrapers" component={OrgScrapersIndex} />
+                          <Route path="labels" component={LabelsIndex} />
+                          <Route path="scrapers" component={ScrapersIndex}>
+                            <Route
+                              path="new"
+                              component={CreateScraperOverlay}
+                            />
+                          </Route>
                         </Route>
                       </Route>
                     </Route>

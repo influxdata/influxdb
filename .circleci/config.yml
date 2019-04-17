@@ -39,7 +39,7 @@ jobs:
           path: ~/project
   e2e:
     docker:
-      - image: circleci/golang:1.11-node-browsers
+      - image: circleci/golang:1.12-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -56,10 +56,6 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - restore_cache:
-          name: Restore npm package cache
-          keys:
-            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: sudo apt-get install -y netcat-openbsd
       - run: make protoc
       - run: make build
@@ -78,30 +74,17 @@ jobs:
           destination: screenshots
   jstest:
     docker:
-      - image: circleci/golang:1.11-node-browsers
+      - image: circleci/golang:1.12-node-browsers
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-
-      # Run npm install, using Circle's cache if applicable.
-      - restore_cache:
-          name: Restore npm package cache
-          keys:
-            # Only cache on exact package-lock.json match, as in Circle's npm example:
-            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: make node_modules
-      - save_cache:
-          name: Save npm package cache
-          key: chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
-          paths:
-            - ~/.cache/npm
-
       - run: make test-js
       - run: make chronograf_lint
 
   gotest:
     docker:
-      - image: circleci/golang:1.11
+      - image: circleci/golang:1.12
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: '-mod=readonly -p=2' # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -132,11 +115,6 @@ jobs:
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: staticcheck ./...
-      # In go1.11, running go mod vendor when go.mod contains replace entries, "taints" go.sum, even with -mod=readonly.
-      # See https://github.com/golang/go/issues/27868.
-      # Clean up go.sum so that we save to the same module key we attempted to restore from.
-      # TODO: remove this call to git checkout after we are on go1.12.
-      - run: git checkout -- go.sum
 
       - save_cache:
           name: Saving GOCACHE
@@ -153,7 +131,7 @@ jobs:
 
   build:
     docker:
-      - image: circleci/golang:1.11-node-browsers
+      - image: circleci/golang:1.12-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -171,10 +149,6 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - restore_cache:
-          name: Restore npm package cache
-          keys:
-            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - run: make protoc
       - run: make build
       - persist_to_workspace:
@@ -188,7 +162,7 @@ jobs:
 
   deploy-nightly:
     docker:
-      - image: circleci/golang:1.11-node-browsers
+      - image: circleci/golang:1.12-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -205,10 +179,6 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - restore_cache:
-          name: Restore npm package cache
-          keys:
-            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - setup_remote_docker
       - run:
           name: 'Docker Login'
@@ -224,7 +194,7 @@ jobs:
 
   release:
     docker:
-      - image: circleci/golang:1.11-node-browsers
+      - image: circleci/golang:1.12-node-browsers
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: '-mod=readonly -p=4' # Go on Circle thinks 32 CPUs are available, but there aren't.
@@ -242,10 +212,6 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
-      - restore_cache:
-          name: Restore Yarn package cache
-          keys:
-            - chronograf-npm-packages-{{ checksum "ui/package-lock.json" }}
       - setup_remote_docker
       - run:
           name: 'Docker Login'

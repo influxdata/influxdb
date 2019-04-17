@@ -4,6 +4,7 @@ import (
 	"container/heap"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -114,10 +115,49 @@ func (h *resultSetHeap) Push(x interface{}) {
 }
 
 func (h *resultSetHeap) Pop() interface{} {
-	old := h.items
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = nil
-	h.items = old[0 : n-1]
+	n := len(h.items)
+	item := h.items[n-1]
+	h.items[n-1] = nil
+	h.items = h.items[:n-1]
 	return item
+}
+
+type MergedStringIterator struct {
+	iterators    []storage.StringIterator
+	uniqueValues map[string]struct{}
+	nextValue    string
+}
+
+func NewMergedStringIterator(iterators []storage.StringIterator) *MergedStringIterator {
+	return &MergedStringIterator{
+		iterators:    iterators,
+		uniqueValues: make(map[string]struct{}),
+	}
+}
+
+func (mr *MergedStringIterator) Next() bool {
+	// TODO assume that each iterator is sorted, and iterate in sorted order
+	// https://github.com/influxdata/influxdb/issues/13440
+	for len(mr.iterators) > 0 {
+		iterator := mr.iterators[0]
+
+		for iterator.Next() {
+			mr.nextValue = iterator.Value()
+			if _, found := mr.uniqueValues[mr.nextValue]; !found {
+				mr.uniqueValues[mr.nextValue] = struct{}{}
+				return true
+			}
+		}
+
+		// This iterator exhausted; move on to next iterator.
+		mr.iterators[0] = nil
+		mr.iterators = mr.iterators[1:]
+	}
+
+	mr.uniqueValues = nil
+	return false
+}
+
+func (mr *MergedStringIterator) Value() string {
+	return mr.nextValue
 }

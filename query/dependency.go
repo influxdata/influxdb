@@ -19,13 +19,13 @@ type BucketLookup struct {
 }
 
 // Lookup returns the bucket id and its existence given an org id and bucket name.
-func (b *BucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
+func (b *BucketLookup) Lookup(ctx context.Context, orgID platform.ID, name string) (platform.ID, bool) {
 	oid := platform.ID(orgID)
 	filter := platform.BucketFilter{
 		OrganizationID: &oid,
 		Name:           &name,
 	}
-	bucket, err := b.BucketService.FindBucket(context.Background(), filter)
+	bucket, err := b.BucketService.FindBucket(ctx, filter)
 	if err != nil {
 		return platform.InvalidID(), false
 	}
