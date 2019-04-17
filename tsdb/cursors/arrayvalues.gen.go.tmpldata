@@ -18,5 +18,9 @@
 	{
 		"Name":"Boolean",
 		"Type":"bool"
+	},
+	{
+		"Name":"Timestamp",
+		"Type": null
 	}
 ]
