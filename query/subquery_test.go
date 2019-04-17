@@ -225,6 +225,53 @@ func TestSubquery(t *testing.T) {
 				{Time: 0 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{8.0}},
 			},
 		},
+		{
+			Name: "DifferentDimensionsWithSelectors",
+			Statement: `SELECT sum("max_min") FROM (
+							SELECT max("value") - min("value") FROM cpu GROUP BY time(30s), host
+						) WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY time(30s)`,
+			Fields: map[string]influxql.DataType{"value": influxql.Float},
+			MapShardsFn: func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn {
+				if got, want := tr.MinTimeNano(), 0*Second; got != want {
+					t.Errorf("unexpected min time: got=%d want=%d", got, want)
+				}
+				if got, want := tr.MaxTimeNano(), 60*Second-1; got != want {
+					t.Errorf("unexpected max time: got=%d want=%d", got, want)
+				}
+				return func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) query.Iterator {
+					if got, want := m.Name, "cpu"; got != want {
+						t.Errorf("unexpected source: got=%s want=%s", got, want)
+					}
+
+					var itr query.Iterator = &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 2},
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 7},
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 3},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 8},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: 3},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 20 * Second, Value: 7},
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 2},
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 1},
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 9},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 30 * Second, Value: 2},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 40 * Second, Value: 2},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 2},
+					}}
+					if _, ok := opt.Expr.(*influxql.Call); ok {
+						i, err := query.NewCallIterator(itr, opt)
+						if err != nil {
+							panic(err)
+						}
+						itr = i
+					}
+					return itr
+				}
+			},
+			Rows: []query.Row{
+				{Time: 0 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{float64(10)}},
+				{Time: 30 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{float64(8)}},
+			},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			shardMapper := ShardMapper{
