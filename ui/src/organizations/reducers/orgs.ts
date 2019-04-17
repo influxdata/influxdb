@@ -56,6 +56,8 @@ export const orgsReducer = (state = defaultState, action: Actions): OrgsState =>
           }
           return o
         })
+
+        draftState.org = org
         return
       }
     }

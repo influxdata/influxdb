@@ -73,6 +73,12 @@ class SettingsNavigation extends PureComponent<Props> {
           url={`${route}/tokens`}
           active={'tokens' === tab}
         />
+        <Tabs.Tab
+          title="Org Profile"
+          id="profile"
+          url={`${route}/profile`}
+          active={'profile' === tab}
+        />
       </Tabs.Nav>
     )
   }
