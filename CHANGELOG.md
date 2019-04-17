@@ -1,10 +1,12 @@
 ## v2.0.0-alpha.9 [unreleased]
 
 ### Features
+1. [13423](https://github.com/influxdata/influxdb/pull/13423): Set autorefresh of dashboard to pause if absolute time range is selected
 
 ### Bug Fixes
 
 ### UI Improvements
+1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay
 
 ## v2.0.0-alpha.8 [2019-04-12]
 

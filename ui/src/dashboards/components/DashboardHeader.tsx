@@ -4,7 +4,9 @@ import React, {Component} from 'react'
 // Components
 import {Page} from 'src/pageLayout'
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
-import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
+import TimeRangeDropdown, {
+  RangeType,
+} from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {
@@ -24,14 +26,16 @@ import {
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
 import {Dashboard} from '@influxdata/influx'
+import {AutoRefresh, AutoRefreshStatus} from 'src/types'
 
 interface Props {
   activeDashboard: string
   dashboard: Dashboard
   timeRange: QueriesModels.TimeRange
-  autoRefresh: number
+  autoRefresh: AutoRefresh
   handleChooseTimeRange: (timeRange: QueriesModels.TimeRange) => void
-  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
+  handleChooseAutoRefresh: (autoRefreshInterval: number) => void
+  onSetAutoRefreshStatus: (status: AutoRefreshStatus) => void
   onManualRefresh: () => void
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
@@ -55,8 +59,6 @@ export default class DashboardHeader extends Component<Props> {
     const {
       handleChooseAutoRefresh,
       onManualRefresh,
-      autoRefresh,
-      handleChooseTimeRange,
       timeRange: {upper, lower},
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
       isHidden,
@@ -65,6 +67,7 @@ export default class DashboardHeader extends Component<Props> {
       onAddCell,
       onRenameDashboard,
       activeDashboard,
+      autoRefresh,
     } = this.props
 
     return (
@@ -97,7 +100,7 @@ export default class DashboardHeader extends Component<Props> {
             selected={autoRefresh}
           />
           <TimeRangeDropdown
-            onSetTimeRange={handleChooseTimeRange}
+            onSetTimeRange={this.handleChooseTimeRange}
             timeRange={{
               upper: zoomedUpper || upper,
               lower: zoomedLower || lower,
@@ -129,5 +132,32 @@ export default class DashboardHeader extends Component<Props> {
 
   private handleClickPresentationButton = (): void => {
     this.props.handleClickPresentationButton()
+  }
+
+  private handleChooseTimeRange = (
+    timeRange: QueriesModels.TimeRange,
+    rangeType: RangeType = RangeType.Relative
+  ) => {
+    const {
+      autoRefresh,
+      onSetAutoRefreshStatus,
+      handleChooseTimeRange,
+    } = this.props
+
+    handleChooseTimeRange(timeRange)
+
+    if (rangeType === RangeType.Absolute) {
+      onSetAutoRefreshStatus(AutoRefreshStatus.Disabled)
+      return
+    }
+
+    if (autoRefresh.status === AutoRefreshStatus.Disabled) {
+      if (autoRefresh.interval === 0) {
+        onSetAutoRefreshStatus(AutoRefreshStatus.Paused)
+        return
+      }
+
+      onSetAutoRefreshStatus(AutoRefreshStatus.Active)
+    }
   }
 }

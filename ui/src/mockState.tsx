@@ -31,6 +31,7 @@ const localState = {
       duration: '15m',
     },
   ],
+  autoRefresh: {},
   variables: initialVariablesState(),
   userSettings: initialUserSettingsState(),
 }

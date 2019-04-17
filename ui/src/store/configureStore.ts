@@ -29,6 +29,7 @@ import templatesReducer from 'src/templates/reducers'
 import {scrapersReducer} from 'src/scrapers/reducers'
 import {userSettingsReducer} from 'src/userSettings/reducers'
 import {membersReducer} from 'src/members/reducers'
+import {autoRefreshReducer} from 'src/shared/reducers/autoRefresh'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -39,6 +40,7 @@ type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 export const rootReducer = combineReducers<ReducerState>({
   ...sharedReducers,
   ranges: rangesReducer,
+  autoRefresh: autoRefreshReducer,
   dashboards: dashboardsReducer,
   timeMachines: timeMachinesReducer,
   routing: routerReducer,

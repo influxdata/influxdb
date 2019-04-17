@@ -47,6 +47,7 @@ var (
 		ID: doc1ID,
 		Meta: influxdb.DocumentMeta{
 			Name: "doc1",
+			Type: "typ1",
 		},
 		Content: "content1",
 		Labels: []*influxdb.Label{
@@ -75,6 +76,7 @@ var (
 		ID: doc4ID,
 		Meta: influxdb.DocumentMeta{
 			Name: "doc4",
+			Type: "typ4",
 		},
 		Content: "content4",
 	}
@@ -122,7 +124,8 @@ var (
 						}
 				  ],
 				"meta": {
-					"name": "doc1"
+					"name": "doc1",
+					"type": "typ1"
 				}
 			},
 			{
