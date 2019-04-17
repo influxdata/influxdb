@@ -3,7 +3,6 @@ package kv
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -172,9 +171,23 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		return nil, err
 	}
 	if !latestCompleted.IsZero() {
-		t.LatestCompleted = latestCompleted.Format(time.RFC3339)
-	} else {
+		if t.LatestCompleted != "" {
+			tlc, err := time.Parse(time.RFC3339, t.LatestCompleted)
+			if err == nil && latestCompleted.After(tlc) {
+				t.LatestCompleted = latestCompleted.Format(time.RFC3339)
+
+			}
+		} else {
+			t.LatestCompleted = latestCompleted.Format(time.RFC3339)
+		}
+	}
+
+	if t.LatestCompleted == "" {
 		t.LatestCompleted = t.CreatedAt
+	}
+	latestCompleted, err = time.Parse(time.RFC3339, t.LatestCompleted)
+	if err != nil {
+		return nil, err
 	}
 
 	return t, nil
@@ -200,9 +213,7 @@ func (s *Service) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]
 }
 
 func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-	if filter.User == nil && filter.OrganizationID == nil && filter.Organization == "" {
-		return nil, 0, errors.New("find tasks requires filtering by org or user")
-	}
+
 	var org *influxdb.Organization
 	var err error
 	if filter.OrganizationID != nil {
@@ -227,87 +238,119 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 		filter.Limit = influxdb.TaskDefaultPageSize
 	}
 
-	var ts []*influxdb.Task
 	// filter by user id.
 	if filter.User != nil {
-		maps, err := s.findUserResourceMappings(
-			ctx,
-			tx,
-			influxdb.UserResourceMappingFilter{
-				ResourceType: influxdb.TasksResourceType,
-				UserID:       *filter.User,
-				UserType:     influxdb.Owner,
-			},
-		)
+		return s.findTasksByUser(ctx, tx, filter)
+	} else if org != nil {
+		return s.findTaskByOrg(ctx, tx, filter)
+	}
+
+	return s.findAllTasks(ctx, tx, filter)
+}
+
+// findTasksByUser is a subset of the find tasks function. Used for cleanliness
+func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+	if filter.User == nil {
+		return nil, 0, ErrTaskNotFound
+	}
+
+	var org *influxdb.Organization
+	var err error
+	if filter.OrganizationID != nil {
+		org, err = s.findOrganizationByID(ctx, tx, *filter.OrganizationID)
+		if err != nil {
+			return nil, 0, err
+		}
+	} else if filter.Organization != "" {
+		org, err = s.findOrganizationByName(ctx, tx, filter.Organization)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	var ts []*influxdb.Task
+
+	maps, err := s.findUserResourceMappings(
+		ctx,
+		tx,
+		influxdb.UserResourceMappingFilter{
+			ResourceType: influxdb.TasksResourceType,
+			UserID:       *filter.User,
+			UserType:     influxdb.Owner,
+		},
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	for _, m := range maps {
+		task, err := s.findTaskByID(ctx, tx, m.ResourceID)
 		if err != nil {
 			return nil, 0, err
 		}
 
-		for _, m := range maps {
-			task, err := s.findTaskByID(ctx, tx, m.ResourceID)
-			if err != nil {
-				return nil, 0, err
-			}
-
-			if org != nil && task.OrganizationID != org.ID {
-				continue
-			}
-
-			ts = append(ts, task)
-
-			if len(ts) >= filter.Limit {
-				break
-			}
+		if org != nil && task.OrganizationID != org.ID {
+			continue
 		}
+
+		ts = append(ts, task)
+
+		if len(ts) >= filter.Limit {
+			break
+		}
+	}
+	return ts, len(ts), nil
+}
+
+// findTaskByOrg is a subset of the find tasks function. Used for cleanliness
+func (s *Service) findTaskByOrg(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+	var org *influxdb.Organization
+	var err error
+	if filter.OrganizationID != nil {
+		org, err = s.findOrganizationByID(ctx, tx, *filter.OrganizationID)
+		if err != nil {
+			return nil, 0, err
+		}
+	} else if filter.Organization != "" {
+		org, err = s.findOrganizationByName(ctx, tx, filter.Organization)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	if org == nil {
+		return nil, 0, ErrTaskNotFound
+	}
+
+	var ts []*influxdb.Task
+
+	indexBucket, err := tx.Bucket(taskIndexBucket)
+	if err != nil {
+		return nil, 0, ErrUnexpectedTaskBucketErr(err)
+	}
+
+	c, err := indexBucket.Cursor()
+	if err != nil {
+		return nil, 0, ErrUnexpectedTaskBucketErr(err)
+	}
+	// we can filter by orgID
+	if filter.After != nil {
+		key, err := taskOrgKey(org.ID, *filter.After)
+		if err != nil {
+			return nil, 0, err
+		}
+		// ignore the key:val returned in this seek because we are starting "after"
+		// this key
+		c.Seek(key)
 	} else {
-		indexBucket, err := tx.Bucket(taskIndexBucket)
+		// if we dont have an after we just move the cursor to the first instance of the
+		// orgID
+		key, err := org.ID.Encode()
 		if err != nil {
-			return nil, 0, ErrUnexpectedTaskBucketErr(err)
+			return nil, 0, ErrInvalidTaskID
 		}
-
-		c, err := indexBucket.Cursor()
-		if err != nil {
-			return nil, 0, ErrUnexpectedTaskBucketErr(err)
-		}
-		// we can filter by orgID
-		if filter.After != nil {
-			key, err := taskOrgKey(org.ID, *filter.After)
-			if err != nil {
-				return nil, 0, err
-			}
-			// ignore the key:val returned in this seek because we are starting "after"
-			// this key
-			c.Seek(key)
-		} else {
-			// if we dont have an after we just move the cursor to the first instance of the
-			// orgID
-			key, err := org.ID.Encode()
-			if err != nil {
-				return nil, 0, ErrInvalidTaskID
-			}
-			k, v := c.Seek(key)
-			if k != nil {
-				id, err := influxdb.IDFromString(string(v))
-				if err != nil {
-					return nil, 0, ErrInvalidTaskID
-				}
-
-				t, err := s.findTaskByID(ctx, tx, *id)
-				if err != nil {
-					return nil, 0, err
-				}
-
-				// insert the new task into the list
-				ts = append(ts, t)
-			}
-		}
-
-		for {
-			k, v := c.Next()
-			if k == nil {
-				break
-			}
-
+		k, v := c.Seek(key)
+		if k != nil {
 			id, err := influxdb.IDFromString(string(v))
 			if err != nil {
 				return nil, 0, ErrInvalidTaskID
@@ -318,22 +361,118 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 				return nil, 0, err
 			}
 
-			// If the new task doesn't belong to the org we have looped outside the org filter
-			if org != nil && t.OrganizationID != org.ID {
-				break
-			}
-
 			// insert the new task into the list
 			ts = append(ts, t)
-
-			// Check if we are over running the limit
-			if len(ts) >= filter.Limit {
-				break
-			}
 		}
 	}
 
-	return ts, len(ts), nil
+	for {
+		k, v := c.Next()
+		if k == nil {
+			break
+		}
+
+		id, err := influxdb.IDFromString(string(v))
+		if err != nil {
+			return nil, 0, ErrInvalidTaskID
+		}
+
+		t, err := s.findTaskByID(ctx, tx, *id)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		// If the new task doesn't belong to the org we have looped outside the org filter
+		if org != nil && t.OrganizationID != org.ID {
+			break
+		}
+
+		// insert the new task into the list
+		ts = append(ts, t)
+
+		// Check if we are over running the limit
+		if len(ts) >= filter.Limit {
+			break
+		}
+	}
+	return ts, len(ts), err
+}
+
+// findAllTasks is a subset of the find tasks function. Used for cleanliness.
+// This function should only be executed internally because it doesn't force organization or user filtering.
+// Enforcing filters should be done in a validation layer.
+func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+	var ts []*influxdb.Task
+
+	taskBucket, err := tx.Bucket(taskBucket)
+	if err != nil {
+		return nil, 0, ErrUnexpectedTaskBucketErr(err)
+	}
+
+	c, err := taskBucket.Cursor()
+	if err != nil {
+		return nil, 0, ErrUnexpectedTaskBucketErr(err)
+	}
+	// we can filter by orgID
+	if filter.After != nil {
+
+		key, err := taskKey(*filter.After)
+		if err != nil {
+			return nil, 0, err
+		}
+		// ignore the key:val returned in this seek because we are starting "after"
+		// this key
+		c.Seek(key)
+	} else {
+		k, v := c.First()
+		if k == nil {
+			return ts, len(ts), nil
+		}
+
+		t := &influxdb.Task{}
+		if err := json.Unmarshal(v, t); err != nil {
+			return nil, 0, ErrInternalTaskServiceError(err)
+		}
+		latestCompleted, err := s.findLatestCompletedTime(ctx, tx, t.ID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if !latestCompleted.IsZero() {
+			t.LatestCompleted = latestCompleted.Format(time.RFC3339)
+		} else {
+			t.LatestCompleted = t.CreatedAt
+		}
+		// insert the new task into the list
+		ts = append(ts, t)
+	}
+
+	for {
+		k, v := c.Next()
+		if k == nil {
+			break
+		}
+		t := &influxdb.Task{}
+		if err := json.Unmarshal(v, t); err != nil {
+			return nil, 0, ErrInternalTaskServiceError(err)
+		}
+		latestCompleted, err := s.findLatestCompletedTime(ctx, tx, t.ID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if !latestCompleted.IsZero() {
+			t.LatestCompleted = latestCompleted.Format(time.RFC3339)
+		} else {
+			t.LatestCompleted = t.CreatedAt
+		}
+		// insert the new task into the list
+		ts = append(ts, t)
+
+		// Check if we are over running the limit
+		if len(ts) >= filter.Limit {
+			break
+		}
+	}
+	return ts, len(ts), err
 }
 
 // CreateTask creates a new task.
@@ -401,8 +540,10 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		Flux:            tc.Flux,
 		Every:           opt.Every.String(),
 		Cron:            opt.Cron,
-		Offset:          opt.Offset.String(),
 		CreatedAt:       time.Now().UTC().Format(time.RFC3339),
+	}
+	if opt.Offset != nil {
+		task.Offset = opt.Offset.String()
 	}
 
 	taskBucket, err := tx.Bucket(taskBucket)
@@ -508,6 +649,10 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 	if upd.Status != nil {
 		task.Status = *upd.Status
+	}
+
+	if upd.LatestCompleted != nil {
+		task.LatestCompleted = *upd.LatestCompleted
 	}
 
 	task.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
@@ -640,8 +785,8 @@ func (s *Service) findLogs(ctx context.Context, tx Tx, filter influxdb.LogFilter
 			return nil, 0, err
 		}
 		rtn := make([]*influxdb.Log, len(r.Log))
-		for i, log := range r.Log {
-			rtn[i] = &log
+		for i := 0; i < len(r.Log); i++ {
+			rtn[i] = &r.Log[i]
 		}
 		return rtn, len(rtn), nil
 	}
@@ -1034,6 +1179,14 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		return backend.RunCreation{}, ErrTaskTimeParse(err)
 	}
 
+	// we could have a latest completed newer then the created at time.
+	if task.LatestCompleted != "" {
+		lc, err := time.Parse(time.RFC3339, task.LatestCompleted)
+		if err == nil && lc.After(latestCompleted) {
+			latestCompleted = lc
+		}
+	}
+
 	lRun, err := s.findLatestCompleted(ctx, tx, taskID)
 	if err != nil {
 		return backend.RunCreation{}, err
@@ -1047,6 +1200,27 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		if runTime.After(latestCompleted) {
 			latestCompleted = runTime
 		}
+	}
+	// Align create to the hour/minute
+	// If we decide we no longer want to do this we can just remove the code block below
+	{
+		if strings.HasPrefix(task.EffectiveCron(), "@every ") {
+			everyString := strings.TrimPrefix(task.EffectiveCron(), "@every ")
+			every := options.Duration{}
+			err := every.Parse(everyString)
+			if err != nil {
+				// We cannot align a invalid time
+				goto NoChange
+			}
+			t := time.Unix(latestCompleted.Unix(), 0)
+			everyDur, err := every.DurationFrom(t)
+			if err != nil {
+				goto NoChange
+			}
+			t = t.Truncate(everyDur)
+			latestCompleted = t.Truncate(time.Second)
+		}
+	NoChange:
 	}
 
 	// create a run if possible
@@ -1306,16 +1480,9 @@ func (s *Service) nextDueRun(ctx context.Context, tx Tx, taskID influxdb.ID) (in
 		return 0, err
 	}
 
-	latestCompleted, err := s.findLatestCompletedTime(ctx, tx, taskID)
+	latestCompleted, err := time.Parse(time.RFC3339, task.LatestCompleted)
 	if err != nil {
 		return 0, err
-	}
-
-	if latestCompleted.IsZero() {
-		latestCompleted, err = time.Parse(time.RFC3339, task.CreatedAt)
-		if err != nil {
-			return 0, ErrTaskTimeParse(err)
-		}
 	}
 
 	// create a run if possible

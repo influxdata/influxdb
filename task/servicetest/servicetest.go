@@ -1253,7 +1253,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 	}
 
 	// Create several run logs in both rc0 and rc1
-	//
+	// We can then finalize rc1 and ensure that both the transactional (currently running logs) can be found with analytical (completed) logs.
 	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-0")
 	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-1")
 	sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc0.Created.RunID, time.Now(), "0-2")

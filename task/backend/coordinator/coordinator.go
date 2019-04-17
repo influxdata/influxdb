@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"time"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/task/backend"
@@ -58,15 +59,19 @@ func New(logger *zap.Logger, scheduler backend.Scheduler, ts platform.TaskServic
 func (c *Coordinator) claimExistingTasks() {
 	tasks, _, err := c.TaskService.FindTasks(context.Background(), platform.TaskFilter{})
 	if err != nil {
-		c.logger.Error("failed to list tasks", zap.Error(err))
 		return
 	}
-
+	newLatestCompleted := time.Now().UTC().Format(time.RFC3339)
 	for len(tasks) > 0 {
 		for _, task := range tasks {
 			if task.Status != string(backend.TaskActive) {
 				// Don't claim inactive tasks at startup.
 				continue
+			}
+
+			task, err := c.TaskService.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{LatestCompleted: &newLatestCompleted})
+			if err != nil {
+				c.logger.Error("failed to set latestCompleted", zap.Error(err))
 			}
 
 			// I may need a context with an auth here
