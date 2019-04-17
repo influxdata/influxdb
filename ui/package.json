@@ -163,7 +163,6 @@
     "levelup": "^3.1.1",
     "lodash": "^4.3.0",
     "memoize-one": "^4.0.2",
-    "mocks": "0.0.15",
     "moment": "^2.13.0",
     "nano-date": "^2.0.1",
     "papaparse": "^4.6.3",
