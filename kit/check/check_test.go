@@ -189,7 +189,7 @@ func TestForceHealth(t *testing.T) {
 		Name:   "Health",
 		Status: "fail",
 		Checks: Responses{
-			Response{Name: "manual-override", Message: "health manually overriden"},
+			Response{Name: "manual-override", Message: "health manually overridden"},
 			Response{Name: "a", Status: "pass"},
 		},
 	}

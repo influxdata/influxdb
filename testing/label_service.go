@@ -573,7 +573,7 @@ func DeleteLabel(
 			},
 		},
 		{
-			name: "deleting a non-existant label",
+			name: "deleting a non-existent label",
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{

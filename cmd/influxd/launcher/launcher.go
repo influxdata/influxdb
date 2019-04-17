@@ -448,7 +448,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
 		svc, err := vault.NewSecretService()
 		if err != nil {
-			m.logger.Error("failed initalizing vault secret service", zap.Error(err))
+			m.logger.Error("failed initializing vault secret service", zap.Error(err))
 			return err
 		}
 		secretSvc = svc

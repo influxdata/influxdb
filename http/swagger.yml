@@ -14,7 +14,7 @@ paths:
         - $ref: '#/components/parameters/TraceSpan'
       responses:
         '204':
-          description: succesfully authenticated
+          description: successfully authenticated
         '401':
           description: unauthorized access
           content:
@@ -3007,12 +3007,12 @@ paths:
             - application/vnd.flux
       - in: query
         name: org
-        description: specifies the name of the organization executing the query; if both orgID and org are specified, orgID takes precendence.
+        description: specifies the name of the organization executing the query; if both orgID and org are specified, orgID takes precedence.
         schema:
           type: string
       - in: query
         name: orgID
-        description: specifies the ID of the organization executing the query; if both orgID and org are specified, orgID takes precendence.
+        description: specifies the ID of the organization executing the query; if both orgID and org are specified, orgID takes precedence.
         schema:
           type: string
     requestBody:

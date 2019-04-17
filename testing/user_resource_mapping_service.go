@@ -216,7 +216,7 @@ func DeleteUserResourceMapping(
 			},
 		},
 		{
-			name: "deleting a non-existant user",
+			name: "deleting a non-existent user",
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{},
 			},
