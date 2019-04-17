@@ -15,6 +15,7 @@ type StringIteratorWriter struct {
 	err    error
 
 	sz int // estimated size in bytes for pending write
+	vc int // total value count
 }
 
 func NewStringIteratorWriter(stream StringIteratorStream) *StringIteratorWriter {
@@ -32,6 +33,10 @@ func (w *StringIteratorWriter) Err() error {
 	return w.err
 }
 
+func (w *StringIteratorWriter) WrittenN() int {
+	return w.vc
+}
+
 func (w *StringIteratorWriter) WriteStringIterator(si storage.StringIterator) error {
 	for si.Next() {
 		v := si.Value()
@@ -42,6 +47,7 @@ func (w *StringIteratorWriter) WriteStringIterator(si storage.StringIterator) er
 
 		w.res.Values = append(w.res.Values, []byte(v))
 		w.sz += len(v)
+		w.vc++
 	}
 
 	return nil
@@ -52,7 +58,7 @@ func (w *StringIteratorWriter) Flush() {
 		return
 	}
 
-	w.sz = 0
+	w.sz, w.vc = 0, 0
 
 	if w.err = w.stream.Send(w.res); w.err != nil {
 		return
