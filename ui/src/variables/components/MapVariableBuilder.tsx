@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 // Component
 // import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
-import {Grid, Form, TextArea, Dropdown} from '@influxdata/clockface'
+import {Grid, Form, TextArea, Dropdown, Columns} from '@influxdata/clockface'
 
 // Utils
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -21,7 +21,7 @@ interface OwnProps {
   values: Values
   onChange: (update: {values: Values; errors: string[]}) => void
   onSelectDefault: (selectedKey: string) => void
-  selected: string[]
+  selected?: string[]
 }
 
 interface DispatchProps {
@@ -41,7 +41,7 @@ class MapVariableBuilder extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onSelectDefault, selected} = this.props
+    const {onSelectDefault} = this.props
     const {templateValuesString} = this.state
     const {entries} = this
 
@@ -57,28 +57,40 @@ class MapVariableBuilder extends PureComponent<Props, State> {
           </Grid.Column>
         </Grid.Row>
         <Grid.Row>
-          <p>
-            Mapping Contains <strong>{entries.length}</strong> key-value pair
-            {this.pluralizer}
-          </p>
-          {entries.length > 0 && (
-            <Form.Element label="Selected Default">
-              <Dropdown
-                selectedID={!!selected ? selected[0] : entries[0].key}
-                onChange={onSelectDefault}
-              >
-                {entries.map(v => (
-                  <Dropdown.Item key={v.key} id={v.key} value={v.key}>
-                    <strong>{v.key}</strong> -> {v.value}
-                  </Dropdown.Item>
-                ))}
-              </Dropdown>
-            </Form.Element>
-          )}
-          <Grid.Column />
+          <Grid.Column widthXS={Columns.Six}>
+            <p>
+              Mapping Contains <strong>{entries.length}</strong> key-value pair
+              {this.pluralizer}
+            </p>
+          </Grid.Column>
+          <Grid.Column widthXS={Columns.Six}>
+            {
+              <Form.Element label="Selected Default">
+                <Dropdown
+                  selectedID={this.defaultID}
+                  onChange={onSelectDefault}
+                  titleText="Key Values"
+                >
+                  {entries.map(v => (
+                    <Dropdown.Item key={v.key} id={v.key} value={v.key}>
+                      <strong>{v.key}</strong> -> {v.value}
+                    </Dropdown.Item>
+                  ))}
+                </Dropdown>
+              </Form.Element>
+            }
+          </Grid.Column>
         </Grid.Row>
       </Form.Element>
     )
+  }
+
+  private get defaultID(): string {
+    const {selected} = this.props
+    const {entries} = this
+    const firstEntry = _.get(entries, '0.key', '')
+
+    return _.get(selected, '0', firstEntry)
   }
 
   private get entries(): {key: string; value: string}[] {
