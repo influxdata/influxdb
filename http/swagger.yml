@@ -7219,6 +7219,16 @@ components:
         bucketID:
           type: string
           description: id of the bucket to be written
+        interval:
+          type: string
+          description: interval duration of the scraper target
+          example: 10s
+          default: 10s
+        timeout:
+          type: string
+          description: timeout for scraper requests
+          example: 30s
+          default: 30s
     ScraperTargetResponse:
       type: object
       allOf:
