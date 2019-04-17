@@ -123,6 +123,7 @@ v1.6.0 [2018-07-05]
 -	[#11750](https://github.com/influxdata/influxdb/pull/11750): Update tagKeyValue mutex to write lock.
 -	[#10541](https://github.com/influxdata/influxdb/pull/10541): Fix open/close race in SeriesFile.
 -	[#13053](https://github.com/influxdata/influxdb/pull/13053): Add nil check for tagKeyValueEntry.setIDs().
+-	[#13442](https://github.com/influxdata/influxdb/pull/13442): Fix the sort order for aggregates so that they are sorted by tag and then time.
 
 v1.5.4 [2018-06-21]
 -------------------
