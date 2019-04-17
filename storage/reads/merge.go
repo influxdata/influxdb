@@ -4,7 +4,6 @@ import (
 	"container/heap"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -123,12 +122,12 @@ func (h *resultSetHeap) Pop() interface{} {
 }
 
 type MergedStringIterator struct {
-	iterators    []storage.StringIterator
+	iterators    []cursors.StringIterator
 	uniqueValues map[string]struct{}
 	nextValue    string
 }
 
-func NewMergedStringIterator(iterators []storage.StringIterator) *MergedStringIterator {
+func NewMergedStringIterator(iterators []cursors.StringIterator) *MergedStringIterator {
 	return &MergedStringIterator{
 		iterators:    iterators,
 		uniqueValues: make(map[string]struct{}),
