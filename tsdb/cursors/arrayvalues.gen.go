@@ -61,7 +61,7 @@ func (a *FloatArray) search(v int64) int {
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
+// be deduplicated and sorted before calling FindRange or the results
 // are undefined.
 func (a *FloatArray) FindRange(min, max int64) (int, int) {
 	if a.Len() == 0 || min > max {
@@ -262,7 +262,7 @@ func (a *IntegerArray) search(v int64) int {
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
+// be deduplicated and sorted before calling FindRange or the results
 // are undefined.
 func (a *IntegerArray) FindRange(min, max int64) (int, int) {
 	if a.Len() == 0 || min > max {
@@ -463,7 +463,7 @@ func (a *UnsignedArray) search(v int64) int {
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
+// be deduplicated and sorted before calling FindRange or the results
 // are undefined.
 func (a *UnsignedArray) FindRange(min, max int64) (int, int) {
 	if a.Len() == 0 || min > max {
@@ -664,7 +664,7 @@ func (a *StringArray) search(v int64) int {
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
+// be deduplicated and sorted before calling FindRange or the results
 // are undefined.
 func (a *StringArray) FindRange(min, max int64) (int, int) {
 	if a.Len() == 0 || min > max {
@@ -865,7 +865,7 @@ func (a *BooleanArray) search(v int64) int {
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
+// be deduplicated and sorted before calling FindRange or the results
 // are undefined.
 func (a *BooleanArray) FindRange(min, max int64) (int, int) {
 	if a.Len() == 0 || min > max {
@@ -1064,7 +1064,7 @@ func (a *TimestampArray) search(v int64) int {
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
+// be deduplicated and sorted before calling FindRange or the results
 // are undefined.
 func (a *TimestampArray) FindRange(min, max int64) (int, int) {
 	if a.Len() == 0 || min > max {

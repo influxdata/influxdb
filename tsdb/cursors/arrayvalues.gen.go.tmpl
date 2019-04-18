@@ -63,7 +63,7 @@ func (a *{{ $typename }}) search(v int64) int {
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
 // indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
+// be deduplicated and sorted before calling FindRange or the results
 // are undefined.
 func (a *{{ $typename }}) FindRange(min, max int64) (int, int) {
 	if a.Len() == 0 || min > max {
