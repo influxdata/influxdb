@@ -55,6 +55,7 @@ import * as ColorsModels from 'src/types/colors'
 import * as NotificationsActions from 'src/types/actions/notifications'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {Organization} from '@influxdata/influx'
+import LimitChecker from 'src/cloud/components/LimitChecker'
 
 interface StateProps {
   org: Organization
@@ -180,48 +181,50 @@ class DashboardPage extends Component<Props, State> {
 
     return (
       <Page titleTag={this.pageTitle}>
-        <HoverTimeProvider>
-          <DashboardHeader
-            org={org}
-            dashboard={dashboard}
-            timeRange={timeRange}
-            autoRefresh={autoRefresh}
-            isHidden={inPresentationMode}
-            onAddCell={this.handleAddCell}
-            onAddNote={this.showNoteOverlay}
-            onManualRefresh={onManualRefresh}
-            zoomedTimeRange={zoomedTimeRange}
-            onRenameDashboard={this.handleRenameDashboard}
-            activeDashboard={dashboard ? dashboard.name : ''}
-            handleChooseAutoRefresh={this.handleChooseAutoRefresh}
-            onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
-            handleChooseTimeRange={this.handleChooseTimeRange}
-            handleClickPresentationButton={handleClickPresentationButton}
-            toggleVariablesControlBar={onToggleShowVariablesControls}
-            isShowingVariablesControlBar={showVariablesControls}
-          />
-          {showVariablesControls && !!dashboard && (
-            <VariablesControlBar dashboardID={dashboard.id} />
-          )}
-          {!!dashboard && (
-            <DashboardComponent
-              inView={this.inView}
+        <LimitChecker>
+          <HoverTimeProvider>
+            <DashboardHeader
+              org={org}
               dashboard={dashboard}
               timeRange={timeRange}
-              manualRefresh={manualRefresh}
-              setScrollTop={this.setScrollTop}
-              onCloneCell={this.handleCloneCell}
-              onZoom={this.handleZoomedTimeRange}
-              inPresentationMode={inPresentationMode}
-              onPositionChange={this.handlePositionChange}
-              onDeleteCell={this.handleDeleteDashboardCell}
-              onEditView={this.handleEditView}
+              autoRefresh={autoRefresh}
+              isHidden={inPresentationMode}
               onAddCell={this.handleAddCell}
-              onEditNote={this.showNoteOverlay}
+              onAddNote={this.showNoteOverlay}
+              onManualRefresh={onManualRefresh}
+              zoomedTimeRange={zoomedTimeRange}
+              onRenameDashboard={this.handleRenameDashboard}
+              activeDashboard={dashboard ? dashboard.name : ''}
+              handleChooseAutoRefresh={this.handleChooseAutoRefresh}
+              onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
+              handleChooseTimeRange={this.handleChooseTimeRange}
+              handleClickPresentationButton={handleClickPresentationButton}
+              toggleVariablesControlBar={onToggleShowVariablesControls}
+              isShowingVariablesControlBar={showVariablesControls}
             />
-          )}
-          {children}
-        </HoverTimeProvider>
+            {showVariablesControls && !!dashboard && (
+              <VariablesControlBar dashboardID={dashboard.id} />
+            )}
+            {!!dashboard && (
+              <DashboardComponent
+                inView={this.inView}
+                dashboard={dashboard}
+                timeRange={timeRange}
+                manualRefresh={manualRefresh}
+                setScrollTop={this.setScrollTop}
+                onCloneCell={this.handleCloneCell}
+                onZoom={this.handleZoomedTimeRange}
+                inPresentationMode={inPresentationMode}
+                onPositionChange={this.handlePositionChange}
+                onDeleteCell={this.handleDeleteDashboardCell}
+                onEditView={this.handleEditView}
+                onAddCell={this.handleAddCell}
+                onEditNote={this.showNoteOverlay}
+              />
+            )}
+            {children}
+          </HoverTimeProvider>
+        </LimitChecker>
       </Page>
     )
   }

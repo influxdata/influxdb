@@ -12,6 +12,7 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {DE_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
+import LimitChecker from 'src/cloud/components/LimitChecker'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
@@ -28,9 +29,11 @@ class DataExplorer extends PureComponent<DispatchProps, {}> {
   public render() {
     return (
       <div className="data-explorer">
-        <HoverTimeProvider>
-          <TimeMachine />
-        </HoverTimeProvider>
+        <LimitChecker>
+          <HoverTimeProvider>
+            <TimeMachine />
+          </HoverTimeProvider>
+        </LimitChecker>
       </div>
     )
   }

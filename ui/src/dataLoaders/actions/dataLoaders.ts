@@ -44,7 +44,9 @@ import {notify} from 'src/shared/actions/notifications'
 import {
   TelegrafConfigCreationError,
   TelegrafConfigCreationSuccess,
+  writeLimitReached,
 } from 'src/shared/copy/notifications'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
 
 type GetState = () => AppState
 
@@ -547,6 +549,13 @@ export const writeLineProtocolAction = (
     dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
     dispatch(setLPStatus(RemoteDataState.Error))
+
+    const errorMessage = _.get(error, 'response.data.message', '')
+    console.error(errorMessage || error)
+
+    if (error.response.status === RATE_LIMIT_ERROR_STATUS) {
+      dispatch(notify(writeLimitReached(errorMessage)))
+    }
   }
 }
 

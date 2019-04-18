@@ -1,6 +1,6 @@
 // Library
 import {Component} from 'react'
-import {isEqual, flatten} from 'lodash'
+import {isEqual, flatten, get} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -13,6 +13,13 @@ import {
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
+
+// Constants
+import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
+import {queryLimitReached} from 'src/shared/copy/notifications'
+
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
@@ -43,7 +50,11 @@ interface OwnProps {
   children: (r: QueriesState) => JSX.Element
 }
 
-type Props = StateProps & OwnProps
+interface DispatchProps {
+  notify: typeof notifyAction
+}
+
+type Props = StateProps & OwnProps & DispatchProps
 
 interface State {
   loading: RemoteDataState
@@ -99,7 +110,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 
   private reload = async () => {
-    const {inView, queryLink, variables} = this.props
+    const {inView, queryLink, variables, notify} = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
     const orgID = this.props.params.orgID
 
@@ -150,6 +161,10 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         return
       }
 
+      if (get(error, 'xhr.status') === RATE_LIMIT_ERROR_STATUS) {
+        notify(queryLimitReached())
+      }
+
       this.setState({
         error,
         loading: RemoteDataState.Error,
@@ -184,7 +199,11 @@ const mstp = (state: AppState) => {
   return {queryLink: links.query.self}
 }
 
+const mdtp: DispatchProps = {
+  notify: notifyAction,
+}
+
 export default connect<StateProps, {}, OwnProps>(
   mstp,
-  null
+  mdtp
 )(withRouter(TimeSeries))
