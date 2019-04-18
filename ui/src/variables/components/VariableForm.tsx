@@ -28,7 +28,9 @@ import {
 import {VariableArguments} from 'src/types'
 
 interface Props {
-  onCreateVariable: (variable: Pick<Variable, 'name' | 'arguments'>) => void
+  onCreateVariable: (
+    variable: Pick<Variable, 'name' | 'arguments' | 'selected'>
+  ) => void
   onHideOverlay?: () => void
   initialScript?: string
   variables: Variable[]
@@ -148,10 +150,11 @@ export default class VariableForm extends PureComponent<Props, State> {
 
   private handleSubmit = (): void => {
     const {onCreateVariable, onHideOverlay} = this.props
-    const {args} = this.state
+    const {args, name, selected} = this.state
 
     onCreateVariable({
-      name: this.state.name,
+      selected,
+      name,
       arguments: args,
     })
 
@@ -180,6 +183,14 @@ export default class VariableForm extends PureComponent<Props, State> {
           args: {
             type: 'map',
             values: {},
+          },
+        })
+      case 'constant':
+        return this.setState({
+          ...defaults,
+          args: {
+            type: 'constant',
+            values: [],
           },
         })
     }

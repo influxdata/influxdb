@@ -176,6 +176,18 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
             },
           },
         })
+      case 'constant':
+        return this.setState({
+          ...defaults,
+          variable: {
+            ...variable,
+            selected: null,
+            arguments: {
+              type: 'constant',
+              values: [],
+            },
+          },
+        })
     }
   }
 

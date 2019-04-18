@@ -4,6 +4,7 @@ import _ from 'lodash'
 // Components
 import FluxEditor from 'src/shared/components/FluxEditor'
 import MapVariableBuilder from 'src/variables/components/MapVariableBuilder'
+import CSVVariableBuilder from 'src/variables/components/CSVVariableBuilder'
 import {Form, Grid} from '@influxdata/clockface'
 
 // Types
@@ -12,6 +13,7 @@ import {
   KeyValueMap,
   QueryArguments,
   VariableArguments,
+  CSVArguments,
 } from 'src/types'
 
 interface Props {
@@ -42,7 +44,6 @@ class VariableArgumentsEditor extends PureComponent<Props> {
           </Form.Element>
         )
       case 'map':
-      default:
         return (
           <MapVariableBuilder
             onChange={this.handleChangeMap}
@@ -51,7 +52,25 @@ class VariableArgumentsEditor extends PureComponent<Props> {
             selected={selected}
           />
         )
+      case 'constant':
+        return (
+          <CSVVariableBuilder
+            onChange={this.handleChangeCSV}
+            values={args.values}
+            onSelectDefault={onSelectMapDefault}
+            selected={selected}
+          />
+        )
     }
+  }
+
+  private handleChangeCSV = (values: string[]) => {
+    const {onChange} = this.props
+
+    const updatedArgs: CSVArguments = {type: 'constant', values}
+    const isValid = values.length > 0
+
+    onChange({args: updatedArgs, isValid})
   }
 
   private handleChangeQuery = (query: string) => {

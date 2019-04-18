@@ -77,4 +77,8 @@ export const variableItemTypes = [
     type: 'query',
     label: 'Query',
   },
+  {
+    type: 'constant',
+    label: 'CSV',
+  },
 ]

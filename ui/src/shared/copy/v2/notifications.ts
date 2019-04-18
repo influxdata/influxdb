@@ -302,3 +302,8 @@ export const removeVariableLabelFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to remove label from variables`,
 })
+
+export const invalidMapType = (): Notification => ({
+  ...defaultErrorNotification,
+  message: `Variables of type map accept two comma separated values per line`,
+})
