@@ -3,13 +3,12 @@ package influxdb
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -133,22 +132,15 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 	}
 
 	orgID := req.OrganizationID
-	var bucketID platform.ID
-	// Determine bucketID
-	switch {
-	case spec.Bucket != "":
-		b, ok := deps.BucketLookup.Lookup(ctx, orgID, spec.Bucket)
-		if !ok {
-			return nil, fmt.Errorf("could not find bucket %q", spec.Bucket)
-		}
-		bucketID = b
-	case len(spec.BucketID) != 0:
-		err := bucketID.DecodeFromString(spec.BucketID)
-		if err != nil {
-			return nil, err
-		}
+	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
+	if err != nil {
+		return nil, err
 	}
 
+	var filter *semantic.FunctionExpression
+	if spec.FilterSet {
+		filter = spec.Filter
+	}
 	return ReadFilterSource(
 		id,
 		deps.Reader,
@@ -156,6 +148,7 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 			OrganizationID: orgID,
 			BucketID:       bucketID,
 			Bounds:         *bounds,
+			Predicate:      filter,
 		},
 		a.Allocator(),
 	), nil
