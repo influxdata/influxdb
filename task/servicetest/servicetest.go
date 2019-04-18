@@ -1275,6 +1275,16 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		}
 		t.Fatalf("failed to get all logs: expected: 7 got: %d", len(logs))
 	}
+	smash := func(logs []*influxdb.Log) string {
+		smashed := ""
+		for _, log := range logs {
+			smashed = smashed + log.Message
+		}
+		return smashed
+	}
+	if smash(logs) != "0-00-10-21-01-11-21-3" {
+		t.Fatalf("log contents not acceptable, expected: %q, got: %q", "0-00-10-21-01-11-21-3", smash(logs))
+	}
 
 	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc1.Created.RunID})
 	if err != nil {
@@ -1284,12 +1294,20 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatalf("failed to get all logs: expected: 4 got: %d", len(logs))
 	}
 
+	if smash(logs) != "1-01-11-21-3" {
+		t.Fatalf("log contents not acceptable, expected: %q, got: %q", "1-01-11-21-3", smash(logs))
+	}
+
 	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc0.Created.RunID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(logs) != 3 {
 		t.Fatalf("failed to get all logs: expected: 3 got: %d", len(logs))
+	}
+
+	if smash(logs) != "0-00-10-2" {
+		t.Fatalf("log contents not acceptable, expected: %q, got: %q", "0-00-10-2", smash(logs))
 	}
 
 }
