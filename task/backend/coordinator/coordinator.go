@@ -64,14 +64,15 @@ func (c *Coordinator) claimExistingTasks() {
 	newLatestCompleted := time.Now().UTC().Format(time.RFC3339)
 	for len(tasks) > 0 {
 		for _, task := range tasks {
-			if task.Status != string(backend.TaskActive) {
-				// Don't claim inactive tasks at startup.
-				continue
-			}
 
 			task, err := c.TaskService.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{LatestCompleted: &newLatestCompleted})
 			if err != nil {
 				c.logger.Error("failed to set latestCompleted", zap.Error(err))
+			}
+
+			if task.Status != string(backend.TaskActive) {
+				// Don't claim inactive tasks at startup.
+				continue
 			}
 
 			// I may need a context with an auth here
