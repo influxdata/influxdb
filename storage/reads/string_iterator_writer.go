@@ -1,8 +1,8 @@
 package reads
 
 import (
-	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type StringIteratorStream interface {
@@ -37,7 +37,7 @@ func (w *StringIteratorWriter) WrittenN() int {
 	return w.vc
 }
 
-func (w *StringIteratorWriter) WriteStringIterator(si storage.StringIterator) error {
+func (w *StringIteratorWriter) WriteStringIterator(si cursors.StringIterator) error {
 	for si.Next() {
 		v := si.Value()
 		if v == "" {

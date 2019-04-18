@@ -51,6 +51,38 @@ func TestIndirectIndexIterator(t *testing.T) {
 	checkEqual(t, iter.Next(), false)
 	checkEqual(t, iter.Err(), error(nil))
 
+	// check can seek and iterate index
+	iter = ind.Iterator(nil)
+	exact, ok := iter.Seek([]byte("cpu2"))
+	checkEqual(t, exact, true)
+	checkEqual(t, ok, true)
+	checkEqual(t, iter.Key(), []byte("cpu2"))
+	checkEqual(t, iter.Type(), BlockInteger)
+	checkEqual(t, iter.Entries(), []IndexEntry{
+		{0, 10, 10, 20},
+		{10, 20, 10, 20},
+	})
+	checkEqual(t, iter.Next(), true)
+	checkEqual(t, iter.Key(), []byte("mem"))
+	checkEqual(t, iter.Next(), false)
+	exact, ok = iter.Seek([]byte("cpu1"))
+	checkEqual(t, exact, true)
+	checkEqual(t, ok, true)
+	checkEqual(t, iter.Key(), []byte("cpu1"))
+	exact, ok = iter.Seek([]byte("cpu3"))
+	checkEqual(t, exact, false)
+	checkEqual(t, ok, true)
+	checkEqual(t, iter.Key(), []byte("mem"))
+	exact, ok = iter.Seek([]byte("cpu0"))
+	checkEqual(t, exact, false)
+	checkEqual(t, ok, true)
+	checkEqual(t, iter.Key(), []byte("cpu1"))
+	exact, ok = iter.Seek([]byte("zzz"))
+	checkEqual(t, exact, false)
+	checkEqual(t, ok, false)
+	checkEqual(t, iter.Next(), false)
+	checkEqual(t, iter.Err(), error(nil))
+
 	// delete the cpu2 key and make sure it's skipped
 	ind.Delete([][]byte{[]byte("cpu2")})
 	iter = ind.Iterator(nil)

@@ -34,6 +34,50 @@ func (a *FloatArray) Len() int {
 	return len(a.Timestamps)
 }
 
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a.Timestamps[i] == v is necessary
+// to determine if the value v exists.
+func (a *FloatArray) search(v int64) int {
+	// Define: f(x) → a.Timestamps[x] < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := a.Len()
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max]. The values must
+// be deduplicated and sorted before calling FindRange or the results
+// are undefined.
+func (a *FloatArray) FindRange(min, max int64) (int, int) {
+	if a.Len() == 0 || min > max {
+		return -1, -1
+	}
+
+	minVal := a.MinTime()
+	maxVal := a.MaxTime()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
+}
+
 // Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *FloatArray) Exclude(min, max int64) {
@@ -94,50 +138,6 @@ func (a *FloatArray) Include(min, max int64) {
 		a.Timestamps = a.Timestamps[:rmax]
 		a.Values = a.Values[:rmax]
 	}
-}
-
-// search performs a binary search for UnixNano() v in a
-// and returns the position, i, where v would be inserted.
-// An additional check of a.Timestamps[i] == v is necessary
-// to determine if the value v exists.
-func (a *FloatArray) search(v int64) int {
-	// Define: f(x) → a.Timestamps[x] < v
-	// Define: f(-1) == true, f(n) == false
-	// Invariant: f(lo-1) == true, f(hi) == false
-	lo := 0
-	hi := a.Len()
-	for lo < hi {
-		mid := int(uint(lo+hi) >> 1)
-		if a.Timestamps[mid] < v {
-			lo = mid + 1 // preserves f(lo-1) == true
-		} else {
-			hi = mid // preserves f(hi) == false
-		}
-	}
-
-	// lo == hi
-	return lo
-}
-
-// FindRange returns the positions where min and max would be
-// inserted into the array. If a[0].UnixNano() > max or
-// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
-// indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
-// are undefined.
-func (a *FloatArray) FindRange(min, max int64) (int, int) {
-	if a.Len() == 0 || min > max {
-		return -1, -1
-	}
-
-	minVal := a.MinTime()
-	maxVal := a.MaxTime()
-
-	if maxVal < min || minVal > max {
-		return -1, -1
-	}
-
-	return a.search(min), a.search(max)
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -235,6 +235,50 @@ func (a *IntegerArray) Len() int {
 	return len(a.Timestamps)
 }
 
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a.Timestamps[i] == v is necessary
+// to determine if the value v exists.
+func (a *IntegerArray) search(v int64) int {
+	// Define: f(x) → a.Timestamps[x] < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := a.Len()
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max]. The values must
+// be deduplicated and sorted before calling FindRange or the results
+// are undefined.
+func (a *IntegerArray) FindRange(min, max int64) (int, int) {
+	if a.Len() == 0 || min > max {
+		return -1, -1
+	}
+
+	minVal := a.MinTime()
+	maxVal := a.MaxTime()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
+}
+
 // Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *IntegerArray) Exclude(min, max int64) {
@@ -295,50 +339,6 @@ func (a *IntegerArray) Include(min, max int64) {
 		a.Timestamps = a.Timestamps[:rmax]
 		a.Values = a.Values[:rmax]
 	}
-}
-
-// search performs a binary search for UnixNano() v in a
-// and returns the position, i, where v would be inserted.
-// An additional check of a.Timestamps[i] == v is necessary
-// to determine if the value v exists.
-func (a *IntegerArray) search(v int64) int {
-	// Define: f(x) → a.Timestamps[x] < v
-	// Define: f(-1) == true, f(n) == false
-	// Invariant: f(lo-1) == true, f(hi) == false
-	lo := 0
-	hi := a.Len()
-	for lo < hi {
-		mid := int(uint(lo+hi) >> 1)
-		if a.Timestamps[mid] < v {
-			lo = mid + 1 // preserves f(lo-1) == true
-		} else {
-			hi = mid // preserves f(hi) == false
-		}
-	}
-
-	// lo == hi
-	return lo
-}
-
-// FindRange returns the positions where min and max would be
-// inserted into the array. If a[0].UnixNano() > max or
-// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
-// indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
-// are undefined.
-func (a *IntegerArray) FindRange(min, max int64) (int, int) {
-	if a.Len() == 0 || min > max {
-		return -1, -1
-	}
-
-	minVal := a.MinTime()
-	maxVal := a.MaxTime()
-
-	if maxVal < min || minVal > max {
-		return -1, -1
-	}
-
-	return a.search(min), a.search(max)
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -436,6 +436,50 @@ func (a *UnsignedArray) Len() int {
 	return len(a.Timestamps)
 }
 
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a.Timestamps[i] == v is necessary
+// to determine if the value v exists.
+func (a *UnsignedArray) search(v int64) int {
+	// Define: f(x) → a.Timestamps[x] < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := a.Len()
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max]. The values must
+// be deduplicated and sorted before calling FindRange or the results
+// are undefined.
+func (a *UnsignedArray) FindRange(min, max int64) (int, int) {
+	if a.Len() == 0 || min > max {
+		return -1, -1
+	}
+
+	minVal := a.MinTime()
+	maxVal := a.MaxTime()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
+}
+
 // Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *UnsignedArray) Exclude(min, max int64) {
@@ -496,50 +540,6 @@ func (a *UnsignedArray) Include(min, max int64) {
 		a.Timestamps = a.Timestamps[:rmax]
 		a.Values = a.Values[:rmax]
 	}
-}
-
-// search performs a binary search for UnixNano() v in a
-// and returns the position, i, where v would be inserted.
-// An additional check of a.Timestamps[i] == v is necessary
-// to determine if the value v exists.
-func (a *UnsignedArray) search(v int64) int {
-	// Define: f(x) → a.Timestamps[x] < v
-	// Define: f(-1) == true, f(n) == false
-	// Invariant: f(lo-1) == true, f(hi) == false
-	lo := 0
-	hi := a.Len()
-	for lo < hi {
-		mid := int(uint(lo+hi) >> 1)
-		if a.Timestamps[mid] < v {
-			lo = mid + 1 // preserves f(lo-1) == true
-		} else {
-			hi = mid // preserves f(hi) == false
-		}
-	}
-
-	// lo == hi
-	return lo
-}
-
-// FindRange returns the positions where min and max would be
-// inserted into the array. If a[0].UnixNano() > max or
-// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
-// indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
-// are undefined.
-func (a *UnsignedArray) FindRange(min, max int64) (int, int) {
-	if a.Len() == 0 || min > max {
-		return -1, -1
-	}
-
-	minVal := a.MinTime()
-	maxVal := a.MaxTime()
-
-	if maxVal < min || minVal > max {
-		return -1, -1
-	}
-
-	return a.search(min), a.search(max)
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -637,6 +637,50 @@ func (a *StringArray) Len() int {
 	return len(a.Timestamps)
 }
 
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a.Timestamps[i] == v is necessary
+// to determine if the value v exists.
+func (a *StringArray) search(v int64) int {
+	// Define: f(x) → a.Timestamps[x] < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := a.Len()
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max]. The values must
+// be deduplicated and sorted before calling FindRange or the results
+// are undefined.
+func (a *StringArray) FindRange(min, max int64) (int, int) {
+	if a.Len() == 0 || min > max {
+		return -1, -1
+	}
+
+	minVal := a.MinTime()
+	maxVal := a.MaxTime()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
+}
+
 // Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *StringArray) Exclude(min, max int64) {
@@ -697,50 +741,6 @@ func (a *StringArray) Include(min, max int64) {
 		a.Timestamps = a.Timestamps[:rmax]
 		a.Values = a.Values[:rmax]
 	}
-}
-
-// search performs a binary search for UnixNano() v in a
-// and returns the position, i, where v would be inserted.
-// An additional check of a.Timestamps[i] == v is necessary
-// to determine if the value v exists.
-func (a *StringArray) search(v int64) int {
-	// Define: f(x) → a.Timestamps[x] < v
-	// Define: f(-1) == true, f(n) == false
-	// Invariant: f(lo-1) == true, f(hi) == false
-	lo := 0
-	hi := a.Len()
-	for lo < hi {
-		mid := int(uint(lo+hi) >> 1)
-		if a.Timestamps[mid] < v {
-			lo = mid + 1 // preserves f(lo-1) == true
-		} else {
-			hi = mid // preserves f(hi) == false
-		}
-	}
-
-	// lo == hi
-	return lo
-}
-
-// FindRange returns the positions where min and max would be
-// inserted into the array. If a[0].UnixNano() > max or
-// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
-// indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
-// are undefined.
-func (a *StringArray) FindRange(min, max int64) (int, int) {
-	if a.Len() == 0 || min > max {
-		return -1, -1
-	}
-
-	minVal := a.MinTime()
-	maxVal := a.MaxTime()
-
-	if maxVal < min || minVal > max {
-		return -1, -1
-	}
-
-	return a.search(min), a.search(max)
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -838,6 +838,50 @@ func (a *BooleanArray) Len() int {
 	return len(a.Timestamps)
 }
 
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a.Timestamps[i] == v is necessary
+// to determine if the value v exists.
+func (a *BooleanArray) search(v int64) int {
+	// Define: f(x) → a.Timestamps[x] < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := a.Len()
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max]. The values must
+// be deduplicated and sorted before calling FindRange or the results
+// are undefined.
+func (a *BooleanArray) FindRange(min, max int64) (int, int) {
+	if a.Len() == 0 || min > max {
+		return -1, -1
+	}
+
+	minVal := a.MinTime()
+	maxVal := a.MaxTime()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
+}
+
 // Exclude removes the subset of values in [min, max]. The values must
 // be deduplicated and sorted before calling Exclude or the results are undefined.
 func (a *BooleanArray) Exclude(min, max int64) {
@@ -898,50 +942,6 @@ func (a *BooleanArray) Include(min, max int64) {
 		a.Timestamps = a.Timestamps[:rmax]
 		a.Values = a.Values[:rmax]
 	}
-}
-
-// search performs a binary search for UnixNano() v in a
-// and returns the position, i, where v would be inserted.
-// An additional check of a.Timestamps[i] == v is necessary
-// to determine if the value v exists.
-func (a *BooleanArray) search(v int64) int {
-	// Define: f(x) → a.Timestamps[x] < v
-	// Define: f(-1) == true, f(n) == false
-	// Invariant: f(lo-1) == true, f(hi) == false
-	lo := 0
-	hi := a.Len()
-	for lo < hi {
-		mid := int(uint(lo+hi) >> 1)
-		if a.Timestamps[mid] < v {
-			lo = mid + 1 // preserves f(lo-1) == true
-		} else {
-			hi = mid // preserves f(hi) == false
-		}
-	}
-
-	// lo == hi
-	return lo
-}
-
-// FindRange returns the positions where min and max would be
-// inserted into the array. If a[0].UnixNano() > max or
-// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
-// indicating the array is outside the [min, max]. The values must
-// be deduplicated and sorted before calling Exclude or the results
-// are undefined.
-func (a *BooleanArray) FindRange(min, max int64) (int, int) {
-	if a.Len() == 0 || min > max {
-		return -1, -1
-	}
-
-	minVal := a.MinTime()
-	maxVal := a.MaxTime()
-
-	if maxVal < min || minVal > max {
-		return -1, -1
-	}
-
-	return a.search(min), a.search(max)
 }
 
 // Merge overlays b to top of a.  If two values conflict with
@@ -1009,4 +1009,123 @@ func (a *BooleanArray) Merge(b *BooleanArray) {
 
 	a.Timestamps = out.Timestamps[:k]
 	a.Values = out.Values[:k]
+}
+
+type TimestampArray struct {
+	Timestamps []int64
+}
+
+func NewTimestampArrayLen(sz int) *TimestampArray {
+	return &TimestampArray{
+		Timestamps: make([]int64, sz),
+	}
+}
+
+func (a *TimestampArray) MinTime() int64 {
+	return a.Timestamps[0]
+}
+
+func (a *TimestampArray) MaxTime() int64 {
+	return a.Timestamps[len(a.Timestamps)-1]
+}
+
+func (a *TimestampArray) Size() int {
+	panic("not implemented")
+}
+
+func (a *TimestampArray) Len() int {
+	return len(a.Timestamps)
+}
+
+// search performs a binary search for UnixNano() v in a
+// and returns the position, i, where v would be inserted.
+// An additional check of a.Timestamps[i] == v is necessary
+// to determine if the value v exists.
+func (a *TimestampArray) search(v int64) int {
+	// Define: f(x) → a.Timestamps[x] < v
+	// Define: f(-1) == true, f(n) == false
+	// Invariant: f(lo-1) == true, f(hi) == false
+	lo := 0
+	hi := a.Len()
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
+// FindRange returns the positions where min and max would be
+// inserted into the array. If a[0].UnixNano() > max or
+// a[len-1].UnixNano() < min then FindRange returns (-1, -1)
+// indicating the array is outside the [min, max]. The values must
+// be deduplicated and sorted before calling FindRange or the results
+// are undefined.
+func (a *TimestampArray) FindRange(min, max int64) (int, int) {
+	if a.Len() == 0 || min > max {
+		return -1, -1
+	}
+
+	minVal := a.MinTime()
+	maxVal := a.MaxTime()
+
+	if maxVal < min || minVal > max {
+		return -1, -1
+	}
+
+	return a.search(min), a.search(max)
+}
+
+// Exclude removes the subset of timestamps in [min, max]. The timestamps must
+// be deduplicated and sorted before calling Exclude or the results are undefined.
+func (a *TimestampArray) Exclude(min, max int64) {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return
+	}
+
+	// a.Timestamps[rmin] ≥ min
+	// a.Timestamps[rmax] ≥ max
+
+	if rmax < a.Len() {
+		if a.Timestamps[rmax] == max {
+			rmax++
+		}
+		rest := a.Len() - rmax
+		if rest > 0 {
+			ts := a.Timestamps[:rmin+rest]
+			copy(ts[rmin:], a.Timestamps[rmax:])
+			a.Timestamps = ts
+			return
+		}
+	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+}
+
+// Contains returns true if values exist between min and max inclusive. The
+// values must be sorted before calling Contains or the results are undefined.
+func (a *TimestampArray) Contains(min, max int64) bool {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return false
+	}
+
+	// a.Timestamps[rmin] ≥ min
+	// a.Timestamps[rmax] ≥ max
+
+	if a.Timestamps[rmin] == min {
+		return true
+	}
+
+	if rmax < a.Len() && a.Timestamps[rmax] == max {
+		return true
+	}
+
+	return rmax-rmin > 0
 }

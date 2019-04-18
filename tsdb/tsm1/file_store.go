@@ -79,6 +79,11 @@ type TSMFile interface {
 	// OverlapsKeyRange returns true if the key range of the file intersects min and max.
 	OverlapsKeyRange(min, max []byte) bool
 
+	// OverlapsKeyPrefixRange returns true if the key range of the file
+	// intersects min and max, evaluating up to the length of min and max
+	// of the key range.
+	OverlapsKeyPrefixRange(min, max []byte) bool
+
 	// TimeRange returns the min and max time across all keys in the file.
 	TimeRange() (int64, int64)
 
@@ -149,6 +154,12 @@ type TSMFile interface {
 	// BlockIterator returns an iterator pointing to the first block in the file and
 	// allows sequential iteration to each and every block.
 	BlockIterator() *BlockIterator
+
+	// TimeRangeIterator returns an iterator over the keys, starting at the provided
+	// key. Calling the HasData accessor will return true if data exists for the
+	// interval [min, max] for the current key.
+	// Next must be called before calling any of the accessors.
+	TimeRangeIterator(key []byte, min, max int64) *TimeRangeIterator
 
 	// Free releases any resources held by the FileStore to free up system resources.
 	Free() error
@@ -419,6 +430,31 @@ func (f *FileStore) Type(key []byte) (byte, error) {
 // Delete removes the keys from the set of keys available in this file.
 func (f *FileStore) Delete(keys [][]byte) error {
 	return f.DeleteRange(keys, math.MinInt64, math.MaxInt64)
+}
+
+type unrefs []TSMFile
+
+func (u *unrefs) Unref() {
+	for _, f := range *u {
+		f.Unref()
+	}
+}
+
+// ForEachFile calls fn for all TSM files or until fn returns false.
+// fn is called on the same goroutine as the caller.
+func (f *FileStore) ForEachFile(fn func(f TSMFile) bool) {
+	f.mu.RLock()
+	files := make(unrefs, 0, len(f.files))
+	defer files.Unref()
+
+	for _, f := range f.files {
+		f.Ref()
+		files = append(files, f)
+		if !fn(f) {
+			break
+		}
+	}
+	f.mu.RUnlock()
 }
 
 func (f *FileStore) Apply(fn func(r TSMFile) error) error {

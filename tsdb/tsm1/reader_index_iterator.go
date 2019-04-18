@@ -1,8 +1,10 @@
 package tsm1
 
 import (
-	"fmt"
+	"errors"
 )
+
+var errKeyCountChanged = errors.New("TSMIndexIterator: key count changed during iteration")
 
 // TSMIndexIterator allows one to iterate over the TSM index.
 type TSMIndexIterator struct {
@@ -31,7 +33,7 @@ type TSMIndexIterator struct {
 func (t *TSMIndexIterator) Next() bool {
 	t.d.mu.RLock()
 	if n := len(t.d.ro.offsets); t.n != n {
-		t.err, t.ok = fmt.Errorf("Key count changed during iteration"), false
+		t.err, t.ok = errKeyCountChanged, false
 	}
 	if !t.ok || t.err != nil {
 		t.d.mu.RUnlock()
@@ -57,6 +59,39 @@ func (t *TSMIndexIterator) Next() bool {
 	t.typ = 0
 	t.entries = t.entries[:0]
 	return true
+}
+
+// Seek points the iterator at the smallest key greater than or equal to the
+// given key, returning true if it was an exact match. It returns false for
+// ok if the key does not exist.
+func (t *TSMIndexIterator) Seek(key []byte) (exact, ok bool) {
+	t.d.mu.RLock()
+	if n := len(t.d.ro.offsets); t.n != n {
+		t.err, t.ok = errKeyCountChanged, false
+	}
+	if t.err != nil {
+		t.d.mu.RUnlock()
+		return false, false
+	}
+
+	t.peeked = false
+	t.first = false
+
+	exact, t.ok = t.iter.Seek(key, t.b)
+	if !t.ok {
+		t.d.mu.RUnlock()
+		return false, false
+	}
+
+	t.offset = t.iter.Offset()
+	t.eoffset = t.iter.EntryOffset(t.b)
+	t.d.mu.RUnlock()
+
+	// reset lazy loaded state
+	t.key = nil
+	t.typ = 0
+	t.entries = t.entries[:0]
+	return exact, true
 }
 
 // Peek reports the next key or nil if there is not one or an error happened.

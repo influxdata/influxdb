@@ -9,6 +9,12 @@ func (t TimeRange) Overlaps(min, max int64) bool {
 	return t.Min <= max && t.Max >= min
 }
 
+// Within returns true if min < t.Min and t.Max < max and therefore the interval [t.Min, t.Max] is
+// contained within [min, max]
+func (t TimeRange) Within(min, max int64) bool {
+	return min < t.Min && t.Max < max
+}
+
 func (t TimeRange) Less(o TimeRange) bool {
 	return t.Min < o.Min || (t.Min == o.Min && t.Max < o.Max)
 }
