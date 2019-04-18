@@ -4,6 +4,7 @@ v1.7.7 [unreleased]
 ### Bugfixes
 
 -	[#13441](https://github.com/influxdata/influxdb/pull/13441): Fix the sort order for aggregates so that they are sorted by tag and then time.
+-	[#13463](https://github.com/influxdata/influxdb/pull/13463): Use the timezone when evaluating time literals in subqueries.
 
 v1.7.6 [2019-04-16]
 -------------------
