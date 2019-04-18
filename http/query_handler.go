@@ -264,7 +264,7 @@ func (h *FluxHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// fluxParams contain flux funciton parameters as defined by the semantic graph
+// fluxParams contain flux function parameters as defined by the semantic graph
 type fluxParams map[string]string
 
 // suggestionResponse provides the parameters available for a given Flux function

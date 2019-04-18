@@ -39,7 +39,7 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 			FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 				org := &platform.Organization{}
 				if filter.Name != nil {
-					if *filter.Name == "non-existant-org" {
+					if *filter.Name == "non-existent-org" {
 						return nil, &platform.Error{
 							Err:  errors.New("org not found or unauthorized"),
 							Msg:  "org " + *filter.Name + " not found or unauthorized",
@@ -329,7 +329,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 		},
 		{
 			name:      "get tasks by org name bad",
-			getParams: "org=non-existant-org",
+			getParams: "org=non-existent-org",
 			fields: fields{
 				taskService: &mock.TaskService{
 					FindTasksFn: func(ctx context.Context, f platform.TaskFilter) ([]*platform.Task, int, error) {
@@ -375,7 +375,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 "error": {
 "code": "not found",
 "error": "org not found or unauthorized",
-"message": "org non-existant-org not found or unauthorized"
+"message": "org non-existent-org not found or unauthorized"
 },
 "message": "failed to decode request"
 }`,

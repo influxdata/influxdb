@@ -24,7 +24,7 @@ type IteratorOptions struct {
 	// This can be VarRef or a Call.
 	Expr influxql.Expr
 
-	// Auxilary tags or values to also retrieve for the point.
+	// Auxiliary tags or values to also retrieve for the point.
 	Aux []influxql.VarRef
 
 	// Data sources from which to receive data. This is only used for encoding
@@ -489,12 +489,12 @@ var OpenAuthorizer = openAuthorizer{}
 // AuthorizeDatabase returns true to allow any operation on a database.
 func (a openAuthorizer) AuthorizeDatabase(influxql.Privilege, string) bool { return true }
 
-// AuthorizeSeriesRead allows accesss to any series.
+// AuthorizeSeriesRead allows access to any series.
 func (a openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
 
-// AuthorizeSeriesWrite allows accesss to any series.
+// AuthorizeSeriesWrite allows access to any series.
 func (a openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }

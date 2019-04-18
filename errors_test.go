@@ -84,9 +84,9 @@ func TestErrorMessage(t *testing.T) {
 			want: "simple error",
 		},
 		{
-			name: "embeded error",
-			err:  &platform.Error{Err: &platform.Error{Msg: "embeded error"}},
-			want: "embeded error",
+			name: "embedded error",
+			err:  &platform.Error{Err: &platform.Error{Msg: "embedded error"}},
+			want: "embedded error",
 		},
 		{
 			name: "default error",
@@ -120,12 +120,12 @@ func TestErrorOp(t *testing.T) {
 			want: "op1",
 		},
 		{
-			name: "embeded error",
+			name: "embedded error",
 			err:  &platform.Error{Op: "op1", Err: &platform.Error{Code: platform.EInvalid}},
 			want: "op1",
 		},
 		{
-			name: "embeded error without op in root level",
+			name: "embedded error without op in root level",
 			err:  &platform.Error{Err: &platform.Error{Code: platform.EInvalid, Op: "op2"}},
 			want: "op2",
 		},
@@ -160,12 +160,12 @@ func TestErrorCode(t *testing.T) {
 			want: platform.ENotFound,
 		},
 		{
-			name: "embeded error",
+			name: "embedded error",
 			err:  &platform.Error{Code: platform.ENotFound, Err: &platform.Error{Code: platform.EInvalid}},
 			want: platform.ENotFound,
 		},
 		{
-			name: "embeded error with root level code",
+			name: "embedded error with root level code",
 			err:  &platform.Error{Err: &platform.Error{Code: platform.EInvalid}},
 			want: platform.EInvalid,
 		},

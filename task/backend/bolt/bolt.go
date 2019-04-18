@@ -657,7 +657,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// DeleteOrg syncronously deletes an org and all their tasks from a bolt store.
+// DeleteOrg synchronously deletes an org and all their tasks from a bolt store.
 func (s *Store) DeleteOrg(ctx context.Context, id platform.ID) error {
 	orgID, err := id.Encode()
 	if err != nil {
