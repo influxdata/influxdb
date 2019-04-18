@@ -1203,6 +1203,22 @@ func (i *Index) MeasurementCardinalityStats() MeasurementCardinalityStats {
 	return stats
 }
 
+// ComputeMeasurementCardinalityStats computes the cardinality stats from raw index data.
+func (i *Index) ComputeMeasurementCardinalityStats() (MeasurementCardinalityStats, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	stats := NewMeasurementCardinalityStats()
+	for _, p := range i.partitions {
+		pstats, err := p.ComputeMeasurementCardinalityStats()
+		if err != nil {
+			return nil, err
+		}
+		stats.Add(pstats)
+	}
+	return stats, nil
+}
+
 func (i *Index) seriesByExprIterator(name []byte, expr influxql.Expr) (tsdb.SeriesIDIterator, error) {
 	switch expr := expr.(type) {
 	case *influxql.BinaryExpr:

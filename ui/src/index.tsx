@@ -63,6 +63,8 @@ import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/Li
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
 import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
+import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
+import EditOrgProfileOverlay from 'src/organizations/components/EditOrgProfileOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -248,6 +250,12 @@ class Root extends PureComponent {
                             <Route
                               path="new"
                               component={CreateScraperOverlay}
+                            />
+                          </Route>
+                          <Route path="profile" component={OrgProfilePage}>
+                            <Route
+                              path="edit"
+                              component={EditOrgProfileOverlay}
                             />
                           </Route>
                         </Route>

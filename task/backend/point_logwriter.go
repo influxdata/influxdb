@@ -13,8 +13,11 @@ const (
 	lineField         = "line"
 	runIDField        = "runID"
 	scheduledForField = "scheduledFor"
+	startedAtField    = "startedAt"
+	finishedAtField   = "finishedAt"
 	requestedAtField  = "requestedAt"
 	statusField       = "status"
+	logField          = "logs"
 
 	taskIDTag = "taskID"
 
