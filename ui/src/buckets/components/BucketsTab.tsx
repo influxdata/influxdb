@@ -20,8 +20,14 @@ import {ruleToString} from 'src/utils/formatting'
 
 // Types
 import {Organization, BucketRetentionRules} from '@influxdata/influx'
-import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
+import {
+  IconFont,
+  ComponentSize,
+  ComponentColor,
+  Sort,
+} from '@influxdata/clockface'
 import {OverlayState, AppState, Bucket} from 'src/types'
+import {SortTypes} from 'src/shared/selectors/sort'
 
 interface StateProps {
   org: Organization
@@ -37,9 +43,14 @@ interface DispatchProps {
 interface State {
   searchTerm: string
   overlayState: OverlayState
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
 
 type Props = DispatchProps & StateProps
+
+type SortKey = keyof PrettyBucket
 
 @ErrorHandling
 class BucketsTab extends PureComponent<Props, State> {
@@ -49,12 +60,21 @@ class BucketsTab extends PureComponent<Props, State> {
     this.state = {
       searchTerm: '',
       overlayState: OverlayState.Closed,
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
 
   public render() {
     const {org, buckets} = this.props
-    const {searchTerm, overlayState} = this.state
+    const {
+      searchTerm,
+      overlayState,
+      sortKey,
+      sortDirection,
+      sortType,
+    } = this.state
 
     return (
       <>
@@ -87,6 +107,10 @@ class BucketsTab extends PureComponent<Props, State> {
               onUpdateBucket={this.handleUpdateBucket}
               onDeleteBucket={this.handleDeleteBucket}
               onFilterChange={this.handleFilterUpdate}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onClickColumn={this.handleClickColumn}
             />
           )}
         </FilterList>
@@ -99,6 +123,11 @@ class BucketsTab extends PureComponent<Props, State> {
         </Overlay>
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private handleUpdateBucket = (updatedBucket: PrettyBucket) => {

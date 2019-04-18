@@ -6,7 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Input, Button, EmptyState, Grid} from '@influxdata/clockface'
-import {Tabs} from 'src/clockface'
+import {Tabs, Sort} from 'src/clockface'
 import CollectorList from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import FilterList from 'src/shared/components/Filter'
@@ -38,6 +38,7 @@ import {
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/dataLoaders'
+import {SortTypes} from 'src/shared/selectors/sort'
 
 interface StateProps {
   collectors: Telegraf[]
@@ -62,7 +63,12 @@ interface State {
   searchTerm: string
   instructionsOverlay: OverlayState
   collectorID?: string
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
+
+type SortKey = keyof Telegraf
 
 @ErrorHandling
 class Collectors extends PureComponent<Props, State> {
@@ -74,12 +80,15 @@ class Collectors extends PureComponent<Props, State> {
       searchTerm: '',
       instructionsOverlay: OverlayState.Closed,
       collectorID: null,
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
 
   public render() {
     const {collectors} = this.props
-    const {searchTerm} = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     return (
       <>
@@ -116,6 +125,10 @@ class Collectors extends PureComponent<Props, State> {
                       onUpdate={this.handleUpdateTelegraf}
                       onOpenInstructions={this.handleOpenInstructions}
                       onFilterChange={this.handleFilterUpdate}
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      sortType={sortType}
+                      onClickColumn={this.handleClickColumn}
                     />
                   )}
                 </FilterList>
@@ -133,6 +146,11 @@ class Collectors extends PureComponent<Props, State> {
         </Grid>
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private get hasNoBuckets(): boolean {

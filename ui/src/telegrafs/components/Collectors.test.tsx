@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {renderWithRedux} from 'src/mockState'
 
 // Components
 import CollectorList from 'src/telegrafs/components/CollectorList'
@@ -19,7 +19,7 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow(<CollectorList {...props} />)
+  const wrapper = renderWithRedux(<CollectorList {...props} />)
 
   return {wrapper}
 }
@@ -28,7 +28,6 @@ describe('CollectorList', () => {
   describe('rendering', () => {
     it('renders', () => {
       const {wrapper} = setup()
-      expect(wrapper.exists()).toBe(true)
       expect(wrapper).toMatchSnapshot()
     })
   })

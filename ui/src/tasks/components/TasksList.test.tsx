@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {renderWithRedux} from 'src/mockState'
 
 // Components
 import TasksList from 'src/tasks/components/TasksList'
@@ -23,7 +23,7 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow(<TasksList {...props} />)
+  const wrapper = renderWithRedux(<TasksList {...props} />)
 
   return {wrapper}
 }
@@ -41,7 +41,6 @@ describe('TasksList', () => {
   describe('rendering', () => {
     it('renders', () => {
       const {wrapper} = setup()
-      expect(wrapper.exists()).toBe(true)
       expect(wrapper).toMatchSnapshot()
     })
   })

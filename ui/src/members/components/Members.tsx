@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Input, Button, EmptyState, Sort} from '@influxdata/clockface'
 import {Tabs} from 'src/clockface'
 import MemberList from 'src/members/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
@@ -16,6 +16,7 @@ import {deleteMember} from 'src/members/actions'
 // Types
 import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
 import {AppState, Member} from 'src/types'
+import {SortTypes} from 'src/shared/selectors/sort'
 
 interface StateProps {
   members: Member[]
@@ -29,17 +30,25 @@ type Props = StateProps & DispatchProps
 
 interface State {
   searchTerm: string
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
+
+type SortKey = keyof Member
 
 class Members extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
     this.state = {
       searchTerm: '',
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
   public render() {
-    const {searchTerm} = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     return (
       <>
@@ -69,11 +78,20 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
               members={ms}
               emptyState={this.emptyState}
               onDelete={this.removeMember}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onClickColumn={this.handleClickColumn}
             />
           )}
         </FilterList>
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private removeMember = (member: Member) => {

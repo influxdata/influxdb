@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {renderWithRedux} from 'src/mockState'
 
 // Components
 import ScraperList from 'src/scrapers/components/ScraperList'
@@ -17,7 +17,7 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow(<ScraperList {...props} />)
+  const wrapper = renderWithRedux(<ScraperList {...props} />)
 
   return {wrapper}
 }
@@ -26,7 +26,6 @@ describe('ScraperList', () => {
   describe('rendering', () => {
     it('renders', () => {
       const {wrapper} = setup()
-      expect(wrapper.exists()).toBe(true)
       expect(wrapper).toMatchSnapshot()
     })
   })

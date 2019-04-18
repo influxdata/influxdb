@@ -26,7 +26,9 @@ import {
   InputType,
   ComponentSize,
   ComponentColor,
+  Sort,
 } from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/selectors/sort'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -38,6 +40,9 @@ interface StateProps {
 interface State {
   searchTerm: string
   isOverlayVisible: boolean
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
 
 interface DispatchProps {
@@ -48,6 +53,8 @@ interface DispatchProps {
 
 type Props = DispatchProps & StateProps
 
+type SortKey = keyof ILabel
+
 @ErrorHandling
 class Labels extends PureComponent<Props, State> {
   constructor(props) {
@@ -56,12 +63,21 @@ class Labels extends PureComponent<Props, State> {
     this.state = {
       searchTerm: '',
       isOverlayVisible: false,
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
 
   public render() {
     const {labels} = this.props
-    const {searchTerm, isOverlayVisible} = this.state
+    const {
+      searchTerm,
+      isOverlayVisible,
+      sortKey,
+      sortDirection,
+      sortType,
+    } = this.state
 
     return (
       <>
@@ -93,6 +109,10 @@ class Labels extends PureComponent<Props, State> {
               emptyState={this.emptyState}
               onUpdateLabel={this.handleUpdateLabel}
               onDeleteLabel={this.handleDelete}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onClickColumn={this.handleClickColumn}
             />
           )}
         </FilterList>
@@ -104,6 +124,11 @@ class Labels extends PureComponent<Props, State> {
         />
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private handleShowOverlay = (): void => {

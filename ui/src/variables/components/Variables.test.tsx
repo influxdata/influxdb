@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {renderWithRedux} from 'src/mockState'
 
 // Components
 import VariableList from 'src/variables/components/VariableList'
@@ -16,7 +16,7 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow(<VariableList {...props} />)
+  const wrapper = renderWithRedux(<VariableList {...props} />)
 
   return {wrapper}
 }

@@ -1,24 +1,29 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
 import {ResourceList} from 'src/clockface'
 import TaskCard from 'src/tasks/components/TaskCard'
-import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 import {ITask as Task} from '@influxdata/influx'
+import {SortTypes} from 'src/shared/selectors/sort'
+import {AppState} from 'src/types'
+import {Sort} from '@influxdata/clockface'
 
-import {Sort} from 'src/clockface'
 import {
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
 } from 'src/tasks/actions'
 
-interface Props {
+// Selectors
+import {getSortedResource} from 'src/shared/selectors/sort'
+
+interface OwnProps {
   tasks: Task[]
   searchTerm: string
   onActivate: (task: Task) => void
@@ -34,25 +39,44 @@ interface Props {
   onUpdate: (task: Task) => void
   filterComponent?: () => JSX.Element
   onImportTask: () => void
+  sortKey: string
+  sortDirection: Sort
+  sortType: SortTypes
+  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
+
+interface StateProps {
+  sortedTasks: Task[]
+}
+
+type Props = OwnProps & StateProps
 
 type SortKey = keyof Task
 
 interface State {
-  sortKey: SortKey
-  sortDirection: Sort
   taskLabelsEdit: Task
   isEditingTaskLabels: boolean
+  sortedTasks: Task[]
 }
 
-export default class TasksList extends PureComponent<Props, State> {
+class TasksList extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      sortKey: null,
-      sortDirection: Sort.Descending,
       taskLabelsEdit: null,
       isEditingTaskLabels: false,
+      sortedTasks: this.props.sortedTasks,
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    const {tasks, sortedTasks, sortKey, sortDirection} = this.props
+    if (
+      prevProps.sortDirection !== sortDirection ||
+      prevProps.sortKey !== sortKey ||
+      prevProps.tasks.length !== tasks.length
+    ) {
+      this.setState({sortedTasks})
     }
   }
 
@@ -63,8 +87,10 @@ export default class TasksList extends PureComponent<Props, State> {
       totalCount,
       filterComponent,
       onImportTask,
+      sortKey,
+      sortDirection,
+      onClickColumn,
     } = this.props
-    const {sortKey, sortDirection} = this.state
 
     const headerKeys: SortKey[] = ['name', 'status', 'every', 'latestCompleted']
 
@@ -76,25 +102,25 @@ export default class TasksList extends PureComponent<Props, State> {
               name="Name"
               sortKey={headerKeys[0]}
               sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
             <ResourceList.Sorter
               name="Active"
               sortKey={headerKeys[1]}
               sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
             <ResourceList.Sorter
               name="Schedule"
               sortKey={headerKeys[2]}
               sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
             <ResourceList.Sorter
               name="Last Completed"
               sortKey={headerKeys[3]}
               sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
           </ResourceList.Header>
           <ResourceList.Body
@@ -107,18 +133,14 @@ export default class TasksList extends PureComponent<Props, State> {
               />
             }
           >
-            {this.sortedCards}
+            {this.rows}
           </ResourceList.Body>
         </ResourceList>
       </>
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    this.setState({sortKey, sortDirection: nextSort})
-  }
-
-  private cards = (tasks: Task[]): JSX.Element => {
+  private get rows(): JSX.Element[] {
     const {
       onActivate,
       onDelete,
@@ -128,42 +150,28 @@ export default class TasksList extends PureComponent<Props, State> {
       onRunTask,
       onFilterChange,
     } = this.props
-    const taskCards = (
-      <>
-        {tasks.map(t => (
-          <TaskCard
-            key={`task-id--${t.id}`}
-            task={t}
-            onActivate={onActivate}
-            onDelete={onDelete}
-            onClone={onClone}
-            onSelect={onSelect}
-            onUpdate={onUpdate}
-            onRunTask={onRunTask}
-            onFilterChange={onFilterChange}
-          />
-        ))}
-      </>
-    )
-    return taskCards
-  }
+    const {sortedTasks} = this.state
 
-  private get sortedCards(): JSX.Element {
-    const {tasks} = this.props
-    const {sortKey, sortDirection} = this.state
-
-    if (tasks.length) {
-      return (
-        <SortingHat<Task>
-          list={tasks}
-          sortKey={sortKey}
-          direction={sortDirection}
-        >
-          {this.cards}
-        </SortingHat>
-      )
-    }
-
-    return null
+    return sortedTasks.map(task => (
+      <TaskCard
+        key={`task-id--${task.id}`}
+        task={task}
+        onActivate={onActivate}
+        onDelete={onDelete}
+        onClone={onClone}
+        onSelect={onSelect}
+        onUpdate={onUpdate}
+        onRunTask={onRunTask}
+        onFilterChange={onFilterChange}
+      />
+    ))
   }
 }
+
+const mstp = (state: AppState, props: OwnProps): StateProps => {
+  return {
+    sortedTasks: getSortedResource(state.tasks.list, props),
+  }
+}
+
+export default connect<StateProps, {}, OwnProps>(mstp)(TasksList)

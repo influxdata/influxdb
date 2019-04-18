@@ -15,12 +15,14 @@ import VariableList from 'src/variables/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import {Sort} from '@influxdata/clockface'
 
 // Types
 import {OverlayState} from 'src/types'
 import {AppState} from 'src/types'
 import {IVariable as Variable} from '@influxdata/influx'
 import {IconFont, ComponentSize} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/selectors/sort'
 
 interface StateProps {
   variables: Variable[]
@@ -36,17 +38,25 @@ type Props = StateProps & DispatchProps & WithRouterProps
 interface State {
   searchTerm: string
   importOverlayState: OverlayState
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
+
+type SortKey = keyof Variable
 
 class VariablesTab extends PureComponent<Props, State> {
   public state: State = {
     searchTerm: '',
     importOverlayState: OverlayState.Closed,
+    sortKey: 'name',
+    sortDirection: Sort.Ascending,
+    sortType: SortTypes.String,
   }
 
   public render() {
     const {variables} = this.props
-    const {searchTerm} = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     return (
       <>
@@ -70,7 +80,6 @@ class VariablesTab extends PureComponent<Props, State> {
             searchTerm={searchTerm}
             searchKeys={['name', 'labels[].name']}
             list={variables}
-            sortByKey="name"
           >
             {variables => (
               <VariableList
@@ -79,12 +88,21 @@ class VariablesTab extends PureComponent<Props, State> {
                 onDeleteVariable={this.handleDeleteVariable}
                 onUpdateVariable={this.handleUpdateVariable}
                 onFilterChange={this.handleFilterUpdate}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                sortType={sortType}
+                onClickColumn={this.handleClickColumn}
               />
             )}
           </FilterList>
         </GetResources>
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private get emptyState(): JSX.Element {

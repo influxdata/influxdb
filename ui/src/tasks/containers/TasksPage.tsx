@@ -29,6 +29,8 @@ import {
 // Types
 import {AppState, Task, TaskStatus, RemoteDataState} from 'src/types'
 import {InjectedRouter, WithRouterProps} from 'react-router'
+import {Sort} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/selectors/sort'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -62,7 +64,12 @@ type Props = ConnectedDispatchProps &
 interface State {
   isImporting: boolean
   taskLabelsEdit: Task
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
+
+type SortKey = keyof Task
 
 @ErrorHandling
 class TasksPage extends PureComponent<Props, State> {
@@ -77,10 +84,14 @@ class TasksPage extends PureComponent<Props, State> {
     this.state = {
       isImporting: false,
       taskLabelsEdit: null,
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
 
   public render(): JSX.Element {
+    const {sortKey, sortDirection, sortType} = this.state
     const {
       setSearchTerm,
       updateTaskName,
@@ -128,6 +139,10 @@ class TasksPage extends PureComponent<Props, State> {
                         filterComponent={() => this.search}
                         onUpdate={updateTaskName}
                         onImportTask={this.summonOverlay}
+                        sortKey={sortKey}
+                        sortDirection={sortDirection}
+                        sortType={sortType}
+                        onClickColumn={this.handleClickColumn}
                       />
                     )}
                   </FilterList>
@@ -140,6 +155,11 @@ class TasksPage extends PureComponent<Props, State> {
         {this.props.children}
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private handleActivate = (task: Task) => {

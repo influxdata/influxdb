@@ -13,6 +13,8 @@ import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Types
 import {TemplateSummary, AppState} from 'src/types'
+import {SortTypes} from 'src/shared/selectors/sort'
+import {Sort} from '@influxdata/clockface'
 
 interface OwnProps {
   onImport: () => void
@@ -26,7 +28,12 @@ type Props = OwnProps & StateProps
 
 interface State {
   searchTerm: string
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
+
+type SortKey = 'meta.name'
 
 @ErrorHandling
 class TemplatesPage extends PureComponent<Props, State> {
@@ -35,12 +42,15 @@ class TemplatesPage extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
+      sortKey: 'meta.name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
 
   public render() {
     const {templates, onImport} = this.props
-    const {searchTerm} = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     return (
       <>
@@ -62,12 +72,21 @@ class TemplatesPage extends PureComponent<Props, State> {
                 templates={ts}
                 onFilterChange={this.setSearchTerm}
                 onImport={onImport}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                sortType={sortType}
+                onClickColumn={this.handleClickColumn}
               />
             )}
           </FilterList>
         </GetResources>
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private get filterComponent(): JSX.Element {

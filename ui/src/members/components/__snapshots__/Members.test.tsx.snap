@@ -1,70 +1,179 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`MemberList rendering renders 1`] = `
-<IndexList>
-  <IndexListHeader>
-    <IndexListHeaderCell
-      alignment="left"
-      columnName="Username"
-      width="20%"
-    />
-    <IndexListHeaderCell
-      alignment="left"
-      columnName="Role"
-      width="20%"
-    />
-    <IndexListHeaderCell
-      alignment="left"
-      columnName=""
-      width="60%"
-    />
-  </IndexListHeader>
-  <IndexListBody
-    columnCount={3}
-    emptyState={<React.Fragment />}
-  >
-    <MemberRow
-      key="1"
-      member={
-        Object {
-          "id": "1",
-          "links": Object {
-            "self": "/api/v2/users/1",
-          },
-          "name": "John",
-          "role": "owner",
-          "status": "active",
-        }
-      }
-    />
-    <MemberRow
-      key="2"
-      member={
-        Object {
-          "id": "2",
-          "links": Object {
-            "self": "/api/v2/users/2",
-          },
-          "name": "Jane",
-          "role": "owner",
-          "status": "active",
-        }
-      }
-    />
-    <MemberRow
-      key="3"
-      member={
-        Object {
-          "id": "3",
-          "links": Object {
-            "self": "/api/v2/users/3",
-          },
-          "name": "Smith",
-          "role": "owner",
-          "status": "active",
-        }
-      }
-    />
-  </IndexListBody>
-</IndexList>
+Object {
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <table
+        class="index-list"
+      >
+        <thead
+          class="index-list--header"
+        >
+          <tr>
+            <th
+              class="index-list--header-cell index-list--align-left index-list--sortable"
+              style="width: 20%;"
+            >
+              Username
+              <span
+                class="index-list--sort-arrow"
+              >
+                <span
+                  class="icon caret-down"
+                />
+              </span>
+            </th>
+            <th
+              class="index-list--header-cell index-list--align-left index-list--sortable"
+              style="width: 20%;"
+            >
+              Role
+              <span
+                class="index-list--sort-arrow"
+              >
+                <span
+                  class="icon caret-down"
+                />
+              </span>
+            </th>
+            <th
+              class="index-list--header-cell index-list--align-left"
+              style="width: 60%;"
+            >
+              
+            </th>
+          </tr>
+        </thead>
+        <tbody
+          class="index-list--empty"
+        >
+          <tr
+            class="index-list--empty-row"
+          >
+            <td
+              colspan="3"
+            >
+              <div
+                class="index-list--empty-cell"
+                data-testid="empty-state"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </body>,
+  "container": <div>
+    <table
+      class="index-list"
+    >
+      <thead
+        class="index-list--header"
+      >
+        <tr>
+          <th
+            class="index-list--header-cell index-list--align-left index-list--sortable"
+            style="width: 20%;"
+          >
+            Username
+            <span
+              class="index-list--sort-arrow"
+            >
+              <span
+                class="icon caret-down"
+              />
+            </span>
+          </th>
+          <th
+            class="index-list--header-cell index-list--align-left index-list--sortable"
+            style="width: 20%;"
+          >
+            Role
+            <span
+              class="index-list--sort-arrow"
+            >
+              <span
+                class="icon caret-down"
+              />
+            </span>
+          </th>
+          <th
+            class="index-list--header-cell index-list--align-left"
+            style="width: 60%;"
+          >
+            
+          </th>
+        </tr>
+      </thead>
+      <tbody
+        class="index-list--empty"
+      >
+        <tr
+          class="index-list--empty-row"
+        >
+          <td
+            colspan="3"
+          >
+            <div
+              class="index-list--empty-cell"
+              data-testid="empty-state"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>,
+  "debug": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllBySelectText": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getAllByValue": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getBySelectText": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "getByValue": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllBySelectText": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryAllByValue": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryBySelectText": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "queryByValue": [Function],
+  "rerender": [Function],
+  "store": Object {
+    "dispatch": [Function],
+    "getState": [Function],
+    "replaceReducer": [Function],
+    "subscribe": [Function],
+    Symbol(observable): [Function],
+  },
+  "unmount": [Function],
+}
 `;

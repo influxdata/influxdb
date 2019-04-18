@@ -6,7 +6,7 @@ import _ from 'lodash'
 
 // Components
 import {Input, Button, EmptyState} from '@influxdata/clockface'
-import {Tabs} from 'src/clockface'
+import {Tabs, Sort} from 'src/clockface'
 import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 
@@ -15,6 +15,7 @@ import {updateScraper, deleteScraper} from 'src/scrapers/actions'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {SortTypes} from 'src/shared/selectors/sort'
 
 // Types
 import {ScraperTargetResponse, Bucket} from '@influxdata/influx'
@@ -46,7 +47,12 @@ type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 
 interface State {
   searchTerm: string
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
+
+type SortKey = keyof ScraperTargetResponse
 
 @ErrorHandling
 class Scrapers extends PureComponent<Props, State> {
@@ -55,11 +61,14 @@ class Scrapers extends PureComponent<Props, State> {
 
     this.state = {
       searchTerm: '',
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
 
   public render() {
-    const {searchTerm} = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
     const {scrapers} = this.props
 
     return (
@@ -88,11 +97,20 @@ class Scrapers extends PureComponent<Props, State> {
               emptyState={this.emptyState}
               onDeleteScraper={this.handleDeleteScraper}
               onUpdateScraper={this.handleUpdateScraper}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onClickColumn={this.handleClickColumn}
             />
           )}
         </FilterList>
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private get hasNoBuckets(): boolean {

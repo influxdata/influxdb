@@ -24,7 +24,7 @@ interface OwnProps {
 }
 
 interface StateProps {
-  sortedIDs: string[]
+  sortedDashboards: Dashboard[]
 }
 
 export enum SortTypes {
@@ -36,53 +36,47 @@ type Props = OwnProps & StateProps
 
 class DashboardCards extends PureComponent<Props> {
   public state = {
-    sortedIDs: this.props.sortedIDs,
+    sortedDashboards: this.props.sortedDashboards,
   }
 
   componentDidUpdate(prevProps) {
-    const {sortDirection, sortKey, sortedIDs, dashboards} = this.props
+    const {sortDirection, sortKey, sortedDashboards, dashboards} = this.props
 
     if (
       prevProps.sortDirection !== sortDirection ||
       prevProps.sortKey !== sortKey ||
       prevProps.dashboards.length !== dashboards.length
     ) {
-      this.setState({sortedIDs})
+      this.setState({sortedDashboards})
     }
   }
 
   public render() {
     const {
-      dashboards,
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
       onFilterChange,
     } = this.props
 
-    const {sortedIDs} = this.state
+    const {sortedDashboards} = this.state
 
-    return sortedIDs.map(id => {
-      const dashboard = dashboards.find(d => d.id === id)
-      return (
-        dashboard && (
-          <DashboardCard
-            key={id}
-            dashboard={dashboard}
-            onCloneDashboard={onCloneDashboard}
-            onDeleteDashboard={onDeleteDashboard}
-            onUpdateDashboard={onUpdateDashboard}
-            onFilterChange={onFilterChange}
-          />
-        )
-      )
-    })
+    return sortedDashboards.map(dashboard => (
+      <DashboardCard
+        key={dashboard.id}
+        dashboard={dashboard}
+        onCloneDashboard={onCloneDashboard}
+        onDeleteDashboard={onDeleteDashboard}
+        onUpdateDashboard={onUpdateDashboard}
+        onFilterChange={onFilterChange}
+      />
+    ))
   }
 }
 
 const mstp = (state: AppState, props: OwnProps) => {
   return {
-    sortedIDs: getSortedResource(state.dashboards.list, props),
+    sortedDashboards: getSortedResource(state.dashboards.list, props),
   }
 }
 

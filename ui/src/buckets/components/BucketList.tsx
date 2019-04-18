@@ -11,11 +11,18 @@ import {IndexList} from 'src/clockface'
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
+// Selectors
+import {getSortedResource} from 'src/shared/selectors/sort'
+
 // Types
 import {OverlayState} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {AppState} from 'src/types'
+import {Sort} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/selectors/sort'
+
+type SortKey = keyof PrettyBucket
 
 interface OwnProps {
   buckets: PrettyBucket[]
@@ -23,6 +30,10 @@ interface OwnProps {
   onUpdateBucket: (b: PrettyBucket) => void
   onDeleteBucket: (b: PrettyBucket) => void
   onFilterChange: (searchTerm: string) => void
+  sortKey: string
+  sortDirection: Sort
+  sortType: SortTypes
+  onClickColumn: (mextSort: Sort, sortKey: SortKey) => void
 }
 
 interface DispatchProps {
@@ -32,6 +43,7 @@ interface DispatchProps {
 
 interface StateProps {
   dataLoaderType: DataLoaderType
+  sortedBuckets: PrettyBucket[]
 }
 
 type Props = OwnProps & StateProps & DispatchProps
@@ -39,6 +51,7 @@ type Props = OwnProps & StateProps & DispatchProps
 interface State {
   bucketID: string
   bucketOverlayState: OverlayState
+  sortedBuckets: PrettyBucket[]
 }
 
 class BucketList extends PureComponent<Props & WithRouterProps, State> {
@@ -49,36 +62,72 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     this.state = {
       bucketID,
       bucketOverlayState: OverlayState.Closed,
+      sortedBuckets: this.props.sortedBuckets,
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    const {buckets, sortedBuckets, sortKey, sortDirection} = this.props
+
+    if (
+      prevProps.sortDirection !== sortDirection ||
+      prevProps.sortKey !== sortKey ||
+      prevProps.buckets.length !== buckets.length
+    ) {
+      this.setState({sortedBuckets})
     }
   }
 
   public render() {
-    const {buckets, emptyState, onDeleteBucket, onFilterChange} = this.props
+    const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
 
     return (
       <>
         <IndexList>
           <IndexList.Header>
-            <IndexList.HeaderCell columnName="Name" width="40%" />
-            <IndexList.HeaderCell columnName="Retention" width="40%" />
+            <IndexList.HeaderCell
+              sortKey={this.headerKeys[0]}
+              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+              columnName="Name"
+              width="40%"
+              onClick={onClickColumn}
+            />
+            <IndexList.HeaderCell
+              sortKey={this.headerKeys[1]}
+              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+              columnName="Retention"
+              width="40%"
+              onClick={onClickColumn}
+            />
             <IndexList.HeaderCell columnName="" width="20%" />
           </IndexList.Header>
           <IndexList.Body columnCount={3} emptyState={emptyState}>
-            {buckets.map(bucket => (
-              <BucketRow
-                key={bucket.id}
-                bucket={bucket}
-                onEditBucket={this.handleStartEdit}
-                onDeleteBucket={onDeleteBucket}
-                onAddData={this.handleStartAddData}
-                onUpdateBucket={this.handleUpdateBucket}
-                onFilterChange={onFilterChange}
-              />
-            ))}
+            {this.listBuckets}
           </IndexList.Body>
         </IndexList>
       </>
     )
+  }
+
+  private get headerKeys(): SortKey[] {
+    return ['name', 'ruleString']
+  }
+
+  private get listBuckets(): JSX.Element[] {
+    const {onDeleteBucket, onFilterChange} = this.props
+    const {sortedBuckets} = this.state
+
+    return sortedBuckets.map(bucket => (
+      <BucketRow
+        key={bucket.id}
+        bucket={bucket}
+        onEditBucket={this.handleStartEdit}
+        onDeleteBucket={onDeleteBucket}
+        onAddData={this.handleStartAddData}
+        onUpdateBucket={this.handleUpdateBucket}
+        onFilterChange={onFilterChange}
+      />
+    ))
   }
 
   private handleStartEdit = (bucket: PrettyBucket) => {
@@ -114,13 +163,12 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
   }
 }
 
-const mstp = ({
-  dataLoading: {
-    dataLoaders: {type},
-  },
-}: AppState): StateProps => ({
-  dataLoaderType: type,
-})
+const mstp = (state: AppState, props: OwnProps): StateProps => {
+  return {
+    dataLoaderType: state.dataLoading.dataLoaders.type,
+    sortedBuckets: getSortedResource(props.buckets, props),
+  }
+}
 
 const mdtp: DispatchProps = {
   onSetBucketInfo: setBucketInfo,

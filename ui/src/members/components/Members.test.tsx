@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {renderWithRedux} from 'src/mockState'
 
 // Components
 import MemberList from 'src/members/components/MemberList'
@@ -15,7 +15,7 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow(<MemberList {...props} />)
+  const wrapper = renderWithRedux(<MemberList {...props} />)
 
   return {wrapper}
 }
@@ -24,7 +24,6 @@ describe('MemberList', () => {
   describe('rendering', () => {
     it('renders', () => {
       const {wrapper} = setup()
-      expect(wrapper.exists()).toBe(true)
       expect(wrapper).toMatchSnapshot()
     })
   })

@@ -1,66 +1,197 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`VariableList rendering renders 1`] = `
-<Fragment>
-  <IndexList>
-    <IndexListHeader>
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Name"
-        width="60%"
-      />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Type"
-        width="40%"
-      />
-    </IndexListHeader>
-    <IndexListBody
-      columnCount={3}
-      emptyState={<React.Fragment />}
+Object {
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <table
+        class="index-list"
+      >
+        <thead
+          class="index-list--header"
+        >
+          <tr>
+            <th
+              class="index-list--header-cell index-list--align-left index-list--sortable"
+              style="width: 60%;"
+            >
+              Name
+              <span
+                class="index-list--sort-arrow"
+              >
+                <span
+                  class="icon caret-down"
+                />
+              </span>
+            </th>
+            <th
+              class="index-list--header-cell index-list--align-left"
+              style="width: 40%;"
+            >
+              Type
+            </th>
+          </tr>
+        </thead>
+        <tbody
+          class="index-list--empty"
+        >
+          <tr
+            class="index-list--empty-row"
+          >
+            <td
+              colspan="3"
+            >
+              <div
+                class="index-list--empty-cell"
+                data-testid="empty-state"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        class="ScrollbarsCustom dapper-scrollbars overlay"
+        style="position: relative; width: 100%; height: 100%;"
+      >
+        <div
+          class="ScrollbarWrapper dapper-scrollbars--wrapper"
+          style="position: absolute; top: 0px; left: 0px; bottom: 0px; right: 0px; overflow: hidden;"
+        >
+          <div
+            class="ScrollbarContent"
+            style="position: absolute; top: 0px; left: 0px; bottom: 0px; right: 0px; overflow-y: hidden; overflow-x: hidden;"
+          >
+            <div
+              class="overlay--transition"
+              data-testid="overlay-children"
+            />
+            <div
+              class="overlay--mask"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>,
+  "container": <div>
+    <table
+      class="index-list"
     >
-      <Connect(withRouter(VariableRow))
-        key="variable-undefined"
-        onDeleteVariable={[MockFunction]}
-        onEditVariable={[Function]}
-        variable={
-          Object {
-            "arguments": Object {
-              "type": "query",
-              "values": Object {
-                "language": "flux",
-                "query": "1 + 1 ",
-              },
-            },
-            "name": "a little variable",
-            "orgID": "0",
-          }
-        }
-      />
-    </IndexListBody>
-  </IndexList>
-  <Overlay
-    visible={false}
-  >
-    <UpdateVariableOverlay
-      onCloseOverlay={[Function]}
-      onUpdateVariable={[Function]}
-      variables={
-        Array [
-          Object {
-            "arguments": Object {
-              "type": "query",
-              "values": Object {
-                "language": "flux",
-                "query": "1 + 1 ",
-              },
-            },
-            "name": "a little variable",
-            "orgID": "0",
-          },
-        ]
-      }
-    />
-  </Overlay>
-</Fragment>
+      <thead
+        class="index-list--header"
+      >
+        <tr>
+          <th
+            class="index-list--header-cell index-list--align-left index-list--sortable"
+            style="width: 60%;"
+          >
+            Name
+            <span
+              class="index-list--sort-arrow"
+            >
+              <span
+                class="icon caret-down"
+              />
+            </span>
+          </th>
+          <th
+            class="index-list--header-cell index-list--align-left"
+            style="width: 40%;"
+          >
+            Type
+          </th>
+        </tr>
+      </thead>
+      <tbody
+        class="index-list--empty"
+      >
+        <tr
+          class="index-list--empty-row"
+        >
+          <td
+            colspan="3"
+          >
+            <div
+              class="index-list--empty-cell"
+              data-testid="empty-state"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div
+      class="ScrollbarsCustom dapper-scrollbars overlay"
+      style="position: relative; width: 100%; height: 100%;"
+    >
+      <div
+        class="ScrollbarWrapper dapper-scrollbars--wrapper"
+        style="position: absolute; top: 0px; left: 0px; bottom: 0px; right: 0px; overflow: hidden;"
+      >
+        <div
+          class="ScrollbarContent"
+          style="position: absolute; top: 0px; left: 0px; bottom: 0px; right: 0px; overflow-y: hidden; overflow-x: hidden;"
+        >
+          <div
+            class="overlay--transition"
+            data-testid="overlay-children"
+          />
+          <div
+            class="overlay--mask"
+          />
+        </div>
+      </div>
+    </div>
+  </div>,
+  "debug": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllBySelectText": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getAllByValue": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getBySelectText": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "getByValue": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllBySelectText": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryAllByValue": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryBySelectText": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "queryByValue": [Function],
+  "rerender": [Function],
+  "store": Object {
+    "dispatch": [Function],
+    "getState": [Function],
+    "replaceReducer": [Function],
+    "subscribe": [Function],
+    Symbol(observable): [Function],
+  },
+  "unmount": [Function],
+}
 `;
