@@ -3,12 +3,12 @@ import _ from 'lodash'
 import {connect} from 'react-redux'
 
 // Component
-// import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 import {Grid, Form, TextArea, Dropdown, Columns} from '@influxdata/clockface'
 
 // Utils
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {csvToMap, mapToCSV} from 'src/variables/utils/mapBuilder'
+import {pluralize} from 'src/shared/utils/pluralize'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -60,7 +60,7 @@ class MapVariableBuilder extends PureComponent<Props, State> {
           <Grid.Column widthXS={Columns.Six}>
             <p>
               Mapping Contains <strong>{entries.length}</strong> key-value pair
-              {this.pluralizer}
+              {pluralize(entries)}
             </p>
           </Grid.Column>
           <Grid.Column widthXS={Columns.Six}>
@@ -103,10 +103,6 @@ class MapVariableBuilder extends PureComponent<Props, State> {
       key,
       value,
     }))
-  }
-
-  private get pluralizer(): string {
-    return Object.keys(this.props.values).length === 1 ? '' : 's'
   }
 
   private handleBlur = (): void => {
