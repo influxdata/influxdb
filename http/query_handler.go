@@ -82,7 +82,6 @@ func NewFluxHandler(b *FluxBackend) *FluxHandler {
 	h.HandlerFunc("POST", fluxPath, h.handleQuery)
 	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
 	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
-	h.HandlerFunc("POST", "/api/v2/query/spec", h.postFluxSpec)
 	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)
 	h.HandlerFunc("GET", "/api/v2/query/suggestions/:name", h.getFluxSuggestion)
 	return h
@@ -223,49 +222,7 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type postFluxSpecResponse struct {
-	Spec *flux.Spec `json:"spec"`
-}
-
-// postFluxSpec returns a flux Spec for provided flux string
-func (h *FluxHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
-	span, r := tracing.ExtractFromHTTPRequest(r, "FluxHandler")
-	defer span.Finish()
-
-	var req langRequest
-	ctx := r.Context()
-
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		EncodeError(ctx, &platform.Error{
-			Code: platform.EInvalid,
-			Msg:  "invalid json",
-			Err:  err,
-		}, w)
-		return
-	}
-
-	spec, err := flux.Compile(ctx, req.Query, h.Now())
-	if err != nil {
-		EncodeError(ctx, &platform.Error{
-			Code: platform.EUnprocessableEntity,
-			Msg:  "invalid spec",
-			Err:  err,
-		}, w)
-		return
-	}
-
-	res := postFluxSpecResponse{
-		Spec: spec,
-	}
-
-	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
-		return
-	}
-}
-
-// fluxParams contain flux function parameters as defined by the semantic graph
+// fluxParams contain flux funciton parameters as defined by the semantic graph
 type fluxParams map[string]string
 
 // suggestionResponse provides the parameters available for a given Flux function

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
@@ -65,8 +66,10 @@ func (r QueryRequest) WithDefaults() QueryRequest {
 
 // Validate checks the query request and returns an error if the request is invalid.
 func (r QueryRequest) Validate() error {
+	// TODO(jsternberg): Remove this, but we are going to not mention
+	// the spec in the error if it is being used.
 	if r.Query == "" && r.Spec == nil && r.AST == nil {
-		return errors.New(`request body requires either query, spec, or AST`)
+		return errors.New(`request body requires either query or AST`)
 	}
 
 	if r.Spec != nil && r.Extern != nil {
@@ -221,7 +224,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
-	// Query is preferred over spec
+	// Query is preferred over AST
 	var compiler flux.Compiler
 	if r.Query != "" {
 		pkg, err := flux.Parse(r.Query)
@@ -246,7 +249,7 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 		}
 		compiler = c
 	} else if r.Spec != nil {
-		compiler = lang.SpecCompiler{
+		compiler = repl.Compiler{
 			Spec: r.Spec,
 		}
 	}
@@ -283,7 +286,7 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	case lang.FluxCompiler:
 		qr.Type = "flux"
 		qr.Query = c.Query
-	case lang.SpecCompiler:
+	case repl.Compiler:
 		qr.Type = "flux"
 		qr.Spec = c.Spec
 	case lang.ASTCompiler:

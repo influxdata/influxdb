@@ -11,7 +11,6 @@ export interface Links {
   query: {
     self: string
     ast: string
-    spec: string
     suggestions: string
   }
   orgs: string

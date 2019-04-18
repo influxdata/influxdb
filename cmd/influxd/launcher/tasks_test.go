@@ -169,14 +169,14 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 
 	want := make(map[string][]*executetest.Table) // Want the original.
 	i = 0
-	for k, v := range res.Results {
+	for _, r := range res.Results {
 		i++
-		if err := v.Tables().Do(func(tbl flux.Table) error {
+		if err := r.Tables().Do(func(tbl flux.Table) error {
 			ct, err := executetest.ConvertTable(tbl)
 			if err != nil {
 				return err
 			}
-			want[k] = append(want[k], ct)
+			want[r.Name()] = append(want[r.Name()], ct)
 			return nil
 		}); err != nil {
 			t.Fatal(err)
@@ -189,13 +189,13 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	res = be.MustExecuteQuery(nowOpt + `from(bucket:"my_bucket_out") |> range(start:-5m)`)
 	defer res.Done()
 	got := make(map[string][]*executetest.Table)
-	for k, v := range res.Results {
-		if err := v.Tables().Do(func(tbl flux.Table) error {
+	for _, r := range res.Results {
+		if err := r.Tables().Do(func(tbl flux.Table) error {
 			ct, err := executetest.ConvertTable(tbl)
 			if err != nil {
 				return err
 			}
-			got[k] = append(got[k], ct)
+			got[r.Name()] = append(got[r.Name()], ct)
 			return nil
 		}); err != nil {
 			t.Fatal(err)

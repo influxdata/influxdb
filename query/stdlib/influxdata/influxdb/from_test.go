@@ -130,7 +130,7 @@ func TestFromOpSpec_BucketsAccessed(t *testing.T) {
 		t.Fatal(err)
 	}
 	invalidID := platform.InvalidID()
-	tests := []pquerytest.BucketAwareQueryTestCase{
+	tests := []pquerytest.BucketsAccessedTestCase{
 		{
 			Name:             "From with bucket",
 			Raw:              fmt.Sprintf(`from(bucket:"%s")`, bucketName),
@@ -154,7 +154,7 @@ func TestFromOpSpec_BucketsAccessed(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			pquerytest.BucketAwareQueryTestHelper(t, tc)
+			pquerytest.BucketsAccessedTestHelper(t, tc)
 		})
 	}
 }
