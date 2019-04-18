@@ -268,7 +268,7 @@ func (p *Partition) Open() (err error) {
 		}
 	}
 
-	// Build series existance set.
+	// Build series existence set.
 	if err := p.buildSeriesSet(); err != nil {
 		return err
 	}

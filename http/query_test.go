@@ -434,7 +434,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "valid query request with explict content-type",
+			name: "valid query request with explicit content-type",
 			args: args{
 				r: func() *http.Request {
 					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`))

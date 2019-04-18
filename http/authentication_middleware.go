@@ -20,7 +20,7 @@ type AuthenticationHandler struct {
 	SessionService       platform.SessionService
 
 	// This is only really used for it's lookup method the specific http
-	// hanlder used to register routes does not matter.
+	// handler used to register routes does not matter.
 	noAuthRouter *httprouter.Router
 
 	Handler http.Handler

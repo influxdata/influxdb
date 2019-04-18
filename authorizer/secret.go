@@ -95,7 +95,7 @@ func (s *SecretService) PutSecret(ctx context.Context, orgID influxdb.ID, key st
 
 // PutSecrets checks to see if the authorizer on context has read and write access to the secret keys provided.
 func (s *SecretService) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
-	// PutSecrets operates on intersection betwen m and keys beloging to orgID.
+	// PutSecrets operates on intersection between m and keys beloging to orgID.
 	// We need to have read access to those secrets since it deletes the secrets (within the intersection) that have not be overridden.
 	if err := authorizeReadSecret(ctx, orgID); err != nil {
 		return err

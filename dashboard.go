@@ -52,7 +52,7 @@ type DashboardService interface {
 	// AddDashboardCell adds a cell to a dashboard.
 	AddDashboardCell(ctx context.Context, id ID, c *Cell, opts AddDashboardCellOptions) error
 
-	// RemoveDashboardCell removes a dashbaord.
+	// RemoveDashboardCell removes a dashboard.
 	RemoveDashboardCell(ctx context.Context, dashboardID, cellID ID) error
 
 	// UpdateDashboardCell replaces the dashboard cell with the provided ID.

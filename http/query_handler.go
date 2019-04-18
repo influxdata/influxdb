@@ -120,6 +120,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		EncodeError(ctx, err, w)
 		return
 	}
+	orgID = req.Request.OrganizationID
 	requestBytes = n
 
 	// Transform the context into one with the request's authorization.
