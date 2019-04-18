@@ -1,8 +1,10 @@
 package tsm1
 
 import (
-	"fmt"
+	"errors"
 )
+
+var errKeyCountChanged = errors.New("TSMIndexIterator: key count changed during iteration")
 
 // TSMIndexIterator allows one to iterate over the TSM index.
 type TSMIndexIterator struct {
@@ -31,7 +33,7 @@ type TSMIndexIterator struct {
 func (t *TSMIndexIterator) Next() bool {
 	t.d.mu.RLock()
 	if n := len(t.d.ro.offsets); t.n != n {
-		t.err, t.ok = fmt.Errorf("Key count changed during iteration"), false
+		t.err, t.ok = errKeyCountChanged, false
 	}
 	if !t.ok || t.err != nil {
 		t.d.mu.RUnlock()
@@ -65,7 +67,7 @@ func (t *TSMIndexIterator) Next() bool {
 func (t *TSMIndexIterator) Seek(key []byte) (exact, ok bool) {
 	t.d.mu.RLock()
 	if n := len(t.d.ro.offsets); t.n != n {
-		t.err, t.ok = fmt.Errorf("Key count changed during iteration"), false
+		t.err, t.ok = errKeyCountChanged, false
 	}
 	if t.err != nil {
 		t.d.mu.RUnlock()

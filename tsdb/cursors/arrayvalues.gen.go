@@ -1109,8 +1109,7 @@ func (a *TimestampArray) Exclude(min, max int64) {
 }
 
 // Contains returns true if values exist between min and max inclusive. The
-// values must be deduplicated and sorted before calling Contains or the
-// results are undefined.
+// values must be sorted before calling Contains or the results are undefined.
 func (a *TimestampArray) Contains(min, max int64) bool {
 	rmin, rmax := a.FindRange(min, max)
 	if rmin == -1 && rmax == -1 {

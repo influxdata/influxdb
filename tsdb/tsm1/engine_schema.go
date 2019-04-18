@@ -20,20 +20,11 @@ import (
 func (e *Engine) TagValues(ctx context.Context, orgID, bucketID influxdb.ID, tagKey string, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
 	encoded := tsdb.EncodeName(orgID, bucketID)
 
-	var tagKeyBytes []byte
-	if tagKey == "_measurement" {
-		tagKeyBytes = models.MeasurementTagKeyBytes
-	} else if tagKey == "_field" {
-		tagKeyBytes = models.FieldKeyTagKeyBytes
-	} else {
-		tagKeyBytes = []byte(tagKey)
-	}
-
 	if predicate == nil {
-		return e.tagValuesNoPredicate(ctx, encoded[:], tagKeyBytes, start, end)
+		return e.tagValuesNoPredicate(ctx, encoded[:], []byte(tagKey), start, end)
 	}
 
-	return e.tagValuesPredicate(ctx, encoded[:], tagKeyBytes, start, end, predicate)
+	return e.tagValuesPredicate(ctx, encoded[:], []byte(tagKey), start, end, predicate)
 }
 
 func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyBytes []byte, start, end int64) (cursors.StringIterator, error) {

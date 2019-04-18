@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxql"
@@ -164,12 +165,12 @@ memB,host=EB,os=macOS value=1.3 201`)
 			exp: nil,
 		},
 
-		// _measurement tag
+		// models.MeasurementTagKey tag
 		{
 			name: "_measurement/all",
 			args: args{
 				org: 0,
-				key: "_measurement",
+				key: models.MeasurementTagKey,
 				min: 0,
 				max: 399,
 			},
@@ -179,7 +180,7 @@ memB,host=EB,os=macOS value=1.3 201`)
 			name: "_measurement/some",
 			args: args{
 				org: 0,
-				key: "_measurement",
+				key: models.MeasurementTagKey,
 				min: 205,
 				max: 399,
 			},

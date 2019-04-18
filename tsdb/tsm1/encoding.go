@@ -115,8 +115,8 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 }
 
 // Contains returns true if values exist for the time interval [min, max]
-// inclusive. The values must be deduplicated and sorted before calling
-// Contains or the results are undefined.
+// inclusive. The values must be sorted before calling Contains or the
+// results are undefined.
 func (a Values) Contains(min, max int64) bool {
 	rmin, rmax := a.FindRange(min, max)
 	if rmin == -1 && rmax == -1 {
