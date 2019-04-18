@@ -122,7 +122,7 @@ type TestCreds struct {
 	Token                          string
 }
 
-// Authorizer returns an authorizer for the credentails in the struct
+// Authorizer returns an authorizer for the credentials in the struct
 func (tc TestCreds) Authorizer() influxdb.Authorizer {
 	return &influxdb.Authorization{
 		ID:     tc.AuthorizationID,

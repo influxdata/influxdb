@@ -64,7 +64,7 @@ type Plus struct {
 	tmpSet set
 
 	denseList  []uint8         // The dense representation of the HLL.
-	sparseList *compressedList // values that can be stored in the sparse represenation.
+	sparseList *compressedList // values that can be stored in the sparse representation.
 }
 
 // NewPlus returns a new Plus with precision p. p must be between 4 and 18.

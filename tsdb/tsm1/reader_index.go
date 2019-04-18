@@ -114,7 +114,7 @@ type indirectIndex struct {
 	// Using this offset slice we can find `Key 2` by doing a binary search
 	// over the offsets slice.  Instead of comparing the value in the offsets
 	// (e.g. `62`), we use that as an index into the underlying index to
-	// retrieve the key at postion `62` and perform our comparisons with that.
+	// retrieve the key at position `62` and perform our comparisons with that.
 
 	// When we have identified the correct position in the index for a given
 	// key, we could perform another binary search or a linear scan.  This

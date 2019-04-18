@@ -67,3 +67,18 @@ const FLUX_BOUNDARY = [
 ].join('|')
 
 export const BOUNDARY_GROUP = `(${FLUX_BOUNDARY})`
+
+export const variableItemTypes = [
+  {
+    type: 'map',
+    label: 'Map',
+  },
+  {
+    type: 'query',
+    label: 'Query',
+  },
+  {
+    type: 'constant',
+    label: 'CSV',
+  },
+]

@@ -358,7 +358,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			},
 		},
 		{
-			name: "get a non-existant variable",
+			name: "get a non-existent variable",
 			args: args{
 				id: "75650d0a636f6d70",
 			},
@@ -695,7 +695,7 @@ func TestVariableService_handleDeleteVariable(t *testing.T) {
 			},
 		},
 		{
-			name: "delete a non-existant variable",
+			name: "delete a non-existent variable",
 			fields: fields{
 				&mock.VariableService{
 					DeleteVariableF: func(ctx context.Context, id platform.ID) error {

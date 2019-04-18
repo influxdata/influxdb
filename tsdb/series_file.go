@@ -209,7 +209,7 @@ func (f *SeriesFile) DisableCompactions() {
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. It overwrites
 // the collection's Keys and SeriesIDs fields. The collection's SeriesIDs slice will have IDs for
 // every name+tags, creating new series IDs as needed. If any SeriesID is zero, then a type
-// conflict has occured for that series.
+// conflict has occurred for that series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(collection *SeriesCollection) error {
 	collection.SeriesKeys = GenerateSeriesKeys(collection.Names, collection.Tags)
 	collection.SeriesIDs = make([]SeriesID, len(collection.SeriesKeys))

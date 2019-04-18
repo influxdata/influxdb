@@ -459,7 +459,7 @@ type File interface {
 	TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
 	TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error)
 
-	// Bitmap series existance.
+	// Bitmap series existence.
 	SeriesIDSet() (*tsdb.SeriesIDSet, error)
 	TombstoneSeriesIDSet() (*tsdb.SeriesIDSet, error)
 

@@ -10,18 +10,19 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
+	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/models"
 	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/query/querytest"
+	pquerytest "github.com/influxdata/influxdb/query/querytest"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestTo_Query(t *testing.T) {
-	tests := []querytest.BucketAwareQueryTestCase{
+	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "from with database with range",
 			Raw:  `from(bucket:"mydb") |> to(bucket:"series1", org:"fred", host:"localhost", token:"auth-token", fieldFn: (r) => ({ col: r.col }) )`,
@@ -77,7 +78,7 @@ func TestTo_Query(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			querytest.BucketAwareQueryTestHelper(t, tc)
+			querytest.NewQueryTestHelper(t, tc)
 		})
 	}
 }
@@ -90,7 +91,7 @@ func TestToOpSpec_BucketsAccessed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tests := []querytest.BucketAwareQueryTestCase{
+	tests := []pquerytest.BucketsAccessedTestCase{
 		{
 			Name:             "from() with bucket and to with org and bucket",
 			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucket:"%s", org:"%s")`, bucketName, bucketName, orgName),
@@ -109,7 +110,7 @@ func TestToOpSpec_BucketsAccessed(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			querytest.BucketAwareQueryTestHelper(t, tc)
+			pquerytest.BucketsAccessedTestHelper(t, tc)
 		})
 	}
 }

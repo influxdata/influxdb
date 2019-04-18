@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
@@ -226,67 +225,6 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 			}
 			if got := tt.w.Code; got != tt.status {
 				t.Errorf("http.postFluxAST = got %d\nwant %d", got, tt.status)
-			}
-		})
-	}
-}
-
-func TestFluxHandler_postFluxSpec(t *testing.T) {
-	tests := []struct {
-		name   string
-		w      *httptest.ResponseRecorder
-		r      *http.Request
-		now    func() time.Time
-		want   string
-		status int
-	}{
-		{
-			name: "get spec from()",
-			w:    httptest.NewRecorder(),
-			r:    httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`{"query": "from(bucket: \"telegraf\")"}`)),
-			now:  func() time.Time { return time.Unix(0, 0).UTC() },
-			want: `{"spec":{"operations":[{"kind":"influxDBFrom","id":"influxDBFrom0","spec":{"bucket":"telegraf"}}],"edges":null,"resources":{"priority":"high","concurrency_quota":0,"memory_bytes_quota":0},"now":"1970-01-01T00:00:00Z"}}
-`,
-			status: http.StatusOK,
-		},
-		{
-			name:   "error from bad json",
-			w:      httptest.NewRecorder(),
-			r:      httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`error!`)),
-			want:   `{"code":"invalid","message":"invalid json","error":"invalid character 'e' looking for beginning of value"}`,
-			status: http.StatusBadRequest,
-		},
-		{
-			name:   "error from incomplete spec",
-			w:      httptest.NewRecorder(),
-			r:      httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`{"query": "from()"}`)),
-			now:    func() time.Time { return time.Unix(0, 0).UTC() },
-			want:   `{"code":"unprocessable entity","message":"invalid spec","error":"error calling function \"from\": must specify one of bucket or bucketID"}`,
-			status: http.StatusUnprocessableEntity,
-		},
-		{
-			name: "get spec with range and last",
-			w:    httptest.NewRecorder(),
-			r:    httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`{"query": "from(bucket:\"demo-bucket-in-1\") |> range(start:-2s) |> last()"}`)),
-			now:  func() time.Time { return time.Unix(0, 0).UTC() },
-			want: `{"spec":{"operations":[{"kind":"influxDBFrom","id":"influxDBFrom0","spec":{"bucket":"demo-bucket-in-1"}},{"kind":"range","id":"range1","spec":{"start":"-2s","stop":"now","timeColumn":"_time","startColumn":"_start","stopColumn":"_stop"}},{"kind":"last","id":"last2","spec":{"column":"_value"}}],"edges":[{"parent":"influxDBFrom0","child":"range1"},{"parent":"range1","child":"last2"}],"resources":{"priority":"high","concurrency_quota":0,"memory_bytes_quota":0},"now":"1970-01-01T00:00:00Z"}}
-`,
-			status: http.StatusOK,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := &FluxHandler{
-				Now: tt.now,
-			}
-			h.postFluxSpec(tt.w, tt.r)
-			if got := tt.w.Body.String(); got != tt.want {
-				t.Errorf("http.postFluxSpec = got %s\nwant %s", got, tt.want)
-			}
-
-			if got := tt.w.Code; got != tt.status {
-				t.Errorf("http.postFluxSpec = got %d\nwant %d", got, tt.status)
-				t.Log(tt.w.Header())
 			}
 		})
 	}

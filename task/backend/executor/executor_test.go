@@ -37,15 +37,18 @@ type fakeQueryService struct {
 
 var _ query.AsyncQueryService = (*fakeQueryService)(nil)
 
-func makeSpec(q string) *flux.Spec {
-	qs, err := flux.Compile(context.Background(), q, time.Unix(123, 0))
+func makeAST(q string) lang.ASTCompiler {
+	pkg, err := flux.Parse(q)
 	if err != nil {
 		panic(err)
 	}
-	return qs
+	return lang.ASTCompiler{
+		AST: pkg,
+		Now: time.Unix(123, 0),
+	}
 }
 
-func makeSpecString(q *flux.Spec) string {
+func makeASTString(q lang.ASTCompiler) string {
 	b, err := json.Marshal(q)
 	if err != nil {
 		panic(err)
@@ -71,16 +74,16 @@ func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (flux.
 		return nil, err
 	}
 
-	sc, ok := req.Compiler.(lang.SpecCompiler)
+	astc, ok := req.Compiler.(lang.ASTCompiler)
 	if !ok {
-		return nil, fmt.Errorf("fakeQueryService only supports the SpecCompiler, got %T", req.Compiler)
+		return nil, fmt.Errorf("fakeQueryService only supports the ASTCompiler, got %T", req.Compiler)
 	}
 
 	fq := &fakeQuery{
-		wait:  make(chan struct{}),
-		ready: make(chan map[string]flux.Result),
+		wait:    make(chan struct{}),
+		results: make(chan flux.Result),
 	}
-	s.queries[makeSpecString(sc.Spec)] = fq
+	s.queries[makeASTString(astc)] = fq
 
 	go fq.run(ctx)
 
@@ -93,7 +96,7 @@ func (s *fakeQueryService) SucceedQuery(script string) {
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	spec := makeSpecString(makeSpec(script))
+	spec := makeASTString(makeAST(script))
 	close(s.queries[spec].wait)
 	delete(s.queries, spec)
 }
@@ -104,7 +107,7 @@ func (s *fakeQueryService) FailQuery(script string, forced error) {
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	spec := makeSpecString(makeSpec(script))
+	spec := makeASTString(makeAST(script))
 	s.queries[spec].forcedError = forced
 	close(s.queries[spec].wait)
 	delete(s.queries, spec)
@@ -122,7 +125,7 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	t.Helper()
 
 	const attempts = 10
-	spec := makeSpecString(makeSpec(script))
+	spec := makeASTString(makeAST(script))
 	for i := 0; i < attempts; i++ {
 		if i != 0 {
 			time.Sleep(5 * time.Millisecond)
@@ -140,7 +143,7 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 }
 
 type fakeQuery struct {
-	ready       chan map[string]flux.Result
+	results     chan flux.Result
 	wait        chan struct{} // Blocks Ready from returning.
 	forcedError error         // Value to return from Err() method.
 
@@ -149,11 +152,10 @@ type fakeQuery struct {
 
 var _ flux.Query = (*fakeQuery)(nil)
 
-func (q *fakeQuery) Spec() *flux.Spec                     { return nil }
-func (q *fakeQuery) Done()                                {}
-func (q *fakeQuery) Cancel()                              { close(q.ready) }
-func (q *fakeQuery) Statistics() flux.Statistics          { return flux.Statistics{} }
-func (q *fakeQuery) Ready() <-chan map[string]flux.Result { return q.ready }
+func (q *fakeQuery) Done()                       {}
+func (q *fakeQuery) Cancel()                     { close(q.results) }
+func (q *fakeQuery) Statistics() flux.Statistics { return flux.Statistics{} }
+func (q *fakeQuery) Results() <-chan flux.Result { return q.results }
 
 func (q *fakeQuery) Err() error {
 	if q.ctxErr != nil {
@@ -163,13 +165,14 @@ func (q *fakeQuery) Err() error {
 }
 
 // run is intended to be run on its own goroutine.
-// It blocks until q.wait is closed, then sends a fake result on the q.ready channel.
+// It blocks until q.wait is closed, then sends a fake result on the q.results channel.
 func (q *fakeQuery) run(ctx context.Context) {
+	defer close(q.results)
+
 	// Wait for call to set query success/fail.
 	select {
 	case <-ctx.Done():
 		q.ctxErr = ctx.Err()
-		close(q.ready)
 		return
 	case <-q.wait:
 		// Normal case.
@@ -177,11 +180,7 @@ func (q *fakeQuery) run(ctx context.Context) {
 
 	if q.forcedError == nil {
 		res := newFakeResult()
-		q.ready <- map[string]flux.Result{
-			res.Name(): res,
-		}
-	} else {
-		close(q.ready)
+		q.results <- res
 	}
 }
 

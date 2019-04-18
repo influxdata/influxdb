@@ -281,7 +281,7 @@ func (d *TaskControlService) AddRunLog(ctx context.Context, taskID, runID influx
 
 	run := d.runs[taskID][runID]
 	if run == nil {
-		panic("cannot add a log to a non existant run")
+		panic("cannot add a log to a non existent run")
 	}
 	run.Log = append(run.Log, influxdb.Log{Time: when.Format(time.RFC3339Nano), Message: log})
 	return nil

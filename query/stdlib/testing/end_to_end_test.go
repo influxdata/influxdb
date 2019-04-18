@@ -130,6 +130,7 @@ var skipTests = map[string]string{
 	"string_trim":                 "imported libraries are not visible in user-defined functions (https://github.com/influxdata/flux/issues/1000)",
 
 	"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
+	"range":                     "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
 }
 
 func TestFluxEndToEnd(t *testing.T) {

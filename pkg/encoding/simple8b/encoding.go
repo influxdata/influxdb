@@ -1,4 +1,4 @@
-// Package simple8b implements the 64bit integer encoding algoritm as published
+// Package simple8b implements the 64bit integer encoding algorithm as published
 // by Ann and Moffat in "Index compression using 64-bit words", Softw. Pract. Exper. 2010; 40:131–147
 //
 // It is capable of encoding multiple integers with values betweeen 0 and to 1^60 -1, in a single word.
@@ -21,7 +21,7 @@ package simple8b
 // └──────────────┴─────────────────────────────────────────────────────────────┘
 //
 // For example, when the number of values can be encoded using 4 bits, selected 5 is encoded in the
-// 4 most significant bits followed by 15 values encoded used 4 bits each in the remaing 60 bits.
+// 4 most significant bits followed by 15 values encoded used 4 bits each in the remaining 60 bits.
 import (
 	"encoding/binary"
 	"errors"

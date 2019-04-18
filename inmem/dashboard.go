@@ -260,7 +260,7 @@ func (s *Service) createCellView(ctx context.Context, cell *platform.Cell) *plat
 	return nil
 }
 
-// PutDashboardCell replaces a dashboad cell with the cell contents.
+// PutDashboardCell replaces a dashboard cell with the cell contents.
 func (s *Service) PutDashboardCell(ctx context.Context, id platform.ID, cell *platform.Cell) error {
 	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {

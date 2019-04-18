@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
@@ -357,7 +358,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 			},
 			want: &query.ProxyRequest{
 				Request: query.Request{
-					Compiler: lang.SpecCompiler{
+					Compiler: repl.Compiler{
 						Spec: &flux.Spec{
 							Now: time.Unix(0, 0).UTC(),
 						},
@@ -433,7 +434,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "valid query request with explict content-type",
+			name: "valid query request with explicit content-type",
 			args: args{
 				r: func() *http.Request {
 					r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"query": "from()"}`))
