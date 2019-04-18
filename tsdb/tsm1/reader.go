@@ -358,6 +358,13 @@ func (t *TSMReader) OverlapsKeyRange(min, max []byte) bool {
 	return t.index.OverlapsKeyRange(min, max)
 }
 
+// OverlapsKeyPrefixRange returns true if the key range of the file
+// intersects min and max, evaluating up to the length of min and max
+// of the key range.
+func (t *TSMReader) OverlapsKeyPrefixRange(min, max []byte) bool {
+	return t.index.OverlapsKeyPrefixRange(min, max)
+}
+
 // TimeRange returns the min and max time across all keys in the file.
 func (t *TSMReader) TimeRange() (int64, int64) {
 	return t.index.TimeRange()
