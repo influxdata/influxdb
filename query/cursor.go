@@ -220,6 +220,12 @@ func (cur *scannerCursorBase) Columns() []influxql.VarRef {
 	return cur.columns
 }
 
+func (cur *scannerCursorBase) clear(m map[string]interface{}) {
+	for k := range m {
+		delete(m, k)
+	}
+}
+
 var _ Cursor = (*scannerCursor)(nil)
 
 type scannerCursor struct {
@@ -235,6 +241,10 @@ func newScannerCursor(s IteratorScanner, fields []*influxql.Field, opt IteratorO
 
 func (s *scannerCursor) scan(m map[string]interface{}) (int64, string, Tags) {
 	ts, name, tags := s.scanner.Peek()
+	// if a new series, clear the map of previous values
+	if name != s.series.Name || tags.ID() != s.series.Tags.ID() {
+		s.clear(m)
+	}
 	if ts == ZeroTime {
 		return ts, name, tags
 	}
@@ -304,7 +314,10 @@ func (cur *multiScannerCursor) scan(m map[string]interface{}) (ts int64, name st
 	if ts == ZeroTime {
 		return ts, name, tags
 	}
-
+	// if a new series, clear the map of previous values
+	if name != cur.series.Name || tags.ID() != cur.series.Tags.ID() {
+		cur.clear(m)
+	}
 	for _, s := range cur.scanners {
 		s.ScanAt(ts, name, tags, m)
 	}
