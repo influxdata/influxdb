@@ -182,6 +182,14 @@ export default class VariableForm extends PureComponent<Props, State> {
             values: {},
           },
         })
+      case 'constant':
+        return this.setState({
+          ...defaults,
+          args: {
+            type: 'constant',
+            values: [],
+          },
+        })
     }
   }
 

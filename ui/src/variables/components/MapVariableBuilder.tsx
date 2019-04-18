@@ -14,7 +14,7 @@ import {pluralize} from 'src/shared/utils/pluralize'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
-import {invalidMapType} from 'src/shared/copy/notifications'
+import {invalidMapType} from 'src/shared/copy/v2/notifications'
 
 type Values = {[key: string]: string}
 interface OwnProps {
@@ -65,7 +65,7 @@ class MapVariableBuilder extends PureComponent<Props, State> {
           </Grid.Column>
           <Grid.Column widthXS={Columns.Six}>
             {
-              <Form.Element label="Selected Default">
+              <Form.Element label="Select A Default">
                 <Dropdown
                   selectedID={this.defaultID}
                   onChange={onSelectDefault}
