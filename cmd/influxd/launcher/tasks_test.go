@@ -90,7 +90,6 @@ stuff f=-123.456,b=true,s="hello"
 
 	create := influxdb.TaskCreate{
 		OrganizationID: org.ID,
-		Token:          be.Auth.Token,
 		Flux: fmt.Sprintf(`option task = {
  name: "my_task",
  every: 1s,
