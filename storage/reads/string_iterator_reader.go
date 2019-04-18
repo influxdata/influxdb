@@ -2,6 +2,7 @@ package reads
 
 import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type StringValuesStreamReader interface {
@@ -15,6 +16,9 @@ type StringIteratorStreamReader struct {
 
 	err error
 }
+
+// API compatibility
+var _ cursors.StringIterator = (*StringIteratorStreamReader)(nil)
 
 func NewStringIteratorStreamReader(stream StringValuesStreamReader) *StringIteratorStreamReader {
 	return &StringIteratorStreamReader{
@@ -52,4 +56,8 @@ func (r *StringIteratorStreamReader) Value() string {
 
 	// Better than panic.
 	return ""
+}
+
+func (r *StringIteratorStreamReader) Stats() cursors.CursorStats {
+	return cursors.CursorStats{}
 }

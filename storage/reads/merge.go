@@ -127,6 +127,9 @@ type MergedStringIterator struct {
 	nextValue    string
 }
 
+// API compatibility
+var _ cursors.StringIterator = (*MergedStringIterator)(nil)
+
 func NewMergedStringIterator(iterators []cursors.StringIterator) *MergedStringIterator {
 	return &MergedStringIterator{
 		iterators:    iterators,
@@ -159,4 +162,8 @@ func (mr *MergedStringIterator) Next() bool {
 
 func (mr *MergedStringIterator) Value() string {
 	return mr.nextValue
+}
+
+func (mr *MergedStringIterator) Stats() cursors.CursorStats {
+	return cursors.CursorStats{}
 }
