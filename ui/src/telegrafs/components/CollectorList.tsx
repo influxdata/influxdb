@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -10,18 +9,14 @@ import CollectorRow from 'src/telegrafs/components/CollectorRow'
 // Types
 import {ITelegraf as Telegraf} from '@influxdata/influx'
 import {Sort} from '@influxdata/clockface'
-import {SortTypes} from 'src/shared/selectors/sort'
-import {AppState} from 'src/types'
+import {SortTypes, getSortedResources} from 'src/shared/selectors/sort'
 
 //Utils
 import {getDeep} from 'src/utils/wrappers'
 
-// Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
-
 type SortKey = keyof Telegraf
 
-interface OwnProps {
+interface Props {
   collectors: Telegraf[]
   emptyState: JSX.Element
   onDelete: (telegraf: Telegraf) => void
@@ -34,27 +29,13 @@ interface OwnProps {
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-interface StateProps {
-  sortedCollectors: Telegraf[]
-}
-
-type Props = OwnProps & StateProps
-
-class CollectorList extends PureComponent<Props> {
-  public state = {
-    sortedCollectors: this.props.sortedCollectors,
+export default class CollectorList extends PureComponent<Props> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {sortedCollectors: getSortedResources(props.collectors, props)}
   }
 
-  componentDidUpdate(prevProps) {
-    const {collectors, sortedCollectors, sortKey, sortDirection} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.collectors.length !== collectors.length
-    ) {
-      this.setState({sortedCollectors})
-    }
+  public state = {
+    sortedCollectors: this.props.collectors,
   }
 
   public render() {
@@ -111,11 +92,3 @@ class CollectorList extends PureComponent<Props> {
     }
   }
 }
-
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  return {
-    sortedCollectors: getSortedResource(state.telegrafs.list, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(CollectorList)

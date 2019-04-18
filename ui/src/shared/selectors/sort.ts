@@ -26,7 +26,7 @@ function orderByType(data, type) {
   }
 }
 
-export const getSortedResource = createSelector(
+export const getSortedResources = createSelector(
   resourceList,
   sortSelector,
   (resourceList, sort) => {

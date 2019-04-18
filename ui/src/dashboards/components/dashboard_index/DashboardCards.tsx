@@ -1,18 +1,17 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCard'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
 // Types
-import {Dashboard, AppState} from 'src/types'
+import {Dashboard} from 'src/types'
 import {Sort} from 'src/clockface'
 
-interface OwnProps {
+interface Props {
   dashboards: Dashboard[]
   sortKey: string
   sortDirection: Sort
@@ -23,32 +22,19 @@ interface OwnProps {
   onFilterChange: (searchTerm: string) => void
 }
 
-interface StateProps {
-  sortedDashboards: Dashboard[]
-}
-
 export enum SortTypes {
   String = 'string',
   Date = 'date',
 }
 
-type Props = OwnProps & StateProps
-
-class DashboardCards extends PureComponent<Props> {
-  public state = {
-    sortedDashboards: this.props.sortedDashboards,
-  }
-
-  componentDidUpdate(prevProps) {
-    const {sortDirection, sortKey, sortedDashboards, dashboards} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.dashboards.length !== dashboards.length
-    ) {
-      this.setState({sortedDashboards})
+export default class DashboardCards extends PureComponent<Props> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedDashboards: getSortedResources(props.dashboards, props),
     }
+  }
+  public state = {
+    sortedDashboards: this.props.dashboards,
   }
 
   public render() {
@@ -58,7 +44,6 @@ class DashboardCards extends PureComponent<Props> {
       onUpdateDashboard,
       onFilterChange,
     } = this.props
-
     const {sortedDashboards} = this.state
 
     return sortedDashboards.map(dashboard => (
@@ -73,11 +58,3 @@ class DashboardCards extends PureComponent<Props> {
     ))
   }
 }
-
-const mstp = (state: AppState, props: OwnProps) => {
-  return {
-    sortedDashboards: getSortedResource(state.dashboards.list, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(DashboardCards)

@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {renderWithRedux} from 'src/mockState'
+import {shallow} from 'enzyme'
 
 // Components
 import VariableList from 'src/variables/components/VariableList'
@@ -16,7 +16,7 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = renderWithRedux(<VariableList {...props} />)
+  const wrapper = shallow(<VariableList {...props} />)
 
   return {wrapper}
 }
@@ -25,6 +25,7 @@ describe('VariableList', () => {
   describe('rendering', () => {
     it('renders', () => {
       const {wrapper} = setup()
+      expect(wrapper.exists()).toBe(true)
       expect(wrapper).toMatchSnapshot()
     })
   })

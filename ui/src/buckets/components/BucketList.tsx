@@ -12,15 +12,19 @@ import {IndexList} from 'src/clockface'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
 // Types
-import {OverlayState} from 'src/types'
+import {OverlayState, Bucket} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {AppState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/selectors/sort'
+import {BucketRetentionRules} from '@influxdata/influx'
+
+// Utils
+import {ruleToString} from 'src/utils/formatting'
 
 type SortKey = keyof PrettyBucket
 
@@ -43,7 +47,6 @@ interface DispatchProps {
 
 interface StateProps {
   dataLoaderType: DataLoaderType
-  sortedBuckets: PrettyBucket[]
 }
 
 type Props = OwnProps & StateProps & DispatchProps
@@ -54,7 +57,33 @@ interface State {
   sortedBuckets: PrettyBucket[]
 }
 
+const prettyBuckets = (buckets: Bucket[]): PrettyBucket[] => {
+  return buckets.map(b => {
+    const expire = b.retentionRules.find(
+      rule => rule.type === BucketRetentionRules.TypeEnum.Expire
+    )
+
+    if (!expire) {
+      return {
+        ...b,
+        ruleString: 'forever',
+      }
+    }
+
+    return {
+      ...b,
+      ruleString: ruleToString(expire.everySeconds),
+    }
+  })
+}
+
 class BucketList extends PureComponent<Props & WithRouterProps, State> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedBuckets: getSortedResources(prettyBuckets(props.buckets), props),
+    }
+  }
+
   constructor(props) {
     super(props)
     const bucketID = get(this, 'props.buckets.0.id', null)
@@ -62,19 +91,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     this.state = {
       bucketID,
       bucketOverlayState: OverlayState.Closed,
-      sortedBuckets: this.props.sortedBuckets,
-    }
-  }
-
-  componentDidUpdate(prevProps) {
-    const {buckets, sortedBuckets, sortKey, sortDirection} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.buckets.length !== buckets.length
-    ) {
-      this.setState({sortedBuckets})
+      sortedBuckets: prettyBuckets(this.props.buckets),
     }
   }
 
@@ -163,10 +180,9 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
   }
 }
 
-const mstp = (state: AppState, props: OwnProps): StateProps => {
+const mstp = (state: AppState): StateProps => {
   return {
     dataLoaderType: state.dataLoading.dataLoaders.type,
-    sortedBuckets: getSortedResource(props.buckets, props),
   }
 }
 

@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -11,15 +10,14 @@ import TemplateCard from 'src/templates/components/TemplateCard'
 // Types
 import {TemplateSummary} from '@influxdata/influx'
 import {SortTypes} from 'src/shared/selectors/sort'
-import {AppState} from 'src/types'
 import {Sort} from 'src/clockface'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
 type SortKey = 'meta.name'
 
-interface OwnProps {
+interface Props {
   templates: TemplateSummary[]
   searchTerm: string
   onFilterChange: (searchTerm: string) => void
@@ -30,27 +28,14 @@ interface OwnProps {
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-interface StateProps {
-  sortedTemplates: TemplateSummary[]
-}
-
-type Props = OwnProps & StateProps
-
-class TemplatesList extends PureComponent<Props> {
-  public state = {
-    sortedTemplates: this.props.sortedTemplates,
-  }
-
-  componentDidUpdate(prevProps) {
-    const {templates, sortedTemplates, sortKey, sortDirection} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.templates.length !== templates.length
-    ) {
-      this.setState({sortedTemplates})
+export default class TemplatesList extends PureComponent<Props> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedTemplates: getSortedResources(props.templates, props),
     }
+  }
+  public state = {
+    sortedTemplates: this.props.templates,
   }
 
   public render() {
@@ -100,11 +85,3 @@ class TemplatesList extends PureComponent<Props> {
     ))
   }
 }
-
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  return {
-    sortedTemplates: getSortedResource(state.templates.items, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(TemplatesList)

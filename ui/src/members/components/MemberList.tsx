@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {IndexList} from 'src/clockface'
@@ -9,15 +8,14 @@ import MemberRow from 'src/members/components/MemberRow'
 // Types
 import {Member} from 'src/types'
 import {SortTypes} from 'src/shared/selectors/sort'
-import {AppState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
 type SortKey = keyof Member
 
-interface OwnProps {
+interface Props {
   members: Member[]
   emptyState: JSX.Element
   onDelete: (member: Member) => void
@@ -27,27 +25,15 @@ interface OwnProps {
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-interface StateProps {
-  sortedMembers: Member[]
-}
-
-type Props = OwnProps & StateProps
-
-class MemberList extends PureComponent<Props> {
-  public state = {
-    sortedMembers: this.props.sortedMembers,
+export default class MemberList extends PureComponent<Props> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedMembers: getSortedResources(props.members, props),
+    }
   }
 
-  componentDidUpdate(prevProps) {
-    const {members, sortedMembers, sortKey, sortDirection} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.members.length !== members.length
-    ) {
-      this.setState({sortedMembers})
-    }
+  public state = {
+    sortedMembers: this.props.members,
   }
 
   public render() {
@@ -96,11 +82,3 @@ class MemberList extends PureComponent<Props> {
     ))
   }
 }
-
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  return {
-    sortedMembers: getSortedResource(state.members.list, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(MemberList)

@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {IndexList, Overlay} from 'src/clockface'
@@ -11,16 +10,14 @@ import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverla
 import {IVariable as Variable} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
 import {SortTypes} from 'src/shared/selectors/sort'
-import {AppState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
-import {extractVariablesList} from 'src/variables/selectors'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
 type SortKey = keyof Variable
 
-interface OwnProps {
+interface Props {
   variables: Variable[]
   emptyState: JSX.Element
   onDeleteVariable: (variable: Variable) => void
@@ -32,38 +29,25 @@ interface OwnProps {
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-interface StateProps {
-  sortedVariables: Variable[]
-}
-
-type Props = OwnProps & StateProps
-
 interface State {
   variableID: string
   variableOverlayState: OverlayState
   sortedVariables: Variable[]
 }
 
-class VariableList extends PureComponent<Props, State> {
+export default class VariableList extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedVariables: getSortedResources(props.variables, props),
+    }
+  }
   constructor(props) {
     super(props)
 
     this.state = {
       variableID: null,
       variableOverlayState: OverlayState.Closed,
-      sortedVariables: this.props.sortedVariables,
-    }
-  }
-
-  componentDidUpdate(prevProps) {
-    const {variables, sortedVariables, sortKey, sortDirection} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.variables.length !== variables.length
-    ) {
-      this.setState({sortedVariables})
+      sortedVariables: this.props.variables,
     }
   }
 
@@ -148,12 +132,3 @@ class VariableList extends PureComponent<Props, State> {
     this.props.onUpdateVariable(variable)
   }
 }
-
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  const variables = extractVariablesList(state)
-  return {
-    sortedVariables: getSortedResource(variables, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(VariableList)

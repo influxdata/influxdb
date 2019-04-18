@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {IndexList} from 'src/clockface'
@@ -8,16 +7,15 @@ import ScraperRow from 'src/scrapers/components/ScraperRow'
 
 // Types
 import {ScraperTargetResponse} from '@influxdata/influx'
-import {AppState} from 'src/types'
 import {SortTypes} from 'src/shared/selectors/sort'
 import {Sort} from '@influxdata/clockface'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
 type SortKey = keyof ScraperTargetResponse
 
-interface OwnProps {
+interface Props {
   scrapers: ScraperTargetResponse[]
   emptyState: JSX.Element
   onDeleteScraper: (scraper) => void
@@ -28,27 +26,15 @@ interface OwnProps {
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-interface StateProps {
-  sortedScrapers: ScraperTargetResponse[]
-}
-
-type Props = OwnProps & StateProps
-
-class ScraperList extends PureComponent<Props> {
-  public state = {
-    sortedScrapers: this.props.sortedScrapers,
+export default class ScraperList extends PureComponent<Props> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedScrapers: getSortedResources(props.scrapers, props),
+    }
   }
 
-  componentDidUpdate(prevProps) {
-    const {scrapers, sortedScrapers, sortKey, sortDirection} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.scrapers.length !== scrapers.length
-    ) {
-      this.setState({sortedScrapers})
-    }
+  public state = {
+    sortedScrapers: this.props.scrapers,
   }
 
   public render() {
@@ -104,11 +90,3 @@ class ScraperList extends PureComponent<Props> {
     return
   }
 }
-
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  return {
-    sortedScrapers: getSortedResource(state.scrapers.list, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(ScraperList)

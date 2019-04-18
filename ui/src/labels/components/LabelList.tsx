@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {IndexList, Overlay} from 'src/clockface'
@@ -15,17 +14,16 @@ import {ILabel} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/selectors/sort'
-import {AppState} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
 type SortKey = keyof ILabel
 
-interface OwnProps {
+interface Props {
   labels: ILabel[]
   emptyState: JSX.Element
   onUpdateLabel: (label: ILabel) => void
@@ -36,12 +34,6 @@ interface OwnProps {
   onClickColumn: (mextSort: Sort, sortKey: SortKey) => void
 }
 
-interface StateProps {
-  sortedLabels: ILabel[]
-}
-
-type Props = OwnProps & StateProps
-
 interface State {
   labelID: string
   overlayState: OverlayState
@@ -49,23 +41,16 @@ interface State {
 }
 
 @ErrorHandling
-class LabelList extends PureComponent<Props, State> {
+export default class LabelList extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedLabels: getSortedResources(props.labels, props),
+    }
+  }
   public state: State = {
     labelID: null,
     overlayState: OverlayState.Closed,
-    sortedLabels: this.props.sortedLabels,
-  }
-
-  componentDidUpdate(prevProps) {
-    const {labels, sortedLabels, sortKey, sortDirection} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.labels.length !== labels.length
-    ) {
-      this.setState({sortedLabels})
-    }
+    sortedLabels: this.props.labels,
   }
 
   public render() {
@@ -150,11 +135,3 @@ class LabelList extends PureComponent<Props, State> {
     return validateLabelUniqueness(names, name)
   }
 }
-
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  return {
-    sortedLabels: getSortedResource(state.labels.list, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(LabelList)

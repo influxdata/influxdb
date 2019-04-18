@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {EmptyState} from '@influxdata/clockface'
@@ -12,14 +11,13 @@ import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 import {Authorization} from '@influxdata/influx'
 import {SortTypes} from 'src/shared/selectors/sort'
 import {ComponentSize, Sort} from '@influxdata/clockface'
-import {AppState} from 'src/types'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
 type SortKey = keyof Authorization
 
-interface OwnProps {
+interface Props {
   auths: Authorization[]
   searchTerm: string
   sortKey: string
@@ -28,37 +26,24 @@ interface OwnProps {
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-interface StateProps {
-  sortedAuths: Authorization[]
-}
-
-type Props = OwnProps & StateProps
-
 interface State {
   isTokenOverlayVisible: boolean
   authInView: Authorization
   sortedAuths: Authorization[]
 }
 
-class TokenList extends PureComponent<Props, State> {
+export default class TokenList extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedAuths: getSortedResources(props.auths, props),
+    }
+  }
   constructor(props) {
     super(props)
     this.state = {
       isTokenOverlayVisible: false,
       authInView: null,
-      sortedAuths: this.props.sortedAuths,
-    }
-  }
-
-  componentDidUpdate(prevProps) {
-    const {auths, sortedAuths: sortedAuths, sortKey, sortDirection} = this.props
-
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.auths.length !== auths.length
-    ) {
-      this.setState({sortedAuths: sortedAuths})
+      sortedAuths: this.props.auths,
     }
   }
 
@@ -133,11 +118,3 @@ class TokenList extends PureComponent<Props, State> {
     )
   }
 }
-
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  return {
-    sortedAuths: getSortedResource(state.tokens.list, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(TokenList)

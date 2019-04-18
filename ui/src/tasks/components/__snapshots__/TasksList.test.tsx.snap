@@ -1,243 +1,103 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`TasksList rendering renders 1`] = `
-Object {
-  "asFragment": [Function],
-  "baseElement": <body>
-    <div>
-      <div
-        class="resource-list"
-      >
-        <div
-          class="resource-list--header"
-        >
-          <div
-            class="resource-list--filter"
-          />
-          <div
-            class="resource-list--sorting"
-          >
-            <div
-              class="resource-list--sorter"
-              title="Sort Name in asc order"
-            >
-              Name
-            </div>
-            <div
-              class="resource-list--sorter"
-              title="Sort Active in asc order"
-            >
-              Active
-            </div>
-            <div
-              class="resource-list--sorter"
-              title="Sort Schedule in asc order"
-            >
-              Schedule
-            </div>
-            <div
-              class="resource-list--sorter"
-              title="Sort Last Completed in asc order"
-            >
-              Last Completed
-            </div>
-          </div>
-        </div>
-        <div
-          class="resource-list--body"
-        >
-          <div
-            class="empty-state empty-state--lg"
-            data-testid="empty-state"
-          >
-            <h4
-              class="empty-state--text"
-              data-testid="empty-state--text"
-            >
-              Looks 
-              like 
-              you 
-              don't 
-              have 
-              any 
-              <em>
-                Tasks
-              </em>
-              , 
-              why 
-              not 
-              create 
-              one? 
-            </h4>
-            <div
-              class="dropdown dropdown-sm dropdown-primary dropdown-truncate dropdown--action"
-              style="width: 160px;"
-            >
-              <button
-                class="dropdown--button button button-stretch button-primary button-sm"
-                data-testid="dropdown-button"
-                title="Create Task"
-                type="button"
-              >
-                <span
-                  class="dropdown--icon icon plus"
-                />
-                <span
-                  class="dropdown--selected"
-                >
-                  Create Task
-                </span>
-                <span
-                  class="dropdown--caret icon caret-down"
-                />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </body>,
-  "container": <div>
-    <div
-      class="resource-list"
-    >
-      <div
-        class="resource-list--header"
-      >
-        <div
-          class="resource-list--filter"
+<Fragment>
+  <ResourceList>
+    <ResourceListHeader>
+      <ResourceListSorter
+        name="Name"
+        sort="none"
+        sortKey="name"
+      />
+      <ResourceListSorter
+        name="Active"
+        sort="none"
+        sortKey="status"
+      />
+      <ResourceListSorter
+        name="Schedule"
+        sort="none"
+        sortKey="every"
+      />
+      <ResourceListSorter
+        name="Last Completed"
+        sort="none"
+        sortKey="latestCompleted"
+      />
+    </ResourceListHeader>
+    <ResourceListBody
+      emptyState={
+        <EmptyTasksLists
+          onCreate={[Function]}
+          onImportTask={[Function]}
+          searchTerm=""
         />
-        <div
-          class="resource-list--sorting"
-        >
-          <div
-            class="resource-list--sorter"
-            title="Sort Name in asc order"
-          >
-            Name
-          </div>
-          <div
-            class="resource-list--sorter"
-            title="Sort Active in asc order"
-          >
-            Active
-          </div>
-          <div
-            class="resource-list--sorter"
-            title="Sort Schedule in asc order"
-          >
-            Schedule
-          </div>
-          <div
-            class="resource-list--sorter"
-            title="Sort Last Completed in asc order"
-          >
-            Last Completed
-          </div>
-        </div>
-      </div>
-      <div
-        class="resource-list--body"
-      >
-        <div
-          class="empty-state empty-state--lg"
-          data-testid="empty-state"
-        >
-          <h4
-            class="empty-state--text"
-            data-testid="empty-state--text"
-          >
-            Looks 
-            like 
-            you 
-            don't 
-            have 
-            any 
-            <em>
-              Tasks
-            </em>
-            , 
-            why 
-            not 
-            create 
-            one? 
-          </h4>
-          <div
-            class="dropdown dropdown-sm dropdown-primary dropdown-truncate dropdown--action"
-            style="width: 160px;"
-          >
-            <button
-              class="dropdown--button button button-stretch button-primary button-sm"
-              data-testid="dropdown-button"
-              title="Create Task"
-              type="button"
-            >
-              <span
-                class="dropdown--icon icon plus"
-              />
-              <span
-                class="dropdown--selected"
-              >
-                Create Task
-              </span>
-              <span
-                class="dropdown--caret icon caret-down"
-              />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>,
-  "debug": [Function],
-  "getAllByAltText": [Function],
-  "getAllByDisplayValue": [Function],
-  "getAllByLabelText": [Function],
-  "getAllByPlaceholderText": [Function],
-  "getAllByRole": [Function],
-  "getAllBySelectText": [Function],
-  "getAllByTestId": [Function],
-  "getAllByText": [Function],
-  "getAllByTitle": [Function],
-  "getAllByValue": [Function],
-  "getByAltText": [Function],
-  "getByDisplayValue": [Function],
-  "getByLabelText": [Function],
-  "getByPlaceholderText": [Function],
-  "getByRole": [Function],
-  "getBySelectText": [Function],
-  "getByTestId": [Function],
-  "getByText": [Function],
-  "getByTitle": [Function],
-  "getByValue": [Function],
-  "queryAllByAltText": [Function],
-  "queryAllByDisplayValue": [Function],
-  "queryAllByLabelText": [Function],
-  "queryAllByPlaceholderText": [Function],
-  "queryAllByRole": [Function],
-  "queryAllBySelectText": [Function],
-  "queryAllByTestId": [Function],
-  "queryAllByText": [Function],
-  "queryAllByTitle": [Function],
-  "queryAllByValue": [Function],
-  "queryByAltText": [Function],
-  "queryByDisplayValue": [Function],
-  "queryByLabelText": [Function],
-  "queryByPlaceholderText": [Function],
-  "queryByRole": [Function],
-  "queryBySelectText": [Function],
-  "queryByTestId": [Function],
-  "queryByText": [Function],
-  "queryByTitle": [Function],
-  "queryByValue": [Function],
-  "rerender": [Function],
-  "store": Object {
-    "dispatch": [Function],
-    "getState": [Function],
-    "replaceReducer": [Function],
-    "subscribe": [Function],
-    Symbol(observable): [Function],
-  },
-  "unmount": [Function],
+      }
+    >
+      <Connect(withRouter(TaskCard))
+        key="task-id--02ef9deff2141000"
+        onActivate={[Function]}
+        onDelete={[Function]}
+        onSelect={[Function]}
+        task={
+          Object {
+            "cron": "2 0 * * *",
+            "flux": "option task = {
+  name: \\"pasdlak\\",
+  cron: \\"2 0 * * *\\"
 }
+from(bucket: \\"inbucket\\") 
+|> range(start: -1h)",
+            "id": "02ef9deff2141000",
+            "labels": Array [],
+            "name": "pasdlak",
+            "org": "default",
+            "orgID": "02ee9e2a29d73000",
+            "status": "active",
+          }
+        }
+      />
+      <Connect(withRouter(TaskCard))
+        key="task-id--02f12c50dba72000"
+        onActivate={[Function]}
+        onDelete={[Function]}
+        onSelect={[Function]}
+        task={
+          Object {
+            "every": "1m0s",
+            "flux": "option task = {
+  name: \\"somename\\",
+  every: 1m,
+}
+from(bucket: \\"inbucket\\") 
+|> range(start: -task.every)",
+            "id": "02f12c50dba72000",
+            "labels": Array [
+              Object {
+                "id": "0001",
+                "name": "Trogdor",
+                "properties": Object {
+                  "color": "#44ffcc",
+                  "description": "Burninating the countryside",
+                },
+              },
+              Object {
+                "id": "0002",
+                "name": "Strawberry",
+                "properties": Object {
+                  "color": "#ff0054",
+                  "description": "It is a great fruit",
+                },
+              },
+            ],
+            "name": "somename",
+            "org": "default",
+            "orgID": "02ee9e2a29d73000",
+            "status": "active",
+          }
+        }
+      />
+    </ResourceListBody>
+  </ResourceList>
+</Fragment>
 `;

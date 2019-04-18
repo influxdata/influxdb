@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
@@ -11,7 +10,6 @@ import TaskCard from 'src/tasks/components/TaskCard'
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 import {ITask as Task} from '@influxdata/influx'
 import {SortTypes} from 'src/shared/selectors/sort'
-import {AppState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 
 import {
@@ -21,9 +19,9 @@ import {
 } from 'src/tasks/actions'
 
 // Selectors
-import {getSortedResource} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/selectors/sort'
 
-interface OwnProps {
+interface Props {
   tasks: Task[]
   searchTerm: string
   onActivate: (task: Task) => void
@@ -45,12 +43,6 @@ interface OwnProps {
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-interface StateProps {
-  sortedTasks: Task[]
-}
-
-type Props = OwnProps & StateProps
-
 type SortKey = keyof Task
 
 interface State {
@@ -59,24 +51,18 @@ interface State {
   sortedTasks: Task[]
 }
 
-class TasksList extends PureComponent<Props, State> {
+export default class TasksList extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps(props: Props) {
+    return {
+      sortedTasks: getSortedResources(props.tasks, props),
+    }
+  }
   constructor(props) {
     super(props)
     this.state = {
       taskLabelsEdit: null,
       isEditingTaskLabels: false,
-      sortedTasks: this.props.sortedTasks,
-    }
-  }
-
-  componentDidUpdate(prevProps) {
-    const {tasks, sortedTasks, sortKey, sortDirection} = this.props
-    if (
-      prevProps.sortDirection !== sortDirection ||
-      prevProps.sortKey !== sortKey ||
-      prevProps.tasks.length !== tasks.length
-    ) {
-      this.setState({sortedTasks})
+      sortedTasks: this.props.tasks,
     }
   }
 
@@ -150,6 +136,7 @@ class TasksList extends PureComponent<Props, State> {
       onRunTask,
       onFilterChange,
     } = this.props
+
     const {sortedTasks} = this.state
 
     return sortedTasks.map(task => (
@@ -167,11 +154,3 @@ class TasksList extends PureComponent<Props, State> {
     ))
   }
 }
-
-const mstp = (state: AppState, props: OwnProps): StateProps => {
-  return {
-    sortedTasks: getSortedResource(state.tasks.list, props),
-  }
-}
-
-export default connect<StateProps, {}, OwnProps>(mstp)(TasksList)
