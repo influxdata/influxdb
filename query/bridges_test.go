@@ -25,15 +25,15 @@ func (w failWriter) Write(p []byte) (int, error) {
 }
 
 func TestProxyQueryServiceAsyncBridge_StatsOnClientDisconnect(t *testing.T) {
-	q := mock.NewQuery(nil)
+	q := mock.NewQuery()
 	q.Metadata = flux.Metadata{
 		"foo": []interface{}{"bar"},
 	}
-	q.SetResults(map[string]flux.Result{
-		"a": executetest.NewResult([]*executetest.Table{
-			{},
-		}),
+	r := executetest.NewResult([]*executetest.Table{
+		{},
 	})
+	r.Nm = "a"
+	q.SetResults(r)
 
 	expReq := &query.Request{OrganizationID: 0x1234}
 	mockAsyncSvc := &mock.AsyncQueryService{

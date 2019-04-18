@@ -8,7 +8,7 @@ func init() {
 
 from(bucketID: "")
 	|> range(start: -1h)
-	|> filter(fn: (r) => r._measurement == "cpu" or r._measurement == "mem" or r._measurement == "gpu")
+	|> filter(fn: (r) => r._measurement == "cpu" or (r._measurement == "mem" or r._measurement == "gpu"))
 	|> keyValues(keyColumns: ["host"])
 	|> group(columns: ["_measurement", "_key"], mode: "by")
 	|> distinct()
