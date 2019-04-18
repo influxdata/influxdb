@@ -82,7 +82,7 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
     const {onChange} = this.props
     const {csv} = this.state
 
-    const update = this.getValuesFromString(csv)
+    const update = this.getUniqueValuesFromCSV(csv)
 
     onChange(update)
   }
@@ -91,7 +91,7 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
     this.setState({csv})
   }
 
-  private getValuesFromString(csv: string) {
+  private getUniqueValuesFromCSV(csv: string) {
     const parsedTVS = Papa.parse(csv)
     const templateValuesData: string[][] = _.get(parsedTVS, 'data', [[]])
 
