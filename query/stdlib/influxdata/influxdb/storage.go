@@ -206,9 +206,19 @@ type ReadFilterSpec struct {
 	Predicate *semantic.FunctionExpression
 }
 
+type ReadTagKeysSpec struct {
+	OrganizationID platform.ID
+	BucketID       platform.ID
+
+	Bounds execute.Bounds
+
+	Predicate *semantic.FunctionExpression
+}
+
 type Reader interface {
 	Read(ctx context.Context, rs ReadSpec, start, stop execute.Time, alloc *memory.Allocator) (TableIterator, error)
 	ReadFilter(ctx context.Context, spec ReadFilterSpec, alloc *memory.Allocator) (TableIterator, error)
+	ReadTagKeys(ctx context.Context, spec ReadTagKeysSpec, alloc *memory.Allocator) (TableIterator, error)
 	Close()
 }
 
