@@ -1,11 +1,15 @@
 package influxdb
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb"
 )
 
 const ReadRangePhysKind = "ReadRangePhysKind"
@@ -15,6 +19,13 @@ type ReadRangePhysSpec struct {
 
 	Bucket   string
 	BucketID string
+
+	// FilterSet is set to true if there is a filter.
+	FilterSet bool
+	// Filter is the filter to use when calling into
+	// storage. It must be possible to push down this
+	// filter.
+	Filter *semantic.FunctionExpression
 
 	Bounds flux.Bounds
 }
@@ -27,6 +38,11 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 
 	ns.Bucket = s.Bucket
 	ns.BucketID = s.BucketID
+
+	ns.FilterSet = s.FilterSet
+	if ns.FilterSet {
+		ns.Filter = s.Filter.Copy().(*semantic.FunctionExpression)
+	}
 
 	ns.Bounds = s.Bounds
 
@@ -44,6 +60,26 @@ func (s *ReadRangePhysSpec) PostPhysicalValidate(id plan.NodeID) error {
 		return fmt.Errorf(`%s: results from "%s" must be bounded`, id, bucket)
 	}
 	return nil
+}
+
+func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID influxdb.ID, buckets BucketLookup) (influxdb.ID, error) {
+	// Determine bucketID
+	switch {
+	case s.Bucket != "":
+		b, ok := buckets.Lookup(ctx, orgID, s.Bucket)
+		if !ok {
+			return 0, fmt.Errorf("could not find bucket %q", s.Bucket)
+		}
+		return b, nil
+	case len(s.BucketID) != 0:
+		var b influxdb.ID
+		if err := b.DecodeFromString(s.BucketID); err != nil {
+			return 0, err
+		}
+		return b, nil
+	default:
+		return 0, errors.New("no bucket name or id have been specified")
+	}
 }
 
 // TimeBounds implements plan.BoundsAwareProcedureSpec.
