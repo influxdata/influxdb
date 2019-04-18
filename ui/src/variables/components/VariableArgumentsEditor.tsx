@@ -13,6 +13,7 @@ import {
   KeyValueMap,
   QueryArguments,
   VariableArguments,
+  CSVArguments,
 } from 'src/types'
 
 interface Props {
@@ -66,7 +67,7 @@ class VariableArgumentsEditor extends PureComponent<Props> {
   private handleChangeCSV = (values: string[]) => {
     const {onChange} = this.props
 
-    const updatedArgs = {type: 'constant', values}
+    const updatedArgs: CSVArguments = {type: 'constant', values}
     const isValid = values.length > 0
 
     onChange({args: updatedArgs, isValid})
