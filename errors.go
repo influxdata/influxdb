@@ -19,6 +19,7 @@ const (
 	EEmptyValue          = "empty value"
 	EUnavailable         = "unavailable"
 	EForbidden           = "forbidden"
+	ETooManyRequests     = "too many requests"
 	EUnauthorized        = "unauthorized"
 	EMethodNotAllowed    = "method not allowed"
 )
