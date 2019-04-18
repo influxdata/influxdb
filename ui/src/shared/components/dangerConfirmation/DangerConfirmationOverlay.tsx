@@ -1,23 +1,27 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {WithRouterProps, withRouter} from 'react-router'
 
 import _ from 'lodash'
 
 // Components
 import {Overlay} from 'src/clockface'
-import RenameOrgForm from 'src/organizations/components/RenameOrgForm'
-import EditOrgConfirmationForm from 'src/organizations/components/EditOrgConfirmationForm'
+import DangerConfirmationForm from 'src/shared/components/dangerConfirmation/DangerConfirmationForm'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-type Props = WithRouterProps
+interface Props {
+  message: string
+  effectedItems: string[]
+  title: string
+  onClose: () => void
+  confirmButtonText: string
+}
 
 interface State {
   isConfirmed: boolean
 }
 
 @ErrorHandling
-class EditOrgProfileOverlay extends PureComponent<Props, State> {
+class DangerConfirmationOverlay extends PureComponent<Props, State> {
   public state = {
     isConfirmed: false,
   }
@@ -37,27 +41,33 @@ class EditOrgProfileOverlay extends PureComponent<Props, State> {
   }
 
   private get overlayTitle() {
+    const {title} = this.props
+
     if (this.state.isConfirmed) {
-      return 'Rename Organization'
+      return title
     }
 
     return 'Are you sure?'
   }
 
   private get overlayContents() {
+    const {message, effectedItems, confirmButtonText} = this.props
     if (this.state.isConfirmed) {
-      return <RenameOrgForm />
+      return this.props.children
     }
 
-    return <EditOrgConfirmationForm onConfirm={this.handleConfirm} />
+    return (
+      <DangerConfirmationForm
+        onConfirm={this.handleConfirm}
+        message={message}
+        effectedItems={effectedItems}
+        confirmButtonText={confirmButtonText}
+      />
+    )
   }
 
   private handleCloseOverlay = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-    router.push(`/orgs/${orgID}/profile`)
+    this.props.onClose()
   }
 
   private handleConfirm = () => {
@@ -65,4 +75,4 @@ class EditOrgProfileOverlay extends PureComponent<Props, State> {
   }
 }
 
-export default withRouter(EditOrgProfileOverlay)
+export default DangerConfirmationOverlay

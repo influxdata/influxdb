@@ -163,6 +163,16 @@ export const bucketUpdateFailed = (bucketName: string): Notification => ({
   message: `Failed to update bucket: "${bucketName}"`,
 })
 
+export const bucketRenameSuccess = (bucketName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Bucket was successfully renamed "${bucketName}"`,
+})
+
+export const bucketRenameFailed = (bucketName: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to rename bucket "${bucketName}"`,
+})
+
 export const orgCreateSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Organization was successfully created',
@@ -181,6 +191,16 @@ export const orgEditSuccess = (): Notification => ({
 export const orgEditFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to update organization',
+})
+
+export const orgRenameSuccess = (orgName: string): Notification => ({
+  ...defaultSuccessNotification,
+  message: `Organization was successfully renamed "${orgName}"`,
+})
+
+export const orgRenameFailed = (orgName): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update organization "${orgName}"`,
 })
 
 export const scraperDeleteSuccess = (scraperName: string): Notification => ({

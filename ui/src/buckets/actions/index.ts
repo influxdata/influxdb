@@ -14,6 +14,9 @@ import {
   bucketCreateFailed,
   bucketUpdateFailed,
   bucketDeleteFailed,
+  bucketUpdateSuccess,
+  bucketRenameSuccess,
+  bucketRenameFailed,
 } from 'src/shared/copy/v2/notifications'
 
 export type Action = SetBuckets | AddBucket | EditBucket | RemoveBucket
@@ -117,9 +120,25 @@ export const updateBucket = (updatedBucket: Bucket) => async (
     const bucket = await client.buckets.update(updatedBucket.id, updatedBucket)
 
     dispatch(editBucket(bucket))
+    dispatch(notify(bucketUpdateSuccess(updatedBucket.name)))
   } catch (e) {
     console.error(e)
     dispatch(notify(bucketUpdateFailed(updatedBucket.name)))
+  }
+}
+
+export const renameBucket = (
+  originalName: string,
+  updatedBucket: Bucket
+) => async (dispatch: Dispatch<Action>) => {
+  try {
+    const bucket = await client.buckets.update(updatedBucket.id, updatedBucket)
+
+    dispatch(editBucket(bucket))
+    dispatch(notify(bucketRenameSuccess(updatedBucket.name)))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(bucketRenameFailed(originalName)))
   }
 }
 

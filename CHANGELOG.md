@@ -8,6 +8,7 @@
 1. [13473](https://github.com/influxdata/influxdb/pull/13473): Switch task back end to a more modular and flexible system
 1. [13493](https://github.com/influxdata/influxdb/pull/13493): Add org profile tab with ability to edit organization name
 1. [13510](https://github.com/influxdata/influxdb/pull/13510): Add org name to dahboard page title 
+1. [13520](https://github.com/influxdata/influxdb/pull/13520): Add cautioning to bucket renaming
 
 ### Bug Fixes
 
