@@ -76,10 +76,9 @@ func TestTimeRangeIterator(t *testing.T) {
 	}
 
 	type test struct {
-		name    string
-		args    args
-		exp     []res
-		hasData []bool
+		name string
+		args args
+		exp  []res
 	}
 
 	type bucketTest struct {
