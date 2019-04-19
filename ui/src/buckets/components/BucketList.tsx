@@ -5,9 +5,8 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 import BucketRow, {PrettyBucket} from 'src/buckets/components/BucketRow'
-import {Overlay, IndexList} from 'src/clockface'
+import {IndexList} from 'src/clockface'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -78,27 +77,14 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
             ))}
           </IndexList.Body>
         </IndexList>
-        <Overlay visible={this.isBucketOverlayVisible}>
-          <UpdateBucketOverlay
-            bucket={this.bucket}
-            onCloseModal={this.handleCloseModal}
-            onUpdateBucket={this.handleUpdateBucket}
-          />
-        </Overlay>
       </>
     )
   }
 
-  private get bucket(): PrettyBucket {
-    return this.props.buckets.find(b => b.id === this.state.bucketID)
-  }
-
-  private handleCloseModal = () => {
-    this.setState({bucketOverlayState: OverlayState.Closed})
-  }
-
   private handleStartEdit = (bucket: PrettyBucket) => {
-    this.setState({bucketID: bucket.id, bucketOverlayState: OverlayState.Open})
+    const {orgID} = this.props.params
+
+    this.props.router.push(`/orgs/${orgID}/buckets/${bucket.id}/edit`)
   }
 
   private handleStartAddData = (
@@ -120,11 +106,6 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
 
     onSetDataLoadersType(dataLoaderType)
     router.push(link)
-  }
-
-  private get isBucketOverlayVisible(): boolean {
-    const {bucketID, bucketOverlayState} = this.state
-    return !!bucketID && bucketOverlayState === OverlayState.Open
   }
 
   private handleUpdateBucket = async (updatedBucket: PrettyBucket) => {

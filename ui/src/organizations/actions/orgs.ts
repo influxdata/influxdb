@@ -17,6 +17,8 @@ import {
   bucketCreateFailed,
   orgEditSuccess,
   orgEditFailed,
+  orgRenameSuccess,
+  orgRenameFailed,
 } from 'src/shared/copy/v2/notifications'
 
 // Types
@@ -219,6 +221,19 @@ export const updateOrg = (org: Organization) => async (
     dispatch(notify(orgEditSuccess()))
   } catch (e) {
     dispatch(notify(orgEditFailed()))
+    console.error(e)
+  }
+}
+
+export const renameOrg = (originalName: string, org: Organization) => async (
+  dispatch: Dispatch<EditOrg | PublishNotificationAction>
+) => {
+  try {
+    const updatedOrg = await client.organizations.update(org.id, org)
+    dispatch(editOrg(updatedOrg))
+    dispatch(notify(orgRenameSuccess(updatedOrg.name)))
+  } catch (e) {
+    dispatch(notify(orgRenameFailed(originalName)))
     console.error(e)
   }
 }

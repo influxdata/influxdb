@@ -21,7 +21,7 @@ import {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
-import {updateOrg} from 'src/organizations/actions/orgs'
+import {renameOrg} from 'src/organizations/actions/orgs'
 
 // Types
 import {Organization} from '@influxdata/influx'
@@ -34,7 +34,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  updateOrg: typeof updateOrg
+  onRenameOrg: typeof renameOrg
 }
 
 type Props = StateProps & DispatchProps & WithRouterProps
@@ -56,53 +56,51 @@ class RenameOrgForm extends PureComponent<Props, State> {
     const {org} = this.state
 
     return (
-      <>
-        <Form onSubmit={this.handleRenameOrg}>
-          <Form.ValidationElement
-            label="Name"
-            validationFunc={this.handleValidation}
-            value={org.name}
-          >
-            {status => (
-              <>
+      <Form onSubmit={this.handleRenameOrg}>
+        <Form.ValidationElement
+          label="Name"
+          validationFunc={this.handleValidation}
+          value={org.name}
+        >
+          {status => (
+            <>
+              <ComponentSpacer
+                alignItems={AlignItems.Center}
+                direction={FlexDirection.Column}
+                margin={ComponentSize.Large}
+              >
+                <Input
+                  placeholder="Give your organization a name"
+                  name="name"
+                  autoFocus={true}
+                  onChange={this.handleInputChange}
+                  value={org.name}
+                  status={status}
+                  testID="create-org-name-input"
+                />
                 <ComponentSpacer
                   alignItems={AlignItems.Center}
-                  direction={FlexDirection.Column}
-                  margin={ComponentSize.Large}
+                  direction={FlexDirection.Row}
+                  margin={ComponentSize.Small}
                 >
-                  <Input
-                    placeholder="Give your organization a name"
-                    name="name"
-                    autoFocus={true}
-                    onChange={this.handleInputChange}
-                    value={org.name}
-                    status={status}
-                    testID="create-org-name-input"
+                  <Button
+                    text="Cancel"
+                    icon={IconFont.Remove}
+                    onClick={this.handleGoBack}
                   />
-                  <ComponentSpacer
-                    alignItems={AlignItems.Center}
-                    direction={FlexDirection.Row}
-                    margin={ComponentSize.Small}
-                  >
-                    <Button
-                      text="Cancel"
-                      icon={IconFont.Remove}
-                      onClick={this.handleGoBack}
-                    />
-                    <Button
-                      text="Save"
-                      icon={IconFont.Checkmark}
-                      status={this.saveButtonStatus(status)}
-                      color={ComponentColor.Success}
-                      type={ButtonType.Submit}
-                    />
-                  </ComponentSpacer>
+                  <Button
+                    text="Change Organization Name"
+                    icon={IconFont.Checkmark}
+                    status={this.saveButtonStatus(status)}
+                    color={ComponentColor.Success}
+                    type={ButtonType.Submit}
+                  />
                 </ComponentSpacer>
-              </>
-            )}
-          </Form.ValidationElement>
-        </Form>
-      </>
+              </ComponentSpacer>
+            </>
+          )}
+        </Form.ValidationElement>
+      </Form>
     )
   }
 
@@ -145,9 +143,10 @@ class RenameOrgForm extends PureComponent<Props, State> {
   }
 
   private handleRenameOrg = async () => {
+    const {onRenameOrg, startOrg} = this.props
     const {org} = this.state
 
-    await this.props.updateOrg(org)
+    await onRenameOrg(startOrg.name, org)
 
     this.handleGoBack()
   }
@@ -164,10 +163,10 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  updateOrg,
+  onRenameOrg: renameOrg,
 }
 
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter(RenameOrgForm))
+)(withRouter<{}>(RenameOrgForm))

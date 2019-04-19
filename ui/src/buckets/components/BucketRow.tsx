@@ -1,15 +1,11 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps, Link} from 'react-router'
 import _ from 'lodash'
 
 // Components
 import {IndexList, ConfirmationButton, Context} from 'src/clockface'
-import EditableName from 'src/shared/components/EditableName'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
-
-// Constants
-import {DEFAULT_BUCKET_NAME} from 'src/dashboards/constants'
 
 // Types
 import {
@@ -17,6 +13,10 @@ import {
   ComponentSize,
   ComponentColor,
   IconFont,
+  Button,
+  ComponentSpacer,
+  AlignItems,
+  FlexDirection,
 } from '@influxdata/clockface'
 import {Alignment} from 'src/clockface'
 import {Bucket} from 'src/types'
@@ -42,22 +42,33 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       <>
         <IndexList.Row>
           <IndexList.Cell>
-            <EditableName
-              onUpdate={this.handleUpdateBucketName}
-              name={bucket.name}
-              onEditName={this.handleEditBucket}
-              noNameString={DEFAULT_BUCKET_NAME}
-            />
+            <div className="editable-name">
+              <Link to={this.editBucketLink}>
+                <span>{bucket.name}</span>
+              </Link>
+            </div>
           </IndexList.Cell>
           <IndexList.Cell>{bucket.ruleString}</IndexList.Cell>
           <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-            <ConfirmationButton
-              size={ComponentSize.ExtraSmall}
-              text="Delete"
-              confirmText="Confirm"
-              onConfirm={onDeleteBucket}
-              returnValue={bucket}
-            />
+            <ComponentSpacer
+              alignItems={AlignItems.Center}
+              direction={FlexDirection.Row}
+              margin={ComponentSize.Small}
+            >
+              <Button
+                text="Rename"
+                onClick={this.handleRenameBucket}
+                color={ComponentColor.Danger}
+                size={ComponentSize.ExtraSmall}
+              />
+              <ConfirmationButton
+                size={ComponentSize.ExtraSmall}
+                text="Delete"
+                confirmText="Confirm"
+                onConfirm={onDeleteBucket}
+                returnValue={bucket}
+              />
+            </ComponentSpacer>
           </IndexList.Cell>
           <IndexList.Cell alignment={Alignment.Right}>
             <Context align={Alignment.Center}>
@@ -92,12 +103,23 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleUpdateBucketName = async (value: string) => {
-    await this.props.onUpdateBucket({...this.props.bucket, name: value})
+  private handleRenameBucket = () => {
+    const {
+      params: {orgID},
+      bucket: {id},
+      router,
+    } = this.props
+
+    router.push(`/orgs/${orgID}/buckets/${id}/rename`)
   }
 
-  private handleEditBucket = (): void => {
-    this.props.onEditBucket(this.props.bucket)
+  private get editBucketLink(): string {
+    const {
+      params: {orgID},
+      bucket: {id},
+    } = this.props
+
+    return `/orgs/${orgID}/buckets/${id}/edit`
   }
 
   private handleAddCollector = (): void => {

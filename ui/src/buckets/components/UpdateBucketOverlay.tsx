@@ -1,21 +1,21 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 
 // Components
 import {Overlay, ComponentStatus} from 'src/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
+// Actions
+import {updateBucket} from 'src/buckets/actions'
+
 // Constants
 import {DEFAULT_SECONDS} from 'src/buckets/components/Retention'
 
 // Types
-import {Bucket, BucketRetentionRules} from '@influxdata/influx'
-
-interface Props {
-  bucket: Bucket
-  onCloseModal: () => void
-  onUpdateBucket: (bucket: Bucket) => Promise<void>
-}
+import {IBucket as Bucket, BucketRetentionRules} from '@influxdata/influx'
+import {AppState} from 'src/types'
 
 interface State {
   bucket: Bucket
@@ -24,7 +24,17 @@ interface State {
   nameInputStatus: ComponentStatus
 }
 
-export default class UpdateBucketOverlay extends PureComponent<Props, State> {
+interface StateProps {
+  bucket: Bucket
+}
+
+interface DispatchProps {
+  onUpdateBucket: typeof updateBucket
+}
+
+type Props = StateProps & DispatchProps & WithRouterProps
+
+class UpdateBucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -39,31 +49,29 @@ export default class UpdateBucketOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onCloseModal} = this.props
-    const {bucket, nameInputStatus, nameErrorMessage, ruleType} = this.state
+    const {bucket, nameErrorMessage, ruleType} = this.state
 
     return (
-      <Overlay.Container maxWidth={500}>
-        <Overlay.Heading
-          title="Edit Bucket"
-          onDismiss={this.props.onCloseModal}
-        />
-        <Overlay.Body>
-          <BucketOverlayForm
-            name={bucket.name}
-            buttonText="Save Changes"
-            ruleType={ruleType}
-            onCloseModal={onCloseModal}
-            nameErrorMessage={nameErrorMessage}
-            onSubmit={this.handleSubmit}
-            nameInputStatus={nameInputStatus}
-            onChangeInput={this.handleChangeInput}
-            retentionSeconds={this.retentionSeconds}
-            onChangeRuleType={this.handleChangeRuleType}
-            onChangeRetentionRule={this.handleChangeRetentionRule}
-          />
-        </Overlay.Body>
-      </Overlay.Container>
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={500}>
+          <Overlay.Heading title="Edit Bucket" onDismiss={this.handleClose} />
+          <Overlay.Body>
+            <BucketOverlayForm
+              name={bucket.name}
+              buttonText="Save Changes"
+              ruleType={ruleType}
+              onCloseModal={this.handleClose}
+              nameErrorMessage={nameErrorMessage}
+              onSubmit={this.handleSubmit}
+              nameInputStatus={ComponentStatus.Disabled}
+              onChangeInput={this.handleChangeInput}
+              retentionSeconds={this.retentionSeconds}
+              onChangeRuleType={this.handleChangeRuleType}
+              onChangeRetentionRule={this.handleChangeRetentionRule}
+            />
+          </Overlay.Body>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 
@@ -117,6 +125,7 @@ export default class UpdateBucketOverlay extends PureComponent<Props, State> {
     }
 
     onUpdateBucket(bucket)
+    this.handleClose()
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -138,4 +147,30 @@ export default class UpdateBucketOverlay extends PureComponent<Props, State> {
       nameErrorMessage: '',
     })
   }
+
+  private handleClose = () => {
+    const {orgID} = this.props.params
+    this.props.router.push(`/orgs/${orgID}/buckets`)
+  }
 }
+
+const mstp = ({buckets}: AppState, props: Props): StateProps => {
+  const {
+    params: {bucketID},
+  } = props
+
+  const bucket = buckets.list.find(b => b.id === bucketID)
+
+  return {
+    bucket,
+  }
+}
+
+const mdtp: DispatchProps = {
+  onUpdateBucket: updateBucket,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(withRouter(UpdateBucketOverlay))

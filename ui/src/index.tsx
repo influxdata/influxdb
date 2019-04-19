@@ -64,7 +64,8 @@ import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/Collec
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
 import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
-import EditOrgProfileOverlay from 'src/organizations/components/EditOrgProfileOverlay'
+import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
+import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -72,6 +73,7 @@ import {disablePresentationMode} from 'src/shared/actions/app'
 // Styles
 import 'src/style/chronograf.scss'
 import '@influxdata/clockface/dist/index.css'
+import RenameBucketOverlay from './buckets/components/RenameBucketOverlay'
 
 const rootNode = getRootNode()
 const basepath = getBasepath()
@@ -189,18 +191,28 @@ class Root extends PureComponent {
                             <IndexRoute component={MembersIndex} />
                           </Route>
                           <Route path="buckets" component={BucketsIndex}>
-                            <Route
-                              path=":bucketID/line-protocols/new"
-                              component={LineProtocolWizard}
-                            />
-                            <Route
-                              path=":bucketID/telegrafs/new"
-                              component={CollectorsWizard}
-                            />
-                            <Route
-                              path=":bucketID/scrapers/new"
-                              component={CreateScraperOverlay}
-                            />
+                            <Route path=":bucketID">
+                              <Route
+                                path="line-protocols/new"
+                                component={LineProtocolWizard}
+                              />
+                              <Route
+                                path="telegrafs/new"
+                                component={CollectorsWizard}
+                              />
+                              <Route
+                                path="scrapers/new"
+                                component={CreateScraperOverlay}
+                              />
+                              <Route
+                                path="edit"
+                                component={UpdateBucketOverlay}
+                              />
+                              <Route
+                                path="rename"
+                                component={RenameBucketOverlay}
+                              />
+                            </Route>
                           </Route>
                           <Route path="tokens" component={TokensIndex} />
                           <Route path="members" component={MembersIndex}>
@@ -253,10 +265,7 @@ class Root extends PureComponent {
                             />
                           </Route>
                           <Route path="profile" component={OrgProfilePage}>
-                            <Route
-                              path="edit"
-                              component={EditOrgProfileOverlay}
-                            />
+                            <Route path="rename" component={RenameOrgOverlay} />
                           </Route>
                         </Route>
                       </Route>
