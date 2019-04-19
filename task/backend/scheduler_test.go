@@ -773,6 +773,7 @@ func TestScheduler_RunFailureCleanup(t *testing.T) {
 }
 
 func TestScheduler_Metrics(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/13523")
 	t.Parallel()
 
 	tcs := mock.NewTaskControlService()
