@@ -125,7 +125,7 @@ func (h *resultSetHeap) Pop() interface{} {
 // It sorts and deduplicates adjacent values, so the output is sorted iff all inputs are sorted.
 // If all inputs are not sorted, then output order and deduplication are undefined and unpleasant.
 type MergedStringIterator struct {
-	heap      *stringIteratorHeap
+	heap      stringIteratorHeap
 	nextValue string
 }
 
@@ -141,17 +141,18 @@ func NewMergedStringIterator(iterators []cursors.StringIterator) *MergedStringIt
 			nonEmptyIterators = append(nonEmptyIterators, iterator)
 		}
 	}
-	h := &stringIteratorHeap{iterators: nonEmptyIterators}
-	heap.Init(h)
 
-	return &MergedStringIterator{
-		heap: h,
+	msi := &MergedStringIterator{
+		heap: stringIteratorHeap{iterators: nonEmptyIterators},
 	}
+	heap.Init(&msi.heap)
+
+	return msi
 }
 
 func (msi *MergedStringIterator) Next() bool {
 	for msi.heap.Len() > 0 {
-		iterator := heap.Pop(msi.heap).(cursors.StringIterator)
+		iterator := heap.Pop(&msi.heap).(cursors.StringIterator)
 
 		haveNext := false
 		if proposedNextValue := iterator.Value(); proposedNextValue != msi.nextValue { // Skip dupes.
@@ -160,7 +161,7 @@ func (msi *MergedStringIterator) Next() bool {
 		}
 
 		if iterator.Next() {
-			heap.Push(msi.heap, iterator)
+			heap.Push(&msi.heap, iterator)
 		}
 
 		if haveNext {
