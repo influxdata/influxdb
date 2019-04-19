@@ -152,7 +152,7 @@ func NewMergedStringIterator(iterators []cursors.StringIterator) *MergedStringIt
 
 func (msi *MergedStringIterator) Next() bool {
 	for msi.heap.Len() > 0 {
-		iterator := heap.Pop(&msi.heap).(cursors.StringIterator)
+		iterator := msi.heap.iterators[0]
 
 		haveNext := false
 		if proposedNextValue := iterator.Value(); proposedNextValue != msi.nextValue { // Skip dupes.
@@ -161,7 +161,11 @@ func (msi *MergedStringIterator) Next() bool {
 		}
 
 		if iterator.Next() {
-			heap.Push(&msi.heap, iterator)
+			// iterator.Value() has changed, so re-order that iterator within the heap
+			heap.Fix(&msi.heap, 0)
+		} else {
+			// iterator is drained, so remove it from the heap
+			heap.Pop(&msi.heap)
 		}
 
 		if haveNext {
@@ -176,7 +180,7 @@ func (msi *MergedStringIterator) Value() string {
 	return msi.nextValue
 }
 
-func (mr *MergedStringIterator) Stats() cursors.CursorStats {
+func (msi *MergedStringIterator) Stats() cursors.CursorStats {
 	return cursors.CursorStats{}
 }
 
