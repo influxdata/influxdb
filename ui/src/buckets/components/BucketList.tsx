@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
+import memoizeOne from 'memoize-one'
 
 // Components
 import BucketRow, {PrettyBucket} from 'src/buckets/components/BucketRow'
@@ -12,19 +13,18 @@ import {IndexList} from 'src/clockface'
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Selectors
-import {getSortedResources} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/utils/sort'
 
 // Types
-import {OverlayState, Bucket} from 'src/types'
+import {OverlayState} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
 import {setDataLoadersType} from 'src/dataLoaders/actions/dataLoaders'
 import {AppState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
-import {SortTypes} from 'src/shared/selectors/sort'
-import {BucketRetentionRules} from '@influxdata/influx'
+import {SortTypes} from 'src/shared/utils/sort'
 
 // Utils
-import {ruleToString} from 'src/utils/formatting'
+import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 
 type SortKey = keyof PrettyBucket
 
@@ -54,35 +54,12 @@ type Props = OwnProps & StateProps & DispatchProps
 interface State {
   bucketID: string
   bucketOverlayState: OverlayState
-  sortedBuckets: PrettyBucket[]
-}
-
-const prettyBuckets = (buckets: Bucket[]): PrettyBucket[] => {
-  return buckets.map(b => {
-    const expire = b.retentionRules.find(
-      rule => rule.type === BucketRetentionRules.TypeEnum.Expire
-    )
-
-    if (!expire) {
-      return {
-        ...b,
-        ruleString: 'forever',
-      }
-    }
-
-    return {
-      ...b,
-      ruleString: ruleToString(expire.everySeconds),
-    }
-  })
 }
 
 class BucketList extends PureComponent<Props & WithRouterProps, State> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {
-      sortedBuckets: getSortedResources(prettyBuckets(props.buckets), props),
-    }
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
 
   constructor(props) {
     super(props)
@@ -91,7 +68,6 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     this.state = {
       bucketID,
       bucketOverlayState: OverlayState.Closed,
-      sortedBuckets: prettyBuckets(this.props.buckets),
     }
   }
 
@@ -131,8 +107,20 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
   }
 
   private get listBuckets(): JSX.Element[] {
-    const {onDeleteBucket, onFilterChange} = this.props
-    const {sortedBuckets} = this.state
+    const {
+      buckets,
+      sortKey,
+      sortDirection,
+      sortType,
+      onDeleteBucket,
+      onFilterChange,
+    } = this.props
+    const sortedBuckets = this.memGetSortedResources(
+      prettyBuckets(buckets),
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
     return sortedBuckets.map(bucket => (
       <BucketRow

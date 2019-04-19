@@ -11,11 +11,11 @@ import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
 // Types
 import {Authorization} from '@influxdata/influx'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 import {ComponentSize, Sort} from '@influxdata/clockface'
 
-// Selectors
-import {getSortedResources} from 'src/shared/selectors/sort'
+// Utils
+import {getSortedResources} from 'src/shared/utils/sort'
 
 type SortKey = keyof Authorization
 
@@ -60,7 +60,12 @@ export default class TokenList extends PureComponent<Props, State> {
               columnName="Description"
               onClick={onClickColumn}
             />
-            <IndexList.HeaderCell columnName="Status" onClick={onClickColumn} />
+            <IndexList.HeaderCell
+              sortKey={this.headerKeys[0]}
+              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+              columnName="Status"
+              onClick={onClickColumn}
+            />
           </IndexList.Header>
           <IndexList.Body emptyState={this.emptyState} columnCount={2}>
             {this.rows}
@@ -77,7 +82,7 @@ export default class TokenList extends PureComponent<Props, State> {
   }
 
   private get headerKeys(): SortKey[] {
-    return ['description']
+    return ['description', 'status']
   }
 
   private get rows(): JSX.Element[] {

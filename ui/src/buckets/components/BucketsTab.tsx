@@ -16,10 +16,10 @@ import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
 
 // Utils
-import {ruleToString} from 'src/utils/formatting'
+import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 
 // Types
-import {Organization, BucketRetentionRules} from '@influxdata/influx'
+import {Organization} from '@influxdata/influx'
 import {
   IconFont,
   ComponentSize,
@@ -27,7 +27,7 @@ import {
   Sort,
 } from '@influxdata/clockface'
 import {OverlayState, AppState, Bucket} from 'src/types'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
   org: Organization
@@ -98,7 +98,7 @@ class BucketsTab extends PureComponent<Props, State> {
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
           searchKeys={['name', 'ruleString', 'labels[].name']}
-          list={this.prettyBuckets(buckets)}
+          list={prettyBuckets(buckets)}
         >
           {bs => (
             <BucketList
@@ -161,26 +161,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
   private handleFilterUpdate = (searchTerm: string): void => {
     this.setState({searchTerm})
-  }
-
-  private prettyBuckets(buckets: Bucket[]): PrettyBucket[] {
-    return buckets.map(b => {
-      const expire = b.retentionRules.find(
-        rule => rule.type === BucketRetentionRules.TypeEnum.Expire
-      )
-
-      if (!expire) {
-        return {
-          ...b,
-          ruleString: 'forever',
-        }
-      }
-
-      return {
-        ...b,
-        ruleString: ruleToString(expire.everySeconds),
-      }
-    })
   }
 
   private get emptyState(): JSX.Element {

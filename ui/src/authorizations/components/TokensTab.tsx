@@ -12,7 +12,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import {Authorization} from '@influxdata/influx'
 import {IconFont} from '@influxdata/clockface'
 import {AppState} from 'src/types'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 enum AuthSearchKeys {
   Description = 'description',

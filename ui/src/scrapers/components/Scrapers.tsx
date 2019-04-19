@@ -15,7 +15,7 @@ import {updateScraper, deleteScraper} from 'src/scrapers/actions'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
 import {ScraperTargetResponse, Bucket} from '@influxdata/influx'

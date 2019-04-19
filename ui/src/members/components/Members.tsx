@@ -16,7 +16,7 @@ import {deleteMember} from 'src/members/actions'
 // Types
 import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
 import {AppState, Member} from 'src/types'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
   members: Member[]

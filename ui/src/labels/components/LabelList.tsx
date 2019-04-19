@@ -8,18 +8,19 @@ import LabelRow from 'src/labels/components/LabelRow'
 
 // Utils
 import {validateLabelUniqueness} from 'src/labels/utils/'
+import memoizeOne from 'memoize-one'
 
 // Types
 import {ILabel} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
 import {Sort} from '@influxdata/clockface'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Selectors
-import {getSortedResources} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/utils/sort'
 
 type SortKey = keyof ILabel
 
@@ -37,20 +38,17 @@ interface Props {
 interface State {
   labelID: string
   overlayState: OverlayState
-  sortedLabels: ILabel[]
 }
 
 @ErrorHandling
 export default class LabelList extends PureComponent<Props, State> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {
-      sortedLabels: getSortedResources(props.labels, props),
-    }
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
+
   public state: State = {
     labelID: null,
     overlayState: OverlayState.Closed,
-    sortedLabels: this.props.labels,
   }
 
   public render() {
@@ -90,8 +88,13 @@ export default class LabelList extends PureComponent<Props, State> {
   }
 
   private get rows(): JSX.Element[] {
-    const {onDeleteLabel} = this.props
-    const {sortedLabels} = this.state
+    const {labels, sortKey, sortDirection, sortType, onDeleteLabel} = this.props
+    const sortedLabels = this.memGetSortedResources(
+      labels,
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
     return sortedLabels.map((label, index) => (
       <LabelRow

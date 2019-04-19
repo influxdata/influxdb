@@ -7,13 +7,12 @@ import _ from 'lodash'
 import {EmptyState} from '@influxdata/clockface'
 import {ResourceList} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import DashboardCards, {
-  SortTypes,
-} from 'src/dashboards/components/dashboard_index/DashboardCards'
+import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
 
 // Types
 import {Dashboard} from 'src/types'
 import {Sort, ComponentSize} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/utils/sort'
 
 interface OwnProps {
   searchTerm: string

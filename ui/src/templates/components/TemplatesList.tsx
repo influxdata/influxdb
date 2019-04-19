@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {ResourceList} from 'src/clockface'
@@ -9,11 +10,11 @@ import TemplateCard from 'src/templates/components/TemplateCard'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from 'src/clockface'
 
 // Selectors
-import {getSortedResources} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/utils/sort'
 
 type SortKey = 'meta.name'
 
@@ -29,14 +30,9 @@ interface Props {
 }
 
 export default class TemplatesList extends PureComponent<Props> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {
-      sortedTemplates: getSortedResources(props.templates, props),
-    }
-  }
-  public state = {
-    sortedTemplates: this.props.templates,
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
 
   public render() {
     const {
@@ -73,8 +69,19 @@ export default class TemplatesList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    const {onFilterChange} = this.props
-    const {sortedTemplates} = this.state
+    const {
+      templates,
+      sortKey,
+      sortDirection,
+      sortType,
+      onFilterChange,
+    } = this.props
+    const sortedTemplates = this.memGetSortedResources(
+      templates,
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
     return sortedTemplates.map(t => (
       <TemplateCard

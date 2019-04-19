@@ -1,11 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import memoizeOne from 'memoize-one'
 
 // Components
 import DashboardCard from 'src/dashboards/components/dashboard_index/DashboardCard'
 
 // Selectors
-import {getSortedResources} from 'src/shared/selectors/sort'
+import {getSortedResources, SortTypes} from 'src/shared/utils/sort'
 
 // Types
 import {Dashboard} from 'src/types'
@@ -22,29 +23,28 @@ interface Props {
   onFilterChange: (searchTerm: string) => void
 }
 
-export enum SortTypes {
-  String = 'string',
-  Date = 'date',
-}
-
 export default class DashboardCards extends PureComponent<Props> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {
-      sortedDashboards: getSortedResources(props.dashboards, props),
-    }
-  }
-  public state = {
-    sortedDashboards: this.props.dashboards,
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
 
   public render() {
     const {
+      dashboards,
+      sortDirection,
+      sortKey,
+      sortType,
       onCloneDashboard,
       onDeleteDashboard,
       onUpdateDashboard,
       onFilterChange,
     } = this.props
-    const {sortedDashboards} = this.state
+    const sortedDashboards = this.memGetSortedResources(
+      dashboards,
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
     return sortedDashboards.map(dashboard => (
       <DashboardCard

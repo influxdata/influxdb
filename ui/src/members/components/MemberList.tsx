@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {IndexList} from 'src/clockface'
@@ -7,11 +8,11 @@ import MemberRow from 'src/members/components/MemberRow'
 
 // Types
 import {Member} from 'src/types'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 
 // Selectors
-import {getSortedResources} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/utils/sort'
 
 type SortKey = keyof Member
 
@@ -26,15 +27,9 @@ interface Props {
 }
 
 export default class MemberList extends PureComponent<Props> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {
-      sortedMembers: getSortedResources(props.members, props),
-    }
-  }
-
-  public state = {
-    sortedMembers: this.props.members,
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
 
   public render() {
     const {sortKey, sortDirection, onClickColumn} = this.props
@@ -74,8 +69,13 @@ export default class MemberList extends PureComponent<Props> {
   }
 
   private get rows(): JSX.Element[] {
-    const {onDelete} = this.props
-    const {sortedMembers} = this.state
+    const {members, sortKey, sortDirection, sortType, onDelete} = this.props
+    const sortedMembers = this.memGetSortedResources(
+      members,
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
     return sortedMembers.map(member => (
       <MemberRow key={member.id} member={member} onDelete={onDelete} />

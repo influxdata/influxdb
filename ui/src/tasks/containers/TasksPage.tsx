@@ -30,7 +30,7 @@ import {
 import {AppState, Task, TaskStatus, RemoteDataState} from 'src/types'
 import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -158,7 +158,12 @@ class TasksPage extends PureComponent<Props, State> {
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
+    let sortType = SortTypes.String
+
+    if (sortKey === 'latestCompleted') {
+      sortType = SortTypes.Date
+    }
+
     this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 

@@ -13,7 +13,7 @@ import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Types
 import {TemplateSummary, AppState} from 'src/types'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 
 interface OwnProps {

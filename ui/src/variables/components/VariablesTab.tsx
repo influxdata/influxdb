@@ -22,7 +22,7 @@ import {OverlayState} from 'src/types'
 import {AppState} from 'src/types'
 import {IVariable as Variable} from '@influxdata/influx'
 import {IconFont, ComponentSize} from '@influxdata/clockface'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
   variables: Variable[]

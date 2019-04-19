@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {IndexList} from 'src/clockface'
@@ -9,7 +10,7 @@ import CollectorRow from 'src/telegrafs/components/CollectorRow'
 // Types
 import {ITelegraf as Telegraf} from '@influxdata/influx'
 import {Sort} from '@influxdata/clockface'
-import {SortTypes, getSortedResources} from 'src/shared/selectors/sort'
+import {SortTypes, getSortedResources} from 'src/shared/utils/sort'
 
 //Utils
 import {getDeep} from 'src/utils/wrappers'
@@ -30,13 +31,9 @@ interface Props {
 }
 
 export default class CollectorList extends PureComponent<Props> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {sortedCollectors: getSortedResources(props.collectors, props)}
-  }
-
-  public state = {
-    sortedCollectors: this.props.collectors,
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
 
   public render() {
     const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
@@ -70,12 +67,20 @@ export default class CollectorList extends PureComponent<Props> {
   public get collectorsList(): JSX.Element[] {
     const {
       collectors,
+      sortKey,
+      sortDirection,
+      sortType,
       onDelete,
       onUpdate,
       onOpenInstructions,
       onFilterChange,
     } = this.props
-    const {sortedCollectors} = this.state
+    const sortedCollectors = this.memGetSortedResources(
+      collectors,
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
     if (collectors !== undefined) {
       return sortedCollectors.map(collector => (

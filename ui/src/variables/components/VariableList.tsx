@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {IndexList, Overlay} from 'src/clockface'
@@ -9,11 +10,11 @@ import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverla
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 
 // Selectors
-import {getSortedResources} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/utils/sort'
 
 type SortKey = keyof Variable
 
@@ -36,11 +37,10 @@ interface State {
 }
 
 export default class VariableList extends PureComponent<Props, State> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {
-      sortedVariables: getSortedResources(props.variables, props),
-    }
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
+
   constructor(props) {
     super(props)
 
@@ -94,12 +94,25 @@ export default class VariableList extends PureComponent<Props, State> {
   }
 
   private get rows(): JSX.Element[] {
-    const {onDeleteVariable, onUpdateVariable, onFilterChange} = this.props
-    const {sortedVariables} = this.state
+    const {
+      variables,
+      sortKey,
+      sortDirection,
+      sortType,
+      onDeleteVariable,
+      onUpdateVariable,
+      onFilterChange,
+    } = this.props
+    const sortedVariables = this.memGetSortedResources(
+      variables,
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
-    return sortedVariables.map(variable => (
+    return sortedVariables.map((variable, index) => (
       <VariableRow
-        key={variable.id}
+        key={variable.id || `variable-${index}`}
         variable={variable}
         onDeleteVariable={onDeleteVariable}
         onUpdateVariableName={onUpdateVariable}

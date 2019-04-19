@@ -38,7 +38,6 @@ interface Props {
 class BucketRow extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {bucket, onDeleteBucket} = this.props
-
     return (
       <>
         <IndexList.Row>

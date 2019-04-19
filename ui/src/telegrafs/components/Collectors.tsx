@@ -38,7 +38,7 @@ import {
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/dataLoaders'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
   collectors: Telegraf[]

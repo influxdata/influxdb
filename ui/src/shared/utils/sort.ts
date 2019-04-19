@@ -2,21 +2,17 @@ import {orderBy, get, toLower} from 'lodash'
 
 export enum SortTypes {
   String = 'string',
+  Date = 'date',
+  Float = 'float',
 }
-
-export const sortSelector = (_, props) => ({
-  key: props.sortKey,
-  direction: props.sortDirection,
-  type: props.sortType,
-})
 
 function orderByType(data, type) {
   switch (type) {
-    case 'string':
+    case SortTypes.String:
       return toLower(data)
-    case 'date':
+    case SortTypes.Date:
       return Date.parse(data)
-    case 'float':
+    case SortTypes.Float:
       return parseFloat(data)
     default:
       return data
@@ -34,7 +30,7 @@ export function getSortedResources<T>(
       resourceList,
       r => orderByType(get(r, sortKey), sortType),
       [sortDirection]
-    ).map(r => r)
+    )
   }
   return resourceList
 }

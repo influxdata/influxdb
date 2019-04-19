@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {ResourceList} from 'src/clockface'
@@ -9,7 +10,7 @@ import TaskCard from 'src/tasks/components/TaskCard'
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 import {ITask as Task} from '@influxdata/influx'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
 
 import {
@@ -19,7 +20,7 @@ import {
 } from 'src/tasks/actions'
 
 // Selectors
-import {getSortedResources} from 'src/shared/selectors/sort'
+import {getSortedResources} from 'src/shared/utils/sort'
 
 interface Props {
   tasks: Task[]
@@ -48,21 +49,18 @@ type SortKey = keyof Task
 interface State {
   taskLabelsEdit: Task
   isEditingTaskLabels: boolean
-  sortedTasks: Task[]
 }
 
 export default class TasksList extends PureComponent<Props, State> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {
-      sortedTasks: getSortedResources(props.tasks, props),
-    }
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
+
   constructor(props) {
     super(props)
     this.state = {
       taskLabelsEdit: null,
       isEditingTaskLabels: false,
-      sortedTasks: this.props.tasks,
     }
   }
 
@@ -128,6 +126,10 @@ export default class TasksList extends PureComponent<Props, State> {
 
   private get rows(): JSX.Element[] {
     const {
+      tasks,
+      sortKey,
+      sortDirection,
+      sortType,
       onActivate,
       onDelete,
       onSelect,
@@ -137,7 +139,12 @@ export default class TasksList extends PureComponent<Props, State> {
       onFilterChange,
     } = this.props
 
-    const {sortedTasks} = this.state
+    const sortedTasks = this.memGetSortedResources(
+      tasks,
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
     return sortedTasks.map(task => (
       <TaskCard

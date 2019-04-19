@@ -28,7 +28,7 @@ import {
   ComponentColor,
   Sort,
 } from '@influxdata/clockface'
-import {SortTypes} from 'src/shared/selectors/sort'
+import {SortTypes} from 'src/shared/utils/sort'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
