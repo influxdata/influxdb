@@ -1,7 +1,4 @@
-import {createSelector} from 'reselect'
 import {orderBy, get, toLower} from 'lodash'
-
-const resourceList = state => state
 
 export enum SortTypes {
   String = 'string',
@@ -26,18 +23,18 @@ function orderByType(data, type) {
   }
 }
 
-export const getSortedResources = createSelector(
-  resourceList,
-  sortSelector,
-  (resourceList, sort) => {
-    if (sort.key && sort.direction) {
-      return orderBy<{id: string}>(
-        resourceList,
-        r => orderByType(get(r, sort.key), sort.type),
-        [sort.direction]
-      ).map(r => r)
-    }
-
-    return resourceList
+export function getSortedResources<T>(
+  resourceList: T[],
+  sortKey: string,
+  sortDirection: string,
+  sortType: string
+): T[] {
+  if (sortKey && sortDirection) {
+    return orderBy<T>(
+      resourceList,
+      r => orderByType(get(r, sortKey), sortType),
+      [sortDirection]
+    ).map(r => r)
   }
-)
+  return resourceList
+}

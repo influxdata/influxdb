@@ -1,5 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {EmptyState} from '@influxdata/clockface'
@@ -29,21 +31,18 @@ interface Props {
 interface State {
   isTokenOverlayVisible: boolean
   authInView: Authorization
-  sortedAuths: Authorization[]
 }
 
 export default class TokenList extends PureComponent<Props, State> {
-  public static getDerivedStateFromProps(props: Props) {
-    return {
-      sortedAuths: getSortedResources(props.auths, props),
-    }
-  }
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
+
   constructor(props) {
     super(props)
     this.state = {
       isTokenOverlayVisible: false,
       authInView: null,
-      sortedAuths: this.props.auths,
     }
   }
 
@@ -82,7 +81,13 @@ export default class TokenList extends PureComponent<Props, State> {
   }
 
   private get rows(): JSX.Element[] {
-    const {sortedAuths} = this.state
+    const {auths, sortDirection, sortKey, sortType} = this.props
+    const sortedAuths = this.memGetSortedResources(
+      auths,
+      sortKey,
+      sortDirection,
+      sortType
+    )
 
     return sortedAuths.map(auth => (
       <TokenRow
