@@ -22,6 +22,7 @@ import (
 )
 
 func TestScheduler_Cancelation(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/13358")
 	t.Parallel()
 
 	tcs := mock.NewTaskControlService()
@@ -689,6 +690,7 @@ func TestScheduler_RunStatus(t *testing.T) {
 }
 
 func TestScheduler_RunFailureCleanup(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/13358")
 	t.Parallel()
 
 	tcs := mock.NewTaskControlService()
