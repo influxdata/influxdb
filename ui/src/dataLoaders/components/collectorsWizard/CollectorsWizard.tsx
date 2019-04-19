@@ -97,9 +97,9 @@ class CollectorsWizard extends PureComponent<Props & WithRouterProps, State> {
   private handleSetBucketInfo = () => {
     const {bucket, buckets} = this.props
     if (!bucket && (buckets && buckets.length)) {
-      const {organization, organizationID, name, id} = buckets[0]
+      const {organizationID, name, id} = buckets[0]
 
-      this.props.onSetBucketInfo(organization, organizationID, name, id)
+      this.props.onSetBucketInfo(organizationID, name, id)
     }
   }
 

@@ -58,7 +58,6 @@ interface StateProps {
   telegrafConfigDescription: string
   telegrafPlugins: TelegrafPlugin[]
   telegrafConfigID: string
-  org: string
   orgID: string
 }
 
@@ -144,6 +143,7 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
 
   private async handleCreateDashboardsForPlugins() {
     const {notify, telegrafPlugins, orgID} = this.props
+
     try {
       const templatesEntries = await client.templates.getAll(orgID)
 
@@ -221,16 +221,15 @@ const mstp = ({
       telegrafPlugins,
       telegrafConfigID,
     },
-    steps: {org, orgID},
   },
+  orgs: {org},
 }: AppState): StateProps => {
   return {
     telegrafConfigName,
     telegrafConfigDescription,
     telegrafPlugins,
     telegrafConfigID,
-    org,
-    orgID,
+    orgID: org.id,
   }
 }
 
