@@ -6941,6 +6941,8 @@ components:
           type: string
         type:
           type: string
+        description:
+          type: string
         version:
           type: string
       required:
