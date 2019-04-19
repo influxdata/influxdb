@@ -2,6 +2,7 @@ package tsm1_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -240,6 +241,233 @@ memB,host=EB,os=macOS value=1.3 201`)
 			got := cursors.StringIteratorToSlice(iter)
 			if !cmp.Equal(got, tc.exp) {
 				t.Errorf("unexpected TagValues: -got/+exp\n%v", cmp.Diff(got, tc.exp))
+			}
+		})
+	}
+}
+
+func TestEngine_TagKeys(t *testing.T) {
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+
+	orgs := []struct {
+		org, bucket influxdb.ID
+	}{
+		{
+			org:    0x5020,
+			bucket: 0x5100,
+		},
+		{
+			org:    0x6000,
+			bucket: 0x6100,
+		},
+	}
+
+	// this org will require escaping the 0x20 byte
+	e.MustWritePointsString(orgs[0].org, orgs[0].bucket, `
+cpu,cpu0=v,cpu1=v,cpu2=v f=1 101
+cpu,cpu1=v               f=1 103
+cpu,cpu2=v               f=1 105
+cpu,cpu0=v,cpu2=v        f=1 107
+cpu,cpu2=v,cpu3=v        f=1 109
+mem,mem0=v,mem1=v        f=1 101`)
+	e.MustWritePointsString(orgs[1].org, orgs[1].bucket, `
+cpu,cpu0=v,cpu1=v,cpu2=v f=1 101
+cpu,cpu1=v               f=1 103
+cpu,cpu2=v               f=1 105
+cpu,cpu0=v,cpu2=v        f=1 107
+cpu,cpu2=v,cpu3=v        f=1 109
+mem,mem0=v,mem1=v        f=1 101`)
+
+	// send some points to TSM data
+	e.MustWriteSnapshot()
+
+	// delete some data from the first bucket
+	e.MustDeleteBucketRange(orgs[0].org, orgs[0].bucket, 0, 105)
+
+	// leave some points in the cache
+	e.MustWritePointsString(orgs[0].org, orgs[0].bucket, `
+cpu,cpu3=v,cpu4=v,cpu5=v f=1 201
+cpu,cpu4=v               f=1 203
+cpu,cpu3=v               f=1 205
+cpu,cpu3=v,cpu4=v        f=1 207
+cpu,cpu4=v,cpu5=v        f=1 209
+mem,mem1=v,mem2=v        f=1 201`)
+	e.MustWritePointsString(orgs[1].org, orgs[1].bucket, `
+cpu,cpu3=v,cpu4=v,cpu5=v f=1 201
+cpu,cpu4=v               f=1 203
+cpu,cpu3=v               f=1 205
+cpu,cpu3=v,cpu4=v        f=1 207
+cpu,cpu4=v,cpu5=v        f=1 209
+mem,mem1=v,mem2=v        f=1 201`)
+
+	type args struct {
+		org      int
+		min, max int64
+		expr     string
+	}
+
+	var tests = []struct {
+		name string
+		args args
+		exp  []string
+	}{
+		// ***********************
+		// * queries for the first org, which has some deleted data
+		// ***********************
+
+		{
+			name: "TSM and cache",
+			args: args{
+				org: 0,
+				min: 0,
+				max: 300,
+			},
+			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", "cpu4", "cpu5", "mem1", "mem2", models.FieldKeyTagKey},
+		},
+		{
+			name: "only TSM",
+			args: args{
+				org: 0,
+				min: 0,
+				max: 199,
+			},
+			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", models.FieldKeyTagKey},
+		},
+		{
+			name: "only cache",
+			args: args{
+				org: 0,
+				min: 200,
+				max: 299,
+			},
+			exp: []string{models.MeasurementTagKey, "cpu3", "cpu4", "cpu5", "mem1", "mem2", models.FieldKeyTagKey},
+		},
+		{
+			name: "one timestamp TSM/data",
+			args: args{
+				org: 0,
+				min: 107,
+				max: 107,
+			},
+			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", models.FieldKeyTagKey},
+		},
+		{
+			name: "one timestamp cache/data",
+			args: args{
+				org: 0,
+				min: 207,
+				max: 207,
+			},
+			exp: []string{models.MeasurementTagKey, "cpu3", "cpu4", models.FieldKeyTagKey},
+		},
+		{
+			name: "one timestamp TSM/nodata",
+			args: args{
+				org: 0,
+				min: 102,
+				max: 102,
+			},
+			exp: nil,
+		},
+		{
+			name: "one timestamp cache/nodata",
+			args: args{
+				org: 0,
+				min: 202,
+				max: 202,
+			},
+			exp: nil,
+		},
+
+		// queries with predicates
+		{
+			name: "predicate/all time/cpu",
+			args: args{
+				org:  0,
+				min:  0,
+				max:  300,
+				expr: "_m = 'cpu'",
+			},
+			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", "cpu4", "cpu5", models.FieldKeyTagKey},
+		},
+		{
+			name: "predicate/all time/mem",
+			args: args{
+				org:  0,
+				min:  0,
+				max:  300,
+				expr: "_m = 'mem'",
+			},
+			exp: []string{models.MeasurementTagKey, "mem1", "mem2", models.FieldKeyTagKey},
+		},
+		{
+			name: "predicate/all time/cpu0",
+			args: args{
+				org:  0,
+				min:  0,
+				max:  300,
+				expr: "cpu0 = 'v'",
+			},
+			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", models.FieldKeyTagKey},
+		},
+		{
+			name: "predicate/all time/cpu3",
+			args: args{
+				org:  0,
+				min:  0,
+				max:  300,
+				expr: "cpu3 = 'v'",
+			},
+			exp: []string{models.MeasurementTagKey, "cpu2", "cpu3", "cpu4", "cpu5", models.FieldKeyTagKey},
+		},
+
+		// ***********************
+		// * queries for the second org, which has no deleted data
+		// ***********************
+		{
+			name: "TSM and cache",
+			args: args{
+				org: 1,
+				min: 0,
+				max: 300,
+			},
+			exp: []string{models.MeasurementTagKey, "cpu0", "cpu1", "cpu2", "cpu3", "cpu4", "cpu5", "mem0", "mem1", "mem2", models.FieldKeyTagKey},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("org%d/%s", tc.args.org, tc.name), func(t *testing.T) {
+			a := tc.args
+			var expr influxql.Expr
+			if len(a.expr) > 0 {
+				expr = influxql.MustParseExpr(a.expr)
+				expr = influxql.RewriteExpr(expr, func(expr influxql.Expr) influxql.Expr {
+					switch n := expr.(type) {
+					case *influxql.BinaryExpr:
+						if r, ok := n.LHS.(*influxql.VarRef); ok {
+							if r.Val == "_m" {
+								r.Val = models.MeasurementTagKey
+							}
+						}
+					}
+					return expr
+				})
+			}
+
+			iter, err := e.TagKeys(context.Background(), orgs[a.org].org, orgs[a.org].bucket, a.min, a.max, expr)
+			if err != nil {
+				t.Fatalf("TagKeys: error %v", err)
+			}
+
+			got := cursors.StringIteratorToSlice(iter)
+			if !cmp.Equal(got, tc.exp) {
+				t.Errorf("unexpected TagKeys: -got/+exp\n%v", cmp.Diff(got, tc.exp))
 			}
 		})
 	}

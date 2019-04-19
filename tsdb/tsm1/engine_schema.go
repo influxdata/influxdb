@@ -49,7 +49,7 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyByte
 				}
 
 				key, _ := SeriesAndFieldFromCompositeKey(sfkey)
-				_, tags = models.ParseKeyBytesWithTags(key, tags[:0])
+				tags = models.ParseTagsWithTags(key, tags[:0])
 				curVal := tags.Get(tagKeyBytes)
 				if len(curVal) == 0 {
 					continue
@@ -73,7 +73,7 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyByte
 		}
 
 		key, _ := SeriesAndFieldFromCompositeKey(sfkey)
-		_, tags = models.ParseKeyBytesWithTags(key, tags[:0])
+		tags = models.ParseTagsWithTags(key, tags[:0])
 		curVal := tags.Get(tagKeyBytes)
 		if len(curVal) == 0 {
 			return nil
@@ -209,6 +209,145 @@ func (e *Engine) findCandidateKeys(ctx context.Context, orgBucket []byte, predic
 	}
 
 	return keys, nil
+}
+
+func (e *Engine) TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	encoded := tsdb.EncodeName(orgID, bucketID)
+
+	if predicate == nil {
+		return e.tagKeysNoPredicate(ctx, encoded[:], start, end)
+	}
+
+	return e.tagKeysPredicate(ctx, encoded[:], start, end, predicate)
+}
+
+func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgBucket []byte, start, end int64) (cursors.StringIterator, error) {
+	var tags models.Tags
+
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	prefix := models.EscapeMeasurement(orgBucket)
+
+	var keyset models.TagKeysSet
+
+	// TODO(sgc): extend prefix when filtering by \x00 == <measurement>
+
+	e.FileStore.ForEachFile(func(f TSMFile) bool {
+		if f.OverlapsTimeRange(start, end) && f.OverlapsKeyPrefixRange(prefix, prefix) {
+			// TODO(sgc): create f.TimeRangeIterator(minKey, maxKey, start, end)
+			iter := f.TimeRangeIterator(prefix, start, end)
+			for i := 0; iter.Next(); i++ {
+				sfkey := iter.Key()
+				if !bytes.HasPrefix(sfkey, prefix) {
+					// end of org+bucket
+					break
+				}
+
+				key, _ := SeriesAndFieldFromCompositeKey(sfkey)
+				tags = models.ParseTagsWithTags(key, tags[:0])
+				if keyset.IsSupersetKeys(tags) {
+					continue
+				}
+
+				if iter.HasData() {
+					keyset.UnionKeys(tags)
+				}
+			}
+		}
+		return true
+	})
+
+	_ = e.Cache.ApplyEntryFn(func(sfkey []byte, entry *entry) error {
+		if !bytes.HasPrefix(sfkey, prefix) {
+			return nil
+		}
+
+		key, _ := SeriesAndFieldFromCompositeKey(sfkey)
+		tags = models.ParseTagsWithTags(key, tags[:0])
+		if keyset.IsSupersetKeys(tags) {
+			return nil
+		}
+
+		if entry.values.Contains(start, end) {
+			keyset.UnionKeys(tags)
+		}
+		return nil
+	})
+
+	return cursors.NewStringSliceIterator(keyset.Keys()), nil
+}
+
+func (e *Engine) tagKeysPredicate(ctx context.Context, orgBucket []byte, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	if err := ValidateTagPredicate(predicate); err != nil {
+		return nil, err
+	}
+
+	keys, err := e.findCandidateKeys(ctx, orgBucket, predicate)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(keys) == 0 {
+		return nil, nil
+	}
+
+	var files []TSMFile
+	defer func() {
+		for _, f := range files {
+			f.Unref()
+		}
+	}()
+	var iters []*TimeRangeIterator
+
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	prefix := models.EscapeMeasurement(orgBucket)
+
+	e.FileStore.ForEachFile(func(f TSMFile) bool {
+		if f.OverlapsTimeRange(start, end) && f.OverlapsKeyPrefixRange(prefix, prefix) {
+			f.Ref()
+			files = append(files, f)
+			iters = append(iters, f.TimeRangeIterator(prefix, start, end))
+		}
+		return true
+	})
+
+	var keyset models.TagKeysSet
+
+	// reusable buffers
+	var (
+		tags   models.Tags
+		keybuf []byte
+		sfkey  []byte
+	)
+
+	for i := range keys {
+		_, tags = tsdb.ParseSeriesKeyInto(keys[i], tags[:0])
+		if keyset.IsSupersetKeys(tags) {
+			continue
+		}
+
+		keybuf = models.AppendMakeKey(keybuf[:0], prefix, tags)
+		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
+
+		if e.Cache.Values(sfkey).Contains(start, end) {
+			keyset.UnionKeys(tags)
+			continue
+		}
+
+		for _, iter := range iters {
+			if exact, _ := iter.Seek(sfkey); !exact {
+				continue
+			}
+
+			if iter.HasData() {
+				keyset.UnionKeys(tags)
+				break
+			}
+		}
+	}
+
+	return cursors.NewStringSliceIterator(keyset.Keys()), nil
 }
 
 var errUnexpectedTagComparisonOperator = errors.New("unexpected tag comparison operator")
