@@ -37,21 +37,21 @@ interface Props {
 }
 
 interface State {
-  variable: Variable
+  workingVariable: Variable
   isNameValid: boolean
   hasValidArgs: boolean
 }
 
 export default class UpdateVariableOverlay extends PureComponent<Props, State> {
   public state: State = {
-    variable: this.props.variable,
+    workingVariable: this.props.variable,
     isNameValid: true,
     hasValidArgs: true,
   }
 
   public render() {
     const {onCloseOverlay} = this.props
-    const {variable} = this.state
+    const {workingVariable} = this.state
 
     return (
       <Overlay.Container maxWidth={1000}>
@@ -67,7 +67,7 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
                   <div className="overlay-flux-editor--spacing">
                     <Form.ValidationElement
                       label="Name"
-                      value={variable.name}
+                      value={workingVariable.name}
                       required={true}
                       validationFunc={this.handleNameValidation}
                     >
@@ -76,7 +76,7 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
                           placeholder="Give your variable a name"
                           name="name"
                           autoFocus={true}
-                          value={variable.name}
+                          value={workingVariable.name}
                           onChange={this.handleChangeInput}
                           status={status}
                         />
@@ -87,7 +87,7 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
                 <Grid.Column widthXS={Columns.Six}>
                   <Form.Element label="Type" required={true}>
                     <Dropdown
-                      selectedID={variable.arguments.type}
+                      selectedID={workingVariable.arguments.type}
                       onChange={this.handleChangeType}
                     >
                       {variableItemTypes.map(v => (
@@ -104,8 +104,8 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
                   <VariableArgumentsEditor
                     onChange={this.handleChangeArgs}
                     onSelectMapDefault={this.handleSelectMapDefault}
-                    selected={variable.selected}
-                    args={variable.arguments}
+                    selected={workingVariable.selected}
+                    args={workingVariable.arguments}
                   />
                 </Grid.Column>
               </Grid.Row>
@@ -144,16 +144,15 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
   }
 
   private handleChangeType = (selectedType: string) => {
-    const {variable} = this.props
-    const {isNameValid} = this.state
+    const {isNameValid, workingVariable} = this.state
     const defaults = {hasValidArgs: false, isNameValid}
 
     switch (selectedType) {
       case 'query':
         return this.setState({
           ...defaults,
-          variable: {
-            ...variable,
+          workingVariable: {
+            ...workingVariable,
             arguments: {
               type: 'query',
               values: {
@@ -167,8 +166,8 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
       case 'map':
         return this.setState({
           ...defaults,
-          variable: {
-            ...variable,
+          workingVariable: {
+            ...workingVariable,
             selected: null,
             arguments: {
               type: 'map',
@@ -179,8 +178,8 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
       case 'constant':
         return this.setState({
           ...defaults,
-          variable: {
-            ...variable,
+          workingVariable: {
+            ...workingVariable,
             selected: null,
             arguments: {
               type: 'constant',
@@ -192,11 +191,11 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
   }
 
   private handleSelectMapDefault = (selected: string) => {
-    const {variable} = this.state
+    const {workingVariable} = this.state
 
     this.setState({
-      variable: {
-        ...variable,
+      workingVariable: {
+        ...workingVariable,
         selected: [selected],
       },
     })
@@ -209,11 +208,11 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
     args: VariableArguments
     isValid: boolean
   }) => {
-    const {variable} = this.state
+    const {workingVariable} = this.state
 
     this.setState({
-      variable: {
-        ...variable,
+      workingVariable: {
+        ...workingVariable,
         arguments: args,
       },
       hasValidArgs: isValid,
@@ -223,7 +222,7 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
   private handleSubmit = (e: FormEvent): void => {
     e.preventDefault()
 
-    this.props.onUpdateVariable(this.state.variable)
+    this.props.onUpdateVariable(this.state.workingVariable)
     this.props.onCloseOverlay()
   }
 
@@ -239,10 +238,10 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     const key = e.target.name
-    const variable = {...this.state.variable, [key]: value}
+    const workingVariable = {...this.state.workingVariable, [key]: value}
 
     this.setState({
-      variable,
+      workingVariable,
     })
   }
 }
