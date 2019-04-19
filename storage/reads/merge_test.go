@@ -115,19 +115,20 @@ func TestNewMergedStringIterator(t *testing.T) {
 		{
 			name: "simple",
 			iterators: []cursors.StringIterator{
-				newMockStringIterator("foo", "bar"),
+				newMockStringIterator("bar", "foo"),
 			},
-			expectedValues: []string{"foo", "bar"},
+			expectedValues: []string{"bar", "foo"},
 		},
 		{
 			name: "duplicates",
 			iterators: []cursors.StringIterator{
-				newMockStringIterator("foo"),
-				newMockStringIterator("bar", "bar"),
-				newMockStringIterator("foo"),
-				newMockStringIterator("baz", "qux"),
+				newMockStringIterator("c"),
+				newMockStringIterator("b", "b"), // This kind of duplication is not explicitly documented, but works.
+				newMockStringIterator("a", "c"),
+				newMockStringIterator("b", "d"),
+				newMockStringIterator("0", "a", "b", "e"),
 			},
-			expectedValues: []string{"foo", "bar", "baz", "qux"},
+			expectedValues: []string{"0", "a", "b", "c", "d", "e"},
 		},
 	}
 
