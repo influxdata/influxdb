@@ -272,11 +272,14 @@ class DashboardPage extends Component<Props, State> {
       params: {dashboardID},
     } = this.props
 
+    handleChooseAutoRefresh(dashboardID, autoRefreshInterval)
+
     if (autoRefreshInterval === 0) {
       this.handleSetAutoRefreshStatus(AutoRefreshStatus.Paused)
+      return
     }
 
-    handleChooseAutoRefresh(dashboardID, autoRefreshInterval)
+    this.handleSetAutoRefreshStatus(AutoRefreshStatus.Active)
   }
 
   private handlePositionChange = async (cells: Cell[]): Promise<void> => {
