@@ -2,7 +2,6 @@ package kv
 
 import (
 	"context"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -25,9 +24,8 @@ type Service struct {
 
 	IDGenerator    influxdb.IDGenerator
 	TokenGenerator influxdb.TokenGenerator
-	Hash           Crypt
-
-	time func() time.Time
+	influxdb.TimeGenerator
+	Hash Crypt
 }
 
 // NewService returns an instance of a Service.
@@ -38,7 +36,7 @@ func NewService(kv Store) *Service {
 		TokenGenerator: rand.NewTokenGenerator(64),
 		Hash:           &Bcrypt{},
 		kv:             kv,
-		time:           time.Now,
+		TimeGenerator:  influxdb.RealTimeGenerator{},
 	}
 }
 
@@ -115,12 +113,6 @@ func (s *Service) Initialize(ctx context.Context) error {
 
 		return s.initializeUsers(ctx, tx)
 	})
-}
-
-// WithTime sets the function for computing the current time. Used for updating meta data
-// about objects stored. Should only be used in tests for mocking.
-func (s *Service) WithTime(fn func() time.Time) {
-	s.time = fn
 }
 
 // WithStore sets kv store for the service.

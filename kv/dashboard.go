@@ -301,7 +301,7 @@ func (s *Service) CreateDashboard(ctx context.Context, d *influxdb.Dashboard) er
 		}
 
 		// TODO(desa): don't populate this here. use the first/last methods of the oplog to get meta fields.
-		d.Meta.CreatedAt = s.time()
+		d.Meta.CreatedAt = s.Now()
 
 		if err := s.putDashboardWithMeta(ctx, tx, d); err != nil {
 			return err
@@ -752,7 +752,7 @@ func (s *Service) putDashboard(ctx context.Context, tx Tx, d *influxdb.Dashboard
 
 func (s *Service) putDashboardWithMeta(ctx context.Context, tx Tx, d *influxdb.Dashboard) error {
 	// TODO(desa): don't populate this here. use the first/last methods of the oplog to get meta fields.
-	d.Meta.UpdatedAt = s.time()
+	d.Meta.UpdatedAt = s.Now()
 	return s.putDashboard(ctx, tx, d)
 }
 
@@ -972,5 +972,5 @@ func (s *Service) appendDashboardEventToLog(ctx context.Context, tx Tx, id influ
 		return err
 	}
 
-	return s.addLogEntry(ctx, tx, k, v, s.time())
+	return s.addLogEntry(ctx, tx, k, v, s.Now())
 }

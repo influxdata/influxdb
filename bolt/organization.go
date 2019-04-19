@@ -501,7 +501,7 @@ func (c *Client) appendOrganizationEventToLog(ctx context.Context, tx *bolt.Tx, 
 		return err
 	}
 
-	return c.addLogEntry(ctx, tx, k, v, c.time())
+	return c.addLogEntry(ctx, tx, k, v, c.Now())
 }
 
 func (c *Client) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error) {

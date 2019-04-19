@@ -38,6 +38,7 @@ func NewDocumentService() *DocumentService {
 
 // DocumentStore is the mocked document store.
 type DocumentStore struct {
+	TimeGenerator     TimeGenerator
 	CreateDocumentFn  func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error
 	UpdateDocumentFn  func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error
 	FindDocumentsFn   func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error)

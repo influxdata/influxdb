@@ -286,7 +286,7 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 		}
 
 		// TODO(desa): don't populate this here. use the first/last methods of the oplog to get meta fields.
-		d.Meta.CreatedAt = c.time()
+		d.Meta.CreatedAt = c.Now()
 
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
@@ -698,7 +698,7 @@ func (c *Client) putDashboard(ctx context.Context, tx *bolt.Tx, d *platform.Dash
 
 func (c *Client) putDashboardWithMeta(ctx context.Context, tx *bolt.Tx, d *platform.Dashboard) error {
 	// TODO(desa): don't populate this here. use the first/last methods of the oplog to get meta fields.
-	d.Meta.UpdatedAt = c.time()
+	d.Meta.UpdatedAt = c.Now()
 	return c.putDashboard(ctx, tx, d)
 }
 
@@ -907,5 +907,5 @@ func (c *Client) appendDashboardEventToLog(ctx context.Context, tx *bolt.Tx, id 
 		return err
 	}
 
-	return c.addLogEntry(ctx, tx, k, v, c.time())
+	return c.addLogEntry(ctx, tx, k, v, c.Now())
 }
