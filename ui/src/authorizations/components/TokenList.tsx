@@ -1,5 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {EmptyState} from '@influxdata/clockface'
@@ -9,11 +11,21 @@ import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
 // Types
 import {Authorization} from '@influxdata/influx'
-import {ComponentSize} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/utils/sort'
+import {ComponentSize, Sort} from '@influxdata/clockface'
+
+// Utils
+import {getSortedResources} from 'src/shared/utils/sort'
+
+type SortKey = keyof Authorization
 
 interface Props {
   auths: Authorization[]
   searchTerm: string
+  sortKey: string
+  sortDirection: Sort
+  sortType: SortTypes
+  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
 interface State {
@@ -22,6 +34,10 @@ interface State {
 }
 
 export default class TokenList extends PureComponent<Props, State> {
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
+
   constructor(props) {
     super(props)
     this.state = {
@@ -31,26 +47,28 @@ export default class TokenList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {auths} = this.props
+    const {sortKey, sortDirection, onClickColumn} = this.props
     const {isTokenOverlayVisible, authInView} = this.state
 
     return (
       <>
         <IndexList>
           <IndexList.Header>
-            <IndexList.HeaderCell columnName="Description" />
-            <IndexList.HeaderCell columnName="Status" />
+            <IndexList.HeaderCell
+              sortKey={this.headerKeys[0]}
+              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+              columnName="Description"
+              onClick={onClickColumn}
+            />
+            <IndexList.HeaderCell
+              sortKey={this.headerKeys[0]}
+              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+              columnName="Status"
+              onClick={onClickColumn}
+            />
           </IndexList.Header>
           <IndexList.Body emptyState={this.emptyState} columnCount={2}>
-            {auths.map(a => {
-              return (
-                <TokenRow
-                  key={a.id}
-                  auth={a}
-                  onClickDescription={this.handleClickDescription}
-                />
-              )
-            })}
+            {this.rows}
           </IndexList.Body>
         </IndexList>
         <Overlay visible={isTokenOverlayVisible}>
@@ -61,6 +79,28 @@ export default class TokenList extends PureComponent<Props, State> {
         </Overlay>
       </>
     )
+  }
+
+  private get headerKeys(): SortKey[] {
+    return ['description', 'status']
+  }
+
+  private get rows(): JSX.Element[] {
+    const {auths, sortDirection, sortKey, sortType} = this.props
+    const sortedAuths = this.memGetSortedResources(
+      auths,
+      sortKey,
+      sortDirection,
+      sortType
+    )
+
+    return sortedAuths.map(auth => (
+      <TokenRow
+        key={auth.id}
+        auth={auth}
+        onClickDescription={this.handleClickDescription}
+      />
+    ))
   }
 
   private handleDismissOverlay = () => {

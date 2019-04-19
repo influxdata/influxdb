@@ -7,6 +7,8 @@ exports[`VariableList rendering renders 1`] = `
       <IndexListHeaderCell
         alignment="left"
         columnName="Name"
+        sort="none"
+        sortKey="name"
         width="60%"
       />
       <IndexListHeaderCell
@@ -20,7 +22,7 @@ exports[`VariableList rendering renders 1`] = `
       emptyState={<React.Fragment />}
     >
       <Connect(withRouter(VariableRow))
-        key="variable-undefined"
+        key="variable-0"
         onDeleteVariable={[MockFunction]}
         onEditVariable={[Function]}
         variable={
