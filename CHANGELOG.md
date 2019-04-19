@@ -9,6 +9,7 @@
 1. [13493](https://github.com/influxdata/influxdb/pull/13493): Add org profile tab with ability to edit organization name
 1. [13510](https://github.com/influxdata/influxdb/pull/13510): Add org name to dahboard page title 
 1. [13520](https://github.com/influxdata/influxdb/pull/13520): Add cautioning to bucket renaming
+1. [13560](https://github.com/influxdata/influxdb/pull/13560): Add option to generate all access token in tokens tab
 
 ### Bug Fixes
 

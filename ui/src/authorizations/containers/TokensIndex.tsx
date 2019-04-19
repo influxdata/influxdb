@@ -23,30 +23,33 @@ interface StateProps {
 @ErrorHandling
 class TokensIndex extends Component<StateProps> {
   public render() {
-    const {org} = this.props
+    const {org, children} = this.props
 
     return (
-      <Page titleTag={org.name}>
-        <SettingsHeader />
-        <Page.Contents fullWidth={false} scrollable={true}>
-          <div className="col-xs-12">
-            <Tabs>
-              <SettingsNavigation tab="tokens" orgID={org.id} />
-              <Tabs.TabContents>
-                <TabbedPageSection
-                  id="settings-tab--buckets"
-                  url="buckets"
-                  title="Buckets"
-                >
-                  <GetResources resource={ResourceTypes.Authorizations}>
-                    <TokensTab />
-                  </GetResources>
-                </TabbedPageSection>
-              </Tabs.TabContents>
-            </Tabs>
-          </div>
-        </Page.Contents>
-      </Page>
+      <>
+        <Page titleTag={org.name}>
+          <SettingsHeader />
+          <Page.Contents fullWidth={false} scrollable={true}>
+            <div className="col-xs-12">
+              <Tabs>
+                <SettingsNavigation tab="tokens" orgID={org.id} />
+                <Tabs.TabContents>
+                  <TabbedPageSection
+                    id="settings-tab--buckets"
+                    url="buckets"
+                    title="Buckets"
+                  >
+                    <GetResources resource={ResourceTypes.Authorizations}>
+                      <TokensTab />
+                    </GetResources>
+                  </TabbedPageSection>
+                </Tabs.TabContents>
+              </Tabs>
+            </div>
+          </Page.Contents>
+        </Page>
+        {children}
+      </>
     )
   }
 }

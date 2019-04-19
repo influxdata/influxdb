@@ -1,21 +1,26 @@
+// Libraries
+import {Dispatch} from 'react'
+
 // API
 import {client} from 'src/utils/api'
 import * as authAPI from 'src/authorizations/apis'
 
-// Types
-import {RemoteDataState, AppState} from 'src/types'
-import {Authorization} from '@influxdata/influx'
-import {Dispatch} from 'redux-thunk'
-
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
+// Constants
 import {
   authorizationsGetFailed,
   authorizationCreateFailed,
   authorizationUpdateFailed,
   authorizationDeleteFailed,
+  authorizationCreateSuccess,
 } from 'src/shared/copy/v2/notifications'
+
+// Types
+import {RemoteDataState, GetState} from 'src/types'
+import {Authorization} from '@influxdata/influx'
+import {PublishNotificationAction} from 'src/types/actions/notifications'
 
 export type Action =
   | SetAuthorizations
@@ -77,9 +82,13 @@ export const removeAuthorization = (id: string): RemoveAuthorization => ({
   payload: {id},
 })
 
+type GetAuthorizations = (
+  dispatch: Dispatch<Action | PublishNotificationAction>,
+  getState: GetState
+) => Promise<void>
 export const getAuthorizations = () => async (
-  dispatch: Dispatch<Action>,
-  getState: () => AppState
+  dispatch: Dispatch<Action | PublishNotificationAction>,
+  getState: GetState
 ) => {
   try {
     dispatch(setAuthorizations(RemoteDataState.Loading))
@@ -98,11 +107,12 @@ export const getAuthorizations = () => async (
 }
 
 export const createAuthorization = (auth: Authorization) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | PublishNotificationAction>
 ) => {
   try {
     const createdAuthorization = await authAPI.createAuthorization(auth)
     dispatch(addAuthorization(createdAuthorization))
+    dispatch(notify(authorizationCreateSuccess()))
   } catch (e) {
     console.error(e)
     dispatch(notify(authorizationCreateFailed()))
@@ -111,7 +121,7 @@ export const createAuthorization = (auth: Authorization) => async (
 }
 
 export const updateAuthorization = (authorization: Authorization) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | PublishNotificationAction | GetAuthorizations>
 ) => {
   try {
     await client.authorizations.update(authorization.id, authorization)
@@ -124,7 +134,7 @@ export const updateAuthorization = (authorization: Authorization) => async (
 }
 
 export const deleteAuthorization = (id: string, name: string = '') => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | PublishNotificationAction>
 ) => {
   try {
     await client.authorizations.delete(id)
