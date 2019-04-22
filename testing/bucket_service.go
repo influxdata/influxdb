@@ -118,16 +118,18 @@ func CreateBucket(
 			},
 			args: args{
 				bucket: &platform.Bucket{
-					Name:  "name1",
-					OrgID: MustIDBase16(orgOneID),
+					Name:        "name1",
+					OrgID:       MustIDBase16(orgOneID),
+					Description: "desc1",
 				},
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						Name:  "name1",
-						ID:    MustIDBase16(bucketOneID),
-						OrgID: MustIDBase16(orgOneID),
+						Name:        "name1",
+						ID:          MustIDBase16(bucketOneID),
+						OrgID:       MustIDBase16(orgOneID),
+						Description: "desc1",
 					},
 				},
 			},
@@ -991,9 +993,10 @@ func UpdateBucket(
 	t *testing.T,
 ) {
 	type args struct {
-		name      string
-		id        platform.ID
-		retention int
+		name        string
+		id          platform.ID
+		retention   int
+		description *string
 	}
 	type wants struct {
 		err    error
@@ -1109,6 +1112,41 @@ func UpdateBucket(
 			},
 		},
 		{
+			name: "update description",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "bucket1",
+					},
+					{
+						ID:    MustIDBase16(bucketTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:          MustIDBase16(bucketOneID),
+				description: stringPtr("desc1"),
+			},
+			wants: wants{
+				bucket: &platform.Bucket{
+					ID:          MustIDBase16(bucketOneID),
+					OrgID:       MustIDBase16(orgOneID),
+					Name:        "bucket1",
+					Description: "desc1",
+				},
+			},
+		},
+		{
 			name: "update retention and name",
 			fields: BucketFields{
 				Organizations: []*platform.Organization{
@@ -1196,6 +1234,8 @@ func UpdateBucket(
 				d := time.Duration(tt.args.retention) * time.Minute
 				upd.RetentionPeriod = &d
 			}
+
+			upd.Description = tt.args.description
 
 			bucket, err := s.UpdateBucket(ctx, tt.args.id, upd)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
