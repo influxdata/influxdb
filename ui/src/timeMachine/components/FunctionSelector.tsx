@@ -5,6 +5,7 @@ import {connect} from 'react-redux'
 // Components
 import {Input} from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
+import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 
 // Actions
 import {selectFunction} from 'src/timeMachine/actions/queryBuilder'
@@ -42,20 +43,22 @@ class FunctionSelector extends PureComponent<Props, State> {
     const {searchTerm} = this.state
 
     return (
-      <div className="function-selector">
-        <h3>Aggregate Functions</h3>
-        <Input
-          customClass="function-selector--search"
-          value={searchTerm}
-          onChange={this.handleSetSearchTerm}
-          placeholder="Search functions..."
-        />
+      <BuilderCard className="function-selector">
+        <BuilderCard.Header title="Aggregate Functions" />
+        <BuilderCard.Menu>
+          <Input
+            customClass="function-selector--search"
+            value={searchTerm}
+            onChange={this.handleSetSearchTerm}
+            placeholder="Search functions..."
+          />
+        </BuilderCard.Menu>
         <SelectorList
           items={this.functions}
           selectedItems={this.selectedFunctions}
           onSelectItem={onSelectFunction}
         />
-      </div>
+      </BuilderCard>
     )
   }
 
