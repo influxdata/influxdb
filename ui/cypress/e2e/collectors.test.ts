@@ -48,7 +48,7 @@ describe('Collectors', () => {
           .click()
       })
 
-      cy.getByTestID('table-row')
+      cy.getByTestID('resource-card')
         .should('have.length', 1)
         .and('contain', newConfig)
     })
@@ -63,10 +63,19 @@ describe('Collectors', () => {
         cy.createTelegraf(telegrafConfigName, description, id)
       })
 
-      cy.getByTestID('table-cell').within(() => {
-        cy.getByTestID('editable-name').click()
-        cy.getByTestID('input-field').type(`${newConfigName}{enter}`)
-      })
+      cy.getByTestID('collector-card--name')
+        .first()
+        .trigger('mouseover')
+
+      cy.getByTestID('collector-card--name-button')
+        .first()
+        .click()
+
+      cy.getByTestID('collector-card--input')
+        .type(newConfigName)
+        .type('{enter}')
+
+      cy.getByTestID('collector-card--name').should('contain', newConfigName)
     })
 
     it.skip('can delete a telegraf config', () => {
