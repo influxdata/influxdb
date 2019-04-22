@@ -1,6 +1,8 @@
 // Libraries
-import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
+import React, {PureComponent, FormEvent} from 'react'
 import _ from 'lodash'
+import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {
@@ -14,8 +16,11 @@ import {
 import {Overlay} from 'src/clockface'
 import VariableArgumentsEditor from 'src/variables/components/VariableArgumentsEditor'
 
+// Actions
+import {updateVariable} from 'src/variables/actions'
+
 // Utils
-import {validateVariableName} from 'src/variables/utils/validation'
+import {extractVariablesList} from 'src/variables/selectors'
 
 // Constants
 import {variableItemTypes} from 'src/variables/constants'
@@ -27,133 +32,127 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {VariableArguments} from 'src/types'
-
-interface Props {
-  variable: Variable
-  variables: Variable[]
-  onCloseOverlay: () => void
-  onUpdateVariable: (variable: Variable) => Promise<void>
-}
+import {VariableArguments, AppState} from 'src/types'
 
 interface State {
-  variable: Variable
+  workingVariable: Variable
   isNameValid: boolean
   hasValidArgs: boolean
 }
 
-export default class UpdateVariableOverlay extends PureComponent<Props, State> {
+interface StateProps {
+  variables: Variable[]
+  startVariable: Variable
+}
+
+interface DispatchProps {
+  onUpdateVariable: typeof updateVariable
+}
+
+type Props = StateProps & DispatchProps & WithRouterProps
+
+class UpdateVariableOverlay extends PureComponent<Props, State> {
   public state: State = {
-    variable: this.props.variable,
+    workingVariable: this.props.startVariable,
     isNameValid: true,
     hasValidArgs: true,
   }
 
   public render() {
-    const {onCloseOverlay} = this.props
-    const {variable} = this.state
+    const {workingVariable, hasValidArgs} = this.state
 
     return (
-      <Overlay.Container maxWidth={1000}>
-        <Overlay.Heading
-          title="Edit Variable"
-          onDismiss={this.props.onCloseOverlay}
-        />
-        <Overlay.Body>
-          <Form onSubmit={this.handleSubmit}>
-            <Grid>
-              <Grid.Row>
-                <Grid.Column widthXS={Columns.Six}>
-                  <div className="overlay-flux-editor--spacing">
-                    <Form.ValidationElement
-                      label="Name"
-                      value={variable.name}
-                      required={true}
-                      validationFunc={this.handleNameValidation}
-                    >
-                      {status => (
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={1000}>
+          <Overlay.Heading title="Edit Variable" onDismiss={this.handleClose} />
+          <Overlay.Body>
+            <Form onSubmit={this.handleSubmit}>
+              <Grid>
+                <Grid.Row>
+                  <Grid.Column widthXS={Columns.Six}>
+                    <div className="overlay-flux-editor--spacing">
+                      <Form.Element
+                        label="Name"
+                        helpText="To rename your variable use the rename button. Renaming is not allowed here."
+                      >
                         <Input
                           placeholder="Give your variable a name"
                           name="name"
                           autoFocus={true}
-                          value={variable.name}
-                          onChange={this.handleChangeInput}
-                          status={status}
+                          value={workingVariable.name}
+                          status={ComponentStatus.Disabled}
                         />
-                      )}
-                    </Form.ValidationElement>
-                  </div>
-                </Grid.Column>
-                <Grid.Column widthXS={Columns.Six}>
-                  <Form.Element label="Type" required={true}>
-                    <Dropdown
-                      selectedID={variable.arguments.type}
-                      onChange={this.handleChangeType}
-                    >
-                      {variableItemTypes.map(v => (
-                        <Dropdown.Item key={v.type} id={v.type} value={v.type}>
-                          {v.label}
-                        </Dropdown.Item>
-                      ))}
-                    </Dropdown>
-                  </Form.Element>
-                </Grid.Column>
-              </Grid.Row>
-              <Grid.Row>
-                <Grid.Column>
-                  <VariableArgumentsEditor
-                    onChange={this.handleChangeArgs}
-                    onSelectMapDefault={this.handleSelectMapDefault}
-                    selected={variable.selected}
-                    args={variable.arguments}
-                  />
-                </Grid.Column>
-              </Grid.Row>
-              <Grid.Row>
-                <Grid.Column>
-                  <Form.Footer>
-                    <Button
-                      text="Cancel"
-                      color={ComponentColor.Danger}
-                      onClick={onCloseOverlay}
+                      </Form.Element>
+                    </div>
+                  </Grid.Column>
+                  <Grid.Column widthXS={Columns.Six}>
+                    <Form.Element label="Type" required={true}>
+                      <Dropdown
+                        selectedID={workingVariable.arguments.type}
+                        onChange={this.handleChangeType}
+                      >
+                        {variableItemTypes.map(v => (
+                          <Dropdown.Item
+                            key={v.type}
+                            id={v.type}
+                            value={v.type}
+                          >
+                            {v.label}
+                          </Dropdown.Item>
+                        ))}
+                      </Dropdown>
+                    </Form.Element>
+                  </Grid.Column>
+                </Grid.Row>
+                <Grid.Row>
+                  <Grid.Column>
+                    <VariableArgumentsEditor
+                      onChange={this.handleChangeArgs}
+                      onSelectMapDefault={this.handleSelectMapDefault}
+                      selected={workingVariable.selected}
+                      args={workingVariable.arguments}
                     />
-                    <Button
-                      text="Submit"
-                      type={ButtonType.Submit}
-                      color={ComponentColor.Primary}
-                      status={
-                        this.isFormValid
-                          ? ComponentStatus.Default
-                          : ComponentStatus.Disabled
-                      }
-                    />
-                  </Form.Footer>
-                </Grid.Column>
-              </Grid.Row>
-            </Grid>
-          </Form>
-        </Overlay.Body>
-      </Overlay.Container>
+                  </Grid.Column>
+                </Grid.Row>
+                <Grid.Row>
+                  <Grid.Column>
+                    <Form.Footer>
+                      <Button
+                        text="Cancel"
+                        color={ComponentColor.Danger}
+                        onClick={this.handleClose}
+                      />
+                      <Button
+                        text="Submit"
+                        type={ButtonType.Submit}
+                        color={ComponentColor.Primary}
+                        status={
+                          hasValidArgs
+                            ? ComponentStatus.Default
+                            : ComponentStatus.Disabled
+                        }
+                      />
+                    </Form.Footer>
+                  </Grid.Column>
+                </Grid.Row>
+              </Grid>
+            </Form>
+          </Overlay.Body>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 
-  private get isFormValid(): boolean {
-    const {hasValidArgs, isNameValid} = this.state
-
-    return hasValidArgs && isNameValid
-  }
-
   private handleChangeType = (selectedType: string) => {
-    const {variable} = this.props
-    const {isNameValid} = this.state
+    const {isNameValid, workingVariable} = this.state
     const defaults = {hasValidArgs: false, isNameValid}
 
     switch (selectedType) {
       case 'query':
         return this.setState({
           ...defaults,
-          variable: {
-            ...variable,
+          workingVariable: {
+            ...workingVariable,
             arguments: {
               type: 'query',
               values: {
@@ -167,8 +166,8 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
       case 'map':
         return this.setState({
           ...defaults,
-          variable: {
-            ...variable,
+          workingVariable: {
+            ...workingVariable,
             selected: null,
             arguments: {
               type: 'map',
@@ -176,15 +175,27 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
             },
           },
         })
+      case 'constant':
+        return this.setState({
+          ...defaults,
+          workingVariable: {
+            ...workingVariable,
+            selected: null,
+            arguments: {
+              type: 'constant',
+              values: [],
+            },
+          },
+        })
     }
   }
 
   private handleSelectMapDefault = (selected: string) => {
-    const {variable} = this.state
+    const {workingVariable} = this.state
 
     this.setState({
-      variable: {
-        ...variable,
+      workingVariable: {
+        ...workingVariable,
         selected: [selected],
       },
     })
@@ -197,11 +208,11 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
     args: VariableArguments
     isValid: boolean
   }) => {
-    const {variable} = this.state
+    const {workingVariable} = this.state
 
     this.setState({
-      variable: {
-        ...variable,
+      workingVariable: {
+        ...workingVariable,
         arguments: args,
       },
       hasValidArgs: isValid,
@@ -210,27 +221,36 @@ export default class UpdateVariableOverlay extends PureComponent<Props, State> {
 
   private handleSubmit = (e: FormEvent): void => {
     e.preventDefault()
+    const {workingVariable} = this.state
 
-    this.props.onUpdateVariable(this.state.variable)
-    this.props.onCloseOverlay()
+    this.props.onUpdateVariable(workingVariable.id, workingVariable)
+    this.handleClose()
   }
 
-  private handleNameValidation = (name: string) => {
-    const {variables} = this.props
-    const {error} = validateVariableName(name, variables)
+  private handleClose = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
 
-    this.setState({isNameValid: !error})
-
-    return error
-  }
-
-  private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    const key = e.target.name
-    const variable = {...this.state.variable, [key]: value}
-
-    this.setState({
-      variable,
-    })
+    router.push(`/orgs/${orgID}/variables`)
   }
 }
+
+const mstp = (state: AppState, {params: {id}}: Props): StateProps => {
+  const variables = extractVariablesList(state)
+  const startVariable = variables.find(v => v.id === id)
+
+  return {variables, startVariable}
+}
+
+const mdtp: DispatchProps = {
+  onUpdateVariable: updateVariable,
+}
+
+export default withRouter(
+  connect<StateProps, DispatchProps>(
+    mstp,
+    mdtp
+  )(UpdateVariableOverlay)
+)

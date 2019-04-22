@@ -94,7 +94,7 @@ func (as *AnalyticalStorage) FindLogs(ctx context.Context, filter influxdb.LogFi
 			return nil, 0, err
 		}
 		for i := 0; i < len(run.Log); i++ {
-			logs = append(logs, &run.Log[0])
+			logs = append(logs, &run.Log[i])
 		}
 		return logs, len(logs), nil
 	}
@@ -107,7 +107,7 @@ func (as *AnalyticalStorage) FindLogs(ctx context.Context, filter influxdb.LogFi
 
 	for _, run := range runs {
 		for i := 0; i < len(run.Log); i++ {
-			logs = append(logs, &run.Log[0])
+			logs = append(logs, &run.Log[i])
 		}
 	}
 

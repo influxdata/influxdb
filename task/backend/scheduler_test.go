@@ -22,6 +22,7 @@ import (
 )
 
 func TestScheduler_Cancelation(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/13358")
 	t.Parallel()
 
 	tcs := mock.NewTaskControlService()
@@ -563,6 +564,8 @@ func pollForRunStatus(t *testing.T, r *runListener, taskID platform.ID, expCount
 
 		r.mu.Lock()
 		runs = r.rs[taskID]
+		runs := make([]*platform.Run, len(r.rs[taskID]))
+		copy(runs, r.rs[taskID])
 		r.mu.Unlock()
 
 		if len(runs) != expCount {
@@ -689,6 +692,7 @@ func TestScheduler_RunStatus(t *testing.T) {
 }
 
 func TestScheduler_RunFailureCleanup(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/13358")
 	t.Parallel()
 
 	tcs := mock.NewTaskControlService()

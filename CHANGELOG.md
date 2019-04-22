@@ -1,8 +1,14 @@
 ## v2.0.0-alpha.9 [unreleased]
 
+
+**NOTE: This will remove all tasks from your InfluxDB v2.0 instance.**
+
 ### Features
 1. [13423](https://github.com/influxdata/influxdb/pull/13423): Set autorefresh of dashboard to pause if absolute time range is selected
+1. [13473](https://github.com/influxdata/influxdb/pull/13473): Switch task back end to a more modular and flexible system
 1. [13493](https://github.com/influxdata/influxdb/pull/13493): Add org profile tab with ability to edit organization name
+1. [13510](https://github.com/influxdata/influxdb/pull/13510): Add org name to dahboard page title 
+1. [13520](https://github.com/influxdata/influxdb/pull/13520): Add cautioning to bucket renaming
 
 ### Bug Fixes
 

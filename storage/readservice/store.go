@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxql"
 )
 
@@ -133,7 +134,7 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 	return reads.NewGroupResultSet(ctx, req, newCursor), nil
 }
 
-func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (storage.StringIterator, error) {
+func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -169,12 +170,12 @@ func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (sto
 	if err != nil {
 		return nil, err
 	}
-	si := s.engine.TagKeys(influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.Range.Start, req.Range.End, expr)
+	si := s.engine.TagKeys(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.Range.Start, req.Range.End, expr)
 
 	return si, nil
 }
 
-func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (storage.StringIterator, error) {
+func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -214,9 +215,7 @@ func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	if err != nil {
 		return nil, err
 	}
-	si := s.engine.TagValues(influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.TagKey, req.Range.Start, req.Range.End, expr)
-
-	return si, nil
+	return s.engine.TagValues(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.TagKey, req.Range.Start, req.Range.End, expr)
 }
 
 // this is easier than fooling around with .proto files.

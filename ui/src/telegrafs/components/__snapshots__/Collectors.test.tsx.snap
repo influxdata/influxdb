@@ -7,6 +7,8 @@ exports[`CollectorList rendering renders 1`] = `
       <IndexListHeaderCell
         alignment="left"
         columnName="Name"
+        sort="none"
+        sortKey="name"
         width="50%"
       />
       <IndexListHeaderCell

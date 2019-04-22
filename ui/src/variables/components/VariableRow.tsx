@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps, Link} from 'react-router'
 
 // Components
 import {IndexList, Alignment, Context, IconFont} from 'src/clockface'
@@ -11,12 +11,12 @@ import {
   FlexDirection,
   AlignItems,
   ComponentSize,
+  Button,
 } from '@influxdata/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Types
 import {IVariable as Variable, ILabel} from '@influxdata/influx'
-import EditableName from 'src/shared/components/EditableName'
 import {AppState} from 'src/types'
 
 // Selectors
@@ -62,18 +62,23 @@ class VariableRow extends PureComponent<Props & WithRouterProps> {
             alignItems={AlignItems.FlexStart}
             stretchToFitWidth={true}
           >
-            <EditableName
-              onUpdate={this.handleUpdateVariableName}
-              name={variable.name}
-              noNameString="NAME THIS VARIABLE"
-              onEditName={this.handleEditVariable}
-            >
-              {variable.name}
-            </EditableName>
+            <div className="editable-name">
+              <Link to={this.editVariablePath}>
+                <span>{variable.name}</span>
+              </Link>
+            </div>
             {this.labels}
           </ComponentSpacer>
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Left}>Query</IndexList.Cell>
+        <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
+          <Button
+            text="Rename"
+            onClick={this.handleRenameVariable}
+            color={ComponentColor.Danger}
+            size={ComponentSize.ExtraSmall}
+          />
+        </IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
           <Context>
             <Context.Menu icon={IconFont.CogThick}>
@@ -95,6 +100,15 @@ class VariableRow extends PureComponent<Props & WithRouterProps> {
         </IndexList.Cell>
       </IndexList.Row>
     )
+  }
+
+  private get editVariablePath(): string {
+    const {
+      variable,
+      params: {orgID},
+    } = this.props
+
+    return `/orgs/${orgID}/variables/${variable.id}/edit`
   }
 
   private get labels(): JSX.Element {
@@ -140,17 +154,17 @@ class VariableRow extends PureComponent<Props & WithRouterProps> {
       variable,
       params: {orgID},
     } = this.props
-    router.push(`orgs/${orgID}/variables/${variable.id}/export`)
+    router.push(`/orgs/${orgID}/variables/${variable.id}/export`)
   }
 
-  private handleUpdateVariableName = async (name: string) => {
-    const {onUpdateVariableName, variable} = this.props
+  private handleRenameVariable = async () => {
+    const {
+      router,
+      variable,
+      params: {orgID},
+    } = this.props
 
-    await onUpdateVariableName({id: variable.id, name})
-  }
-
-  private handleEditVariable = (): void => {
-    this.props.onEditVariable(this.props.variable)
+    router.push(`/orgs/${orgID}/variables/${variable.id}/rename`)
   }
 }
 

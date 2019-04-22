@@ -5,16 +5,18 @@
 
 @import 'src/style/modules';
 
-$rename-dash-title-padding: 8px;
+$rename-dash-title-padding: 4px;
 
 .renamable-page-title {
   height: $form-sm-height;
   width: 100%;
   min-width: 29vw;
   max-width: 42vw;
+  display: flex;
 }
 
 .renamable-page-title--title,
+.renamable-page-title--input-prefix,
 .input.renamable-page-title--input > input {
   font-size: $page-title-size;
   font-weight: $page-title-weight;
@@ -68,6 +70,18 @@ $rename-dash-title-padding: 8px;
     color: $g9-mountain;
     font-style: italic;
   }
+}
+
+.renamable-page-title--input-prefix {
+  border-radius: $radius;
+  position: relative;
+  white-space: nowrap;
+  @include no-user-select();
+  color: $g17-whisper;
+  transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  border: $ix-border solid transparent;
+  height: $form-sm-height;
+  line-height: $form-sm-height - ($ix-border * 2);
 }
 
 /* Ensure placeholder text matches font weight of title */

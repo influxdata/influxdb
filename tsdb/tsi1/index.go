@@ -318,12 +318,14 @@ func (i *Index) Compact() {
 	}
 }
 
+// EnableCompactions allows compactions to proceed again.
 func (i *Index) EnableCompactions() {
 	for _, p := range i.partitions {
 		p.EnableCompactions()
 	}
 }
 
+// DisableCompactions stops any ongoing compactions and waits for them to finish.
 func (i *Index) DisableCompactions() {
 	for _, p := range i.partitions {
 		p.DisableCompactions()

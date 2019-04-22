@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 func newStreamSeries(v ...string) *sliceStreamReader {
@@ -109,25 +109,26 @@ series: _m=m0,tag0=val03
 func TestNewMergedStringIterator(t *testing.T) {
 	tests := []struct {
 		name           string
-		iterators      []storage.StringIterator
+		iterators      []cursors.StringIterator
 		expectedValues []string
 	}{
 		{
 			name: "simple",
-			iterators: []storage.StringIterator{
-				newMockStringIterator("foo", "bar"),
+			iterators: []cursors.StringIterator{
+				newMockStringIterator("bar", "foo"),
 			},
-			expectedValues: []string{"foo", "bar"},
+			expectedValues: []string{"bar", "foo"},
 		},
 		{
 			name: "duplicates",
-			iterators: []storage.StringIterator{
-				newMockStringIterator("foo"),
-				newMockStringIterator("bar", "bar"),
-				newMockStringIterator("foo"),
-				newMockStringIterator("baz", "qux"),
+			iterators: []cursors.StringIterator{
+				newMockStringIterator("c"),
+				newMockStringIterator("b", "b"), // This kind of duplication is not explicitly documented, but works.
+				newMockStringIterator("a", "c"),
+				newMockStringIterator("b", "d"),
+				newMockStringIterator("0", "a", "b", "e"),
 			},
-			expectedValues: []string{"foo", "bar", "baz", "qux"},
+			expectedValues: []string{"0", "a", "b", "c", "d", "e"},
 		},
 	}
 

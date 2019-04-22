@@ -1,19 +1,21 @@
 // Libraries
-import React, {Component, KeyboardEvent, ChangeEvent} from 'react'
+import React, {PureComponent, KeyboardEvent, ChangeEvent} from 'react'
 import classnames from 'classnames'
 
 // Components
-import {Input} from '@influxdata/clockface'
+import {Input, PageTitle, Icon} from '@influxdata/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {IconFont} from 'src/clockface'
 
 interface Props {
   onRename: (name: string) => void
   name: string
   placeholder: string
   maxLength: number
+  prefix: string
 }
 
 interface State {
@@ -22,7 +24,11 @@ interface State {
 }
 
 @ErrorHandling
-class RenamablePageTitle extends Component<Props, State> {
+class RenamablePageTitle extends PureComponent<Props, State> {
+  public static defaultProps = {
+    prefix: '',
+  }
+
   constructor(props: Props) {
     super(props)
 
@@ -33,12 +39,13 @@ class RenamablePageTitle extends Component<Props, State> {
   }
 
   public render() {
-    const {isEditing} = this.state
     const {name, placeholder} = this.props
+    const {isEditing} = this.state
 
     if (isEditing) {
       return (
         <div className="renamable-page-title">
+          {this.prefix}
           <ClickOutside onClickOutside={this.handleStopEditing}>
             {this.input}
           </ClickOutside>
@@ -48,12 +55,22 @@ class RenamablePageTitle extends Component<Props, State> {
 
     return (
       <div className="renamable-page-title">
+        {this.prefix}
         <div className={this.titleClassName} onClick={this.handleStartEditing}>
-          {name || placeholder}
-          <span className="icon pencil" />
+          <PageTitle title={name || placeholder} />
+          <Icon glyph={IconFont.Pencil} />
         </div>
       </div>
     )
+  }
+
+  private get prefix(): JSX.Element {
+    const {prefix} = this.props
+    if (prefix) {
+      return (
+        <div className="renamable-page-title--input-prefix">{`${prefix} /`}</div>
+      )
+    }
   }
 
   private get input(): JSX.Element {

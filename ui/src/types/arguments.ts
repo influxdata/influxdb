@@ -13,4 +13,9 @@ export interface QueryArguments {
   }
 }
 
-export type VariableArguments = QueryArguments | MapArguments
+export interface CSVArguments {
+  type: 'constant'
+  values: string[]
+}
+
+export type VariableArguments = QueryArguments | MapArguments | CSVArguments

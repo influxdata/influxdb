@@ -1,79 +1,89 @@
 package lifecycle
 
-import (
-	"sync"
-	"sync/atomic"
-	"unsafe"
-)
+import "sync"
 
 // Resource keeps track of references and has some compile time debug hooks
 // to help diagnose leaks. It keeps track of if it is open or not and allows
 // blocking until all references are released.
 type Resource struct {
-	sem  sync.RWMutex
-	open bool
+	stmu sync.Mutex     // protects state transitions
+	chmu sync.RWMutex   // protects channel mutations
+	ch   chan struct{}  // signals references to close
+	wg   sync.WaitGroup // counts outstanding references
 }
 
-// Open waits for any outstanding references, of which there should be none
-// and marks the reference counter as open.
+// Open marks the resource as open.
 func (res *Resource) Open() {
-	res.sem.Lock()
-	res.open = true
-	res.sem.Unlock()
+	res.stmu.Lock()
+	defer res.stmu.Unlock()
+
+	res.chmu.Lock()
+	res.ch = make(chan struct{})
+	res.chmu.Unlock()
 }
 
-// Close waits for any outstanding references and marks the reference counter
-// as closed, so that Acquire returns an error.
+// Close waits for any outstanding references and marks the resource as closed
+// so that Acquire returns an error.
 func (res *Resource) Close() {
-	res.sem.Lock()
-	res.open = false
-	res.sem.Unlock()
+	res.stmu.Lock()
+	defer res.stmu.Unlock()
+
+	res.chmu.Lock()
+	if res.ch != nil {
+		close(res.ch) // signal any references.
+		res.ch = nil  // stop future Acquires
+	}
+	res.chmu.Unlock()
+
+	res.wg.Wait() // wait for any acquired references
 }
 
-// Opened returns true if the resource is currently open.
+// Opened returns true if the resource is currently open. It may be immediately
+// false in the presence of concurrent Open and Close calls.
 func (res *Resource) Opened() bool {
-	res.sem.RLock()
-	open := res.open
-	res.sem.RUnlock()
-	return open
+	res.chmu.RLock()
+	opened := res.ch != nil
+	res.chmu.RUnlock()
+
+	return opened
 }
 
 // Acquire returns a Reference used to keep alive some resource.
 func (res *Resource) Acquire() (*Reference, error) {
-	res.sem.RLock()
-	if !res.open {
-		res.sem.RUnlock()
+	res.chmu.RLock()
+	defer res.chmu.RUnlock()
+
+	ch := res.ch
+	if ch == nil {
 		return nil, resourceClosed()
 	}
-	// RLock intentionally left open.
 
-	return live.track(&Reference{
-		res: res,
-		id:  0, // required because staticcheck
-	}), nil
+	res.wg.Add(1)
+	return live.track(&Reference{wg: &res.wg, ch: ch}), nil
 }
 
 // Reference is an open reference for some resource.
 type Reference struct {
-	res *Resource
-	id  uint64
+	once sync.Once
+	wg   *sync.WaitGroup
+	ch   <-chan struct{}
+	id   uint64
 }
 
+// Closing returns a channel that will be closed when the associated resource begins closing.
+func (ref *Reference) Closing() <-chan struct{} { return ref.ch }
+
 // Release causes the Reference to be freed. It is safe to call multiple times.
-func (r *Reference) Release() {
-	// Inline a sync.Once using the res pointer as the flag for if we have
-	// called unlock or not. This reduces the size of a ref.
-	addr := (*unsafe.Pointer)(unsafe.Pointer(&r.res))
-	old := atomic.LoadPointer(addr)
-	if old != nil && atomic.CompareAndSwapPointer(addr, old, nil) {
-		live.untrack(r)
-		(*Resource)(old).sem.RUnlock()
-	}
+func (ref *Reference) Release() {
+	ref.once.Do(func() {
+		live.untrack(ref)
+		ref.wg.Done()
+	})
 }
 
 // Close makes a Reference an io.Closer. It is safe to call multiple times.
-func (r *Reference) Close() error {
-	r.Release()
+func (ref *Reference) Close() error {
+	ref.Release()
 	return nil
 }
 
@@ -81,14 +91,14 @@ func (r *Reference) Close() error {
 type References []*Reference
 
 // Release releases all of the references. It is safe to call multiple times.
-func (rs References) Release() {
-	for _, r := range rs {
-		r.Release()
+func (refs References) Release() {
+	for _, ref := range refs {
+		ref.Release()
 	}
 }
 
-// Close makes references an io.Closer. It is safe to call multiple times.
-func (rs References) Close() error {
-	rs.Release()
+// Close makes References an io.Closer. It is safe to call multiple times.
+func (refs References) Close() error {
+	refs.Release()
 	return nil
 }

@@ -104,7 +104,7 @@ export interface Dashboard extends Omit<DashboardAPI, 'cells'> {
   cells: Cell[]
 }
 
-type Omit<K, V> = Pick<K, Exclude<keyof K, V>>
+export type Omit<K, V> = Pick<K, Exclude<keyof K, V>>
 
 export type NewView<T extends ViewProperties = ViewProperties> = Omit<
   View<T>,

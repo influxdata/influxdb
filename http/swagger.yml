@@ -1820,13 +1820,6 @@ paths:
       tags:
         - Labels
       summary: Create a label
-      parameters:
-          - $ref: '#/components/parameters/TraceSpan'
-          - in: query
-            name: orgID
-            description: return only labels that belong to the specified organization
-            schema:
-              type: string
       requestBody:
           description: label to create
           required: true
@@ -6639,8 +6632,18 @@ components:
     CellUpdate:
       type: object
       properties:
-        name:
-          type: string
+        x:
+          type: integer
+          format: int32
+        "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
+          type: integer
+          format: int32
+        w:
+          type: integer
+          format: int32
+        h:
+          type: integer
+          format: int32
     CreateCell:
       type: object
       properties:

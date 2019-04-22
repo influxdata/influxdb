@@ -96,21 +96,17 @@ stuff f=-123.456,b=true,s="hello"
 }
 from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, bOut.Name, be.Org.Name),
 	}
+
 	created, err := be.TaskService().CreateTask(ctx, create)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Find the next due run of the task we just created, so that we can accurately tick the scheduler to it.
-	m, err := be.TaskStore().FindTaskMetaByID(ctx, created.ID)
+	ndr, err := be.TaskControlService().NextDueRun(ctx, created.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ndr, err := m.NextDueRun()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	be.TaskScheduler().(*backend.TickScheduler).Tick(ndr + 1)
 
 	// Poll for the task to have started and finished.
@@ -210,7 +206,6 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	}
 
 	t.Run("showrun", func(t *testing.T) {
-		t.Skip("FindRunByID isn't returning the log")
 		// do a show run!
 		showRun, err := be.TaskService().FindRunByID(ctx, created.ID, targetRun.ID)
 		if err != nil {

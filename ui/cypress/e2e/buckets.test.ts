@@ -35,9 +35,7 @@ describe('Buckets', () => {
         .and('contain', newBucket)
     })
 
-    it('can update a buckets name and retention rules', () => {
-      const newName = 'newdefbuck'
-
+    it("can update a bucket's retention rules", () => {
       cy.get<Bucket>('@bucket').then(({name}) => {
         cy.contains(name).click()
       })
@@ -52,16 +50,10 @@ describe('Buckets', () => {
       cy.getByInputName('seconds').type('{uparrow}')
 
       cy.getByTestID('overlay--container').within(() => {
-        cy.getByInputName('name')
-          .clear()
-          .type(newName)
-
         cy.contains('Save').click()
       })
 
-      cy.getByTestID('table-row')
-        .should('contain', '1 day')
-        .and('contain', newName)
+      cy.getByTestID('table-row').should('contain', '1 day')
     })
 
     it.skip('can delete a bucket', () => {
