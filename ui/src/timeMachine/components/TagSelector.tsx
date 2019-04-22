@@ -3,11 +3,18 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Input, Button} from '@influxdata/clockface'
+import {
+  Input,
+  ComponentSpacer,
+  ComponentSize,
+  FlexDirection,
+  AlignItems,
+} from '@influxdata/clockface'
 import {Dropdown} from 'src/clockface'
 import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 import WaitingText from 'src/shared/components/WaitingText'
 import SelectorList from 'src/timeMachine/components/SelectorList'
+import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -30,7 +37,6 @@ import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {AppState, RemoteDataState} from 'src/types'
-import {IconFont, ButtonShape} from '@influxdata/clockface'
 
 const SEARCH_DEBOUNCE_MS = 500
 
@@ -67,7 +73,17 @@ class TagSelector extends PureComponent<Props> {
   private debouncer = new DefaultDebouncer()
 
   public render() {
-    return <div className="tag-selector">{this.body}</div>
+    const {index} = this.props
+
+    return (
+      <BuilderCard>
+        <BuilderCard.Header
+          title="Filter"
+          onDelete={index !== 0 && this.handleRemoveTagSelector}
+        />
+        {this.body}
+      </BuilderCard>
+    )
   }
 
   private get body() {
@@ -82,79 +98,57 @@ class TagSelector extends PureComponent<Props> {
     } = this.props
 
     if (keysStatus === RemoteDataState.NotStarted) {
-      return <div className="tag-selector--empty">{emptyText}</div>
+      return <BuilderCard.Empty>{emptyText}</BuilderCard.Empty>
     }
 
     if (keysStatus === RemoteDataState.Error) {
-      return (
-        <>
-          <div className="tag-selector--top">{this.removeButton}</div>
-          <div className="tag-selector--empty">Failed to load tag keys</div>
-        </>
-      )
+      return <BuilderCard.Empty>Failed to load tag keys</BuilderCard.Empty>
     }
 
     if (keysStatus === RemoteDataState.Done && !keys.length) {
       return (
-        <>
-          <div className="tag-selector--top">{this.removeButton}</div>
-          <div className="tag-selector--empty" data-testid="empty-tag-keys">
-            No tag keys found <small>in the current time range</small>
-          </div>
-        </>
+        <BuilderCard.Empty testID="empty-tag-keys">
+          No tag keys found <small>in the current time range</small>
+        </BuilderCard.Empty>
       )
     }
 
     return (
       <>
-        <div
-          className="tag-selector--top"
-          data-testid={`tag-selector--container ${index}`}
-        >
-          <SearchableDropdown
-            searchTerm={keysSearchTerm}
-            titleText="No Tags Found"
-            searchPlaceholder="Search keys..."
-            selectedID={selectedKey}
-            onChange={this.handleSelectTag}
-            status={toComponentStatus(keysStatus)}
-            onChangeSearchTerm={this.handleKeysSearch}
-            testID="tag-selector--dropdown"
-            buttonTestID="tag-selector--dropdown-button"
+        <BuilderCard.Menu testID={`tag-selector--container ${index}`}>
+          <ComponentSpacer
+            direction={FlexDirection.Row}
+            alignItems={AlignItems.Center}
+            margin={ComponentSize.Small}
           >
-            {keys.map(key => (
-              <Dropdown.Item key={key} id={key} value={key}>
-                {key}
-              </Dropdown.Item>
-            ))}
-          </SearchableDropdown>
-          {this.selectedCounter}
-          {this.removeButton}
-        </div>
-        <Input
-          value={valuesSearchTerm}
-          placeholder={`Search ${selectedKey} tag values`}
-          customClass="tag-selector--search"
-          onChange={this.handleValuesSearch}
-        />
+            <SearchableDropdown
+              searchTerm={keysSearchTerm}
+              titleText="No Tags Found"
+              searchPlaceholder="Search keys..."
+              selectedID={selectedKey}
+              onChange={this.handleSelectTag}
+              status={toComponentStatus(keysStatus)}
+              onChangeSearchTerm={this.handleKeysSearch}
+              testID="tag-selector--dropdown"
+              buttonTestID="tag-selector--dropdown-button"
+            >
+              {keys.map(key => (
+                <Dropdown.Item key={key} id={key} value={key}>
+                  {key}
+                </Dropdown.Item>
+              ))}
+            </SearchableDropdown>
+            {this.selectedCounter}
+          </ComponentSpacer>
+          <Input
+            value={valuesSearchTerm}
+            placeholder={`Search ${selectedKey} tag values`}
+            customClass="tag-selector--search"
+            onChange={this.handleValuesSearch}
+          />
+        </BuilderCard.Menu>
         {this.values}
       </>
-    )
-  }
-
-  private get removeButton(): JSX.Element {
-    const {index} = this.props
-    if (index === 0) {
-      return null
-    }
-
-    return (
-      <Button
-        shape={ButtonShape.Square}
-        icon={IconFont.Remove}
-        onClick={this.handleRemoveTagSelector}
-        customClass="tag-selector--remove"
-      />
     )
   }
 
@@ -163,25 +157,25 @@ class TagSelector extends PureComponent<Props> {
 
     if (valuesStatus === RemoteDataState.Error) {
       return (
-        <div className="tag-selector--empty">
+        <BuilderCard.Empty>
           {`Failed to load tag values for ${selectedKey}`}
-        </div>
+        </BuilderCard.Empty>
       )
     }
 
     if (valuesStatus === RemoteDataState.Loading) {
       return (
-        <div className="tag-selector--empty">
+        <BuilderCard.Empty>
           <WaitingText text="Loading tag values" />
-        </div>
+        </BuilderCard.Empty>
       )
     }
 
     if (valuesStatus === RemoteDataState.Done && !values.length) {
       return (
-        <div className="tag-selector--empty">
+        <BuilderCard.Empty>
           No values found <small>in the current time range</small>
-        </div>
+        </BuilderCard.Empty>
       )
     }
 
@@ -203,9 +197,7 @@ class TagSelector extends PureComponent<Props> {
       return (
         <div
           className="tag-selector--count"
-          title={`${
-            selectedValues.length
-          } value${pluralizer} have been selected`}
+          title={`${selectedValues.length} value${pluralizer} selected`}
         >
           {selectedValues.length}
         </div>
@@ -225,7 +217,7 @@ class TagSelector extends PureComponent<Props> {
     onSelectValue(index, value)
   }
 
-  private handleRemoveTagSelector = () => {
+  private handleRemoveTagSelector = (): void => {
     const {index, onRemoveTagSelector} = this.props
 
     onRemoveTagSelector(index)
