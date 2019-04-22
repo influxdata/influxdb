@@ -253,6 +253,27 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		}
 	}
 
+	// Check limits
+	tc2 := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 1),
+		Token:          cr.Token,
+	}
+
+	if _, err := sys.TaskService.CreateTask(authorizedCtx, tc2); err != nil {
+		t.Fatal(err)
+	}
+	if !tsk.ID.Valid() {
+		t.Fatal("no task ID set")
+	}
+	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) > 1 {
+		t.Fatalf("failed to limit tasks: expected: 1, got : %d", len(tasks))
+	}
+
 	// Update task: script only.
 	newFlux := fmt.Sprintf(scriptFmt, 99)
 	origID := f.ID
