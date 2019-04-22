@@ -4,16 +4,21 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // Bloom filter settings used in tests.
@@ -326,6 +331,8 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 
 // Ensure index can returns measurement cardinality stats.
 func TestIndex_MeasurementCardinalityStats(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Empty", func(t *testing.T) {
 		idx := MustOpenIndex(1, tsi1.NewConfig())
 		defer idx.Close()
@@ -408,6 +415,99 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 	})
 }
 
+// Ensure index keeps the correct set of series even with concurrent compactions.
+func TestIndex_CompactionConsistency(t *testing.T) {
+	t.Parallel()
+
+	idx := NewIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
+	idx.WithLogger(zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel)))
+	if err := idx.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer idx.Close()
+
+	// Set up some framework to track launched goroutines.
+	wg, done := new(sync.WaitGroup), make(chan struct{})
+	spawn := func(fn func()) {
+		wg.Add(1)
+		go func() {
+			for {
+				select {
+				case <-done:
+					wg.Done()
+					return
+				default:
+					fn()
+				}
+			}
+		}()
+	}
+
+	// Spawn a goroutine to constantly ask the index to compact.
+	spawn(func() { idx.Compact() })
+
+	// Issue a number of writes and deletes for a while.
+	expected, operations := make(map[string]struct{}), []string(nil)
+	spawn(func() {
+		var err error
+		if len(expected) > 0 && rand.Intn(5) == 0 {
+			for m := range expected {
+				err = idx.DropMeasurement([]byte(m))
+				operations = append(operations, "delete: "+m)
+				delete(expected, m)
+				break
+			}
+		} else {
+			m := []byte(fmt.Sprintf("m%d", rand.Int()))
+			s := make([]Series, 100)
+			for i := range s {
+				s[i] = Series{Name: m, Tags: models.NewTags(map[string]string{fmt.Sprintf("t%d", i): "v"})}
+			}
+			err = idx.CreateSeriesSliceIfNotExists(s)
+			operations = append(operations, "add: "+string(m))
+			expected[string(m)] = struct{}{}
+		}
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
+	// Let them run for a while and then wait.
+	time.Sleep(10 * time.Second)
+	close(done)
+	wg.Wait()
+
+	t.Log("expect", len(expected), "measurements after", len(operations), "operations")
+	for _, op := range operations {
+		t.Log(op)
+	}
+
+	for m := range expected {
+		if v, err := idx.MeasurementExists([]byte(m)); err != nil {
+			t.Fatal(err)
+		} else if !v {
+			t.Fatal("expected", m)
+		}
+	}
+
+	miter, err := idx.MeasurementIterator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer miter.Close()
+
+	for {
+		m, err := miter.Next()
+		if err != nil {
+			t.Fatal(err)
+		} else if m == nil {
+			break
+		} else if _, ok := expected[string(m)]; !ok {
+			t.Fatal("unexpected", string(m))
+		}
+	}
+}
+
 func BenchmarkIndex_ComputeMeasurementCardinalityStats(b *testing.B) {
 	idx := MustOpenIndex(1, tsi1.NewConfig())
 	defer idx.Close()
@@ -443,7 +543,7 @@ type Index struct {
 // NewIndex returns a new instance of Index at a temporary path.
 func NewIndex(partitionN uint64, c tsi1.Config) *Index {
 	idx := &Index{
-		Config:     tsi1.NewConfig(),
+		Config:     c,
 		SeriesFile: NewSeriesFile(),
 	}
 	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, idx.Config, tsi1.WithPath(MustTempDir()))
