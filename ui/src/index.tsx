@@ -66,6 +66,9 @@ import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
 import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
 import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
+import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
+import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
+import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -73,7 +76,6 @@ import {disablePresentationMode} from 'src/shared/actions/app'
 // Styles
 import 'src/style/chronograf.scss'
 import '@influxdata/clockface/dist/index.css'
-import RenameBucketOverlay from './buckets/components/RenameBucketOverlay'
 
 const rootNode = getRootNode()
 const basepath = getBasepath()
@@ -255,6 +257,14 @@ class Root extends PureComponent {
                             <Route
                               path="new"
                               component={CreateVariableOverlay}
+                            />
+                            <Route
+                              path=":id/rename"
+                              component={RenameVariableOverlay}
+                            />
+                            <Route
+                              path=":id/edit"
+                              component={UpdateVariableOverlay}
                             />
                           </Route>
                           <Route path="labels" component={LabelsIndex} />
