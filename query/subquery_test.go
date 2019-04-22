@@ -3,6 +3,7 @@ package query_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/models"
@@ -270,6 +271,22 @@ func TestSubquery(t *testing.T) {
 			Rows: []query.Row{
 				{Time: 0 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{float64(10)}},
 				{Time: 30 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{float64(8)}},
+			},
+		},
+		{
+			Name:      "TimeZone",
+			Statement: `SELECT * FROM (SELECT * FROM cpu WHERE time >= '2019-04-17 09:00:00' and time < '2019-04-17 10:00:00' TZ('America/Chicago'))`,
+			Fields:    map[string]influxql.DataType{"value": influxql.Float},
+			MapShardsFn: func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn {
+				return func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) query.Iterator {
+					if got, want := time.Unix(0, opt.StartTime).UTC(), mustParseTime("2019-04-17T14:00:00Z"); !got.Equal(want) {
+						t.Errorf("unexpected min time: got=%q want=%q", got, want)
+					}
+					if got, want := time.Unix(0, opt.EndTime).UTC(), mustParseTime("2019-04-17T15:00:00Z").Add(-1); !got.Equal(want) {
+						t.Errorf("unexpected max time: got=%q want=%q", got, want)
+					}
+					return &FloatIterator{}
+				}
 			},
 		},
 	} {

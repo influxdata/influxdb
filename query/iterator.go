@@ -714,7 +714,8 @@ func newIteratorOptionsSubstatement(ctx context.Context, stmt *influxql.SelectSt
 	subOpt.InterruptCh = opt.InterruptCh
 
 	// Extract the time range and condition from the condition.
-	cond, t, err := influxql.ConditionExpr(stmt.Condition, nil)
+	valuer := &influxql.NowValuer{Location: stmt.Location}
+	cond, t, err := influxql.ConditionExpr(stmt.Condition, valuer)
 	if err != nil {
 		return IteratorOptions{}, err
 	}
