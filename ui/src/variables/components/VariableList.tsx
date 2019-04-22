@@ -3,9 +3,8 @@ import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {IndexList, Overlay} from 'src/clockface'
+import {IndexList} from 'src/clockface'
 import VariableRow from 'src/variables/components/VariableRow'
-import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
@@ -52,13 +51,7 @@ export default class VariableList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      emptyState,
-      variables,
-      sortKey,
-      sortDirection,
-      onClickColumn,
-    } = this.props
+    const {emptyState, sortKey, sortDirection, onClickColumn} = this.props
 
     return (
       <>
@@ -77,14 +70,6 @@ export default class VariableList extends PureComponent<Props, State> {
             {this.rows}
           </IndexList.Body>
         </IndexList>
-        <Overlay visible={this.isVariableOverlayVisible}>
-          <UpdateVariableOverlay
-            variable={this.variable}
-            variables={variables}
-            onCloseOverlay={this.handleCloseOverlay}
-            onUpdateVariable={this.handleUpdateVariable}
-          />
-        </Overlay>
       </>
     )
   }
@@ -122,26 +107,10 @@ export default class VariableList extends PureComponent<Props, State> {
     ))
   }
 
-  private get variable(): Variable {
-    return this.props.variables.find(v => v.id === this.state.variableID)
-  }
-
-  private get isVariableOverlayVisible(): boolean {
-    return this.state.variableOverlayState === OverlayState.Open
-  }
-
-  private handleCloseOverlay = () => {
-    this.setState({variableOverlayState: OverlayState.Closed, variableID: null})
-  }
-
   private handleStartEdit = (variable: Variable) => {
     this.setState({
       variableID: variable.id,
       variableOverlayState: OverlayState.Open,
     })
-  }
-
-  private handleUpdateVariable = async (variable: Variable): Promise<void> => {
-    this.props.onUpdateVariable(variable)
   }
 }
