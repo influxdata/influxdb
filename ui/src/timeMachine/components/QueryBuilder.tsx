@@ -4,7 +4,6 @@ import {connect} from 'react-redux'
 import {range} from 'lodash'
 
 // Components
-import {Button, ButtonShape, IconFont} from '@influxdata/clockface'
 import TagSelector from 'src/timeMachine/components/TagSelector'
 import QueryBuilderDataCard from 'src/timeMachine/components/QueryBuilderDataCard'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
