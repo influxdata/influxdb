@@ -115,18 +115,18 @@ func TestNewMergedStringIterator(t *testing.T) {
 		{
 			name: "simple",
 			iterators: []cursors.StringIterator{
-				newMockStringIterator("bar", "foo"),
+				newMockStringIterator(1, 2, "bar", "foo"),
 			},
 			expectedValues: []string{"bar", "foo"},
 		},
 		{
 			name: "duplicates",
 			iterators: []cursors.StringIterator{
-				newMockStringIterator("c"),
-				newMockStringIterator("b", "b"), // This kind of duplication is not explicitly documented, but works.
-				newMockStringIterator("a", "c"),
-				newMockStringIterator("b", "d"),
-				newMockStringIterator("0", "a", "b", "e"),
+				newMockStringIterator(1, 10, "c"),
+				newMockStringIterator(10, 100, "b", "b"), // This kind of duplication is not explicitly documented, but works.
+				newMockStringIterator(1, 10, "a", "c"),
+				newMockStringIterator(1, 10, "b", "d"),
+				newMockStringIterator(1, 10, "0", "a", "b", "e"),
 			},
 			expectedValues: []string{"0", "a", "b", "c", "d", "e"},
 		},
@@ -141,6 +141,13 @@ func TestNewMergedStringIterator(t *testing.T) {
 			}
 			if !reflect.DeepEqual(tt.expectedValues, gotValues) {
 				t.Errorf("expected %v, got %v", tt.expectedValues, gotValues)
+			}
+			var expectStats cursors.CursorStats
+			for _, iterator := range tt.iterators {
+				expectStats.Add(iterator.Stats())
+			}
+			if !reflect.DeepEqual(expectStats, m.Stats()) {
+				t.Errorf("expected %+v, got %+v", expectStats, m.Stats())
 			}
 		})
 	}
