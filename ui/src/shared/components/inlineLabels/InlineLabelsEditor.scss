@@ -50,12 +50,7 @@ $inline-labels--popover-caret: 12px;
 .inline-labels--list-container {
   background-color: $g3-castle;
   border-radius: $radius;
-  overflow: hidden;
   margin-top: $ix-marg-a;
-}
-
-.inline-labels--list-container .fancy-scroll--track-h {
-  display: none;
 }
 
 .inline-labels--list {
@@ -142,6 +137,12 @@ $inline-labels--popover-caret: 12px;
   font-weight: 500;
   font-style: italic;
   user-select: none;
+}
+
+.inline-label--scrollbar {
+  max-width: 100%;
+  min-height: '0px';
+  max-height: '250px';
 }
 
 /*

@@ -4,9 +4,9 @@ import _ from 'lodash'
 
 // Components
 import {EmptyState} from '@influxdata/clockface'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import InlineLabelsListItem from 'src/shared/components/inlineLabels/InlineLabelsListItem'
 import InlineLabelsCreateLabelButton from 'src/shared/components/inlineLabels/InlineLabelsCreateLabelButton'
+import DapperScrollbars from 'src/shared/components/dapperScrollbars/DapperScrollbars'
 
 // Constants
 import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
@@ -33,9 +33,13 @@ class InlineLabelsList extends Component<Props> {
   public render() {
     return (
       <div className="inline-labels--list-container">
-        <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={250}>
+        <DapperScrollbars
+          className="inline-label--scrollbar"
+          autoSize={true}
+          autoHide={false}
+        >
           <div className="inline-labels--list">{this.menuItems}</div>
-        </FancyScrollbar>
+        </DapperScrollbars>
       </div>
     )
   }
