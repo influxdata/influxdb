@@ -10,6 +10,7 @@ import (
 // 	plan.RegisterPhysicalRules(
 // 		PushDownRangeRule{},
 // 		PushDownFilterRule{},
+// 		PushDownReadTagKeysRule{},
 // 	)
 // }
 
@@ -111,4 +112,67 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	}
 
 	return pn, true, nil
+}
+
+// PushDownReadTagKeysRule matches 'ReadRange |> keys() |> keep() |> distinct()'.
+// The 'from()' must have already been merged with 'range' and, optionally,
+// may have been merged with 'filter'.
+// If any other properties have been set on the from procedure,
+// this rule will not rewrite anything.
+type PushDownReadTagKeysRule struct{}
+
+func (rule PushDownReadTagKeysRule) Name() string {
+	return "PushDownReadTagKeysRule"
+}
+
+func (rule PushDownReadTagKeysRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.DistinctKind,
+		plan.Pat(universe.SchemaMutationKind,
+			plan.Pat(universe.KeysKind,
+				plan.Pat(ReadRangePhysKind))))
+}
+
+func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
+	// Retrieve the nodes and specs for all of the predecessors.
+	distinctSpec := pn.ProcedureSpec().(*universe.DistinctProcedureSpec)
+	keepNode := pn.Predecessors()[0]
+	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keysNode := keepNode.Predecessors()[0]
+	keysSpec := keysNode.ProcedureSpec().(*universe.KeysProcedureSpec)
+	fromNode := keysNode.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	// A filter spec would have already been merged into the
+	// from spec if it existed so we will take that one when
+	// constructing our own replacement. We do not care about it
+	// at the moment though which is why it is not in the pattern.
+
+	// The schema mutator needs to correspond to a keep call
+	// on the column specified by the keys procedure.
+	if len(keepSpec.Mutations) != 1 {
+		return nil, false, nil
+	} else if m, ok := keepSpec.Mutations[0].(*universe.KeepOpSpec); !ok {
+		return nil, false, nil
+	} else if m.Predicate != nil || len(m.Columns) != 1 {
+		// We have a keep mutator, but it uses a function or
+		// it retains more than one column so it does not match
+		// what we want.
+		return nil, false, nil
+	} else if m.Columns[0] != keysSpec.Column {
+		// We are not keeping the value column so this optimization
+		// will not work.
+		return nil, false, nil
+	}
+
+	// The distinct spec should keep only the value column.
+	if distinctSpec.Column != keysSpec.Column {
+		return nil, false, nil
+	}
+
+	// We have passed all of the necessary prerequisites
+	// so construct the procedure spec.
+	return plan.CreatePhysicalNode("ReadTagKeys", &ReadTagKeysPhysSpec{
+		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
+		ValueColumnName:   keysSpec.Column,
+	}), true, nil
 }
