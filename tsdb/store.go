@@ -1919,6 +1919,11 @@ func (s *Store) monitorShards() {
 							zap.Error(err),
 							logger.Shard(sh.ID()))
 					}
+					if err := sh.FlushIndex(); err != nil {
+						s.Logger.Warn("Error while flushing cold shard index",
+							zap.Error(err),
+							logger.Shard(sh.ID()))
+					}
 				} else {
 					sh.SetCompactionsEnabled(true)
 				}

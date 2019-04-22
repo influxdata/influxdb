@@ -463,6 +463,15 @@ func (s *Shard) Free() error {
 	return engine.Free()
 }
 
+func (s *Shard) FlushIndex() error {
+	index, err := s.Index()
+	if err != nil {
+		return err
+	}
+
+	return index.Flush()
+}
+
 // SetCompactionsEnabled enables or disable shard background compactions.
 func (s *Shard) SetCompactionsEnabled(enabled bool) {
 	engine, err := s.Engine()

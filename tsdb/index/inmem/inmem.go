@@ -1059,6 +1059,10 @@ func (i *Index) Rebuild() {
 	})
 }
 
+func (i *Index) Flush() error {
+	return nil
+}
+
 // assignExistingSeries assigns the existing series to shardID and returns the series, names and tags that
 // do not exists yet.
 func (i *Index) assignExistingSeries(shardID uint64, seriesIDSet *tsdb.SeriesIDSet, measurements map[string]int,

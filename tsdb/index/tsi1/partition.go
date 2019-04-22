@@ -1035,6 +1035,40 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 
 func (p *Partition) Rebuild() {}
 
+func (p *Partition) FlushLogFile() error {
+	p.mu.RLock()
+	size := p.activeLogFile.Size()
+	p.mu.RUnlock()
+
+	if size <= 0 {
+		return nil
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	_, logEnd := logger.NewOperation(p.logger, "Flush index log file", "flush_index_log")
+
+	// Swap current log file.
+	logFile := p.activeLogFile
+
+	// Open new log file and insert it into the first position.
+	if err := p.prependActiveLogFile(); err != nil {
+		return err
+	}
+
+	// Begin compacting in a background goroutine.
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		p.compactLogFile(logFile)
+		p.Compact() // check for new compactions
+		logEnd()
+	}()
+
+	return nil
+}
+
 func (p *Partition) CheckLogFile() error {
 	// Check log file size under read lock.
 	if size := func() int64 {

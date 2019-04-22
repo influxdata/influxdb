@@ -1114,6 +1114,15 @@ func (i *Index) SetFieldName(measurement []byte, name string) {}
 // Rebuild rebuilds an index. It's a no-op for this index.
 func (i *Index) Rebuild() {}
 
+func (i *Index) Flush() error {
+	for _, p := range i.partitions {
+		if err := p.FlushLogFile(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // IsIndexDir returns true if directory contains at least one partition directory.
 func IsIndexDir(path string) (bool, error) {
 	fis, err := ioutil.ReadDir(path)

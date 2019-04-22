@@ -86,6 +86,8 @@ type Index interface {
 	UniqueReferenceID() uintptr
 
 	Rebuild()
+
+	Flush() error
 }
 
 // SeriesElem represents a generic series element.
