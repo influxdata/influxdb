@@ -127,6 +127,7 @@ func (h *resultSetHeap) Pop() interface{} {
 type MergedStringIterator struct {
 	heap      stringIteratorHeap
 	nextValue string
+	stats     cursors.CursorStats
 }
 
 // API compatibility
@@ -134,16 +135,19 @@ var _ cursors.StringIterator = (*MergedStringIterator)(nil)
 
 func NewMergedStringIterator(iterators []cursors.StringIterator) *MergedStringIterator {
 	nonEmptyIterators := make([]cursors.StringIterator, 0, len(iterators))
+	var stats cursors.CursorStats
 
 	for _, iterator := range iterators {
 		// All iterators must be Next()'d so that their Value() methods return a meaningful value, and sort properly.
 		if iterator.Next() {
 			nonEmptyIterators = append(nonEmptyIterators, iterator)
 		}
+		stats.Add(iterator.Stats())
 	}
 
 	msi := &MergedStringIterator{
-		heap: stringIteratorHeap{iterators: nonEmptyIterators},
+		heap:  stringIteratorHeap{iterators: nonEmptyIterators},
+		stats: stats,
 	}
 	heap.Init(&msi.heap)
 
@@ -181,7 +185,7 @@ func (msi *MergedStringIterator) Value() string {
 }
 
 func (msi *MergedStringIterator) Stats() cursors.CursorStats {
-	return cursors.CursorStats{}
+	return msi.stats
 }
 
 type stringIteratorHeap struct {
