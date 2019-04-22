@@ -6,6 +6,7 @@ v1.6.7 [unreleased]
 -	[#13151](https://github.com/influxdata/influxdb/pull/13151): Add nil check for tagKeyValueEntry.setIDs().
 -	[#13443](https://github.com/influxdata/influxdb/pull/13443): Fix the sort order for aggregates so that they are sorted by tag and then time.
 -	[#13504](https://github.com/influxdata/influxdb/pull/13504): fill resets the previous value when a new series or window is encountered.
+-	[#13539](https://github.com/influxdata/influxdb/pull/13539): Use the timezone when evaluating time literals in subqueries.
 
 v1.6.6 [2019-02-28]
 -------------------
