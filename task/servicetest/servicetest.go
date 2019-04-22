@@ -253,7 +253,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		}
 	}
 
-	// Create a task.
+	// Check limits
 	tc2 := influxdb.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 1),
