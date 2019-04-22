@@ -73,6 +73,48 @@ cpu,"host=server01,region=uswest",70,9223372036854775808
 	}
 }
 
+func TestResponseWriter_CSV_EmptyTagValue(t *testing.T) {
+	header := make(http.Header)
+	header.Set("Accept", "text/csv")
+	r := &http.Request{
+		Header: header,
+		URL:    &url.URL{},
+	}
+	w := httptest.NewRecorder()
+
+	writer := httpd.NewResponseWriter(w, r)
+	n, err := writer.WriteResponse(httpd.Response{
+		Results: []*query.Result{
+			{
+				StatementID: 0,
+				Series: []*models.Row{
+					{
+						Name: "cpu",
+						Tags: map[string]string{
+							"host": "",
+						},
+						Columns: []string{"time", "value"},
+						Values: [][]interface{}{
+							{time.Unix(0, 10), float64(2.5)},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if got, want := w.Body.String(), `name,tags,time,value
+cpu,,10,2.5
+`; got != want {
+		t.Errorf("unexpected output:\n\ngot=%v\nwant=%s", got, want)
+	} else if got, want := n, len(want); got != want {
+		t.Errorf("unexpected output length: got=%d want=%d", got, want)
+	}
+}
+
 func TestResponseWriter_MessagePack(t *testing.T) {
 	header := make(http.Header)
 	header.Set("Accept", "application/x-msgpack")

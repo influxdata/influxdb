@@ -178,7 +178,11 @@ func (f *csvFormatter) WriteResponse(w io.Writer, resp Response) (err error) {
 
 			f.columns[0] = row.Name
 			if len(row.Tags) > 0 {
-				f.columns[1] = string(models.NewTags(row.Tags).HashKey()[1:])
+				if hashKey := string(models.NewTags(row.Tags).HashKey()); len(hashKey) > 0 {
+					f.columns[1] = hashKey[1:]
+				} else {
+					f.columns[1] = ""
+				}
 			} else {
 				f.columns[1] = ""
 			}
