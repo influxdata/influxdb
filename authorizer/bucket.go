@@ -65,7 +65,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 		return nil, err
 	}
 
-	if err := authorizeReadBucket(ctx, b.OrganizationID, id); err != nil {
+	if err := authorizeReadBucket(ctx, b.OrgID, id); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +82,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFi
 		return nil, err
 	}
 
-	if err := authorizeReadBucket(ctx, b.OrganizationID, b.ID); err != nil {
+	if err := authorizeReadBucket(ctx, b.OrgID, b.ID); err != nil {
 		return nil, err
 	}
 
@@ -105,7 +105,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	buckets := bs[:0]
 	for _, b := range bs {
-		err := authorizeReadBucket(ctx, b.OrganizationID, b.ID)
+		err := authorizeReadBucket(ctx, b.OrgID, b.ID)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
 		}
@@ -125,7 +125,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.BucketsResourceType, b.OrganizationID)
+	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.BucketsResourceType, b.OrgID)
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 		return nil, err
 	}
 
-	if err := authorizeWriteBucket(ctx, b.OrganizationID, id); err != nil {
+	if err := authorizeWriteBucket(ctx, b.OrgID, id); err != nil {
 		return nil, err
 	}
 
@@ -158,7 +158,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error 
 		return err
 	}
 
-	if err := authorizeWriteBucket(ctx, b.OrganizationID, id); err != nil {
+	if err := authorizeWriteBucket(ctx, b.OrgID, id); err != nil {
 		return err
 	}
 

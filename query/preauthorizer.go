@@ -44,7 +44,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, ast *ast.Package, auth
 			return errors.New("bucket service returned nil bucket")
 		}
 
-		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.ReadAction, platform.BucketsResourceType, bucket.OrganizationID)
+		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.ReadAction, platform.BucketsResourceType, bucket.OrgID)
 		if err != nil {
 			return errors.Wrapf(err, "could not create read bucket permission")
 		}
@@ -60,7 +60,7 @@ func (a *preAuthorizer) PreAuthorize(ctx context.Context, ast *ast.Package, auth
 			return errors.Wrapf(err, "could not find write bucket with filter: %s", writeBucketFilter)
 		}
 
-		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, bucket.OrganizationID)
+		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, bucket.OrgID)
 		if err != nil {
 			return errors.Wrapf(err, "could not create write bucket permission")
 		}
@@ -91,7 +91,7 @@ func (a *preAuthorizer) RequiredPermissions(ctx context.Context, ast *ast.Packag
 			return nil, errors.New("bucket service returned nil bucket")
 		}
 
-		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.ReadAction, platform.BucketsResourceType, bucket.OrganizationID)
+		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.ReadAction, platform.BucketsResourceType, bucket.OrgID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "could not create read bucket permission")
 		}
@@ -105,7 +105,7 @@ func (a *preAuthorizer) RequiredPermissions(ctx context.Context, ast *ast.Packag
 			return nil, errors.Wrapf(err, "could not find write bucket with filter: %s", writeBucketFilter)
 		}
 
-		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, bucket.OrganizationID)
+		reqPerm, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, bucket.OrgID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "could not create write bucket permission")
 		}

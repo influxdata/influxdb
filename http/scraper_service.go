@@ -512,9 +512,9 @@ type targetLinks struct {
 
 type targetResponse struct {
 	influxdb.ScraperTarget
-	Organization string      `json:"organization,omitempty"`
-	Bucket       string      `json:"bucket,omitempty"`
-	Links        targetLinks `json:"links"`
+	Org    string      `json:"org,omitempty"`
+	Bucket string      `json:"bucket,omitempty"`
+	Links  targetLinks `json:"links"`
 }
 
 func (h *ScraperHandler) newListTargetsResponse(ctx context.Context, targets []influxdb.ScraperTarget) (getTargetsResponse, error) {
@@ -556,7 +556,7 @@ func (h *ScraperHandler) newTargetResponse(ctx context.Context, target influxdb.
 
 	org, err := h.OrganizationService.FindOrganizationByID(ctx, target.OrgID)
 	if err == nil {
-		res.Organization = org.Name
+		res.Org = org.Name
 		res.OrgID = org.ID
 		res.Links.Organization = organizationIDPath(org.ID)
 	} else {

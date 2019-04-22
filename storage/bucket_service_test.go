@@ -33,7 +33,7 @@ func TestBucketService(t *testing.T) {
 		panic(err)
 	}
 
-	bucket := &platform.Bucket{OrganizationID: org.ID}
+	bucket := &platform.Bucket{OrgID: org.ID}
 	if err := inmemService.CreateBucket(context.TODO(), bucket); err != nil {
 		panic(err)
 	}

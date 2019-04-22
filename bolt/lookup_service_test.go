@@ -78,8 +78,8 @@ func TestClient_Name(t *testing.T) {
 						Name: "o1",
 					})
 					return s.CreateBucket(ctx, &platform.Bucket{
-						Name:           "b1",
-						OrganizationID: testID,
+						Name:  "b1",
+						OrgID: testID,
 					})
 				},
 			},

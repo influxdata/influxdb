@@ -202,7 +202,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 	// Query server to ensure write persists.
 
 	b := &platform.Bucket{
-		Organization:    "ORG",
+		OrgID:           l.Org.ID,
 		Name:            t.Name(),
 		RetentionPeriod: 0,
 	}
@@ -222,7 +222,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 	orgOpt := &ast.OptionStatement{
 		Assignment: &ast.VariableAssignment{
 			ID:   &ast.Identifier{Name: "org"},
-			Init: &ast.StringLiteral{Value: b.Organization},
+			Init: &ast.StringLiteral{Value: l.Org.Name},
 		},
 	}
 	options := optionsAST.Copy().(*ast.File)

@@ -65,9 +65,9 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 	}
 	orgID := platform.ID(1)
 	bucketService := newBucketServiceWithOneBucket(platform.Bucket{
-		Name:           "my_bucket",
-		ID:             *bucketID,
-		OrganizationID: orgID,
+		Name:  "my_bucket",
+		ID:    *bucketID,
+		OrgID: orgID,
 	})
 
 	preAuthorizer = query.NewPreAuthorizer(bucketService)
@@ -102,11 +102,11 @@ func TestPreAuthorizer_RequiredPermissions(t *testing.T) {
 	if err := i.CreateOrganization(ctx, &o); err != nil {
 		t.Fatal(err)
 	}
-	bFrom := platform.Bucket{Name: "b-from", OrganizationID: o.ID}
+	bFrom := platform.Bucket{Name: "b-from", OrgID: o.ID}
 	if err := i.CreateBucket(ctx, &bFrom); err != nil {
 		t.Fatal(err)
 	}
-	bTo := platform.Bucket{Name: "b-to", OrganizationID: o.ID}
+	bTo := platform.Bucket{Name: "b-to", OrgID: o.ID}
 	if err := i.CreateBucket(ctx, &bTo); err != nil {
 		t.Fatal(err)
 	}
