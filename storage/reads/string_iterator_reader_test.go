@@ -46,6 +46,9 @@ func (si *mockStringIterator) Value() string {
 }
 
 func (si *mockStringIterator) Stats() cursors.CursorStats {
+	if len(si.values) > 0 {
+		return cursors.CursorStats{}
+	}
 	return si.stats
 }
 

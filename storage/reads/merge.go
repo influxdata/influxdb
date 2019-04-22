@@ -141,8 +141,9 @@ func NewMergedStringIterator(iterators []cursors.StringIterator) *MergedStringIt
 		// All iterators must be Next()'d so that their Value() methods return a meaningful value, and sort properly.
 		if iterator.Next() {
 			nonEmptyIterators = append(nonEmptyIterators, iterator)
+		} else {
+			stats.Add(iterator.Stats())
 		}
-		stats.Add(iterator.Stats())
 	}
 
 	msi := &MergedStringIterator{
@@ -168,7 +169,8 @@ func (msi *MergedStringIterator) Next() bool {
 			// iterator.Value() has changed, so re-order that iterator within the heap
 			heap.Fix(&msi.heap, 0)
 		} else {
-			// iterator is drained, so remove it from the heap
+			// iterator is drained, so count the stats and remove it from the heap
+			msi.stats.Add(iterator.Stats())
 			heap.Pop(&msi.heap)
 		}
 

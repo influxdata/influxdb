@@ -135,6 +135,13 @@ func TestNewMergedStringIterator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := reads.NewMergedStringIterator(tt.iterators)
+
+			// Expect no stats before any iteration
+			var expectStats cursors.CursorStats
+			if !reflect.DeepEqual(expectStats, m.Stats()) {
+				t.Errorf("expected %+v, got %+v", expectStats, m.Stats())
+			}
+
 			var gotValues []string
 			for m.Next() {
 				gotValues = append(gotValues, m.Value())
@@ -142,7 +149,6 @@ func TestNewMergedStringIterator(t *testing.T) {
 			if !reflect.DeepEqual(tt.expectedValues, gotValues) {
 				t.Errorf("expected %v, got %v", tt.expectedValues, gotValues)
 			}
-			var expectStats cursors.CursorStats
 			for _, iterator := range tt.iterators {
 				expectStats.Add(iterator.Stats())
 			}
