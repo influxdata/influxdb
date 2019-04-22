@@ -50,6 +50,23 @@ func TestResponseWriter_CSV(t *testing.T) {
 							{time.Unix(0, 70), uint64(math.MaxInt64 + 1)},
 						},
 					},
+					{
+						Name: "cpu",
+						Tags: map[string]string{
+							"host":   "",
+							"region": "",
+						},
+						Columns: []string{"time", "value"},
+						Values: [][]interface{}{
+							{time.Unix(0, 10), float64(2.5)},
+							{time.Unix(0, 20), int64(5)},
+							{time.Unix(0, 30), nil},
+							{time.Unix(0, 40), "foobar"},
+							{time.Unix(0, 50), true},
+							{time.Unix(0, 60), false},
+							{time.Unix(0, 70), uint64(math.MaxInt64 + 1)},
+						},
+					},
 				},
 			},
 		},
@@ -66,6 +83,13 @@ cpu,"host=server01,region=uswest",40,foobar
 cpu,"host=server01,region=uswest",50,true
 cpu,"host=server01,region=uswest",60,false
 cpu,"host=server01,region=uswest",70,9223372036854775808
+cpu,,10,2.5
+cpu,,20,5
+cpu,,30,
+cpu,,40,foobar
+cpu,,50,true
+cpu,,60,false
+cpu,,70,9223372036854775808
 `; got != want {
 		t.Errorf("unexpected output:\n\ngot=%v\nwant=%s", got, want)
 	} else if got, want := n, len(want); got != want {
