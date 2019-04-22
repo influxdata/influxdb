@@ -1,5 +1,3 @@
-@import 'src/style/modules';
-
 .query-builder {
   position: absolute;
   top: 0;
@@ -11,6 +9,10 @@
   flex-direction: column;
   @include no-user-select();
   background: $g3-castle;
+
+  .function-selector {
+    margin-left: $ix-marg-b;
+  }
 }
 
 .query-builder--cards {
@@ -19,36 +21,11 @@
   justify-content: space-between;
 }
 
-.query-builder--tag-selectors {
-  display: flex;
-  flex-wrap: nowrap;
-  flex: 1 1 0;
-  height: 100%;
-
-  .tag-selector {
-    margin-right: $ix-marg-b;
-    flex: 0 0 220px;
-
-    &:last-child {
-      margin-right: 0;
-    }
-  }
-}
-
-.query-builder .function-selector {
-  flex: 0 0 206px;
-  margin-left: $ix-marg-b;
-}
-
-button.query-builder--add-tag-selector {
+.button.query-builder--add-card-button {
   height: 100%;
   background-color: $g4-onyx;
   border-color: $g4-onyx;
-  margin-right: 5px;
   flex-grow: 0;
   flex-shrink: 0;
 }
 
-.data-card {
-  padding: $ix-marg-b;
-}
