@@ -519,7 +519,7 @@ export const dashboardExportFailed = (
 
 export const dashboardCreateFailed = () => ({
   ...defaultErrorNotification,
-  message: 'Failed to created dashboard.',
+  message: 'Failed to create dashboard.',
 })
 
 export const dashboardSetDefaultFailed = (name: string) => ({
@@ -947,4 +947,43 @@ export const updateBucketFailed = (): Notification => ({
 export const deleteBucketFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to delete bucket',
+})
+
+// Limits
+export const writeLimitReached = (errorMessage: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `You have reached a write limit on this resource: ${errorMessage}.`,
+  duration: INFINITE,
+})
+
+export const readWriteLimitReached = (
+  isReadLimited: boolean,
+  isWriteLimited: boolean
+): Notification => {
+  let limitText = ''
+  if (isReadLimited && isWriteLimited) {
+    limitText = 'read and write'
+  } else if (isReadLimited) {
+    limitText = 'read'
+  } else if (isWriteLimited) {
+    limitText = 'write'
+  }
+
+  return {
+    ...defaultErrorNotification,
+    message: `You have reached a ${limitText} limit on this resource. Some operations may not be permitted at this time.`,
+    duration: INFINITE,
+  }
+}
+
+export const queryLimitReached = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'You have reached a query limit.',
+  duration: INFINITE,
+})
+
+export const resourceLimitReached = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'You have reached a limit on this resource.',
+  duration: INFINITE,
 })
