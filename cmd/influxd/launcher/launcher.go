@@ -479,15 +479,17 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pointsWriter = m.engine
 
 		const (
-			concurrencyQuota = 10
-			memoryBytesQuota = 1e6
+			concurrencyQuota         = 10
+			memoryBytesQuotaPerQuery = 1e6
+			QueueSize                = 10
 		)
 
 		cc := control.Config{
-			ExecutorDependencies: make(execute.Dependencies),
-			ConcurrencyQuota:     concurrencyQuota,
-			MemoryBytesQuota:     int64(memoryBytesQuota),
-			Logger:               m.logger.With(zap.String("service", "storage-reads")),
+			ExecutorDependencies:     make(execute.Dependencies),
+			ConcurrencyQuota:         concurrencyQuota,
+			MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
+			QueueSize:                QueueSize,
+			Logger:                   m.logger.With(zap.String("service", "storage-reads")),
 		}
 
 		if err := readservice.AddControllerConfigDependencies(
@@ -497,7 +499,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 
-		m.queryController = pcontrol.New(cc)
+		c, err := pcontrol.New(cc)
+		if err != nil {
+			m.logger.Error("Failed to create query controller", zap.Error(err))
+			return err
+		}
+		m.queryController = c
 		m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
 
