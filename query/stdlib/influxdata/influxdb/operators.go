@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	ReadRangePhysKind   = "ReadRangePhysKind"
-	ReadTagKeysPhysKind = "ReadTagKeysPhysKind"
+	ReadRangePhysKind     = "ReadRangePhysKind"
+	ReadTagKeysPhysKind   = "ReadTagKeysPhysKind"
+	ReadTagValuesPhysKind = "ReadTagValuesPhysKind"
 )
 
 type ReadRangePhysSpec struct {
@@ -95,7 +96,6 @@ func (s *ReadRangePhysSpec) TimeBounds(predecessorBounds *plan.Bounds) *plan.Bou
 
 type ReadTagKeysPhysSpec struct {
 	ReadRangePhysSpec
-	ValueColumnName string
 }
 
 func (s *ReadTagKeysPhysSpec) Kind() plan.ProcedureKind {
@@ -105,6 +105,21 @@ func (s *ReadTagKeysPhysSpec) Kind() plan.ProcedureKind {
 func (s *ReadTagKeysPhysSpec) Copy() plan.ProcedureSpec {
 	ns := new(ReadTagKeysPhysSpec)
 	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
-	ns.ValueColumnName = s.ValueColumnName
+	return ns
+}
+
+type ReadTagValuesPhysSpec struct {
+	ReadRangePhysSpec
+	TagKey string
+}
+
+func (s *ReadTagValuesPhysSpec) Kind() plan.ProcedureKind {
+	return ReadTagValuesPhysKind
+}
+
+func (s *ReadTagValuesPhysSpec) Copy() plan.ProcedureSpec {
+	ns := new(ReadTagValuesPhysSpec)
+	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
+	ns.TagKey = s.TagKey
 	return ns
 }
