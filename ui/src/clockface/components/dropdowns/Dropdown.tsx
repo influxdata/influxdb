@@ -118,6 +118,7 @@ class Dropdown extends Component<Props, State> {
       customClass,
       mode,
       wrapMenuText,
+      selectedID,
     } = this.props
 
     return classnames(
@@ -127,7 +128,8 @@ class Dropdown extends Component<Props, State> {
         'dropdown-wrap': wrapMenuText,
         'dropdown-truncate': !wrapMenuText,
         [customClass]: customClass,
-        [`dropdown--${mode}`]: mode,
+        'dropdown--radio': mode === DropdownMode.Radio,
+        'dropdown--action': mode === DropdownMode.ActionList && !selectedID,
       }
     )
   }
