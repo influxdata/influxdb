@@ -86,9 +86,10 @@ memB,host=EB,os=macOS value=1.3 201`)
 	}
 
 	var tests = []struct {
-		name string
-		args args
-		exp  []string
+		name     string
+		args     args
+		exp      []string
+		expStats cursors.CursorStats
 	}{
 		// ***********************
 		// * queries for the first org, which has some deleted data
@@ -103,7 +104,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 0,
 				max: 300,
 			},
-			exp: []string{"0A", "AA", "BA", "DA", "EA"},
+			exp:      []string{"0A", "AA", "BA", "DA", "EA"},
+			expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 		},
 		{
 			name: "only TSM",
@@ -113,7 +115,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 0,
 				max: 199,
 			},
-			exp: []string{"DA"},
+			exp:      []string{"DA"},
+			expStats: cursors.CursorStats{ScannedValues: 7, ScannedBytes: 56},
 		},
 		{
 			name: "only cache",
@@ -123,7 +126,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 200,
 				max: 299,
 			},
-			exp: []string{"0A", "AA", "BA", "EA"},
+			exp:      []string{"0A", "AA", "BA", "EA"},
+			expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 		},
 		{
 			name: "one timestamp TSM/data",
@@ -133,7 +137,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 106,
 				max: 106,
 			},
-			exp: []string{"DA"},
+			exp:      []string{"DA"},
+			expStats: cursors.CursorStats{ScannedValues: 7, ScannedBytes: 56},
 		},
 		{
 			name: "one timestamp cache/data",
@@ -143,7 +148,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 201,
 				max: 201,
 			},
-			exp: []string{"0A", "EA"},
+			exp:      []string{"0A", "EA"},
+			expStats: cursors.CursorStats{ScannedValues: 7, ScannedBytes: 56},
 		},
 		{
 			name: "one timestamp TSM/nodata",
@@ -153,7 +159,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 103,
 				max: 103,
 			},
-			exp: nil,
+			exp:      nil,
+			expStats: cursors.CursorStats{ScannedValues: 7, ScannedBytes: 56},
 		},
 		{
 			name: "one timestamp cache/nodata",
@@ -163,7 +170,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 203,
 				max: 203,
 			},
-			exp: nil,
+			exp:      nil,
+			expStats: cursors.CursorStats{ScannedValues: 7, ScannedBytes: 56},
 		},
 
 		// models.MeasurementTagKey tag
@@ -175,7 +183,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 0,
 				max: 399,
 			},
-			exp: []string{"cpuA", "memA"},
+			exp:      []string{"cpuA", "memA"},
+			expStats: cursors.CursorStats{ScannedValues: 1, ScannedBytes: 8},
 		},
 		{
 			name: "_measurement/some",
@@ -185,7 +194,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				min: 205,
 				max: 399,
 			},
-			exp: []string{"cpuA"},
+			exp:      []string{"cpuA"},
+			expStats: cursors.CursorStats{ScannedValues: 3, ScannedBytes: 24},
 		},
 
 		// queries with predicates
@@ -198,7 +208,8 @@ memB,host=EB,os=macOS value=1.3 201`)
 				max:  300,
 				expr: `os = 'macOS'`,
 			},
-			exp: []string{"BA", "DA"},
+			exp:      []string{"BA", "DA"},
+			expStats: cursors.CursorStats{ScannedValues: 2, ScannedBytes: 16},
 		},
 		{
 			name: "predicate/linux",
@@ -209,20 +220,23 @@ memB,host=EB,os=macOS value=1.3 201`)
 				max:  300,
 				expr: `os = 'linux'`,
 			},
-			exp: []string{"0A", "AA", "EA"},
+			exp:      []string{"0A", "AA", "EA"},
+			expStats: cursors.CursorStats{ScannedValues: 4, ScannedBytes: 32},
 		},
 
 		// ***********************
 		// * queries for the second org, which has no deleted data
 		// ***********************
 		{
+			name: "all data",
 			args: args{
 				org: 1,
 				key: "host",
 				min: 0,
 				max: 1000,
 			},
-			exp: []string{"0B", "AB", "BB", "CB", "DB", "EB"},
+			exp:      []string{"0B", "AB", "BB", "CB", "DB", "EB"},
+			expStats: cursors.CursorStats{ScannedValues: 3, ScannedBytes: 24},
 		},
 	}
 	for _, tc := range tests {
@@ -238,9 +252,12 @@ memB,host=EB,os=macOS value=1.3 201`)
 				t.Fatalf("TagValues: error %v", err)
 			}
 
-			got := cursors.StringIteratorToSlice(iter)
-			if !cmp.Equal(got, tc.exp) {
+			if got := cursors.StringIteratorToSlice(iter); !cmp.Equal(got, tc.exp) {
 				t.Errorf("unexpected TagValues: -got/+exp\n%v", cmp.Diff(got, tc.exp))
+			}
+
+			if got := iter.Stats(); !cmp.Equal(got, tc.expStats) {
+				t.Errorf("unexpected Stats: -got/+exp\n%v", cmp.Diff(got, tc.expStats))
 			}
 		})
 	}
@@ -314,9 +331,10 @@ mem,mem1=v,mem2=v        f=1 201`)
 	}
 
 	var tests = []struct {
-		name string
-		args args
-		exp  []string
+		name     string
+		args     args
+		exp      []string
+		expStats cursors.CursorStats
 	}{
 		// ***********************
 		// * queries for the first org, which has some deleted data
@@ -329,7 +347,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				min: 0,
 				max: 300,
 			},
-			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", "cpu4", "cpu5", "mem1", "mem2", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", "cpu4", "cpu5", "mem1", "mem2", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 3, ScannedBytes: 24},
 		},
 		{
 			name: "only TSM",
@@ -338,7 +357,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				min: 0,
 				max: 199,
 			},
-			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 5, ScannedBytes: 40},
 		},
 		{
 			name: "only cache",
@@ -347,7 +367,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				min: 200,
 				max: 299,
 			},
-			exp: []string{models.MeasurementTagKey, "cpu3", "cpu4", "cpu5", "mem1", "mem2", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu3", "cpu4", "cpu5", "mem1", "mem2", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 4, ScannedBytes: 32},
 		},
 		{
 			name: "one timestamp TSM/data",
@@ -356,7 +377,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				min: 107,
 				max: 107,
 			},
-			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu0", "cpu2", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 		},
 		{
 			name: "one timestamp cache/data",
@@ -365,7 +387,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				min: 207,
 				max: 207,
 			},
-			exp: []string{models.MeasurementTagKey, "cpu3", "cpu4", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu3", "cpu4", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 5, ScannedBytes: 40},
 		},
 		{
 			name: "one timestamp TSM/nodata",
@@ -374,7 +397,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				min: 102,
 				max: 102,
 			},
-			exp: nil,
+			exp:      nil,
+			expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 		},
 		{
 			name: "one timestamp cache/nodata",
@@ -383,7 +407,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				min: 202,
 				max: 202,
 			},
-			exp: nil,
+			exp:      nil,
+			expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 		},
 
 		// queries with predicates
@@ -395,7 +420,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				max:  300,
 				expr: "_m = 'cpu'",
 			},
-			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", "cpu4", "cpu5", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu0", "cpu2", "cpu3", "cpu4", "cpu5", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 2, ScannedBytes: 16},
 		},
 		{
 			name: "predicate/all time/mem",
@@ -405,7 +431,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				max:  300,
 				expr: "_m = 'mem'",
 			},
-			exp: []string{models.MeasurementTagKey, "mem1", "mem2", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "mem1", "mem2", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 1, ScannedBytes: 8},
 		},
 		{
 			name: "predicate/all time/cpu0",
@@ -415,7 +442,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				max:  300,
 				expr: "cpu0 = 'v'",
 			},
-			exp: []string{models.MeasurementTagKey, "cpu0", "cpu2", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu0", "cpu2", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 		},
 		{
 			name: "predicate/all time/cpu3",
@@ -425,7 +453,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				max:  300,
 				expr: "cpu3 = 'v'",
 			},
-			exp: []string{models.MeasurementTagKey, "cpu2", "cpu3", "cpu4", "cpu5", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu2", "cpu3", "cpu4", "cpu5", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 2, ScannedBytes: 16},
 		},
 
 		// ***********************
@@ -438,7 +467,8 @@ mem,mem1=v,mem2=v        f=1 201`)
 				min: 0,
 				max: 300,
 			},
-			exp: []string{models.MeasurementTagKey, "cpu0", "cpu1", "cpu2", "cpu3", "cpu4", "cpu5", "mem0", "mem1", "mem2", models.FieldKeyTagKey},
+			exp:      []string{models.MeasurementTagKey, "cpu0", "cpu1", "cpu2", "cpu3", "cpu4", "cpu5", "mem0", "mem1", "mem2", models.FieldKeyTagKey},
+			expStats: cursors.CursorStats{ScannedValues: 2, ScannedBytes: 16},
 		},
 	}
 	for _, tc := range tests {
@@ -465,9 +495,12 @@ mem,mem1=v,mem2=v        f=1 201`)
 				t.Fatalf("TagKeys: error %v", err)
 			}
 
-			got := cursors.StringIteratorToSlice(iter)
-			if !cmp.Equal(got, tc.exp) {
+			if got := cursors.StringIteratorToSlice(iter); !cmp.Equal(got, tc.exp) {
 				t.Errorf("unexpected TagKeys: -got/+exp\n%v", cmp.Diff(got, tc.exp))
+			}
+
+			if got := iter.Stats(); !cmp.Equal(got, tc.expStats) {
+				t.Errorf("unexpected Stats: -got/+exp\n%v", cmp.Diff(got, tc.expStats))
 			}
 		})
 	}
