@@ -266,6 +266,8 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 type AuthorizationFindFlags struct {
 	user   string
 	userID string
+	org    string
+	orgID  string
 	id     string
 }
 
@@ -280,6 +282,8 @@ func init() {
 
 	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
 	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
+	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.org, "org", "o", "", "The org")
+	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.orgID, "org-id", "", "", "The org ID")
 	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "The authorization ID")
 
 	authorizationCmd.AddCommand(authorizationFindCmd)
@@ -318,6 +322,16 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		filter.UserID = uID
+	}
+	if authorizationFindFlags.org != "" {
+		filter.Org = &authorizationFindFlags.org
+	}
+	if authorizationFindFlags.orgID != "" {
+		oID, err := platform.IDFromString(authorizationFindFlags.orgID)
+		if err != nil {
+			return err
+		}
+		filter.OrgID = oID
 	}
 
 	authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
