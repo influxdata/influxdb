@@ -1,38 +1,10 @@
-@import "src/style/modules";
-
-.tag-selector {
-  min-height: 130px;
-  background: $g4-onyx;
-  border-radius: $radius;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  font-size: $form-sm-font;
-  position: relative;
-}
-
-.tag-selector--top,
 .tag-selector--search {
-  margin: $ix-marg-b;
-}
-
-.tag-selector--top {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.tag-selector--search {
-  margin-top: 0;
+  margin-top: $ix-marg-a;
   width: initial !important;
 }
 
-button.tag-selector--remove,
 .tag-selector--count {
   flex: 0 0 $form-sm-height;
-  margin-left: $ix-marg-b;
-}
-
-.tag-selector--count {
   height: $form-sm-height;
   background-color: $g2-kevlar;
   border-radius: 50%;
@@ -41,31 +13,5 @@ button.tag-selector--remove,
   font-weight: 900;
   user-select: none;
   color: $c-pool;
-}
-
-.tag-selector .selector-list {
-  flex: 1 1 0;
-}
-
-
-.tag-selector--empty {
-  pointer-events: none;
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: $ix-marg-c $ix-marg-c $ix-marg-d $ix-marg-c;
-  color: $g8-storm;
-  font-weight: 500;
-  font-size: 16px;
-  text-align: center;
-  text-transform: uppercase;
-
-  small {
-    display: block;
-    font-size: 14px;
-    text-transform: none;
-    margin-top: $ix-marg-b;
-  }
+  font-size: 13px;
 }
