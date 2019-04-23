@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Dropdown, DropdownMode} from 'src/clockface'
+import {Dropdown, DropdownMode, ComponentStatus} from 'src/clockface'
 
 // Types
 import {IconFont, ComponentColor, ComponentSize} from '@influxdata/clockface'
@@ -14,10 +14,12 @@ interface OwnProps {
   onSelectTemplate?: () => void
   resourceName: string
   canImportFromTemplate?: boolean
+  status?: ComponentStatus
 }
 
 interface DefaultProps {
   canImportFromTemplate: boolean
+  status: ComponentStatus
 }
 
 type Props = OwnProps & DefaultProps
@@ -25,6 +27,7 @@ type Props = OwnProps & DefaultProps
 export default class AddResourceDropdown extends PureComponent<Props> {
   public static defaultProps: DefaultProps = {
     canImportFromTemplate: false,
+    status: ComponentStatus.Default,
   }
 
   public render() {
@@ -37,6 +40,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
         buttonSize={ComponentSize.Small}
         widthPixels={160}
         onChange={this.handleSelect}
+        status={this.props.status}
       >
         {this.optionItems}
       </Dropdown>

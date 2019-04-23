@@ -23,10 +23,6 @@ import {
   updateTimeRangeFromQueryParams,
   DeleteTimeRangeAction,
 } from 'src/dashboards/actions/ranges'
-import {
-  importDashboardSucceeded,
-  importDashboardFailed,
-} from 'src/shared/copy/notifications'
 import {setView, SetViewAction, setViews} from 'src/dashboards/actions/views'
 import {
   getVariables,
@@ -34,6 +30,7 @@ import {
   selectValue,
 } from 'src/variables/actions'
 import {setExportTemplate} from 'src/templates/actions'
+import {checkDashboardLimits} from 'src/cloud/actions/limits'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
@@ -246,14 +243,15 @@ export const createDashboardFromTemplate = (
     const dashboards = await getDashboardsAJAX(org.id)
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
-    dispatch(notify(importDashboardSucceeded()))
+    dispatch(notify(copy.importDashboardSucceeded()))
+    dispatch(checkDashboardLimits())
   } catch (error) {
-    dispatch(notify(importDashboardFailed(error)))
+    dispatch(notify(copy.importDashboardFailed(error)))
   }
 }
 
 export const deleteDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>
+  dispatch
 ): Promise<void> => {
   dispatch(removeDashboard(dashboard.id))
   dispatch(deleteTimeRange(dashboard.id))
@@ -261,6 +259,7 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
   try {
     await deleteDashboardAJAX(dashboard)
     dispatch(notify(copy.dashboardDeleted(dashboard.name)))
+    dispatch(checkDashboardLimits())
   } catch (error) {
     dispatch(
       notify(copy.dashboardDeleteFailed(dashboard.name, error.data.message))
