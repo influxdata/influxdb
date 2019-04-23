@@ -477,8 +477,8 @@ func (e *Engine) MustWritePointsString(org, bucket influxdb.ID, buf string) {
 	}
 }
 
-// MustDeleteBucketRange calls DeleteBucketRange using the org and bucket for
-// the name. Panic on error.
+// MustDeleteBucketRange calls DeletePrefixRange using the org and bucket for
+// the prefix. Panic on error.
 func (e *Engine) MustDeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) {
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.

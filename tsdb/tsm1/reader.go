@@ -106,10 +106,12 @@ func (t *TSMReader) applyTombstones() error {
 	batch := make([][]byte, 0, 4096)
 
 	if err := t.tombstoner.Walk(func(ts Tombstone) error {
-		// TODO(jeff): maybe we need to do batches of prefixes
 		if ts.Prefix {
-			// TODO(jeff): pass the predicate
-			t.index.DeletePrefix(ts.Key, ts.Min, ts.Max, nil, nil)
+			pred, err := UnmarshalPredicate(ts.Predicate)
+			if err != nil {
+				return err
+			}
+			t.index.DeletePrefix(ts.Key, ts.Min, ts.Max, pred, nil)
 			return nil
 		}
 
@@ -333,12 +335,20 @@ func (t *TSMReader) DeleteRange(keys [][]byte, minTime, maxTime int64) error {
 func (t *TSMReader) DeletePrefix(prefix []byte, minTime, maxTime int64,
 	pred Predicate, dead func([]byte)) error {
 
+	// Marshal the predicate if passed for adding to the tombstone.
+	var predData []byte
+	if pred != nil {
+		var err error
+		predData, err = pred.Marshal()
+		if err != nil {
+			return err
+		}
+	}
+
 	if !t.index.DeletePrefix(prefix, minTime, maxTime, pred, dead) {
 		return nil
 	}
-
-	// TODO(jeff): pass predicate into the tombstoner
-	if err := t.tombstoner.AddPrefixRange(prefix, minTime, maxTime); err != nil {
+	if err := t.tombstoner.AddPrefixRange(prefix, minTime, maxTime, predData); err != nil {
 		return err
 	}
 	if err := t.tombstoner.Flush(); err != nil {
