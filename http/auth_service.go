@@ -333,14 +333,14 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 	for i, a := range as {
 		o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
 		if err != nil {
-			EncodeError(ctx, err, w)
-			return
+			h.Logger.Info("failed to get organization", zap.String("handler", "getAuthorizations"), zap.String("orgID", a.OrgID.String()), zap.Error(err))
+			continue
 		}
 
 		u, err := h.UserService.FindUserByID(ctx, a.UserID)
 		if err != nil {
-			EncodeError(ctx, err, w)
-			return
+			h.Logger.Info("failed to get user", zap.String("handler", "getAuthorizations"), zap.String("userID", a.UserID.String()), zap.Error(err))
+			continue
 		}
 
 		ps, err := newPermissionsResponse(ctx, a.Permissions, h.LookupService)
