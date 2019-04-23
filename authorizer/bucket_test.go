@@ -51,8 +51,8 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             id,
-							OrganizationID: 10,
+							ID:    id,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -77,8 +77,8 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             id,
-							OrganizationID: 10,
+							ID:    id,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -138,8 +138,8 @@ func TestBucketService_FindBucket(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -163,8 +163,8 @@ func TestBucketService_FindBucket(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketFn: func(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -225,16 +225,16 @@ func TestBucketService_FindBuckets(t *testing.T) {
 					FindBucketsFn: func(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 						return []*influxdb.Bucket{
 							{
-								ID:             1,
-								OrganizationID: 10,
+								ID:    1,
+								OrgID: 10,
 							},
 							{
-								ID:             2,
-								OrganizationID: 10,
+								ID:    2,
+								OrgID: 10,
 							},
 							{
-								ID:             3,
-								OrganizationID: 11,
+								ID:    3,
+								OrgID: 11,
 							},
 						}, 3, nil
 					},
@@ -251,16 +251,16 @@ func TestBucketService_FindBuckets(t *testing.T) {
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:             1,
-						OrganizationID: 10,
+						ID:    1,
+						OrgID: 10,
 					},
 					{
-						ID:             2,
-						OrganizationID: 10,
+						ID:    2,
+						OrgID: 10,
 					},
 					{
-						ID:             3,
-						OrganizationID: 11,
+						ID:    3,
+						OrgID: 11,
 					},
 				},
 			},
@@ -273,16 +273,16 @@ func TestBucketService_FindBuckets(t *testing.T) {
 					FindBucketsFn: func(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 						return []*influxdb.Bucket{
 							{
-								ID:             1,
-								OrganizationID: 10,
+								ID:    1,
+								OrgID: 10,
 							},
 							{
-								ID:             2,
-								OrganizationID: 10,
+								ID:    2,
+								OrgID: 10,
 							},
 							{
-								ID:             3,
-								OrganizationID: 11,
+								ID:    3,
+								OrgID: 11,
 							},
 						}, 3, nil
 					},
@@ -300,12 +300,12 @@ func TestBucketService_FindBuckets(t *testing.T) {
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:             1,
-						OrganizationID: 10,
+						ID:    1,
+						OrgID: 10,
 					},
 					{
-						ID:             2,
-						OrganizationID: 10,
+						ID:    2,
+						OrgID: 10,
 					},
 				},
 			},
@@ -353,14 +353,14 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 					UpdateBucketFn: func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -394,14 +394,14 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 					UpdateBucketFn: func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -464,8 +464,8 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 					DeleteBucketFn: func(ctx context.Context, id influxdb.ID) error {
@@ -502,8 +502,8 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 				BucketService: &mock.BucketService{
 					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 					DeleteBucketFn: func(ctx context.Context, id influxdb.ID) error {
@@ -621,7 +621,7 @@ func TestBucketService_CreateBucket(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateBucket(ctx, &influxdb.Bucket{OrganizationID: tt.args.orgID})
+			err := s.CreateBucket(ctx, &influxdb.Bucket{OrgID: tt.args.orgID})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

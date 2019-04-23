@@ -96,7 +96,7 @@ func TestToOpSpec_BucketsAccessed(t *testing.T) {
 			Name:             "from() with bucket and to with org and bucket",
 			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucket:"%s", org:"%s")`, bucketName, bucketName, orgName),
 			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
-			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, Organization: &orgName}},
+			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, Org: &orgName}},
 		},
 		{
 			Name:             "from() with bucket and to with orgID and bucket",

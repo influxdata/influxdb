@@ -12,7 +12,10 @@ import (
 	"github.com/influxdata/influxdb"
 )
 
-const ReadRangePhysKind = "ReadRangePhysKind"
+const (
+	ReadRangePhysKind   = "ReadRangePhysKind"
+	ReadTagKeysPhysKind = "ReadTagKeysPhysKind"
+)
 
 type ReadRangePhysSpec struct {
 	plan.DefaultCost
@@ -88,4 +91,20 @@ func (s *ReadRangePhysSpec) TimeBounds(predecessorBounds *plan.Bounds) *plan.Bou
 		Start: values.ConvertTime(s.Bounds.Start.Time(s.Bounds.Now)),
 		Stop:  values.ConvertTime(s.Bounds.Stop.Time(s.Bounds.Now)),
 	}
+}
+
+type ReadTagKeysPhysSpec struct {
+	ReadRangePhysSpec
+	ValueColumnName string
+}
+
+func (s *ReadTagKeysPhysSpec) Kind() plan.ProcedureKind {
+	return ReadTagKeysPhysKind
+}
+
+func (s *ReadTagKeysPhysSpec) Copy() plan.ProcedureSpec {
+	ns := new(ReadTagKeysPhysSpec)
+	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
+	ns.ValueColumnName = s.ValueColumnName
+	return ns
 }

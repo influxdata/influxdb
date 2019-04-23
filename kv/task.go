@@ -228,6 +228,7 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 		}
 	}
 
+	// complain about limits
 	if filter.Limit < 0 {
 		return nil, 0, ErrPageSizeTooSmall
 	}
@@ -236,6 +237,16 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 	}
 	if filter.Limit == 0 {
 		filter.Limit = influxdb.TaskDefaultPageSize
+	}
+
+	// if no user or organization is passed, assume contexts auth is the user we are looking for.
+	// it is possible for a  internal system to call this with no auth so we shouldnt fail if no auth is found.
+	if org == nil && filter.User == nil {
+		userAuth, err := icontext.GetAuthorizer(ctx)
+		if err == nil {
+			userID := userAuth.GetUserID()
+			filter.User = &userID
+		}
 	}
 
 	// filter by user id.
@@ -253,7 +264,6 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 	if filter.User == nil {
 		return nil, 0, ErrTaskNotFound
 	}
-
 	var org *influxdb.Organization
 	var err error
 	if filter.OrganizationID != nil {
@@ -366,6 +376,11 @@ func (s *Service) findTaskByOrg(ctx context.Context, tx Tx, filter influxdb.Task
 		}
 	}
 
+	// if someone has a limit of 1
+	if len(ts) >= filter.Limit {
+		return ts, len(ts), nil
+	}
+
 	for {
 		k, v := c.Next()
 		if k == nil {
@@ -444,6 +459,11 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		}
 		// insert the new task into the list
 		ts = append(ts, t)
+	}
+
+	// if someone has a limit of 1
+	if len(ts) >= filter.Limit {
+		return ts, len(ts), nil
 	}
 
 	for {

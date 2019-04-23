@@ -26,7 +26,7 @@ func (s *mockStringValuesStream) Send(response *datatypes.StringValuesResponse) 
 func TestStringIteratorWriter(t *testing.T) {
 	mockStream := &mockStringValuesStream{}
 	w := reads.NewStringIteratorWriter(mockStream)
-	si := newMockStringIterator("foo", "bar")
+	si := newMockStringIterator(1, 2, "foo", "bar")
 	err := w.WriteStringIterator(si)
 	if err != nil {
 		t.Fatal(err)

@@ -16,7 +16,7 @@ export const getDashboards = async (
   try {
     let result
     if (org) {
-      result = await client.dashboards.getAllByOrg(org.name)
+      result = await client.dashboards.getAll(org.id)
     } else {
       result = await client.dashboards.getAll()
     }

@@ -268,6 +268,11 @@ export const authorizationsGetFailed = (): Notification => ({
   message: 'Failed to get tokens',
 })
 
+export const authorizationCreateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Token was created successfully',
+})
+
 export const authorizationCreateFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Failed to create tokens',

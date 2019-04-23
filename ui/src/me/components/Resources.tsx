@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Link} from 'react-router'
 
 // Components
 import Support from 'src/me/components/Support'
@@ -36,13 +35,6 @@ class ResourceLists extends PureComponent<Props> {
           <Panel.Header title="Account">
             <LogoutButton />
           </Panel.Header>
-          <Panel.Body>
-            <ul className="link-list">
-              <li>
-                <Link to="/configuration/settings_tab">Profile</Link>
-              </li>
-            </ul>
-          </Panel.Body>
         </Panel>
         <Panel>
           <Panel.Header title="Dashboards" />

@@ -6904,7 +6904,7 @@ components:
             id:
               type: string
               readOnly: true
-            organization:
+            org:
               type: string
               description: name of the organization
             bucket:

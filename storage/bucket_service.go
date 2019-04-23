@@ -102,7 +102,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, bucketID platform.ID) 
 	// The data is dropped first from the storage engine. If this fails for any
 	// reason, then the bucket will still be available in the future to retrieve
 	// the orgID, which is needed for the engine.
-	if err := s.engine.DeleteBucket(bucket.OrganizationID, bucketID); err != nil {
+	if err := s.engine.DeleteBucket(bucket.OrgID, bucketID); err != nil {
 		return err
 	}
 	return s.inner.DeleteBucket(ctx, bucketID)

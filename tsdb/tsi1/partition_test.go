@@ -12,8 +12,6 @@ import (
 )
 
 func TestPartition_Open(t *testing.T) {
-	t.Parallel() // There's a bit of IO in this test.
-
 	sfile := MustOpenSeriesFile()
 	defer sfile.Close()
 
@@ -26,15 +24,20 @@ func TestPartition_Open(t *testing.T) {
 
 		fs, err := p.FileSet()
 		if err != nil {
+			p.Close()
 			t.Fatal(err)
 		}
 		defer fs.Release()
 
 		// Check version set appropriately.
 		if got, exp := p.Manifest(fs).Version, 1; got != exp {
+			p.Close()
 			t.Fatalf("got index version %d, expected %d", got, exp)
 		}
 	})
+	if t.Failed() {
+		return
+	}
 
 	// Reopening an open index should return an error.
 	t.Run("reopen open index", func(t *testing.T) {
@@ -45,6 +48,9 @@ func TestPartition_Open(t *testing.T) {
 		}
 		p.Close()
 	})
+	if t.Failed() {
+		return
+	}
 
 	// Opening an incompatible index should return an error.
 	incompatibleVersions := []int{-1, 0, 2}
@@ -75,6 +81,9 @@ func TestPartition_Open(t *testing.T) {
 				t.Fatalf("got error %v, expected %v", err, tsi1.ErrIncompatibleVersion)
 			}
 		})
+		if t.Failed() {
+			return
+		}
 	}
 }
 
