@@ -13,3 +13,17 @@ export const getReadWriteLimitsAJAX = async (orgID: string) => {
     throw error
   }
 }
+
+export const getLimitsAJAX = async (orgID: string) => {
+  try {
+    const {data} = await AJAX({
+      method: 'GET',
+      url: `/api/v2private/orgs/${orgID}/limits`,
+    })
+
+    return data
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
