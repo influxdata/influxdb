@@ -50,12 +50,8 @@ $inline-labels--popover-caret: 12px;
 .inline-labels--list-container {
   background-color: $g3-castle;
   border-radius: $radius;
-  overflow: hidden;
   margin-top: $ix-marg-a;
-}
-
-.inline-labels--list-container .fancy-scroll--track-h {
-  display: none;
+  overflow: hidden;
 }
 
 .inline-labels--list {
@@ -86,6 +82,8 @@ $inline-labels--popover-caret: 12px;
   font-weight: 500;
   color: $g11-sidewalk;
   transition: background-color 0.25s ease, color 0.25s ease;
+  word-break: break-all;
+  word-wrap: break-word;
 
   strong {
     font-weight: 900;

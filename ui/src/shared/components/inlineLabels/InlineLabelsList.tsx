@@ -3,8 +3,7 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 
 // Components
-import {EmptyState} from '@influxdata/clockface'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
+import {EmptyState, DapperScrollbars} from '@influxdata/clockface'
 import InlineLabelsListItem from 'src/shared/components/inlineLabels/InlineLabelsListItem'
 import InlineLabelsCreateLabelButton from 'src/shared/components/inlineLabels/InlineLabelsCreateLabelButton'
 
@@ -33,9 +32,14 @@ class InlineLabelsList extends Component<Props> {
   public render() {
     return (
       <div className="inline-labels--list-container">
-        <FancyScrollbar autoHide={false} autoHeight={true} maxHeight={250}>
+        <DapperScrollbars
+          autoSize={true}
+          autoHide={false}
+          style={{maxWidth: '100%', maxHeight: '300px'}}
+          noScrollX={true}
+        >
           <div className="inline-labels--list">{this.menuItems}</div>
-        </FancyScrollbar>
+        </DapperScrollbars>
       </div>
     )
   }
