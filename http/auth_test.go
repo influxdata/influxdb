@@ -145,6 +145,158 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 			},
 		},
 		{
+			name: "skip authorizations with no org",
+			fields: fields{
+				&mock.AuthorizationService{
+					FindAuthorizationsFn: func(ctx context.Context, filter platform.AuthorizationFilter, opts ...platform.FindOptions) ([]*platform.Authorization, int, error) {
+						return []*platform.Authorization{
+							{
+								ID:          platformtesting.MustIDBase16("0d0a657820696e74"),
+								Token:       "hello",
+								UserID:      platformtesting.MustIDBase16("2070616e656d2076"),
+								OrgID:       platformtesting.MustIDBase16("3070616e656d2076"),
+								Description: "t1",
+								Permissions: platform.OperPermissions(),
+							},
+							{
+								ID:          platformtesting.MustIDBase16("6669646573207375"),
+								Token:       "example",
+								UserID:      platformtesting.MustIDBase16("6c7574652c206f6e"),
+								OrgID:       platformtesting.MustIDBase16("9d70616e656d2076"),
+								Description: "t2",
+								Permissions: platform.OperPermissions(),
+							},
+						}, 2, nil
+					},
+				},
+				&mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						if id.String() == "2070616e656d2076" {
+							return &platform.User{
+								ID:   id,
+								Name: id.String(),
+							}, nil
+						}
+						return nil, &platform.Error{}
+					},
+				},
+				&mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						return &platform.Organization{
+							ID:   id,
+							Name: id.String(),
+						}, nil
+					},
+				},
+			},
+			args: args{},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(`
+{
+  "links": {
+    "self": "/api/v2/authorizations"
+  },
+  "authorizations": [
+    {
+      "links": {
+        "user": "/api/v2/users/2070616e656d2076",
+        "self": "/api/v2/authorizations/0d0a657820696e74"
+      },
+      "id": "0d0a657820696e74",
+	  "userID": "2070616e656d2076",
+	  "user": "2070616e656d2076",
+	  "org": "3070616e656d2076",
+	  "orgID": "3070616e656d2076",
+      "status": "",
+	  "token": "hello",
+	  "description": "t1",
+	  "permissions": %s
+    }
+  ]
+}
+`,
+					MustMarshal(platform.OperPermissions())),
+			},
+		},
+		{
+			name: "skip authorizations with no user",
+			fields: fields{
+				&mock.AuthorizationService{
+					FindAuthorizationsFn: func(ctx context.Context, filter platform.AuthorizationFilter, opts ...platform.FindOptions) ([]*platform.Authorization, int, error) {
+						return []*platform.Authorization{
+							{
+								ID:          platformtesting.MustIDBase16("0d0a657820696e74"),
+								Token:       "hello",
+								UserID:      platformtesting.MustIDBase16("2070616e656d2076"),
+								OrgID:       platformtesting.MustIDBase16("3070616e656d2076"),
+								Description: "t1",
+								Permissions: platform.OperPermissions(),
+							},
+							{
+								ID:          platformtesting.MustIDBase16("6669646573207375"),
+								Token:       "example",
+								UserID:      platformtesting.MustIDBase16("6c7574652c206f6e"),
+								OrgID:       platformtesting.MustIDBase16("9d70616e656d2076"),
+								Description: "t2",
+								Permissions: platform.OperPermissions(),
+							},
+						}, 2, nil
+					},
+				},
+				&mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						return &platform.User{
+							ID:   id,
+							Name: id.String(),
+						}, nil
+					},
+				},
+				&mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+						if id.String() == "3070616e656d2076" {
+							return &platform.Organization{
+								ID:   id,
+								Name: id.String(),
+							}, nil
+						}
+						return nil, &platform.Error{}
+					},
+				},
+			},
+			args: args{},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(`
+{
+  "links": {
+    "self": "/api/v2/authorizations"
+  },
+  "authorizations": [
+    {
+      "links": {
+        "user": "/api/v2/users/2070616e656d2076",
+        "self": "/api/v2/authorizations/0d0a657820696e74"
+      },
+      "id": "0d0a657820696e74",
+	  "userID": "2070616e656d2076",
+	  "user": "2070616e656d2076",
+	  "org": "3070616e656d2076",
+	  "orgID": "3070616e656d2076",
+      "status": "",
+	  "token": "hello",
+	  "description": "t1",
+	  "permissions": %s
+    }
+  ]
+}
+`,
+					MustMarshal(platform.OperPermissions())),
+			},
+		},
+		{
 			name: "get all authorizations when there are none",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
