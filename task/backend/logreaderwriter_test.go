@@ -120,15 +120,17 @@ func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWrit
 	svc := inmem.NewService()
 
 	const (
-		concurrencyQuota = 10
-		memoryBytesQuota = 1e6
+		concurrencyQuota         = 10
+		memoryBytesQuotaPerQuery = 1e6
+		queueSize                = 10
 	)
 
 	cc := control.Config{
-		ExecutorDependencies: make(execute.Dependencies),
-		ConcurrencyQuota:     concurrencyQuota,
-		MemoryBytesQuota:     int64(memoryBytesQuota),
-		Logger:               logger.With(zap.String("service", "storage-reads")),
+		ExecutorDependencies:     make(execute.Dependencies),
+		ConcurrencyQuota:         concurrencyQuota,
+		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
+		QueueSize:                queueSize,
+		Logger:                   logger.With(zap.String("service", "storage-reads")),
 	}
 
 	if err := readservice.AddControllerConfigDependencies(
@@ -137,7 +139,10 @@ func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWrit
 		t.Fatal(err)
 	}
 
-	queryController := pcontrol.New(cc)
+	queryController, err := pcontrol.New(cc)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	return &fullStackAwareLogReaderWriter{
 		PointLogWriter: backend.NewPointLogWriter(engine),

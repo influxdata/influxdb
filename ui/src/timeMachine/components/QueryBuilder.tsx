@@ -4,11 +4,11 @@ import {connect} from 'react-redux'
 import {range} from 'lodash'
 
 // Components
-import {Button, ButtonShape, IconFont} from '@influxdata/clockface'
 import TagSelector from 'src/timeMachine/components/TagSelector'
 import QueryBuilderDataCard from 'src/timeMachine/components/QueryBuilderDataCard'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import FunctionSelector from 'src/timeMachine/components/FunctionSelector'
+import AddCardButton from 'src/timeMachine/components/AddCardButton'
 
 // Actions
 import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
@@ -46,7 +46,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
       <div className="query-builder" data-testid="query-builder">
         <div className="query-builder--cards">
           <FancyScrollbar>
-            <div className="query-builder--tag-selectors">
+            <div className="builder-card--list">
               <QueryBuilderDataCard />
               {range(tagFiltersLength).map(i => (
                 <TagSelector key={i} index={i} />
@@ -67,14 +67,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
       return null
     }
 
-    return (
-      <Button
-        shape={ButtonShape.Square}
-        icon={IconFont.Plus}
-        onClick={onAddTagSelector}
-        customClass="query-builder--add-tag-selector"
-      />
-    )
+    return <AddCardButton onClick={onAddTagSelector} collapsible={false} />
   }
 }
 

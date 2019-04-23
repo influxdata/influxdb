@@ -564,6 +564,8 @@ func pollForRunStatus(t *testing.T, r *runListener, taskID platform.ID, expCount
 
 		r.mu.Lock()
 		runs = r.rs[taskID]
+		runs := make([]*platform.Run, len(r.rs[taskID]))
+		copy(runs, r.rs[taskID])
 		r.mu.Unlock()
 
 		if len(runs) != expCount {

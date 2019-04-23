@@ -13,10 +13,17 @@ import (
 type mockStringIterator struct {
 	values    []string
 	nextValue *string
+	stats     cursors.CursorStats
 }
 
-func newMockStringIterator(values ...string) *mockStringIterator {
-	return &mockStringIterator{values: values}
+func newMockStringIterator(scannedValues, scannedBytes int, values ...string) *mockStringIterator {
+	return &mockStringIterator{
+		values: values,
+		stats: cursors.CursorStats{
+			ScannedValues: scannedValues,
+			ScannedBytes:  scannedBytes,
+		},
+	}
 }
 
 func (si *mockStringIterator) Next() bool {
@@ -39,7 +46,10 @@ func (si *mockStringIterator) Value() string {
 }
 
 func (si *mockStringIterator) Stats() cursors.CursorStats {
-	return cursors.CursorStats{}
+	if len(si.values) > 0 {
+		return cursors.CursorStats{}
+	}
+	return si.stats
 }
 
 type mockStringValuesStreamReader struct {

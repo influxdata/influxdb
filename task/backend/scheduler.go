@@ -623,9 +623,9 @@ func (r *runner) RestartRun(qr QueuedRun) bool {
 		r.ts.running[qr.RunID] = rCtx
 	}
 	r.ts.runningMu.Unlock()
+
 	go r.executeAndWait(rCtx.Context, qr, runLogger)
 
-	r.updateRunState(qr, RunStarted, runLogger)
 	return true
 }
 
@@ -664,7 +664,6 @@ func (r *runner) startFromWorking(now int64) {
 	r.wg.Add(1)
 	go r.executeAndWait(ctx, qr, runLogger)
 
-	r.updateRunState(qr, RunStarted, runLogger)
 }
 
 func (r *runner) clearRunning(id platform.ID) {
@@ -685,6 +684,8 @@ func (r *runner) fail(qr QueuedRun, runLogger *zap.Logger, stage string, reason 
 }
 
 func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *zap.Logger) {
+	r.updateRunState(qr, RunStarted, runLogger)
+
 	defer r.wg.Done()
 	errMsg := "Failed to finish run"
 	defer func() {

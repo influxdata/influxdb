@@ -1,3 +1,5 @@
+import {get} from 'lodash'
+
 // API
 import {
   executeQueryWithVars,
@@ -6,6 +8,11 @@ import {
 
 // Actions
 import {refreshVariableValues, selectValue} from 'src/variables/actions'
+import {notify} from 'src/shared/actions/notifications'
+
+// Constants
+import {queryLimitReached} from 'src/shared/copy/notifications'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -120,6 +127,10 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
   } catch (e) {
     if (e instanceof CancellationError) {
       return
+    }
+
+    if (get(e, 'xhr.status') === RATE_LIMIT_ERROR_STATUS) {
+      dispatch(notify(queryLimitReached()))
     }
 
     console.error(e)

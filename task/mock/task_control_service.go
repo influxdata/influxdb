@@ -259,7 +259,10 @@ func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID i
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	run := d.runs[taskID][runID]
+	run, ok := d.runs[taskID][runID]
+	if !ok {
+		panic("run state called without a run")
+	}
 	switch state {
 	case backend.RunStarted:
 		run.StartedAt = when.Format(time.RFC3339Nano)

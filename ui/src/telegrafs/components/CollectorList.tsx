@@ -4,8 +4,8 @@ import _ from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {IndexList} from 'src/clockface'
-import CollectorRow from 'src/telegrafs/components/CollectorRow'
+import {ResourceList} from 'src/clockface'
+import CollectorRow from 'src/telegrafs/components/CollectorCard'
 
 // Types
 import {ITelegraf as Telegraf} from '@influxdata/influx'
@@ -15,7 +15,7 @@ import {SortTypes, getSortedResources} from 'src/shared/utils/sort'
 //Utils
 import {getDeep} from 'src/utils/wrappers'
 
-type SortKey = keyof Telegraf
+type SortKey = keyof Telegraf | 'bucket'
 
 interface Props {
   collectors: Telegraf[]
@@ -40,28 +40,31 @@ export default class CollectorList extends PureComponent<Props> {
 
     return (
       <>
-        <IndexList>
-          <IndexList.Header>
-            <IndexList.HeaderCell
+        <ResourceList>
+          <ResourceList.Header>
+            <ResourceList.Sorter
               sortKey={this.headerKeys[0]}
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              columnName="Name"
-              width="50%"
+              name="Name"
               onClick={onClickColumn}
             />
-            <IndexList.HeaderCell columnName="Bucket" width="25%" />
-            <IndexList.HeaderCell columnName="" width="25%" />
-          </IndexList.Header>
-          <IndexList.Body columnCount={3} emptyState={emptyState}>
+            <ResourceList.Sorter
+              name="Bucket"
+              sortKey={this.headerKeys[1]}
+              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+              onClick={onClickColumn}
+            />
+          </ResourceList.Header>
+          <ResourceList.Body emptyState={emptyState}>
             {this.collectorsList}
-          </IndexList.Body>
-        </IndexList>
+          </ResourceList.Body>
+        </ResourceList>
       </>
     )
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name']
+    return ['name', 'bucket']
   }
 
   public get collectorsList(): JSX.Element[] {
