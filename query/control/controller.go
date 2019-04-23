@@ -22,10 +22,13 @@ type Controller struct {
 }
 
 // NewController creates a new Controller specific to platform.
-func New(config control.Config) *Controller {
+func New(config control.Config) (*Controller, error) {
 	config.MetricLabelKeys = append(config.MetricLabelKeys, orgLabel)
-	c := control.New(config)
-	return &Controller{c: c}
+	c, err := control.New(config)
+	if err != nil {
+		return nil, err
+	}
+	return &Controller{c: c}, nil
 }
 
 // Query satisfies the AsyncQueryService while ensuring the request is propagated on the context.
