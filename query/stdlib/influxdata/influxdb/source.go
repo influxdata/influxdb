@@ -3,13 +3,12 @@ package influxdb
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -17,6 +16,7 @@ import (
 
 func init() {
 	execute.RegisterSource(ReadRangePhysKind, createReadFilterSource)
+	execute.RegisterSource(ReadTagKeysPhysKind, createReadTagKeysSource)
 }
 
 type runner interface {
@@ -133,22 +133,15 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 	}
 
 	orgID := req.OrganizationID
-	var bucketID platform.ID
-	// Determine bucketID
-	switch {
-	case spec.Bucket != "":
-		b, ok := deps.BucketLookup.Lookup(ctx, orgID, spec.Bucket)
-		if !ok {
-			return nil, fmt.Errorf("could not find bucket %q", spec.Bucket)
-		}
-		bucketID = b
-	case len(spec.BucketID) != 0:
-		err := bucketID.DecodeFromString(spec.BucketID)
-		if err != nil {
-			return nil, err
-		}
+	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
+	if err != nil {
+		return nil, err
 	}
 
+	var filter *semantic.FunctionExpression
+	if spec.FilterSet {
+		filter = spec.Filter
+	}
 	return ReadFilterSource(
 		id,
 		deps.Reader,
@@ -156,7 +149,73 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 			OrganizationID: orgID,
 			BucketID:       bucketID,
 			Bounds:         *bounds,
+			Predicate:      filter,
 		},
 		a.Allocator(),
 	), nil
+}
+
+func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
+	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	defer span.Finish()
+
+	spec := prSpec.(*ReadTagKeysPhysSpec)
+	deps := a.Dependencies()[FromKind].(Dependencies)
+	req := query.RequestFromContext(a.Context())
+	if req == nil {
+		return nil, errors.New("missing request on context")
+	}
+	orgID := req.OrganizationID
+
+	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
+	if err != nil {
+		return nil, err
+	}
+
+	var filter *semantic.FunctionExpression
+	if spec.FilterSet {
+		filter = spec.Filter
+	}
+
+	bounds := a.StreamContext().Bounds()
+	return ReadTagKeysSource(
+		dsid,
+		deps.Reader,
+		ReadTagKeysSpec{
+			ReadFilterSpec: ReadFilterSpec{
+				OrganizationID: orgID,
+				BucketID:       bucketID,
+				Bounds:         *bounds,
+				Predicate:      filter,
+			},
+			ValueColumnName: spec.ValueColumnName,
+		},
+		a.Allocator(),
+	), nil
+}
+
+type readTagKeysSource struct {
+	Source
+
+	reader   Reader
+	readSpec ReadTagKeysSpec
+}
+
+func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec, alloc *memory.Allocator) execute.Source {
+	src := &readTagKeysSource{
+		reader:   r,
+		readSpec: readSpec,
+	}
+	src.id = id
+	src.alloc = alloc
+	src.runner = src
+	return src
+}
+
+func (s *readTagKeysSource) run(ctx context.Context) error {
+	ti, err := s.reader.ReadTagKeys(ctx, s.readSpec, s.alloc)
+	if err != nil {
+		return err
+	}
+	return s.processTables(ctx, ti, execute.Now())
 }

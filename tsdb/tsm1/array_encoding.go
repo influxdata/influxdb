@@ -110,3 +110,15 @@ func DecodeStringArrayBlock(block []byte, a *tsdb.StringArray) error {
 	a.Values, err = StringArrayDecodeAll(vb, a.Values)
 	return err
 }
+
+// DecodeTimestampArrayBlock decodes the timestamps from the specified
+// block, ignoring the block type and the values.
+func DecodeTimestampArrayBlock(block []byte, a *tsdb.TimestampArray) error {
+	tb, _, err := unpackBlock(block[1:])
+	if err != nil {
+		return err
+	}
+
+	a.Timestamps, err = TimeArrayDecodeAll(tb, a.Timestamps)
+	return err
+}

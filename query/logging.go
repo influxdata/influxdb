@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // LoggingProxyQueryService wraps a ProxyQueryService and logs the queries.
@@ -17,6 +20,7 @@ type LoggingProxyQueryService struct {
 	ProxyQueryService ProxyQueryService
 	QueryLogger       Logger
 	NowFunction       func() time.Time
+	Logger            *zap.Logger
 }
 
 // Query executes and logs the query.
@@ -26,9 +30,12 @@ func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *
 
 	var n int64
 	defer func() {
-		r := recover()
-		if r != nil {
+		if r := recover(); r != nil {
 			err = fmt.Errorf("panic: %v", r)
+			if entry := s.Logger.Check(zapcore.InfoLevel, "QueryLogging panic"); entry != nil {
+				entry.Stack = string(debug.Stack())
+				entry.Write(zap.Error(err))
+			}
 		}
 		var now time.Time
 		if s.NowFunction != nil {

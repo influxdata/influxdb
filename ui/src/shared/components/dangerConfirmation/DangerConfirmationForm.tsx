@@ -19,16 +19,17 @@ import {Form} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
+  message: string
+  effectedItems: string[]
   onConfirm: () => void
+  confirmButtonText: string
 }
 
 @ErrorHandling
-class EditOrgConfirmationForm extends PureComponent<Props> {
+class DangerConfirmationForm extends PureComponent<Props> {
   public render() {
-    const {onConfirm} = this.props
-
     return (
-      <Form onSubmit={onConfirm}>
+      <Form onSubmit={this.props.onConfirm}>
         <ComponentSpacer
           alignItems={AlignItems.Center}
           direction={FlexDirection.Column}
@@ -39,17 +40,11 @@ class EditOrgConfirmationForm extends PureComponent<Props> {
           </Alert>
           <Form.Element label="">
             <>
-              <p>
-                Updating the name of an Organization can have unintended
-                consequences. Anything that references this Organization by name
-                will stop working including:
-              </p>
+              <p>{this.props.message}</p>
               <ul>
-                <li>Queries</li>
-                <li>Dashboards</li>
-                <li>Tasks</li>
-                <li>Telegraf Configurations</li>
-                <li>Client Libraries</li>
+                {this.props.effectedItems.map(item => (
+                  <li key={item}>{item}</li>
+                ))}
               </ul>
             </>
           </Form.Element>
@@ -60,7 +55,7 @@ class EditOrgConfirmationForm extends PureComponent<Props> {
           >
             <Button
               color={ComponentColor.Danger}
-              text="I understand, let's rename my Organization"
+              text={this.props.confirmButtonText}
               type={ButtonType.Submit}
             />
           </ComponentSpacer>
@@ -70,4 +65,4 @@ class EditOrgConfirmationForm extends PureComponent<Props> {
   }
 }
 
-export default EditOrgConfirmationForm
+export default DangerConfirmationForm

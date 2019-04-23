@@ -1,43 +1,47 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {ResourceList} from 'src/clockface'
-import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 import EmptyTemplatesList from 'src/templates/components/EmptyTemplatesList'
 import TemplateCard from 'src/templates/components/TemplateCard'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
+import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from 'src/clockface'
+
+// Selectors
+import {getSortedResources} from 'src/shared/utils/sort'
+
+type SortKey = 'meta.name'
 
 interface Props {
   templates: TemplateSummary[]
   searchTerm: string
   onFilterChange: (searchTerm: string) => void
   onImport: () => void
-}
-
-type SortKey = 'meta.name'
-
-interface State {
-  sortKey: SortKey
+  sortKey: string
   sortDirection: Sort
+  sortType: SortTypes
+  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-export default class TemplatesList extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      sortKey: null,
-      sortDirection: Sort.Descending,
-    }
-  }
+export default class TemplatesList extends PureComponent<Props> {
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
 
   public render() {
-    const {searchTerm, onImport} = this.props
-    const {sortKey, sortDirection} = this.state
+    const {
+      searchTerm,
+      onImport,
+      sortKey,
+      sortDirection,
+      onClickColumn,
+    } = this.props
 
     const headerKeys: SortKey[] = ['meta.name']
 
@@ -49,7 +53,7 @@ export default class TemplatesList extends PureComponent<Props, State> {
               name="Name"
               sortKey={headerKeys[0]}
               sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
           </ResourceList.Header>
           <ResourceList.Body
@@ -57,49 +61,34 @@ export default class TemplatesList extends PureComponent<Props, State> {
               <EmptyTemplatesList searchTerm={searchTerm} onImport={onImport} />
             }
           >
-            {this.sortedCards}
+            {this.rows}
           </ResourceList.Body>
         </ResourceList>
       </>
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    this.setState({sortKey, sortDirection: nextSort})
-  }
-
-  private cards = (templates: TemplateSummary[]): JSX.Element => {
-    const {onFilterChange} = this.props
-    const templateCards = (
-      <>
-        {templates.map(t => (
-          <TemplateCard
-            key={`template-id--${t.id}`}
-            template={t}
-            onFilterChange={onFilterChange}
-          />
-        ))}
-      </>
+  private get rows(): JSX.Element[] {
+    const {
+      templates,
+      sortKey,
+      sortDirection,
+      sortType,
+      onFilterChange,
+    } = this.props
+    const sortedTemplates = this.memGetSortedResources(
+      templates,
+      sortKey,
+      sortDirection,
+      sortType
     )
-    return templateCards
-  }
 
-  private get sortedCards(): JSX.Element {
-    const {templates} = this.props
-    const {sortKey, sortDirection} = this.state
-
-    if (templates.length) {
-      return (
-        <SortingHat<TemplateSummary>
-          list={templates}
-          sortKey={sortKey}
-          direction={sortDirection}
-        >
-          {this.cards}
-        </SortingHat>
-      )
-    }
-
-    return null
+    return sortedTemplates.map(t => (
+      <TemplateCard
+        key={`template-id--${t.id}`}
+        template={t}
+        onFilterChange={onFilterChange}
+      />
+    ))
   }
 }

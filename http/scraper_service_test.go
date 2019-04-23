@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
@@ -125,7 +126,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "name": "target-1",
 						  "bucket": "bucket1",
 						  "bucketID": "0000000000000212",
-						  "organization": "org1",
+						  "org": "org1",
 						  "orgID": "0000000000000211",
 						  "type": "prometheus",
 						  "url": "www.one.url",
@@ -143,7 +144,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "bucket": "bucket1",
 						  "bucketID": "0000000000000212",
 						  "orgID": "0000000000000211",
-						  "organization": "org1",
+						  "org": "org1",
 						  "type": "prometheus",
 						  "url": "www.two.url",
 						  "links": {
@@ -319,7 +320,7 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 					  "bucket": "bucket1",
                       "bucketID": "0000000000000212",
 					  "orgID": "0000000000000211",
-					  "organization": "org1",
+					  "org": "org1",
                       "links": {
                         "bucket": "/api/v2/buckets/0000000000000212",
                         "organization": "/api/v2/orgs/0000000000000211",
@@ -546,7 +547,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
                       "type": "prometheus",
                       "url": "www.some.url",
 					  "orgID": "0000000000000211",
-					  "organization": "org1",
+					  "org": "org1",
 					  "bucket": "bucket1",
                       "bucketID": "0000000000000212",
                       "links": {
@@ -676,7 +677,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 		              "name":"name",
 		              "type":"prometheus",
 					  "url":"www.example.url",
-					  "organization": "org1",
+					  "org": "org1",
 					  "orgID":"0000000000000211",
 					  "bucket": "bucket1",
 					  "bucketID":"0000000000000212",

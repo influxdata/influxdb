@@ -113,14 +113,14 @@ func (s *retentionEnforcer) expireData(buckets []*influxdb.Bucket, now time.Time
 		}
 
 		max := now.Add(-b.RetentionPeriod).UnixNano()
-		err := s.Engine.DeleteBucketRange(b.OrganizationID, b.ID, math.MinInt64, max)
+		err := s.Engine.DeleteBucketRange(b.OrgID, b.ID, math.MinInt64, max)
 		if err != nil {
 			logger.Info("unable to delete bucket range",
 				zap.String("bucket id", b.ID.String()),
-				zap.String("org id", b.OrganizationID.String()),
+				zap.String("org id", b.OrgID.String()),
 				zap.Error(err))
 		}
-		s.tracker.IncChecks(b.OrganizationID, b.ID, err == nil)
+		s.tracker.IncChecks(b.OrgID, b.ID, err == nil)
 	}
 }
 

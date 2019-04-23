@@ -69,7 +69,7 @@ class OrgProfileTab extends PureComponent<Props> {
       router,
     } = this.props
 
-    router.push(`/orgs/${orgID}/profile/edit`)
+    router.push(`/orgs/${orgID}/profile/rename`)
   }
 }
 

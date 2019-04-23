@@ -61,6 +61,26 @@ func (r *storeReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSp
 	}, nil
 }
 
+func (r *storeReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+	var predicate *datatypes.Predicate
+	if spec.Predicate != nil {
+		p, err := toStoragePredicate(spec.Predicate)
+		if err != nil {
+			return nil, err
+		}
+		predicate = p
+	}
+
+	return &tagKeysIterator{
+		ctx:       ctx,
+		bounds:    spec.Bounds,
+		s:         r.s,
+		readSpec:  spec,
+		predicate: predicate,
+		alloc:     alloc,
+	}, nil
+}
+
 func (r *storeReader) Close() {}
 
 type simpleTableIterator struct {
@@ -693,4 +713,72 @@ func groupKeyForGroup(kv [][]byte, readSpec *influxdb.ReadSpec, bnds execute.Bou
 		vs = append(vs, values.NewString(string(kv[i])))
 	}
 	return execute.NewGroupKey(cols, vs)
+}
+
+type tagKeysIterator struct {
+	ctx       context.Context
+	bounds    execute.Bounds
+	s         Store
+	readSpec  influxdb.ReadTagKeysSpec
+	predicate *datatypes.Predicate
+	alloc     *memory.Allocator
+}
+
+func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
+	src := ti.s.GetSource(
+		uint64(ti.readSpec.OrganizationID),
+		uint64(ti.readSpec.BucketID),
+	)
+
+	var req datatypes.TagKeysRequest
+	if any, err := types.MarshalAny(src); err != nil {
+		return err
+	} else {
+		req.TagsSource = any
+	}
+	req.Predicate = ti.predicate
+	req.Range.Start = int64(ti.bounds.Start)
+	req.Range.End = int64(ti.bounds.Stop)
+
+	rs, err := ti.s.TagKeys(ti.ctx, &req)
+	if err != nil {
+		return err
+	}
+	return ti.handleRead(f, rs)
+}
+
+func (ti *tagKeysIterator) handleRead(f func(flux.Table) error, rs cursors.StringIterator) error {
+	key := execute.NewGroupKey(nil, nil)
+	builder := execute.NewColListTableBuilder(key, ti.alloc)
+	valueIdx, err := builder.AddCol(flux.ColMeta{
+		Label: ti.readSpec.ValueColumnName,
+		Type:  flux.TString,
+	})
+	if err != nil {
+		return err
+	}
+	defer builder.ClearData()
+
+	for rs.Next() {
+		if err := builder.AppendString(valueIdx, rs.Value()); err != nil {
+			return err
+		}
+	}
+
+	// Construct the table and add to the reference count
+	// so we can free the table later.
+	tbl, err := builder.Table()
+	if err != nil {
+		return err
+	}
+	tbl.RefCount(1)
+	defer tbl.RefCount(-1)
+
+	// Release the references to the arrays held by the builder.
+	builder.ClearData()
+	return f(tbl)
+}
+
+func (ti *tagKeysIterator) Statistics() cursors.CursorStats {
+	return cursors.CursorStats{}
 }

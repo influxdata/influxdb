@@ -1337,6 +1337,15 @@ func SeriesFieldKeyBytes(seriesKey, field string) []byte {
 	return b
 }
 
+// AppendSeriesFieldKeyBytes combines seriesKey and field such
+// that can be used to search a TSM index. The value is appended to dst and
+// the extended buffer returned.
+func AppendSeriesFieldKeyBytes(dst, seriesKey, field []byte) []byte {
+	dst = append(dst, seriesKey...)
+	dst = append(dst, KeyFieldSeparatorBytes...)
+	return append(dst, field...)
+}
+
 var (
 	blockToFieldType = [8]influxql.DataType{
 		BlockFloat64:  influxql.Float,

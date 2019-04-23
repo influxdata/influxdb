@@ -96,9 +96,9 @@ export class SelectCollectorsStep extends PureComponent<Props> {
   }
 
   private handleSelectBucket = (bucket: Bucket) => {
-    const {organization, organizationID, id, name} = bucket
+    const {organizationID, id, name} = bucket
 
-    this.props.onSetBucketInfo(organization, organizationID, name, id)
+    this.props.onSetBucketInfo(organizationID, name, id)
   }
 
   private handleTogglePluginBundle = (

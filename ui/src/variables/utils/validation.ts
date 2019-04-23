@@ -1,4 +1,11 @@
 import {Variable} from '@influxdata/influx'
+import {
+  TIME_RANGE_START,
+  TIME_RANGE_STOP,
+  WINDOW_PERIOD,
+} from 'src/variables/constants'
+
+const reservedVarNames = [TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD]
 
 export const validateVariableName = (
   varName: string,
@@ -8,11 +15,23 @@ export const validateVariableName = (
     return {error: 'Variable name cannot be empty'}
   }
 
-  const matchingName = variables.find(
-    v => v.name.toLocaleLowerCase() === varName.toLocaleLowerCase()
+  const lowerName = varName.toLocaleLowerCase()
+
+  const reservedMatch = reservedVarNames.find(
+    r => r.toLocaleLowerCase() === lowerName
   )
 
-  if (matchingName) {
+  if (!!reservedMatch) {
+    return {
+      error: `Variable name is reserved: ${reservedMatch}`,
+    }
+  }
+
+  const matchingName = variables.find(
+    v => v.name.toLocaleLowerCase() === lowerName
+  )
+
+  if (!!matchingName) {
     return {
       error: `Variable name must be unique`,
     }

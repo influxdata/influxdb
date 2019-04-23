@@ -8,19 +8,31 @@ import LabelRow from 'src/labels/components/LabelRow'
 
 // Utils
 import {validateLabelUniqueness} from 'src/labels/utils/'
+import memoizeOne from 'memoize-one'
 
 // Types
 import {ILabel} from '@influxdata/influx'
 import {OverlayState} from 'src/types'
+import {Sort} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/utils/sort'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Selectors
+import {getSortedResources} from 'src/shared/utils/sort'
+
+type SortKey = keyof ILabel
 
 interface Props {
   labels: ILabel[]
   emptyState: JSX.Element
   onUpdateLabel: (label: ILabel) => void
   onDeleteLabel: (labelID: string) => void
+  sortKey: string
+  sortDirection: Sort
+  sortType: SortTypes
+  onClickColumn: (mextSort: Sort, sortKey: SortKey) => void
 }
 
 interface State {
@@ -30,17 +42,28 @@ interface State {
 
 @ErrorHandling
 export default class LabelList extends PureComponent<Props, State> {
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
+
   public state: State = {
     labelID: null,
     overlayState: OverlayState.Closed,
   }
 
   public render() {
+    const {sortKey, sortDirection, onClickColumn} = this.props
     return (
       <>
         <IndexList>
           <IndexList.Header>
-            <IndexList.HeaderCell columnName="Name" width="20%" />
+            <IndexList.HeaderCell
+              sortKey={this.headerKeys[0]}
+              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+              columnName="Name"
+              width="20%"
+              onClick={onClickColumn}
+            />
             <IndexList.HeaderCell columnName="Description" width="55%" />
             <IndexList.HeaderCell width="25%" />
           </IndexList.Header>
@@ -60,10 +83,20 @@ export default class LabelList extends PureComponent<Props, State> {
     )
   }
 
-  private get rows(): JSX.Element[] {
-    const {onDeleteLabel} = this.props
+  private get headerKeys(): SortKey[] {
+    return ['name']
+  }
 
-    return this.props.labels.map((label, index) => (
+  private get rows(): JSX.Element[] {
+    const {labels, sortKey, sortDirection, sortType, onDeleteLabel} = this.props
+    const sortedLabels = this.memGetSortedResources(
+      labels,
+      sortKey,
+      sortDirection,
+      sortType
+    )
+
+    return sortedLabels.map((label, index) => (
       <LabelRow
         key={label.id || `label-${index}`}
         onDelete={onDeleteLabel}

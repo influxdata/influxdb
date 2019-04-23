@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	pcontext "github.com/influxdata/influxdb/context"
@@ -379,13 +379,13 @@ func (h *TaskHandler) createBootstrapTaskAuthorizationIfNotExists(ctx context.Co
 		return nil, nil
 	}
 
-	spec, err := flux.Compile(ctx, t.Flux, time.Now())
+	prog, err := lang.Compile(t.Flux, time.Now())
 	if err != nil {
 		return nil, err
 	}
 
 	preAuthorizer := query.NewPreAuthorizer(h.BucketService)
-	ps, err := preAuthorizer.RequiredPermissions(ctx, spec, &t.OrganizationID)
+	ps, err := preAuthorizer.RequiredPermissions(ctx, prog.Ast, &t.OrganizationID)
 	if err != nil {
 		return nil, err
 	}

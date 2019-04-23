@@ -136,6 +136,7 @@ func newFileMetrics(labels prometheus.Labels) *fileMetrics {
 	for k := range labels {
 		names = append(names, k)
 	}
+	names = append(names, "level")
 	sort.Strings(names)
 
 	return &fileMetrics{

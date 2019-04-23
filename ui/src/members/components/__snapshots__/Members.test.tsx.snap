@@ -6,11 +6,15 @@ exports[`MemberList rendering renders 1`] = `
     <IndexListHeaderCell
       alignment="left"
       columnName="Username"
+      sort="none"
+      sortKey="name"
       width="20%"
     />
     <IndexListHeaderCell
       alignment="left"
       columnName="Role"
+      sort="none"
+      sortKey="role"
       width="20%"
     />
     <IndexListHeaderCell
@@ -21,6 +25,7 @@ exports[`MemberList rendering renders 1`] = `
   </IndexListHeader>
   <IndexListBody
     columnCount={3}
+    data-testid="members-list"
     emptyState={<React.Fragment />}
   >
     <MemberRow

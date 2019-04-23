@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
@@ -566,6 +567,50 @@ func TestValues_MergeFloat(t *testing.T) {
 				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
 			}
 		}
+	}
+}
+
+func TestValues_Contains(t *testing.T) {
+	makeValues := func(count int, min, max int64) tsm1.Values {
+		vals := make(tsm1.Values, count)
+
+		ts := min
+		inc := (max - min) / int64(count)
+
+		for i := 0; i < count; i++ {
+			vals[i] = tsm1.NewRawIntegerValue(ts, 0)
+			ts += inc
+		}
+
+		return vals
+	}
+
+	cases := []struct {
+		n        string
+		min, max int64
+		exp      bool
+	}{
+		{"no/lo", 0, 9, false},
+		{"no/hi", 19, 30, false},
+		{"no/middle", 13, 13, false},
+
+		{"yes/first", 0, 10, true},
+		{"yes/first-eq", 10, 10, true},
+		{"yes/last", 18, 20, true},
+		{"yes/last-eq", 18, 18, true},
+		{"yes/all but first and last", 12, 16, true},
+		{"yes/middle-eq", 14, 14, true},
+		{"yes/middle-overlap", 13, 15, true},
+		{"yes/covers", 8, 22, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%s[%d,%d]", tc.n, tc.min, tc.max), func(t *testing.T) {
+			vals := makeValues(5, 10, 20)
+			if got := vals.Contains(tc.min, tc.max); got != tc.exp {
+				t.Errorf("Contains -got/+exp\n%s", cmp.Diff(got, tc.exp))
+			}
+		})
 	}
 }
 

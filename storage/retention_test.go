@@ -39,7 +39,7 @@ func TestRetentionService(t *testing.T) {
 		// to not delete because no rp, and 1/3rd into the set to not delete because 0 rp.
 		if i%3 == 0 {
 			buckets = append(buckets, &influxdb.Bucket{
-				OrganizationID:  orgID,
+				OrgID:           orgID,
 				ID:              bucketID,
 				RetentionPeriod: 3 * time.Hour,
 			})
@@ -48,7 +48,7 @@ func TestRetentionService(t *testing.T) {
 			expRejected[string(name)] = struct{}{}
 		} else if i%3 == 2 {
 			buckets = append(buckets, &influxdb.Bucket{
-				OrganizationID:  orgID,
+				OrgID:           orgID,
 				ID:              bucketID,
 				RetentionPeriod: 0,
 			})

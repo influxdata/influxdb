@@ -59,6 +59,11 @@ type TSMIndex interface {
 	// OverlapsKeyRange returns true if the min and max keys of the file overlap the arguments min and max.
 	OverlapsKeyRange(min, max []byte) bool
 
+	// OverlapsKeyPrefixRange returns true if the key range of the file
+	// intersects min and max, evaluating up to the length of min and max
+	// of the key range.
+	OverlapsKeyPrefixRange(min, max []byte) bool
+
 	// Size returns the size of the current index in bytes.
 	Size() uint32
 
@@ -623,6 +628,20 @@ func (d *indirectIndex) OverlapsTimeRange(min, max int64) bool {
 // OverlapsKeyRange returns true if the min and max keys of the file overlap the arguments min and max.
 func (d *indirectIndex) OverlapsKeyRange(min, max []byte) bool {
 	return bytes.Compare(d.minKey, max) <= 0 && bytes.Compare(d.maxKey, min) >= 0
+}
+
+// OverlapsKeyPrefixRange returns true if the key range of the file
+// intersects min and max, evaluating up to the length of min and max
+// of the key range.
+func (d *indirectIndex) OverlapsKeyPrefixRange(min, max []byte) bool {
+	minKey, maxKey := d.minKey, d.maxKey
+	if len(maxKey) > len(min) {
+		maxKey = maxKey[:len(min)]
+	}
+	if len(minKey) > len(max) {
+		minKey = minKey[:len(max)]
+	}
+	return bytes.Compare(minKey, max) <= 0 && bytes.Compare(maxKey, min) >= 0
 }
 
 // KeyRange returns the min and max keys in the index.

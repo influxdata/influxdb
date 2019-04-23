@@ -1,22 +1,26 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {ResourceList} from 'src/clockface'
 import TaskCard from 'src/tasks/components/TaskCard'
-import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import EmptyTasksList from 'src/tasks/components/EmptyTasksList'
 import {ITask as Task} from '@influxdata/influx'
+import {SortTypes} from 'src/shared/utils/sort'
+import {Sort} from '@influxdata/clockface'
 
-import {Sort} from 'src/clockface'
 import {
   addTaskLabelsAsync,
   removeTaskLabelsAsync,
   runTask,
 } from 'src/tasks/actions'
+
+// Selectors
+import {getSortedResources} from 'src/shared/utils/sort'
 
 interface Props {
   tasks: Task[]
@@ -34,23 +38,27 @@ interface Props {
   onUpdate: (task: Task) => void
   filterComponent?: () => JSX.Element
   onImportTask: () => void
+  sortKey: string
+  sortDirection: Sort
+  sortType: SortTypes
+  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
 type SortKey = keyof Task
 
 interface State {
-  sortKey: SortKey
-  sortDirection: Sort
   taskLabelsEdit: Task
   isEditingTaskLabels: boolean
 }
 
 export default class TasksList extends PureComponent<Props, State> {
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
+
   constructor(props) {
     super(props)
     this.state = {
-      sortKey: null,
-      sortDirection: Sort.Descending,
       taskLabelsEdit: null,
       isEditingTaskLabels: false,
     }
@@ -63,8 +71,10 @@ export default class TasksList extends PureComponent<Props, State> {
       totalCount,
       filterComponent,
       onImportTask,
+      sortKey,
+      sortDirection,
+      onClickColumn,
     } = this.props
-    const {sortKey, sortDirection} = this.state
 
     const headerKeys: SortKey[] = ['name', 'status', 'every', 'latestCompleted']
 
@@ -76,25 +86,25 @@ export default class TasksList extends PureComponent<Props, State> {
               name="Name"
               sortKey={headerKeys[0]}
               sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
             <ResourceList.Sorter
               name="Active"
               sortKey={headerKeys[1]}
               sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
             <ResourceList.Sorter
               name="Schedule"
               sortKey={headerKeys[2]}
               sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
             <ResourceList.Sorter
               name="Last Completed"
               sortKey={headerKeys[3]}
               sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
-              onClick={this.handleClickColumn}
+              onClick={onClickColumn}
             />
           </ResourceList.Header>
           <ResourceList.Body
@@ -107,19 +117,19 @@ export default class TasksList extends PureComponent<Props, State> {
               />
             }
           >
-            {this.sortedCards}
+            {this.rows}
           </ResourceList.Body>
         </ResourceList>
       </>
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    this.setState({sortKey, sortDirection: nextSort})
-  }
-
-  private cards = (tasks: Task[]): JSX.Element => {
+  private get rows(): JSX.Element[] {
     const {
+      tasks,
+      sortKey,
+      sortDirection,
+      sortType,
       onActivate,
       onDelete,
       onSelect,
@@ -128,42 +138,26 @@ export default class TasksList extends PureComponent<Props, State> {
       onRunTask,
       onFilterChange,
     } = this.props
-    const taskCards = (
-      <>
-        {tasks.map(t => (
-          <TaskCard
-            key={`task-id--${t.id}`}
-            task={t}
-            onActivate={onActivate}
-            onDelete={onDelete}
-            onClone={onClone}
-            onSelect={onSelect}
-            onUpdate={onUpdate}
-            onRunTask={onRunTask}
-            onFilterChange={onFilterChange}
-          />
-        ))}
-      </>
+
+    const sortedTasks = this.memGetSortedResources(
+      tasks,
+      sortKey,
+      sortDirection,
+      sortType
     )
-    return taskCards
-  }
 
-  private get sortedCards(): JSX.Element {
-    const {tasks} = this.props
-    const {sortKey, sortDirection} = this.state
-
-    if (tasks.length) {
-      return (
-        <SortingHat<Task>
-          list={tasks}
-          sortKey={sortKey}
-          direction={sortDirection}
-        >
-          {this.cards}
-        </SortingHat>
-      )
-    }
-
-    return null
+    return sortedTasks.map(task => (
+      <TaskCard
+        key={`task-id--${task.id}`}
+        task={task}
+        onActivate={onActivate}
+        onDelete={onDelete}
+        onClone={onClone}
+        onSelect={onSelect}
+        onUpdate={onUpdate}
+        onRunTask={onRunTask}
+        onFilterChange={onFilterChange}
+      />
+    ))
   }
 }

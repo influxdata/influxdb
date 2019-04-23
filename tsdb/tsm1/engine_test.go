@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
@@ -468,6 +469,29 @@ func (e *Engine) MustWriteSnapshot() {
 	}
 }
 
+// MustWritePointsString parses and writes the specified points to the
+// provided org and bucket. Panic on error.
+func (e *Engine) MustWritePointsString(org, bucket influxdb.ID, buf string) {
+	err := e.writePoints(MustParseExplodePoints(org, bucket, buf)...)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// MustDeleteBucketRange calls DeleteBucketRange using the org and bucket for
+// the name. Panic on error.
+func (e *Engine) MustDeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) {
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	encoded := tsdb.EncodeName(orgID, bucketID)
+	name := models.EscapeMeasurement(encoded[:])
+
+	err := e.DeleteBucketRange(name, min, max)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func MustOpenIndex(path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile) *tsi1.Index {
 	idx := tsi1.NewIndex(sfile, tsi1.NewConfig(), tsi1.WithPath(path))
 	if err := idx.Open(context.Background()); err != nil {
@@ -510,6 +534,17 @@ func (f *SeriesFile) Close() {
 // MustParsePointsString parses points from a string. Panic on error.
 func MustParsePointsString(buf string) []models.Point {
 	a, err := models.ParsePointsString(buf)
+	if err != nil {
+		panic(err)
+	}
+	return a
+}
+
+// MustParseExplodePoints parses points from a string and transforms using
+// ExplodePoints using the provided org and bucket. Panic on error.
+func MustParseExplodePoints(org, bucket influxdb.ID, buf string) []models.Point {
+	a := MustParsePointsString(buf)
+	a, err := tsdb.ExplodePoints(org, bucket, a)
 	if err != nil {
 		panic(err)
 	}

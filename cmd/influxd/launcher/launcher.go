@@ -37,7 +37,6 @@ import (
 	"github.com/influxdata/influxdb/storage/readservice"
 	"github.com/influxdata/influxdb/task"
 	taskbackend "github.com/influxdata/influxdb/task/backend"
-	taskbolt "github.com/influxdata/influxdb/task/backend/bolt"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
 	"github.com/influxdata/influxdb/telemetry"
@@ -211,8 +210,8 @@ type Launcher struct {
 
 	natsServer *nats.Server
 
-	scheduler *taskbackend.TickScheduler
-	taskStore taskbackend.Store
+	scheduler          *taskbackend.TickScheduler
+	taskControlService taskbackend.TaskControlService
 
 	jaegerTracerCloser io.Closer
 	logger             *zap.Logger
@@ -479,15 +478,17 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pointsWriter = m.engine
 
 		const (
-			concurrencyQuota = 10
-			memoryBytesQuota = 1e6
+			concurrencyQuota         = 10
+			memoryBytesQuotaPerQuery = 1e6
+			QueueSize                = 10
 		)
 
 		cc := control.Config{
-			ExecutorDependencies: make(execute.Dependencies),
-			ConcurrencyQuota:     concurrencyQuota,
-			MemoryBytesQuota:     int64(memoryBytesQuota),
-			Logger:               m.logger.With(zap.String("service", "storage-reads")),
+			ExecutorDependencies:     make(execute.Dependencies),
+			ConcurrencyQuota:         concurrencyQuota,
+			MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
+			QueueSize:                QueueSize,
+			Logger:                   m.logger.With(zap.String("service", "storage-reads")),
 		}
 
 		if err := readservice.AddControllerConfigDependencies(
@@ -497,42 +498,34 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 
-		m.queryController = pcontrol.New(cc)
+		c, err := pcontrol.New(cc)
+		if err != nil {
+			m.logger.Error("Failed to create query controller", zap.Error(err))
+			return err
+		}
+		m.queryController = c
 		m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
-		var (
-			store taskbackend.Store
-			err   error
-		)
-		store, err = taskbolt.New(m.boltClient.DB(), "tasks", taskbolt.NoCatchUp)
-		if err != nil {
-			m.logger.Error("failed opening task bolt", zap.Error(err))
-			return err
-		}
 
-		if m.storeType == "memory" {
-			store = taskbackend.NewInMemStore()
-		}
+		// create the task stack:
+		// validation(coordinator(analyticalstore(kv.Service)))
 
-		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, nil)
+		// define the executor and build analytical storage middleware
+		combinedTaskService := taskbackend.NewAnalyticalStorage(m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
+		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
 
-		lw := taskbackend.NewPointLogWriter(pointsWriter)
-		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
-		lr := taskbackend.NewQueryLogReader(queryService)
-		taskControlService := taskbackend.TaskControlAdaptor(store, lw, lr)
-		m.scheduler = taskbackend.NewScheduler(taskControlService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+		// create the scheduler
+		m.scheduler = taskbackend.NewScheduler(combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
-		taskSvc = task.PlatformAdapter(store, lr, m.scheduler, authSvc, userResourceSvc, orgSvc)
-		taskexecutor.AddTaskService(executor, taskSvc)
-		taskSvc = coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, taskSvc)
+		taskSvc = coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, combinedTaskService)
 		taskSvc = task.NewValidator(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
-		m.taskStore = store
+		m.taskControlService = combinedTaskService
 	}
 
 	// NATS streaming server
@@ -691,8 +684,8 @@ func (m *Launcher) TaskService() platform.TaskService {
 }
 
 // TaskStore returns the internal store service.
-func (m *Launcher) TaskStore() taskbackend.Store {
-	return m.taskStore
+func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
+	return m.taskControlService
 }
 
 // TaskScheduler returns the internal scheduler service.

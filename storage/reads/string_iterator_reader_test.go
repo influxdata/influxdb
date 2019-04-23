@@ -7,15 +7,23 @@ import (
 
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type mockStringIterator struct {
 	values    []string
 	nextValue *string
+	stats     cursors.CursorStats
 }
 
-func newMockStringIterator(values ...string) *mockStringIterator {
-	return &mockStringIterator{values: values}
+func newMockStringIterator(scannedValues, scannedBytes int, values ...string) *mockStringIterator {
+	return &mockStringIterator{
+		values: values,
+		stats: cursors.CursorStats{
+			ScannedValues: scannedValues,
+			ScannedBytes:  scannedBytes,
+		},
+	}
 }
 
 func (si *mockStringIterator) Next() bool {
@@ -35,6 +43,13 @@ func (si *mockStringIterator) Value() string {
 
 	// Better than panic.
 	return ""
+}
+
+func (si *mockStringIterator) Stats() cursors.CursorStats {
+	if len(si.values) > 0 {
+		return cursors.CursorStats{}
+	}
+	return si.stats
 }
 
 type mockStringValuesStreamReader struct {

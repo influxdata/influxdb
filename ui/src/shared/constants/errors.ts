@@ -1,0 +1,1 @@
+export const RATE_LIMIT_ERROR_STATUS = 429

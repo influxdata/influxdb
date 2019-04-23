@@ -130,6 +130,7 @@ var skipTests = map[string]string{
 	"string_trim":                 "imported libraries are not visible in user-defined functions (https://github.com/influxdata/flux/issues/1000)",
 
 	"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
+	"range":                     "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
 }
 
 func TestFluxEndToEnd(t *testing.T) {
@@ -201,7 +202,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 	// Query server to ensure write persists.
 
 	b := &platform.Bucket{
-		Organization:    "ORG",
+		OrgID:           l.Org.ID,
 		Name:            t.Name(),
 		RetentionPeriod: 0,
 	}
@@ -221,7 +222,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 	orgOpt := &ast.OptionStatement{
 		Assignment: &ast.VariableAssignment{
 			ID:   &ast.Identifier{Name: "org"},
-			Init: &ast.StringLiteral{Value: b.Organization},
+			Init: &ast.StringLiteral{Value: l.Org.Name},
 		},
 	}
 	options := optionsAST.Copy().(*ast.File)
