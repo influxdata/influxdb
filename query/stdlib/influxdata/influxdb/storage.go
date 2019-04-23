@@ -208,13 +208,18 @@ type ReadFilterSpec struct {
 
 type ReadTagKeysSpec struct {
 	ReadFilterSpec
-	ValueColumnName string
+}
+
+type ReadTagValuesSpec struct {
+	ReadFilterSpec
+	TagKey string
 }
 
 type Reader interface {
 	Read(ctx context.Context, rs ReadSpec, start, stop execute.Time, alloc *memory.Allocator) (TableIterator, error)
 	ReadFilter(ctx context.Context, spec ReadFilterSpec, alloc *memory.Allocator) (TableIterator, error)
 	ReadTagKeys(ctx context.Context, spec ReadTagKeysSpec, alloc *memory.Allocator) (TableIterator, error)
+	ReadTagValues(ctx context.Context, spec ReadTagValuesSpec, alloc *memory.Allocator) (TableIterator, error)
 	Close()
 }
 
