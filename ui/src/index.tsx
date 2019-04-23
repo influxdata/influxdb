@@ -69,6 +69,7 @@ import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
+import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -216,7 +217,14 @@ class Root extends PureComponent {
                               />
                             </Route>
                           </Route>
-                          <Route path="tokens" component={TokensIndex} />
+                          <Route path="tokens" component={TokensIndex}>
+                            <Route path="generate">
+                              <Route
+                                path="all-access"
+                                component={AllAccessTokenOverlay}
+                              />
+                            </Route>
+                          </Route>
                           <Route path="members" component={MembersIndex}>
                             <Route path="new" component={AddMembersOverlay} />
                           </Route>
