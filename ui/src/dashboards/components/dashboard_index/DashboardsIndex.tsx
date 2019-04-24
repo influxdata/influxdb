@@ -22,7 +22,6 @@ import {
   createDashboard as createDashboardAction,
   cloneDashboard as cloneDashboardAction,
 } from 'src/dashboards/actions'
-import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {checkDashboardLimits as checkDashboardLimitsAction} from 'src/cloud/actions/limits'
 
 // Types
@@ -36,7 +35,6 @@ interface DispatchProps {
   checkDashboardLimits: typeof checkDashboardLimitsAction
   createDashboard: typeof createDashboardAction
   cloneDashboard: typeof cloneDashboardAction
-  notify: typeof notifyAction
 }
 
 interface StateProps {
@@ -168,7 +166,6 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  notify: notifyAction,
   handleDeleteDashboard: deleteDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
   checkDashboardLimits: checkDashboardLimitsAction,
