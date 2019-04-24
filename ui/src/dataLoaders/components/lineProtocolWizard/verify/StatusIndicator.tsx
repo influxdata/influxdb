@@ -12,6 +12,7 @@ import {AppState} from 'src/types'
 
 interface StateProps {
   status: RemoteDataState
+  errorMessage: string
 }
 
 type Props = StateProps
@@ -27,7 +28,10 @@ export class StatusIndicator extends PureComponent<Props> {
           </div>
         </div>
         <div className="wizard-step--footer">
-          <div className={this.footerClass}>{this.footerText}</div>
+          <div className={this.footerClass}>
+            {this.footerText}
+            {this.errorMessage}
+          </div>
         </div>
         <br />
       </>
@@ -54,14 +58,25 @@ export class StatusIndicator extends PureComponent<Props> {
         return 'Unable to Write Data'
     }
   }
+
+  private get errorMessage(): JSX.Element {
+    if (this.props.status === RemoteDataState.Error)
+      return (
+        <>
+          <br />
+          Error: {this.props.errorMessage}
+        </>
+      )
+  }
 }
 
 const mstp = ({
   dataLoading: {
-    dataLoaders: {lpStatus},
+    dataLoaders: {lpStatus, lpError},
   },
 }: AppState): StateProps => ({
   status: lpStatus,
+  errorMessage: lpError,
 })
 
 export default connect<StateProps, {}, {}>(

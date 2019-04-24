@@ -90,19 +90,13 @@ export class LineProtocol extends PureComponent<Props> {
 
   private handleSubmit = () => {
     const {onIncrementCurrentStepIndex} = this.props
+    this.handleUpload()
     onIncrementCurrentStepIndex()
   }
 
   private handleUpload = async () => {
-    const {
-      bucket,
-      org,
-      writeLineProtocolAction,
-      lineProtocolBody,
-      precision,
-    } = this.props
-
-    writeLineProtocolAction(org, bucket, lineProtocolBody, precision)
+    const {bucket, org, lineProtocolBody, precision} = this.props
+    this.props.writeLineProtocolAction(org, bucket, lineProtocolBody, precision)
   }
 }
 
