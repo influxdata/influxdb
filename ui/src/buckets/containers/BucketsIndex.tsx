@@ -15,6 +15,7 @@ import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 // Types
 import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types'
+import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 
 interface StateProps {
   org: Organization
@@ -41,8 +42,10 @@ class BucketsIndex extends Component<StateProps> {
                   >
                     <GetResources resource={ResourceTypes.Buckets}>
                       <GetResources resource={ResourceTypes.Telegrafs}>
-                        <BucketsTab />
-                        {this.props.children}
+                        <GetAssetLimits>
+                          <BucketsTab />
+                          {this.props.children}
+                        </GetAssetLimits>
                       </GetResources>
                     </GetResources>
                   </TabbedPageSection>
