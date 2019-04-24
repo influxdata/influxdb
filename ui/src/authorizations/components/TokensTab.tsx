@@ -63,6 +63,7 @@ class TokensTab extends PureComponent<Props, State> {
           />
           <GenerateTokenDropdown
             onSelectAllAccess={this.handleGenerateAllAccess}
+            onSelectReadWrite={this.handleGenerateReadWrite}
           />
         </TabbedPageHeader>
         <FilterList<Authorization>
@@ -105,6 +106,15 @@ class TokensTab extends PureComponent<Props, State> {
     } = this.props
 
     router.push(`/orgs/${orgID}/tokens/generate/all-access`)
+  }
+
+  private handleGenerateReadWrite = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/tokens/generate/buckets`)
   }
 }
 
