@@ -1,4 +1,4 @@
-package task
+package authorizer
 
 import (
 	"context"
@@ -31,9 +31,9 @@ type taskServiceValidator struct {
 	logger  *zap.Logger
 }
 
-// TaskValidator wraps ts and checks appropriate permissions before calling requested methods on ts.
+// TaskService wraps ts and checks appropriate permissions before calling requested methods on ts.
 // Authorization failures are logged to the logger.
-func NewValidator(logger *zap.Logger, ts platform.TaskService, bs platform.BucketService) platform.TaskService {
+func NewTaskService(logger *zap.Logger, ts platform.TaskService, bs platform.BucketService) platform.TaskService {
 	return &taskServiceValidator{
 		TaskService: ts,
 		preAuth:     query.NewPreAuthorizer(bs),
