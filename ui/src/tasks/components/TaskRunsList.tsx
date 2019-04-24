@@ -1,76 +1,69 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import memoizeOne from 'memoize-one'
 
 // Components
 import {EmptyState} from '@influxdata/clockface'
 import {IndexList} from 'src/clockface'
 import TaskRunsRow from 'src/tasks/components/TaskRunsRow'
-import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 
 // Types
 import {Sort, ComponentSize} from '@influxdata/clockface'
 import {Run} from 'src/tasks/components/TaskRunsPage'
+import {SortTypes} from 'src/shared/utils/sort'
+
+// Utils
+import {getSortedResources} from 'src/shared/utils/sort'
 
 interface Props {
   taskID: string
   runs: Run[]
+  sortKey: string
+  sortDirection: Sort
+  sortType: SortTypes
+  onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
 type SortKey = keyof Run
 
-interface State {
-  sortKey: SortKey
-  sortDirection: Sort
-}
-
-export default class TaskRunsList extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      sortKey: 'scheduledFor',
-      sortDirection: Sort.Descending,
-    }
-  }
+export default class TaskRunsList extends PureComponent<Props> {
+  private memGetSortedResources = memoizeOne<typeof getSortedResources>(
+    getSortedResources
+  )
 
   public render() {
-    const {sortKey, sortDirection} = this.state
+    const {sortKey, sortDirection, onClickColumn} = this.props
 
-    const headerKeys: SortKey[] = [
-      'status',
-      'scheduledFor',
-      'startedAt',
-      'duration',
-    ]
     return (
       <IndexList>
         <IndexList.Header>
           <IndexList.HeaderCell
             columnName="Status"
             width="10%"
-            sortKey={headerKeys[0]}
-            sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
+            sortKey={this.headerKeys[0]}
+            sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+            onClick={onClickColumn}
           />
           <IndexList.HeaderCell
             columnName="Schedule"
             width="20%"
-            sortKey={headerKeys[1]}
-            sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
+            sortKey={this.headerKeys[1]}
+            sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+            onClick={onClickColumn}
           />
           <IndexList.HeaderCell
             columnName="Started"
             width="20%"
-            sortKey={headerKeys[2]}
-            sort={sortKey === headerKeys[2] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
+            sortKey={this.headerKeys[2]}
+            sort={sortKey === this.headerKeys[2] ? sortDirection : Sort.None}
+            onClick={onClickColumn}
           />
           <IndexList.HeaderCell
             columnName="Duration"
             width="20%"
-            sortKey={headerKeys[3]}
-            sort={sortKey === headerKeys[3] ? sortDirection : Sort.None}
-            onClick={this.handleClickColumn}
+            sortKey={this.headerKeys[3]}
+            sort={sortKey === this.headerKeys[3] ? sortDirection : Sort.None}
+            onClick={onClickColumn}
           />
           <IndexList.HeaderCell width="10%" />
         </IndexList.Header>
@@ -90,42 +83,24 @@ export default class TaskRunsList extends PureComponent<Props, State> {
       </IndexList>
     )
   }
-
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    this.setState({sortKey, sortDirection: nextSort})
+  private get headerKeys(): SortKey[] {
+    return ['status', 'scheduledFor', 'startedAt', 'duration']
   }
 
-  public listRuns = (runs: Run[]): JSX.Element => {
-    const {taskID} = this.props
+  private get sortedRuns(): JSX.Element[] {
+    const {runs, sortKey, sortDirection, sortType, taskID} = this.props
 
-    let recentRuns = runs.slice(0, 20)
-
-    const runsRow = (
-      <>
-        {recentRuns.map(r => (
-          <TaskRunsRow key={`run-id--${r.id}`} taskID={taskID} run={r} />
-        ))}
-      </>
+    const sortedRuns = this.memGetSortedResources(
+      runs,
+      sortKey,
+      sortDirection,
+      sortType
     )
-    return runsRow
-  }
 
-  private get sortedRuns(): JSX.Element {
-    const {runs} = this.props
-    const {sortKey, sortDirection} = this.state
+    const mostRecentRuns = sortedRuns.slice(0, 20)
 
-    if (runs.length) {
-      return (
-        <SortingHat<Run>
-          list={runs}
-          sortKey={sortKey}
-          direction={sortDirection}
-        >
-          {this.listRuns}
-        </SortingHat>
-      )
-    }
-
-    return null
+    return mostRecentRuns.map(run => (
+      <TaskRunsRow key={`run-id==${run.id}`} taskID={taskID} run={run} />
+    ))
   }
 }
