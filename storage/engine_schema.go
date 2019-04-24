@@ -10,15 +10,14 @@ import (
 
 // TagKeys returns an iterator where the values are tag keys for the bucket
 // matching the predicate within the time range (start, end].
-func (e *Engine) TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) cursors.StringIterator {
-	// This method would be invoked when the consumer wants to get the following schema information for an arbitrary
-	// time range in a single bucket:
-	//
-	// * All tag keys;
-	// * All tag keys filtered by an arbitrary predicate, e.g., tag keys for a measurement or tag keys appearing alongside another tag key pair.
-	//
+func (e *Engine) TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return cursors.EmptyStringIterator, nil
+	}
 
-	return cursors.NewStringSliceIterator([]string{"\x00", "arch", "cluster_id", "datacenter", "hostname", "os", "rack", "region", "service", "service_environment", "service_version", "\xff"})
+	return e.engine.TagKeys(ctx, orgID, bucketID, start, end, predicate)
 }
 
 // TagValues returns an iterator which enumerates the values for the specific

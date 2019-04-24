@@ -2648,10 +2648,33 @@ func BenchmarkEscapeString_QuotesAndBackslashes(b *testing.B) {
 	}
 }
 
-func BenchmarkParseTags(b *testing.B) {
-	tags := []byte("cpu,tag0=value0,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5")
+func BenchmarkParseKeyBytes(b *testing.B) {
+	buf := []byte("cpu,tag0=value0,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5")
 	for i := 0; i < b.N; i++ {
-		models.ParseTags(tags)
+		models.ParseKeyBytes(buf)
+	}
+}
+
+func BenchmarkParseKeyBytesWithTags(b *testing.B) {
+	var tags models.Tags
+	buf := []byte("cpu,tag0=value0,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5")
+	for i := 0; i < b.N; i++ {
+		_, tags = models.ParseKeyBytesWithTags(buf, tags[:0])
+	}
+}
+
+func BenchmarkParseTags(b *testing.B) {
+	buf := []byte("cpu,tag0=value0,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5")
+	for i := 0; i < b.N; i++ {
+		models.ParseTags(buf)
+	}
+}
+
+func BenchmarkParseTagsWithTags(b *testing.B) {
+	var tags models.Tags
+	buf := []byte("cpu,tag0=value0,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5")
+	for i := 0; i < b.N; i++ {
+		tags = models.ParseTagsWithTags(buf, tags[:0])
 	}
 }
 
