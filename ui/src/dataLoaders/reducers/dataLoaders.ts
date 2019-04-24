@@ -32,6 +32,7 @@ export const INITIAL_STATE: DataLoadersState = {
   lineProtocolBody: '',
   activeLPTab: LineProtocolTab.UploadFile,
   lpStatus: RemoteDataState.NotStarted,
+  lpError: '',
   precision: WritePrecision.Ns,
   telegrafConfigID: null,
   pluginBundles: [],
@@ -325,9 +326,18 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
         activeLPTab: action.payload.activeLPTab,
       }
     case 'SET_LP_STATUS':
+      const {lpStatus, lpError} = action.payload
+      if (lpStatus === RemoteDataState.Error) {
+        return {
+          ...state,
+          lpStatus,
+          lpError,
+        }
+      }
       return {
         ...state,
-        lpStatus: action.payload.lpStatus,
+        lpStatus,
+        lpError: '',
       }
     case 'SET_PRECISION':
       return {
