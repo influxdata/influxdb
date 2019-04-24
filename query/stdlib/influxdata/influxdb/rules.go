@@ -2,20 +2,21 @@ package influxdb
 
 import (
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/universe"
 )
 
-// func init() {
-// 	plan.RegisterPhysicalRules(
-// 		PushDownRangeRule{},
-// 		PushDownFilterRule{},
-// 		PushDownReadTagKeysRule{},
-// 		PushDownReadTagValuesRule{},
-// 	)
-// }
+func init() {
+	plan.RegisterPhysicalRules(
+		PushDownRangeRule{},
+		PushDownFilterRule{},
+		//PushDownReadTagKeysRule{},
+		PushDownReadTagValuesRule{},
+	)
+}
 
 // PushDownRangeRule pushes down a range filter to storage
 type PushDownRangeRule struct{}
@@ -267,4 +268,135 @@ func isValidTagKeyForTagValues(key string) bool {
 		}
 	}
 	return true
+}
+
+// isPushableExpr determines if a predicate expression can be pushed down into the storage layer.
+func isPushableExpr(paramName string, expr semantic.Expression) (bool, error) {
+	switch e := expr.(type) {
+	case *semantic.LogicalExpression:
+		b, err := isPushableExpr(paramName, e.Left)
+		if err != nil {
+			return false, err
+		}
+
+		if !b {
+			return false, nil
+		}
+
+		return isPushableExpr(paramName, e.Right)
+
+	case *semantic.BinaryExpression:
+		if isPushablePredicate(paramName, e) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+func isPushablePredicate(paramName string, be *semantic.BinaryExpression) bool {
+	// Manual testing seems to indicate that (at least right now) we can
+	// only handle predicates of the form <fn param>.<property> <op> <literal>
+	// and the literal must be on the RHS.
+
+	if !isLiteral(be.Right) {
+		return false
+	}
+
+	if isField(paramName, be.Left) && isPushableFieldOperator(be.Operator) {
+		return true
+	}
+
+	if isTag(paramName, be.Left) && isPushableTagOperator(be.Operator) {
+		return true
+	}
+
+	return false
+}
+
+func isLiteral(e semantic.Expression) bool {
+	switch e.(type) {
+	case *semantic.StringLiteral:
+		return true
+	case *semantic.IntegerLiteral:
+		return true
+	case *semantic.BooleanLiteral:
+		return true
+	case *semantic.FloatLiteral:
+		return true
+	case *semantic.RegexpLiteral:
+		return true
+	}
+
+	return false
+}
+
+const fieldValueProperty = "_value"
+
+func isTag(paramName string, e semantic.Expression) bool {
+	memberExpr := validateMemberExpr(paramName, e)
+	return memberExpr != nil && memberExpr.Property != fieldValueProperty
+}
+
+func isField(paramName string, e semantic.Expression) bool {
+	memberExpr := validateMemberExpr(paramName, e)
+	return memberExpr != nil && memberExpr.Property == fieldValueProperty
+}
+
+func validateMemberExpr(paramName string, e semantic.Expression) *semantic.MemberExpression {
+	memberExpr, ok := e.(*semantic.MemberExpression)
+	if !ok {
+		return nil
+	}
+
+	idExpr, ok := memberExpr.Object.(*semantic.IdentifierExpression)
+	if !ok {
+		return nil
+	}
+
+	if idExpr.Name != paramName {
+		return nil
+	}
+
+	return memberExpr
+}
+
+func isPushableTagOperator(kind ast.OperatorKind) bool {
+	pushableOperators := []ast.OperatorKind{
+		ast.EqualOperator,
+		ast.NotEqualOperator,
+		ast.RegexpMatchOperator,
+		ast.NotRegexpMatchOperator,
+	}
+
+	for _, op := range pushableOperators {
+		if op == kind {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isPushableFieldOperator(kind ast.OperatorKind) bool {
+	if isPushableTagOperator(kind) {
+		return true
+	}
+
+	// Fields can be filtered by anything that tags can be filtered by,
+	// plus range operators.
+
+	moreOperators := []ast.OperatorKind{
+		ast.LessThanEqualOperator,
+		ast.LessThanOperator,
+		ast.GreaterThanEqualOperator,
+		ast.GreaterThanOperator,
+	}
+
+	for _, op := range moreOperators {
+		if op == kind {
+			return true
+		}
+	}
+
+	return false
 }
