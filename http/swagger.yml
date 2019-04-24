@@ -9,7 +9,7 @@ paths:
     post:
       summary: Exchange basic auth credentials for session
       security:
-        - basicAuth: []
+        - BasicAuth: []
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
       responses:
@@ -4497,7 +4497,7 @@ paths:
         - Users
       summary: Update password
       security:
-        - basicAuth: []
+        - BasicAuth: []
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
       requestBody:
@@ -4825,7 +4825,7 @@ paths:
         - Users
       summary: Update password
       security:
-        - basicAuth: []
+        - BasicAuth: []
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -7772,3 +7772,7 @@ components:
         token:
           description: Override the existing token associated with the task.
           type: string
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
