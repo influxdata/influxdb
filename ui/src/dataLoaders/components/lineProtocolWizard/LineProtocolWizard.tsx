@@ -69,15 +69,11 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
     const {buckets} = this.props
 
     return (
-      <WizardOverlay title="Add Line Protocol" onDismiss={this.handleDismiss}>
-        <div className="wizard-contents">
-          <div className="wizard-step--container">
-            <LineProtocolStepSwitcher
-              stepProps={this.stepProps}
-              buckets={buckets}
-            />
-          </div>
-        </div>
+      <WizardOverlay title="Line Protocol" onDismiss={this.handleDismiss}>
+        <LineProtocolStepSwitcher
+          stepProps={this.stepProps}
+          buckets={buckets}
+        />
       </WizardOverlay>
     )
   }

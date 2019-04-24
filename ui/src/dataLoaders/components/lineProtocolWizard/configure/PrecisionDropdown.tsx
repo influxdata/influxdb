@@ -31,12 +31,13 @@ class PrecisionDropdown extends PureComponent<Props> {
   public render() {
     const {setPrecision, precision} = this.props
     return (
-      <div className="wizard-step--footer dropdown">
+      <div className="wizard-step--lp-precision">
         <label>Time Precision </label>
         <Dropdown
           selectedID={precision}
           onChange={setPrecision}
           widthPixels={200}
+          customClass="wizard-step--lp-precision dropdown"
         >
           {writePrecisions.map(value => (
             <Dropdown.Item key={value} value={value} id={value}>

@@ -17,7 +17,7 @@ interface Props {
   setLineProtocolBody: typeof setLineProtocolBody
   onURLChange: (url: string) => void
   urlInput: string
-  handleSubmit?: () => void
+  handleUpload?: () => void
 }
 
 export default class extends PureComponent<Props> {
@@ -80,10 +80,10 @@ export default class extends PureComponent<Props> {
   }
 
   private handleSetLineProtocol = async (lpBody: string) => {
-    const {setLineProtocolBody, handleSubmit} = this.props
+    const {setLineProtocolBody, handleUpload} = this.props
     await setLineProtocolBody(lpBody)
-    if (handleSubmit) {
-      handleSubmit()
+    if (handleUpload) {
+      handleUpload()
     }
   }
 }
