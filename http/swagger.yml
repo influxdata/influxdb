@@ -382,17 +382,27 @@ paths:
             type: string
           required: true
           description: ID of telegraf config
+        - in: header
+          name: Accept
+          required: false
+          schema:
+            type: string
+            default: application/toml
+            enum:
+              - application/toml
+              - application/json
+              - application/octet-stream
       responses:
         '200':
           description: telegraf config details
           content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Telegraf"
             application/toml:
               example: "[agent]\ninterval = \"10s\""
               schema:
                 type: string
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Telegraf"
             application/octet-stream:
               example: "[agent]\ninterval = \"10s\""
               schema:
