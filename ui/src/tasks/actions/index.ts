@@ -45,7 +45,7 @@ import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
 import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
-import {isLimitError, extractMessage} from 'src/cloud/utils/limits'
+import {isLimitError} from 'src/cloud/utils/limits'
 import {checkTaskLimits} from 'src/cloud/actions/limits'
 
 export type Action =
@@ -333,8 +333,7 @@ export const cloneTask = (task: Task, _) => async dispatch => {
   } catch (error) {
     console.error(error)
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('tasks', message)))
+      dispatch(notify(copy.resourceLimitReached('tasks')))
     } else {
       const message = getErrorMessage(error)
       dispatch(notify(taskCloneFailed(task.name, message)))
@@ -433,8 +432,7 @@ export const saveNewScript = (script: string, preamble: string) => async (
   } catch (error) {
     console.error(error)
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('tasks', message)))
+      dispatch(notify(copy.resourceLimitReached('tasks')))
     } else {
       const message = getErrorMessage(error)
       dispatch(notify(taskNotCreated(message)))
@@ -548,8 +546,7 @@ export const createTaskFromTemplate = (template: ITaskTemplate) => async (
     dispatch(checkTaskLimits())
   } catch (error) {
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('tasks', message)))
+      dispatch(notify(copy.resourceLimitReached('tasks')))
     } else {
       dispatch(notify(importTaskFailed(error)))
     }

@@ -6,10 +6,6 @@ export const isLimitError = error => {
   return get(error, 'response.status', '') === RATE_LIMIT_ERROR_STATUS
 }
 
-export const extractMessage = error => {
-  return get(error, 'response.data.message', '')
-}
-
 export const extractBucketLimits = (limits: LimitsState) => {
   return get(limits, 'buckets.limitStatus')
 }

@@ -7,7 +7,7 @@ import {client} from 'src/utils/api'
 import {RemoteDataState, AppState, Bucket} from 'src/types'
 
 // Utils
-import {isLimitError, extractMessage} from 'src/cloud/utils/limits'
+import {isLimitError} from 'src/cloud/utils/limits'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -118,8 +118,7 @@ export const createBucket = (bucket: Bucket) => async (
   } catch (error) {
     console.error(error)
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(resourceLimitReached('buckets', message)))
+      dispatch(notify(resourceLimitReached('buckets')))
     } else {
       dispatch(notify(bucketCreateFailed()))
     }

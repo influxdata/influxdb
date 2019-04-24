@@ -12,7 +12,7 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Constants
 import {
-  readWriteLimitReached,
+  readLimitReached,
   resourceLimitReached,
 } from 'src/shared/copy/notifications'
 
@@ -142,10 +142,9 @@ export const getReadWriteLimits = () => async (
     const limits = await getReadWriteLimitsAJAX(org.id)
 
     const isReadLimited = limits.read.status === LimitStatus.EXCEEDED
-    const isWriteLimited = limits.write.status === LimitStatus.EXCEEDED
 
-    if (isReadLimited || isWriteLimited) {
-      dispatch(notify(readWriteLimitReached(isReadLimited, isWriteLimited)))
+    if (isReadLimited) {
+      dispatch(notify(readLimitReached()))
     }
   } catch (e) {}
 }
