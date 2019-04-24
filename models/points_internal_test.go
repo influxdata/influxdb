@@ -3,7 +3,7 @@ package models
 import "testing"
 
 func TestMarshalPointNoFields(t *testing.T) {
-	points, err := ParsePointsString("m,k=v f=0i")
+	points, err := ParsePointsString("m,k=v f=0i", "foo")
 	if err != nil {
 		t.Fatal(err)
 	}
