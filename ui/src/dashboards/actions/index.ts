@@ -1,9 +1,10 @@
 // Libraries
 import {Dispatch} from 'redux'
-import {replace} from 'react-router-redux'
+import {replace, push} from 'react-router-redux'
 
 // APIs
 import {
+  createDashboard as createDashboardAJAX,
   getDashboard as getDashboardAJAX,
   getDashboards as getDashboardsAJAX,
   deleteDashboard as deleteDashboardAJAX,
@@ -47,9 +48,12 @@ import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {client} from 'src/utils/api'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
+import {incrementCloneName} from 'src/utils/naming'
+import {extractMessage, isLimitError} from 'src/cloud/utils/limits'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
+import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -209,6 +213,65 @@ export const removeDashboardLabels = (
 
 // Thunks
 
+export const createDashboard = () => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const {
+      orgs: {org},
+    } = getState()
+
+    const newDashboard = {
+      name: DEFAULT_DASHBOARD_NAME,
+      cells: [],
+      orgID: org.id,
+    }
+
+    const data = await createDashboardAJAX(newDashboard)
+    dispatch(push(`/orgs/${org.id}/dashboards/${data.id}`))
+    dispatch(checkDashboardLimits())
+  } catch (error) {
+    console.error(error)
+
+    if (isLimitError(error)) {
+      const message = extractMessage(error)
+      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+    } else {
+      dispatch(notify(copy.dashboardCreateFailed()))
+    }
+  }
+}
+
+export const cloneDashboard = (dashboard: Dashboard) => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const {
+      orgs: {org},
+      dashboards,
+    } = getState()
+
+    const allDashboardNames = dashboards.list.map(d => d.name)
+
+    const clonedName = incrementCloneName(allDashboardNames, dashboard.name)
+
+    const data = await client.dashboards.clone(dashboard.id, clonedName, org.id)
+
+    dispatch(push(`/orgs/${org.id}/dashboards/${data.id}`))
+    dispatch(checkDashboardLimits())
+  } catch (error) {
+    console.error(error)
+    if (isLimitError(error)) {
+      const message = extractMessage(error)
+      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+    } else {
+      dispatch(notify(copy.dashboardCreateFailed()))
+    }
+  }
+}
+
 export const getDashboardsAsync = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -246,7 +309,12 @@ export const createDashboardFromTemplate = (
     dispatch(notify(copy.importDashboardSucceeded()))
     dispatch(checkDashboardLimits())
   } catch (error) {
-    dispatch(notify(copy.importDashboardFailed(error)))
+    if (isLimitError(error)) {
+      const message = extractMessage(error)
+      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+    } else {
+      dispatch(notify(copy.importDashboardFailed(error)))
+    }
   }
 }
 

@@ -15,23 +15,18 @@ import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
-// APIs
-import {createDashboard, cloneDashboard} from 'src/dashboards/apis/'
-
 // Actions
 import {
   deleteDashboardAsync,
   updateDashboardAsync,
+  createDashboard as createDashboardAction,
+  cloneDashboard as cloneDashboardAction,
 } from 'src/dashboards/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {checkDashboardLimits as checkDashboardLimitsAction} from 'src/cloud/actions/limits'
 
-// Constants
-import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
-import {dashboardCreateFailed} from 'src/shared/copy/notifications'
-
 // Types
-import {Dashboard, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus} from 'src/clockface'
 
@@ -39,11 +34,12 @@ interface DispatchProps {
   handleDeleteDashboard: typeof deleteDashboardAsync
   handleUpdateDashboard: typeof updateDashboardAsync
   checkDashboardLimits: typeof checkDashboardLimitsAction
+  createDashboard: typeof createDashboardAction
+  cloneDashboard: typeof cloneDashboardAction
   notify: typeof notifyAction
 }
 
 interface StateProps {
-  dashboards: Dashboard[]
   limitStatus: LimitStatus
 }
 
@@ -69,7 +65,12 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {handleUpdateDashboard, handleDeleteDashboard} = this.props
+    const {
+      createDashboard,
+      cloneDashboard,
+      handleUpdateDashboard,
+      handleDeleteDashboard,
+    } = this.props
     const {searchTerm} = this.state
 
     return (
@@ -81,7 +82,7 @@ class DashboardIndex extends PureComponent<Props, State> {
             </Page.Header.Left>
             <Page.Header.Right>
               <AddResourceDropdown
-                onSelectNew={this.handleCreateDashboard}
+                onSelectNew={createDashboard}
                 onSelectImport={this.summonImportOverlay}
                 onSelectTemplate={this.summonImportFromTemplateOverlay}
                 resourceName="Dashboard"
@@ -104,8 +105,8 @@ class DashboardIndex extends PureComponent<Props, State> {
                         />
                       )}
                       onDeleteDashboard={handleDeleteDashboard}
-                      onCreateDashboard={this.handleCreateDashboard}
-                      onCloneDashboard={this.handleCloneDashboard}
+                      onCreateDashboard={createDashboard}
+                      onCloneDashboard={cloneDashboard}
                       onUpdateDashboard={handleUpdateDashboard}
                       searchTerm={searchTerm}
                       onFilterChange={this.handleFilterDashboards}
@@ -120,54 +121,6 @@ class DashboardIndex extends PureComponent<Props, State> {
         {this.props.children}
       </>
     )
-  }
-
-  private handleCreateDashboard = async (): Promise<void> => {
-    const {
-      router,
-      notify,
-      params: {orgID},
-      checkDashboardLimits,
-    } = this.props
-    try {
-      const newDashboard = {
-        name: DEFAULT_DASHBOARD_NAME,
-        cells: [],
-        orgID,
-      }
-      const data = await createDashboard(newDashboard)
-      checkDashboardLimits()
-      router.push(`/orgs/${orgID}/dashboards/${data.id}`)
-    } catch (error) {
-      notify(dashboardCreateFailed())
-    }
-  }
-
-  private handleCloneDashboard = async (
-    dashboard: Dashboard
-  ): Promise<void> => {
-    const {
-      router,
-      notify,
-      dashboards,
-      params: {orgID},
-      checkDashboardLimits,
-    } = this.props
-    try {
-      const data = await cloneDashboard(
-        {
-          ...dashboard,
-          orgID,
-        },
-        dashboards,
-        orgID
-      )
-      router.push(`/orgs/${orgID}/dashboards/${data.id}`)
-      checkDashboardLimits()
-    } catch (error) {
-      console.error(error)
-      notify(dashboardCreateFailed())
-    }
   }
 
   private handleFilterDashboards = (searchTerm: string): void => {
@@ -202,7 +155,6 @@ class DashboardIndex extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const {
-    dashboards: {list: dashboards},
     cloud: {
       limits: {
         dashboards: {limitStatus},
@@ -211,7 +163,6 @@ const mstp = (state: AppState): StateProps => {
   } = state
 
   return {
-    dashboards,
     limitStatus,
   }
 }
@@ -221,6 +172,8 @@ const mdtp: DispatchProps = {
   handleDeleteDashboard: deleteDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
   checkDashboardLimits: checkDashboardLimitsAction,
+  createDashboard: createDashboardAction,
+  cloneDashboard: cloneDashboardAction,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
