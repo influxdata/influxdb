@@ -32,12 +32,12 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
           <div
             className="wizard-step--lp-body"
           >
+            <PrecisionDropdown />
             <default_1
               onURLChange={[Function]}
               urlInput=""
             />
           </div>
-          <PrecisionDropdown />
         </div>
       </t>
     </t>

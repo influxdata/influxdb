@@ -53,19 +53,19 @@ export class LineProtocol extends PureComponent<Props> {
     return (
       <div className="onboarding-step">
         <Form onSubmit={this.handleSubmit}>
-          <div className="wizard-step--scroll-area">
-            <FancyScrollbar autoHide={false}>
-              <div className="wizard-step--scroll-content">
-                <h3 className="wizard-step--title">
-                  Add Data via Line Protocol
-                </h3>
-                <h5 className="wizard-step--sub-title">
-                  Need help writing InfluxDB Line Protocol? See Documentation
-                </h5>
-                {this.content}
-              </div>
-            </FancyScrollbar>
-          </div>
+          <FancyScrollbar
+            autoHide={true}
+            className="wizard-step--scroll-content"
+          >
+            <div>
+              <h3 className="wizard-step--title">Add Data via Line Protocol</h3>
+              <h5 className="wizard-step--lp-sub-title">
+                Need help writing InfluxDB Line Protocol? See Documentation
+              </h5>
+
+              {this.content}
+            </div>
+          </FancyScrollbar>
           <OnboardingButtons autoFocusNext={true} />
         </Form>
       </div>
@@ -83,33 +83,37 @@ export class LineProtocol extends PureComponent<Props> {
         tabs={this.LineProtocolTabs}
         bucket={bucket}
         org={org}
-        handleSubmit={this.handleSubmit}
+        handleUpload={this.handleUpload}
       />
     )
   }
 
-  private handleSubmit = async () => {
+  private handleSubmit = () => {
+    const {onIncrementCurrentStepIndex} = this.props
+    onIncrementCurrentStepIndex()
+  }
+
+  private handleUpload = async () => {
     const {
       bucket,
       org,
       writeLineProtocolAction,
       lineProtocolBody,
       precision,
-      onIncrementCurrentStepIndex,
     } = this.props
 
     writeLineProtocolAction(org, bucket, lineProtocolBody, precision)
-    onIncrementCurrentStepIndex()
   }
 }
 
 const mstp = ({
   dataLoading: {
     dataLoaders: {lineProtocolBody, precision},
-    steps: {bucket, org},
+    steps: {bucket},
   },
+  orgs,
 }: AppState): StateProps => {
-  return {lineProtocolBody, precision, bucket, org}
+  return {lineProtocolBody, precision, bucket, org: orgs.org.name}
 }
 
 const mdtp: DispatchProps = {
