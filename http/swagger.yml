@@ -750,6 +750,8 @@ paths:
       summary: create a scraper target
       tags:
         - ScraperTargets
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: scraper target to create
         required: true
@@ -1555,6 +1557,8 @@ paths:
       tags:
         - Ready
       summary: Get the readiness of a instance at startup. Allow us to confirm the instance is prepared to accept requests.
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description: the instance is ready
@@ -1654,6 +1658,7 @@ paths:
         - Sources
       summary: Delete a source
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: sourceID
           schema:
@@ -4229,6 +4234,7 @@ paths:
         - Tasks
       summary: manually start a run of the task now overriding the current schedule.
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -4713,6 +4719,8 @@ paths:
       tags:
         - Users
       summary: Create a user
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: user to create
         required: true
