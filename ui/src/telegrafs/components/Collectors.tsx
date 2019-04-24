@@ -123,7 +123,6 @@ class Collectors extends PureComponent<Props, State> {
                       emptyState={this.emptyState}
                       onDelete={this.handleDeleteTelegraf}
                       onUpdate={this.handleUpdateTelegraf}
-                      onOpenInstructions={this.handleOpenInstructions}
                       onFilterChange={this.handleFilterUpdate}
                       sortKey={sortKey}
                       sortDirection={sortDirection}
@@ -161,18 +160,6 @@ class Collectors extends PureComponent<Props, State> {
     }
 
     return false
-  }
-
-  private handleOpenInstructions = (collectorID: string): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-    this.setState({
-      collectorID,
-    })
-
-    router.push(`/orgs/${orgID}/telegrafs/${collectorID}/instructions`)
   }
 
   private get createButton(): JSX.Element {

@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps, Link} from 'react-router'
 
 // Components
 import {ResourceList, Context, IconFont} from 'src/clockface'
@@ -31,7 +31,6 @@ interface OwnProps {
   bucket: string
   onDelete: (telegraf: Telegraf) => void
   onUpdate: (telegraf: Telegraf) => void
-  onOpenInstructions: (telegrafID: string) => void
   onFilterChange: (searchTerm: string) => void
 }
 
@@ -50,7 +49,7 @@ type Props = OwnProps & StateProps & DispatchProps
 
 class CollectorRow extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {collector, bucket} = this.props
+    const {collector, bucket, org} = this.props
 
     return (
       <ResourceList.Card
@@ -78,7 +77,9 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         metaData={() => [
           <>Bucket: {bucket}</>,
           <>
-            <a onClick={this.handleOpenInstructions}>Setup Instructions</a>
+            <Link to={`/orgs/${org.id}/telegrafs/${collector.id}/instructions`}>
+              Setup Instructions
+            </Link>
           </>,
         ]}
         contextMenu={() => this.contextMenu}
@@ -157,10 +158,6 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 
   private handleDeleteConfig = (): void => {
     this.props.onDelete(this.props.collector)
-  }
-
-  private handleOpenInstructions = (): void => {
-    this.props.onOpenInstructions(this.props.collector.id)
   }
 }
 

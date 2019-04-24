@@ -22,7 +22,6 @@ interface Props {
   emptyState: JSX.Element
   onDelete: (telegraf: Telegraf) => void
   onUpdate: (telegraf: Telegraf) => void
-  onOpenInstructions: (telegrafID: string) => void
   onFilterChange: (searchTerm: string) => void
   sortKey: string
   sortDirection: Sort
@@ -75,7 +74,6 @@ export default class CollectorList extends PureComponent<Props> {
       sortType,
       onDelete,
       onUpdate,
-      onOpenInstructions,
       onFilterChange,
     } = this.props
     const sortedCollectors = this.memGetSortedResources(
@@ -93,7 +91,6 @@ export default class CollectorList extends PureComponent<Props> {
           bucket={getDeep<string>(collector, 'plugins.0.config.bucket', '')}
           onDelete={onDelete}
           onUpdate={onUpdate}
-          onOpenInstructions={onOpenInstructions}
           onFilterChange={onFilterChange}
         />
       ))
