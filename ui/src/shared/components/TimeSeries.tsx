@@ -171,7 +171,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       let errorMessage = get(error, 'message', '')
 
-      if (get(error, 'xhr.status') === RATE_LIMIT_ERROR_STATUS) {
+      if (get(error, 'status') === RATE_LIMIT_ERROR_STATUS) {
         notify(readLimitReached())
         errorMessage = RATE_LIMIT_ERROR_TEXT
       }

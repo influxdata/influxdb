@@ -129,7 +129,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
       return
     }
 
-    if (get(e, 'xhr.status') === RATE_LIMIT_ERROR_STATUS) {
+    if (get(e, 'status') === RATE_LIMIT_ERROR_STATUS) {
       dispatch(notify(readLimitReached()))
     }
 

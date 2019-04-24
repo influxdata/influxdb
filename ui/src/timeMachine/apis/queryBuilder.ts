@@ -2,7 +2,7 @@
 import {get} from 'lodash'
 
 // APIs
-import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
+import {query as runQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Utils
@@ -23,12 +23,12 @@ export interface FindBucketsOptions {
   orgID: string
 }
 
-export function findBuckets({url, orgID}: FindBucketsOptions): CancelableQuery {
+export function findBuckets({orgID}: FindBucketsOptions): CancelableQuery {
   const query = `buckets()
   |> sort(columns: ["name"])
   |> limit(n: ${DEFAULT_LIMIT})`
 
-  const {promise, cancel} = executeQuery(url, orgID, query)
+  const {promise, cancel} = runQuery(orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, 'name')),
@@ -47,7 +47,6 @@ export interface FindKeysOptions {
 }
 
 export function findKeys({
-  url,
   orgID,
   bucket,
   tagsSelections,
@@ -72,7 +71,7 @@ export function findKeys({
   |> sort()
   |> limit(n: ${limit})`
 
-  const {promise, cancel} = executeQuery(url, orgID, query)
+  const {promise, cancel} = runQuery(orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, '_value')),
@@ -92,7 +91,6 @@ export interface FindValuesOptions {
 }
 
 export function findValues({
-  url,
   orgID,
   bucket,
   tagsSelections,
@@ -116,7 +114,7 @@ export function findValues({
   |> limit(n: ${limit})
   |> sort()`
 
-  const {promise, cancel} = executeQuery(url, orgID, query)
+  const {promise, cancel} = runQuery(orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, '_value')),
