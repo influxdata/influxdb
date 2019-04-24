@@ -45,6 +45,8 @@ import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
 import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
+import {isLimitError, extractMessage} from 'src/cloud/utils/limits'
+import {checkTaskLimits} from 'src/cloud/actions/limits'
 
 export type Action =
   | SetNewScript
@@ -327,10 +329,16 @@ export const cloneTask = (task: Task, _) => async dispatch => {
 
     dispatch(notify(taskCloneSuccess(task.name)))
     dispatch(getTasks())
-  } catch (e) {
-    console.error(e)
-    const message = getErrorMessage(e)
-    dispatch(notify(taskCloneFailed(task.name, message)))
+    dispatch(checkTaskLimits())
+  } catch (error) {
+    console.error(error)
+    if (isLimitError(error)) {
+      const message = extractMessage(error)
+      dispatch(notify(copy.resourceLimitReached('tasks', message)))
+    } else {
+      const message = getErrorMessage(error)
+      dispatch(notify(taskCloneFailed(task.name, message)))
+    }
   }
 }
 
@@ -421,10 +429,16 @@ export const saveNewScript = (script: string, preamble: string) => async (
     dispatch(getTasks())
     dispatch(goToTasks())
     dispatch(notify(taskCreatedSuccess()))
+    dispatch(checkTaskLimits())
   } catch (error) {
     console.error(error)
-    const message = getErrorMessage(error)
-    dispatch(notify(taskNotCreated(message)))
+    if (isLimitError(error)) {
+      const message = extractMessage(error)
+      dispatch(notify(copy.resourceLimitReached('tasks', message)))
+    } else {
+      const message = getErrorMessage(error)
+      dispatch(notify(taskNotCreated(message)))
+    }
   }
 }
 
@@ -531,8 +545,14 @@ export const createTaskFromTemplate = (template: ITaskTemplate) => async (
 
     dispatch(getTasks())
     dispatch(notify(importTaskSucceeded()))
+    dispatch(checkTaskLimits())
   } catch (error) {
-    dispatch(notify(importTaskFailed(error)))
+    if (isLimitError(error)) {
+      const message = extractMessage(error)
+      dispatch(notify(copy.resourceLimitReached('tasks', message)))
+    } else {
+      dispatch(notify(importTaskFailed(error)))
+    }
   }
 }
 

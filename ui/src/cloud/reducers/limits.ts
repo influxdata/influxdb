@@ -61,6 +61,10 @@ export const limitsReducer = (
         draftState.buckets.limitStatus = action.payload.limitStatus
         return
       }
+      case ActionTypes.SetTaskLimitStatus: {
+        draftState.tasks.limitStatus = action.payload.limitStatus
+        return
+      }
     }
   })
 

@@ -47,6 +47,7 @@ export enum ActionTypes {
   SetLimitsStatus = 'SET_LIMITS_STATUS',
   SetDashboardLimitStatus = 'SET_DASHBOARD_LIMIT_STATUS',
   SetBucketLimitStatus = 'SET_BUCKET_LIMIT_STATUS',
+  SetTaskLimitStatus = 'SET_TASK_LIMIT_STATUS',
 }
 
 export type Actions =
@@ -54,6 +55,7 @@ export type Actions =
   | SetLimitsStatus
   | SetDashboardLimitStatus
   | SetBucketLimitStatus
+  | SetTaskLimitStatus
 
 export interface SetLimits {
   type: ActionTypes.SetLimits
@@ -91,6 +93,20 @@ export const setBucketLimitStatus = (
 ): SetBucketLimitStatus => {
   return {
     type: ActionTypes.SetBucketLimitStatus,
+    payload: {limitStatus},
+  }
+}
+
+export interface SetTaskLimitStatus {
+  type: ActionTypes.SetTaskLimitStatus
+  payload: {limitStatus: LimitStatus}
+}
+
+export const setTaskLimitStatus = (
+  limitStatus: LimitStatus
+): SetTaskLimitStatus => {
+  return {
+    type: ActionTypes.SetTaskLimitStatus,
     payload: {limitStatus},
   }
 }
@@ -195,6 +211,33 @@ export const checkBucketLimits = () => async (
       dispatch(notify(resourceLimitReached('buckets')))
     } else {
       dispatch(setBucketLimitStatus(LimitStatus.OK))
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const checkTaskLimits = () => async (
+  dispatch,
+  getState: () => AppState
+) => {
+  try {
+    const {
+      tasks: {list},
+      cloud: {
+        limits: {
+          tasks: {maxAllowed},
+        },
+      },
+    } = getState()
+
+    const tasksCount = list.length
+
+    if (maxAllowed <= tasksCount) {
+      dispatch(setTaskLimitStatus(LimitStatus.EXCEEDED))
+      dispatch(notify(resourceLimitReached('tasks')))
+    } else {
+      dispatch(setTaskLimitStatus(LimitStatus.OK))
     }
   } catch (e) {
     console.error(e)
