@@ -70,6 +70,7 @@ import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
+import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -222,6 +223,10 @@ class Root extends PureComponent {
                               <Route
                                 path="all-access"
                                 component={AllAccessTokenOverlay}
+                              />
+                              <Route
+                                path="buckets"
+                                component={BucketsTokenOverlay}
                               />
                             </Route>
                           </Route>

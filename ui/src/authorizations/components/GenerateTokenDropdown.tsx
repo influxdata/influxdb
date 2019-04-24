@@ -10,6 +10,7 @@ import {IconFont, ComponentColor, ComponentSize} from '@influxdata/clockface'
 
 interface OwnProps {
   onSelectAllAccess: () => void
+  onSelectReadWrite: () => void
 }
 
 type Props = OwnProps
@@ -34,6 +35,13 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
   private get optionItems(): JSX.Element[] {
     return [
       <Dropdown.Item
+        id={this.bucketReadWriteOption}
+        key={this.bucketReadWriteOption}
+        value={this.bucketReadWriteOption}
+      >
+        {this.bucketReadWriteOption}
+      </Dropdown.Item>,
+      <Dropdown.Item
         id={this.allAccessOption}
         key={this.allAccessOption}
         value={this.allAccessOption}
@@ -43,6 +51,10 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
     ]
   }
 
+  private get bucketReadWriteOption(): string {
+    return 'Read/Write Token'
+  }
+
   private get allAccessOption(): string {
     return 'All Access Token'
   }
@@ -50,6 +62,8 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
   private handleSelect = (selection: string): void => {
     if (selection === this.allAccessOption) {
       this.props.onSelectAllAccess()
+    } else if (selection === this.bucketReadWriteOption) {
+      this.props.onSelectReadWrite()
     }
   }
 }
