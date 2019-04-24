@@ -3074,16 +3074,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: header
-          name: Accept
-          description: specifies the return content format. Each response content type will have its own dialect options.
-          schema:
-            type: string
-            description: return format of either CSV or Arrow buffers
-            default: text/csv
-            enum:
-              - text/csv
-              - application/vnd.influx.arrow
-        - in: header
           name: Content-Type
           schema:
             type: string
