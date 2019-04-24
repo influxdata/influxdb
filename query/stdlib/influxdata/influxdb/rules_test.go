@@ -122,6 +122,200 @@ func TestPushDownRangeRule(t *testing.T) {
 	}
 }
 
+func TestPushDownGroupRule(t *testing.T) {
+	readRange := influxdb.ReadRangePhysSpec{
+		Bucket: "my-bucket",
+		Bounds: flux.Bounds{
+			Start: fluxTime(5),
+			Stop:  fluxTime(10),
+		},
+	}
+
+	tests := []plantest.RuleTestCase{
+		{
+			Name: "simple",
+			// ReadRange -> group => ReadGroup
+			Rules: []plan.Rule{
+				influxdb.PushDownGroupRule{},
+			},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
+						GroupMode: flux.GroupModeBy,
+						GroupKeys: []string{"_measurement", "tag0", "tag1"},
+					}),
+				},
+				Edges: [][2]int{{0, 1}},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadGroup", &influxdb.ReadGroupPhysSpec{
+						ReadRangePhysSpec: readRange,
+						GroupMode:         flux.GroupModeBy,
+						GroupKeys:         []string{"_measurement", "tag0", "tag1"},
+					}),
+				},
+			},
+		},
+		{
+			Name: "with successor",
+			// ReadRange -> group -> count  =>  ReadGroup -> count
+			Rules: []plan.Rule{
+				influxdb.PushDownGroupRule{},
+			},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
+						GroupMode: flux.GroupModeBy,
+						GroupKeys: []string{"_measurement", "tag0", "tag1"},
+					}),
+					plan.CreatePhysicalNode("count", &universe.CountProcedureSpec{}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadGroup", &influxdb.ReadGroupPhysSpec{
+						ReadRangePhysSpec: readRange,
+						GroupMode:         flux.GroupModeBy,
+						GroupKeys:         []string{"_measurement", "tag0", "tag1"},
+					}),
+					plan.CreatePhysicalNode("count", &universe.CountProcedureSpec{}),
+				},
+				Edges: [][2]int{{0, 1}},
+			},
+		},
+		{
+			Name: "with multiple successors",
+			//
+			// group    count       group    count
+			//     \    /       =>      \    /
+			//    ReadRange            ReadRange
+			//
+			Rules: []plan.Rule{
+				influxdb.PushDownGroupRule{},
+			},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
+						GroupMode: flux.GroupModeBy,
+						GroupKeys: []string{"_measurement", "tag0", "tag1"},
+					}),
+					plan.CreatePhysicalNode("count", &universe.CountProcedureSpec{}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{0, 2},
+				},
+			},
+			NoChange: true,
+		},
+		{
+			Name: "un-group",
+			// ReadRange -> group() => ReadGroup
+			Rules: []plan.Rule{
+				influxdb.PushDownGroupRule{},
+			},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
+						GroupMode: flux.GroupModeBy,
+						GroupKeys: []string{},
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadGroup", &influxdb.ReadGroupPhysSpec{
+						ReadRangePhysSpec: readRange,
+						GroupMode:         flux.GroupModeBy,
+						GroupKeys:         []string{},
+					}),
+				},
+			},
+		},
+		{
+			Name: "group except",
+			// ReadRange -> group(mode: "except") => ReadRange -> group(mode: "except")
+			Rules: []plan.Rule{
+				influxdb.PushDownGroupRule{},
+			},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
+						GroupMode: flux.GroupModeExcept,
+						GroupKeys: []string{"_measurement", "tag0", "tag1"},
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			NoChange: true,
+		},
+		{
+			Name: "group none",
+			Rules: []plan.Rule{
+				influxdb.PushDownGroupRule{},
+			},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
+						GroupMode: flux.GroupModeNone,
+						GroupKeys: []string{},
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			NoChange: true,
+		},
+		{
+			Name: "cannot push down",
+			// ReadRange -> count -> group => ReadRange -> count -> group
+			Rules: []plan.Rule{
+				influxdb.PushDownGroupRule{},
+			},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreateLogicalNode("ReadRange", &readRange),
+					plan.CreatePhysicalNode("count", &universe.CountProcedureSpec{}),
+					plan.CreateLogicalNode("group", &universe.GroupProcedureSpec{
+						GroupMode: flux.GroupModeBy,
+						GroupKeys: []string{"_measurement", "tag0", "tag1"},
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			NoChange: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			plantest.PhysicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
 func TestReadTagKeysRule(t *testing.T) {
 	fromSpec := influxdb.FromProcedureSpec{
 		Bucket: "my-bucket",
