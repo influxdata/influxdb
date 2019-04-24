@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/data/gen"
 	"github.com/influxdata/influxdb/storage/reads"
@@ -16,7 +17,7 @@ func TestGroupGroupResultSetSorting(t *testing.T) {
 	tests := []struct {
 		name  string
 		cur   reads.SeriesCursor
-		group datatypes.ReadRequest_Group
+		group datatypes.ReadGroupRequest_Group
 		keys  []string
 		exp   string
 	}{
@@ -181,7 +182,14 @@ group:
 
 			var hints datatypes.HintFlags
 			hints.SetHintSchemaAllTime()
-			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadRequest{Group: tt.group, GroupKeys: tt.keys, Hints: hints}, newCursor)
+			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
+				Group:     tt.group,
+				GroupKeys: tt.keys,
+				// TODO(jlapacik):
+				//     Hints is not used except for the tests in this file.
+				//     Eventually this field should be removed entirely.
+				Hints: hints,
+			}, newCursor)
 
 			sb := new(strings.Builder)
 			GroupResultSetToString(sb, rs, SkipNilCursor())
@@ -202,7 +210,7 @@ func TestNewGroupResultSet_GroupNone_NoDataReturnsNil(t *testing.T) {
 			)}, nil
 	}
 
-	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadRequest{Group: datatypes.GroupNone}, newCursor)
+	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupNone}, newCursor)
 	if rs != nil {
 		t.Errorf("expected nil cursor")
 	}
@@ -217,7 +225,7 @@ func TestNewGroupResultSet_GroupBy_NoDataReturnsNil(t *testing.T) {
 			)}, nil
 	}
 
-	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag0"}}, newCursor)
+	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag0"}}, newCursor)
 	if rs != nil {
 		t.Errorf("expected nil cursor")
 	}
@@ -300,7 +308,14 @@ group:
 
 			var hints datatypes.HintFlags
 			hints.SetHintSchemaAllTime()
-			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadRequest{Group: datatypes.GroupBy, GroupKeys: tt.keys, Hints: hints}, newCursor, tt.opts...)
+			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
+				Group:     datatypes.GroupBy,
+				GroupKeys: tt.keys,
+				// TODO(jlapacik):
+				//     Hints is not used except for the tests in this file.
+				//     Eventually this field should be removed entirely.
+				Hints: hints,
+			}, newCursor, tt.opts...)
 
 			sb := new(strings.Builder)
 			GroupResultSetToString(sb, rs, SkipNilCursor())
@@ -364,9 +379,7 @@ func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		var hints datatypes.HintFlags
-		hints.SetHintSchemaAllTime()
-		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag2"}, Hints: hints}, newCursor)
+		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag2"}}, newCursor)
 		rs.Close()
 	}
 }

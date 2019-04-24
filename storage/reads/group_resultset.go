@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
+	"math"
 	"sort"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -14,7 +15,7 @@ import (
 
 type groupResultSet struct {
 	ctx context.Context
-	req *datatypes.ReadRequest
+	req *datatypes.ReadGroupRequest
 	agg *datatypes.Aggregate
 	mb  multiShardCursors
 
@@ -42,7 +43,7 @@ func GroupOptionNilSortLo() GroupOption {
 	}
 }
 
-func NewGroupResultSet(ctx context.Context, req *datatypes.ReadRequest, newCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
+func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, newCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
 	g := &groupResultSet{
 		ctx:         ctx,
 		req:         req,
@@ -56,7 +57,7 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadRequest, newCurso
 		o(g)
 	}
 
-	g.mb = newMultiShardArrayCursors(ctx, req.TimestampRange.Start, req.TimestampRange.End, !req.Descending, req.PointsLimit)
+	g.mb = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true, math.MaxInt64)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)

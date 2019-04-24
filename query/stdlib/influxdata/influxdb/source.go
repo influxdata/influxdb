@@ -117,7 +117,7 @@ func (s *readFilterSource) run(ctx context.Context) error {
 }
 
 func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	span, ctx := tracing.StartSpanFromContext(a.Context())
 	defer span.Finish()
 
 	spec := s.(*ReadRangePhysSpec)
@@ -190,7 +190,7 @@ func (s *readGroupSource) run(ctx context.Context) error {
 }
 
 func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	span, ctx := tracing.StartSpanFromContext(a.Context())
 	defer span.Finish()
 
 	spec := s.(*ReadGroupPhysSpec)
@@ -236,7 +236,7 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 }
 
 func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	span, ctx := tracing.StartSpanFromContext(a.Context())
 	defer span.Finish()
 
 	spec := prSpec.(*ReadTagKeysPhysSpec)
@@ -300,7 +300,7 @@ func (s *readTagKeysSource) run(ctx context.Context) error {
 }
 
 func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	span, ctx := tracing.StartSpanFromContext(a.Context())
 	defer span.Finish()
 
 	spec := prSpec.(*ReadTagValuesPhysSpec)
