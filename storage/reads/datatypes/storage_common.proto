@@ -13,11 +13,14 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 service Storage {
-  // Read performs a read operation using the given ReadRequest
+  // TODO(jlapacik): Remove this unsupported call
   rpc Read (ReadRequest) returns (stream ReadResponse);
 
   // ReadFilter performs a filter operation at storage
   rpc ReadFilter (ReadFilterRequest) returns (stream ReadResponse);
+
+  // ReadGroup performs a group operation at storage
+  rpc ReadGroup (ReadGroupRequest) returns (stream ReadResponse);
 
   // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
   rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
@@ -40,8 +43,11 @@ message ReadFilterRequest {
   Predicate predicate = 3;
 }
 
-// Request message for Storage.Read.
-message ReadRequest {
+message ReadGroupRequest {
+  google.protobuf.Any read_source = 1 [(gogoproto.customname) = "ReadSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+
   enum Group {
     option (gogoproto.goproto_enum_prefix) = false;
 
@@ -60,6 +66,17 @@ message ReadRequest {
     GROUP_EXCEPT = 3 [(gogoproto.enumvalue_customname) = "GroupExcept"];
   }
 
+  // GroupKeys specifies a list of tag keys used to order the data.
+  // It is dependent on the Group property to determine its behavior.
+  repeated string group_keys = 4 [(gogoproto.customname) = "GroupKeys"];
+
+  Group group = 5;
+  Aggregate aggregate = 6;
+
+  // TODO(jlapacik): This field is only used in unit tests.
+  // Specifically the two tests in group_resultset_test.go.
+  // This field should be removed and the tests that depend
+  // on it refactored.
   enum HintFlags {
     option (gogoproto.goproto_enum_prefix) = false;
 
@@ -69,44 +86,11 @@ message ReadRequest {
     // HintSchemaAllTime performs schema queries without using time ranges
     HINT_SCHEMA_ALL_TIME = 0x04 [(gogoproto.enumvalue_customname) = "HintSchemaAllTime"];
   }
-
-  google.protobuf.Any read_source = 13 [(gogoproto.customname) = "ReadSource"];
-
-  TimestampRange timestamp_range = 2 [(gogoproto.customname) = "TimestampRange", (gogoproto.nullable) = false];
-
-  // Descending indicates whether points should be returned in descending order.
-  bool descending = 3;
-
-  // GroupKeys specifies a list of tag keys used to order the data. It is dependent on the Group property to determine
-  // its behavior.
-  repeated string group_keys = 4 [(gogoproto.customname) = "GroupKeys"];
-
-  //
-  Group group = 11;
-
-  // Aggregate specifies an optional aggregate to apply to the data.
-  // TODO(sgc): switch to slice for multiple aggregates in a single request
-  Aggregate aggregate = 9;
-
-  Predicate predicate = 5;
-
-  // SeriesLimit determines the maximum number of series to be returned for the request. Specify 0 for no limit.
-  int64 series_limit = 6 [(gogoproto.customname) = "SeriesLimit"];
-
-  // SeriesOffset determines how many series to skip before processing the request.
-  int64 series_offset = 7 [(gogoproto.customname) = "SeriesOffset"];
-
-  // PointsLimit determines the maximum number of values per series to be returned for the request.
-  // Specify 0 for no limit. -1 to return series frames only.
-  int64 points_limit = 8 [(gogoproto.customname) = "PointsLimit"];
-
-  // Trace contains opaque data if a trace is active.
-  map<string, string> trace = 10 [(gogoproto.customname) = "Trace"];
-
-  // Hints is a bitwise OR of HintFlags to control the behavior
-  // of the read request.
-  fixed32 hints = 12 [(gogoproto.customname) = "Hints", (gogoproto.casttype) = "HintFlags"];
+  fixed32 hints = 7 [(gogoproto.customname) = "Hints", (gogoproto.casttype) = "HintFlags"];
 }
+
+// TODO(jlapacik): Remove this message
+message ReadRequest {}
 
 message Aggregate {
   enum AggregateType {
@@ -127,7 +111,7 @@ message Tag {
   bytes value = 2;
 }
 
-// Response message for Storage.Read.
+// Response message for ReadFilter and ReadGroup
 message ReadResponse {
   enum FrameType {
     option (gogoproto.goproto_enum_prefix) = false;
@@ -161,7 +145,7 @@ message ReadResponse {
   message GroupFrame {
     // TagKeys
     repeated bytes tag_keys = 1 [(gogoproto.customname) = "TagKeys"];
-    // PartitionKeyVals is the values of the partition key for this group, order matching ReadRequest.GroupKeys
+    // PartitionKeyVals is the values of the partition key for this group, order matching ReadGroupRequest.GroupKeys
     repeated bytes partition_key_vals = 2 [(gogoproto.customname) = "PartitionKeyVals"];
   }
 
@@ -233,9 +217,3 @@ message TagValuesRequest {
 message StringValuesResponse {
   repeated bytes values = 1;
 }
-
-//message ExplainRequest {
-//  ReadRequest read_request = 1 [(gogoproto.customname) = "ReadRequest"];
-//}
-//
-//message ExplainResponse {}
