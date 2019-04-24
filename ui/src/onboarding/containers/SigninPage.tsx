@@ -14,14 +14,7 @@ import {dismissAllNotifications} from 'src/shared/actions/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import SigninForm from 'src/onboarding/components/SigninForm'
-import {
-  SpinnerContainer,
-  TechnoSpinner,
-  Panel,
-  ComponentSpacer,
-  FlexDirection,
-  AlignItems,
-} from '@influxdata/clockface'
+import {SpinnerContainer, TechnoSpinner, Panel} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 import VersionInfo from 'src/shared/components/VersionInfo'
 
