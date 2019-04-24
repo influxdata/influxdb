@@ -1,5 +1,8 @@
 // API
-import {getReadWriteLimitsAJAX, getLimitsAJAX} from 'src/cloud/apis/limits'
+import {
+  getReadWriteLimits as getReadWriteLimitsAJAX,
+  getLimits as getLimitsAJAX,
+} from 'src/cloud/apis/limits'
 
 // Types
 import {AppState} from 'src/types'
@@ -125,7 +128,7 @@ export const getAssetLimits = () => async (
   }
 }
 
-export const checkDashboardLimits = () => async (
+export const checkDashboardLimits = () => (
   dispatch,
   getState: () => AppState
 ) => {

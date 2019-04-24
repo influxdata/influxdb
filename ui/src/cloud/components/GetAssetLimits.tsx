@@ -11,7 +11,12 @@ import {
   SpinnerContainer,
   RemoteDataState,
 } from '@influxdata/clockface'
+
+// Types
 import {AppState} from 'src/types'
+
+// Constants
+import {CLOUD} from 'src/shared/constants'
 
 interface StateProps {
   status: RemoteDataState
@@ -23,16 +28,16 @@ interface DispatchProps {
 
 type Props = StateProps & DispatchProps
 
-class LimitChecker extends PureComponent<Props> {
+class GetAssetLimits extends PureComponent<Props> {
   public componentDidMount() {
-    if (process.env.CLOUD === 'true') {
+    if (CLOUD) {
       this.props.getAssetLimits()
     }
   }
 
   public render() {
     const {status} = this.props
-    if (process.env.CLOUD === 'true') {
+    if (CLOUD) {
       return (
         <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
           {this.props.children}
@@ -54,4 +59,4 @@ const mdtp: DispatchProps = {getAssetLimits: getAssetLimitsAction}
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(LimitChecker)
+)(GetAssetLimits)

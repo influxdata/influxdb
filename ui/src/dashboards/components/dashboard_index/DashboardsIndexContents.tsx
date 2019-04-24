@@ -42,7 +42,7 @@ type Props = DispatchProps & StateProps & OwnProps
 
 @ErrorHandling
 class DashboardsIndexContents extends Component<Props> {
-  public async componentDidMount() {
+  public componentDidMount() {
     const {dashboards} = this.props
 
     const dashboardIDs = dashboards.map(d => d.id)

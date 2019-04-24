@@ -259,8 +259,8 @@ export const cloneDashboard = (dashboard: Dashboard) => async (
 
     const data = await client.dashboards.clone(dashboard.id, clonedName, org.id)
 
-    dispatch(push(`/orgs/${org.id}/dashboards/${data.id}`))
     dispatch(checkDashboardLimits())
+    dispatch(push(`/orgs/${org.id}/dashboards/${data.id}`))
   } catch (error) {
     console.error(error)
     if (isLimitError(error)) {
