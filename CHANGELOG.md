@@ -12,6 +12,8 @@
 1. [13560](https://github.com/influxdata/influxdb/pull/13560): Add option to generate all access token in tokens tab
 
 ### Bug Fixes
+1. [13584](https://github.com/influxdata/influxdb/pull/13584): Fixed scroll clipping found in label editing flow
+1. [13585](https://github.com/influxdata/influxdb/pull/13585): Prevent overlapping text and dot in time range dropdown
 
 ### UI Improvements
 1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay

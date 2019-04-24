@@ -2,28 +2,20 @@
 
 exports[`CollectorList rendering renders 1`] = `
 <Fragment>
-  <IndexList>
-    <IndexListHeader>
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Name"
+  <ResourceList>
+    <ResourceListHeader>
+      <ResourceListSorter
+        name="Name"
         sort="none"
         sortKey="name"
-        width="50%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Bucket"
-        width="25%"
+      <ResourceListSorter
+        name="Bucket"
+        sort="none"
+        sortKey="bucket"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName=""
-        width="25%"
-      />
-    </IndexListHeader>
-    <IndexListBody
-      columnCount={3}
+    </ResourceListHeader>
+    <ResourceListBody
       emptyState={<React.Fragment />}
     >
       <Connect(withRouter(CollectorRow))
@@ -54,7 +46,7 @@ exports[`CollectorList rendering renders 1`] = `
         onOpenInstructions={[MockFunction]}
         onUpdate={[MockFunction]}
       />
-    </IndexListBody>
-  </IndexList>
+    </ResourceListBody>
+  </ResourceList>
 </Fragment>
 `;

@@ -1,6 +1,8 @@
 package influxdb
 
 import (
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/universe"
@@ -11,6 +13,7 @@ import (
 // 		PushDownRangeRule{},
 // 		PushDownFilterRule{},
 // 		PushDownReadTagKeysRule{},
+// 		PushDownReadTagValuesRule{},
 // 	)
 // }
 
@@ -173,6 +176,95 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
 	// so construct the procedure spec.
 	return plan.CreatePhysicalNode("ReadTagKeys", &ReadTagKeysPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
-		ValueColumnName:   keysSpec.Column,
 	}), true, nil
+}
+
+// PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
+// The 'from()' must have already been merged with 'range' and, optionally,
+// may have been merged with 'filter'.
+// If any other properties have been set on the from procedure,
+// this rule will not rewrite anything.
+type PushDownReadTagValuesRule struct{}
+
+func (rule PushDownReadTagValuesRule) Name() string {
+	return "PushDownReadTagValuesRule"
+}
+
+func (rule PushDownReadTagValuesRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.DistinctKind,
+		plan.Pat(universe.GroupKind,
+			plan.Pat(universe.SchemaMutationKind,
+				plan.Pat(ReadRangePhysKind))))
+}
+
+func (rule PushDownReadTagValuesRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
+	// Retrieve the nodes and specs for all of the predecessors.
+	distinctNode := pn
+	distinctSpec := distinctNode.ProcedureSpec().(*universe.DistinctProcedureSpec)
+	groupNode := distinctNode.Predecessors()[0]
+	groupSpec := groupNode.ProcedureSpec().(*universe.GroupProcedureSpec)
+	keepNode := groupNode.Predecessors()[0]
+	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	fromNode := keepNode.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	// A filter spec would have already been merged into the
+	// from spec if it existed so we will take that one when
+	// constructing our own replacement. We do not care about it
+	// at the moment though which is why it is not in the pattern.
+
+	// All of the values need to be grouped into the same table.
+	if groupSpec.GroupMode != flux.GroupModeBy {
+		return nil, false, nil
+	} else if len(groupSpec.GroupKeys) > 0 {
+		return nil, false, nil
+	}
+
+	// The column that distinct is for will be the tag key.
+	tagKey := distinctSpec.Column
+	if !isValidTagKeyForTagValues(tagKey) {
+		return nil, false, nil
+	}
+
+	// The schema mutator needs to correspond to a keep call
+	// on the tag key column.
+	if len(keepSpec.Mutations) != 1 {
+		return nil, false, nil
+	} else if m, ok := keepSpec.Mutations[0].(*universe.KeepOpSpec); !ok {
+		return nil, false, nil
+	} else if m.Predicate != nil || len(m.Columns) != 1 {
+		// We have a keep mutator, but it uses a function or
+		// it retains more than one column so it does not match
+		// what we want.
+		return nil, false, nil
+	} else if m.Columns[0] != tagKey {
+		// We are not keeping the value column so this optimization
+		// will not work.
+		return nil, false, nil
+	}
+
+	// We have passed all of the necessary prerequisites
+	// so construct the procedure spec.
+	return plan.CreatePhysicalNode("ReadTagValues", &ReadTagValuesPhysSpec{
+		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
+		TagKey:            tagKey,
+	}), true, nil
+}
+
+var invalidTagKeysForTagValues = []string{
+	execute.DefaultTimeColLabel,
+	execute.DefaultValueColLabel,
+	execute.DefaultStartColLabel,
+	execute.DefaultStopColLabel,
+}
+
+// isValidTagKeyForTagValues returns true if the given key can
+// be used in a tag values call.
+func isValidTagKeyForTagValues(key string) bool {
+	for _, k := range invalidTagKeysForTagValues {
+		if k == key {
+			return false
+		}
+	}
+	return true
 }

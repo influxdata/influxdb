@@ -4,19 +4,9 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {IndexList, Alignment, ConfirmationButton} from 'src/clockface'
-import {
-  ComponentSize,
-  Button,
-  ComponentColor,
-  ComponentSpacer,
-  FlexDirection,
-  JustifyContent,
-  AlignItems,
-} from '@influxdata/clockface'
+import {ResourceList, Context, IconFont} from 'src/clockface'
+import {ComponentColor} from '@influxdata/clockface'
 import {ITelegraf as Telegraf, Organization} from '@influxdata/influx'
-import EditableName from 'src/shared/components/EditableName'
-import EditableDescription from 'src/shared/components/editable_description/EditableDescription'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
@@ -63,52 +53,46 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     const {collector, bucket} = this.props
 
     return (
-      <>
-        <IndexList.Row>
-          <IndexList.Cell>
-            <ComponentSpacer
-              margin={ComponentSize.Small}
-              direction={FlexDirection.Column}
-              alignItems={AlignItems.FlexStart}
-              stretchToFitWidth={true}
-            >
-              <EditableName
-                onUpdate={this.handleUpdateName}
-                name={collector.name}
-                noNameString={DEFAULT_COLLECTOR_NAME}
-                onEditName={this.handleNameClick}
-              />
-              <EditableDescription
-                description={collector.description}
-                placeholder={`Describe ${collector.name}`}
-                onUpdate={this.handleUpdateDescription}
-              />
-              {this.labels}
-            </ComponentSpacer>
-          </IndexList.Cell>
-          <IndexList.Cell>{bucket}</IndexList.Cell>
-          <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-            <ComponentSpacer
-              margin={ComponentSize.Small}
-              direction={FlexDirection.Row}
-              justifyContent={JustifyContent.FlexEnd}
-            >
-              <Button
-                text="Setup Instructions"
-                size={ComponentSize.ExtraSmall}
-                color={ComponentColor.Secondary}
-                onClick={this.handleOpenInstructions}
-              />
-              <ConfirmationButton
-                size={ComponentSize.ExtraSmall}
-                text="Delete"
-                confirmText="Confirm"
-                onConfirm={this.handleDeleteConfig}
-              />
-            </ComponentSpacer>
-          </IndexList.Cell>
-        </IndexList.Row>
-      </>
+      <ResourceList.Card
+        key={`telegraf-id--${collector.id}`}
+        testID="resource-card"
+        name={() => (
+          <ResourceList.Name
+            onUpdate={this.handleUpdateName}
+            onClick={this.handleNameClick}
+            name={collector.name}
+            noNameString={DEFAULT_COLLECTOR_NAME}
+            parentTestID="collector-card--name"
+            buttonTestID="collector-card--name-button"
+            inputTestID="collector-card--input"
+          />
+        )}
+        description={() => (
+          <ResourceList.Description
+            onUpdate={this.handleUpdateDescription}
+            description={collector.description}
+            placeholder={`Describe ${collector.name}`}
+          />
+        )}
+        labels={() => this.labels}
+        metaData={() => [
+          <>Bucket: {bucket}</>,
+          <>
+            <a onClick={this.handleOpenInstructions}>Setup Instructions</a>
+          </>,
+        ]}
+        contextMenu={() => this.contextMenu}
+      />
+    )
+  }
+
+  private get contextMenu(): JSX.Element {
+    return (
+      <Context>
+        <Context.Menu icon={IconFont.Trash} color={ComponentColor.Danger}>
+          <Context.Item label="Delete" action={this.handleDeleteConfig} />
+        </Context.Menu>
+      </Context>
     )
   }
 
