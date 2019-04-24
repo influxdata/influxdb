@@ -86,6 +86,7 @@ class DashboardIndex extends PureComponent<Props, State> {
                 resourceName="Dashboard"
                 canImportFromTemplate={true}
                 status={this.addResourceStatus}
+                titleText={this.addResourceTitleText}
               />
             </Page.Header.Right>
           </Page.Header>
@@ -147,6 +148,13 @@ class DashboardIndex extends PureComponent<Props, State> {
       return ComponentStatus.Disabled
     } else {
       return ComponentStatus.Default
+    }
+  }
+
+  private get addResourceTitleText(): string {
+    const {limitStatus} = this.props
+    if (limitStatus === LimitStatus.EXCEEDED) {
+      return 'This account has the maximum number of dashboards allowed'
     }
   }
 }
