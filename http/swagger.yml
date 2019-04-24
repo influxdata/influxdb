@@ -5704,6 +5704,8 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
         status:
           description: if inactive the organization is inactive.
           default: active

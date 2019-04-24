@@ -103,15 +103,17 @@ func CreateOrganization(
 			},
 			args: args{
 				organization: &platform.Organization{
-					Name: "name1",
-					ID:   MustIDBase16(orgOneID),
+					Name:        "name1",
+					ID:          MustIDBase16(orgOneID),
+					Description: "desc1",
 				},
 			},
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						Name: "name1",
-						ID:   MustIDBase16(orgOneID),
+						Name:        "name1",
+						ID:          MustIDBase16(orgOneID),
+						Description: "desc1",
 					},
 				},
 			},
@@ -346,8 +348,9 @@ func FindOrganizations(
 						Name: "abc",
 					},
 					{
-						ID:   MustIDBase16(orgTwoID),
-						Name: "xyz",
+						ID:          MustIDBase16(orgTwoID),
+						Name:        "xyz",
+						Description: "desc xyz",
 					},
 				},
 			},
@@ -359,8 +362,9 @@ func FindOrganizations(
 						Name: "abc",
 					},
 					{
-						ID:   MustIDBase16(orgTwoID),
-						Name: "xyz",
+						ID:          MustIDBase16(orgTwoID),
+						Name:        "xyz",
+						Description: "desc xyz",
 					},
 				},
 			},
