@@ -28,6 +28,7 @@ import {checkDashboardLimits as checkDashboardLimitsAction} from 'src/cloud/acti
 import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 import {ComponentStatus} from 'src/clockface'
+import {extractDashboardLimits} from 'src/cloud/utils/limits'
 
 interface DispatchProps {
   handleDeleteDashboard: typeof deleteDashboardAsync
@@ -160,15 +161,11 @@ class DashboardIndex extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const {
-    cloud: {
-      limits: {
-        dashboards: {limitStatus},
-      },
-    },
+    cloud: {limits},
   } = state
 
   return {
-    limitStatus,
+    limitStatus: extractDashboardLimits(limits),
   }
 }
 

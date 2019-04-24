@@ -21,16 +21,16 @@ import {
 
 // Utils
 import {prettyBuckets} from 'src/shared/utils/prettyBucket'
+import {extractBucketLimits} from 'src/cloud/utils/limits'
 
 // Types
-import {Organization} from '@influxdata/influx'
 import {
   IconFont,
   ComponentSize,
   ComponentColor,
   Sort,
 } from '@influxdata/clockface'
-import {OverlayState, AppState, Bucket} from 'src/types'
+import {OverlayState, AppState, Bucket, Organization} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
@@ -217,18 +217,10 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({
-  buckets,
-  orgs,
-  cloud: {
-    limits: {
-      buckets: {limitStatus},
-    },
-  },
-}: AppState): StateProps => ({
+const mstp = ({buckets, orgs, cloud: {limits}}: AppState): StateProps => ({
   buckets: buckets.list,
   org: orgs.org,
-  limitStatus,
+  limitStatus: extractBucketLimits(limits),
 })
 
 const mdtp = {

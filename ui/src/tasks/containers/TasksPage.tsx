@@ -36,6 +36,7 @@ import {AppState, Task, TaskStatus, RemoteDataState} from 'src/types'
 import {InjectedRouter, WithRouterProps} from 'react-router'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
+import {extractTaskLimits} from 'src/cloud/utils/limits'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -266,18 +267,14 @@ class TasksPage extends PureComponent<Props, State> {
 
 const mstp = ({
   tasks: {status, list, searchTerm, showInactive},
-  cloud: {
-    limits: {
-      tasks: {limitStatus},
-    },
-  },
+  cloud: {limits},
 }: AppState): ConnectedStateProps => {
   return {
     tasks: list,
     status: status,
     searchTerm,
     showInactive,
-    limitStatus,
+    limitStatus: extractTaskLimits(limits),
   }
 }
 

@@ -18,6 +18,11 @@ import {
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
+import {
+  extractDashboardMax,
+  extractBucketMax,
+  extractTaskMax,
+} from 'src/cloud/utils/limits'
 
 export enum LimitStatus {
   OK = 'ok',
@@ -170,16 +175,13 @@ export const checkDashboardLimits = () => (
   try {
     const {
       dashboards: {list},
-      cloud: {
-        limits: {
-          dashboards: {maxAllowed},
-        },
-      },
+      cloud: {limits},
     } = getState()
 
+    const dashboardsMax = extractDashboardMax(limits)
     const dashboardsCount = list.length
 
-    if (maxAllowed <= dashboardsCount) {
+    if (dashboardsCount >= dashboardsMax) {
       dispatch(setDashboardLimitStatus(LimitStatus.EXCEEDED))
       dispatch(notify(resourceLimitReached('dashboards')))
     } else {
@@ -197,16 +199,13 @@ export const checkBucketLimits = () => async (
   try {
     const {
       buckets: {list},
-      cloud: {
-        limits: {
-          buckets: {maxAllowed},
-        },
-      },
+      cloud: {limits},
     } = getState()
 
+    const bucketsMax = extractBucketMax(limits)
     const bucketsCount = list.length
 
-    if (maxAllowed <= bucketsCount) {
+    if (bucketsCount >= bucketsMax) {
       dispatch(setBucketLimitStatus(LimitStatus.EXCEEDED))
       dispatch(notify(resourceLimitReached('buckets')))
     } else {
@@ -224,16 +223,13 @@ export const checkTaskLimits = () => async (
   try {
     const {
       tasks: {list},
-      cloud: {
-        limits: {
-          tasks: {maxAllowed},
-        },
-      },
+      cloud: {limits},
     } = getState()
 
+    const tasksMax = extractTaskMax(limits)
     const tasksCount = list.length
 
-    if (maxAllowed <= tasksCount) {
+    if (tasksCount >= tasksMax) {
       dispatch(setTaskLimitStatus(LimitStatus.EXCEEDED))
       dispatch(notify(resourceLimitReached('tasks')))
     } else {
