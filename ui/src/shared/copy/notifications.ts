@@ -982,8 +982,11 @@ export const queryLimitReached = (): Notification => ({
   duration: INFINITE,
 })
 
-export const resourceLimitReached = (): Notification => ({
+export const resourceLimitReached = (
+  resourceName: string,
+  message?: string
+): Notification => ({
   ...defaultErrorNotification,
-  message: 'You have reached a limit on this resource.',
+  message: `You have created the maximum number of ${resourceName} allowed on this account, some operations may not be permitted. ${message}`,
   duration: INFINITE,
 })
