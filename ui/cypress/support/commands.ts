@@ -237,6 +237,25 @@ export const createTelegraf = (
   })
 }
 
+/*
+[{action: 'write', resource: {type: 'views'}},
+      {action: 'write', resource: {type: 'documents'}},
+      {action: 'write', resource: {type: 'dashboards'}},
+      {action: 'write', resource: {type: 'buckets'}}]}
+ */
+
+export const createToken = (
+  orgId: string,
+  description: string,
+  status: string,
+  permissions: object[]
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request('POST', 'api/v2/authorizations', {orgID: orgId, description: description, status: status,
+    permissions: permissions })
+
+}
+
+
 // TODO: have to go through setup because we cannot create a user w/ a password via the user API
 export const setupUser = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password, org, bucket}) => {
@@ -334,6 +353,9 @@ Cypress.Commands.add('flush', flush)
 
 // tasks
 Cypress.Commands.add('createTask', createTask)
+
+//Tokems
+Cypress.Commands.add('createToken', createToken)
 
 // variables
 Cypress.Commands.add('createVariable', createVariable)

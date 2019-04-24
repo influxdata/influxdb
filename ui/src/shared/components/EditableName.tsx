@@ -51,7 +51,7 @@ class EditableName extends Component<Props, State> {
     const {name, onEditName, hrefValue, noNameString, testID} = this.props
 
     return (
-      <div className={this.className}>
+      <div className={this.className} data-testid={testID}>
         <SpinnerContainer
           loading={this.state.loading}
           spinnerComponent={<TechnoSpinner diameterPixels={20} />}
@@ -63,7 +63,7 @@ class EditableName extends Component<Props, State> {
         <div
           className="editable-name--toggle"
           onClick={this.handleStartEditing}
-          data-testid={testID}
+          data-testid={testID + '--toggle'}
         >
           <span className="icon pencil" />
         </div>
