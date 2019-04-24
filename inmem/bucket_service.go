@@ -270,6 +270,10 @@ func (s *Service) UpdateBucket(ctx context.Context, id platform.ID, upd platform
 		b.RetentionPeriod = *upd.RetentionPeriod
 	}
 
+	if upd.Description != nil {
+		b.Description = *upd.Description
+	}
+
 	b0, err := s.FindBucket(ctx, platform.BucketFilter{
 		Name: upd.Name,
 	})
