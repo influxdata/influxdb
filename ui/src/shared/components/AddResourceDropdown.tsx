@@ -13,9 +13,6 @@ interface OwnProps {
   onSelectImport: () => void
   onSelectTemplate?: () => void
   resourceName: string
-  canImportFromTemplate?: boolean
-  status?: ComponentStatus
-  titleText?: string
 }
 
 interface DefaultProps {

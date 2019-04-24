@@ -146,9 +146,8 @@ class DashboardIndex extends PureComponent<Props, State> {
     const {limitStatus} = this.props
     if (limitStatus === LimitStatus.EXCEEDED) {
       return ComponentStatus.Disabled
-    } else {
-      return ComponentStatus.Default
     }
+    return ComponentStatus.Default
   }
 
   private get addResourceTitleText(): string {

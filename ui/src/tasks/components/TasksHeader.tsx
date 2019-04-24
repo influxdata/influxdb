@@ -110,9 +110,8 @@ export default class TasksHeader extends PureComponent<Props> {
     const {limitStatus} = this.props
     if (limitStatus === LimitStatus.EXCEEDED) {
       return ComponentStatus.Disabled
-    } else {
-      return ComponentStatus.Default
     }
+    return ComponentStatus.Default
   }
 
   private get addResourceTitleText(): string {
