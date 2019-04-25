@@ -167,7 +167,7 @@ export const createOrgWithBucket = (
 
     await client.buckets.create({
       ...bucket,
-      organizationID: createdOrg.id,
+      orgID: createdOrg.id,
     })
 
     dispatch(notify(bucketCreateSuccess()))
