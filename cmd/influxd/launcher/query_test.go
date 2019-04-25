@@ -44,8 +44,8 @@ mem,server=b value=45.2`))
 	}
 
 	rawQ := fmt.Sprintf(`from(bucket:"%s")
-	|> filter(fn: (r) => r._measurement ==  "cpu" and (r._field == "v1" or r._field == "v0"))
 	|> range(start:-1m)
+	|> filter(fn: (r) => r._measurement ==  "cpu" and (r._field == "v1" or r._field == "v0"))
 	`, be.Bucket.Name)
 
 	// Expected keys:
