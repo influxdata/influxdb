@@ -16,7 +16,7 @@ import {
   scraperDeleteSuccess,
   scraperUpdateFailed,
   scraperUpdateSuccess,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 
 export type Action = SetScrapers | AddScraper | EditScraper | RemoveScraper
 

@@ -1,3 +1,7 @@
+import {Action} from 'src/shared/actions/notifications'
+
+export type NotificationAction = Action
+
 export interface Notification {
   id?: string
   type: string
@@ -5,6 +9,3 @@ export interface Notification {
   duration: number
   message: string
 }
-
-export type NotificationFunc = (message: string) => Notification
-export type NotificationAction = (message: Notification) => void

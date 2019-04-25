@@ -37,7 +37,7 @@ import {VariableValuesByID} from 'src/variables/types'
 import {
   addVariableLabelFailed,
   removeVariableLabelFailed,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 
 export type Action =
   | SetVariables

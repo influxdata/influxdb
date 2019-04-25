@@ -22,7 +22,6 @@ import {
 import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
-import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 
@@ -30,7 +29,7 @@ export interface LineProtocolStepProps {
   currentStepIndex: number
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onExit: () => void
 }
 
@@ -40,7 +39,7 @@ interface OwnProps {
 }
 
 interface DispatchProps {
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onSetBucketInfo: typeof setBucketInfo
   onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
   onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex

@@ -19,12 +19,11 @@ import {
   orgEditFailed,
   orgRenameSuccess,
   orgRenameFailed,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 
 // Types
 import {Bucket} from '@influxdata/influx'
-import {Organization, RemoteDataState} from 'src/types'
-import {PublishNotificationAction} from 'src/types/actions/notifications'
+import {Organization, RemoteDataState, NotificationAction} from 'src/types'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',
@@ -146,7 +145,7 @@ export const createOrgWithBucket = (
   org: Organization,
   bucket: Bucket
 ) => async (
-  dispatch: Dispatch<Actions | RouterAction | PublishNotificationAction>
+  dispatch: Dispatch<Actions | RouterAction | NotificationAction>
 ) => {
   let createdOrg: Organization
 
@@ -182,7 +181,7 @@ export const createOrgWithBucket = (
 }
 
 export const createOrg = (org: Organization) => async (
-  dispatch: Dispatch<Actions | RouterAction | PublishNotificationAction>
+  dispatch: Dispatch<Actions | RouterAction | NotificationAction>
 ): Promise<void> => {
   try {
     const createdOrg = await client.organizations.create(org)
@@ -213,7 +212,7 @@ export const deleteOrg = (org: Organization) => async (
 }
 
 export const updateOrg = (org: Organization) => async (
-  dispatch: Dispatch<EditOrg | PublishNotificationAction>
+  dispatch: Dispatch<EditOrg | NotificationAction>
 ) => {
   try {
     const updatedOrg = await client.organizations.update(org.id, org)
@@ -226,7 +225,7 @@ export const updateOrg = (org: Organization) => async (
 }
 
 export const renameOrg = (originalName: string, org: Organization) => async (
-  dispatch: Dispatch<EditOrg | PublishNotificationAction>
+  dispatch: Dispatch<EditOrg | NotificationAction>
 ) => {
   try {
     const updatedOrg = await client.organizations.update(org.id, org)

@@ -18,7 +18,7 @@ import {
   memberAddFailed,
   memberRemoveSuccess,
   memberRemoveFailed,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 
 export type Action = SetMembers | AddMember | RemoveMember | SetUsers
 
