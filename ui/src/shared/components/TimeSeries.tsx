@@ -118,7 +118,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 
   private reload = async () => {
-    const {inView, queryLink, variables, notify} = this.props
+    const {inView, variables, notify} = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
     const orgID = this.props.params.orgID
 
@@ -146,7 +146,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       // Issue new queries
       this.pendingResults = queries.map(({text}) =>
-        executeQueryWithVars(queryLink, orgID, text, variables)
+        executeQueryWithVars(orgID, text, variables)
       )
 
       // Wait for new queries to complete

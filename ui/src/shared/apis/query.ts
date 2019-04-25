@@ -83,7 +83,6 @@ export const runQuery = (
   used in the query.
 */
 export const executeQueryWithVars = (
-  _url: string,
   orgID: string,
   query: string,
   variables?: VariableAssignment[]
