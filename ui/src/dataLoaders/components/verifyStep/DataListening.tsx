@@ -4,7 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Apis
-import {query as runQuery} from 'src/shared/apis/query'
+import {runQuery} from 'src/shared/apis/query'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'

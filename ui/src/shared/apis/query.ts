@@ -17,7 +17,7 @@ export interface ExecuteFluxQueryResult {
   rowCount: number
 }
 
-export const query = (
+export const runQuery = (
   orgID: string,
   query: string,
   extern?: File
@@ -38,15 +38,8 @@ export const query = (
       return
     }
 
+    didTruncate = true
     conn.cancel()
-
-    const result: ExecuteFluxQueryResult = {
-      csv,
-      didTruncate,
-      rowCount,
-    }
-
-    deferred.resolve(result)
   })
 
   conn.stream.on('end', () => {
@@ -92,7 +85,7 @@ export const query = (
 export const executeQueryWithVars = (
   _url: string,
   orgID: string,
-  q: string,
+  query: string,
   variables?: VariableAssignment[]
 ): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
   let isCancelled = false
@@ -106,13 +99,13 @@ export const executeQueryWithVars = (
     }
   }
 
-  const promise = getWindowVars(q, variables).then(windowVars => {
+  const promise = getWindowVars(query, variables).then(windowVars => {
     if (isCancelled) {
       return Promise.reject(new CancellationError())
     }
 
     const extern = buildVarsOption([...variables, ...windowVars])
-    const pendingResult = query(orgID, q, extern)
+    const pendingResult = runQuery(orgID, query, extern)
 
     cancelExecution = pendingResult.cancel
 
