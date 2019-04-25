@@ -29,7 +29,6 @@ exports[`CollectorList rendering renders 1`] = `
         }
         key="03636a150fb51000"
         onDelete={[MockFunction]}
-        onOpenInstructions={[MockFunction]}
         onUpdate={[MockFunction]}
       />
       <Connect(withRouter(CollectorRow))
@@ -43,7 +42,6 @@ exports[`CollectorList rendering renders 1`] = `
         }
         key="03636a150fb51001"
         onDelete={[MockFunction]}
-        onOpenInstructions={[MockFunction]}
         onUpdate={[MockFunction]}
       />
     </ResourceListBody>

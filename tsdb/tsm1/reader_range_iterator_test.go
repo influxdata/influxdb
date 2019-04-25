@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 func TestTimeRangeIterator(t *testing.T) {
@@ -76,9 +77,10 @@ func TestTimeRangeIterator(t *testing.T) {
 	}
 
 	type test struct {
-		name string
-		args args
-		exp  []res
+		name     string
+		args     args
+		exp      []res
+		expStats cursors.CursorStats
 	}
 
 	type bucketTest struct {
@@ -116,6 +118,10 @@ func TestTimeRangeIterator(t *testing.T) {
 							if count != len(tt.exp) {
 								t.Errorf("count: -got/+exp\n%v", cmp.Diff(count, len(tt.exp)))
 							}
+
+							if got := iter.Stats(); !cmp.Equal(got, tt.expStats) {
+								t.Errorf("Stats: -got/+exp\n%v", cmp.Diff(got, tt.expStats))
+							}
 						})
 
 					}
@@ -136,7 +142,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 900,
 						max: 10000,
 					},
-					exp: EXP("tag0=val0", true, "tag0=val1", true),
+					exp:      EXP("tag0=val0", true, "tag0=val1", true),
+					expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 				},
 				{
 					name: "within block",
@@ -144,7 +151,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 2001,
 						max: 2011,
 					},
-					exp: EXP("tag0=val0", true, "tag0=val1", true),
+					exp:      EXP("tag0=val0", true, "tag0=val1", true),
+					expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 				},
 				{
 					name: "to_2999",
@@ -152,7 +160,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 0,
 						max: 2999,
 					},
-					exp: EXP("tag0=val0", true, "tag0=val1", true),
+					exp:      EXP("tag0=val0", true, "tag0=val1", true),
+					expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 				},
 				{
 					name: "intersects block",
@@ -160,7 +169,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 1500,
 						max: 2500,
 					},
-					exp: EXP("tag0=val0", true, "tag0=val1", true),
+					exp:      EXP("tag0=val0", true, "tag0=val1", true),
+					expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 				},
 			},
 		},
@@ -176,7 +186,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 900,
 						max: 10000,
 					},
-					exp: EXP("tag0=val0", true, "tag0=val1", true, "tag0=val2", true),
+					exp:      EXP("tag0=val0", true, "tag0=val1", true, "tag0=val2", true),
+					expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 				},
 				{
 					name: "within block",
@@ -184,7 +195,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 2001,
 						max: 2011,
 					},
-					exp: EXP("tag0=val0", true, "tag0=val1", false, "tag0=val2", true),
+					exp:      EXP("tag0=val0", true, "tag0=val1", false, "tag0=val2", true),
+					expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 				},
 				{
 					name: "1000_2999",
@@ -192,7 +204,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 1000,
 						max: 2500,
 					},
-					exp: EXP("tag0=val0", true, "tag0=val1", true, "tag0=val2", true),
+					exp:      EXP("tag0=val0", true, "tag0=val1", true, "tag0=val2", true),
+					expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 				},
 			},
 		},
@@ -217,7 +230,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 900,
 						max: 10000,
 					},
-					exp: EXP("tag0=val1", true),
+					exp:      EXP("tag0=val1", true),
+					expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 				},
 				{
 					name: "within block",
@@ -225,7 +239,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 2001,
 						max: 2011,
 					},
-					exp: nil,
+					exp:      nil,
+					expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 				},
 				{
 					name: "to_2999",
@@ -233,7 +248,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 0,
 						max: 2999,
 					},
-					exp: EXP("tag0=val1", false),
+					exp:      EXP("tag0=val1", false),
+					expStats: cursors.CursorStats{ScannedValues: 3, ScannedBytes: 24},
 				},
 				{
 					name: "intersects block",
@@ -241,7 +257,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 1500,
 						max: 2500,
 					},
-					exp: EXP("tag0=val1", false),
+					exp:      EXP("tag0=val1", false),
+					expStats: cursors.CursorStats{ScannedValues: 3, ScannedBytes: 24},
 				},
 				{
 					name: "beyond all tombstones",
@@ -249,7 +266,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 3000,
 						max: 4000,
 					},
-					exp: EXP("tag0=val1", true),
+					exp:      EXP("tag0=val1", true),
+					expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 				},
 			},
 		},
@@ -265,7 +283,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 900,
 						max: 10000,
 					},
-					exp: EXP("tag0=val1", true, "tag0=val2", true),
+					exp:      EXP("tag0=val1", true, "tag0=val2", true),
+					expStats: cursors.CursorStats{ScannedValues: 9, ScannedBytes: 72},
 				},
 				{
 					name: "within block",
@@ -273,7 +292,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 2001,
 						max: 2011,
 					},
-					exp: EXP("tag0=val1", false, "tag0=val2", false),
+					exp:      EXP("tag0=val1", false, "tag0=val2", false),
+					expStats: cursors.CursorStats{ScannedValues: 3, ScannedBytes: 24},
 				},
 				{
 					name: "1000_2500",
@@ -281,7 +301,8 @@ func TestTimeRangeIterator(t *testing.T) {
 						min: 1000,
 						max: 2500,
 					},
-					exp: EXP("tag0=val1", true, "tag0=val2", false),
+					exp:      EXP("tag0=val1", true, "tag0=val2", false),
+					expStats: cursors.CursorStats{ScannedValues: 6, ScannedBytes: 48},
 				},
 			},
 		},

@@ -28,7 +28,7 @@ interface OwnProps {
   tabs: LineProtocolTab[]
   bucket: string
   org: string
-  handleSubmit?: () => void
+  handleUpload?: () => void
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -67,7 +67,7 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
       tabs,
       setLineProtocolBody,
       lineProtocolBody,
-      handleSubmit,
+      handleUpload,
     } = this.props
 
     const {urlInput} = this.state
@@ -91,6 +91,10 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
             >
               <div className="onboarding--admin-user-form">
                 <div className="wizard-step--lp-body">
+                  <PrecisionDropdown
+                    setPrecision={setPrecision}
+                    precision={precision}
+                  />
                   <TabBody
                     onURLChange={this.handleURLChange}
                     activeLPTab={activeLPTab}
@@ -98,14 +102,9 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
                     urlInput={urlInput}
                     lineProtocolBody={lineProtocolBody}
                     setLineProtocolBody={setLineProtocolBody}
-                    handleSubmit={handleSubmit}
+                    handleUpload={handleUpload}
                   />
                 </div>
-
-                <PrecisionDropdown
-                  setPrecision={setPrecision}
-                  precision={precision}
-                />
               </div>
             </Grid.Column>
           </Grid.Row>

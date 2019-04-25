@@ -24,13 +24,18 @@ func (*stringIterator) Value() string      { return "" }
 func (*stringIterator) Stats() CursorStats { return CursorStats{} }
 
 type StringSliceIterator struct {
-	s []string
-	v string
-	i int
+	s     []string
+	v     string
+	i     int
+	stats CursorStats
 }
 
 func NewStringSliceIterator(s []string) *StringSliceIterator {
 	return &StringSliceIterator{s: s, i: 0}
+}
+
+func NewStringSliceIteratorWithStats(s []string, stats CursorStats) *StringSliceIterator {
+	return &StringSliceIterator{s: s, i: 0, stats: stats}
 }
 
 func (s *StringSliceIterator) Next() bool {
@@ -48,7 +53,7 @@ func (s *StringSliceIterator) Value() string {
 }
 
 func (s *StringSliceIterator) Stats() CursorStats {
-	return CursorStats{}
+	return s.stats
 }
 
 func (s *StringSliceIterator) toSlice() []string {

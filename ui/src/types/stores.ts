@@ -23,6 +23,7 @@ import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {OrgsState} from 'src/organizations/reducers/orgs'
 import {MembersState} from 'src/members/reducers'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
+import {LimitsState} from 'src/cloud/reducers/limits'
 
 export interface AppState {
   VERSION: string
@@ -51,6 +52,7 @@ export interface AppState {
   scrapers: ScrapersState
   userSettings: UserSettingsState
   members: MembersState
+  cloud: {limits: LimitsState}
 }
 
 export type GetState = () => AppState

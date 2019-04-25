@@ -6,6 +6,7 @@ import {MultiSelectDropdown, Dropdown} from 'src/clockface'
 
 // Types
 import {User} from '@influxdata/influx'
+import {ComponentStatus} from '@influxdata/clockface'
 
 interface Props {
   users: User[]
@@ -15,22 +16,37 @@ interface Props {
 
 export default class SelectUsers extends PureComponent<Props> {
   public render() {
-    const {users} = this.props
+    const {users, selectedUserIDs, onSelect} = this.props
 
     return (
-      <>
-        <MultiSelectDropdown
-          selectedIDs={this.props.selectedUserIDs}
-          onChange={this.props.onSelect}
-          emptyText="Select user"
-        >
-          {users.map(u => (
-            <Dropdown.Item id={u.id} key={u.id} value={u}>
-              {u.name}
-            </Dropdown.Item>
-          ))}
-        </MultiSelectDropdown>
-      </>
+      <MultiSelectDropdown
+        selectedIDs={selectedUserIDs}
+        onChange={onSelect}
+        emptyText={this.emptyText}
+        status={this.dropdownStatus}
+      >
+        {users.map(u => (
+          <Dropdown.Item id={u.id} key={u.id} value={u}>
+            {u.name}
+          </Dropdown.Item>
+        ))}
+      </MultiSelectDropdown>
     )
+  }
+
+  private get emptyText(): string {
+    const {users} = this.props
+    if (!users || !users.length) {
+      return 'No users exist'
+    }
+    return 'Select user'
+  }
+
+  private get dropdownStatus(): ComponentStatus {
+    const {users} = this.props
+    if (!users || !users.length) {
+      return ComponentStatus.Disabled
+    }
+    return ComponentStatus.Default
   }
 }

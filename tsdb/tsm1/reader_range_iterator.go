@@ -2,16 +2,18 @@ package tsm1
 
 import (
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 // TimeRangeIterator will iterate over the keys of a TSM file, starting at
 // the provided key. It is used to determine if each key has data which exists
 // within a specified time interval.
 type TimeRangeIterator struct {
-	r    *TSMReader
-	iter *TSMIndexIterator
-	tr   TimeRange
-	err  error
+	r     *TSMReader
+	iter  *TSMIndexIterator
+	tr    TimeRange
+	err   error
+	stats cursors.CursorStats
 
 	// temporary storage
 	trbuf []TimeRange
@@ -76,13 +78,7 @@ func (b *TimeRangeIterator) HasData() bool {
 		}
 
 		for i := range e {
-			_, b.buf, b.err = b.r.ReadBytes(&e[i], b.buf)
-			if b.err != nil {
-				return false
-			}
-
-			b.err = DecodeTimestampArrayBlock(b.buf, &b.a)
-			if b.err != nil {
+			if !b.readBlock(&e[i]) {
 				return false
 			}
 
@@ -92,13 +88,7 @@ func (b *TimeRangeIterator) HasData() bool {
 		}
 	} else {
 		for i := range e {
-			_, b.buf, b.err = b.r.ReadBytes(&e[i], b.buf)
-			if b.err != nil {
-				return false
-			}
-
-			b.err = DecodeTimestampArrayBlock(b.buf, &b.a)
-			if b.err != nil {
+			if !b.readBlock(&e[i]) {
 				return false
 			}
 
@@ -114,6 +104,29 @@ func (b *TimeRangeIterator) HasData() bool {
 	}
 
 	return false
+}
+
+// readBlock reads the block identified by IndexEntry e and accumulates
+// statistics. readBlock returns true on success.
+func (b *TimeRangeIterator) readBlock(e *IndexEntry) bool {
+	_, b.buf, b.err = b.r.ReadBytes(e, b.buf)
+	if b.err != nil {
+		return false
+	}
+
+	b.err = DecodeTimestampArrayBlock(b.buf, &b.a)
+	if b.err != nil {
+		return false
+	}
+
+	b.stats.ScannedBytes += b.a.Len() * 8 // sizeof Timestamp (int64)
+	b.stats.ScannedValues += b.a.Len()
+	return true
+}
+
+// Stats returns statistics accumulated by the iterator for any block reads.
+func (b *TimeRangeIterator) Stats() cursors.CursorStats {
+	return b.stats
 }
 
 /*

@@ -60,6 +60,7 @@
 @import 'src/telegrafs/components/TelegrafConfigOverlay.scss';
 @import 'src/telegrafs/components/TelegrafExplainer.scss';
 @import 'src/variables/components/CreateVariableOverlay.scss';
+@import 'src/authorizations/components/BucketsSelector.scss';
 @import 'src/tasks/components/TaskForm.scss';
 @import 'src/tasks/components/TasksPage.scss';
 @import 'src/tasks/components/RunLogsList.scss';
@@ -106,6 +107,7 @@
 @import 'src/shared/components/EmptyGraphError.scss';
 @import 'src/shared/components/dapperScrollbars/DapperScrollbars.scss';
 @import 'src/dashboards/components/createFromTemplateOverlay/DashboardCreateFromTemplateOverlay.scss';
+@import 'src/onboarding/components/SigninForm.scss';
 
 // External
 @import '../../node_modules/@influxdata/react-custom-scrollbars/dist/styles.css';

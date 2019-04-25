@@ -23,6 +23,7 @@ type Bucket struct {
 	ID                  ID            `json:"id,omitempty"`
 	OrgID               ID            `json:"orgID,omitempty"`
 	Name                string        `json:"name"`
+	Description         string        `json:"description"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 }
@@ -64,6 +65,7 @@ type BucketService interface {
 // Only fields which are set are updated.
 type BucketUpdate struct {
 	Name            *string        `json:"name,omitempty"`
+	Description     *string        `json:"description,omitempty"`
 	RetentionPeriod *time.Duration `json:"retentionPeriod,omitempty"`
 }
 

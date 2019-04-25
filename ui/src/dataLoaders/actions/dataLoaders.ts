@@ -523,12 +523,15 @@ export const setActiveLPTab = (
 
 interface SetLPStatus {
   type: 'SET_LP_STATUS'
-  payload: {lpStatus: RemoteDataState}
+  payload: {lpStatus: RemoteDataState; lpError: string}
 }
 
-export const setLPStatus = (lpStatus: RemoteDataState): SetLPStatus => ({
+export const setLPStatus = (
+  lpStatus: RemoteDataState,
+  lpError: string = ''
+): SetLPStatus => ({
   type: 'SET_LP_STATUS',
-  payload: {lpStatus},
+  payload: {lpStatus, lpError},
 })
 
 interface SetPrecision {
@@ -552,9 +555,9 @@ export const writeLineProtocolAction = (
     await client.write.create(org, bucket, body, {precision})
     dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
-    dispatch(setLPStatus(RemoteDataState.Error))
-
     const errorMessage = _.get(error, 'response.data.message', '')
+    dispatch(setLPStatus(RemoteDataState.Error, errorMessage))
+
     console.error(errorMessage || error)
 
     if (error.response.status === RATE_LIMIT_ERROR_STATUS) {

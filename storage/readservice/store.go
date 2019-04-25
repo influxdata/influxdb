@@ -170,9 +170,7 @@ func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	if err != nil {
 		return nil, err
 	}
-	si := s.engine.TagKeys(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.Range.Start, req.Range.End, expr)
-
-	return si, nil
+	return s.engine.TagKeys(ctx, influxdb.ID(readSource.OrganizationID), influxdb.ID(readSource.BucketID), req.Range.Start, req.Range.End, expr)
 }
 
 func (s *store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {

@@ -223,7 +223,9 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 	requestBytes = len(data)
 
-	points, err := models.ParsePointsWithPrecision(data, time.Now(), req.Precision)
+	encoded := tsdb.EncodeName(org.ID, bucket.ID)
+	mm := models.EscapeMeasurement(encoded[:])
+	points, err := models.ParsePointsWithPrecision(data, mm, time.Now(), req.Precision)
 	if err != nil {
 		logger.Error("Error parsing points", zap.Error(err))
 		EncodeError(ctx, &platform.Error{
@@ -235,19 +237,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exploded, err := tsdb.ExplodePoints(org.ID, bucket.ID, points)
-	if err != nil {
-		logger.Error("Error exploding points", zap.Error(err))
-		EncodeError(ctx, &platform.Error{
-			Code: platform.EInternal,
-			Op:   "http/handleWrite",
-			Msg:  fmt.Sprintf("unable to convert points to internal structures: %v", err),
-			Err:  err,
-		}, w)
-		return
-	}
-
-	if err := h.PointsWriter.WritePoints(ctx, exploded); err != nil {
+	if err := h.PointsWriter.WritePoints(ctx, points); err != nil {
 		logger.Error("Error writing points", zap.Error(err))
 		EncodeError(ctx, &platform.Error{
 			Code: platform.EInternal,

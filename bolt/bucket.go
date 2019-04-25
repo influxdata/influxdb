@@ -521,6 +521,10 @@ func (c *Client) updateBucket(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 		b.RetentionPeriod = *upd.RetentionPeriod
 	}
 
+	if upd.Description != nil {
+		b.Description = *upd.Description
+	}
+
 	if upd.Name != nil {
 		b0, err := c.findBucketByName(ctx, tx, b.OrgID, *upd.Name)
 		if err == nil && b0.ID != id {
