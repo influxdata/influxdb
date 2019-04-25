@@ -357,7 +357,11 @@ func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*del
 
 	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "bad org id",
+			Err:  err,
+		}
 	}
 	req := &deleteOrganizationRequest{
 		OrganizationID: i,
