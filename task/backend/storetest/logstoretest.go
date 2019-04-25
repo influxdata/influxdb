@@ -113,6 +113,50 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	if diff := cmp.Diff(run, *returnedRun); diff != "" {
 		t.Fatalf("unexpected run found: -want/+got: %s", diff)
 	}
+
+	now = time.Now().UTC()
+
+	// create a failed run
+	scheduledFor2 := now.Add(-2 * time.Second)
+	run2 := platform.Run{
+		ID:           platformtesting.MustIDBase16("2c20766972747574"),
+		TaskID:       task.ID,
+		Status:       "started",
+		ScheduledFor: scheduledFor2.Format(time.RFC3339),
+	}
+	rlb2 := backend.RunLogBase{
+		Task:            task,
+		RunID:           run2.ID,
+		RunScheduledFor: scheduledFor2.Unix(),
+	}
+
+	startAt2 := now.Add(-1 * time.Second)
+	if err := writer.UpdateRunState(ctx, rlb2, startAt2, backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+	endAt2 := now.Add(-1 * time.Millisecond)
+	if err := writer.UpdateRunState(ctx, rlb2, endAt2, backend.RunFail); err != nil {
+		t.Fatal(err)
+	}
+	run2.StartedAt = startAt2.Format(time.RFC3339Nano)
+	run2.FinishedAt = endAt2.Format(time.RFC3339Nano)
+	run2.Status = "failed"
+
+	time.Sleep(5 * time.Second)
+	runs, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{Task: task.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("expected 2 runs, got: %d", len(runs))
+	}
+
+	if diff := cmp.Diff(runs, []*platform.Run{&run, &run2}); diff != "" {
+		for i, r := range runs {
+			t.Logf("returned run[%d]: %+#v", i, *r)
+		}
+		t.Fatalf("unexpected run2 found: -want/+got: %s", diff)
+	}
 }
 
 func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
