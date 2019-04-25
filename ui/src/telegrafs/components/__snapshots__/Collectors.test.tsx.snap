@@ -24,7 +24,7 @@ exports[`CollectorList rendering renders 1`] = `
           Object {
             "id": "03636a150fb51000",
             "name": "Name this Configuration",
-            "organizationID": "03636a0aabb51000",
+            "orgID": "03636a0aabb51000",
           }
         }
         key="03636a150fb51000"
@@ -37,7 +37,7 @@ exports[`CollectorList rendering renders 1`] = `
           Object {
             "id": "03636a150fb51001",
             "name": "Name this Configuration",
-            "organizationID": "03636a0aabb51000",
+            "orgID": "03636a0aabb51000",
           }
         }
         key="03636a150fb51001"

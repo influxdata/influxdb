@@ -410,7 +410,7 @@ export const influxDB2Plugin = {
 
 export const telegrafConfig = {
   id: telegrafConfigID,
-  organizationID: '1',
+  orgID: '1',
   name: 'in n out',
   created: '2018-11-28T18:56:48.854337-08:00',
   lastModified: '2018-11-28T18:56:48.854337-08:00',
@@ -500,8 +500,7 @@ export const bucket = {
     self: '/api/v2/buckets/034a10d6f7a6b000',
   },
   id: '034a10d6f7a6b000',
-  organizationID: '034a0adc49a6b000',
-  organization: 'default',
+  orgID: '034a0adc49a6b000',
   name: 'newbuck',
   retentionRules: [],
   labels: [],
@@ -516,8 +515,7 @@ export const buckets = [
       self: '/api/v2/buckets/034a10d6f7a6b000',
     },
     id: '034a10d6f7a6b000',
-    organizationID: '034a0adc49a6b000',
-    organization: 'default',
+    orgID: '034a0adc49a6b000',
     name: 'newbuck',
     retentionRules: [],
     labels: [],
@@ -530,8 +528,7 @@ export const buckets = [
       self: '/api/v2/buckets/034a10d6f7a6b000',
     },
     id: '034a10d6f7a6b001',
-    organizationID: '034a0adc49a6b000',
-    organization: 'default',
+    orgID: '034a0adc49a6b000',
     name: 'newbuck1',
     retentionRules: [],
     labels: [],
@@ -557,7 +554,6 @@ export const setSetupParamsResponse = {
       },
       id: '033bc62534fe3000',
       orgID: '033bc62534be3000',
-      organization: 'default',
       name: 'defbuck',
       retentionRules: [],
       labels: [],
@@ -652,12 +648,12 @@ export const telegraf = [
   {
     id: '03636a150fb51000',
     name: 'Name this Configuration',
-    organizationID: '03636a0aabb51000',
+    orgID: '03636a0aabb51000',
   },
   {
     id: '03636a150fb51001',
     name: 'Name this Configuration',
-    organizationID: '03636a0aabb51000',
+    orgID: '03636a0aabb51000',
   },
 ]
 
