@@ -49,7 +49,7 @@ import {client} from 'src/utils/api'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
-import {extractMessage, isLimitError} from 'src/cloud/utils/limits'
+import {isLimitError} from 'src/cloud/utils/limits'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -235,8 +235,7 @@ export const createDashboard = () => async (
     console.error(error)
 
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
     } else {
       dispatch(notify(copy.dashboardCreateFailed()))
     }
@@ -264,8 +263,7 @@ export const cloneDashboard = (dashboard: Dashboard) => async (
   } catch (error) {
     console.error(error)
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
     } else {
       dispatch(notify(copy.dashboardCreateFailed()))
     }
@@ -310,8 +308,7 @@ export const createDashboardFromTemplate = (
     dispatch(checkDashboardLimits())
   } catch (error) {
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
     } else {
       dispatch(notify(copy.importDashboardFailed(error)))
     }

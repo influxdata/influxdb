@@ -556,12 +556,11 @@ export const writeLineProtocolAction = (
     dispatch(setLPStatus(RemoteDataState.Done))
   } catch (error) {
     const errorMessage = _.get(error, 'response.data.message', '')
+    console.error(errorMessage || error)
     dispatch(setLPStatus(RemoteDataState.Error, errorMessage))
 
-    console.error(errorMessage || error)
-
     if (error.response.status === RATE_LIMIT_ERROR_STATUS) {
-      dispatch(notify(writeLimitReached(errorMessage)))
+      dispatch(notify(writeLimitReached()))
     }
   }
 }

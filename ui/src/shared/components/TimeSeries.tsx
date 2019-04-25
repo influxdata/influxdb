@@ -16,7 +16,7 @@ import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 // Constants
 import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
-import {queryLimitReached} from 'src/shared/copy/notifications'
+import {readLimitReached} from 'src/shared/copy/notifications'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -162,7 +162,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       }
 
       if (get(error, 'xhr.status') === RATE_LIMIT_ERROR_STATUS) {
-        notify(queryLimitReached())
+        notify(readLimitReached())
       }
 
       this.setState({

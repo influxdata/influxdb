@@ -11,6 +11,7 @@ import {Page} from 'src/pageLayout'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import BucketsTab from 'src/buckets/components/BucketsTab'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 
 // Types
 import {Organization} from '@influxdata/influx'
@@ -41,8 +42,10 @@ class BucketsIndex extends Component<StateProps> {
                   >
                     <GetResources resource={ResourceTypes.Buckets}>
                       <GetResources resource={ResourceTypes.Telegrafs}>
-                        <BucketsTab />
-                        {this.props.children}
+                        <GetAssetLimits>
+                          <BucketsTab />
+                          {this.props.children}
+                        </GetAssetLimits>
                       </GetResources>
                     </GetResources>
                   </TabbedPageSection>

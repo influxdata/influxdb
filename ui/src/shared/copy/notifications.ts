@@ -950,43 +950,20 @@ export const deleteBucketFailed = (): Notification => ({
 })
 
 // Limits
-export const writeLimitReached = (errorMessage: string): Notification => ({
+export const writeLimitReached = (): Notification => ({
   ...defaultErrorNotification,
-  message: `You have reached a write limit on this resource: ${errorMessage}.`,
+  message: `It looks like you have exceeded the write rate limits allowed as part of your plan. If you would like to increase your write rate limits, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
 })
 
-export const readWriteLimitReached = (
-  isReadLimited: boolean,
-  isWriteLimited: boolean
-): Notification => {
-  let limitText = ''
-  if (isReadLimited && isWriteLimited) {
-    limitText = 'read and write'
-  } else if (isReadLimited) {
-    limitText = 'read'
-  } else if (isWriteLimited) {
-    limitText = 'write'
-  }
-
-  return {
-    ...defaultErrorNotification,
-    message: `You have reached a ${limitText} limit on this resource. Some operations may not be permitted at this time.`,
-    duration: INFINITE,
-  }
-}
-
-export const queryLimitReached = (): Notification => ({
+export const readLimitReached = (): Notification => ({
   ...defaultErrorNotification,
-  message: 'You have reached a query limit.',
+  message: `It looks like you have exceeded the query limits allowed as part of your plan. Try reducing the number of cells on your dashboard. If you would like to increase your query limits, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
 })
 
-export const resourceLimitReached = (
-  resourceName: string,
-  message?: string
-): Notification => ({
+export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
-  message: `You have created the maximum number of ${resourceName} allowed on this account, some operations may not be permitted. ${message}`,
+  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
 })

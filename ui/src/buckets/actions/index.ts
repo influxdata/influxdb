@@ -6,10 +6,18 @@ import {client} from 'src/utils/api'
 // Types
 import {RemoteDataState, AppState, Bucket} from 'src/types'
 
+// Utils
+import {isLimitError} from 'src/cloud/utils/limits'
+
 // Actions
 import {notify} from 'src/shared/actions/notifications'
-import {getBucketsFailed} from 'src/shared/copy/notifications'
+import {checkBucketLimits} from 'src/cloud/actions/limits'
 
+// Constants
+import {
+  getBucketsFailed,
+  resourceLimitReached,
+} from 'src/shared/copy/notifications'
 import {
   bucketCreateFailed,
   bucketUpdateFailed,
@@ -106,10 +114,14 @@ export const createBucket = (bucket: Bucket) => async (
     })
 
     dispatch(addBucket(createdBucket))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(bucketCreateFailed()))
-    throw e
+    dispatch(checkBucketLimits())
+  } catch (error) {
+    console.error(error)
+    if (isLimitError(error)) {
+      dispatch(notify(resourceLimitReached('buckets')))
+    } else {
+      dispatch(notify(bucketCreateFailed()))
+    }
   }
 }
 
@@ -149,6 +161,7 @@ export const deleteBucket = (id: string, name: string) => async (
     await client.buckets.delete(id)
 
     dispatch(removeBucket(id))
+    dispatch(checkBucketLimits())
   } catch (e) {
     console.error(e)
     dispatch(notify(bucketDeleteFailed(name)))
