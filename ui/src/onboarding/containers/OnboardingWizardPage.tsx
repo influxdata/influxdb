@@ -6,9 +6,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 // APIs
 import {client} from 'src/utils/api'
 
-// Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
 // Components
 import {
   Button,
@@ -23,12 +20,7 @@ import Notifications from 'src/shared/components/notifications/Notifications'
 
 // Types
 import {ComponentColor, ComponentSize} from '@influxdata/clockface'
-import {
-  Notification,
-  NotificationFunc,
-  RemoteDataState,
-  AppState,
-} from 'src/types'
+import {RemoteDataState, AppState} from 'src/types'
 import {Links} from 'src/types/links'
 
 interface State {
@@ -47,14 +39,9 @@ interface ConnectedStateProps {
   links: Links
 }
 
-interface ConnectedDispatchProps {
-  notify: (message: Notification | NotificationFunc) => void
-}
-
 type Props = PassedProps &
   WithRouterProps &
   ConnectedStateProps &
-  ConnectedDispatchProps
 
 @ErrorHandling
 export class OnboardingWizardPage extends PureComponent<Props, State> {
@@ -171,15 +158,11 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
 
 const mstp = ({links}: AppState) => ({links})
 
-const mdtp = {
-  notify: notifyAction,
-}
-
 export default connect<
   ConnectedStateProps,
   ConnectedDispatchProps,
   PassedProps
 >(
   mstp,
-  mdtp
+  null
 )(withRouter<Props>(OnboardingWizardPage))

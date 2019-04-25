@@ -23,7 +23,6 @@ import {StepStatus} from 'src/clockface/constants/wizard'
 // Types
 import {Links} from 'src/types/links'
 import {ISetupParams} from '@influxdata/influx'
-import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types'
 
 export interface OnboardingStepProps {
@@ -39,7 +38,7 @@ export interface OnboardingStepProps {
   stepTestIds: string[]
   setupParams: ISetupParams
   handleSetSetupParams: (setupParams: ISetupParams) => void
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onCompleteSetup: () => void
   onExit: () => void
 }
@@ -56,7 +55,7 @@ interface OwnProps {
 }
 
 interface DispatchProps {
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onSetSetupParams: typeof setSetupParams
   onSetStepStatus: typeof setStepStatus
   onSetupAdmin: typeof setupAdmin

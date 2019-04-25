@@ -18,7 +18,7 @@ import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {Links} from 'src/types/links'
-import {Notification, NotificationFunc, AppState} from 'src/types'
+import {AppState} from 'src/types'
 import {
   Columns,
   InputType,
@@ -32,7 +32,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export interface OwnProps {
   links: Links
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
 }
 
 interface State {
@@ -114,14 +114,16 @@ class SigninForm extends PureComponent<Props, State> {
       const status = get(error, 'response.status', '')
 
       if (status === 401) {
-        return notify({
+        notify({
           ...copy.SigninError,
           message: 'Login failed: username or password is invalid',
         })
+        return
       }
 
       if (!message) {
-        return notify(copy.SigninError)
+        notify(copy.SigninError)
+        return
       }
 
       notify({...copy.SigninError, message})

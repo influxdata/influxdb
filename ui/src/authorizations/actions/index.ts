@@ -18,9 +18,8 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {RemoteDataState, GetState} from 'src/types'
+import {RemoteDataState, GetState, NotificationAction} from 'src/types'
 import {Authorization} from '@influxdata/influx'
-import {PublishNotificationAction} from 'src/shared/actions/notifications'
 
 export type Action =
   | SetAuthorizations
@@ -83,11 +82,11 @@ export const removeAuthorization = (id: string): RemoveAuthorization => ({
 })
 
 type GetAuthorizations = (
-  dispatch: Dispatch<Action | PublishNotificationAction>,
+  dispatch: Dispatch<Action | NotificationAction>,
   getState: GetState
 ) => Promise<void>
 export const getAuthorizations = () => async (
-  dispatch: Dispatch<Action | PublishNotificationAction>,
+  dispatch: Dispatch<Action | NotificationAction>,
   getState: GetState
 ) => {
   try {
@@ -107,7 +106,7 @@ export const getAuthorizations = () => async (
 }
 
 export const createAuthorization = (auth: Authorization) => async (
-  dispatch: Dispatch<Action | PublishNotificationAction>
+  dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
     const createdAuthorization = await authAPI.createAuthorization(auth)
@@ -121,7 +120,7 @@ export const createAuthorization = (auth: Authorization) => async (
 }
 
 export const updateAuthorization = (authorization: Authorization) => async (
-  dispatch: Dispatch<Action | PublishNotificationAction | GetAuthorizations>
+  dispatch: Dispatch<Action | NotificationAction | GetAuthorizations>
 ) => {
   try {
     await client.authorizations.update(authorization.id, authorization)
@@ -134,7 +133,7 @@ export const updateAuthorization = (authorization: Authorization) => async (
 }
 
 export const deleteAuthorization = (id: string, name: string = '') => async (
-  dispatch: Dispatch<Action | PublishNotificationAction>
+  dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
     await client.authorizations.delete(id)
