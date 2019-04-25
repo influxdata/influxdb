@@ -7,6 +7,94 @@ import (
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
+type sequenceResultSet struct {
+	items []ResultSet
+	rs    ResultSet
+	err   error
+	stats cursors.CursorStats
+}
+
+// NewSequenceResultSet combines results into a single ResultSet,
+// draining each ResultSet in order before moving to the next.
+func NewSequenceResultSet(results []ResultSet) ResultSet {
+	if len(results) == 0 {
+		return nil
+	} else if len(results) == 1 {
+		return results[0]
+	}
+
+	rs := &sequenceResultSet{items: results}
+	rs.pop()
+	return rs
+}
+
+func (r *sequenceResultSet) Err() error { return r.err }
+
+func (r *sequenceResultSet) Close() {
+	if r.rs != nil {
+		r.rs.Close()
+		r.rs = nil
+	}
+
+	for _, rs := range r.items {
+		rs.Close()
+	}
+	r.items = nil
+}
+
+func (r *sequenceResultSet) pop() bool {
+	if r.rs != nil {
+		r.rs.Close()
+		r.rs = nil
+	}
+
+	if len(r.items) > 0 {
+		r.rs = r.items[0]
+		r.items[0] = nil
+		r.items = r.items[1:]
+		return true
+	}
+
+	return false
+}
+
+func (r *sequenceResultSet) Next() bool {
+RETRY:
+	if r.rs != nil {
+		if r.rs.Next() {
+			return true
+		}
+
+		err := r.rs.Err()
+		stats := r.rs.Stats()
+		if err != nil {
+			r.err = err
+			r.Close()
+			return false
+		}
+
+		r.stats.Add(stats)
+
+		if r.pop() {
+			goto RETRY
+		}
+	}
+
+	return false
+}
+
+func (r *sequenceResultSet) Cursor() cursors.Cursor {
+	return r.rs.Cursor()
+}
+
+func (r *sequenceResultSet) Tags() models.Tags {
+	return r.rs.Tags()
+}
+
+func (r *sequenceResultSet) Stats() cursors.CursorStats {
+	return r.stats
+}
+
 type mergedResultSet struct {
 	heap  resultSetHeap
 	err   error
@@ -14,6 +102,9 @@ type mergedResultSet struct {
 	stats cursors.CursorStats
 }
 
+// NewMergedResultSet combines the results into a single ResultSet,
+// producing keys in ascending lexicographical order. It requires
+// all input results are ordered.
 func NewMergedResultSet(results []ResultSet) ResultSet {
 	if len(results) == 0 {
 		return nil
@@ -53,6 +144,7 @@ func (r *mergedResultSet) Next() bool {
 		if err != nil {
 			r.err = err
 			r.Close()
+			return false
 		}
 
 		r.stats.Add(stats)

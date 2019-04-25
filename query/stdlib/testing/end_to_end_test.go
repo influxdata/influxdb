@@ -110,6 +110,7 @@ var skipTests = map[string]string{
 	"filter_by_regex":             "failed to read metadata",
 	"filter_by_tags":              "failed to read metadata",
 	"group":                       "failed to read metadata",
+	"group_except":                "failed to read metadata",
 	"group_ungroup":               "failed to read metadata",
 	"pivot_mean":                  "failed to read metadata",
 	"select_measurement":          "failed to read metadata",
