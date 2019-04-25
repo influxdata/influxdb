@@ -217,12 +217,6 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 		opt = influxdb.AuthorizedWhereOrgID(a, *req.OrgID)
 	} else if req.Org != "" {
 		opt = influxdb.AuthorizedWhereOrg(a, req.Org)
-	} else {
-		EncodeError(ctx, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "Please provide either org or orgID",
-		}, w)
-		return
 	}
 
 	ds, err := s.FindDocuments(ctx, opt, influxdb.IncludeLabels)
