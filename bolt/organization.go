@@ -359,6 +359,10 @@ func (c *Client) updateOrganization(ctx context.Context, tx *bolt.Tx, id influxd
 		}
 	}
 
+	if upd.Description != nil {
+		o.Description = *upd.Description
+	}
+
 	if err := c.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
 		return nil, &influxdb.Error{
 			Err: err,

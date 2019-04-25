@@ -398,6 +398,10 @@ func (s *Service) updateOrganization(ctx context.Context, tx Tx, id influxdb.ID,
 		}
 	}
 
+	if upd.Description != nil {
+		o.Description = *upd.Description
+	}
+
 	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
 		return nil, &influxdb.Error{
 			Err: err,

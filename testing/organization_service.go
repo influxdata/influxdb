@@ -784,8 +784,9 @@ func UpdateOrganization(
 	t *testing.T,
 ) {
 	type args struct {
-		name *string
-		id   platform.ID
+		id          platform.ID
+		name        *string
+		description *string
 	}
 	type wants struct {
 		err          error
@@ -919,6 +920,34 @@ func UpdateOrganization(
 				err: platform.ErrOrgNameisEmpty,
 			},
 		},
+		{
+			name: "update description",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:          MustIDBase16(orgOneID),
+						Name:        "organization1",
+						Description: "organization1 description",
+					},
+					{
+						ID:          MustIDBase16(orgTwoID),
+						Name:        "organization2",
+						Description: "organization2 description",
+					},
+				},
+			},
+			args: args{
+				id:          MustIDBase16(orgOneID),
+				description: strPtr("changed"),
+			},
+			wants: wants{
+				organization: &platform.Organization{
+					ID:          MustIDBase16(orgOneID),
+					Name:        "organization1",
+					Description: "changed",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -929,6 +958,7 @@ func UpdateOrganization(
 
 			upd := platform.OrganizationUpdate{}
 			upd.Name = tt.args.name
+			upd.Description = tt.args.description
 
 			organization, err := s.UpdateOrganization(ctx, tt.args.id, upd)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
