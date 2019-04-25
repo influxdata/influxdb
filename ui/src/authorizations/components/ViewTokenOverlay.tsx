@@ -62,16 +62,18 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
     const p = this.props.auth.permissions.reduce((acc, {action, resource}) => {
       const {type} = resource
       const name = get(resource, 'name', '')
-
-      let key = `${type}-${name}`
-      let actions = get(resource, key, [])
-
+      let key = `${type}`
       if (name) {
+        key = `${type}-${name}`
+      }
+
+      let actions = get(acc, key, [])
+
+      if (name && actions) {
         return {...acc, [key]: [...actions, action]}
       }
 
-      actions = get(resource, type, [])
-
+      actions = get(acc, key || resource.type, [])
       return {...acc, [type]: [...actions, action]}
     }, {})
 

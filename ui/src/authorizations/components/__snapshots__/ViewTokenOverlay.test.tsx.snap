@@ -6,11 +6,11 @@ exports[`Account rendering renders! 1`] = `
 >
   <OverlayHeading
     onDismiss={[Function]}
-    title="im a token"
+    title="My token"
   />
   <OverlayBody>
     <CodeSnippet
-      copyText="ohEmfY80A9UsW_cicNXgOMIPIsUvU6K9YcpTfCPQE3NV8Y6nTsCwVghczATBPyQh96CoZkOW5DIKldya6Y84KA=="
+      copyText="RcW2uWiD-vfxujKyJCirK8un3lJsWPfiA6ulmWY_SlSITUal7Z180OwExiKKfrO98X8W6qGrd5hSGdag-hEpWw=="
       label="Code Snippet"
     />
     <PermissionsWidget
@@ -18,14 +18,33 @@ exports[`Account rendering renders! 1`] = `
       mode="read"
     >
       <PermissionsWidgetSection
-        id="orgs"
-        key="orgs"
+        id="orgs-a"
+        key="orgs-a"
         mode="read"
-        title="orgs"
+        title="orgs-a"
       >
         <PermissionsWidgetItem
-          id="orgs-write-orgs-orgs"
+          id="orgs-a-read-orgs-a-orgs-a"
           key="0"
+          label="read"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="authorizations"
+        key="authorizations"
+        mode="read"
+        title="authorizations"
+      >
+        <PermissionsWidgetItem
+          id="authorizations-read-authorizations-authorizations"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="authorizations-write-authorizations-authorizations"
+          key="1"
           label="write"
           selected="selected"
         />
@@ -37,8 +56,223 @@ exports[`Account rendering renders! 1`] = `
         title="buckets"
       >
         <PermissionsWidgetItem
-          id="buckets-write-buckets-buckets"
+          id="buckets-read-buckets-buckets"
           key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="buckets-write-buckets-buckets"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="dashboards"
+        key="dashboards"
+        mode="read"
+        title="dashboards"
+      >
+        <PermissionsWidgetItem
+          id="dashboards-read-dashboards-dashboards"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="dashboards-write-dashboards-dashboards"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="sources"
+        key="sources"
+        mode="read"
+        title="sources"
+      >
+        <PermissionsWidgetItem
+          id="sources-read-sources-sources"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="sources-write-sources-sources"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="tasks"
+        key="tasks"
+        mode="read"
+        title="tasks"
+      >
+        <PermissionsWidgetItem
+          id="tasks-read-tasks-tasks"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="tasks-write-tasks-tasks"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="telegrafs"
+        key="telegrafs"
+        mode="read"
+        title="telegrafs"
+      >
+        <PermissionsWidgetItem
+          id="telegrafs-read-telegrafs-telegrafs"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="telegrafs-write-telegrafs-telegrafs"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="users"
+        key="users"
+        mode="read"
+        title="users"
+      >
+        <PermissionsWidgetItem
+          id="users-read-users-users"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="users-write-users-users"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="variables"
+        key="variables"
+        mode="read"
+        title="variables"
+      >
+        <PermissionsWidgetItem
+          id="variables-read-variables-variables"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="variables-write-variables-variables"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="scrapers"
+        key="scrapers"
+        mode="read"
+        title="scrapers"
+      >
+        <PermissionsWidgetItem
+          id="scrapers-read-scrapers-scrapers"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="scrapers-write-scrapers-scrapers"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="secrets"
+        key="secrets"
+        mode="read"
+        title="secrets"
+      >
+        <PermissionsWidgetItem
+          id="secrets-read-secrets-secrets"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="secrets-write-secrets-secrets"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="labels"
+        key="labels"
+        mode="read"
+        title="labels"
+      >
+        <PermissionsWidgetItem
+          id="labels-read-labels-labels"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="labels-write-labels-labels"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="views"
+        key="views"
+        mode="read"
+        title="views"
+      >
+        <PermissionsWidgetItem
+          id="views-read-views-views"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="views-write-views-views"
+          key="1"
+          label="write"
+          selected="selected"
+        />
+      </PermissionsWidgetSection>
+      <PermissionsWidgetSection
+        id="documents"
+        key="documents"
+        mode="read"
+        title="documents"
+      >
+        <PermissionsWidgetItem
+          id="documents-read-documents-documents"
+          key="0"
+          label="read"
+          selected="selected"
+        />
+        <PermissionsWidgetItem
+          id="documents-write-documents-documents"
+          key="1"
           label="write"
           selected="selected"
         />
