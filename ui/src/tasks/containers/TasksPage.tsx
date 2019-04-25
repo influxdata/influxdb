@@ -12,6 +12,7 @@ import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
+import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Actions
 import {
@@ -129,37 +130,42 @@ class TasksPage extends PureComponent<Props, State> {
               <GetResources resource={ResourceTypes.Tasks}>
                 <GetResources resource={ResourceTypes.Labels}>
                   <GetAssetLimits>
-                    <FilterList<Task>
-                      list={this.filteredTasks}
-                      searchTerm={searchTerm}
-                      searchKeys={['name', 'labels[].name']}
+                    <AssetLimitAlert
+                      resourceName="tasks"
+                      limitStatus={limitStatus}
                     >
-                      {ts => (
-                        <TasksList
-                          searchTerm={searchTerm}
-                          tasks={ts}
-                          totalCount={this.totalTaskCount}
-                          onActivate={this.handleActivate}
-                          onDelete={this.handleDelete}
-                          onCreate={this.handleCreateTask}
-                          onClone={this.handleClone}
-                          onSelect={this.props.selectTask}
-                          onAddTaskLabels={onAddTaskLabels}
-                          onRemoveTaskLabels={onRemoveTaskLabels}
-                          onRunTask={onRunTask}
-                          onFilterChange={setSearchTerm}
-                          filterComponent={() => this.search}
-                          onUpdate={updateTaskName}
-                          onImportTask={this.summonOverlay}
-                          sortKey={sortKey}
-                          sortDirection={sortDirection}
-                          sortType={sortType}
-                          onClickColumn={this.handleClickColumn}
-                          checkTaskLimits={checkTaskLimits}
-                        />
-                      )}
-                    </FilterList>
-                    {this.hiddenTaskAlert}
+                      <FilterList<Task>
+                        list={this.filteredTasks}
+                        searchTerm={searchTerm}
+                        searchKeys={['name', 'labels[].name']}
+                      >
+                        {ts => (
+                          <TasksList
+                            searchTerm={searchTerm}
+                            tasks={ts}
+                            totalCount={this.totalTaskCount}
+                            onActivate={this.handleActivate}
+                            onDelete={this.handleDelete}
+                            onCreate={this.handleCreateTask}
+                            onClone={this.handleClone}
+                            onSelect={this.props.selectTask}
+                            onAddTaskLabels={onAddTaskLabels}
+                            onRemoveTaskLabels={onRemoveTaskLabels}
+                            onRunTask={onRunTask}
+                            onFilterChange={setSearchTerm}
+                            filterComponent={() => this.search}
+                            onUpdate={updateTaskName}
+                            onImportTask={this.summonOverlay}
+                            sortKey={sortKey}
+                            sortDirection={sortDirection}
+                            sortType={sortType}
+                            onClickColumn={this.handleClickColumn}
+                            checkTaskLimits={checkTaskLimits}
+                          />
+                        )}
+                      </FilterList>
+                      {this.hiddenTaskAlert}
+                    </AssetLimitAlert>
                   </GetAssetLimits>
                 </GetResources>
               </GetResources>

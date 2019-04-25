@@ -11,11 +11,11 @@ import {Page} from 'src/pageLayout'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import BucketsTab from 'src/buckets/components/BucketsTab'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 
 // Types
 import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types'
-import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 
 interface StateProps {
   org: Organization

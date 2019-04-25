@@ -11,6 +11,7 @@ import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/buckets/components/BucketList'
 import {PrettyBucket} from 'src/buckets/components/BucketRow'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
+import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Actions
 import {createBucket, updateBucket, deleteBucket} from 'src/buckets/actions'
@@ -77,7 +78,7 @@ class BucketsTab extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {org, buckets} = this.props
+    const {org, buckets, limitStatus} = this.props
     const {
       searchTerm,
       overlayState,
@@ -107,25 +108,27 @@ class BucketsTab extends PureComponent<Props, State> {
             titleText={this.createButtonTitleText}
           />
         </Tabs.TabContentsHeader>
-        <FilterList<PrettyBucket>
-          searchTerm={searchTerm}
-          searchKeys={['name', 'ruleString', 'labels[].name']}
-          list={prettyBuckets(buckets)}
-        >
-          {bs => (
-            <BucketList
-              buckets={bs}
-              emptyState={this.emptyState}
-              onUpdateBucket={this.handleUpdateBucket}
-              onDeleteBucket={this.handleDeleteBucket}
-              onFilterChange={this.handleFilterUpdate}
-              sortKey={sortKey}
-              sortDirection={sortDirection}
-              sortType={sortType}
-              onClickColumn={this.handleClickColumn}
-            />
-          )}
-        </FilterList>
+        <AssetLimitAlert resourceName="buckets" limitStatus={limitStatus}>
+          <FilterList<PrettyBucket>
+            searchTerm={searchTerm}
+            searchKeys={['name', 'ruleString', 'labels[].name']}
+            list={prettyBuckets(buckets)}
+          >
+            {bs => (
+              <BucketList
+                buckets={bs}
+                emptyState={this.emptyState}
+                onUpdateBucket={this.handleUpdateBucket}
+                onDeleteBucket={this.handleDeleteBucket}
+                onFilterChange={this.handleFilterUpdate}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                sortType={sortType}
+                onClickColumn={this.handleClickColumn}
+              />
+            )}
+          </FilterList>
+        </AssetLimitAlert>
         <Overlay visible={overlayState === OverlayState.Open}>
           <CreateBucketOverlay
             org={org}

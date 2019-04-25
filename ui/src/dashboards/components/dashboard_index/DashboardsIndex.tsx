@@ -14,6 +14,7 @@ import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Actions
 import {
@@ -27,8 +28,8 @@ import {checkDashboardLimits as checkDashboardLimitsAction} from 'src/cloud/acti
 // Types
 import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
-import {ComponentStatus} from 'src/clockface'
 import {extractDashboardLimits} from 'src/cloud/utils/limits'
+import {ComponentStatus} from '@influxdata/clockface'
 
 interface DispatchProps {
   handleDeleteDashboard: typeof deleteDashboardAsync
@@ -69,9 +70,9 @@ class DashboardIndex extends PureComponent<Props, State> {
       cloneDashboard,
       handleUpdateDashboard,
       handleDeleteDashboard,
+      limitStatus,
     } = this.props
     const {searchTerm} = this.state
-
     return (
       <>
         <Page titleTag="Dashboards">
@@ -96,22 +97,27 @@ class DashboardIndex extends PureComponent<Props, State> {
               <GetResources resource={ResourceTypes.Dashboards}>
                 <GetResources resource={ResourceTypes.Labels}>
                   <GetAssetLimits>
-                    <DashboardsIndexContents
-                      filterComponent={() => (
-                        <SearchWidget
-                          placeholderText="Filter dashboards..."
-                          onSearch={this.handleFilterDashboards}
-                          searchTerm={searchTerm}
-                        />
-                      )}
-                      onDeleteDashboard={handleDeleteDashboard}
-                      onCreateDashboard={createDashboard}
-                      onCloneDashboard={cloneDashboard}
-                      onUpdateDashboard={handleUpdateDashboard}
-                      searchTerm={searchTerm}
-                      onFilterChange={this.handleFilterDashboards}
-                      onImportDashboard={this.summonImportOverlay}
-                    />
+                    <AssetLimitAlert
+                      resourceName="dashboards"
+                      limitStatus={limitStatus}
+                    >
+                      <DashboardsIndexContents
+                        filterComponent={() => (
+                          <SearchWidget
+                            placeholderText="Filter dashboards..."
+                            onSearch={this.handleFilterDashboards}
+                            searchTerm={searchTerm}
+                          />
+                        )}
+                        onDeleteDashboard={handleDeleteDashboard}
+                        onCreateDashboard={createDashboard}
+                        onCloneDashboard={cloneDashboard}
+                        onUpdateDashboard={handleUpdateDashboard}
+                        searchTerm={searchTerm}
+                        onFilterChange={this.handleFilterDashboards}
+                        onImportDashboard={this.summonImportOverlay}
+                      />
+                    </AssetLimitAlert>
                   </GetAssetLimits>
                 </GetResources>
               </GetResources>
