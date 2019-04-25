@@ -10,10 +10,13 @@
 1. [13510](https://github.com/influxdata/influxdb/pull/13510): Add org name to dahboard page title 
 1. [13520](https://github.com/influxdata/influxdb/pull/13520): Add cautioning to bucket renaming
 1. [13560](https://github.com/influxdata/influxdb/pull/13560): Add option to generate all access token in tokens tab
+1. [13601](https://github.com/influxdata/influxdb/pull/13601): Add option to generate read/write token in tokens tab
 
 ### Bug Fixes
 1. [13584](https://github.com/influxdata/influxdb/pull/13584): Fixed scroll clipping found in label editing flow
 1. [13585](https://github.com/influxdata/influxdb/pull/13585): Prevent overlapping text and dot in time range dropdown
+1. [13602](https://github.com/influxdata/influxdb/pull/13602): Updated link in notes cell to a more useful site
+1. [13618](https://github.com/influxdata/influxdb/pull/13618): Show error message when adding line protocol
 
 ### UI Improvements
 1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay

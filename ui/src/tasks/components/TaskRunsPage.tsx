@@ -22,7 +22,10 @@ import {
 
 // Actions
 import {getRuns, runTask} from 'src/tasks/actions'
-import {IconFont} from 'src/clockface'
+import {IconFont, Sort} from 'src/clockface'
+
+// Types
+import {SortTypes} from 'src/shared/utils/sort'
 
 export interface Run extends APIRun {
   duration: string
@@ -45,9 +48,27 @@ interface StateProps {
 
 type Props = OwnProps & DispatchProps & StateProps
 
-class TaskRunsPage extends PureComponent<Props & WithRouterProps> {
+interface State {
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
+}
+
+type SortKey = keyof Run
+
+class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
+  constructor(props) {
+    super(props)
+    this.state = {
+      sortKey: 'scheduledFor',
+      sortDirection: Sort.Descending,
+      sortType: SortTypes.Date,
+    }
+  }
+
   public render() {
     const {params, runs} = this.props
+    const {sortKey, sortDirection, sortType} = this.state
 
     return (
       <SpinnerContainer
@@ -74,7 +95,14 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps> {
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
-              <TaskRunsList taskID={params.id} runs={runs} />
+              <TaskRunsList
+                taskID={params.id}
+                runs={runs}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                sortType={sortType}
+                onClickColumn={this.handleClickColumn}
+              />
             </div>
           </Page.Contents>
         </Page>
@@ -84,6 +112,16 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps> {
 
   public componentDidMount() {
     this.props.getRuns(this.props.params.id)
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    let sortType = SortTypes.String
+
+    if (sortKey !== 'status') {
+      sortType = SortTypes.Date
+    }
+
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private get title() {

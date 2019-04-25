@@ -15,6 +15,7 @@ import EditableName from 'src/shared/components/EditableName'
 
 // Types
 import {Authorization, AuthorizationUpdateRequest} from '@influxdata/influx'
+import {DEFAULT_TOKEN_DESCRIPTION} from 'src/dashboards/constants'
 
 interface OwnProps {
   auth: Authorization
@@ -38,7 +39,7 @@ class TokenRow extends PureComponent<Props> {
           <EditableName
             onUpdate={this.handleUpdateName}
             name={description}
-            noNameString="DEFAULT_BUCKET_NAME"
+            noNameString={DEFAULT_TOKEN_DESCRIPTION}
             onEditName={this.handleClickDescription}
           />
         </IndexList.Cell>

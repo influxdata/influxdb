@@ -54,10 +54,7 @@ class NoteEditor extends PureComponent<Props, State> {
         <div className="note-editor--controls">
           <div className="note-editor--helper">
             Need help using Markdown? Check out{' '}
-            <a
-              href="https://daringfireball.net/projects/markdown/syntax"
-              target="_blank"
-            >
+            <a href="https://www.markdownguide.org/cheat-sheet" target="_blank">
               this handy guide
             </a>
           </div>

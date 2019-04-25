@@ -37,6 +37,8 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyByte
 
 	// TODO(sgc): extend prefix when filtering by \x00 == <measurement>
 
+	var stats cursors.CursorStats
+
 	e.FileStore.ForEachFile(func(f TSMFile) bool {
 		if f.OverlapsTimeRange(start, end) && f.OverlapsKeyPrefixRange(prefix, prefix) {
 			// TODO(sgc): create f.TimeRangeIterator(minKey, maxKey, start, end)
@@ -49,7 +51,7 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyByte
 				}
 
 				key, _ := SeriesAndFieldFromCompositeKey(sfkey)
-				_, tags = models.ParseKeyBytesWithTags(key, tags[:0])
+				tags = models.ParseTagsWithTags(key, tags[:0])
 				curVal := tags.Get(tagKeyBytes)
 				if len(curVal) == 0 {
 					continue
@@ -63,6 +65,7 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyByte
 					tsmValues[string(curVal)] = struct{}{}
 				}
 			}
+			stats.Add(iter.Stats())
 		}
 		return true
 	})
@@ -73,7 +76,7 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyByte
 		}
 
 		key, _ := SeriesAndFieldFromCompositeKey(sfkey)
-		_, tags = models.ParseKeyBytesWithTags(key, tags[:0])
+		tags = models.ParseTagsWithTags(key, tags[:0])
 		curVal := tags.Get(tagKeyBytes)
 		if len(curVal) == 0 {
 			return nil
@@ -82,6 +85,9 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyByte
 		if _, ok := tsmValues[string(curVal)]; ok {
 			return nil
 		}
+
+		stats.ScannedValues += entry.values.Len()
+		stats.ScannedBytes += entry.values.Len() * 8 // sizeof timestamp
 
 		if entry.values.Contains(start, end) {
 			tsmValues[string(curVal)] = struct{}{}
@@ -95,7 +101,7 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgBucket, tagKeyByte
 	}
 	sort.Strings(vals)
 
-	return cursors.NewStringSliceIterator(vals), nil
+	return cursors.NewStringSliceIteratorWithStats(vals, stats), nil
 }
 
 func (e *Engine) tagValuesPredicate(ctx context.Context, orgBucket, tagKeyBytes []byte, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
@@ -140,6 +146,7 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgBucket, tagKeyBytes 
 		tags   models.Tags
 		keybuf []byte
 		sfkey  []byte
+		stats  cursors.CursorStats
 	)
 
 	for i := range keys {
@@ -156,7 +163,11 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgBucket, tagKeyBytes 
 		keybuf = models.AppendMakeKey(keybuf[:0], prefix, tags)
 		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
 
-		if e.Cache.Values(sfkey).Contains(start, end) {
+		values := e.Cache.Values(sfkey)
+		stats.ScannedValues += values.Len()
+		stats.ScannedBytes += values.Len() * 8 // sizeof timestamp
+
+		if values.Contains(start, end) {
 			tsmValues[string(curVal)] = struct{}{}
 			continue
 		}
@@ -173,13 +184,17 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgBucket, tagKeyBytes 
 		}
 	}
 
+	for _, iter := range iters {
+		stats.Add(iter.Stats())
+	}
+
 	vals := make([]string, 0, len(tsmValues))
 	for val := range tsmValues {
 		vals = append(vals, val)
 	}
 	sort.Strings(vals)
 
-	return cursors.NewStringSliceIterator(vals), nil
+	return cursors.NewStringSliceIteratorWithStats(vals, stats), nil
 }
 
 func (e *Engine) findCandidateKeys(ctx context.Context, orgBucket []byte, predicate influxql.Expr) ([][]byte, error) {
@@ -209,6 +224,160 @@ func (e *Engine) findCandidateKeys(ctx context.Context, orgBucket []byte, predic
 	}
 
 	return keys, nil
+}
+
+func (e *Engine) TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	encoded := tsdb.EncodeName(orgID, bucketID)
+
+	if predicate == nil {
+		return e.tagKeysNoPredicate(ctx, encoded[:], start, end)
+	}
+
+	return e.tagKeysPredicate(ctx, encoded[:], start, end, predicate)
+}
+
+func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgBucket []byte, start, end int64) (cursors.StringIterator, error) {
+	var tags models.Tags
+
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	prefix := models.EscapeMeasurement(orgBucket)
+
+	var keyset models.TagKeysSet
+
+	// TODO(sgc): extend prefix when filtering by \x00 == <measurement>
+
+	var stats cursors.CursorStats
+
+	e.FileStore.ForEachFile(func(f TSMFile) bool {
+		if f.OverlapsTimeRange(start, end) && f.OverlapsKeyPrefixRange(prefix, prefix) {
+			// TODO(sgc): create f.TimeRangeIterator(minKey, maxKey, start, end)
+			iter := f.TimeRangeIterator(prefix, start, end)
+			for i := 0; iter.Next(); i++ {
+				sfkey := iter.Key()
+				if !bytes.HasPrefix(sfkey, prefix) {
+					// end of org+bucket
+					break
+				}
+
+				key, _ := SeriesAndFieldFromCompositeKey(sfkey)
+				tags = models.ParseTagsWithTags(key, tags[:0])
+				if keyset.IsSupersetKeys(tags) {
+					continue
+				}
+
+				if iter.HasData() {
+					keyset.UnionKeys(tags)
+				}
+			}
+			stats.Add(iter.Stats())
+		}
+		return true
+	})
+
+	_ = e.Cache.ApplyEntryFn(func(sfkey []byte, entry *entry) error {
+		if !bytes.HasPrefix(sfkey, prefix) {
+			return nil
+		}
+
+		key, _ := SeriesAndFieldFromCompositeKey(sfkey)
+		tags = models.ParseTagsWithTags(key, tags[:0])
+		if keyset.IsSupersetKeys(tags) {
+			return nil
+		}
+
+		stats.ScannedValues += entry.values.Len()
+		stats.ScannedBytes += entry.values.Len() * 8 // sizeof timestamp
+
+		if entry.values.Contains(start, end) {
+			keyset.UnionKeys(tags)
+		}
+		return nil
+	})
+
+	return cursors.NewStringSliceIteratorWithStats(keyset.Keys(), stats), nil
+}
+
+func (e *Engine) tagKeysPredicate(ctx context.Context, orgBucket []byte, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
+	if err := ValidateTagPredicate(predicate); err != nil {
+		return nil, err
+	}
+
+	keys, err := e.findCandidateKeys(ctx, orgBucket, predicate)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(keys) == 0 {
+		return nil, nil
+	}
+
+	var files []TSMFile
+	defer func() {
+		for _, f := range files {
+			f.Unref()
+		}
+	}()
+	var iters []*TimeRangeIterator
+
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	prefix := models.EscapeMeasurement(orgBucket)
+
+	e.FileStore.ForEachFile(func(f TSMFile) bool {
+		if f.OverlapsTimeRange(start, end) && f.OverlapsKeyPrefixRange(prefix, prefix) {
+			f.Ref()
+			files = append(files, f)
+			iters = append(iters, f.TimeRangeIterator(prefix, start, end))
+		}
+		return true
+	})
+
+	var keyset models.TagKeysSet
+
+	// reusable buffers
+	var (
+		tags   models.Tags
+		keybuf []byte
+		sfkey  []byte
+		stats  cursors.CursorStats
+	)
+
+	for i := range keys {
+		_, tags = tsdb.ParseSeriesKeyInto(keys[i], tags[:0])
+		if keyset.IsSupersetKeys(tags) {
+			continue
+		}
+
+		keybuf = models.AppendMakeKey(keybuf[:0], prefix, tags)
+		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
+
+		values := e.Cache.Values(sfkey)
+		stats.ScannedValues += values.Len()
+		stats.ScannedBytes += values.Len() * 8 // sizeof timestamp
+
+		if values.Contains(start, end) {
+			keyset.UnionKeys(tags)
+			continue
+		}
+
+		for _, iter := range iters {
+			if exact, _ := iter.Seek(sfkey); !exact {
+				continue
+			}
+
+			if iter.HasData() {
+				keyset.UnionKeys(tags)
+				break
+			}
+		}
+	}
+
+	for _, iter := range iters {
+		stats.Add(iter.Stats())
+	}
+
+	return cursors.NewStringSliceIteratorWithStats(keyset.Keys(), stats), nil
 }
 
 var errUnexpectedTagComparisonOperator = errors.New("unexpected tag comparison operator")

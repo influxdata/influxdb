@@ -24,9 +24,10 @@ type Document struct {
 // DocumentMeta is information that is universal across documents. Ideally
 // data in the meta should be indexed and queryable.
 type DocumentMeta struct {
-	Name    string `json:"name"`
-	Type    string `json:"type,omitempty"`
-	Version string `json:"version,omitempty"`
+	Name        string `json:"name"`
+	Type        string `json:"type,omitempty"`
+	Description string `json:"description,omitempty"`
+	Version     string `json:"version,omitempty"`
 }
 
 // DocumentStore is used to perform CRUD operations on documents. It follows an options

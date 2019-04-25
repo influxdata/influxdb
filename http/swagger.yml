@@ -9,7 +9,7 @@ paths:
     post:
       summary: Exchange basic auth credentials for session
       security:
-        - basicAuth: []
+        - BasicAuth: []
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
       responses:
@@ -327,7 +327,6 @@ paths:
           - in: query
             name: orgID
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
@@ -382,17 +381,27 @@ paths:
             type: string
           required: true
           description: ID of telegraf config
+        - in: header
+          name: Accept
+          required: false
+          schema:
+            type: string
+            default: application/toml
+            enum:
+              - application/toml
+              - application/json
+              - application/octet-stream
       responses:
         '200':
           description: telegraf config details
           content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Telegraf"
             application/toml:
               example: "[agent]\ninterval = \"10s\""
               schema:
                 type: string
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Telegraf"
             application/octet-stream:
               example: "[agent]\ninterval = \"10s\""
               schema:
@@ -736,7 +745,6 @@ paths:
           - in: query
             name: orgID
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
@@ -750,6 +758,8 @@ paths:
       summary: create a scraper target
       tags:
         - ScraperTargets
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: scraper target to create
         required: true
@@ -1555,6 +1565,8 @@ paths:
       tags:
         - Ready
       summary: Get the readiness of a instance at startup. Allow us to confirm the instance is prepared to accept requests.
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       responses:
         '200':
           description: the instance is ready
@@ -1632,7 +1644,6 @@ paths:
           - in: query
             name: org
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
@@ -1654,6 +1665,7 @@ paths:
         - Sources
       summary: Delete a source
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: sourceID
           schema:
@@ -1793,7 +1805,6 @@ paths:
           - in: query
             name: org
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
@@ -1849,7 +1860,6 @@ paths:
           - in: query
             name: orgID
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
@@ -4229,6 +4239,7 @@ paths:
         - Tasks
       summary: manually start a run of the task now overriding the current schedule.
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - in: path
           name: taskID
           schema:
@@ -4492,7 +4503,7 @@ paths:
         - Users
       summary: Update password
       security:
-        - basicAuth: []
+        - BasicAuth: []
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
       requestBody:
@@ -4713,6 +4724,8 @@ paths:
       tags:
         - Users
       summary: Create a user
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
       requestBody:
         description: user to create
         required: true
@@ -4818,7 +4831,7 @@ paths:
         - Users
       summary: Update password
       security:
-        - basicAuth: []
+        - BasicAuth: []
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5554,9 +5567,9 @@ components:
           type: string
         name:
           type: string
-        organizationID:
+        description:
           type: string
-        organization:
+        orgID:
           type: string
         rp:
           type: string
@@ -5638,6 +5651,9 @@ components:
           type: string
           description: Time event occurred, RFC3339Nano.
           format: date-time
+        userID:
+          type: string
+          description: ID of the user who operated the event.
         links:
           type: object
           properties:
@@ -5690,6 +5706,8 @@ components:
           readOnly: true
           type: string
         name:
+          type: string
+        description:
           type: string
         status:
           description: if inactive the organization is inactive.
@@ -6944,6 +6962,8 @@ components:
           type: string
         type:
           type: string
+        description:
+          type: string
         version:
           type: string
       required:
@@ -7756,3 +7776,7 @@ components:
         token:
           description: Override the existing token associated with the task.
           type: string
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic

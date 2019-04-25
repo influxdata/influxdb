@@ -65,6 +65,7 @@ export interface DataLoadersState {
   activeLPTab: LineProtocolTab
   telegrafConfigID: string
   lpStatus: RemoteDataState
+  lpError: string
   lineProtocolBody: string
   precision: WritePrecision
   scraperTarget: ScraperTarget

@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/gather"
@@ -35,7 +36,6 @@ import (
 	"github.com/influxdata/influxdb/source"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/readservice"
-	"github.com/influxdata/influxdb/task"
 	taskbackend "github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
@@ -524,7 +524,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
 		taskSvc = coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, combinedTaskService)
-		taskSvc = task.NewValidator(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
+		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
 		m.taskControlService = combinedTaskService
 	}
 

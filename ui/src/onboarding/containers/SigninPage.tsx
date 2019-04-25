@@ -14,7 +14,7 @@ import {dismissAllNotifications} from 'src/shared/actions/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SplashPage from 'src/shared/components/splash_page/SplashPage'
 import SigninForm from 'src/onboarding/components/SigninForm'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {SpinnerContainer, TechnoSpinner, Panel} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 import VersionInfo from 'src/shared/components/VersionInfo'
 
@@ -62,13 +62,17 @@ class SigninPage extends PureComponent<Props, State> {
         loading={this.state.status}
         spinnerComponent={<TechnoSpinner />}
       >
-        <SplashPage panelWidthPixels={300}>
-          <SplashPage.Panel>
-            <SplashPage.Logo />
-            <SplashPage.Header title="InfluxData" />
-            <SigninForm />
-          </SplashPage.Panel>
-          <VersionInfo widthPixels={300} />
+        <SplashPage>
+          <Panel className="signin-panel">
+            <Panel.Body>
+              <SplashPage.Logo />
+              <SplashPage.Header title="InfluxData" />
+              <SigninForm />
+            </Panel.Body>
+            <Panel.Footer>
+              <VersionInfo />
+            </Panel.Footer>
+          </Panel>
         </SplashPage>
       </SpinnerContainer>
     )

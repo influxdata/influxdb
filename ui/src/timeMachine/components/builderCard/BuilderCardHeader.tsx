@@ -14,11 +14,12 @@ export default class BuilderCardHeader extends PureComponent<Props> {
   }
 
   public render() {
-    const {testID} = this.props
+    const {testID, children} = this.props
 
     return (
       <div className="builder-card--header" data-testid={testID}>
         {this.title}
+        {children}
         {this.deleteButton}
       </div>
     )
