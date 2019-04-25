@@ -1,6 +1,6 @@
 // All copy for notifications should be stored here for easy editing
 // and ensuring stylistic consistency
-import {Notification} from 'src/types'
+import {Notification, NotificationStyle} from 'src/types'
 
 type NotificationExcludingMessage = Pick<
   Notification,
@@ -11,19 +11,19 @@ import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
 const defaultErrorNotification: NotificationExcludingMessage = {
-  type: 'error',
+  style: NotificationStyle.Error,
   icon: 'alert-triangle',
   duration: TEN_SECONDS,
 }
 
 const defaultSuccessNotification: NotificationExcludingMessage = {
-  type: 'success',
+  style: NotificationStyle.Success,
   icon: 'checkmark',
   duration: FIVE_SECONDS,
 }
 
 const defaultDeletionNotification: NotificationExcludingMessage = {
-  type: 'primary',
+  style: NotificationStyle.Primary,
   icon: 'trash',
   duration: FIVE_SECONDS,
 }
@@ -32,7 +32,7 @@ const defaultDeletionNotification: NotificationExcludingMessage = {
 //  ----------------------------------------------------------------------------
 
 export const newVersion = (version: string): Notification => ({
-  type: 'info',
+  style: NotificationStyle.Info,
   icon: 'cubo-uniform',
   duration: INFINITE,
   message: `Welcome to the latest Chronograf${version}. Local settings cleared.`,
@@ -44,14 +44,14 @@ export const loadLocalSettingsFailed = (error: string): Notification => ({
 })
 
 export const presentationMode = (): Notification => ({
-  type: 'primary',
+  style: NotificationStyle.Primary,
   icon: 'expand-b',
   duration: 7500,
   message: 'Press ESC to exit Presentation Mode.',
 })
 
 export const sessionTimedOut = (): Notification => ({
-  type: 'primary',
+  style: NotificationStyle.Primary,
   icon: 'triangle',
   duration: INFINITE,
   message: 'Your session has timed out. Log in again to continue.',
@@ -178,7 +178,6 @@ export const removedDashboardLabelFailed = (): Notification => ({
 })
 
 // Variables & URL Queries
-//  ----------------------------------------------------------------------------
 export const invalidTimeRangeValueInURLQuery = (): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',

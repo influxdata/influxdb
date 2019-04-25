@@ -76,16 +76,16 @@ class Notification extends Component<Props, State> {
   }
 
   private get dataTestID(): string {
-    const {type} = this.props.notification
-    return `notification-${type}`
+    const {style} = this.props.notification
+    return `notification-${style}`
   }
 
   private get notificationClassname(): string {
     const {
-      notification: {type},
+      notification: {style},
     } = this.props
 
-    return `notification notification-${type}`
+    return `notification notification-${style}`
   }
 
   private get containerClassname(): string {
