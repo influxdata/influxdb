@@ -1,4 +1,7 @@
-import {initialState, notifications} from 'src/shared/reducers/notifications'
+import {
+  initialState,
+  notificationsReducer,
+} from 'src/shared/reducers/notifications'
 
 import {notify, dismissNotification} from 'src/shared/actions/notifications'
 
@@ -18,7 +21,10 @@ const exampleNotifications = [exampleNotification]
 
 describe('Shared.Reducers.notifications', () => {
   it('should publish a notification', () => {
-    const [actual] = notifications(initialState, notify(exampleNotification))
+    const [actual] = notificationsReducer(
+      initialState,
+      notify(exampleNotification)
+    )
 
     const [expected] = [exampleNotification, ...initialState]
 
@@ -37,7 +43,7 @@ describe('Shared.Reducers.notifications', () => {
         icon: 'zap',
       }
 
-      const actual = notifications(
+      const actual = notificationsReducer(
         exampleNotifications,
         notify(newNotification)
       )
@@ -48,7 +54,7 @@ describe('Shared.Reducers.notifications', () => {
   })
 
   it('should dismiss a notification', () => {
-    const actual = notifications(
+    const actual = notificationsReducer(
       exampleNotifications,
       dismissNotification(notificationID)
     )
