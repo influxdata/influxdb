@@ -107,7 +107,7 @@ func (s *Scheduler) doGather(ctx context.Context) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	targets, err := s.Targets.ListTargets(ctx)
+	targets, err := s.Targets.ListTargets(ctx, influxdb.ScraperTargetFilter{})
 	if err != nil {
 		s.Logger.Error("cannot list targets", zap.Error(err))
 		tracing.LogError(span, err)

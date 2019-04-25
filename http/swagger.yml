@@ -743,8 +743,25 @@ paths:
       parameters:
           - $ref: '#/components/parameters/TraceSpan'
           - in: query
+            name: name
+            description: specifies the name of the scraper target.
+            schema:
+              type: string
+          - in: query
+            name: id
+            description: ID list of scraper targets to return. If both this and owner are specified, only ids is used.
+            schema:
+              type: array
+              items:
+                type: string
+          - in: query
             name: orgID
-            description: specifies the organization of the resource
+            description: specifies the organization id of the scraper target
+            schema:
+              type: string
+          - in: query
+            name: org
+            description: specifies the organization name of the scraper target
             schema:
               type: string
       responses:

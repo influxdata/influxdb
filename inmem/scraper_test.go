@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
-func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, string, func()) {
+func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
 	ctx := context.Background()
@@ -20,6 +20,11 @@ func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T)
 	for _, m := range f.UserResourceMappings {
 		if err := s.PutUserResourceMapping(ctx, m); err != nil {
 			t.Fatalf("failed to populate user resource mapping")
+		}
+	}
+	for _, o := range f.Organizations {
+		if err := s.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate orgs")
 		}
 	}
 	return s, OpPrefix, func() {}
