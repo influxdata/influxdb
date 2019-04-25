@@ -74,7 +74,7 @@ class TimeMachineQueries extends PureComponent<Props> {
               />
             ))}
             <Button
-              customClass="time-machine-queries--new"
+              className="time-machine-queries--new"
               shape={ButtonShape.Square}
               icon={IconFont.PlusSkinny}
               size={ComponentSize.ExtraSmall}

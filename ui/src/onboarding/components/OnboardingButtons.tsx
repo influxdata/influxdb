@@ -61,7 +61,7 @@ class OnboardingButtons extends PureComponent<Props> {
             text={nextButtonText}
             size={ComponentSize.Medium}
             type={ButtonType.Submit}
-            data-testid="next"
+            testID="next"
             ref={this.submitRef}
             status={nextButtonStatus}
             tabIndex={0}
@@ -89,7 +89,7 @@ class OnboardingButtons extends PureComponent<Props> {
         text={backButtonText}
         size={ComponentSize.Medium}
         onClick={onClickBack}
-        data-testid="back"
+        testID="back"
         tabIndex={1}
       />
     )
@@ -104,12 +104,12 @@ class OnboardingButtons extends PureComponent<Props> {
     return (
       <div className="wizard--skip-container">
         <Button
-          customClass="wizard--skip-button"
+          className="wizard--skip-button"
           size={ComponentSize.Medium}
           color={ComponentColor.Default}
           text={skipButtonText}
           onClick={onClickSkip}
-          data-testid="skip"
+          testID="skip"
         />
       </div>
     )

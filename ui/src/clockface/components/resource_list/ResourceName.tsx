@@ -100,7 +100,7 @@ class ResourceName extends Component<Props, State> {
             onFocus={this.handleInputFocus}
             onChange={this.handleInputChange}
             onKeyDown={this.handleKeyDown}
-            customClass="resource-name--input"
+            className="resource-name--input"
             value={workingName}
             testID={inputTestID}
           />

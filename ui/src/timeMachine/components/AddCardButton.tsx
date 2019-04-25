@@ -14,7 +14,7 @@ export default class AddCardButton extends PureComponent<Props> {
     const {onClick} = this.props
     return (
       <Button
-        customClass="query-builder--add-card-button"
+        className="query-builder--add-card-button"
         onClick={onClick}
         icon={IconFont.Plus}
         shape={ButtonShape.Square}

@@ -86,7 +86,7 @@ class RenamablePageTitle extends PureComponent<Props, State> {
         onFocus={this.handleInputFocus}
         onChange={this.handleInputChange}
         onKeyDown={this.handleKeyDown}
-        customClass="renamable-page-title--input"
+        className="renamable-page-title--input"
         value={workingName}
       />
     )

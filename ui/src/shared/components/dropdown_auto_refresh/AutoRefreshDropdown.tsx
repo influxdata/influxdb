@@ -149,7 +149,7 @@ export default class AutoRefreshDropdown extends Component<Props> {
           shape={ButtonShape.Square}
           icon={IconFont.Refresh}
           onClick={onManualRefresh}
-          customClass="autorefresh-dropdown--pause"
+          className="autorefresh-dropdown--pause"
         />
       )
     }

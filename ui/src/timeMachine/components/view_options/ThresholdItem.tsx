@@ -66,7 +66,7 @@ class Threshold extends PureComponent<Props, State> {
         {!isBase && (
           <Input
             value={workingValue.toString()}
-            customClass="threshold-item--input"
+            className="threshold-item--input"
             type={InputType.Number}
             onChange={this.handleChangeWorkingValue}
             onBlur={this.handleBlur}

@@ -23,7 +23,7 @@ class SideBarButton extends Component<Props> {
 
     return (
       <Button
-        customClass="side-bar--button"
+        className="side-bar--button"
         text={text}
         titleText={titleText}
         onClick={onClick}

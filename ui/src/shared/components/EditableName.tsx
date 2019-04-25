@@ -88,7 +88,7 @@ class EditableName extends Component<Props, State> {
             onFocus={this.handleInputFocus}
             onChange={this.handleInputChange}
             onKeyDown={this.handleKeyDown}
-            customClass="editable-name--input"
+            className="editable-name--input"
             value={workingName}
           />
         </ClickOutside>
