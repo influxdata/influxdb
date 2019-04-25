@@ -17,20 +17,17 @@ export const notificationsReducer = (
           ...notification,
           id: uuid.v4(),
         }
-        draftState.push(publishedNotification)
-
+        draftState.unshift(publishedNotification)
         return
       }
 
       case 'DISMISS_NOTIFICATION': {
         const {id} = action.payload
-        draftState = state.filter(n => n.id !== id)
-        return
+        return draftState.filter(n => n.id !== id)
       }
 
       case 'DISMISS_ALL_NOTIFICATIONS': {
-        draftState = []
-        return
+        return []
       }
     }
   })

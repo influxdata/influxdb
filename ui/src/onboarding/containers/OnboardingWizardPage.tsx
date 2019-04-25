@@ -39,9 +39,7 @@ interface ConnectedStateProps {
   links: Links
 }
 
-type Props = PassedProps &
-  WithRouterProps &
-  ConnectedStateProps &
+type Props = PassedProps & WithRouterProps & ConnectedStateProps
 
 @ErrorHandling
 export class OnboardingWizardPage extends PureComponent<Props, State> {
@@ -158,11 +156,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
 
 const mstp = ({links}: AppState) => ({links})
 
-export default connect<
-  ConnectedStateProps,
-  ConnectedDispatchProps,
-  PassedProps
->(
+export default connect<ConnectedStateProps, null, PassedProps>(
   mstp,
   null
 )(withRouter<Props>(OnboardingWizardPage))
