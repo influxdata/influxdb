@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	nethttp "net/http"
 	_ "net/http/pprof" // needed to add pprof to our binary.
@@ -477,9 +478,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 		pointsWriter = m.engine
 
+		// TODO(cwolff): Figure out a good default per-query memory limit:
+		//   https://github.com/influxdata/influxdb/issues/13642
 		const (
 			concurrencyQuota         = 10
-			memoryBytesQuotaPerQuery = 1e6
+			memoryBytesQuotaPerQuery = math.MaxInt64
 			QueueSize                = 10
 		)
 
