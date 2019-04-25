@@ -147,7 +147,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     link: string
   ) => {
     const {onSetBucketInfo, onSetDataLoadersType, router} = this.props
-    onSetBucketInfo(bucket.organizationID, bucket.name, bucket.id)
+    onSetBucketInfo(bucket.orgID, bucket.name, bucket.id)
 
     this.setState({
       bucketID: bucket.id,
