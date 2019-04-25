@@ -24,7 +24,7 @@ import {
 // Types
 import {Bucket} from '@influxdata/influx'
 import {Organization, RemoteDataState} from 'src/types'
-import {PublishNotificationAction} from 'src/types/actions/notifications'
+import {PublishNotificationAction} from 'src/shared/actions/notifications'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',

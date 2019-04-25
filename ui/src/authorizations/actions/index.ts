@@ -20,7 +20,7 @@ import {
 // Types
 import {RemoteDataState, GetState} from 'src/types'
 import {Authorization} from '@influxdata/influx'
-import {PublishNotificationAction} from 'src/types/actions/notifications'
+import {PublishNotificationAction} from 'src/shared/actions/notifications'
 
 export type Action =
   | SetAuthorizations
