@@ -110,7 +110,7 @@ export const createBucket = (bucket: Bucket) => async (
 
     const createdBucket = await client.buckets.create({
       ...bucket,
-      organizationID: org.id,
+      orgID: org.id,
     })
 
     dispatch(addBucket(createdBucket))

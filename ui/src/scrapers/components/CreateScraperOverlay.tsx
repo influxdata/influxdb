@@ -111,8 +111,9 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   }
 
   private handleSelectBucket = (bucket: Bucket) => {
-    const {organizationID, id} = bucket
-    const scraper = {...this.state.scraper, orgID: organizationID, bucketID: id}
+    const {orgID, id} = bucket
+
+    const scraper = {...this.state.scraper, orgID: orgID, bucketID: id}
 
     this.setState({scraper})
   }

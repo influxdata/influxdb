@@ -122,7 +122,7 @@ export const specificBucketsPermissions = (
       action: permission,
       resource: {
         type: PermissionResource.TypeEnum.Buckets,
-        orgID: b.organizationID,
+        orgID: b.orgID,
         id: b.id,
       },
     }

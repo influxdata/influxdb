@@ -194,8 +194,8 @@ class Collectors extends PureComponent<Props, State> {
     } = this.props
 
     if (buckets && buckets.length) {
-      const {organizationID, name, id} = buckets[0]
-      onSetBucketInfo(organizationID, name, id)
+      const {orgID, name, id} = buckets[0]
+      onSetBucketInfo(orgID, name, id)
     }
 
     onSetDataLoadersType(DataLoaderType.Scraping)
