@@ -25,7 +25,7 @@ import {
   bucketUpdateSuccess,
   bucketRenameSuccess,
   bucketRenameFailed,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 
 export type Action = SetBuckets | AddBucket | EditBucket | RemoveBucket
 

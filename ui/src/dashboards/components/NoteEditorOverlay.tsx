@@ -24,7 +24,7 @@ import {
 import {notify} from 'src/shared/actions/notifications'
 
 // Utils
-import {savingNoteFailed} from 'src/shared/copy/v2/notifications'
+import {savingNoteFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {RemoteDataState} from 'src/types'

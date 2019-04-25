@@ -15,7 +15,7 @@ import {
   authorizationUpdateFailed,
   authorizationDeleteFailed,
   authorizationCreateSuccess,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 
 // Types
 import {RemoteDataState, GetState} from 'src/types'

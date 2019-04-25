@@ -21,7 +21,7 @@ import {
   taskCloneFailed,
   taskRunSuccess,
   taskGetFailed,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 import {
   importTaskFailed,
   importTaskSucceeded,

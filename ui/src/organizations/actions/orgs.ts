@@ -19,7 +19,7 @@ import {
   orgEditFailed,
   orgRenameSuccess,
   orgRenameFailed,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 
 // Types
 import {Bucket} from '@influxdata/influx'
