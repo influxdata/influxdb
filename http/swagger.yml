@@ -327,7 +327,6 @@ paths:
           - in: query
             name: orgID
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
@@ -746,7 +745,6 @@ paths:
           - in: query
             name: orgID
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
@@ -1646,7 +1644,6 @@ paths:
           - in: query
             name: org
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
@@ -1808,7 +1805,6 @@ paths:
           - in: query
             name: org
             description: specifies the organization of the resource
-            required: true
             schema:
               type: string
       responses:
