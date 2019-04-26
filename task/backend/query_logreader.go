@@ -310,10 +310,12 @@ func (re *runExtractor) extractRecord(cr flux.ColReader) error {
 					r.Status = col.Label
 				}
 			case RunSuccess.String(), RunFail.String(), RunCanceled.String():
-				r.FinishedAt = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
-				// Finished can be set unconditionally;
-				// it's fine to overwrite if the status was already set to started.
-				r.Status = col.Label
+				if cr.Times(j).Value(i) != 0 {
+					r.FinishedAt = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
+					// Finished can be set unconditionally;
+					// it's fine to overwrite if the status was already set to started.
+					r.Status = col.Label
+				}
 			}
 		}
 
