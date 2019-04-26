@@ -87,10 +87,10 @@ class RefreshingView extends PureComponent<Props, State> {
           key={manualRefresh}
           variables={this.variableAssignments}
         >
-          {({tables, loading, error, isInitialFetch}) => {
+          {({tables, loading, errorMessage, isInitialFetch}) => {
             return (
               <EmptyQueryView
-                errorMessage={error ? error.message : null}
+                errorMessage={errorMessage}
                 tables={tables}
                 loading={loading}
                 isInitialFetch={isInitialFetch}
