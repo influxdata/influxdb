@@ -12,7 +12,7 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Constants
 import {readLimitReached} from 'src/shared/copy/notifications'
-import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'

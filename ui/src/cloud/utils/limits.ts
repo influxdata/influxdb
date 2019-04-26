@@ -1,5 +1,5 @@
 import {get} from 'lodash'
-import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 import {LimitsState} from 'src/cloud/reducers/limits'
 import {LimitStatus} from 'src/cloud/actions/limits'
 

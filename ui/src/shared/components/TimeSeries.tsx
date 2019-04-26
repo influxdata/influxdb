@@ -15,7 +15,7 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 // Constants
-import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 import {readLimitReached} from 'src/shared/copy/notifications'
 
 // Actions
