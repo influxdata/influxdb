@@ -52,8 +52,7 @@ export const MEAN: FluxToolbarFunction = {
   args: [
     {
       name: 'column',
-      desc:
-        'The column on which to compute the mean. Defaults to `"_value"`',
+      desc: 'The column on which to compute the mean. Defaults to `"_value"`',
       type: 'String',
     },
   ],
@@ -100,8 +99,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
       {
@@ -200,14 +198,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'value',
-        desc:
-          'The value to search for.',
+        desc: 'The value to search for.',
         type: 'Boolean, Integer, UInteger, Float, String, Time',
       },
       {
         name: 'set',
-        desc:
-          'The set of values in which to search.',
+        desc: 'The set of values in which to search.',
         type: 'Boolean, Integer, UInteger, Float, String, Time',
       },
     ],
@@ -223,8 +219,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
     ],
@@ -355,8 +350,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
       {
@@ -385,13 +379,13 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
     ],
     package: '',
-    desc: 'Computes the difference between subsequent records in the specified column.',
+    desc:
+      'Computes the difference between subsequent records in the specified column.',
     example: 'difference(nonNegative: false, column: "_value")',
     category: 'Aggregates',
     link:
@@ -786,8 +780,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
     ],
@@ -1187,7 +1180,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'x',
-        desc: 'The value used in the operation. Should be greater than -1 and less than 1.',
+        desc:
+          'The value used in the operation. Should be greater than -1 and less than 1.',
         type: 'Float',
       },
     ],
@@ -1257,7 +1251,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'x',
-        desc: 'The value used in the operation. Should be greater than -1 and less than 1.',
+        desc:
+          'The value used in the operation. Should be greater than -1 and less than 1.',
         type: 'Float',
       },
     ],
@@ -1411,7 +1406,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'x',
-        desc: 'The value used in the operation. Should be greater than 0 and less than 2.',
+        desc:
+          'The value used in the operation. Should be greater than 0 and less than 2.',
         type: 'Float',
       },
     ],
@@ -1427,7 +1423,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'x',
-        desc: 'The value used in the operation. Should be greater than -1 and less than 1.',
+        desc:
+          'The value used in the operation. Should be greater than -1 and less than 1.',
         type: 'Float',
       },
     ],
@@ -1566,7 +1563,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc: 'Returns the square root of `p*p + q*q`, taking care to avoid overflow and underflow.',
+    desc:
+      'Returns the square root of `p*p + q*q`, taking care to avoid overflow and underflow.',
     example: 'math.hypot(p: r.opp, p: r.adj)',
     category: 'Transformations',
     link:
@@ -1664,7 +1662,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'n',
         desc: 'The order number.',
         type: 'Float',
-      },{
+      },
+      {
         name: 'x',
         desc: 'The value used in the operation.',
         type: 'Float',
@@ -1708,7 +1707,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc: 'Returns the natural logarithm and sign (-1 or +1) of `math.gamma(x:x)`.',
+    desc:
+      'Returns the natural logarithm and sign (-1 or +1) of `math.gamma(x:x)`.',
     example: 'math.lgamma(x: r._value)',
     category: 'Transformations',
     link:
@@ -1788,7 +1788,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc: 'Returns positive infinity if `sign >= 0`, negative infinity if `sign < 0`.',
+    desc:
+      'Returns positive infinity if `sign >= 0`, negative infinity if `sign < 0`.',
     example: 'math.m_inf(sign: r._value)',
     category: 'Transformations',
     link:
@@ -1899,8 +1900,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the next representable float value after x towards y.',
+    desc: 'Returns the next representable float value after x towards y.',
     example: 'math.nextafter(x: r.x_value, y: r.y_value)',
     category: 'Transformations',
     link:
@@ -1921,8 +1921,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the base-x exponential of y, `x**y`.',
+    desc: 'Returns the base-x exponential of y, `x**y`.',
     example: 'math.pow(x: r.x_value, y: r.y_value)',
     category: 'Transformations',
     link:
@@ -1938,8 +1937,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the base-10 exponential of n, `10**n`.',
+    desc: 'Returns the base-10 exponential of n, `10**n`.',
     example: 'math.pow10(n: r._value)',
     category: 'Transformations',
     link:
@@ -1960,8 +1958,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the IEEE 754 floating-point remainder of `x / y`.',
+    desc: 'Returns the IEEE 754 floating-point remainder of `x / y`.',
     example: 'math.remainder(x: r.numerator, y: r.denominator)',
     category: 'Transformations',
     link:
@@ -1977,8 +1974,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the nearest integer, rounding half away from zero.',
+    desc: 'Returns the nearest integer, rounding half away from zero.',
     example: 'math.round(x: r._value)',
     category: 'Transformations',
     link:
@@ -1994,8 +1990,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the nearest integer, rounding ties to even.',
+    desc: 'Returns the nearest integer, rounding ties to even.',
     example: 'math.roundtoeven(x: r._value)',
     category: 'Transformations',
     link:
@@ -2011,8 +2006,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Reports whether x is negative or negative zero.',
+    desc: 'Reports whether x is negative or negative zero.',
     example: 'math.signbit(x: r._value)',
     category: 'Transformations',
     link:
@@ -2028,8 +2022,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the sine of the radian argument x.',
+    desc: 'Returns the sine of the radian argument x.',
     example: 'math.sin(x: r._value)',
     category: 'Transformations',
     link:
@@ -2045,8 +2038,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the values of `math.sin(x:x)` and `math.cos(x:x)`.',
+    desc: 'Returns the values of `math.sin(x:x)` and `math.cos(x:x)`.',
     example: 'math.sincos(x: r._value)',
     category: 'Transformations',
     link:
@@ -2062,8 +2054,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the hyperbolic sine of x.',
+    desc: 'Returns the hyperbolic sine of x.',
     example: 'math.sinh(x: r._value)',
     category: 'Transformations',
     link:
@@ -2079,8 +2070,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the square root of x.',
+    desc: 'Returns the square root of x.',
     example: 'math.sqrt(x: r._value)',
     category: 'Transformations',
     link:
@@ -2096,8 +2086,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the tangent of the radian argument x.',
+    desc: 'Returns the tangent of the radian argument x.',
     example: 'math.tan(x: r._value)',
     category: 'Transformations',
     link:
@@ -2113,8 +2102,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the hyperbolic tangent of x.',
+    desc: 'Returns the hyperbolic tangent of x.',
     example: 'math.tanh(x: r._value)',
     category: 'Transformations',
     link:
@@ -2130,8 +2118,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the integer value of x.',
+    desc: 'Returns the integer value of x.',
     example: 'math.trunc(x: r._value)',
     category: 'Transformations',
     link:
@@ -2147,8 +2134,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the order-zero Bessel function of the second kind.',
+    desc: 'Returns the order-zero Bessel function of the second kind.',
     example: 'math.y0(x: r._value)',
     category: 'Transformations',
     link:
@@ -2164,8 +2150,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the order-one Bessel function of the second kind.',
+    desc: 'Returns the order-one Bessel function of the second kind.',
     example: 'math.y1(x: r._value)',
     category: 'Transformations',
     link:
@@ -2186,8 +2171,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'math',
-    desc:
-      'Returns the order-n Bessel function of the second kind.',
+    desc: 'Returns the order-n Bessel function of the second kind.',
     example: 'math.yn(n: 3, x: r._value)',
     category: 'Transformations',
     link:
@@ -2209,8 +2193,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'column',
-        desc:
-          'The column on which to compute the mean. Defaults to `"_value"`',
+        desc: 'The column on which to compute the mean. Defaults to `"_value"`',
         type: 'String',
       },
     ],
@@ -2331,7 +2314,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'fn',
-        desc: 'Function to apply to each record with a reducer object. The function expects two objects: `r` and `accumulator`.',
+        desc:
+          'Function to apply to each record with a reducer object. The function expects two objects: `r` and `accumulator`.',
         type: 'Function',
       },
       {
@@ -2343,7 +2327,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'Aggregates records in each table according to the reducer, `fn`',
-    example: 'reduce(fn: (r, accumulator) => ({ sum: r._value + accumulator.sum }), identity: {sum: 0.0})',
+    example:
+      'reduce(fn: (r, accumulator) => ({ sum: r._value + accumulator.sum }), identity: {sum: 0.0})',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/reduce/',
@@ -2421,8 +2406,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
     ],
@@ -2461,8 +2445,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
     ],
@@ -2533,8 +2516,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
       {
@@ -2626,7 +2608,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'cutset',
-        desc: 'The leading and trailing characters to trim from the string value. Only characters that match exactly are trimmed.',
+        desc:
+          'The leading and trailing characters to trim from the string value. Only characters that match exactly are trimmed.',
         type: 'String',
       },
     ],
@@ -2652,7 +2635,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'strings',
-    desc: 'Removes a prefix from a string. Strings that do not start with the prefix are returned unchanged.',
+    desc:
+      'Removes a prefix from a string. Strings that do not start with the prefix are returned unchanged.',
     example: 'strings.trimPrefix(v: r._value, prefix: "abc_")',
     category: 'Transformations',
     link:
@@ -2689,7 +2673,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'strings',
-    desc: 'Removes a suffix from a string. Strings that do not end with the suffix are returned unchanged.',
+    desc:
+      'Removes a suffix from a string. Strings that do not end with the suffix are returned unchanged.',
     example: 'strings.trimSuffix(v: r._value, suffix: "_123")',
     category: 'Transformations',
     link:
@@ -2700,8 +2685,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'column',
-        desc:
-          'The column on which to operate. Defaults to `"_value"`.',
+        desc: 'The column on which to operate. Defaults to `"_value"`.',
         type: 'String',
       },
     ],
@@ -3024,7 +3008,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'bucket',
-        desc: 'The bucket from which to return tag keys for a specific measurement.',
+        desc:
+          'The bucket from which to return tag keys for a specific measurement.',
         type: 'String',
       },
       {
@@ -3045,7 +3030,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'bucket',
-        desc: 'The bucket from which to return tag keys for a specific measurement.',
+        desc:
+          'The bucket from which to return tag keys for a specific measurement.',
         type: 'String',
       },
       {
@@ -3061,7 +3047,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag values for a specific measurement.',
-    example: 'v1.measurementTagValues(bucket: "default", measurement: "mem", tag: "host")',
+    example:
+      'v1.measurementTagValues(bucket: "default", measurement: "mem", tag: "host")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/measurementtagvalues/',
@@ -3092,12 +3079,14 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'predicate',
-        desc: 'The predicate function that filters tag keys. Defaults to `(r) => true.`',
+        desc:
+          'The predicate function that filters tag keys. Defaults to `(r) => true.`',
         type: 'Function',
       },
       {
         name: 'start',
-        desc: 'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
+        desc:
+          'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
         type: 'Duration, Time',
       },
     ],
@@ -3123,12 +3112,14 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'predicate',
-        desc: 'The predicate function that filters tag values. Defaults to `(r) => true.`',
+        desc:
+          'The predicate function that filters tag values. Defaults to `(r) => true.`',
         type: 'Function',
       },
       {
         name: 'start',
-        desc: 'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
+        desc:
+          'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
         type: 'Duration, Time',
       },
     ],
