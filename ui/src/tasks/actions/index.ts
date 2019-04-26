@@ -394,8 +394,10 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
 
     if (taskOptions.taskScheduleType === TaskSchedule.interval) {
       updatedTask.every = taskOptions.interval
+      updatedTask.cron = null
     } else {
       updatedTask.cron = taskOptions.cron
+      updatedTask.every = null
     }
 
     await client.tasks.update(task.id, updatedTask)
