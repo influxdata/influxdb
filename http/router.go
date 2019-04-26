@@ -11,6 +11,7 @@ import (
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // NewRouter returns a new router with a 404 handler, a 405 handler, and a panic handler.
@@ -56,11 +57,10 @@ func panicHandler(w http.ResponseWriter, r *http.Request, rcv interface{}) {
 	}
 
 	l := getPanicLogger()
-	l.Error(
-		pe.Msg,
-		zap.String("err", pe.Err.Error()),
-		zap.String("stack", fmt.Sprintf("%s", debug.Stack())),
-	)
+	if entry := l.Check(zapcore.ErrorLevel, pe.Msg); entry != nil {
+		entry.Stack = string(debug.Stack())
+		entry.Write(zap.Error(pe.Err))
+	}
 
 	EncodeError(ctx, pe, w)
 }
