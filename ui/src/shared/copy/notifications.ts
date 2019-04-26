@@ -1,6 +1,6 @@
 // All copy for notifications should be stored here for easy editing
 // and ensuring stylistic consistency
-import {Notification} from 'src/types'
+import {Notification, NotificationStyle} from 'src/types'
 
 type NotificationExcludingMessage = Pick<
   Notification,
@@ -11,19 +11,19 @@ import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
 const defaultErrorNotification: NotificationExcludingMessage = {
-  type: 'error',
+  style: NotificationStyle.Error,
   icon: 'alert-triangle',
   duration: TEN_SECONDS,
 }
 
 const defaultSuccessNotification: NotificationExcludingMessage = {
-  type: 'success',
+  style: NotificationStyle.Success,
   icon: 'checkmark',
   duration: FIVE_SECONDS,
 }
 
 const defaultDeletionNotification: NotificationExcludingMessage = {
-  type: 'primary',
+  style: NotificationStyle.Primary,
   icon: 'trash',
   duration: FIVE_SECONDS,
 }
@@ -32,7 +32,7 @@ const defaultDeletionNotification: NotificationExcludingMessage = {
 //  ----------------------------------------------------------------------------
 
 export const newVersion = (version: string): Notification => ({
-  type: 'info',
+  style: NotificationStyle.Info,
   icon: 'cubo-uniform',
   duration: INFINITE,
   message: `Welcome to the latest Chronograf${version}. Local settings cleared.`,
@@ -44,14 +44,14 @@ export const loadLocalSettingsFailed = (error: string): Notification => ({
 })
 
 export const presentationMode = (): Notification => ({
-  type: 'primary',
+  style: NotificationStyle.Primary,
   icon: 'expand-b',
   duration: 7500,
   message: 'Press ESC to exit Presentation Mode.',
 })
 
 export const sessionTimedOut = (): Notification => ({
-  type: 'primary',
+  style: NotificationStyle.Primary,
   icon: 'triangle',
   duration: INFINITE,
   message: 'Your session has timed out. Log in again to continue.',
@@ -178,7 +178,6 @@ export const removedDashboardLabelFailed = (): Notification => ({
 })
 
 // Variables & URL Queries
-//  ----------------------------------------------------------------------------
 export const invalidTimeRangeValueInURLQuery = (): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
@@ -243,6 +242,7 @@ export const copyToClipboardSuccess = (
 ): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
+  type: 'copyToClipboardSuccess',
   message: `${title} '${text}' has been copied to clipboard.`,
 })
 
@@ -396,18 +396,21 @@ export const writeLimitReached = (): Notification => ({
   ...defaultErrorNotification,
   message: `It looks like you have exceeded the write rate limits allowed as part of your plan. If you would like to increase your write rate limits, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
+  type: 'writeLimitReached',
 })
 
 export const readLimitReached = (): Notification => ({
   ...defaultErrorNotification,
   message: `It looks like you have exceeded the query limits allowed as part of your plan. Try reducing the number of cells on your dashboard. If you would like to increase your query limits, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
+  type: 'readLimitReached',
 })
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
   message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
+  type: 'resourceLimitReached',
 })
 
 export const taskNotCreated = (additionalMessage: string): Notification => ({
