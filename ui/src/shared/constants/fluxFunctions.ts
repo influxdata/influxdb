@@ -14,6 +14,7 @@ export const FROM: FluxToolbarFunction = {
       type: 'String',
     },
   ],
+  package: '',
   desc:
     'Used to retrieve data from an InfluxDB data source. It returns a stream of tables from the specified bucket. Each unique series is contained within its own table. Each record in the table represents a single point in the series.',
   example: 'from(bucket: "default")',
@@ -37,6 +38,7 @@ export const RANGE: FluxToolbarFunction = {
       type: 'Duration',
     },
   ],
+  package: '',
   desc:
     "Filters records based on time bounds. Each input table's records are filtered to contain only records that exist within the time bounds. Each input table's group key value is modified to fit within the time bounds. Tables where all records exists outside the time bounds are filtered entirely.",
   example: 'range(start: -15m, stop: now)',
@@ -55,6 +57,7 @@ export const MEAN: FluxToolbarFunction = {
       type: 'String',
     },
   ],
+  package: '',
   desc: 'Computes the mean or average of non-null records in the input table.',
   example: 'mean(column: "_value")',
   category: 'Aggregates',
@@ -72,6 +75,7 @@ export const UNION: FluxToolbarFunction = {
       type: 'Array of Strings',
     },
   ],
+  package: '',
   desc:
     'Concatenates two or more input streams into a single output stream. The output schemas of the `union()` function is the union of all input schemas. A sort operation may be added if a specific sort order is needed.',
   example: 'union(tables: [table1, table2])',
@@ -119,6 +123,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
+    package: '',
     desc: 'Applies an aggregate function to fixed windows of time.',
     example: 'aggregateWindow(every: 1m, fn: mean)',
     category: 'Aggregates',
@@ -134,6 +139,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String, Integer, UInteger, Float',
       },
     ],
+    package: '',
     desc: 'Converts a single value to a boolean.',
     example: 'bool(v: r._value)',
     category: 'Type Conversions',
@@ -155,6 +161,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc: 'Sorts a table by columns and keeps only the bottom n rows.',
     example: 'bottom(n:10, columns: ["_value"])',
     category: 'Selectors',
@@ -164,6 +171,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'buckets',
     args: [],
+    package: '',
     desc: 'Returns a list of buckets in the organization.',
     example: 'buckets()',
     category: 'Inputs',
@@ -180,6 +188,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Lists the column labels of input tables.',
     example: 'columns(column: "_value")',
     category: 'Transformations',
@@ -202,6 +211,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean, Integer, UInteger, Float, String, Time',
       },
     ],
+    package: '',
     desc: 'Tests whether a value is a member of a set.',
     example: 'contains(value: 1, set: [1,2,3])',
     category: 'Test',
@@ -218,6 +228,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Outputs the number of records in the specified column.',
     example: 'count(column: "_value")',
     category: 'Aggregates',
@@ -249,6 +260,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
+    package: '',
     desc:
       'Computes the covariance between two streams by first joining the streams, then performing the covariance operation.',
     example:
@@ -279,6 +291,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Computes the covariance between two columns.',
     example:
       'covariance(columns: ["column_x", "column_y"], pearsonr: false, valueDst: "_value")',
@@ -318,6 +331,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Computes a running sum for non-null records in the table. The output table schema will be the same as the input table.',
     example: 'cumulativeSum(columns: ["_value"])',
@@ -351,6 +365,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Computes the rate of change per unit of time between subsequent non-null records. The output table schema will be the same as the input table.',
     example:
@@ -375,6 +390,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Computes the difference between subsequent records in the specified column.',
     example: 'difference(nonNegative: false, column: "_value")',
     category: 'Aggregates',
@@ -390,6 +406,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Returns the unique values for a given column.',
     example: 'distinct(column: "host")',
     category: 'Selectors',
@@ -412,6 +429,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Function',
       },
     ],
+    package: '',
     desc:
       'Removes specified columns from a table. Columns can be specified either through a list or a predicate function. When a dropped column is part of the group key, it will be removed from the key.',
     example: 'drop(columns: ["col1", "col2"])',
@@ -433,6 +451,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Duplicates a specified column in a table.',
     example: 'duplicate(column: "column-name", as: "duplicate-name")',
     category: 'Transformations',
@@ -448,6 +467,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Converts a single value to a duration.',
     example: 'duration(v: r._value)',
     category: 'Type Conversions',
@@ -475,6 +495,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
+    package: '',
     desc:
       'replaces all null values in an input stream and replace them with a non-null value.',
     example: 'fill(column: "_value", usePrevious: true)',
@@ -492,6 +513,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Function',
       },
     ],
+    package: '',
     desc:
       'Filters data based on conditions defined in the function. The output tables have the same schema as the corresponding input tables.',
     example: 'filter(fn: (r) => r._measurement == "cpu")',
@@ -502,6 +524,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'first',
     args: [],
+    package: '',
     desc: 'Selects the first non-null record from an input table.',
     example: 'first()',
     category: 'Selectors',
@@ -517,6 +540,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String, Integer, UInteger, Boolean',
       },
     ],
+    package: '',
     desc: 'Converts a single value to a float.',
     example: 'float(v: r._value)',
     category: 'Type Conversions',
@@ -540,6 +564,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Groups records based on their values for specific columns. It produces tables with new group keys based on provided properties.',
     example: 'group(columns: ["host", "_measurement"], mode:"by")',
@@ -567,6 +592,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Returns the top `n` records from all groups using the average of each group.',
     example: 'highestAverage(n:10, groupColumns: ["host"])',
@@ -594,6 +620,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Returns the top `n` records from all groups using the last value of each group.',
     example: 'highestCurrent(n:10, groupColumns: ["host"])',
@@ -621,6 +648,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Returns the top `n` records from all groups using the maximum of each group.',
     example: 'highestMax(n:10, groupColumns: ["host"])',
@@ -662,6 +690,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
+    package: '',
     desc:
       'Approximates the cumulative distribution function of a dataset by counting data frequencies for a list of buckets.',
     example:
@@ -704,6 +733,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Float',
       },
     ],
+    package: '',
     desc:
       'Approximates a quantile given a histogram that approximates the cumulative distribution of the dataset.',
     example:
@@ -722,6 +752,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Computes the total non-negative difference between values in a table.',
     example: 'increase(column: "_value")',
@@ -738,6 +769,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String, Integer, UInteger, Float, Boolean',
       },
     ],
+    package: '',
     desc: 'Converts a single value to a integer.',
     example: 'int(v: r._value)',
     category: 'Type Conversions',
@@ -759,6 +791,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Computes the area under the curve per unit of time of subsequent non-null records. The curve is defined using `_time` as the domain and record values as the range.',
     example: 'integral(unit: 10s, column: "_value")',
@@ -794,6 +827,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Function',
       },
     ],
+    package: '',
     desc: 'Generates a set of time intervals over a range of time.',
     example: 'intervals()',
     category: 'Miscellaneous',
@@ -820,6 +854,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Merges two or more input streams, whose values are equal on a set of common columns, into a single output stream. The resulting schema is the union of the input schemas. The resulting group key is the union of the input group keys.',
     example:
@@ -844,6 +879,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Function',
       },
     ],
+    package: '',
     desc:
       'Returns a table containing only the specified columns, ignoring all others. Only columns in the group key that are also specified in the `keep()` function will be kept in the resulting group key. It is the inverse of `drop`.',
     example: 'keep(columns: ["col1", "col2"])',
@@ -861,6 +897,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       "Outputs the group key of input tables. For each input table, it outputs a table with the same group key columns, plus a _value column containing the labels of the input table's group key.",
     example: 'keys(column: "_value")',
@@ -884,6 +921,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Function',
       },
     ],
+    package: '',
     desc:
       "Returns a table with the input table's group key plus two columns, `_key` and `_value`, that correspond to unique column + value pairs from the input table.",
     example: 'keyValues(keyColumns: ["usage_idle", "usage_user"])',
@@ -894,6 +932,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'last',
     args: [],
+    package: '',
     desc: 'Selects the last non-null record from an input table.',
     example: 'last()',
     category: 'Selectors',
@@ -915,6 +954,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Integer',
       },
     ],
+    package: '',
     desc:
       'Limits the number of records in output tables to a fixed number `n` records after the `offset`. If the input table has less than `n` records, all records are be output.',
     example: 'limit(n:10, offset: 0)',
@@ -947,6 +987,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
+    package: '',
     desc: 'Generates a list of linearly separated floats.',
     example: 'linearBins(start: 0.0, width: 5.0, count: 20, infinity: true)',
     category: 'Miscellaneous',
@@ -978,6 +1019,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
+    package: '',
     desc: 'Generates a list of exponentially separated floats.',
     example:
       'logarithmicBins(start: 1.0, factor: 2.0, count: 10, infinty: true)',
@@ -1005,6 +1047,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Returns the bottom `n` records from all groups using the average of each group.',
     example: 'lowestAverage(n:10, groupColumns: ["host"])',
@@ -1032,6 +1075,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Returns the bottom `n` records from all groups using the last value of each group.',
     example: 'lowestCurrent(n:10, groupColumns: ["host"])',
@@ -1059,6 +1103,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Returns the bottom `n` records from all groups using the maximum of each group.',
     example: 'lowestMin(n:10, groupColumns: ["host"])',
@@ -1082,6 +1127,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
+    package: '',
     desc: 'Applies a function to each record in the input tables.',
     example: 'map(fn: (r) => r._value * r._value, mergeKey: true)',
     category: 'Transformations',
@@ -2150,6 +2196,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'max',
     args: [],
+    package: '',
     desc: 'Selects record with the highest `_value` from the input table.',
     example: 'max()',
     category: 'Selectors',
@@ -2167,6 +2214,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Returns the median `_value` of an input table. The `median()` function can only be used with float value types.',
     example: 'median(column: "_value")',
@@ -2177,6 +2225,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'min',
     args: [],
+    package: '',
     desc: 'Selects record with the lowest `_value` from the input table.',
     example: 'min()',
     category: 'Selectors',
@@ -2202,6 +2251,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Computes the Pearson R correlation coefficient between two streams by first joining the streams, then performing the covariance operation normalized to compute R.',
     example: 'pearsonr(x: table1, y: table2, on: ["_time", "_field"])',
@@ -2230,6 +2280,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Collects values stored vertically (column-wise) in a table and aligns them horizontally (row-wise) into logical sets.',
     example:
@@ -2265,6 +2316,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Float',
       },
     ],
+    package: '',
     desc:
       'This is both an aggregate and selector function depending on the `method` used. When using the `estimate_tdigest` or `exact_mean` methods, it outputs non-null records with values that fall within the specified quantile. When using the `exact_selector` method, it outputs the non-null record with the value that represents the specified quantile.',
     example:
@@ -2289,6 +2341,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Object',
       },
     ],
+    package: '',
     desc: 'Aggregates records in each table according to the reducer, `fn`',
     example: 'reduce(fn: (r, accumulator) => ({ sum: r._value + accumulator.sum }), identity: {sum: 0.0})',
     category: 'Aggregates',
@@ -2311,6 +2364,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Function',
       },
     ],
+    package: '',
     desc:
       'Renames specified columns in a table. If a column is renamed and is part of the group key, the column name in the group key will be updated.',
     example: 'rename(columns: {host: "server", facility: "datacenter"})',
@@ -2333,6 +2387,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Integer',
       },
     ],
+    package: '',
     desc: 'Selects a subset of the records from the input table.',
     example: 'sample(n:5, pos: -1)',
     category: 'Selectors',
@@ -2353,6 +2408,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Assigns a static value to each record in the input table. The key may modify an existing column or add a new column to the tables. If the modified column is part of the group key, the output tables are regrouped as needed.',
     example: 'set(key: "myKey", value: "myValue")',
@@ -2370,6 +2426,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Outputs the skew of non-null records as a float.',
     example: 'skew(column: "_value")',
     category: 'Aggregates',
@@ -2391,6 +2448,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
     ],
+    package: '',
     desc:
       'Orders the records within each table. One output table is produced for each input table. The output tables will have the same schema as their corresponding input tables.',
     example: 'sort(columns: ["_value"], desc: false)',
@@ -2408,6 +2466,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Outputs the difference between the minimum and maximum values in the specified column. Only `uint`, `int`, and `float` column types can be used.',
     example: 'spread(column: "_value")',
@@ -2431,6 +2490,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Computes the number of consecutive records in a given state and stores the increment in a new column.',
     example: 'stateCount(fn: (r) => r._field == "state", column: "stateCount")',
@@ -2459,6 +2519,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Duration',
       },
     ],
+    package: '',
     desc:
       'Computes the duration of a given state and stores the increment in a new column.',
     example:
@@ -2483,6 +2544,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Computes the standard deviation of non-null records in specified column.',
     example: 'stddev(column: "_value", mode: "sample")',
@@ -2499,6 +2561,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Integer, UInteger, Float, Boolean, Duration, Time',
       },
     ],
+    package: '',
     desc: 'Converts a single value to a string.',
     example: 'string(v: r._value)',
     category: 'Type Conversions',
@@ -2642,6 +2705,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Computes the sum of non-null records in the specified column.',
     example: 'sum(column: "_value")',
     category: 'Aggregates',
@@ -2651,6 +2715,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'systemTime',
     args: [],
+    package: '',
     desc: 'Returns the current system time.',
     example: 'systemTime()',
     category: 'Miscellaneous',
@@ -2723,6 +2788,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String, Integer, UInteger',
       },
     ],
+    package: '',
     desc: 'Converts a single value to a time.',
     example: 'time(v: r._value)',
     category: 'Type Conversions',
@@ -2745,6 +2811,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc:
       'Adds a fixed duration to time columns. The output table schema is the same as the input table.',
     example: 'timeShift(duration: 10h, columns: ["_start", "_stop", "_time"])',
@@ -2809,6 +2876,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Function',
       },
     ],
+    package: '',
     desc: 'The `to()` function writes data to an InfluxDB v2.0 bucket.',
     example:
       'to(bucket: "my-bucket", org: "my-org", host: "http://example.com:8086", token: "xxxxxx", timeColumn: "_time", tagColumns: ["tag1", "tag2", "tag3"], fieldFn: (r) => ({ [r._field]: r._value }))',
@@ -2819,6 +2887,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'toBool',
     args: [],
+    package: '',
     desc: 'Converts all values in the `_value` column to a boolean.',
     example: 'toBool()',
     category: 'Type Conversions',
@@ -2828,6 +2897,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'toDuration',
     args: [],
+    package: '',
     desc: 'Converts all values in the `_value` column to a duration.',
     example: 'toDuration()',
     category: 'Type Conversions',
@@ -2846,6 +2916,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'toInt',
     args: [],
+    package: '',
     desc: 'Converts all values in the `_value` column to a integer.',
     example: 'toInt()',
     category: 'Type Conversions',
@@ -2855,6 +2926,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'toString',
     args: [],
+    package: '',
     desc: 'Converts a value to a string.',
     example: 'toString()',
     category: 'Type Conversions',
@@ -2864,6 +2936,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'toTime',
     args: [],
+    package: '',
     desc: 'Converts a value to a time.',
     example: 'toTime()',
     category: 'Type Conversions',
@@ -2873,6 +2946,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'toUInt',
     args: [],
+    package: '',
     desc: 'Converts a value to an unsigned integer.',
     example: 'toUInt()',
     category: 'Type Conversions',
@@ -2894,6 +2968,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Array of Strings',
       },
     ],
+    package: '',
     desc: 'Sorts a table by columns and keeps only the top n rows.',
     example: 'top(n:10, cols: ["_value"])',
     category: 'Selectors',
@@ -2909,6 +2984,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String, Integer, Boolean',
       },
     ],
+    package: '',
     desc: 'Converts a single value to a uinteger.',
     example: 'uint(v: r._value)',
     category: 'Type Conversions',
@@ -2925,6 +3001,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc: 'Returns all rows containing unique values in a specified column.',
     example: 'unique(column: "_value")',
     category: 'Selectors',
@@ -3105,6 +3182,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Groups records based on a time value. New columns are added to uniquely identify each window. Those columns are added to the group key of the output tables. A single input record will be placed into zero or more output tables, depending on the specific windowing function.',
     example:
@@ -3122,6 +3200,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
     ],
+    package: '',
     desc:
       'Indicates the input tables received should be delivered as a result of the query. Yield outputs the input stream unmodified. A query may have multiple results, each identified by the name provided to the `yield()` function.',
     example: 'yield(name: "custom-name")',
