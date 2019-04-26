@@ -27,6 +27,7 @@ export interface FluxToolbarFunction {
   name: string
   args: FluxToolbarArg[]
   desc: string
+  package: string
   example: string
   category: string
   link: string
