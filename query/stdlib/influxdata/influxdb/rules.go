@@ -154,23 +154,23 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
 	// The schema mutator needs to correspond to a keep call
 	// on the column specified by the keys procedure.
 	if len(keepSpec.Mutations) != 1 {
-		return nil, false, nil
+		return pn, false, nil
 	} else if m, ok := keepSpec.Mutations[0].(*universe.KeepOpSpec); !ok {
-		return nil, false, nil
+		return pn, false, nil
 	} else if m.Predicate != nil || len(m.Columns) != 1 {
 		// We have a keep mutator, but it uses a function or
 		// it retains more than one column so it does not match
 		// what we want.
-		return nil, false, nil
+		return pn, false, nil
 	} else if m.Columns[0] != keysSpec.Column {
 		// We are not keeping the value column so this optimization
 		// will not work.
-		return nil, false, nil
+		return pn, false, nil
 	}
 
 	// The distinct spec should keep only the value column.
 	if distinctSpec.Column != keysSpec.Column {
-		return nil, false, nil
+		return pn, false, nil
 	}
 
 	// We have passed all of the necessary prerequisites
@@ -216,32 +216,32 @@ func (rule PushDownReadTagValuesRule) Rewrite(pn plan.Node) (plan.Node, bool, er
 
 	// All of the values need to be grouped into the same table.
 	if groupSpec.GroupMode != flux.GroupModeBy {
-		return nil, false, nil
+		return pn, false, nil
 	} else if len(groupSpec.GroupKeys) > 0 {
-		return nil, false, nil
+		return pn, false, nil
 	}
 
 	// The column that distinct is for will be the tag key.
 	tagKey := distinctSpec.Column
 	if !isValidTagKeyForTagValues(tagKey) {
-		return nil, false, nil
+		return pn, false, nil
 	}
 
 	// The schema mutator needs to correspond to a keep call
 	// on the tag key column.
 	if len(keepSpec.Mutations) != 1 {
-		return nil, false, nil
+		return pn, false, nil
 	} else if m, ok := keepSpec.Mutations[0].(*universe.KeepOpSpec); !ok {
-		return nil, false, nil
+		return pn, false, nil
 	} else if m.Predicate != nil || len(m.Columns) != 1 {
 		// We have a keep mutator, but it uses a function or
 		// it retains more than one column so it does not match
 		// what we want.
-		return nil, false, nil
+		return pn, false, nil
 	} else if m.Columns[0] != tagKey {
 		// We are not keeping the value column so this optimization
 		// will not work.
-		return nil, false, nil
+		return pn, false, nil
 	}
 
 	// We have passed all of the necessary prerequisites
