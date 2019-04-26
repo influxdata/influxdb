@@ -8,6 +8,7 @@ export interface Notification {
   icon: string
   duration: number
   message: string
+  type?: string
 }
 
 export enum NotificationStyle {

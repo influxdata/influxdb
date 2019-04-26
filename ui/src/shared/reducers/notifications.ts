@@ -17,7 +17,13 @@ export const notificationsReducer = (
           ...notification,
           id: uuid.v4(),
         }
-        draftState.unshift(publishedNotification)
+        const matchIndex = state.findIndex(
+          n => n.type && notification.type && n.type === notification.type
+        )
+        const isUnique = matchIndex === -1
+        if (isUnique) {
+          draftState.unshift(publishedNotification)
+        }
         return
       }
 

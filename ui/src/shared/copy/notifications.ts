@@ -242,6 +242,7 @@ export const copyToClipboardSuccess = (
 ): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
+  type: 'copyToClipboardSuccess',
   message: `${title} '${text}' has been copied to clipboard.`,
 })
 
@@ -395,18 +396,21 @@ export const writeLimitReached = (): Notification => ({
   ...defaultErrorNotification,
   message: `It looks like you have exceeded the write rate limits allowed as part of your plan. If you would like to increase your write rate limits, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
+  type: 'writeLimitReached',
 })
 
 export const readLimitReached = (): Notification => ({
   ...defaultErrorNotification,
   message: `It looks like you have exceeded the query limits allowed as part of your plan. Try reducing the number of cells on your dashboard. If you would like to increase your query limits, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
+  type: 'readLimitReached',
 })
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
   message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
   duration: INFINITE,
+  type: 'resourceLimitReached',
 })
 
 export const taskNotCreated = (additionalMessage: string): Notification => ({
