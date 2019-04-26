@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
@@ -224,12 +225,10 @@ func (c *Client) FindOrganizations(ctx context.Context, filter influxdb.Organiza
 func (c *Client) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
 	op := getOp(influxdb.OpCreateOrganization)
 	return c.db.Update(func(tx *bolt.Tx) error {
-		unique := c.uniqueOrganizationName(ctx, tx, o)
-		if !unique {
+		if err := c.validOrganizationName(ctx, tx, o); err != nil {
 			return &influxdb.Error{
-				Code: influxdb.EConflict,
-				Op:   op,
-				Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
+				Op:  op,
+				Err: err,
 			}
 		}
 
@@ -309,9 +308,18 @@ func forEachOrganization(ctx context.Context, tx *bolt.Tx, fn func(*influxdb.Org
 	return nil
 }
 
-func (c *Client) uniqueOrganizationName(ctx context.Context, tx *bolt.Tx, o *influxdb.Organization) bool {
+func (c *Client) validOrganizationName(ctx context.Context, tx *bolt.Tx, o *influxdb.Organization) error {
+	if o.Name = strings.TrimSpace(o.Name); o.Name == "" {
+		return influxdb.ErrOrgNameisEmpty
+	}
 	v := tx.Bucket(organizationIndex).Get(organizationIndexKey(o.Name))
-	return len(v) == 0
+	if len(v) != 0 {
+		return &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
+		}
+	}
+	return nil
 }
 
 // UpdateOrganization updates a organization according the parameters set on upd.
@@ -347,6 +355,11 @@ func (c *Client) updateOrganization(ctx context.Context, tx *bolt.Tx, id influxd
 			}
 		}
 		o.Name = *upd.Name
+		if err := c.validOrganizationName(ctx, tx, o); err != nil {
+			return nil, &influxdb.Error{
+				Err: err,
+			}
+		}
 	}
 
 	if err := c.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
