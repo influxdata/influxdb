@@ -60,6 +60,7 @@ class TokensTab extends PureComponent<Props, State> {
             placeholder="Filter Tokens..."
             onChange={this.handleChangeSearchTerm}
             widthPixels={256}
+            testID="input-field--filter"
           />
           <GenerateTokenDropdown
             onSelectAllAccess={this.handleGenerateAllAccess}

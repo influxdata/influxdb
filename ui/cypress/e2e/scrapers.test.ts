@@ -74,7 +74,7 @@ describe('Scrapers', () => {
       })
 
       cy.getByTestID('table-cell').within(() => {
-        cy.getByTestID('editable-name').click()
+        cy.getByTestID('editable-name--toggle').click()
         cy.getByTestID('input-field').type(`${newScraperName}{enter}`)
       })
     })

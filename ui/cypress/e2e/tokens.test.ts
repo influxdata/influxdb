@@ -4,15 +4,12 @@ import {Organization} from '@influxdata/influx'
 
 describe('tokens', () => {
 
-  let descs: string[];
-  let stati: boolean[];
-  let authData: {description: string , status: boolean}[]
+  let authData: {description: string , status: boolean, id: string}[]
+  let testTokens: {id: string, description: string, status: string, permissions: object[]}[]
 
   beforeEach(() => {
     cy.flush()
 
-    descs = [];
-    stati = [];
     authData = [];
 
     cy.signin().then(({body}) => {
@@ -20,57 +17,51 @@ describe('tokens', () => {
         org: {id},
       } = body
       cy.wrap(body.org).as('org')
+      console.log("DEBUG session cookie " + JSON.stringify(cy.getCookie('foobar')))
 
       cy.fixture('routes').then(({orgs}) => {
         cy.visit(`${orgs}/${id}/tokens`)
       })
 
-      cy.request('api/v2/authorizations').then((resp) => {
+//      cy.server().route('POST', 'api/v2/authorizations').as('createToken')
 
-        //console.log("DEBUG " + JSON.stringify(resp.body.authorizations[0].description))
-
-//        descs.push(resp.body.authorizations[0].description)
-        authData.push({description: resp.body.authorizations[0].description,
-          status: resp.body.authorizations[0].status === 'active'})
-
-        cy.createToken(id, 'token test \u0950', 'active',
-          [{action: 'write', resource: {type: 'views'}},
+      testTokens = [{id: id, description: 'token test \u0950', status: 'active', permissions: [{action: 'write', resource: {type: 'views'}},
+          {action: 'write', resource: {type: 'documents'}},
+          {action: 'write', resource: {type: 'dashboards'}},
+          {action: 'write', resource: {type: 'buckets'}}]},
+        {id: id, description: 'token test 02', status: 'inactive', permissions: [{action: 'write', resource: {type: 'views'}},
             {action: 'write', resource: {type: 'documents'}},
             {action: 'write', resource: {type: 'dashboards'}},
-            {action: 'write', resource: {type: 'buckets'}}])
-
-//        descs.push('token test \u0950')
-//        stati.push(true)
-        authData.push({description: 'token test \u0950', status: true})
-
-        cy.createToken(id, 'token test 02', 'inactive',
-          [{action: 'write', resource: {type: 'views'}},
-            {action: 'write', resource: {type: 'documents'}},
-            {action: 'write', resource: {type: 'dashboards'}},
-            {action: 'write', resource: {type: 'buckets'}}])
-
-//        descs.push('token test 02')
-//        stati.push(false)
-        authData.push({description: 'token test 02', status: false})
-
-
-        cy.createToken(id, 'token test 03', 'active',
-          [{action: 'read', resource: {type: 'views'}},
+            {action: 'write', resource: {type: 'buckets'}}]},
+        {id: id, description: 'token test 03', status: 'inactive', permissions: [{action: 'read', resource: {type: 'views'}},
             {action: 'read', resource: {type: 'documents'}},
             {action: 'read', resource: {type: 'dashboards'}},
-            {action: 'read', resource: {type: 'buckets'}}])
-
-//        descs.push('token test 03')
-//        stati.push(true)
-        authData.push({description: 'token test 03', status: true})
+            {action: 'read', resource: {type: 'buckets'}}]},
+         ]
 
 
-//        console.log("DEBUG " + descs)
-        console.log("DEBUG " + JSON.stringify(authData))
+      cy.request('api/v2/authorizations').then((resp) => {
 
+        authData.push({description: resp.body.authorizations[0].description,
+          status: resp.body.authorizations[0].status === 'active', id: resp.body.authorizations[0].id})
+
+        //console.log("DEBUG cookies " + JSON.stringify(cy.getCookies()))
+
+        testTokens.forEach((token) => {
+
+
+          //fetch('http://localhost:9999/api/v2/authorizations?orgID=' + id, {
+          //  method: 'POST', body: JSON.stringify(token), headers: { 'Content-Type': 'application/json', 'session':  } })
+
+          cy.createToken(token.id, token.description, token.status, token.permissions).then((resp) => {
+            authData.push({description: resp.body.description, status: resp.body.status === 'active', id: resp.body.id})
+          })
+
+//          cy.wait("@createToken")
+
+        })
 
       })
-
 
     })
   })
@@ -79,7 +70,6 @@ describe('tokens', () => {
 
     cy.getByTestID('table-row').should('have.length', 4).then((rows) => {
 
-      descs = descs.sort()
       authData = authData.sort((a,b) => a.description < b.description ? -1 : a.description > b.description ? 1 : 0)
 
       for(var i = 0; i < rows.length; i++){
@@ -99,13 +89,88 @@ describe('tokens', () => {
 
   it('can filter tokens', () => {
 
+    //basic filter
+    cy.getByTestID('input-field--filter').type('test')
+    cy.getByTestID('table-row').should('have.length', 3)
+
+    //clear filter
+    cy.getByTestID('input-field--filter').clear()
+    cy.getByTestID('table-row').should('have.length', 4)
+
+    //exotic filter
+    cy.getByTestID('input-field--filter').type('\u0950')
+    cy.getByTestID('table-row').should('have.length', 1)
+
   })
 
-  it('can deactivate a token', () => {
+  it('can change token activation status', () => {
+
+    //toggle on
+    cy.getByTestID('table-row').contains('token test 02').parents('[data-testid=table-row]').within(() => {
+       cy.getByTestID('slide-toggle').click().then(() => {
+
+         //wait for backend to sync
+         cy.wait(1000)
+
+         //check for status update on backend
+         // @ts-ignore
+         cy.request('api/v2/authorizations/' + authData.find(function(item){
+            return item.description === 'token test 02'
+         }).id).then((resp) => {
+
+           expect(resp.body.status).equals('active')
+
+         })
+
+       })
+
+    })
+
+    cy.getByTestID("table-row").contains('token test 02').parents('[data-testid=table-row]').within(() => {
+      cy.getByTestID('slide-toggle').should('have.class', 'active')
+    })
+
+    cy.getByTestID('table-row').contains('token test 02').parents('[data-testid=table-row]').within(() => {
+      cy.getByTestID('slide-toggle').click().then(() => {
+
+        //wait for backend to sync
+        cy.wait(1000)
+
+        //check for status update on backend
+        // @ts-ignore
+        cy.request('api/v2/authorizations/' + authData.find(function(item){
+          return item.description === 'token test 02'
+        }).id).then((resp) => {
+
+          expect(resp.body.status).equals('inactive')
+
+        })
+      })
+    })
+
+    cy.getByTestID("table-row").contains('token test 02').parents('[data-testid=table-row]').within(() => {
+      cy.getByTestID('slide-toggle').should('not.have.class', 'active')
+    })
 
   })
 
   it('can delete a token', () => {
+
+    cy.getByTestID('table-row').should('have.length', 4)
+
+    cy.getByTestID('table-row').contains('token test 03').parents('[data-testid=table-row]').within(() => {
+      cy.getByTestID('delete-button').click().then(() => {
+        cy.getByTestID('confirmation-button').click({force: true});
+      })
+    })
+
+    cy.getByTestID('table-row').should('have.length', 3)
+
+    cy.getByTestID('table-row').contains('token test 03').should('not.exist')
+
+  })
+
+  it('can generate a token', () => {
 
   })
 })
