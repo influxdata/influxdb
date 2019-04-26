@@ -349,9 +349,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
       {
-        name: 'column',
-        desc: 'The column on which to operate. Defaults to `"_value"`.',
-        type: 'String',
+        name: 'columns',
+        desc: 'A list of columns on which to operate. Defaults to `["_value"]`.',
+        type: 'Array of Strings',
       },
       {
         name: 'timeColumn',
@@ -363,7 +363,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Computes the rate of change per unit of time between subsequent non-null records. The output table schema will be the same as the input table.',
     example:
-      'derivative(unit: 1s, nonNegative: true, column: "_value", timeColumn: "_time")',
+      'derivative(unit: 1s, nonNegative: true, columns: ["_value"], timeColumn: "_time")',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/derivative/',
