@@ -205,8 +205,7 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var opt func(influxdb.DocumentIndex, influxdb.DocumentDecorator) ([]influxdb.ID, error)
-
+	opts := []influxdb.DocumentFindOptions{influxdb.IncludeLabels}
 	if req.Org != "" && req.OrgID != nil {
 		EncodeError(ctx, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -214,12 +213,14 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 		}, w)
 		return
 	} else if req.OrgID != nil && req.OrgID.Valid() {
-		opt = influxdb.AuthorizedWhereOrgID(a, *req.OrgID)
+		opt := influxdb.AuthorizedWhereOrgID(a, *req.OrgID)
+		opts = append(opts, opt)
 	} else if req.Org != "" {
-		opt = influxdb.AuthorizedWhereOrg(a, req.Org)
+		opt := influxdb.AuthorizedWhereOrg(a, req.Org)
+		opts = append(opts, opt)
 	}
 
-	ds, err := s.FindDocuments(ctx, opt, influxdb.IncludeLabels)
+	ds, err := s.FindDocuments(ctx, opts...)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
