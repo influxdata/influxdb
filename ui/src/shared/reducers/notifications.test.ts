@@ -6,7 +6,7 @@ import {
 import {notify, dismissNotification} from 'src/shared/actions/notifications'
 
 import {FIVE_SECONDS} from 'src/shared/constants/index'
-import {NotificationStyle} from 'src/types'
+import {NotificationStyle} from 'src/types/notifications'
 
 const notificationID = '000'
 

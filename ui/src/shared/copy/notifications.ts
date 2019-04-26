@@ -1,6 +1,7 @@
 // All copy for notifications should be stored here for easy editing
 // and ensuring stylistic consistency
-import {Notification, NotificationStyle} from 'src/types'
+import {Notification} from 'src/types'
+import {NotificationStyle} from 'src/types/notifications'
 
 type NotificationExcludingMessage = Pick<
   Notification,
