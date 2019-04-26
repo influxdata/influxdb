@@ -15,8 +15,9 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 // Constants
-import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 import {readLimitReached} from 'src/shared/copy/notifications'
+import {RATE_LIMIT_ERROR_TEXT} from 'src/cloud/constants'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -32,7 +33,7 @@ interface QueriesState {
   tables: FluxTable[]
   files: string[] | null
   loading: RemoteDataState
-  error: Error | null
+  errorMessage: string
   isInitialFetch: boolean
   duration: number
 }
@@ -60,7 +61,7 @@ interface State {
   loading: RemoteDataState
   tables: FluxTable[]
   files: string[] | null
-  error: Error | null
+  errorMessage: string
   fetchCount: number
   duration: number
 }
@@ -70,7 +71,7 @@ const defaultState = (): State => ({
   tables: [],
   files: null,
   fetchCount: 0,
-  error: null,
+  errorMessage: '',
   duration: 0,
 })
 
@@ -97,13 +98,20 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 
   public render() {
-    const {tables, files, loading, error, fetchCount, duration} = this.state
+    const {
+      tables,
+      files,
+      loading,
+      errorMessage,
+      fetchCount,
+      duration,
+    } = this.state
 
     return this.props.children({
       tables,
       files,
       loading,
-      error,
+      errorMessage,
       duration,
       isInitialFetch: fetchCount === 1,
     })
@@ -127,7 +135,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
     this.setState({
       loading: RemoteDataState.Loading,
       fetchCount: this.state.fetchCount + 1,
-      error: null,
+      errorMessage: '',
     })
 
     try {
@@ -161,12 +169,15 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         return
       }
 
+      let errorMessage = get(error, 'message', '')
+
       if (get(error, 'xhr.status') === RATE_LIMIT_ERROR_STATUS) {
         notify(readLimitReached())
+        errorMessage = RATE_LIMIT_ERROR_TEXT
       }
 
       this.setState({
-        error,
+        errorMessage,
         loading: RemoteDataState.Error,
       })
     }

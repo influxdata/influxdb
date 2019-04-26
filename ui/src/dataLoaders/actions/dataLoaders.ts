@@ -46,7 +46,7 @@ import {
   TelegrafConfigCreationSuccess,
   writeLimitReached,
 } from 'src/shared/copy/notifications'
-import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 
 type GetState = () => AppState
 
