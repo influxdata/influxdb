@@ -8,7 +8,7 @@ import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
 // Types
 import {RemoteDataState} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
-import {AppState} from 'src/types'
+import {AppState, VariableArguments} from 'src/types'
 import {
   VariableValues,
   VariableValuesByID,
@@ -65,6 +65,33 @@ export const getValuesForVariable = (
   contextID: string
 ): VariableValues => {
   return get(state, `variables.values.${contextID}.values.${variableID}`)
+}
+
+export const getTypeForVariable = (
+  state: AppState,
+  variableID: string
+): VariableArguments['type'] => {
+  return get(
+    state,
+    `variables.variables.${variableID}.variable.arguments.type`,
+    ''
+  )
+}
+
+interface ArgumentMap {
+  map: {[key: string]: string}
+  list: string[]
+}
+
+export const getArgumentValuesForVariable = <T extends keyof ArgumentMap>(
+  state: AppState,
+  variableID: string
+): ArgumentMap[T] => {
+  return get(
+    state,
+    `variables.variables.${variableID}.variable.arguments.values`,
+    {}
+  )
 }
 
 export const getValueSelections = (
