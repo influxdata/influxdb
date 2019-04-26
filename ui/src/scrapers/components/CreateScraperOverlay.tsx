@@ -1,11 +1,10 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import {get} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Form, Button} from '@influxdata/clockface'
 import {Overlay} from 'src/clockface'
 import CreateScraperForm from 'src/scrapers/components/CreateScraperForm'
 
@@ -14,7 +13,6 @@ import {createScraper} from 'src/scrapers/actions'
 
 // Types
 import {Bucket, ScraperTargetRequest} from '@influxdata/influx'
-import {ComponentColor, ComponentStatus} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 
 interface OwnProps {
@@ -65,36 +63,22 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
           <Overlay.Heading title="Create Scraper" onDismiss={this.onDismiss} />
-          <Form onSubmit={this.handleSubmit}>
-            <Overlay.Body>
-              <h5 className="wizard-step--sub-title">
-                Scrapers collect data from multiple targets at regular intervals
-                and to write to a bucket
-              </h5>
-              <CreateScraperForm
-                buckets={buckets}
-                url={scraper.url}
-                name={scraper.name}
-                selectedBucketID={scraper.bucketID}
-                onInputChange={this.handleInputChange}
-                onSelectBucket={this.handleSelectBucket}
-              />
-            </Overlay.Body>
-            <Overlay.Footer>
-              <Button
-                text="Cancel"
-                onClick={this.onDismiss}
-                testID="create-scraper--cancel"
-              />
-              <Button
-                status={this.submitButtonStatus}
-                text="Create"
-                onClick={this.handleSubmit}
-                color={ComponentColor.Success}
-                testID="create-scraper--submit"
-              />
-            </Overlay.Footer>
-          </Form>
+          <Overlay.Body>
+            <h5 className="wizard-step--sub-title">
+              Scrapers collect data from multiple targets at regular intervals
+              and to write to a bucket
+            </h5>
+            <CreateScraperForm
+              buckets={buckets}
+              url={scraper.url}
+              name={scraper.name}
+              selectedBucketID={scraper.bucketID}
+              onInputChange={this.handleInputChange}
+              onSelectBucket={this.handleSelectBucket}
+              onSubmit={this.handleFormSubmit}
+              onDismiss={this.onDismiss}
+            />
+          </Overlay.Body>
         </Overlay.Container>
       </Overlay>
     )
@@ -118,20 +102,10 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
     this.setState({scraper})
   }
 
-  private get submitButtonStatus(): ComponentStatus {
-    const {scraper} = this.state
-
-    if (!scraper.url || !scraper.name || !scraper.bucketID) {
-      return ComponentStatus.Disabled
-    }
-
-    return ComponentStatus.Default
-  }
-
-  private handleSubmit = async () => {
+  private handleFormSubmit = (e: FormEvent<HTMLFormElement>): void => {
     const {onCreateScraper} = this.props
     const {scraper} = this.state
-
+    e.preventDefault()
     onCreateScraper(scraper)
     this.onDismiss()
   }
