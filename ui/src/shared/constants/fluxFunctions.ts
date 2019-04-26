@@ -2907,6 +2907,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'toFloat',
     args: [],
+    package: '',
     desc: 'Converts all values in the `_value` column to a float.',
     example: 'toFloat()',
     category: 'Type Conversions',
