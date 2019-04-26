@@ -350,7 +350,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'columns',
-        desc: 'A list of columns on which to operate. Defaults to `["_value"]`.',
+        desc:
+          'A list of columns on which to operate. Defaults to `["_value"]`.',
         type: 'Array of Strings',
       },
       {
