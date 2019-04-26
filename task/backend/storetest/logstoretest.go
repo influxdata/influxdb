@@ -142,7 +142,6 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	run2.FinishedAt = endAt2.Format(time.RFC3339Nano)
 	run2.Status = "failed"
 
-	time.Sleep(5 * time.Second)
 	runs, err := reader.ListRuns(ctx, task.Org, platform.RunFilter{Task: task.ID})
 	if err != nil {
 		t.Fatal(err)
