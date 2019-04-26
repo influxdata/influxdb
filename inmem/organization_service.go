@@ -80,9 +80,8 @@ func (s *Service) FindOrganization(ctx context.Context, filter platform.Organiza
 	op := OpPrefix + platform.OpFindOrganization
 	if filter.ID == nil && filter.Name == nil {
 		return nil, &platform.Error{
-			Code: platform.EInvalid,
-			Op:   op,
-			Msg:  "no filter parameters provided",
+			Op:  op,
+			Err: platform.ErrInvalidOrgFilter,
 		}
 	}
 

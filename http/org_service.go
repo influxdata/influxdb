@@ -589,10 +589,7 @@ func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id influ
 // FindOrganization gets a single organization matching the filter using HTTP.
 func (s *OrganizationService) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 	if filter.ID == nil && filter.Name == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "no filter parameters provided",
-		}
+		return nil, influxdb.ErrInvalidOrgFilter
 	}
 	os, n, err := s.FindOrganizations(ctx, filter)
 	if err != nil {

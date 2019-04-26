@@ -148,10 +148,7 @@ func (c *Client) FindOrganization(ctx context.Context, filter influxdb.Organizat
 	}
 
 	// If name and ID are not set, then, this is an invalid usage of the API.
-	return nil, &influxdb.Error{
-		Code: influxdb.EInvalid,
-		Msg:  "no filter parameters provided",
-	}
+	return nil, influxdb.ErrInvalidOrgFilter
 }
 
 func filterOrganizationsFn(filter influxdb.OrganizationFilter) func(o *influxdb.Organization) bool {
