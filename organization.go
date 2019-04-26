@@ -9,6 +9,15 @@ type Organization struct {
 	Description string `json:"description"`
 }
 
+// errors of org
+var (
+	// ErrOrgNameisEmpty is error when org name is empty
+	ErrOrgNameisEmpty = &Error{
+		Code: EInvalid,
+		Msg:  "org name is empty",
+	}
+)
+
 // ops for orgs error and orgs op logs.
 const (
 	OpFindOrganizationByID = "FindOrganizationByID"
