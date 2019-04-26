@@ -828,7 +828,14 @@ func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
 	} else {
 		req.TagsSource = any
 	}
-	req.TagKey = ti.readSpec.TagKey
+	switch ti.readSpec.TagKey {
+	case "_measurement":
+		req.TagKey = models.MeasurementTagKey
+	case "_field":
+		req.TagKey = models.FieldKeyTagKey
+	default:
+		req.TagKey = ti.readSpec.TagKey
+	}
 	req.Predicate = ti.predicate
 	req.Range.Start = int64(ti.bounds.Start)
 	req.Range.End = int64(ti.bounds.Stop)
