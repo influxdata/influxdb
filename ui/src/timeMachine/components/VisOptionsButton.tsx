@@ -3,12 +3,7 @@ import React, {Component} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {
-  Button,
-  ButtonShape,
-  IconFont,
-  ComponentColor,
-} from '@influxdata/clockface'
+import {SquareButton, IconFont, ComponentColor} from '@influxdata/clockface'
 
 // Actions
 import {setActiveTab} from 'src/timeMachine/actions'
@@ -40,9 +35,8 @@ class VisOptionsButton extends Component<Props> {
         : ComponentColor.Default
 
     return (
-      <Button
+      <SquareButton
         color={color}
-        shape={ButtonShape.Square}
         icon={IconFont.CogThick}
         onClick={this.handleClick}
       />

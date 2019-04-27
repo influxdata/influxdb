@@ -4,6 +4,7 @@ import _ from 'lodash'
 
 // Components
 import {
+  SquareButton,
   Button,
   ButtonShape,
   IconFont,
@@ -66,11 +67,10 @@ class InlineLabelsEditor extends Component<Props, State> {
       <>
         <div className="inline-labels--editor">
           <div className="inline-labels--add">
-            <Button
+            <SquareButton
               color={ComponentColor.Secondary}
               titleText="Add labels"
               onClick={this.handleShowPopover}
-              shape={ButtonShape.Square}
               icon={IconFont.Plus}
               testID="inline-labels--add"
             />
