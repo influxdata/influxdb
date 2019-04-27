@@ -3,13 +3,7 @@ import React, {Component, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {
-  SquareButton,
-  Button,
-  ButtonShape,
-  IconFont,
-  ComponentColor,
-} from '@influxdata/clockface'
+import {SquareButton, IconFont, ComponentColor} from '@influxdata/clockface'
 import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPopover'
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 
