@@ -13,13 +13,12 @@ interface OwnProps {
   onSelectImport: () => void
   onSelectTemplate?: () => void
   resourceName: string
-  canImportFromTemplate?: boolean
-  status?: ComponentStatus
 }
 
 interface DefaultProps {
   canImportFromTemplate: boolean
   status: ComponentStatus
+  titleText: string
 }
 
 type Props = OwnProps & DefaultProps
@@ -28,19 +27,21 @@ export default class AddResourceDropdown extends PureComponent<Props> {
   public static defaultProps: DefaultProps = {
     canImportFromTemplate: false,
     status: ComponentStatus.Default,
+    titleText: null,
   }
 
   public render() {
+    const {titleText, status} = this.props
     return (
       <Dropdown
         mode={DropdownMode.ActionList}
-        titleText={`Create ${this.props.resourceName}`}
+        titleText={titleText || `Create ${this.props.resourceName}`}
         icon={IconFont.Plus}
         buttonColor={ComponentColor.Primary}
         buttonSize={ComponentSize.Small}
         widthPixels={160}
         onChange={this.handleSelect}
-        status={this.props.status}
+        status={status}
       >
         {this.optionItems}
       </Dropdown>

@@ -68,6 +68,10 @@ $cell--header-size: 36px;
   }
 }
 
+.cell--error-message {
+  white-space: normal;
+}
+
 .dashboard .cell--view-empty .empty-graph-error {
     top: $ix-marg-c + $cell--header-size;
 }

@@ -1,7 +1,6 @@
 package readservice
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -120,26 +119,26 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 		return nil
 	}
 
+	if len(sr.Tags) < 2 {
+		// Invariant broken.
+		c.err = fmt.Errorf("attempted to emit key with only tags: %s", sr.Tags)
+		return nil
+	}
+
 	c.row.Name = sr.Name
 	//TODO(edd): check this.
 	c.row.SeriesTags = copyTags(c.row.SeriesTags, sr.Tags)
 	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
-	c.row.Field = string(c.row.Tags.Get(models.FieldKeyTagKeyBytes))
 
 	// Normalise the special tag keys to the emitted format.
-	if len(c.row.Tags) < 2 {
-		// Invariant broken.
-		c.err = fmt.Errorf("attempted to emit key with only tags: %s", c.row.Tags)
-		return &c.row
-	}
+	mv := c.row.Tags.Get(models.MeasurementTagKeyBytes)
+	c.row.Tags.Delete(models.MeasurementTagKeyBytes)
+	c.row.Tags.Set(measurementKeyBytes, mv)
 
-	for i := 0; i < len(c.row.Tags); i++ {
-		if bytes.Equal(c.row.Tags[i].Key, models.MeasurementTagKeyBytes) {
-			c.row.Tags[i].Key = measurementKeyBytes
-		} else if bytes.Equal(c.row.Tags[i].Key, models.FieldKeyTagKeyBytes) {
-			c.row.Tags[i].Key = fieldKeyBytes
-		}
-	}
+	fv := c.row.Tags.Get(models.FieldKeyTagKeyBytes)
+	c.row.Field = string(fv)
+	c.row.Tags.Delete(models.FieldKeyTagKeyBytes)
+	c.row.Tags.Set(fieldKeyBytes, fv)
 
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond

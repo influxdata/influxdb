@@ -149,6 +149,59 @@ func CreateOrganization(
 			},
 		},
 		{
+			name: "empty name",
+			fields: OrganizationFields{
+				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+			},
+			args: args{
+				organization: &platform.Organization{
+					ID: MustIDBase16(orgOneID),
+				},
+			},
+			wants: wants{
+				organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+				err: platform.ErrOrgNameisEmpty,
+			},
+		},
+		{
+			name: "name only have spaces",
+			fields: OrganizationFields{
+				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+			},
+			args: args{
+				organization: &platform.Organization{
+					ID:   MustIDBase16(orgOneID),
+					Name: "  ",
+				},
+			},
+			wants: wants{
+				organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+				err: platform.ErrOrgNameisEmpty,
+			},
+		},
+		{
 			name: "names should be unique",
 			fields: OrganizationFields{
 				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
@@ -734,7 +787,7 @@ func UpdateOrganization(
 	t *testing.T,
 ) {
 	type args struct {
-		name string
+		name *string
 		id   platform.ID
 	}
 	type wants struct {
@@ -764,7 +817,7 @@ func UpdateOrganization(
 			},
 			args: args{
 				id:   MustIDBase16(threeID),
-				name: "changed",
+				name: strPtr("changed"),
 			},
 			wants: wants{
 				err: &platform.Error{
@@ -790,13 +843,83 @@ func UpdateOrganization(
 			},
 			args: args{
 				id:   MustIDBase16(orgOneID),
-				name: "changed",
+				name: strPtr("changed"),
 			},
 			wants: wants{
 				organization: &platform.Organization{
 					ID:   MustIDBase16(orgOneID),
 					Name: "changed",
 				},
+			},
+		},
+		{
+			name: "update name not unique",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(orgOneID),
+				name: strPtr("organization2"),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EConflict,
+					Op:   platform.OpUpdateOrganization,
+					Msg:  "organization with name organization2 already exists",
+				},
+			},
+		},
+		{
+			name: "update name is empty",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(orgOneID),
+				name: strPtr(""),
+			},
+			wants: wants{
+				err: platform.ErrOrgNameisEmpty,
+			},
+		},
+		{
+			name: "update name only has space",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(orgOneID),
+				name: strPtr("            "),
+			},
+			wants: wants{
+				err: platform.ErrOrgNameisEmpty,
 			},
 		},
 	}
@@ -808,9 +931,7 @@ func UpdateOrganization(
 			ctx := context.Background()
 
 			upd := platform.OrganizationUpdate{}
-			if tt.args.name != "" {
-				upd.Name = &tt.args.name
-			}
+			upd.Name = tt.args.name
 
 			organization, err := s.UpdateOrganization(ctx, tt.args.id, upd)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)

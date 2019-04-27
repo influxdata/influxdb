@@ -18,7 +18,7 @@ import {
   addTelelgrafLabelFailed,
   removeTelelgrafLabelFailed,
   getTelegrafConfigFailed,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 
 export type Action =
   | SetTelegrafs

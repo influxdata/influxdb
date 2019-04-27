@@ -52,7 +52,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
                 IconFont.AlertTriangle
               } empty-graph-error--icon`}
             />
-            <code>{message}</code>
+            <code className="cell--error-message">{message}</code>
           </pre>
         </FancyScrollbar>
       </div>

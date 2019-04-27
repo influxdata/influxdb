@@ -13,10 +13,6 @@ import (
 )
 
 var (
-	// ErrSeriesKeyOrder means the series keys for a ResultSetStreamReader were
-	// incorrectly ordered.
-	ErrSeriesKeyOrder = errors.New("invalid series key order")
-
 	// ErrPartitionKeyOrder means the partition keys for a
 	// GroupResultSetStreamReader were incorrectly ordered.
 	ErrPartitionKeyOrder = errors.New("invalid partition key order")
@@ -146,11 +142,9 @@ func (r *ResultSetStreamReader) readSeriesFrame() bool {
 			r.tags[i].Value = sf.Series.Tags[i].Value
 		}
 
-		if models.CompareTags(r.tags, r.prev) == 1 || r.prev == nil {
-			r.cur.nextType = sf.Series.DataType
-			return true
-		}
-		r.fr.setErr(ErrSeriesKeyOrder)
+		r.cur.nextType = sf.Series.DataType
+
+		return true
 	} else {
 		r.fr.setErr(fmt.Errorf("expected series frame, got %T", f.Data))
 	}

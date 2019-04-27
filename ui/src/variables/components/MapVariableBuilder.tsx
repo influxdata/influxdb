@@ -14,7 +14,7 @@ import {pluralize} from 'src/shared/utils/pluralize'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Constants
-import {invalidMapType} from 'src/shared/copy/v2/notifications'
+import {invalidMapType} from 'src/shared/copy/notifications'
 
 type Values = {[key: string]: string}
 interface OwnProps {

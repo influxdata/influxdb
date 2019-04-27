@@ -203,7 +203,8 @@ func (tl *TestLauncher) ExecuteQuery(q string) (*QueryResults, error) {
 		results = append(results, res)
 	}
 
-	if fq.Err() != nil {
+	if err := fq.Err(); err != nil {
+		fq.Done()
 		return nil, err
 	}
 

@@ -12,23 +12,15 @@ import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSecti
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import Members from 'src/members/components/Members'
 
-//Actions
-import * as NotificationsActions from 'src/types/actions/notifications'
-import * as notifyActions from 'src/shared/actions/notifications'
-
 // Types
 import {Organization} from '@influxdata/influx'
 import {AppState} from 'src/types'
-
-interface DispatchProps {
-  notify: NotificationsActions.PublishNotificationActionCreator
-}
 
 interface StateProps {
   org: Organization
 }
 
-type Props = WithRouterProps & StateProps & DispatchProps
+type Props = WithRouterProps & StateProps
 
 @ErrorHandling
 class MembersIndex extends Component<Props> {
@@ -73,11 +65,7 @@ const mstp = ({orgs: {items}}: AppState, props: Props) => {
   }
 }
 
-const mdtp: DispatchProps = {
-  notify: notifyActions.notify,
-}
-
 export default connect<StateProps>(
   mstp,
-  mdtp
+  null
 )(withRouter<{}>(MembersIndex))
