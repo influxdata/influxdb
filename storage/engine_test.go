@@ -12,7 +12,9 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
 func TestEngine_WriteAndIndex(t *testing.T) {
@@ -246,6 +248,72 @@ func TestEngine_DeleteBucket(t *testing.T) {
 
 	// Check only one bucket was removed.
 	if got, exp := engine.SeriesCardinality(), int64(2); got != exp {
+		t.Fatalf("got %d series, exp %d series in index", got, exp)
+	}
+}
+
+func TestEngine_DeleteBucket_Predicate(t *testing.T) {
+	engine := NewDefaultEngine()
+	defer engine.Close()
+	engine.MustOpen()
+
+	p := func(m, f string, kvs ...string) models.Point {
+		tags := map[string]string{models.FieldKeyTagKey: f, models.MeasurementTagKey: m}
+		for i := 0; i < len(kvs)-1; i += 2 {
+			tags[kvs[i]] = kvs[i+1]
+		}
+		return models.MustNewPoint(
+			tsdb.EncodeNameString(engine.org, engine.bucket),
+			models.NewTags(tags),
+			map[string]interface{}{"value": 1.0},
+			time.Unix(1, 2),
+		)
+	}
+
+	err := engine.Engine.WritePoints(context.TODO(), []models.Point{
+		p("cpu", "value", "tag1", "val1"),
+		p("cpu", "value", "tag2", "val2"),
+		p("cpu", "value", "tag3", "val3"),
+		p("mem", "value", "tag1", "val1"),
+		p("mem", "value", "tag2", "val2"),
+		p("mem", "value", "tag3", "val3"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check the series cardinality.
+	if got, exp := engine.SeriesCardinality(), int64(6); got != exp {
+		t.Fatalf("got %d series, exp %d series in index", got, exp)
+	}
+
+	// Construct a predicate to remove tag2
+	pred, err := tsm1.NewProtobufPredicate(&datatypes.Predicate{
+		Root: &datatypes.Node{
+			NodeType: datatypes.NodeTypeComparisonExpression,
+			Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+			Children: []*datatypes.Node{
+				{NodeType: datatypes.NodeTypeTagRef,
+					Value: &datatypes.Node_TagRefValue{TagRefValue: "tag2"},
+				},
+				{NodeType: datatypes.NodeTypeLiteral,
+					Value: &datatypes.Node_StringValue{StringValue: "val2"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove the matching series.
+	if err := engine.DeleteBucketRangePredicate(engine.org, engine.bucket,
+		math.MinInt64, math.MaxInt64, pred); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check only matching series were removed.
+	if got, exp := engine.SeriesCardinality(), int64(4); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
 }
