@@ -1,14 +1,15 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
+import {Plot} from '@influxdata/vis'
 
 // Components
 import GaugeChart from 'src/shared/components/GaugeChart'
 import SingleStat from 'src/shared/components/SingleStat'
 import SingleStatTransform from 'src/shared/components/SingleStatTransform'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
-import DygraphContainer from 'src/shared/components/DygraphContainer'
-import Histogram from 'src/shared/components/Histogram'
+import HistogramContainer from 'src/shared/components/HistogramContainer'
 import VisTableTransform from 'src/shared/components/VisTableTransform'
+import XYContainer from 'src/shared/components/XYContainer'
 
 // Types
 import {
@@ -18,24 +19,20 @@ import {
   XYView,
   XYViewGeom,
 } from 'src/types/dashboards'
-import {FluxTable, RemoteDataState, TimeRange} from 'src/types'
+import {FluxTable, RemoteDataState} from 'src/types'
 
 interface Props {
-  viewID: string
   tables: FluxTable[]
+  files: string[]
   loading: RemoteDataState
   properties: QueryViewProperties
-  timeRange?: TimeRange
-  onZoom?: (range: TimeRange) => void
 }
 
 const RefreshingViewSwitcher: FunctionComponent<Props> = ({
   properties,
   loading,
-  viewID,
+  files,
   tables,
-  onZoom,
-  timeRange,
 }) => {
   switch (properties.type) {
     case ViewType.SingleStat:
@@ -50,14 +47,13 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
       return <GaugeChart tables={tables} properties={properties} />
     case ViewType.XY:
       return (
-        <DygraphContainer
-          tables={tables}
-          viewID={viewID}
-          onZoom={onZoom}
+        <XYContainer
+          files={files}
+          viewProperties={properties}
           loading={loading}
-          timeRange={timeRange}
-          properties={properties}
-        />
+        >
+          {config => <Plot config={config} />}
+        </XYContainer>
       )
     case ViewType.LinePlusSingleStat:
       const xyProperties = {
@@ -74,25 +70,34 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
       } as SingleStatView
 
       return (
-        <DygraphContainer
-          tables={tables}
-          viewID={viewID}
-          onZoom={onZoom}
+        <XYContainer
+          files={files}
+          viewProperties={xyProperties}
           loading={loading}
-          timeRange={timeRange}
-          properties={xyProperties}
         >
-          <SingleStatTransform tables={tables}>
-            {stat => (
-              <SingleStat stat={stat} properties={singleStatProperties} />
-            )}
-          </SingleStatTransform>
-        </DygraphContainer>
+          {config => (
+            <Plot config={config}>
+              <SingleStatTransform tables={tables}>
+                {stat => (
+                  <SingleStat stat={stat} properties={singleStatProperties} />
+                )}
+              </SingleStatTransform>
+            </Plot>
+          )}
+        </XYContainer>
       )
     case ViewType.Histogram:
       return (
-        <VisTableTransform tables={tables}>
-          {table => <Histogram table={table} properties={properties} />}
+        <VisTableTransform files={files}>
+          {table => (
+            <HistogramContainer
+              table={table}
+              loading={loading}
+              viewProperties={properties}
+            >
+              {config => <Plot config={config} />}
+            </HistogramContainer>
+          )}
         </VisTableTransform>
       )
     default:

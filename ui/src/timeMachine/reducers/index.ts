@@ -254,22 +254,8 @@ export const timeMachineReducer = (
       return setYAxis(state, {label})
     }
 
-    case 'SET_Y_AXIS_MIN_BOUND': {
-      const {min} = action.payload
-
-      const bounds = [...get(state, 'view.properties.axes.y.bounds', [])]
-
-      bounds[0] = min
-
-      return setYAxis(state, {bounds})
-    }
-
-    case 'SET_Y_AXIS_MAX_BOUND': {
-      const {max} = action.payload
-
-      const bounds = [...get(state, 'view.properties.axes.y.bounds', [])]
-
-      bounds[1] = max
+    case 'SET_Y_AXIS_BOUNDS': {
+      const {bounds} = action.payload
 
       return setYAxis(state, {bounds})
     }

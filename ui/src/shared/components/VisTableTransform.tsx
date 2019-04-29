@@ -1,20 +1,14 @@
 // Libraries
 import {useMemo, FunctionComponent} from 'react'
-import {Table} from '@influxdata/vis'
-
-// Utils
-import {toMinardTable} from 'src/shared/utils/toMinardTable'
-
-// Types
-import {FluxTable} from 'src/types'
+import {fluxToTable, Table} from '@influxdata/vis'
 
 interface Props {
-  tables: FluxTable[]
+  files: string[]
   children: (table: Table) => JSX.Element
 }
 
-const VisTableTransform: FunctionComponent<Props> = ({tables, children}) => {
-  const {table} = useMemo(() => toMinardTable(tables), [tables])
+const VisTableTransform: FunctionComponent<Props> = ({files, children}) => {
+  const {table} = useMemo(() => fluxToTable(files.join('\n\n')), [files])
 
   return children(table)
 }
