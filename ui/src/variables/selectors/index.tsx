@@ -78,15 +78,12 @@ export const getTypeForVariable = (
   )
 }
 
-interface ArgumentMap {
-  map: {[key: string]: string}
-  list: string[]
-}
+type ArgumentValues = {[key: string]: string} | string[]
 
-export const getArgumentValuesForVariable = <T extends keyof ArgumentMap>(
+export const getArgumentValuesForVariable = (
   state: AppState,
   variableID: string
-): ArgumentMap[T] => {
+): ArgumentValues => {
   return get(
     state,
     `variables.variables.${variableID}.variable.arguments.values`,

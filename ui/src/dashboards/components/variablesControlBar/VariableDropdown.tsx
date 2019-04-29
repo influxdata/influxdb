@@ -16,7 +16,7 @@ import {getVariableValuesForDropdown} from 'src/dashboards/selectors'
 import {AppState} from 'src/types'
 
 interface StateProps {
-  values: [string, string][]
+  values: {name: string; value: string}[]
   selectedKey: string
 }
 
@@ -51,13 +51,13 @@ class VariableDropdown extends PureComponent<Props> {
           customClass="variable-dropdown--dropdown"
           menuColor={DropdownMenuColors.Amethyst}
         >
-          {dropdownValues.map(([key]) => (
+          {dropdownValues.map(({name}) => (
             /*
               Use key as value since they are unique otherwise 
               multiple selection appear in the dropdown
             */
-            <Dropdown.Item key={key} id={key} value={key}>
-              {key}
+            <Dropdown.Item key={name} id={name} value={name}>
+              {name}
             </Dropdown.Item>
           ))}
         </Dropdown>
@@ -68,8 +68,8 @@ class VariableDropdown extends PureComponent<Props> {
   private handleSelect = (selectedKey: string) => {
     const {dashboardID, variableID, onSelectValue, values} = this.props
 
-    const selection = values.find(v => v[0] === selectedKey)
-    const selectedValue = !!selection ? selection[1] : ''
+    const selection = values.find(v => v.name === selectedKey)
+    const selectedValue = !!selection ? selection.value : ''
 
     onSelectValue(dashboardID, variableID, selectedValue)
   }

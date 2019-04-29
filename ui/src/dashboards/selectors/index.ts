@@ -30,7 +30,7 @@ export const getViewsForDashboard = (
 }
 
 interface DropdownValues {
-  list: [string, string][]
+  list: {name: string; value: string}[]
   selectedKey: string
 }
 
@@ -48,9 +48,14 @@ export const getVariableValuesForDropdown = (
 
   switch (type) {
     case 'map': {
-      const mapValues = getArgumentValuesForVariable<'map'>(state, variableID)
-      const list = Object.entries(mapValues)
-      const selection = list.find(([_, value]) => value === selectedValue)
+      const mapValues = getArgumentValuesForVariable(state, variableID) as {
+        [key: string]: string
+      }
+      const list = Object.entries(mapValues).map(([name, value]) => ({
+        name,
+        value,
+      }))
+      const selection = list.find(({value}) => value === selectedValue)
 
       return {
         selectedKey: selection[0],
@@ -58,7 +63,7 @@ export const getVariableValuesForDropdown = (
       }
     }
     default:
-      const list = values.map((v): [string, string] => [v, v])
+      const list = values.map(v => ({name: v, value: v}))
       return {selectedKey: selectedValue, list}
   }
 }
