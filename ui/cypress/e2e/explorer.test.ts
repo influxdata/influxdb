@@ -75,11 +75,15 @@ describe('DataExplorer', () => {
 
       cy.get<Doc>('@flux').then(doc => {
         const actual = doc.getValue()
-        const expected = `import"${MATH_ABS.package}"${FROM.example}|>${
-          RANGE.example
-        }|>${MATH_ABS.example}|>${MATH_FLOOR.example}|>${
-          STRINGS_TITLE.example
-        }${STRINGS_TRIM.example}`
+        const expected = `
+        import"${STRINGS_TITLE.package}"
+        import"${MATH_ABS.package}"
+        ${FROM.example}|>
+        ${RANGE.example}|>
+        ${MATH_ABS.example}|>
+        ${MATH_FLOOR.example}|>
+        ${STRINGS_TITLE.example}|>
+        ${STRINGS_TRIM.example}`
 
         cy.fluxEqual(actual, expected).should('be.true')
       })
