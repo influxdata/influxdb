@@ -212,6 +212,52 @@ func TestCoordinator(t *testing.T) {
 	}
 }
 
+func TestCoordinator_ClaimTask(t *testing.T) {
+	ts := inmemTaskService()
+	sched := mock.NewScheduler()
+
+	coord := coordinator.New(zaptest.NewLogger(t), sched, ts, coordinator.WithoutExistingTasks())
+
+	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lc := task.LatestCompleted
+
+	rchan := sched.TaskReleaseChan()
+	activeStr := string(backend.TaskActive)
+	inactiveStr := string(backend.TaskInactive)
+
+	task, err = coord.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &inactiveStr})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-rchan:
+	case <-time.After(time.Second):
+		t.Fatal("failed to release claimed task")
+	}
+	// without a delay it we cant currently detect updates to the latestcompleted
+	time.Sleep(time.Second)
+	cchan := sched.TaskCreateChan()
+
+	_, err = coord.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &activeStr})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case claimedTask := <-cchan:
+		if claimedTask.LatestCompleted == lc {
+			t.Fatal("failed up update latest completed in claimed task")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("failed to release claimed task")
+	}
+
+}
+
 func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 	ts := inmemTaskService()
 	sched := mock.NewScheduler()

@@ -109,13 +109,18 @@ func (c *Coordinator) CreateTask(ctx context.Context, t platform.TaskCreate) (*p
 }
 
 func (c *Coordinator) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+	oldTask, err := c.TaskService.FindTaskByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
 	task, err := c.TaskService.UpdateTask(ctx, id, upd)
 	if err != nil {
 		return task, err
 	}
 
 	// If disabling the task, do so before modifying the script.
-	if task.Status == string(backend.TaskInactive) {
+	if task.Status != oldTask.Status && task.Status == string(backend.TaskInactive) {
 		if err := c.sch.ReleaseTask(id); err != nil && err != backend.ErrTaskNotClaimed {
 			return task, err
 		}
@@ -126,7 +131,14 @@ func (c *Coordinator) UpdateTask(ctx context.Context, id platform.ID, upd platfo
 	}
 
 	// If enabling the task, claim it after modifying the script.
-	if task.Status == string(backend.TaskActive) {
+	if task.Status != oldTask.Status && task.Status == string(backend.TaskActive) {
+		// don't catch up on all the missed task runs while disabled
+		newLatestCompleted := time.Now().UTC().Format(time.RFC3339)
+		task, err := c.TaskService.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{LatestCompleted: &newLatestCompleted})
+		if err != nil {
+			return task, err
+		}
+
 		if err := c.sch.ClaimTask(ctx, task); err != nil && err != backend.ErrTaskAlreadyClaimed {
 			return task, err
 		}
