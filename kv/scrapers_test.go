@@ -64,10 +64,21 @@ func initScraperTargetStoreService(s kv.Store, f influxdbtesting.TargetFields, t
 		}
 	}
 
+	for _, o := range f.Organizations {
+		if err := svc.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate organization")
+		}
+	}
+
 	return svc, kv.OpPrefix, func() {
 		for _, target := range f.Targets {
 			if err := svc.RemoveTarget(ctx, target.ID); err != nil {
 				t.Logf("failed to remove targets: %v", err)
+			}
+		}
+		for _, o := range f.Organizations {
+			if err := svc.DeleteOrganization(ctx, o.ID); err != nil {
+				t.Logf("failed to remove orgs: %v", err)
 			}
 		}
 	}

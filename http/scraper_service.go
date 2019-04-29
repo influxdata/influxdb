@@ -223,11 +223,50 @@ func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.R
 	}
 }
 
+type getScraperTargetsRequest struct {
+	filter influxdb.ScraperTargetFilter
+}
+
+func decodeScraperTargetsRequest(ctx context.Context, r *http.Request) (*getScraperTargetsRequest, error) {
+	qp := r.URL.Query()
+	req := &getScraperTargetsRequest{}
+
+	initialID := influxdb.InvalidID()
+	if ids, ok := qp["id"]; ok {
+		req.filter.IDs = make(map[influxdb.ID]bool)
+		for _, id := range ids {
+			i := initialID
+			if err := i.DecodeFromString(id); err != nil {
+				return nil, err
+			}
+			req.filter.IDs[i] = false
+		}
+	}
+	if name := qp.Get("name"); name != "" {
+		req.filter.Name = &name
+	}
+	if orgID := qp.Get("orgID"); orgID != "" {
+		id := influxdb.InvalidID()
+		if err := id.DecodeFromString(orgID); err != nil {
+			return nil, err
+		}
+		req.filter.OrgID = &id
+	} else if org := qp.Get("org"); org != "" {
+		req.filter.Org = &org
+	}
+
+	return req, nil
+}
+
 // handleGetScraperTargets is the HTTP handler for the GET /api/v2/scrapers route.
 func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	targets, err := h.ScraperStorageService.ListTargets(ctx)
+	req, err := decodeScraperTargetsRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	targets, err := h.ScraperStorageService.ListTargets(ctx, req.filter)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -294,13 +333,27 @@ type ScraperService struct {
 }
 
 // ListTargets returns a list of all scraper targets.
-func (s *ScraperService) ListTargets(ctx context.Context) ([]influxdb.ScraperTarget, error) {
+func (s *ScraperService) ListTargets(ctx context.Context, filter influxdb.ScraperTargetFilter) ([]influxdb.ScraperTarget, error) {
 	url, err := newURL(s.Addr, targetsPath)
 	if err != nil {
 		return nil, err
 	}
 
 	query := url.Query()
+	if filter.IDs != nil {
+		for id := range filter.IDs {
+			query.Add("id", id.String())
+		}
+	}
+	if filter.Name != nil {
+		query.Set("name", *filter.Name)
+	}
+	if filter.OrgID != nil {
+		query.Set("orgID", filter.OrgID.String())
+	}
+	if filter.Org != nil {
+		query.Set("org", *filter.Org)
+	}
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {

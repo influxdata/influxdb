@@ -11,8 +11,8 @@ import {refreshVariableValues, selectValue} from 'src/variables/actions'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
-import {queryLimitReached} from 'src/shared/copy/notifications'
-import {RATE_LIMIT_ERROR_STATUS} from 'src/shared/constants/errors'
+import {readLimitReached} from 'src/shared/copy/notifications'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -130,7 +130,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     }
 
     if (get(e, 'xhr.status') === RATE_LIMIT_ERROR_STATUS) {
-      dispatch(notify(queryLimitReached()))
+      dispatch(notify(readLimitReached()))
     }
 
     console.error(e)

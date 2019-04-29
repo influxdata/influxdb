@@ -28,7 +28,6 @@ import {
 // Types
 import {Links} from 'src/types/links'
 import {Substep, TelegrafPlugin} from 'src/types/dataLoaders'
-import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 
@@ -36,12 +35,12 @@ export interface CollectorsStepProps {
   currentStepIndex: number
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onExit: () => void
 }
 
 interface DispatchProps {
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onSetBucketInfo: typeof setBucketInfo
   onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
   onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
@@ -97,9 +96,9 @@ class CollectorsWizard extends PureComponent<Props & WithRouterProps, State> {
   private handleSetBucketInfo = () => {
     const {bucket, buckets} = this.props
     if (!bucket && (buckets && buckets.length)) {
-      const {organizationID, name, id} = buckets[0]
+      const {orgID, name, id} = buckets[0]
 
-      this.props.onSetBucketInfo(organizationID, name, id)
+      this.props.onSetBucketInfo(orgID, name, id)
     }
   }
 

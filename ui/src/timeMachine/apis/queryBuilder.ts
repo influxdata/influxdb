@@ -66,9 +66,9 @@ export function findKeys({
   |> range(${timeRangeArguments})
   |> filter(fn: ${tagFilters})
   |> keys()
-  |> keep(columns: ["_value"])${searchFilter}${previousKeyFilter}
+  |> keep(columns: ["_value"])
+  |> distinct()${searchFilter}${previousKeyFilter}
   |> filter(fn: (r) => r._value != "_time" and r._value != "_start" and r._value !=  "_stop" and r._value != "_value")
-  |> distinct()
   |> sort()
   |> limit(n: ${limit})`
 
@@ -110,9 +110,9 @@ export function findValues({
   const query = `from(bucket: "${bucket}")
   |> range(${timeRangeArguments})
   |> filter(fn: ${tagFilters})
-  |> group(columns: ["${key}"])
-  |> distinct(column: "${key}")
-  |> keep(columns: ["_value"])${searchFilter}
+  |> keep(columns: ["${key}"])
+  |> group()
+  |> distinct(column: "${key}")${searchFilter}
   |> limit(n: ${limit})
   |> sort()`
 

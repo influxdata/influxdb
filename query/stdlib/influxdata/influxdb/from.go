@@ -3,10 +3,8 @@ package influxdb
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/kit/tracing"
 
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
@@ -14,6 +12,7 @@ import (
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
 )
@@ -38,14 +37,6 @@ func init() {
 	flux.ReplacePackageValue("influxdata/influxdb", influxdb.FromKind, flux.FunctionValue(FromKind, createFromOpSpec, fromSignature))
 	flux.RegisterOpSpec(FromKind, newFromOp)
 	plan.RegisterProcedureSpec(FromKind, newFromProcedure, FromKind)
-	plan.RegisterPhysicalRules(
-		FromConversionRule{},
-		MergeFromRangeRule{},
-		MergeFromFilterRule{},
-		FromDistinctRule{},
-		MergeFromGroupRule{},
-		FromKeysRule{},
-	)
 	execute.RegisterSource(PhysicalFromKind, createFromSource)
 }
 
@@ -408,246 +399,6 @@ func (MergeFromFilterRule) Rewrite(filterNode plan.Node) (plan.Node, bool, error
 	}
 
 	return filterNode, true, nil
-}
-
-// isPushableExpr determines if a predicate expression can be pushed down into the storage layer.
-func isPushableExpr(paramName string, expr semantic.Expression) (bool, error) {
-	switch e := expr.(type) {
-	case *semantic.LogicalExpression:
-		b, err := isPushableExpr(paramName, e.Left)
-		if err != nil {
-			return false, err
-		}
-
-		if !b {
-			return false, nil
-		}
-
-		return isPushableExpr(paramName, e.Right)
-
-	case *semantic.BinaryExpression:
-		if isPushablePredicate(paramName, e) {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func isPushablePredicate(paramName string, be *semantic.BinaryExpression) bool {
-	// Manual testing seems to indicate that (at least right now) we can
-	// only handle predicates of the form <fn param>.<property> <op> <literal>
-	// and the literal must be on the RHS.
-
-	if !isLiteral(be.Right) {
-		return false
-	}
-
-	if isField(paramName, be.Left) && isPushableFieldOperator(be.Operator) {
-		return true
-	}
-
-	if isTag(paramName, be.Left) && isPushableTagOperator(be.Operator) {
-		return true
-	}
-
-	return false
-}
-
-func isLiteral(e semantic.Expression) bool {
-	switch e.(type) {
-	case *semantic.StringLiteral:
-		return true
-	case *semantic.IntegerLiteral:
-		return true
-	case *semantic.BooleanLiteral:
-		return true
-	case *semantic.FloatLiteral:
-		return true
-	case *semantic.RegexpLiteral:
-		return true
-	}
-
-	return false
-}
-
-const fieldValueProperty = "_value"
-
-func isTag(paramName string, e semantic.Expression) bool {
-	memberExpr := validateMemberExpr(paramName, e)
-	return memberExpr != nil && memberExpr.Property != fieldValueProperty
-}
-
-func isField(paramName string, e semantic.Expression) bool {
-	memberExpr := validateMemberExpr(paramName, e)
-	return memberExpr != nil && memberExpr.Property == fieldValueProperty
-}
-
-func validateMemberExpr(paramName string, e semantic.Expression) *semantic.MemberExpression {
-	memberExpr, ok := e.(*semantic.MemberExpression)
-	if !ok {
-		return nil
-	}
-
-	idExpr, ok := memberExpr.Object.(*semantic.IdentifierExpression)
-	if !ok {
-		return nil
-	}
-
-	if idExpr.Name != paramName {
-		return nil
-	}
-
-	return memberExpr
-}
-
-func isPushableTagOperator(kind ast.OperatorKind) bool {
-	pushableOperators := []ast.OperatorKind{
-		ast.EqualOperator,
-		ast.NotEqualOperator,
-		ast.RegexpMatchOperator,
-		ast.NotRegexpMatchOperator,
-	}
-
-	for _, op := range pushableOperators {
-		if op == kind {
-			return true
-		}
-	}
-
-	return false
-}
-
-func isPushableFieldOperator(kind ast.OperatorKind) bool {
-	if isPushableTagOperator(kind) {
-		return true
-	}
-
-	// Fields can be filtered by anything that tags can be filtered by,
-	// plus range operators.
-
-	moreOperators := []ast.OperatorKind{
-		ast.LessThanEqualOperator,
-		ast.LessThanOperator,
-		ast.GreaterThanEqualOperator,
-		ast.GreaterThanOperator,
-	}
-
-	for _, op := range moreOperators {
-		if op == kind {
-			return true
-		}
-	}
-
-	return false
-}
-
-type FromDistinctRule struct {
-}
-
-func (FromDistinctRule) Name() string {
-	return "FromDistinctRule"
-}
-
-func (FromDistinctRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.DistinctKind, plan.Pat(PhysicalFromKind))
-}
-
-func (FromDistinctRule) Rewrite(distinctNode plan.Node) (plan.Node, bool, error) {
-	fromNode := distinctNode.Predecessors()[0]
-	distinctSpec := distinctNode.ProcedureSpec().(*universe.DistinctProcedureSpec)
-	fromSpec := fromNode.ProcedureSpec().(*PhysicalFromProcedureSpec)
-
-	if fromSpec.LimitSet && fromSpec.PointsLimit == -1 {
-		return distinctNode, false, nil
-	}
-
-	groupStar := !fromSpec.GroupingSet && distinctSpec.Column != execute.DefaultValueColLabel && distinctSpec.Column != execute.DefaultTimeColLabel
-	groupByColumn := fromSpec.GroupingSet && len(fromSpec.GroupKeys) > 0 &&
-		((fromSpec.GroupMode == flux.GroupModeBy && execute.ContainsStr(fromSpec.GroupKeys, distinctSpec.Column)) ||
-			(fromSpec.GroupMode == flux.GroupModeExcept && !execute.ContainsStr(fromSpec.GroupKeys, distinctSpec.Column)))
-	if groupStar || groupByColumn {
-		newFromSpec := fromSpec.Copy().(*PhysicalFromProcedureSpec)
-		newFromSpec.LimitSet = true
-		newFromSpec.PointsLimit = -1
-		if err := fromNode.ReplaceSpec(newFromSpec); err != nil {
-			return nil, false, err
-		}
-		return distinctNode, true, nil
-	}
-
-	return distinctNode, false, nil
-}
-
-type MergeFromGroupRule struct {
-}
-
-func (MergeFromGroupRule) Name() string {
-	return "MergeFromGroupRule"
-}
-
-func (MergeFromGroupRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.GroupKind, plan.Pat(PhysicalFromKind))
-}
-
-func (MergeFromGroupRule) Rewrite(groupNode plan.Node) (plan.Node, bool, error) {
-	fromNode := groupNode.Predecessors()[0]
-	groupSpec := groupNode.ProcedureSpec().(*universe.GroupProcedureSpec)
-	fromSpec := fromNode.ProcedureSpec().(*PhysicalFromProcedureSpec)
-
-	if fromSpec.GroupingSet ||
-		fromSpec.LimitSet ||
-		groupSpec.GroupMode != flux.GroupModeBy {
-		return groupNode, false, nil
-	}
-
-	for _, c := range groupSpec.GroupKeys {
-		// Storage can only do grouping over tag keys.
-		// Note: _start and _stop are okay, since storage is always implicitly grouping by them anyway.
-		if c == execute.DefaultTimeColLabel || c == execute.DefaultValueColLabel {
-			return groupNode, false, nil
-		}
-	}
-
-	newFromSpec := fromSpec.Copy().(*PhysicalFromProcedureSpec)
-	newFromSpec.GroupingSet = true
-	newFromSpec.GroupMode = groupSpec.GroupMode
-	newFromSpec.GroupKeys = groupSpec.GroupKeys
-	merged, err := plan.MergeToPhysicalNode(groupNode, fromNode, newFromSpec)
-	if err != nil {
-		return nil, false, err
-	}
-	return merged, true, nil
-}
-
-type FromKeysRule struct {
-}
-
-func (FromKeysRule) Name() string {
-	return "FromKeysRule"
-}
-
-func (FromKeysRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.KeysKind, plan.Pat(PhysicalFromKind))
-}
-
-func (FromKeysRule) Rewrite(keysNode plan.Node) (plan.Node, bool, error) {
-	fromNode := keysNode.Predecessors()[0]
-	fromSpec := fromNode.ProcedureSpec().(*PhysicalFromProcedureSpec)
-
-	if fromSpec.LimitSet && fromSpec.PointsLimit == -1 {
-		return keysNode, false, nil
-	}
-
-	newFromSpec := fromSpec.Copy().(*PhysicalFromProcedureSpec)
-	newFromSpec.LimitSet = true
-	newFromSpec.PointsLimit = -1
-
-	if err := fromNode.ReplaceSpec(newFromSpec); err != nil {
-		return nil, false, err
-	}
-
-	return keysNode, true, nil
 }
 
 func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {

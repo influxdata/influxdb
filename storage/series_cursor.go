@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"errors"
-	"sort"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
@@ -103,7 +102,7 @@ func (cur *seriesCursor) Next() (*SeriesCursorRow, error) {
 	}
 
 	if cur.ofs < len(cur.keys) {
-		cur.row.Name, cur.row.Tags = tsdb.ParseSeriesKey(cur.keys[cur.ofs])
+		cur.row.Name, cur.row.Tags = tsdb.ParseSeriesKeyInto(cur.keys[cur.ofs], cur.row.Tags)
 		if !bytes.HasPrefix(cur.row.Name, cur.name[:influxdb.OrgIDLength]) {
 			return nil, errUnexpectedOrg
 		}
@@ -138,15 +137,5 @@ func (cur *seriesCursor) readSeriesKeys() error {
 		cur.keys = append(cur.keys, key)
 	}
 
-	// Sort keys.
-	sort.Sort(seriesKeys(cur.keys))
 	return nil
-}
-
-type seriesKeys [][]byte
-
-func (a seriesKeys) Len() int      { return len(a) }
-func (a seriesKeys) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a seriesKeys) Less(i, j int) bool {
-	return tsdb.CompareSeriesKeys(a[i], a[j]) == -1
 }

@@ -135,7 +135,7 @@ var (
 				"links": {
 					"self": "/api/v2/documents/template/020f755c3c082011"
 				},
-				"content": "content2", 
+				"content": "content2",
 				"meta": {
 					"name": "doc2"
 				}
@@ -626,20 +626,6 @@ func TestService_handleGetDocuments(t *testing.T) {
 		args   args
 		wants  wants
 	}{
-		{
-			name: "get all documents without org or orgID",
-			fields: fields{
-				DocumentService: findDocsServiceMock,
-			},
-			args: args{
-				authorizer: &influxdb.Session{UserID: user1ID},
-			},
-			wants: wants{
-				statusCode:  http.StatusBadRequest,
-				contentType: "application/json; charset=utf-8",
-				body:        `{"code":"invalid", "message":"Please provide either org or orgID"}`,
-			},
-		},
 		{
 			name: "get all documents with both org and orgID",
 			fields: fields{

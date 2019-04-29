@@ -17,7 +17,6 @@ import VariablesControlBar from 'src/dashboards/components/variablesControlBar/V
 import * as dashboardActions from 'src/dashboards/actions'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
-import * as notifyActions from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {
   setAutoRefreshInterval,
@@ -52,7 +51,6 @@ import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
-import * as NotificationsActions from 'src/types/actions/notifications'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {Organization} from '@influxdata/influx'
 import LimitChecker from 'src/cloud/components/LimitChecker'
@@ -81,7 +79,6 @@ interface DispatchProps {
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  notify: NotificationsActions.PublishNotificationActionCreator
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
   onSetActiveTimeMachine: typeof setActiveTimeMachine
@@ -395,7 +392,6 @@ const mdtp: DispatchProps = {
   handleChooseAutoRefresh: setAutoRefreshInterval,
   onSetAutoRefreshStatus: setAutoRefreshStatus,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
-  notify: notifyActions.notify,
   setDashTimeV1: rangesActions.setDashTimeV1,
   updateQueryParams: rangesActions.updateQueryParams,
   setZoomedTimeRange: rangesActions.setZoomedTimeRange,

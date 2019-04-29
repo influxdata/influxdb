@@ -3,6 +3,7 @@ package inmem
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -179,13 +180,15 @@ func (s *Service) findOrganizationByName(ctx context.Context, n string) (*platfo
 // CreateOrganization creates a new organization and sets b.ID with the new identifier.
 func (s *Service) CreateOrganization(ctx context.Context, o *platform.Organization) error {
 	op := OpPrefix + platform.OpCreateOrganization
+	if o.Name = strings.TrimSpace(o.Name); o.Name == "" {
+		return platform.ErrOrgNameisEmpty
+	}
 	if _, err := s.FindOrganization(ctx, platform.OrganizationFilter{Name: &o.Name}); err == nil {
 		return &platform.Error{
 			Code: platform.EConflict,
 			Op:   op,
 			Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
 		}
-
 	}
 	o.ID = s.IDGenerator.ID()
 	err := s.PutOrganization(ctx, o)
@@ -215,6 +218,15 @@ func (s *Service) UpdateOrganization(ctx context.Context, id platform.ID, upd pl
 	}
 
 	if upd.Name != nil {
+		if *upd.Name = strings.TrimSpace(*upd.Name); *upd.Name == "" {
+			return nil, platform.ErrOrgNameisEmpty
+		}
+		if _, err := s.FindOrganization(ctx, platform.OrganizationFilter{Name: upd.Name}); err == nil {
+			return nil, &platform.Error{
+				Code: platform.EConflict,
+				Msg:  fmt.Sprintf("organization with name %s already exists", *upd.Name),
+			}
+		}
 		o.Name = *upd.Name
 	}
 

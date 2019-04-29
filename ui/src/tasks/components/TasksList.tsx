@@ -18,6 +18,7 @@ import {
   removeTaskLabelsAsync,
   runTask,
 } from 'src/tasks/actions'
+import {checkTaskLimits as checkTaskLimitsAction} from 'src/cloud/actions/limits'
 
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
@@ -42,6 +43,7 @@ interface Props {
   sortDirection: Sort
   sortType: SortTypes
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
+  checkTaskLimits: typeof checkTaskLimitsAction
 }
 
 type SortKey = keyof Task
@@ -62,6 +64,10 @@ export default class TasksList extends PureComponent<Props, State> {
       taskLabelsEdit: null,
       isEditingTaskLabels: false,
     }
+  }
+
+  public componentDidMount() {
+    this.props.checkTaskLimits()
   }
 
   public render() {

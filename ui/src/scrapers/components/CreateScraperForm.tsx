@@ -1,14 +1,14 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form, Input, Grid} from '@influxdata/clockface'
+import {Form, Input, Grid, Button, ButtonType} from '@influxdata/clockface'
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
 
 // Types
 import {Bucket} from '@influxdata/influx'
-import {Columns} from '@influxdata/clockface'
+import {Columns, ComponentStatus, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
   buckets: Bucket[]
@@ -17,6 +17,8 @@ interface Props {
   selectedBucketID: string
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
   onSelectBucket: (bucket: Bucket) => void
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void
+  onDismiss: () => void
 }
 
 export class ScraperTarget extends PureComponent<Props> {
@@ -32,60 +34,92 @@ export class ScraperTarget extends PureComponent<Props> {
       onSelectBucket,
       buckets,
       selectedBucketID,
+      onSubmit,
+      onDismiss,
     } = this.props
 
     return (
-      <Grid>
-        <Grid.Row>
-          <Grid.Column widthSM={Columns.Six}>
-            <Form.ValidationElement
-              label="Name"
-              validationFunc={this.handleNameValidation}
-              value={name}
-            >
-              {status => (
-                <Input
-                  value={name}
-                  name="name"
-                  onChange={onInputChange}
-                  titleText="Name"
-                  placeholder="Name this scraper"
-                  autoFocus={true}
-                  status={status}
+      <Form onSubmit={onSubmit}>
+        <Grid>
+          <Grid.Row>
+            <Grid.Column widthSM={Columns.Six}>
+              <Form.ValidationElement
+                label="Name"
+                validationFunc={this.handleNameValidation}
+                value={name}
+              >
+                {status => (
+                  <Input
+                    value={name}
+                    name="name"
+                    onChange={onInputChange}
+                    titleText="Name"
+                    placeholder="Name this scraper"
+                    autoFocus={true}
+                    status={status}
+                  />
+                )}
+              </Form.ValidationElement>
+            </Grid.Column>
+            <Grid.Column widthSM={Columns.Six}>
+              <Form.Element label="Bucket to store scraped metrics">
+                <BucketDropdown
+                  selectedBucketID={selectedBucketID}
+                  buckets={buckets}
+                  onSelectBucket={onSelectBucket}
                 />
-              )}
-            </Form.ValidationElement>
-          </Grid.Column>
-          <Grid.Column widthSM={Columns.Six}>
-            <Form.Element label="Bucket to store scraped metrics">
-              <BucketDropdown
-                selectedBucketID={selectedBucketID}
-                buckets={buckets}
-                onSelectBucket={onSelectBucket}
-              />
-            </Form.Element>
-          </Grid.Column>
-          <Grid.Column widthSM={Columns.Twelve}>
-            <Form.ValidationElement
-              label="Target URL"
-              validationFunc={this.handleUrlValidation}
-              value={url}
-            >
-              {status => (
-                <Input
-                  value={url}
-                  name="url"
-                  placeholder="http://"
-                  onChange={onInputChange}
-                  titleText="Target URL"
-                  status={status}
+              </Form.Element>
+            </Grid.Column>
+            <Grid.Column widthSM={Columns.Twelve}>
+              <Form.ValidationElement
+                label="Target URL"
+                validationFunc={this.handleUrlValidation}
+                value={url}
+              >
+                {status => (
+                  <Input
+                    value={url}
+                    name="url"
+                    placeholder="http://"
+                    onChange={onInputChange}
+                    titleText="Target URL"
+                    status={status}
+                  />
+                )}
+              </Form.ValidationElement>
+            </Grid.Column>
+          </Grid.Row>
+          <Grid.Row>
+            <Grid.Column>
+              <Form.Footer>
+                <Button
+                  text="Cancel"
+                  onClick={onDismiss}
+                  testID="create-scraper--cancel"
                 />
-              )}
-            </Form.ValidationElement>
-          </Grid.Column>
-        </Grid.Row>
-      </Grid>
+                <Button
+                  status={this.submitButtonStatus}
+                  text="Create"
+                  color={ComponentColor.Success}
+                  testID="create-scraper--submit"
+                  type={ButtonType.Submit}
+                />
+              </Form.Footer>
+            </Grid.Column>
+          </Grid.Row>
+        </Grid>
+      </Form>
     )
+  }
+
+  private get submitButtonStatus(): ComponentStatus {
+    const {name, url, selectedBucketID} = this.props
+
+    if (!url || !name || !selectedBucketID) {
+      return ComponentStatus.Disabled
+    }
+
+    return ComponentStatus.Default
   }
 
   private handleNameValidation = (name: string): string | null => {

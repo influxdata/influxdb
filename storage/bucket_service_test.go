@@ -28,7 +28,7 @@ func TestBucketService(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 
-	org := &platform.Organization{}
+	org := &platform.Organization{Name: "org1"}
 	if err := inmemService.CreateOrganization(context.TODO(), org); err != nil {
 		panic(err)
 	}

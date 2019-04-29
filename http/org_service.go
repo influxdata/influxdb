@@ -681,12 +681,6 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 
 // CreateOrganization creates an organization.
 func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
-	if o.Name == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "organization name is required",
-		}
-	}
 
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()

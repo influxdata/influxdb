@@ -18,7 +18,10 @@ import {
 import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {
+  notify,
+  PublishNotificationAction,
+} from 'src/shared/actions/notifications'
 import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
@@ -49,7 +52,7 @@ import {client} from 'src/utils/api'
 import {exportVariables} from 'src/variables/utils/exportVariables'
 import {getSaveableView} from 'src/timeMachine/selectors'
 import {incrementCloneName} from 'src/utils/naming'
-import {extractMessage, isLimitError} from 'src/cloud/utils/limits'
+import {isLimitError} from 'src/cloud/utils/limits'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -57,7 +60,6 @@ import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {CreateCell, ILabel} from '@influxdata/influx'
 import {
   Dashboard,
@@ -85,7 +87,6 @@ export type Action =
   | SetDashboardAction
   | EditDashboardAction
   | RemoveCellAction
-  | PublishNotificationAction
   | SetViewAction
   | DeleteTimeRangeAction
   | DeleteDashboardFailedAction
@@ -235,8 +236,7 @@ export const createDashboard = () => async (
     console.error(error)
 
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
     } else {
       dispatch(notify(copy.dashboardCreateFailed()))
     }
@@ -264,8 +264,7 @@ export const cloneDashboard = (dashboard: Dashboard) => async (
   } catch (error) {
     console.error(error)
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
     } else {
       dispatch(notify(copy.dashboardCreateFailed()))
     }
@@ -310,8 +309,7 @@ export const createDashboardFromTemplate = (
     dispatch(checkDashboardLimits())
   } catch (error) {
     if (isLimitError(error)) {
-      const message = extractMessage(error)
-      dispatch(notify(copy.resourceLimitReached('dashboards', message)))
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
     } else {
       dispatch(notify(copy.importDashboardFailed(error)))
     }
@@ -380,7 +378,7 @@ export const getDashboardAsync = (dashboardID: string) => async (
 }
 
 export const updateDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | PublishNotificationAction>
 ): Promise<void> => {
   try {
     const updatedDashboard = await updateDashboardAJAX(dashboard)
@@ -488,7 +486,9 @@ export const deleteCellAsync = (dashboard: Dashboard, cell: Cell) => async (
 export const copyDashboardCellAsync = (
   dashboard: Dashboard,
   cell: Cell
-) => async (dispatch: Dispatch<Action>): Promise<void> => {
+) => async (
+  dispatch: Dispatch<Action | PublishNotificationAction>
+): Promise<void> => {
   try {
     const clonedCell = getClonedDashboardCell(dashboard, cell)
     const updatedDashboard = {
@@ -506,7 +506,7 @@ export const copyDashboardCellAsync = (
 export const addDashboardLabelsAsync = (
   dashboardID: string,
   labels: ILabel[]
-) => async (dispatch: Dispatch<Action>) => {
+) => async (dispatch: Dispatch<Action | PublishNotificationAction>) => {
   try {
     const newLabels = await client.dashboards.addLabels(
       dashboardID,
@@ -523,7 +523,7 @@ export const addDashboardLabelsAsync = (
 export const removeDashboardLabelsAsync = (
   dashboardID: string,
   labels: ILabel[]
-) => async (dispatch: Dispatch<Action>) => {
+) => async (dispatch: Dispatch<Action | PublishNotificationAction>) => {
   try {
     await client.dashboards.removeLabels(dashboardID, labels.map(l => l.id))
 

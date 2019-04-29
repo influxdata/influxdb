@@ -12,12 +12,17 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Constants
 import {
-  readWriteLimitReached,
+  readLimitReached,
   resourceLimitReached,
 } from 'src/shared/copy/notifications'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
+import {
+  extractDashboardMax,
+  extractBucketMax,
+  extractTaskMax,
+} from 'src/cloud/utils/limits'
 
 export enum LimitStatus {
   OK = 'ok',
@@ -46,9 +51,16 @@ export enum ActionTypes {
   SetLimits = 'SET_LIMITS',
   SetLimitsStatus = 'SET_LIMITS_STATUS',
   SetDashboardLimitStatus = 'SET_DASHBOARD_LIMIT_STATUS',
+  SetBucketLimitStatus = 'SET_BUCKET_LIMIT_STATUS',
+  SetTaskLimitStatus = 'SET_TASK_LIMIT_STATUS',
 }
 
-export type Actions = SetLimits | SetLimitsStatus | SetDashboardLimitStatus
+export type Actions =
+  | SetLimits
+  | SetLimitsStatus
+  | SetDashboardLimitStatus
+  | SetBucketLimitStatus
+  | SetTaskLimitStatus
 
 export interface SetLimits {
   type: ActionTypes.SetLimits
@@ -72,6 +84,34 @@ export const setDashboardLimitStatus = (
 ): SetDashboardLimitStatus => {
   return {
     type: ActionTypes.SetDashboardLimitStatus,
+    payload: {limitStatus},
+  }
+}
+
+export interface SetBucketLimitStatus {
+  type: ActionTypes.SetBucketLimitStatus
+  payload: {limitStatus: LimitStatus}
+}
+
+export const setBucketLimitStatus = (
+  limitStatus: LimitStatus
+): SetBucketLimitStatus => {
+  return {
+    type: ActionTypes.SetBucketLimitStatus,
+    payload: {limitStatus},
+  }
+}
+
+export interface SetTaskLimitStatus {
+  type: ActionTypes.SetTaskLimitStatus
+  payload: {limitStatus: LimitStatus}
+}
+
+export const setTaskLimitStatus = (
+  limitStatus: LimitStatus
+): SetTaskLimitStatus => {
+  return {
+    type: ActionTypes.SetTaskLimitStatus,
     payload: {limitStatus},
   }
 }
@@ -102,10 +142,9 @@ export const getReadWriteLimits = () => async (
     const limits = await getReadWriteLimitsAJAX(org.id)
 
     const isReadLimited = limits.read.status === LimitStatus.EXCEEDED
-    const isWriteLimited = limits.write.status === LimitStatus.EXCEEDED
 
-    if (isReadLimited || isWriteLimited) {
-      dispatch(notify(readWriteLimitReached(isReadLimited, isWriteLimited)))
+    if (isReadLimited) {
+      dispatch(notify(readLimitReached()))
     }
   } catch (e) {}
 }
@@ -135,20 +174,65 @@ export const checkDashboardLimits = () => (
   try {
     const {
       dashboards: {list},
-      cloud: {
-        limits: {
-          dashboards: {maxAllowed},
-        },
-      },
+      cloud: {limits},
     } = getState()
 
+    const dashboardsMax = extractDashboardMax(limits)
     const dashboardsCount = list.length
 
-    if (maxAllowed <= dashboardsCount) {
+    if (dashboardsCount >= dashboardsMax) {
       dispatch(setDashboardLimitStatus(LimitStatus.EXCEEDED))
       dispatch(notify(resourceLimitReached('dashboards')))
     } else {
       dispatch(setDashboardLimitStatus(LimitStatus.OK))
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const checkBucketLimits = () => async (
+  dispatch,
+  getState: () => AppState
+) => {
+  try {
+    const {
+      buckets: {list},
+      cloud: {limits},
+    } = getState()
+
+    const bucketsMax = extractBucketMax(limits)
+    const bucketsCount = list.length
+
+    if (bucketsCount >= bucketsMax) {
+      dispatch(setBucketLimitStatus(LimitStatus.EXCEEDED))
+      dispatch(notify(resourceLimitReached('buckets')))
+    } else {
+      dispatch(setBucketLimitStatus(LimitStatus.OK))
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const checkTaskLimits = () => async (
+  dispatch,
+  getState: () => AppState
+) => {
+  try {
+    const {
+      tasks: {list},
+      cloud: {limits},
+    } = getState()
+
+    const tasksMax = extractTaskMax(limits)
+    const tasksCount = list.length
+
+    if (tasksCount >= tasksMax) {
+      dispatch(setTaskLimitStatus(LimitStatus.EXCEEDED))
+      dispatch(notify(resourceLimitReached('tasks')))
+    } else {
+      dispatch(setTaskLimitStatus(LimitStatus.OK))
     }
   } catch (e) {
     console.error(e)

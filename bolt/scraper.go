@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 
 	bolt "github.com/coreos/bbolt"
-	platform "github.com/influxdata/influxdb"
+	influxdb "github.com/influxdata/influxdb"
 )
 
 var (
 	scraperBucket = []byte("scraperv2")
 )
 
-var _ platform.ScraperTargetStoreService = (*Client)(nil)
+var _ influxdb.ScraperTargetStoreService = (*Client)(nil)
 
 func (c *Client) initializeScraperTargets(ctx context.Context, tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists([]byte(scraperBucket)); err != nil {
@@ -22,22 +22,51 @@ func (c *Client) initializeScraperTargets(ctx context.Context, tx *bolt.Tx) erro
 }
 
 // ListTargets will list all scrape targets.
-func (c *Client) ListTargets(ctx context.Context) (list []platform.ScraperTarget, err error) {
-	list = make([]platform.ScraperTarget, 0)
+func (c *Client) ListTargets(ctx context.Context, filter influxdb.ScraperTargetFilter) (list []influxdb.ScraperTarget, err error) {
+	list = make([]influxdb.ScraperTarget, 0)
 	err = c.db.View(func(tx *bolt.Tx) (err error) {
 		cur := tx.Bucket(scraperBucket).Cursor()
 		for k, v := cur.First(); k != nil; k, v = cur.Next() {
-			target := new(platform.ScraperTarget)
+			target := new(influxdb.ScraperTarget)
 			if err = json.Unmarshal(v, target); err != nil {
 				return err
+			}
+			if err != nil {
+				return err
+			}
+			if filter.IDs != nil {
+				if _, ok := filter.IDs[target.ID]; !ok {
+					continue
+				}
+			}
+			if filter.Name != nil && target.Name != *filter.Name {
+				continue
+			}
+			if filter.Org != nil {
+				o, err := c.findOrganizationByName(ctx, tx, *filter.Org)
+				if err != nil {
+					return err
+				}
+				if target.OrgID != o.ID {
+					continue
+				}
+			}
+			if filter.OrgID != nil {
+				o, err := c.findOrganizationByID(ctx, tx, *filter.OrgID)
+				if err != nil {
+					return err
+				}
+				if target.OrgID != o.ID {
+					continue
+				}
 			}
 			list = append(list, *target)
 		}
 		return err
 	})
 	if err != nil {
-		return nil, &platform.Error{
-			Op:  getOp(platform.OpListTargets),
+		return nil, &influxdb.Error{
+			Op:  getOp(influxdb.OpListTargets),
 			Err: err,
 		}
 	}
@@ -45,19 +74,19 @@ func (c *Client) ListTargets(ctx context.Context) (list []platform.ScraperTarget
 }
 
 // AddTarget add a new scraper target into storage.
-func (c *Client) AddTarget(ctx context.Context, target *platform.ScraperTarget, userID platform.ID) (err error) {
+func (c *Client) AddTarget(ctx context.Context, target *influxdb.ScraperTarget, userID influxdb.ID) (err error) {
 	if !target.OrgID.Valid() {
-		return &platform.Error{
-			Code: platform.EInvalid,
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "provided organization ID has invalid format",
-			Op:   OpPrefix + platform.OpAddTarget,
+			Op:   OpPrefix + influxdb.OpAddTarget,
 		}
 	}
 	if !target.BucketID.Valid() {
-		return &platform.Error{
-			Code: platform.EInvalid,
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "provided bucket ID has invalid format",
-			Op:   OpPrefix + platform.OpAddTarget,
+			Op:   OpPrefix + influxdb.OpAddTarget,
 		}
 	}
 	err = c.db.Update(func(tx *bolt.Tx) error {
@@ -65,25 +94,25 @@ func (c *Client) AddTarget(ctx context.Context, target *platform.ScraperTarget, 
 		if err := c.putTarget(ctx, tx, target); err != nil {
 			return err
 		}
-		urm := &platform.UserResourceMapping{
+		urm := &influxdb.UserResourceMapping{
 			ResourceID:   target.ID,
 			UserID:       userID,
-			UserType:     platform.Owner,
-			ResourceType: platform.ScraperResourceType,
+			UserType:     influxdb.Owner,
+			ResourceType: influxdb.ScraperResourceType,
 		}
 		return c.createUserResourceMapping(ctx, tx, urm)
 	})
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
-			Op:  OpPrefix + platform.OpAddTarget,
+			Op:  OpPrefix + influxdb.OpAddTarget,
 		}
 	}
 	return nil
 }
 
 // RemoveTarget removes a scraper target from the bucket.
-func (c *Client) RemoveTarget(ctx context.Context, id platform.ID) error {
+func (c *Client) RemoveTarget(ctx context.Context, id influxdb.ID) error {
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		_, pe := c.findTargetByID(ctx, tx, id)
 		if pe != nil {
@@ -91,35 +120,35 @@ func (c *Client) RemoveTarget(ctx context.Context, id platform.ID) error {
 		}
 		encID, err := id.Encode()
 		if err != nil {
-			return &platform.Error{
-				Code: platform.EInvalid,
+			return &influxdb.Error{
+				Code: influxdb.EInvalid,
 				Err:  err,
 			}
 		}
 		if err = tx.Bucket(scraperBucket).Delete(encID); err != nil {
 			return nil
 		}
-		return c.deleteUserResourceMappings(ctx, tx, platform.UserResourceMappingFilter{
+		return c.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
 			ResourceID:   id,
-			ResourceType: platform.ScraperResourceType,
+			ResourceType: influxdb.ScraperResourceType,
 		})
 	})
 	if err != nil {
-		return &platform.Error{
+		return &influxdb.Error{
 			Err: err,
-			Op:  OpPrefix + platform.OpRemoveTarget,
+			Op:  OpPrefix + influxdb.OpRemoveTarget,
 		}
 	}
 	return nil
 }
 
 // UpdateTarget updates a scraper target.
-func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarget, userID platform.ID) (target *platform.ScraperTarget, err error) {
-	op := getOp(platform.OpUpdateTarget)
-	var pe *platform.Error
+func (c *Client) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID influxdb.ID) (target *influxdb.ScraperTarget, err error) {
+	op := getOp(influxdb.OpUpdateTarget)
+	var pe *influxdb.Error
 	if !update.ID.Valid() {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Op:   op,
 			Msg:  "provided scraper target ID has invalid format",
 		}
@@ -140,7 +169,7 @@ func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarge
 	})
 
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Op:  op,
 			Err: err,
 		}
@@ -150,13 +179,13 @@ func (c *Client) UpdateTarget(ctx context.Context, update *platform.ScraperTarge
 }
 
 // GetTargetByID retrieves a scraper target by id.
-func (c *Client) GetTargetByID(ctx context.Context, id platform.ID) (target *platform.ScraperTarget, err error) {
-	var pe *platform.Error
+func (c *Client) GetTargetByID(ctx context.Context, id influxdb.ID) (target *influxdb.ScraperTarget, err error) {
+	var pe *influxdb.Error
 	err = c.db.View(func(tx *bolt.Tx) error {
 		target, pe = c.findTargetByID(ctx, tx, id)
 		if pe != nil {
-			return &platform.Error{
-				Op:  getOp(platform.OpGetTargetByID),
+			return &influxdb.Error{
+				Op:  getOp(influxdb.OpGetTargetByID),
 				Err: pe,
 			}
 		}
@@ -168,31 +197,31 @@ func (c *Client) GetTargetByID(ctx context.Context, id platform.ID) (target *pla
 	return target, nil
 }
 
-func (c *Client) findTargetByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (target *platform.ScraperTarget, pe *platform.Error) {
-	target = new(platform.ScraperTarget)
+func (c *Client) findTargetByID(ctx context.Context, tx *bolt.Tx, id influxdb.ID) (target *influxdb.ScraperTarget, pe *influxdb.Error) {
+	target = new(influxdb.ScraperTarget)
 	encID, err := id.Encode()
 	if err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
 	v := tx.Bucket(scraperBucket).Get(encID)
 	if len(v) == 0 {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
 			Msg:  "scraper target is not found",
 		}
 	}
 
 	if err := json.Unmarshal(v, target); err != nil {
-		return nil, &platform.Error{
+		return nil, &influxdb.Error{
 			Err: err,
 		}
 	}
 	return target, nil
 }
 
-func (c *Client) putTarget(ctx context.Context, tx *bolt.Tx, target *platform.ScraperTarget) (err error) {
+func (c *Client) putTarget(ctx context.Context, tx *bolt.Tx, target *influxdb.ScraperTarget) (err error) {
 	v, err := json.Marshal(target)
 	if err != nil {
 		return err
@@ -205,7 +234,7 @@ func (c *Client) putTarget(ctx context.Context, tx *bolt.Tx, target *platform.Sc
 }
 
 // PutTarget will put a scraper target without setting an ID.
-func (c *Client) PutTarget(ctx context.Context, target *platform.ScraperTarget) error {
+func (c *Client) PutTarget(ctx context.Context, target *influxdb.ScraperTarget) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.putTarget(ctx, tx, target)
 	})

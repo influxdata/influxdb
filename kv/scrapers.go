@@ -96,17 +96,18 @@ func (s *Service) scrapersBucket(tx Tx) (Bucket, error) {
 }
 
 // ListTargets will list all scrape targets.
-func (s *Service) ListTargets(ctx context.Context) ([]influxdb.ScraperTarget, error) {
+func (s *Service) ListTargets(ctx context.Context, filter influxdb.ScraperTargetFilter) ([]influxdb.ScraperTarget, error) {
 	targets := []influxdb.ScraperTarget{}
 	err := s.kv.View(ctx, func(tx Tx) error {
 		var err error
-		targets, err = s.listTargets(ctx, tx)
+		targets, err = s.listTargets(ctx, tx, filter)
 		return err
 	})
 	return targets, err
 }
 
-func (s *Service) listTargets(ctx context.Context, tx Tx) ([]influxdb.ScraperTarget, error) {
+func (s *Service) listTargets(ctx context.Context, tx Tx, filter influxdb.ScraperTargetFilter) ([]influxdb.ScraperTarget, error) {
+	targets := []influxdb.ScraperTarget{}
 	bucket, err := s.scrapersBucket(tx)
 	if err != nil {
 		return nil, err
@@ -117,11 +118,36 @@ func (s *Service) listTargets(ctx context.Context, tx Tx) ([]influxdb.ScraperTar
 		return nil, UnexpectedScrapersBucketError(err)
 	}
 
-	targets := []influxdb.ScraperTarget{}
 	for k, v := cur.First(); k != nil; k, v = cur.Next() {
 		target, err := unmarshalScraper(v)
 		if err != nil {
 			return nil, err
+		}
+		if filter.IDs != nil {
+			if _, ok := filter.IDs[target.ID]; !ok {
+				continue
+			}
+		}
+		if filter.Name != nil && target.Name != *filter.Name {
+			continue
+		}
+		if filter.Org != nil {
+			o, err := s.findOrganizationByName(ctx, tx, *filter.Org)
+			if err != nil {
+				return nil, err
+			}
+			if target.OrgID != o.ID {
+				continue
+			}
+		}
+		if filter.OrgID != nil {
+			o, err := s.findOrganizationByID(ctx, tx, *filter.OrgID)
+			if err != nil {
+				return nil, err
+			}
+			if target.OrgID != o.ID {
+				continue
+			}
 		}
 		targets = append(targets, *target)
 	}

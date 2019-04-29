@@ -193,6 +193,7 @@ go_memstats_gc_cpu_fraction 1.972734963012756e-05
 type mockStorage struct {
 	sync.RWMutex
 	influxdb.UserResourceMappingService
+	influxdb.OrganizationService
 	TotalGatherJobs chan struct{}
 	Metrics         map[time.Time]Metrics
 	Targets         []influxdb.ScraperTarget
@@ -208,7 +209,7 @@ func (s *mockStorage) Record(collected MetricsCollection) error {
 	return nil
 }
 
-func (s *mockStorage) ListTargets(ctx context.Context) (targets []influxdb.ScraperTarget, err error) {
+func (s *mockStorage) ListTargets(ctx context.Context, filter influxdb.ScraperTargetFilter) (targets []influxdb.ScraperTarget, err error) {
 	s.RLock()
 	defer s.RUnlock()
 	if s.Targets == nil {
