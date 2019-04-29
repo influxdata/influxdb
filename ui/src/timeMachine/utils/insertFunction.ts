@@ -16,8 +16,6 @@ const insertAtLine = (
   textToInsert: string,
   insertOnSameLine?: boolean
 ): string => {
-  const numPackages = scriptLines.filter(sl => sl.includes('import "')).length
-
   const front = scriptLines.slice(0, lineNumber)
   const backStartIndex = insertOnSameLine ? lineNumber + 1 : lineNumber
   const back = scriptLines.slice(backStartIndex)
