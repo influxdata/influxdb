@@ -102,11 +102,17 @@ type predicateMatcher struct {
 func (p *predicateMatcher) Matches(key []byte) bool {
 	p.state.Reset()
 
+	// Extract the series from the composite key
+	key, _ = SeriesAndFieldFromCompositeKey(key)
+
+	// Determine which popping algorithm to use. If there are no escape characters
+	// we can use the quicker method that only works in that case.
 	popTag := predicatePopTag
 	if bytes.IndexByte(key, '\\') != -1 {
 		popTag = predicatePopTagEscape
 	}
 
+	// Feed tag pairs into the state and update until we have a definite response.
 	var tag, value []byte
 	for len(key) > 0 {
 		tag, value, key = popTag(key)
@@ -121,6 +127,8 @@ func (p *predicateMatcher) Matches(key []byte) bool {
 		}
 	}
 
+	// If it always needed more then it didn't match. For example, consider if
+	// the predicate matches `tag1=val1` but tag1 is not present in the key.
 	return false
 }
 
@@ -158,14 +166,6 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 
 		// Fill in the left side of the comparison
 		switch left.GetNodeType() {
-		// Field refs are actually for the '\xff' tag
-		case datatypes.NodeTypeFieldRef:
-			idx, ok := state.locs[models.FieldKeyTagKey]
-			if !ok {
-				return nil, fmt.Errorf("invalid field ref in comparison: %v", left.GetTagRefValue())
-			}
-			comp.leftIndex = idx
-
 		// Tag refs look up the location of the tag in the state
 		case datatypes.NodeTypeTagRef:
 			idx, ok := state.locs[left.GetTagRefValue()]
@@ -188,14 +188,6 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 
 		// Fill in the right side of the comparison
 		switch right.GetNodeType() {
-		// Field refs are actually for the '\xff' tag
-		case datatypes.NodeTypeFieldRef:
-			idx, ok := state.locs[models.FieldKeyTagKey]
-			if !ok {
-				return nil, fmt.Errorf("invalid field ref in comparison: %v", left.GetTagRefValue())
-			}
-			comp.rightIndex = idx
-
 		// Tag refs look up the location of the tag in the state
 		case datatypes.NodeTypeTagRef:
 			idx, ok := state.locs[right.GetTagRefValue()]

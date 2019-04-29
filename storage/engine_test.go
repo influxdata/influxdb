@@ -316,6 +316,37 @@ func TestEngine_DeleteBucket_Predicate(t *testing.T) {
 	if got, exp := engine.SeriesCardinality(), int64(4); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
+
+	// Delete based on field.
+	pred, err = tsm1.NewProtobufPredicate(&datatypes.Predicate{
+		Root: &datatypes.Node{
+			NodeType: datatypes.NodeTypeComparisonExpression,
+			Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+			Children: []*datatypes.Node{
+				{NodeType: datatypes.NodeTypeTagRef,
+					Value: &datatypes.Node_TagRefValue{TagRefValue: models.FieldKeyTagKey},
+				},
+				{NodeType: datatypes.NodeTypeLiteral,
+					Value: &datatypes.Node_StringValue{StringValue: "value"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove the matching series.
+	if err := engine.DeleteBucketRangePredicate(engine.org, engine.bucket,
+		math.MinInt64, math.MaxInt64, pred); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check only matching series were removed.
+	if got, exp := engine.SeriesCardinality(), int64(0); got != exp {
+		t.Fatalf("got %d series, exp %d series in index", got, exp)
+	}
+
 }
 
 func TestEngine_OpenClose(t *testing.T) {
