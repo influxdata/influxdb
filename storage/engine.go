@@ -520,7 +520,7 @@ func (e *Engine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) 
 	}
 
 	// Add the delete to the WAL to be replayed if there is a crash or shutdown.
-	if _, err := e.wal.DeleteBucketRange(orgID, bucketID, min, max); err != nil {
+	if _, err := e.wal.DeleteBucketRange(orgID, bucketID, min, max, nil); err != nil {
 		return err
 	}
 
