@@ -77,16 +77,22 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-		if bytes.HasPrefix(k, name) {
-			if deleteKeys == nil {
-				deleteKeys = make([][]byte, 0, 10000)
-			}
-			deleteKeys = append(deleteKeys, k)
-
-			// we have to double check every key in the cache because maybe
-			// it exists in the index but not yet on disk.
-			possiblyDead.keys[string(k)] = struct{}{}
+		if !bytes.HasPrefix(k, name) {
+			return nil
 		}
+		if pred != nil && !pred.Matches(k) {
+			return nil
+		}
+
+		if deleteKeys == nil {
+			deleteKeys = make([][]byte, 0, 10000)
+		}
+		deleteKeys = append(deleteKeys, k)
+
+		// we have to double check every key in the cache because maybe
+		// it exists in the index but not yet on disk.
+		possiblyDead.keys[string(k)] = struct{}{}
+
 		return nil
 	})
 
@@ -94,7 +100,7 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 	bytesutil.Sort(deleteKeys)
 
 	// Delete from the cache.
-	e.Cache.DeleteBucketRange(name, min, max)
+	e.Cache.DeleteBucketRange(name, min, max, pred)
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.
@@ -107,6 +113,9 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 			key := iter.Key()
 			if !bytes.HasPrefix(key, name) {
 				break
+			}
+			if pred != nil && !pred.Matches(key) {
+				continue
 			}
 
 			// TODO(jeff): benchmark the locking here.
@@ -131,9 +140,14 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-		if bytes.HasPrefix(k, name) {
-			delete(possiblyDead.keys, string(k))
+		if !bytes.HasPrefix(k, name) {
+			return nil
 		}
+		if pred != nil && !pred.Matches(k) {
+			return nil
+		}
+
+		delete(possiblyDead.keys, string(k))
 		return nil
 	})
 
@@ -147,7 +161,7 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 		// the deletes of the data in the tsm files.
 
 		// In this case the entire measurement (bucket) can be removed from the index.
-		if min == math.MinInt64 && max == math.MaxInt64 {
+		if min == math.MinInt64 && max == math.MaxInt64 && pred == nil {
 			// The TSI index and Series File do not store series data in escaped form.
 			name = models.UnescapeMeasurement(name)
 
