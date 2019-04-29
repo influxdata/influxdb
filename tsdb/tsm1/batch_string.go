@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -12,6 +13,9 @@ var (
 	errStringBatchDecodeInvalidStringLength = fmt.Errorf("stringArrayDecodeAll: invalid encoded string length")
 	errStringBatchDecodeLengthOverflow      = fmt.Errorf("stringArrayDecodeAll: length overflow")
 	errStringBatchDecodeShortBuffer         = fmt.Errorf("stringArrayDecodeAll: short buffer")
+
+	// ErrStringArrayEncodeTooLarge reports that the encoded length of a slice of strings is too large.
+	ErrStringArrayEncodeTooLarge = errors.New("StringArrayEncodeAll: source length too large")
 )
 
 // StringArrayEncodeAll encodes src into b, returning b and any error encountered.
@@ -28,7 +32,11 @@ func StringArrayEncodeAll(src []string, b []byte) ([]byte, error) {
 	// includes the compressed size
 	var compressedSz = 0
 	if len(src) > 0 {
-		compressedSz = snappy.MaxEncodedLen(srcSz) + 1 /* header */
+		mle := snappy.MaxEncodedLen(srcSz)
+		if mle == -1 {
+			return b[:0], ErrStringArrayEncodeTooLarge
+		}
+		compressedSz = mle + 1 /* header */
 	}
 	totSz := srcSz + compressedSz
 
