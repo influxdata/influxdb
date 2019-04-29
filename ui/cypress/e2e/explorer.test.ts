@@ -1,6 +1,12 @@
 import {Doc} from 'codemirror'
 import {Organization} from '@influxdata/influx'
-import {FROM, RANGE, MEAN, ABS, MATH_FLOOR} from '../../src/shared/constants/fluxFunctions'
+import {
+  FROM,
+  RANGE,
+  MEAN,
+  ABS,
+  MATH_FLOOR,
+} from '../../src/shared/constants/fluxFunctions'
 
 interface HTMLElementCM extends HTMLElement {
   CodeMirror: {

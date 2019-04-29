@@ -13,13 +13,25 @@ const rejoinScript = (scriptLines: string[]): string => {
 const insertAtLine = (
   lineNumber: number,
   scriptLines: string[],
+  prevScriptLines: string[],
   textToInsert: string,
   insertOnSameLine?: boolean
 ): string => {
+  const numPrevPack = prevScriptLines.filter(sl => sl.includes('import "'))
+    .length
   const numPackages = scriptLines.filter(sl => sl.includes('import "')).length
-  const front = scriptLines.slice(0, lineNumber + numPackages)
-  const backStartIndex = insertOnSameLine ? lineNumber + 1 : lineNumber
-  const back = scriptLines.slice(backStartIndex + numPackages)
+  const packChange = numPrevPack !== numPackages
+
+  let ln = lineNumber
+  let backStartIndex = insertOnSameLine ? ln + 1 : ln
+
+  if (packChange) {
+    ln = ln + numPackages
+    backStartIndex = ln + numPackages
+  }
+
+  const front = scriptLines.slice(0, ln)
+  const back = scriptLines.slice(backStartIndex)
 
   const updated = [...front, textToInsert, ...back]
 
@@ -28,7 +40,7 @@ const insertAtLine = (
 
 const getInsertLineNumber = (
   currentLineNumber: number,
-  scriptLines: string[]
+  nextLines: string[]
 ): number => {
   const currentLine = scriptLines[currentLineNumber]
 
@@ -90,6 +102,8 @@ export const insertFluxFunction = (
   const {name, example} = func
 
   let updatedScript = addImports(currentScript, func.package)
+
+  const prevScriptLines = currentScript.split('\n')
   const scriptLines = updatedScript.split('\n')
 
   const insertLineNumber = getInsertLineNumber(currentLineNumber, scriptLines)
@@ -101,6 +115,7 @@ export const insertFluxFunction = (
   updatedScript = insertAtLine(
     insertLineNumber,
     scriptLines,
+    prevScriptLines,
     formattedFunction,
     insertOnSameLine
   )
