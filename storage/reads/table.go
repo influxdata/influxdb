@@ -127,6 +127,7 @@ func (t *table) appendTags() {
 		if v != nil {
 			b := arrow.NewStringBuilder(t.alloc)
 			b.Reserve(t.l)
+			b.ReserveData(t.l * len(v))
 			for i := 0; i < t.l; i++ {
 				b.Append(v)
 			}
