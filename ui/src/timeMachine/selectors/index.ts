@@ -1,11 +1,10 @@
 // Libraries
 import memoizeOne from 'memoize-one'
 import {get, flatMap} from 'lodash'
-import {Table, isNumeric} from '@influxdata/vis'
+import {isNumeric, fluxToTable, Table} from '@influxdata/vis'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
-import {toMinardTable} from 'src/shared/utils/toMinardTable'
 
 // Types
 import {
@@ -36,11 +35,11 @@ const getTablesMemoized = memoizeOne(
 export const getTables = (state: AppState): FluxTable[] =>
   getTablesMemoized(getActiveTimeMachine(state).queryResults.files)
 
-const getVisTableMemoized = memoizeOne(toMinardTable)
+const getVisTableMemoized = memoizeOne(fluxToTable)
 
 export const getVisTable = (state: AppState): Table => {
-  const fluxTables = getTables(state)
-  const {table} = getVisTableMemoized(fluxTables)
+  const files = getActiveTimeMachine(state).queryResults.files
+  const {table} = getVisTableMemoized(files.join('\n\n'))
 
   return table
 }
