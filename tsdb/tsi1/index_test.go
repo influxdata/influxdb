@@ -477,10 +477,15 @@ func TestIndex_CompactionConsistency(t *testing.T) {
 	close(done)
 	wg.Wait()
 
-	t.Log("expect", len(expected), "measurements after", len(operations), "operations")
-	for _, op := range operations {
-		t.Log(op)
-	}
+	defer func() {
+		if !t.Failed() {
+			return
+		}
+		t.Log("expect", len(expected), "measurements after", len(operations), "operations")
+		for _, op := range operations {
+			t.Log(op)
+		}
+	}()
 
 	for m := range expected {
 		if v, err := idx.MeasurementExists([]byte(m)); err != nil {
