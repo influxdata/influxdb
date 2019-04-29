@@ -33,23 +33,7 @@ func NewReader(s Store) influxdb.Reader {
 }
 
 func (r *storeReader) Read(ctx context.Context, rs influxdb.ReadSpec, start, stop execute.Time, alloc *memory.Allocator) (influxdb.TableIterator, error) {
-	var predicate *datatypes.Predicate
-	if rs.Predicate != nil {
-		p, err := toStoragePredicate(rs.Predicate)
-		if err != nil {
-			return nil, err
-		}
-		predicate = p
-	}
-
-	return &tableIterator{
-		ctx:       ctx,
-		bounds:    execute.Bounds{Start: start, Stop: stop},
-		s:         r.s,
-		readSpec:  rs,
-		predicate: predicate,
-		alloc:     alloc,
-	}, nil
+	panic("unimplemented; unsupported api call")
 }
 
 func (r *storeReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
