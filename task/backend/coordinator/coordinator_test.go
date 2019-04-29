@@ -223,7 +223,6 @@ func TestCoordinator_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lc := task.LatestCompleted
 
 	rchan := sched.TaskReleaseChan()
 	activeStr := string(backend.TaskActive)
@@ -239,8 +238,9 @@ func TestCoordinator_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("failed to release claimed task")
 	}
-	// without a delay it we cant currently detect updates to the latestcompleted
-	time.Sleep(time.Second)
+
+	newNow := time.Now().Add(time.Second)
+	sched.Tick(newNow.Unix())
 	cchan := sched.TaskCreateChan()
 
 	_, err = coord.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &activeStr})
@@ -250,7 +250,7 @@ func TestCoordinator_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
 
 	select {
 	case claimedTask := <-cchan:
-		if claimedTask.LatestCompleted == lc {
+		if claimedTask.LatestCompleted != newNow.UTC().Format(time.RFC3339) {
 			t.Fatal("failed up update latest completed in claimed task")
 		}
 	case <-time.After(time.Second):

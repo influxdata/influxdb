@@ -133,7 +133,7 @@ func (c *Coordinator) UpdateTask(ctx context.Context, id platform.ID, upd platfo
 	// If enabling the task, claim it after modifying the script.
 	if task.Status != oldTask.Status && task.Status == string(backend.TaskActive) {
 		// don't catch up on all the missed task runs while disabled
-		newLatestCompleted := time.Now().UTC().Format(time.RFC3339)
+		newLatestCompleted := c.sch.Now().UTC().Format(time.RFC3339)
 		task, err := c.TaskService.UpdateTask(ctx, task.ID, platform.TaskUpdate{LatestCompleted: &newLatestCompleted})
 		if err != nil {
 			return task, err
