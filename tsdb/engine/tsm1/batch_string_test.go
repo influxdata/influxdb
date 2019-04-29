@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"strings"
 	"testing"
 	"testing/quick"
 
@@ -12,6 +13,10 @@ import (
 	"github.com/influxdata/influxdb/internal/testutil"
 	"github.com/influxdata/influxdb/uuid"
 )
+
+func equalError(a, b error) bool {
+	return a == nil && b == nil || a != nil && b != nil && a.Error() == b.Error()
+}
 
 func TestStringArrayEncodeAll_NoValues(t *testing.T) {
 	b, err := StringArrayEncodeAll(nil, nil)
@@ -25,6 +30,19 @@ func TestStringArrayEncodeAll_NoValues(t *testing.T) {
 	}
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
+	}
+}
+
+func TestStringArrayEncodeAll_ExceedsMaxEncodedLen(t *testing.T) {
+	str := strings.Repeat(" ", 1<<23) // 8MB string
+	var s []string
+	for i := 0; i < 512; i++ {
+		s = append(s, str)
+	}
+
+	_, got := StringArrayEncodeAll(s, nil)
+	if !cmp.Equal(got, ErrStringArrayEncodeTooLarge, cmp.Comparer(equalError)) {
+		t.Fatalf("expected error, got: %v", got)
 	}
 }
 
