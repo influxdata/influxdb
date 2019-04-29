@@ -1161,12 +1161,6 @@ func (c *CommandLine) gopher() {
 // Version prints the CLI version.
 func (c *CommandLine) Version() {
 	fmt.Println("InfluxDB shell version:", c.ClientVersion)
-	switch c.Type {
-	case QueryLanguageFlux:
-		fmt.Println("Enter a Flux query")
-	default:
-		fmt.Println("Enter an InfluxQL query")
-	}
 }
 
 func (c *CommandLine) exit() {
