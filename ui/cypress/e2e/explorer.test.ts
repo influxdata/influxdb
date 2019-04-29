@@ -4,8 +4,10 @@ import {
   FROM,
   RANGE,
   MEAN,
-  ABS,
+  MATH_ABS,
   MATH_FLOOR,
+  STRINGS_TITLE,
+  STRINGS_TRIM,
 } from '../../src/shared/constants/fluxFunctions'
 
 interface HTMLElementCM extends HTMLElement {
@@ -68,12 +70,16 @@ describe('DataExplorer', () => {
       cy.getByTestID('flux-function range').click()
       cy.getByTestID('flux-function math.abs').click()
       cy.getByTestID('flux-function math.floor').click()
+      cy.getByTestID('flux-function strings.title').click()
+      cy.getByTestID('flux-function strings.trim').click()
 
       cy.get<Doc>('@flux').then(doc => {
         const actual = doc.getValue()
-        const expected = `import"${ABS.package}"${FROM.example}|>${
+        const expected = `import"${MATH_ABS.package}"${FROM.example}|>${
           RANGE.example
-        }|>${ABS.example}|>${MATH_FLOOR.example}`
+        }|>${MATH_ABS.example}|>${MATH_FLOOR.example}|>${
+          STRINGS_TITLE.example
+        }${STRINGS_TRIM.example}`
 
         cy.fluxEqual(actual, expected).should('be.true')
       })

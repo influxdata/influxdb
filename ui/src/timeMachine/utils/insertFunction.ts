@@ -13,24 +13,13 @@ const rejoinScript = (scriptLines: string[]): string => {
 const insertAtLine = (
   lineNumber: number,
   scriptLines: string[],
-  prevScriptLines: string[],
   textToInsert: string,
   insertOnSameLine?: boolean
 ): string => {
-  const numPrevPack = prevScriptLines.filter(sl => sl.includes('import "'))
-    .length
   const numPackages = scriptLines.filter(sl => sl.includes('import "')).length
-  const packChange = numPrevPack !== numPackages
 
-  let ln = lineNumber
-  let backStartIndex = insertOnSameLine ? ln + 1 : ln
-
-  if (packChange) {
-    ln = ln + numPackages
-    backStartIndex = ln + numPackages
-  }
-
-  const front = scriptLines.slice(0, ln)
+  const front = scriptLines.slice(0, lineNumber)
+  const backStartIndex = insertOnSameLine ? lineNumber + 1 : lineNumber
   const back = scriptLines.slice(backStartIndex)
 
   const updated = [...front, textToInsert, ...back]
@@ -40,7 +29,7 @@ const insertAtLine = (
 
 const getInsertLineNumber = (
   currentLineNumber: number,
-  nextLines: string[]
+  scriptLines: string[]
 ): number => {
   const currentLine = scriptLines[currentLineNumber]
 
@@ -84,14 +73,14 @@ const getCursorPosition = (
   return {line, ch}
 }
 
-const addImports = (script: string, funcPackage: string) => {
+const genImport = (script: string, funcPackage: string) => {
   const importStatement = `import "${funcPackage}"`
 
   if (!funcPackage || script.includes(importStatement)) {
-    return script
+    return ''
   }
 
-  return `${importStatement}\n${script}`
+  return importStatement
 }
 
 export const insertFluxFunction = (
@@ -101,30 +90,33 @@ export const insertFluxFunction = (
 ): {updatedScript: string; cursorPosition: Position} => {
   const {name, example} = func
 
-  let updatedScript = addImports(currentScript, func.package)
+  const scriptLines = currentScript.split('\n')
 
-  const prevScriptLines = currentScript.split('\n')
-  const scriptLines = updatedScript.split('\n')
-
-  const insertLineNumber = getInsertLineNumber(currentLineNumber, scriptLines)
+  let insertLineNumber = getInsertLineNumber(currentLineNumber, scriptLines)
 
   const insertOnSameLine = currentLineNumber === insertLineNumber
 
   const formattedFunction = formatFunctionForInsert(name, example)
 
-  updatedScript = insertAtLine(
+  let nextScript = insertAtLine(
     insertLineNumber,
     scriptLines,
-    prevScriptLines,
     formattedFunction,
     insertOnSameLine
   )
 
-  const updatedCursorPosition = getCursorPosition(
+  const importStatement = genImport(nextScript, func.package)
+
+  if (importStatement) {
+    nextScript = `${importStatement}\n${nextScript}`
+    insertLineNumber += 1
+  }
+
+  const nextCursorPos = getCursorPosition(
     insertLineNumber,
     formattedFunction,
     name
   )
 
-  return {updatedScript, cursorPosition: updatedCursorPosition}
+  return {updatedScript: nextScript, cursorPosition: nextCursorPos}
 }

@@ -83,7 +83,7 @@ export const UNION: FluxToolbarFunction = {
     'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/union/',
 }
 
-export const ABS: FluxToolbarFunction = {
+export const MATH_ABS: FluxToolbarFunction = {
   name: 'math.abs',
   args: [
     {
@@ -115,6 +115,46 @@ export const MATH_FLOOR: FluxToolbarFunction = {
   category: 'Transformations',
   link:
     'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/math/floor/',
+}
+
+export const STRINGS_TITLE: FluxToolbarFunction = {
+  name: 'strings.title',
+  args: [
+    {
+      name: 'v',
+      desc: 'The string value to convert.',
+      type: 'String',
+    },
+  ],
+  package: 'strings',
+  desc: 'Converts a string to title case.',
+  example: 'strings.title(v: r._value)',
+  category: 'Transformations',
+  link:
+    'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/title/',
+}
+
+export const STRINGS_TRIM: FluxToolbarFunction = {
+  name: 'strings.trim',
+  args: [
+    {
+      name: 'v',
+      desc: 'The string value to trim.',
+      type: 'String',
+    },
+    {
+      name: 'cutset',
+      desc:
+        'The leading and trailing characters to trim from the string value. Only characters that match exactly are trimmed.',
+      type: 'String',
+    },
+  ],
+  package: 'strings',
+  desc: 'Removes specified leading and trailing characters from a string.',
+  example: 'strings.trim(v: r._value, cutset: "_")',
+  category: 'Transformations',
+  link:
+    'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/trim/',
 }
 
 export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
@@ -1162,7 +1202,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/map/',
   },
-  ABS,
+  MATH_ABS,
   {
     name: 'math.acos',
     args: [
@@ -2555,22 +2595,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/type-conversions/string/',
   },
-  {
-    name: 'strings.title',
-    args: [
-      {
-        name: 'v',
-        desc: 'The string value to convert.',
-        type: 'String',
-      },
-    ],
-    package: 'strings',
-    desc: 'Converts a string to title case.',
-    example: 'strings.title(v: r._value)',
-    category: 'Transformations',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/title/',
-  },
+  STRINGS_TITLE,
   {
     name: 'strings.toLower',
     args: [
@@ -2603,28 +2628,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/toupper/',
   },
-  {
-    name: 'strings.trim',
-    args: [
-      {
-        name: 'v',
-        desc: 'The string value to trim.',
-        type: 'String',
-      },
-      {
-        name: 'cutset',
-        desc:
-          'The leading and trailing characters to trim from the string value. Only characters that match exactly are trimmed.',
-        type: 'String',
-      },
-    ],
-    package: 'strings',
-    desc: 'Removes specified leading and trailing characters from a string.',
-    example: 'strings.trim(v: r._value, cutset: "_")',
-    category: 'Transformations',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/trim/',
-  },
+  STRINGS_TRIM,
   {
     name: 'strings.trimPrefix',
     args: [
