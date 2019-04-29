@@ -212,7 +212,8 @@ func TestCoordinator(t *testing.T) {
 	}
 }
 
-func TestCoordinator_ClaimTask(t *testing.T) {
+func TestCoordinator_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
+	t.Parallel()
 	ts := inmemTaskService()
 	sched := mock.NewScheduler()
 
