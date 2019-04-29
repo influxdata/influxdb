@@ -83,6 +83,40 @@ export const UNION: FluxToolbarFunction = {
     'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/union/',
 }
 
+export const ABS: FluxToolbarFunction = {
+  name: 'math.abs',
+  args: [
+    {
+      name: 'x',
+      desc: 'The value used in the operation.',
+      type: 'Float',
+    },
+  ],
+  package: 'math',
+  desc: 'Returns the absolute value of x.',
+  example: 'math.abs(x: r._value)',
+  category: 'Transformations',
+  link:
+    'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/math/abs/',
+}
+
+export const MATH_FLOOR: FluxToolbarFunction = {
+  name: 'math.floor',
+  args: [
+    {
+      name: 'x',
+      desc: 'The value used in the operation.',
+      type: 'Float',
+    },
+  ],
+  package: 'math',
+  desc: 'Returns the greatest integer value less than or equal to x.',
+  example: 'math.floor(x: r._value)',
+  category: 'Transformations',
+  link:
+    'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/math/floor/',
+}
+
 export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   {
     name: 'aggregateWindow',
@@ -1128,22 +1162,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/map/',
   },
-  {
-    name: 'math.abs',
-    args: [
-      {
-        name: 'x',
-        desc: 'The value used in the operation.',
-        type: 'Float',
-      },
-    ],
-    package: 'math',
-    desc: 'Returns the absolute value of x.',
-    example: 'math.abs(x: r._value)',
-    category: 'Transformations',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/math/abs/',
-  },
+  ABS,
   {
     name: 'math.acos',
     args: [
@@ -1501,22 +1520,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/math/float64bits/',
   },
-  {
-    name: 'math.floor',
-    args: [
-      {
-        name: 'x',
-        desc: 'The value used in the operation.',
-        type: 'Float',
-      },
-    ],
-    package: 'math',
-    desc: 'Returns the greatest integer value less than or equal to x.',
-    example: 'math.floor(x: r._value)',
-    category: 'Transformations',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/math/floor/',
-  },
+  MATH_FLOOR,
   {
     name: 'math.frexp',
     args: [

@@ -23,7 +23,7 @@ import {insertVariable} from 'src/timeMachine/utils/insertVariable'
 import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, FluxToolbarFunction} from 'src/types'
 
 interface StateProps {
   activeQueryText: string
@@ -135,8 +135,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
   }
 
   private handleInsertFluxFunction = async (
-    functionName: string,
-    fluxFunction: string
+    func: FluxToolbarFunction
   ): Promise<void> => {
     const {activeQueryText} = this.props
     const {line} = this.cursorPosition
@@ -144,8 +143,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
     const {updatedScript, cursorPosition} = insertFluxFunction(
       line,
       activeQueryText,
-      functionName,
-      fluxFunction
+      func
     )
     await this.props.onSetActiveQueryText(updatedScript)
 

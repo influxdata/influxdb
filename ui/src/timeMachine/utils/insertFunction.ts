@@ -3,6 +3,9 @@ import {Position} from 'codemirror'
 // Constants
 import {FROM, UNION} from 'src/shared/constants/fluxFunctions'
 
+// Types
+import {FluxToolbarFunction} from 'src/types'
+
 const rejoinScript = (scriptLines: string[]): string => {
   return scriptLines.join('\n')
 }
@@ -13,10 +16,10 @@ const insertAtLine = (
   textToInsert: string,
   insertOnSameLine?: boolean
 ): string => {
-  const front = scriptLines.slice(0, lineNumber)
-
+  const numPackages = scriptLines.filter(sl => sl.includes('import "')).length
+  const front = scriptLines.slice(0, lineNumber + numPackages)
   const backStartIndex = insertOnSameLine ? lineNumber + 1 : lineNumber
-  const back = scriptLines.slice(backStartIndex)
+  const back = scriptLines.slice(backStartIndex + numPackages)
 
   const updated = [...front, textToInsert, ...back]
 
@@ -69,19 +72,33 @@ const getCursorPosition = (
   return {line, ch}
 }
 
+const addImports = (script: string, funcPackage: string) => {
+  const importStatement = `import "${funcPackage}"`
+
+  if (!funcPackage || script.includes(importStatement)) {
+    return script
+  }
+
+  return `${importStatement}\n${script}`
+}
+
 export const insertFluxFunction = (
   currentLineNumber: number,
   currentScript: string,
-  functionName: string,
-  fluxFunction: string
+  func: FluxToolbarFunction
 ): {updatedScript: string; cursorPosition: Position} => {
-  const scriptLines = currentScript.split('\n')
+  const {name, example} = func
+
+  let updatedScript = addImports(currentScript, func.package)
+  const scriptLines = updatedScript.split('\n')
+
   const insertLineNumber = getInsertLineNumber(currentLineNumber, scriptLines)
+
   const insertOnSameLine = currentLineNumber === insertLineNumber
 
-  const formattedFunction = formatFunctionForInsert(functionName, fluxFunction)
+  const formattedFunction = formatFunctionForInsert(name, example)
 
-  const updatedScript = insertAtLine(
+  updatedScript = insertAtLine(
     insertLineNumber,
     scriptLines,
     formattedFunction,
@@ -91,7 +108,7 @@ export const insertFluxFunction = (
   const updatedCursorPosition = getCursorPosition(
     insertLineNumber,
     formattedFunction,
-    functionName
+    name
   )
 
   return {updatedScript, cursorPosition: updatedCursorPosition}
