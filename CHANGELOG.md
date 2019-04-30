@@ -19,6 +19,7 @@
 1. [13602](https://github.com/influxdata/influxdb/pull/13602): Updated link in notes cell to a more useful site
 1. [13618](https://github.com/influxdata/influxdb/pull/13618): Show error message when adding line protocol
 1. [13657](https://github.com/influxdata/influxdb/pull/13657): Update UI Flux function documentation
+1. [13718](https://github.com/influxdata/influxdb/pull/13718): Updated System template to support math with floats
 
 ### UI Improvements
 1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay
