@@ -30,6 +30,9 @@ import {
   Columns,
   Grid,
 } from '@influxdata/clockface'
+import {
+  DashboardTemplate,
+} from 'src/types'
 import {Organization, Dashboard, ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
