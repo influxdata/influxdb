@@ -1003,7 +1003,7 @@ export const localMetricsTemplate = () => ({
             queries: [
               {
                 text:
-                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_uptime_seconds")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> last()\n  |> limit(n: 1)\n  |> map(fn: (r) => r._value / 60.0 / 60.0, mergeKey: true) ',
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_uptime_seconds")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> last()\n  |> limit(n: 1)\n  |> map(fn: (r) => float(v: r._value) / 60.0 / 60.0, mergeKey: true) ',
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
@@ -1732,7 +1732,7 @@ export const systemTemplate = () => ({
             queries: [
               {
                 text:
-                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "uptime")\n  |> window(period: 1h)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> map(fn: (r) => r._value / 86400, mergeKey: true)\n  |> yield(name: "last")\n  \n  \n  ',
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "uptime")\n  |> window(period: 1h)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> map(fn: (r) => float(v: r._value) / 86400.0, mergeKey: true)\n  |> yield(name: "last")\n  \n  \n  ',
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
@@ -1855,7 +1855,7 @@ export const systemTemplate = () => ({
             queries: [
               {
                 text:
-                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "total")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> map(fn: (r) => r._value / 1024 / 1024 / 1024, mergeKey: true)\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")\n  ',
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "total")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> map(fn: (r) => float(v: r._value) / 1024.0 / 1024.0 / 1024.0, mergeKey: true)\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")\n  ',
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
