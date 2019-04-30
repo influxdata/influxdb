@@ -13,6 +13,7 @@ func init() {
 	plan.RegisterPhysicalRules(
 		PushDownRangeRule{},
 		PushDownFilterRule{},
+		PushDownGroupRule{},
 		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
 	)
