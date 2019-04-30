@@ -310,14 +310,6 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("exp meta %v, got meta %v", *meta, ts[0].Meta)
 		}
 
-		meta, err = s.FindTaskMetaByID(context.Background(), id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !ts[0].Meta.Equal(*meta) {
-			t.Fatalf("exp meta %v, got meta %v", *meta, ts[0].Meta)
-		}
-
 		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{Org: platform.ID(123)})
 		if err != nil {
 			t.Fatal(err)
@@ -331,6 +323,22 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatal(err)
 		}
 
+		// Should return two tasks
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(ts) != 2 {
+			t.Fatalf("expected 2 results, got %d", len(ts))
+		}
+		if ts[0].Task.ID != id {
+			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, id)
+		}
+		if ts[1].Task.ID != newID {
+			t.Fatalf("got task ID %v, exp %v", ts[1].Task.ID, newID)
+		}
+
+		// Should return only one task
 		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{After: id})
 		if err != nil {
 			t.Fatal(err)
@@ -341,6 +349,19 @@ from(bucket:"test") |> range(start:-1h)`
 		if ts[0].Task.ID != newID {
 			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, newID)
 		}
+
+		// Test ListTasks with OrgID, should return same result
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{Org: orgID, After: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(ts) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(ts))
+		}
+		if ts[0].Task.ID != newID {
+			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, newID)
+		}
+
 		meta, err = s.FindTaskMetaByID(context.Background(), newID)
 		if err != nil {
 			t.Fatal(err)
