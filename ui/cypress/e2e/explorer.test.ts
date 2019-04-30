@@ -1,6 +1,14 @@
 import {Doc} from 'codemirror'
 import {Organization} from '@influxdata/influx'
-import {FROM, RANGE, MEAN} from '../../src/shared/constants/fluxFunctions'
+import {
+  FROM,
+  RANGE,
+  MEAN,
+  MATH_ABS,
+  MATH_FLOOR,
+  STRINGS_TITLE,
+  STRINGS_TRIM,
+} from '../../src/shared/constants/fluxFunctions'
 
 interface HTMLElementCM extends HTMLElement {
   CodeMirror: {
@@ -47,6 +55,38 @@ describe('DataExplorer', () => {
       })
 
       cy.getByTestID('time-machine-submit-button').should('be.disabled')
+    })
+
+    it('imports the appropriate packages to build a query', () => {
+      cy.getByTestID('functions-toolbar-tab').click()
+
+      cy.get<$CM>('.CodeMirror').then($cm => {
+        const cm = $cm[0].CodeMirror
+        cy.wrap(cm.doc).as('flux')
+        expect(cm.doc.getValue()).to.eq('')
+      })
+
+      cy.getByTestID('flux-function from').click()
+      cy.getByTestID('flux-function range').click()
+      cy.getByTestID('flux-function math.abs').click()
+      cy.getByTestID('flux-function math.floor').click()
+      cy.getByTestID('flux-function strings.title').click()
+      cy.getByTestID('flux-function strings.trim').click()
+
+      cy.get<Doc>('@flux').then(doc => {
+        const actual = doc.getValue()
+        const expected = `
+        import"${STRINGS_TITLE.package}"
+        import"${MATH_ABS.package}"
+        ${FROM.example}|>
+        ${RANGE.example}|>
+        ${MATH_ABS.example}|>
+        ${MATH_FLOOR.example}|>
+        ${STRINGS_TITLE.example}|>
+        ${STRINGS_TRIM.example}`
+
+        cy.fluxEqual(actual, expected).should('be.true')
+      })
     })
 
     it('can use the function selector to build a query', () => {

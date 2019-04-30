@@ -10,7 +10,7 @@ import {FluxToolbarFunction} from 'src/types/shared'
 interface Props {
   category: string
   funcs: FluxToolbarFunction[]
-  onClickFunction: (name: string, example: string) => void
+  onClickFunction: (func: FluxToolbarFunction) => void
 }
 
 const FunctionCategory: SFC<Props> = props => {

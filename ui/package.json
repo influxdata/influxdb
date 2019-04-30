@@ -113,7 +113,7 @@
     "ajv": "^6.7.0",
     "autoprefixer": "^6.3.1",
     "babel-loader": "^8.0.5",
-    "cypress": "^3.1.5",
+    "cypress": "^3.2.0",
     "enzyme": "^3.6.0",
     "enzyme-adapter-react-16": "^1.6.0",
     "enzyme-to-json": "^3.3.4",
