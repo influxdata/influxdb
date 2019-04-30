@@ -2,6 +2,7 @@
 import React, {SFC, CSSProperties} from 'react'
 import {createPortal} from 'react-dom'
 import ReactMarkdown from 'react-markdown'
+import {NOTES_PORTAL_ID} from 'src/shared/components/portals/NotesPortal'
 
 interface Props {
   note: string
@@ -29,10 +30,7 @@ const CellHeaderNoteTooltip: SFC<Props> = props => {
     </div>
   )
 
-  return createPortal(
-    content,
-    document.querySelector('.cell-header-note-tooltip-container')
-  )
+  return createPortal(content, document.querySelector(`#${NOTES_PORTAL_ID}`))
 }
 
 export default CellHeaderNoteTooltip

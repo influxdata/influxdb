@@ -4,6 +4,7 @@ import RightClickLayer from 'src/clockface/components/right_click_menu/RightClic
 import Nav from 'src/pageLayout'
 import LegendPortal from 'src/shared/components/LegendPortal'
 import TooltipPortal from 'src/shared/components/TooltipPortal'
+import NotesPortal from 'src/shared/components/portals/NotesPortal'
 import Notifications from 'src/shared/containers/Notifications'
 
 interface Props {
@@ -16,6 +17,7 @@ const App: SFC<Props> = ({children}) => (
     <Nav />
     <LegendPortal />
     <TooltipPortal />
+    <NotesPortal />
     {children}
   </Notifications>
 )
