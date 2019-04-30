@@ -18,6 +18,8 @@ import argparse
 
 # Packaging variables
 PACKAGE_NAME = "influxdb"
+USER = "influxdb"
+GROUP = "influxdb"
 INSTALL_ROOT_DIR = "/usr/bin"
 LOG_DIR = "/var/log/influxdb"
 DATA_DIR = "/var/lib/influxdb"
@@ -63,6 +65,8 @@ fpm_common_args = "-f -s dir --log error \
 --directories {} \
 --directories {} \
 --directories {} \
+--rpm-attr 755,{},{}:{} \
+--rpm-attr 755,{},{}:{} \
 --description \"{}\"".format(
      VENDOR,
      PACKAGE_URL,
@@ -74,6 +78,8 @@ fpm_common_args = "-f -s dir --log error \
      LOG_DIR,
      DATA_DIR,
      MAN_DIR,
+     USER, GROUP, LOG_DIR,
+     USER, GROUP, DATA_DIR,
      DESCRIPTION)
 
 for f in CONFIGURATION_FILES:
@@ -168,7 +174,7 @@ def go_get(branch, update=False, no_uncommitted=False):
         run(get_command)
     logging.info("Retrieving dependencies with `dep`...")
     sys.stdout.flush()
-    run("{}/bin/dep ensure -v -vendor-only".format(os.environ.get("GOPATH")))
+    run("{}/bin/dep ensure -v -vendor-only".format(os.environ.get("GOPATH", os.path.expanduser("~/go"))))
     return True
 
 def run_tests(race, parallel, timeout, no_vet, junit=False):

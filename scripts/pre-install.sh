@@ -1,5 +1,11 @@
 #!/bin/bash
 
+DATA_DIR=/var/lib/influxdb
+
+if ! id influxdb &>/dev/null; then
+    useradd --system -U -M influxdb -s /bin/false -d $DATA_DIR
+fi
+
 if [[ -d /etc/opt/influxdb ]]; then
     # Legacy configuration found
     if [[ ! -d /etc/influxdb ]]; then
