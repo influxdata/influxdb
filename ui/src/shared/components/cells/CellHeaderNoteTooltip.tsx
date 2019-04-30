@@ -2,7 +2,9 @@
 import React, {SFC, CSSProperties} from 'react'
 import {createPortal} from 'react-dom'
 import ReactMarkdown from 'react-markdown'
-import {NOTES_PORTAL_ID} from 'src/shared/components/portals/NotesPortal'
+
+// Constants
+import {NOTES_PORTAL_ID} from 'src/portals/NotesPortal'
 
 interface Props {
   note: string

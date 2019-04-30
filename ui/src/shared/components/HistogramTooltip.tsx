@@ -4,7 +4,7 @@ import {uniq, flatten} from 'lodash'
 import {HistogramTooltipProps, useTooltipStyle} from '@influxdata/vis'
 import {format} from 'd3-format'
 
-import {TOOLTIP_PORTAL_ID} from 'src/shared/components/TooltipPortal'
+import {TOOLTIP_PORTAL_ID} from 'src/portals/TooltipPortal'
 
 const formatLarge = format('.4~s')
 const formatSmall = format('.4~g')
