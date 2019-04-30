@@ -84,6 +84,16 @@ export const QuickstartScraperCreationError: Notification = {
   message: `Failed to configure InfluxDB Scraper`,
 }
 
+export const QuickstartDashboardCreationSuccess: Notification = {
+  ...defaultSuccessNotification,
+  message: `The Local Metrics Dashboard has been created`,
+}
+
+export const QuickstartDashboardCreationError: Notification = {
+  ...defaultErrorNotification,
+  message: `Failed to create the Local Metrics Dashboard`,
+}
+
 export const TelegrafConfigCreationSuccess: Notification = {
   ...defaultSuccessNotification,
   message: `Your configurations have been saved`,
