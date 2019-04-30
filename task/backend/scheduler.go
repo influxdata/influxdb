@@ -489,6 +489,10 @@ func newTaskScheduler(
 // Work begins a work cycle on the taskScheduler.
 // As many runners are started as possible.
 func (ts *taskScheduler) Work() {
+	// if the task is inactive we wont do any work.
+	if ts.task.Status == "inactive" {
+		return
+	}
 	for _, r := range ts.runners {
 		r.Start()
 		if r.IsIdle() {
