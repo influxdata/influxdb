@@ -8,7 +8,7 @@ import {uniq, flatten, isNumber} from 'lodash'
 import DapperScrollbars from 'src/shared/components/dapperScrollbars/DapperScrollbars'
 
 // Constants
-import {LEGEND_PORTAL_ID} from 'src/shared/components/LegendPortal'
+import {LEGEND_PORTAL_ID} from 'src/portals/LegendPortal'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 // Types
