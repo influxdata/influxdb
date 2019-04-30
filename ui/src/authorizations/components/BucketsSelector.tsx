@@ -46,7 +46,10 @@ class BucketsSelector extends PureComponent<Props> {
     const {searchTerm} = this.state
 
     return (
-      <BuilderCard className="bucket-selectors">
+      <BuilderCard
+        className="bucket-selectors"
+        testID={'builder-card--' + title}
+      >
         <BuilderCard.Header title={title}>
           <div className="bucket-selectors--buttons">
             <ComponentSpacer
@@ -59,12 +62,14 @@ class BucketsSelector extends PureComponent<Props> {
                 size={ComponentSize.ExtraSmall}
                 customClass="bucket-selectors--button"
                 onClick={onSelectAll}
+                testID="button--select-all"
               />
               <Button
                 text="Deselect All"
                 size={ComponentSize.ExtraSmall}
                 customClass="bucket-selectors--button"
                 onClick={onDeselectAll}
+                testID="button-deselect-all"
               />
             </ComponentSpacer>
           </div>
@@ -74,6 +79,7 @@ class BucketsSelector extends PureComponent<Props> {
             value={searchTerm}
             onChange={this.handleSetSearchTerm}
             placeholder="Search buckets..."
+            testID="input-field--bucket-read-filter"
           />
         </BuilderCard.Menu>
 

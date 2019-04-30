@@ -20,6 +20,7 @@ import {
   createToken,
   createDashboardTemplate,
   writeData,
+  getByTestIDSubStr,
 } from './support/commands'
 
 declare global {
@@ -37,6 +38,7 @@ declare global {
       getByTestID: typeof getByTestID
       getByInputName: typeof getByInputName
       getByTitle: typeof getByTitle
+      getByTestIDSubStr: typeof getByTestIDSubStr
       createAndAddLabel: typeof createAndAddLabel
       createLabel: typeof createLabel
       createBucket: typeof createBucket

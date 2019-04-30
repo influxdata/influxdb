@@ -250,11 +250,13 @@ export const createToken = (
   status: string,
   permissions: object[]
 ): Cypress.Chainable<Cypress.Response> => {
-  return cy.request('POST', 'api/v2/authorizations', {orgID: orgId, description: description, status: status,
-    permissions: permissions })
-
+  return cy.request('POST', 'api/v2/authorizations', {
+    orgID: orgId,
+    description: description,
+    status: status,
+    permissions: permissions,
+  })
 }
-
 
 // TODO: have to go through setup because we cannot create a user w/ a password via the user API
 export const setupUser = (): Cypress.Chainable<Cypress.Response> => {
@@ -293,12 +295,16 @@ export const getByTestID = (dataTest: string): Cypress.Chainable => {
   return cy.get(`[data-testid="${dataTest}"]`)
 }
 
+export const getByTestIDSubStr = (dataTest: string): Cypress.Chainable => {
+  return cy.get(`[data-testid*="${dataTest}"]`)
+}
+
 export const getByInputName = (name: string): Cypress.Chainable => {
   return cy.get(`input[name=${name}]`)
 }
 
 export const getByTitle = (name: string): Cypress.Chainable => {
-  return cy.get(`[title=${name}]`)
+  return cy.get(`[title="${name}"]`)
 }
 
 // custom assertions
@@ -325,6 +331,7 @@ Cypress.Commands.add('fluxEqual', fluxEqual)
 Cypress.Commands.add('getByTestID', getByTestID)
 Cypress.Commands.add('getByInputName', getByInputName)
 Cypress.Commands.add('getByTitle', getByTitle)
+Cypress.Commands.add('getByTestIDSubStr', getByTestIDSubStr)
 
 // auth flow
 Cypress.Commands.add('signin', signin)

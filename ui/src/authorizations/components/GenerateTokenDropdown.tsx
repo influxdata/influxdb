@@ -26,8 +26,8 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
         buttonSize={ComponentSize.Small}
         widthPixels={160}
         onChange={this.handleSelect}
-        testID='dropdown--gen-token'
-        buttonTestID='dropdown-button--gen-token'
+        testID="dropdown--gen-token"
+        buttonTestID="dropdown-button--gen-token"
       >
         {this.optionItems}
       </Dropdown>

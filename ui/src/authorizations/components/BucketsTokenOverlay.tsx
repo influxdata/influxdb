@@ -80,6 +80,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                     placeholder="Describe this new token"
                     value={description}
                     onChange={this.handleInputChange}
+                    testID="input-field--descr"
                   />
                 </Form.Element>
                 <Form.Element label="">
@@ -123,6 +124,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                     text="Cancel"
                     icon={IconFont.Remove}
                     onClick={this.handleDismiss}
+                    testID="button--cancel"
                   />
 
                   <Button
@@ -130,6 +132,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                     icon={IconFont.Checkmark}
                     color={ComponentColor.Success}
                     type={ButtonType.Submit}
+                    testID="button--save"
                   />
                 </ComponentSpacer>
               </ComponentSpacer>

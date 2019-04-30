@@ -45,6 +45,7 @@ class CopyButton extends PureComponent<Props> {
           titleText="Copy to Clipboard"
           text="Copy to Clipboard"
           onClick={this.handleClickCopy}
+          testID="button-copy"
         />
       </CopyToClipboard>
     )
