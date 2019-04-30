@@ -397,28 +397,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "boltdb_reads_total" or r._measurement == "boltdb_writes_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> derivative(unit: v.windowPeriod, nonNegative: true)\n  |> drop(columns: ["_field"])\n  |> yield(name: "derivative")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['boltdb_reads_total', 'boltdb_writes_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'derivative',
-                    },
-                  ],
-                },
               },
             ],
             axes: {
@@ -461,36 +439,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "http_api_requests_total")\n  |> filter(fn: (r) => r.path == "/api/v2/query")\n  |> filter(fn: (r) => r._field == "counter")\n  |> derivative(unit: v.windowPeriod, nonNegative: true)\n  |> yield(name: "derivative")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['http_api_requests_total'],
-                    },
-                    {
-                      key: 'path',
-                      values: ['/api/v2/query'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'status',
-                      values: [],
-                    },
-                    {
-                      key: 'handler',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'derivative',
-                    },
-                  ],
-                },
               },
             ],
             axes: {
@@ -534,28 +482,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_buckets_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> last()',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_buckets_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -593,28 +519,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_telegrafs_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_telegrafs_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -652,28 +556,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_dashboards_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_dashboards_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -711,28 +593,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_organizations_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> last()',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_organizations_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -770,28 +630,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_scrapers_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_scrapers_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -829,28 +667,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_tokens_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_tokens_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -888,28 +704,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_users_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_users_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -947,28 +741,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "task_scheduler_total_runs_active")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['task_scheduler_total_runs_active'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['gauge'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -1006,27 +778,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_uptime_seconds")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> last()\n  |> limit(n: 1)\n  |> map(fn: (r) => float(v: r._value) / 60.0 / 60.0, mergeKey: true) ',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [
-                        'http_api_request_duration_seconds',
-                        'influxdb_uptime_seconds',
-                      ],
-                    },
-                    {
-                      key: '_field',
-                      values: ['gauge'],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             prefix: '',
@@ -1064,20 +815,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_info")\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> drop(columns: ["_start", "_stop","_time","_field","_value","_measurement"])\n  |> rename(columns: {arch: "Architecture", build_date: "Build Date", commit: "Github Commit", cpus: "CPUs", os: "OS", version: "Version"})\n  |> yield(name: "last")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_info'],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
-                },
               },
             ],
             colors: [
@@ -1170,28 +907,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "go_memstats_alloc_bytes_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> derivative(unit: v.windowPeriod, nonNegative: true)\n  |> yield(name: "derivative")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['go_memstats_alloc_bytes_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'derivative',
-                    },
-                  ],
-                },
               },
             ],
             axes: {
@@ -1234,27 +949,6 @@ export const localMetricsTemplate = () => ({
                   'bytes_used = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "go_memstats_alloc_bytes")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> drop(columns: ["_start", "_stop"])\n  \ntotal_bytes = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "go_memstats_sys_bytes")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> drop(columns: ["_start", "_stop"])\n\njoin(tables: {key1: bytes_used, key2: total_bytes}, on: ["_time", "_field"], method: "inner")\n  |> map(fn: (r) => ({\n    _time: r._time,\n    _value: (float(v: r._value_key1) / float(v: r._value_key2)) * 100.0,\n    _field: "Memory Usage Percent"\n  }))\n  |> yield(name: "percentage")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [
-                        'go_memstats_alloc_bytes',
-                        'go_memstats_sys_bytes',
-                      ],
-                    },
-                    {
-                      key: '_field',
-                      values: ['gauge'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -1297,31 +991,6 @@ export const localMetricsTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "go_memstats_mallocs_total" or r._measurement == "go_memstats_frees_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> derivative(unit: v.windowPeriod, nonNegative: false)\n  |> yield(name: "derivative")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [
-                        'go_memstats_mallocs_total',
-                        'go_memstats_frees_total',
-                      ],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'derivative',
-                    },
-                  ],
-                },
               },
             ],
             axes: {
@@ -1735,11 +1404,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "uptime")\n  |> window(period: 1h)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> map(fn: (r) => float(v: r._value) / 86400.0, mergeKey: true)\n  |> yield(name: "last")\n  \n  \n  ',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             prefix: '',
@@ -1776,11 +1440,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "n_cpus")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             prefix: '',
@@ -1817,11 +1476,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "load1")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             prefix: '',
@@ -1858,11 +1512,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "total")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> map(fn: (r) => float(v: r._value) / 1024.0 / 1024.0 / 1024.0, mergeKey: true)\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")\n  ',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             prefix: '',
@@ -1898,11 +1547,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "disk")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -1953,11 +1597,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_user" or r._field == "usage_system" or r._field == "usage_idle")\n  |> filter(fn: (r) => r.cpu == "cpu-total")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -2008,11 +1647,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "system")\n  |> filter(fn: (r) => r._field == "load1" or r._field == "load5" or r._field == "load15")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -2063,11 +1697,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -2152,11 +1781,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "diskio")\n  |> filter(fn: (r) => r._field == "read_bytes" or r._field == "write_bytes")\n  |> derivative(unit: v.windowPeriod, nonNegative: false)\n  |> yield(name: "derivative")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -2207,11 +1831,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "net")\n  |> filter(fn: (r) => r._field == "bytes_recv" or r._field == "bytes_sent")\n  |> derivative(unit: v.windowPeriod, nonNegative: false)\n  |> yield(name: "derivative")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -2262,11 +1881,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "processes")\n  |> filter(fn: (r) => r._field == "running" or r._field == "blocked" or r._field == "idle" or r._field == "unknown")\n  |> window(period: v.windowPeriod)\n  |> max()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "max")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -2317,11 +1931,6 @@ export const systemTemplate = () => ({
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "swap")\n  |> filter(fn: (r) => r._field == "total" or r._field == "used")\n  |> window(period: v.windowPeriod)\n  |> mean()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "mean")',
                 editMode: 'advanced',
                 name: '',
-                builderConfig: {
-                  buckets: [],
-                  tags: [{key: '_measurement', values: []}],
-                  functions: [],
-                },
               },
             ],
             axes: {
@@ -2768,28 +2377,6 @@ export const gettingStartedWithFluxTemplate = () => ({
               "# Uh oh, something has gone wrong!\n\nIf you're seeing this note, it means the queries running in this cell aren't returning any data. That might mean that your Telegraf instance hasn't sent any data to InfluxDB during the time range set in the Dashboard, or it might mean there is no data at all. Please install Telegraf or check your Telegraf configuration before continuing.\n\nYou can find detailed information about [setting up Telegraf in the InfluxDB 2.0 Documentation](https://v2.docs.influxdata.com/v2.0/collect-data/use-telegraf/).\n\nYou should configure the following plugins:\n\n- cpu\n- disk\n- network\n\nIf you need additional help, the best place to ask questions is on the [community site](https://community.influxdata.com/).",
             queries: [
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: [],
-                    },
-                    {
-                      key: 'cpu',
-                      values: [],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
@@ -2854,28 +2441,6 @@ export const gettingStartedWithFluxTemplate = () => ({
               "# Uh oh, something has gone wrong!\n\nIf you're seeing this note, it means the queries running in this cell aren't returning any data. That might mean that your Telegraf instance hasn't sent any data to InfluxDB during the time range set in the Dashboard, or it might mean there is no data at all. Please install Telegraf or check your Telegraf configuration before continuing.\n\nYou can find detailed information about [setting up Telegraf in the InfluxDB 2.0 Documentation](https://v2.docs.influxdata.com/v2.0/collect-data/use-telegraf/).\n\nYou should configure the following plugins:\n\n- cpu\n- disk\n- network\n\nIf you need additional help, the best place to ask questions is on the [community site](https://community.influxdata.com/).",
             queries: [
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
@@ -2940,28 +2505,6 @@ export const gettingStartedWithFluxTemplate = () => ({
               "# Uh oh, something has gone wrong!\n\nIf you're seeing this note, it means the queries running in this cell aren't returning any data. That might mean that your Telegraf instance hasn't sent any data to InfluxDB during the time range set in the Dashboard, or it might mean there is no data at all. Please install Telegraf or check your Telegraf configuration before continuing.\n\nYou can find detailed information about [setting up Telegraf in the InfluxDB 2.0 Documentation](https://v2.docs.influxdata.com/v2.0/collect-data/use-telegraf/).\n\nYou should configure the following plugins:\n\n- cpu\n- disk\n- network\n\nIf you need additional help, the best place to ask questions is on the [community site](https://community.influxdata.com/).",
             queries: [
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
@@ -3026,44 +2569,12 @@ export const gettingStartedWithFluxTemplate = () => ({
               "# Uh oh, something has gone wrong!\n\nIf you're seeing this note, it means the queries running in this cell aren't returning any data. That might mean that your Telegraf instance hasn't sent any data to InfluxDB during the time range set in the Dashboard, or it might mean there is no data at all. Please install Telegraf or check your Telegraf configuration before continuing.\n\nYou can find detailed information about [setting up Telegraf in the InfluxDB 2.0 Documentation](https://v2.docs.influxdata.com/v2.0/collect-data/use-telegraf/).\n\nYou should configure the following plugins:\n\n- cpu\n- disk\n- network\n\nIf you need additional help, the best place to ask questions is on the [community site](https://community.influxdata.com/).",
             queries: [
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_user")\n  |> filter(fn: (r) => r.cpu == "cpu-total")\n  |> aggregateWindow(every: 30s, fn: mean)',
               },
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
@@ -3120,60 +2631,18 @@ export const gettingStartedWithFluxTemplate = () => ({
               "# Uh oh, something has gone wrong!\n\nIf you're seeing this note, it means the queries running in this cell aren't returning any data. That might mean that your Telegraf instance hasn't sent any data to InfluxDB during the time range set in the Dashboard, or it might mean there is no data at all. Please install Telegraf or check your Telegraf configuration before continuing.\n\nYou can find detailed information about [setting up Telegraf in the InfluxDB 2.0 Documentation](https://v2.docs.influxdata.com/v2.0/collect-data/use-telegraf/).\n\nYou should configure the following plugins:\n\n- cpu\n- disk\n- network\n\nIf you need additional help, the best place to ask questions is on the [community site](https://community.influxdata.com/).",
             queries: [
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
                   'usage_user_series = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_user")\n  |> filter(fn: (r) => r.cpu == "cpu-total")\n  \nusage_system_series = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_system")\n  |> filter(fn: (r) => r.cpu == "cpu-total")\n  \njoin(tables: {key1: usage_user_series, key2: usage_system_series}, \n     on: ["_time", "_measurement", "_start", "_stop", "cpu", "host"], \n     method: "inner")\n  |> map(fn: (r) => ({\n    _time: r._time,\n    _value: r._value_key1 + r._value_key2,\n    _field: r._field_key1 + "+" + r._field_key2\n  }))\n  |> group(columns: ["_start", "_stop", "_measurement", "_field", "cpu", "host"])\n  |> drop(columns: ["_field_key1", "_field_key2"])',
               },
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
                   'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_system")\n  |> filter(fn: (r) => r.cpu == "cpu-total")',
               },
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
@@ -3238,44 +2707,12 @@ export const gettingStartedWithFluxTemplate = () => ({
               "# Uh oh, something has gone wrong!\n\nIf you're seeing this note, it means the queries running in this cell aren't returning any data. That might mean that your Telegraf instance hasn't sent any data to InfluxDB during the time range set in the Dashboard, or it might mean there is no data at all. Please install Telegraf or check your Telegraf configuration before continuing.\n\nYou can find detailed information about [setting up Telegraf in the InfluxDB 2.0 Documentation](https://v2.docs.influxdata.com/v2.0/collect-data/use-telegraf/).\n\nYou should configure the following plugins:\n\n- cpu\n- disk\n- network\n\nIf you need additional help, the best place to ask questions is on the [community site](https://community.influxdata.com/).",
             queries: [
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
                   'cpu_usage_user = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_user")\n  |> filter(fn: (r) => r.cpu == "cpu-total")\n  \ncpu_usage_user\n  |> aggregateWindow(every: 30s, fn: mean)\n  |> yield(name: "mean_result")\n  \ncpu_usage_user\n  |> aggregateWindow(every: 30s, fn: count)\n  |> yield(name: "count_result")',
               },
               {
-                builderConfig: {
-                  buckets: ['telegraf'],
-                  functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [],
-                    },
-                  ],
-                },
                 editMode: 'advanced',
                 name: '',
                 text:
