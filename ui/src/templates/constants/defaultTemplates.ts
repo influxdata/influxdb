@@ -1,3 +1,1395 @@
+import {QUICKSTART_DASHBOARD_NAME} from 'src/onboarding/constants'
+
+export const localMetricsTemplate = () => ({
+  meta: {
+    version: '1',
+    name: QUICKSTART_DASHBOARD_NAME,
+    description: 'template created from dashboard: Local Metrics',
+  },
+  content: {
+    data: {
+      type: 'dashboard',
+      attributes: {
+        name: 'Local Metrics',
+        description:
+          'A collection of useful visualizations for monitoring your local InfluxDB 2 instance.',
+      },
+      relationships: {
+        label: {
+          data: [],
+        },
+        cell: {
+          data: [
+            {
+              type: 'cell',
+              id: '03b09c472c5f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47359f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c4737df1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c473c1f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c473edf1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47411f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47439f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c474fdf1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47515f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c4752df1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47549f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47565f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47589f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47609f1000',
+            },
+            {
+              type: 'cell',
+              id: '03b09c47629f1000',
+            },
+            {
+              type: 'cell',
+              id: '03c6a1707c08f000',
+            },
+          ],
+        },
+        variable: {
+          data: [
+            {
+              type: 'variable',
+              id: '03b0079dfea03000',
+            },
+          ],
+        },
+      },
+    },
+    included: [
+      {
+        id: '03b09c472c5f1000',
+        type: 'cell',
+        attributes: {
+          x: 0,
+          y: 5,
+          w: 12,
+          h: 4,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c472c5f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47359f1000',
+        type: 'cell',
+        attributes: {
+          x: 0,
+          y: 9,
+          w: 12,
+          h: 4,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47359f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c4737df1000',
+        type: 'cell',
+        attributes: {
+          x: 6,
+          y: 3,
+          w: 3,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c4737df1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c473c1f1000',
+        type: 'cell',
+        attributes: {
+          x: 0,
+          y: 4,
+          w: 3,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c473c1f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c473edf1000',
+        type: 'cell',
+        attributes: {
+          x: 3,
+          y: 4,
+          w: 3,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c473edf1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47411f1000',
+        type: 'cell',
+        attributes: {
+          x: 0,
+          y: 3,
+          w: 3,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47411f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47439f1000',
+        type: 'cell',
+        attributes: {
+          x: 6,
+          y: 4,
+          w: 3,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47439f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c474fdf1000',
+        type: 'cell',
+        attributes: {
+          x: 9,
+          y: 3,
+          w: 3,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c474fdf1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47515f1000',
+        type: 'cell',
+        attributes: {
+          x: 3,
+          y: 3,
+          w: 3,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47515f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c4752df1000',
+        type: 'cell',
+        attributes: {
+          x: 9,
+          y: 4,
+          w: 3,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c4752df1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47549f1000',
+        type: 'cell',
+        attributes: {
+          x: 0,
+          y: 1,
+          w: 3,
+          h: 2,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47549f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47565f1000',
+        type: 'cell',
+        attributes: {
+          x: 3,
+          y: 1,
+          w: 9,
+          h: 2,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47565f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47589f1000',
+        type: 'cell',
+        attributes: {
+          x: 0,
+          y: 13,
+          w: 4,
+          h: 3,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47589f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47609f1000',
+        type: 'cell',
+        attributes: {
+          x: 4,
+          y: 13,
+          w: 4,
+          h: 3,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47609f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03b09c47629f1000',
+        type: 'cell',
+        attributes: {
+          x: 8,
+          y: 13,
+          w: 4,
+          h: 3,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03b09c47629f1000',
+            },
+          },
+        },
+      },
+      {
+        id: '03c6a1707c08f000',
+        type: 'cell',
+        attributes: {
+          x: 0,
+          y: 0,
+          w: 12,
+          h: 1,
+        },
+        relationships: {
+          view: {
+            data: {
+              type: 'view',
+              id: '03c6a1707c08f000',
+            },
+          },
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c472c5f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "boltdb_reads_total" or r._measurement == "boltdb_writes_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> derivative(unit: v.windowPeriod, nonNegative: true)\n  |> drop(columns: ["_field"])\n  |> yield(name: "derivative")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['boltdb_reads_total', 'boltdb_writes_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: '',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'derivative',
+                    },
+                  ],
+                },
+              },
+            ],
+            axes: {
+              x: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+              y: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+            },
+            type: 'xy',
+            legend: {},
+            geom: 'line',
+            colors: [],
+            note: '',
+            showNoteWhenEmpty: false,
+          },
+          name: 'Local Object Store IO',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47359f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "http_api_requests_total")\n  |> filter(fn: (r) => r.path == "/api/v2/query")\n  |> filter(fn: (r) => r._field == "counter")\n  |> derivative(unit: v.windowPeriod, nonNegative: true)\n  |> yield(name: "derivative")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['http_api_requests_total'],
+                    },
+                    {
+                      key: 'path',
+                      values: ['/api/v2/query'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: 'status',
+                      values: [],
+                    },
+                    {
+                      key: 'handler',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'derivative',
+                    },
+                  ],
+                },
+              },
+            ],
+            axes: {
+              x: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+              y: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+            },
+            type: 'xy',
+            legend: {},
+            geom: 'line',
+            colors: [],
+            note: '',
+            showNoteWhenEmpty: false,
+          },
+          name: 'Query Requests',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c4737df1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_buckets_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> last()',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['influxdb_buckets_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: '',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' Buckets',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              'A Bucket is where you store your time series data and each one has a set retention policy. You created one when you first set your instance up, but you can create new ones from the Settings menu. You can learn more about Buckets in our [documentation](https://v2.docs.influxdata.com/v2.0/organizations/buckets/). Why not create a new one right now?',
+            showNoteWhenEmpty: false,
+          },
+          name: '',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c473c1f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_telegrafs_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['influxdb_telegrafs_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: 'function',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' Telegrafs',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              "InfluxDB 2 can create and store your Telegraf agent configs. Telegraf is the world's best data collection agent and is one of the easiest ways to send data into InfluxDB. You can create new configurations in the Settings menu. You can learn more about Telegraf in our [documentation](https://v2.docs.influxdata.com/v2.0/collect-data/use-telegraf/).",
+            showNoteWhenEmpty: false,
+          },
+          name: '',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c473edf1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_dashboards_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['influxdb_dashboards_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: 'function',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' Dashboards',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              'Dashboards are a great way to group together and view data in InfluxDB 2. You can create new ones from the Dashboards page in the navigation menu. For more information on managing Dashboards, check out our [documentation](https://v2.docs.influxdata.com/v2.0/visualize-data/dashboards/).',
+            showNoteWhenEmpty: false,
+          },
+          name: '',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47411f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_organizations_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> last()',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['influxdb_organizations_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: 'function',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' Orgs',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              'An Organization is a workspace where you and your team can organize your data, Dashboards, Tasks, and anything else you create. You can quickly switch between or create a new one from the first icon in the navigation bar. You can read more about Organizations in our [documentation](https://v2.docs.influxdata.com/v2.0/organizations/).',
+            showNoteWhenEmpty: false,
+          },
+          name: '',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47439f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_scrapers_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['influxdb_scrapers_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: 'function',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' Scrapers',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              'InfluxDB 2 can natively scrape data from Prometheus endpoints, including its own metrics. For more information on setting them up, check out our [documentation](https://v2.docs.influxdata.com/v2.0/collect-data/scrape-data/).',
+            showNoteWhenEmpty: false,
+          },
+          name: '',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c474fdf1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_tokens_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['influxdb_tokens_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: 'function',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' Tokens',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              'A Token allows you to access your instance from an external client such as a command line or a client library. They are also used to limit the scope of automated actions like Tasks. You can manage them in the Setting menu. You can learn more about Tokens in our [documentation](https://v2.docs.influxdata.com/v2.0/security/tokens/). Keep your Tokens safe!',
+            showNoteWhenEmpty: false,
+          },
+          name: '',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47515f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_users_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['influxdb_users_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: 'function',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' Users',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              'This lets you know how many users have access to your InfluxDB 2 instance. You can add new users from the Settings menu. You can learn more about Users in our [documentation](https://v2.docs.influxdata.com/v2.0/users/).',
+            showNoteWhenEmpty: false,
+          },
+          name: '',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c4752df1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "task_scheduler_total_runs_active")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> window(period: v.windowPeriod)\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> yield(name: "last")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['task_scheduler_total_runs_active'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['gauge'],
+                    },
+                    {
+                      key: '',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' Tasks',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              'Tasks allow you to automate Flux queries for things like data rollups and enrichment. You can create a new one from the Tasks button in the navigation menu. For more information about Tasks, check out our [documentation](https://v2.docs.influxdata.com/v2.0/process-data/).',
+            showNoteWhenEmpty: false,
+          },
+          name: '',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47549f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'single-stat',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_uptime_seconds")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> last()\n  |> limit(n: 1)\n  |> map(fn: (r) => r._value / 60.0 / 60.0, mergeKey: true) ',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: [
+                        'http_api_request_duration_seconds',
+                        'influxdb_uptime_seconds',
+                      ],
+                    },
+                    {
+                      key: '_field',
+                      values: ['gauge'],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            prefix: '',
+            suffix: ' hrs',
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            decimalPlaces: {
+              isEnforced: true,
+              digits: 2,
+            },
+            note:
+              'This shows the amount of time your current InfluxDB 2 instance has been running, in hours. Keep it up!',
+            showNoteWhenEmpty: false,
+          },
+          name: 'Uptime',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47565f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'table',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "influxdb_info")\n  |> last()\n  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")\n  |> drop(columns: ["_start", "_stop","_time","_field","_value","_measurement"])\n  |> rename(columns: {arch: "Architecture", build_date: "Build Date", commit: "Github Commit", cpus: "CPUs", os: "OS", version: "Version"})\n  |> yield(name: "last")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['influxdb_info'],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'last',
+                    },
+                  ],
+                },
+              },
+            ],
+            colors: [
+              {
+                id: 'base',
+                type: 'text',
+                hex: '#00C9FF',
+                name: 'laser',
+                value: 0,
+              },
+            ],
+            tableOptions: {
+              verticalTimeAxis: true,
+              sortBy: {
+                internalName: '',
+                displayName: '',
+                visible: false,
+              },
+              wrapping: '',
+              fixFirstColumn: false,
+            },
+            fieldOptions: [
+              {
+                internalName: '',
+                displayName: '',
+                visible: true,
+              },
+              {
+                internalName: 'result',
+                displayName: 'result',
+                visible: true,
+              },
+              {
+                internalName: 'table',
+                displayName: 'table',
+                visible: true,
+              },
+              {
+                internalName: 'Architecture',
+                displayName: 'Architecture',
+                visible: true,
+              },
+              {
+                internalName: 'Build Date',
+                displayName: 'Build Date',
+                visible: true,
+              },
+              {
+                internalName: 'Github Commit',
+                displayName: 'Github Commit',
+                visible: true,
+              },
+              {
+                internalName: 'CPUs',
+                displayName: 'CPUs',
+                visible: true,
+              },
+              {
+                internalName: 'OS',
+                displayName: 'OS',
+                visible: true,
+              },
+              {
+                internalName: 'Version',
+                displayName: 'Version',
+                visible: true,
+              },
+            ],
+            timeFormat: 'YYYY-MM-DD HH:mm:ss',
+            decimalPlaces: {
+              isEnforced: false,
+              digits: 2,
+            },
+            note:
+              'This cell gives you information about your running instance of InfluxDB 2, but you probably already knew that.',
+            showNoteWhenEmpty: false,
+          },
+          name: 'Instance Info',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47589f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "go_memstats_alloc_bytes_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> derivative(unit: v.windowPeriod, nonNegative: true)\n  |> yield(name: "derivative")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: ['go_memstats_alloc_bytes_total'],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: '',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'derivative',
+                    },
+                  ],
+                },
+              },
+            ],
+            axes: {
+              x: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+              y: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+            },
+            type: 'xy',
+            legend: {},
+            geom: 'line',
+            colors: [],
+            note: '',
+            showNoteWhenEmpty: false,
+          },
+          name: 'Memory Allocations (Bytes)',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47609f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            queries: [
+              {
+                text:
+                  'bytes_used = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "go_memstats_alloc_bytes")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> drop(columns: ["_start", "_stop"])\n  \ntotal_bytes = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "go_memstats_sys_bytes")\n  |> filter(fn: (r) => r._field == "gauge")\n  |> drop(columns: ["_start", "_stop"])\n\njoin(tables: {key1: bytes_used, key2: total_bytes}, on: ["_time", "_field"], method: "inner")\n  |> map(fn: (r) => ({\n    _time: r._time,\n    _value: (float(v: r._value_key1) / float(v: r._value_key2)) * 100.0,\n    _field: "Memory Usage Percent"\n  }))\n  |> yield(name: "percentage")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: [
+                        'go_memstats_alloc_bytes',
+                        'go_memstats_sys_bytes',
+                      ],
+                    },
+                    {
+                      key: '_field',
+                      values: ['gauge'],
+                    },
+                    {
+                      key: '',
+                      values: [],
+                    },
+                  ],
+                  functions: [],
+                },
+              },
+            ],
+            axes: {
+              x: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+              y: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '%',
+                base: '10',
+                scale: 'linear',
+              },
+            },
+            type: 'xy',
+            legend: {},
+            geom: 'line',
+            colors: [],
+            note: '',
+            showNoteWhenEmpty: false,
+          },
+          name: 'Memory Usage (%)',
+        },
+      },
+      {
+        type: 'view',
+        id: '03b09c47629f1000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            queries: [
+              {
+                text:
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "go_memstats_mallocs_total" or r._measurement == "go_memstats_frees_total")\n  |> filter(fn: (r) => r._field == "counter")\n  |> derivative(unit: v.windowPeriod, nonNegative: false)\n  |> yield(name: "derivative")',
+                editMode: 'advanced',
+                name: '',
+                builderConfig: {
+                  buckets: ['local_metrics'],
+                  tags: [
+                    {
+                      key: '_measurement',
+                      values: [
+                        'go_memstats_mallocs_total',
+                        'go_memstats_frees_total',
+                      ],
+                    },
+                    {
+                      key: '_field',
+                      values: ['counter'],
+                    },
+                    {
+                      key: '',
+                      values: [],
+                    },
+                  ],
+                  functions: [
+                    {
+                      name: 'derivative',
+                    },
+                  ],
+                },
+              },
+            ],
+            axes: {
+              x: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+              y: {
+                bounds: ['', ''],
+                label: '',
+                prefix: '',
+                suffix: '',
+                base: '10',
+                scale: 'linear',
+              },
+            },
+            type: 'xy',
+            legend: {},
+            geom: 'line',
+            colors: [],
+            note: '',
+            showNoteWhenEmpty: false,
+          },
+          name: 'Memory Allocs & Frees (Bytes)',
+        },
+      },
+      {
+        type: 'view',
+        id: '03c6a1707c08f000',
+        attributes: {
+          properties: {
+            shape: 'chronograf-v2',
+            type: 'markdown',
+            note:
+              "#### This Dashboard gives you an overview of some of the metrics that are available from the Local Metrics endpoint located at `/metrics`. Check out our [documentation page for configuring Scrapers](https://v2.docs.influxdata.com/v2.0/collect-data/scrape-data/manage-scrapers/create-a-scraper/) if you don't see any data below.",
+          },
+          name: 'Name this Cell',
+        },
+      },
+      {
+        id: '03b0079dfea03000',
+        type: 'variable',
+        attributes: {
+          name: 'bucket',
+          arguments: {
+            type: 'query',
+            values: {
+              query: 'buckets()\n  |> map(fn: (r) => r.name)\n',
+              language: 'flux',
+            },
+          },
+          selected: null,
+        },
+        relationships: {
+          label: {
+            data: [],
+          },
+        },
+      },
+    ],
+  },
+  labels: [],
+})
+
 export const systemTemplate = () => ({
   meta: {
     version: '1',
