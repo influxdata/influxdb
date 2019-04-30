@@ -97,6 +97,8 @@ type Scheduler interface {
 	// Stop a scheduler from ticking.
 	Stop()
 
+	Now() time.Time
+
 	// ClaimTask begins control of task execution in this scheduler.
 	ClaimTask(authCtx context.Context, task *platform.Task) error
 
@@ -266,6 +268,11 @@ func (s *TickScheduler) Stop() {
 
 	// Wait for outstanding executions to finish.
 	s.executor.Wait()
+}
+
+func (s *TickScheduler) Now() time.Time {
+	now := atomic.LoadInt64(&s.now)
+	return time.Unix(now, 0)
 }
 
 func (s *TickScheduler) ClaimTask(authCtx context.Context, task *platform.Task) (err error) {

@@ -48,6 +48,10 @@ func (s *Scheduler) Start(context.Context) {}
 
 func (s *Scheduler) Stop() {}
 
+func (s *Scheduler) Now() time.Time {
+	return time.Unix(s.lastTick, 0)
+}
+
 func (s *Scheduler) ClaimTask(_ context.Context, task *platform.Task) error {
 	if s.claimError != nil {
 		return s.claimError

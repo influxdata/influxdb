@@ -10,14 +10,14 @@ import {Dropdown, DropdownMenuColors} from 'src/clockface'
 import {selectVariableValue} from 'src/dashboards/actions/index'
 
 // Utils
-import {getValuesForVariable} from 'src/variables/selectors'
+import {getVariableValuesForDropdown} from 'src/dashboards/selectors'
 
 // Types
 import {AppState} from 'src/types'
 
 interface StateProps {
-  values: string[]
-  selectedValue: string
+  values: {name: string; value: string}[]
+  selectedKey: string
 }
 
 interface DispatchProps {
@@ -37,23 +37,27 @@ type Props = StateProps & DispatchProps & OwnProps
 
 class VariableDropdown extends PureComponent<Props> {
   render() {
-    const {selectedValue} = this.props
+    const {selectedKey} = this.props
     const dropdownValues = this.props.values || []
 
     return (
       <div className="variable-dropdown">
         {/* TODO: Add variable description to title attribute when it is ready */}
         <Dropdown
-          selectedID={selectedValue}
+          selectedID={selectedKey}
           onChange={this.handleSelect}
           widthPixels={140}
           titleText="No Values"
           customClass="variable-dropdown--dropdown"
           menuColor={DropdownMenuColors.Amethyst}
         >
-          {dropdownValues.map(v => (
-            <Dropdown.Item key={v} id={v} value={v}>
-              {v}
+          {dropdownValues.map(({name}) => (
+            /*
+              Use key as value since they are unique otherwise 
+              multiple selection appear in the dropdown
+            */
+            <Dropdown.Item key={name} id={name} value={name}>
+              {name}
             </Dropdown.Item>
           ))}
         </Dropdown>
@@ -61,23 +65,26 @@ class VariableDropdown extends PureComponent<Props> {
     )
   }
 
-  private handleSelect = (value: string) => {
-    const {dashboardID, variableID, onSelectValue} = this.props
+  private handleSelect = (selectedKey: string) => {
+    const {dashboardID, variableID, onSelectValue, values} = this.props
 
-    onSelectValue(dashboardID, variableID, value)
+    const selection = values.find(v => v.name === selectedKey)
+    const selectedValue = !!selection ? selection.value : ''
+
+    onSelectValue(dashboardID, variableID, selectedValue)
   }
 }
 
 const mstp = (state: AppState, props: OwnProps): StateProps => {
   const {dashboardID, variableID} = props
 
-  const {selectedValue, values} = getValuesForVariable(
+  const {selectedKey, list} = getVariableValuesForDropdown(
     state,
     variableID,
     dashboardID
   )
 
-  return {values, selectedValue}
+  return {values: list, selectedKey}
 }
 
 const mdtp = {

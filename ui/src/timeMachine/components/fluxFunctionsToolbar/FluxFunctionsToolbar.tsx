@@ -19,10 +19,10 @@ import {getActiveQuery} from 'src/timeMachine/selectors'
 import {FLUX_FUNCTIONS} from 'src/shared/constants/fluxFunctions'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, FluxToolbarFunction} from 'src/types'
 
 interface OwnProps {
-  onInsertFluxFunction: (functionName: string, text: string) => void
+  onInsertFluxFunction: (func: FluxToolbarFunction) => void
 }
 
 interface StateProps {
@@ -75,8 +75,8 @@ class FluxFunctionsToolbar extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 
-  private handleClickFunction = (funcName: string, funcExample: string) => {
-    this.props.onInsertFluxFunction(funcName, funcExample)
+  private handleClickFunction = (func: FluxToolbarFunction) => {
+    this.props.onInsertFluxFunction(func)
   }
 }
 

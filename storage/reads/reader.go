@@ -779,8 +779,24 @@ func (ti *tagKeysIterator) handleRead(f func(flux.Table) error, rs cursors.Strin
 	}
 	defer builder.ClearData()
 
+	// Add the _start and _stop columns that come from storage.
+	if err := builder.AppendString(valueIdx, "_start"); err != nil {
+		return err
+	}
+	if err := builder.AppendString(valueIdx, "_stop"); err != nil {
+		return err
+	}
+
 	for rs.Next() {
-		if err := builder.AppendString(valueIdx, rs.Value()); err != nil {
+		v := rs.Value()
+		switch v {
+		case models.MeasurementTagKey:
+			v = "_measurement"
+		case models.FieldKeyTagKey:
+			v = "_field"
+		}
+
+		if err := builder.AppendString(valueIdx, v); err != nil {
 			return err
 		}
 	}
