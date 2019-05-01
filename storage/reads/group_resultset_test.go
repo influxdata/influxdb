@@ -13,7 +13,7 @@ import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
-func TestGroupGroupResultSetSorting(t *testing.T) {
+func TestNewGroupResultSet_Sorting(t *testing.T) {
 	tests := []struct {
 		name  string
 		cur   reads.SeriesCursor
@@ -49,6 +49,40 @@ group:
   partition key: val12
     series: _m=cpu,tag0=val00,tag1=val12
     series: _m=cpu,tag0=val01,tag1=val12
+`,
+		},
+		{
+			name: "group by tags key collision",
+			cur: &sliceSeriesCursor{
+				rows: newSeriesRows(
+					"cpu,tag0=000,tag1=111",
+					"cpu,tag0=00,tag1=0111",
+					"cpu,tag0=0,tag1=00111",
+					"cpu,tag0=0001,tag1=11",
+					"cpu,tag0=00011,tag1=1",
+				)},
+			group: datatypes.GroupBy,
+			keys:  []string{"tag0","tag1"},
+			exp: `group:
+  tag key      : _m,tag0,tag1
+  partition key: 0,00111
+    series: _m=cpu,tag0=0,tag1=00111
+group:
+  tag key      : _m,tag0,tag1
+  partition key: 00,0111
+    series: _m=cpu,tag0=00,tag1=0111
+group:
+  tag key      : _m,tag0,tag1
+  partition key: 000,111
+    series: _m=cpu,tag0=000,tag1=111
+group:
+  tag key      : _m,tag0,tag1
+  partition key: 0001,11
+    series: _m=cpu,tag0=0001,tag1=11
+group:
+  tag key      : _m,tag0,tag1
+  partition key: 00011,1
+    series: _m=cpu,tag0=00011,tag1=1
 `,
 		},
 		{
@@ -231,7 +265,7 @@ func TestNewGroupResultSet_GroupBy_NoDataReturnsNil(t *testing.T) {
 	}
 }
 
-func TestNewGroupResultSet_Sorting(t *testing.T) {
+func TestNewGroupResultSet_SortOrder(t *testing.T) {
 	tests := []struct {
 		name string
 		keys []string
@@ -378,8 +412,11 @@ func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
+	var hints datatypes.HintFlags
+	hints.SetHintSchemaAllTime()
+
 	for i := 0; i < b.N; i++ {
-		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag2"}}, newCursor)
+		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.GroupBy, GroupKeys: []string{"tag2"}, Hints: hints}, newCursor)
 		rs.Close()
 	}
 }
