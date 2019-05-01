@@ -1,3 +1,8 @@
+## v2.0.0-alpha.10 [unreleased]
+### Features
+### Bug Fixes
+### UI Improvements
+
 ## v2.0.0-alpha.9 [2019-05-01]
 
 **NOTE: This will remove all tasks from your InfluxDB v2.0 instance.**
