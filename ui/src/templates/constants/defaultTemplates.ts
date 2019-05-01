@@ -398,26 +398,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['boltdb_reads_total', 'boltdb_writes_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'derivative',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -462,34 +445,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['http_api_requests_total'],
-                    },
-                    {
-                      key: 'path',
-                      values: ['/api/v2/query'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'status',
-                      values: [],
-                    },
-                    {
-                      key: 'handler',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'derivative',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -535,26 +493,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_buckets_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -594,26 +535,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_telegrafs_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -653,26 +577,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_dashboards_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -712,26 +619,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_organizations_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -771,26 +661,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_scrapers_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -830,26 +703,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_tokens_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -889,26 +745,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_users_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: 'function',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -948,26 +787,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['task_scheduler_total_runs_active'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['gauge'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -1007,25 +829,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [
-                        'http_api_request_duration_seconds',
-                        'influxdb_uptime_seconds',
-                      ],
-                    },
-                    {
-                      key: '_field',
-                      values: ['gauge'],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -1065,18 +871,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['influxdb_info'],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'last',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -1171,26 +968,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['go_memstats_alloc_bytes_total'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'derivative',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -1235,24 +1015,8 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [
-                        'go_memstats_alloc_bytes',
-                        'go_memstats_sys_bytes',
-                      ],
-                    },
-                    {
-                      key: '_field',
-                      values: ['gauge'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
                 },
               },
@@ -1298,29 +1062,9 @@ export const localMetricsTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 builderConfig: {
-                  buckets: ['local_metrics'],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [
-                        'go_memstats_mallocs_total',
-                        'go_memstats_frees_total',
-                      ],
-                    },
-                    {
-                      key: '_field',
-                      values: ['counter'],
-                    },
-                    {
-                      key: '',
-                      values: [],
-                    },
-                  ],
-                  functions: [
-                    {
-                      name: 'derivative',
-                    },
-                  ],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
+                  functions: [],
                 },
               },
             ],
@@ -2379,6 +2123,7 @@ export const systemTemplate = () => ({
   },
   labels: [],
 })
+
 export const gettingStartedWithFluxTemplate = () => ({
   meta: {
     name: 'Getting Started with Flux',
@@ -2769,26 +2514,9 @@ export const gettingStartedWithFluxTemplate = () => ({
             queries: [
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: [],
-                    },
-                    {
-                      key: 'cpu',
-                      values: [],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -2855,26 +2583,9 @@ export const gettingStartedWithFluxTemplate = () => ({
             queries: [
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -2941,26 +2652,9 @@ export const gettingStartedWithFluxTemplate = () => ({
             queries: [
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -3027,26 +2721,9 @@ export const gettingStartedWithFluxTemplate = () => ({
             queries: [
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -3055,14 +2732,9 @@ export const gettingStartedWithFluxTemplate = () => ({
               },
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -3121,26 +2793,9 @@ export const gettingStartedWithFluxTemplate = () => ({
             queries: [
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -3149,14 +2804,9 @@ export const gettingStartedWithFluxTemplate = () => ({
               },
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -3165,14 +2815,9 @@ export const gettingStartedWithFluxTemplate = () => ({
               },
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -3239,26 +2884,9 @@ export const gettingStartedWithFluxTemplate = () => ({
             queries: [
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: ['cpu'],
-                    },
-                    {
-                      key: '_field',
-                      values: ['usage_user'],
-                    },
-                    {
-                      key: 'cpu',
-                      values: ['cpu-total'],
-                    },
-                    {
-                      key: 'host',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
@@ -3267,14 +2895,9 @@ export const gettingStartedWithFluxTemplate = () => ({
               },
               {
                 builderConfig: {
-                  buckets: ['telegraf'],
+                  buckets: [],
+                  tags: [{key: '_measurement', values: []}],
                   functions: [],
-                  tags: [
-                    {
-                      key: '_measurement',
-                      values: [],
-                    },
-                  ],
                 },
                 editMode: 'advanced',
                 name: '',
