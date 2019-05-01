@@ -30,22 +30,22 @@ class OnboardingButtons extends PureComponent<Props> {
     nextButtonText: 'Continue',
   }
 
-  private submitRef: RefObject<Button> = React.createRef()
+  private submitRef: RefObject<HTMLButtonElement> = React.createRef()
 
   public componentDidMount() {
     if (this.props.autoFocusNext) {
-      const buttonRef = this.submitRef.current.ref
+      const buttonRef = this.submitRef.current
       if (buttonRef) {
-        buttonRef.current.focus()
+        buttonRef.focus()
       }
     }
   }
 
   public componentDidUpdate() {
     if (this.props.autoFocusNext) {
-      const buttonRef = this.submitRef.current.ref
+      const buttonRef = this.submitRef.current
       if (buttonRef) {
-        buttonRef.current.focus()
+        buttonRef.focus()
       }
     }
   }
@@ -62,7 +62,7 @@ class OnboardingButtons extends PureComponent<Props> {
             size={ComponentSize.Medium}
             type={ButtonType.Submit}
             testID="next"
-            ref={this.submitRef}
+            refObject={this.submitRef}
             status={nextButtonStatus}
             tabIndex={0}
           />
