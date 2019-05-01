@@ -93,10 +93,10 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 		return errors.New("series file already opened")
 	}
 
-	span, _ := tracing.StartSpanFromContext(ctx)
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	_, logEnd := logger.NewOperation(f.Logger, "Opening Series File", "series_file_open", zap.String("path", f.path))
+	_, logEnd := logger.NewOperation(ctx, f.Logger, "Opening Series File", "series_file_open", zap.String("path", f.path))
 	defer logEnd()
 
 	// Create path if it doesn't exist.

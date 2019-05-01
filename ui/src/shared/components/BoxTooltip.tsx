@@ -3,7 +3,7 @@ import React, {useRef, useLayoutEffect, FunctionComponent} from 'react'
 import {createPortal} from 'react-dom'
 
 // Constants
-import {TOOLTIP_PORTAL_ID} from 'src/shared/components/TooltipPortal'
+import {TOOLTIP_PORTAL_ID} from 'src/portals/TooltipPortal'
 
 interface Props {
   triggerRect: DOMRect

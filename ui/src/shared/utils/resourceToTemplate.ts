@@ -1,5 +1,9 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
+
+import {defaultBuilderConfig} from 'src/shared/utils/view'
+import {viewableLabels} from 'src/labels/selectors'
+
 import {Task, Label, Dashboard, Cell, View} from 'src/types'
 import {
   TemplateType,
@@ -7,7 +11,7 @@ import {
   ITemplate,
   IVariable as Variable,
 } from '@influxdata/influx'
-import {viewableLabels} from 'src/labels/selectors'
+import {DashboardQuery, QueryEditMode} from 'src/types/dashboards'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 
@@ -113,12 +117,27 @@ export const taskToTemplate = (
 }
 
 const viewToIncluded = (view: View) => {
-  const viewAttributes = _.pick(view, ['properties', 'name'])
+  let properties = view.properties
+
+  if ('queries' in properties) {
+    const sanitizedQueries = properties.queries.map((q: DashboardQuery) => {
+      return {
+        ...q,
+        editMode: QueryEditMode.Advanced,
+        builderConfig: defaultBuilderConfig(),
+      }
+    })
+
+    properties = {
+      ...properties,
+      queries: sanitizedQueries,
+    }
+  }
 
   return {
     type: TemplateType.View,
     id: view.id,
-    attributes: viewAttributes,
+    attributes: {name: view.name, properties},
   }
 }
 

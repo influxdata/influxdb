@@ -13,9 +13,48 @@ func init() {
 	plan.RegisterPhysicalRules(
 		PushDownRangeRule{},
 		PushDownFilterRule{},
-		//PushDownReadTagKeysRule{},
+		PushDownGroupRule{},
+		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
 	)
+}
+
+// PushDownGroupRule pushes down a group operation to storage
+type PushDownGroupRule struct{}
+
+func (rule PushDownGroupRule) Name() string {
+	return "PushDownGroupRule"
+}
+
+func (rule PushDownGroupRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.GroupKind, plan.Pat(ReadRangePhysKind))
+}
+
+func (rule PushDownGroupRule) Rewrite(node plan.Node) (plan.Node, bool, error) {
+	src := node.Predecessors()[0].ProcedureSpec().(*ReadRangePhysSpec)
+	grp := node.ProcedureSpec().(*universe.GroupProcedureSpec)
+
+	switch grp.GroupMode {
+	case
+		flux.GroupModeBy:
+	default:
+		return node, false, nil
+	}
+
+	for _, col := range grp.GroupKeys {
+		// Storage can only group by tag keys.
+		// Note the columns _start and _stop are ok since all tables
+		// coming from storage will have the same _start and _values.
+		if col == execute.DefaultTimeColLabel || col == execute.DefaultValueColLabel {
+			return node, false, nil
+		}
+	}
+
+	return plan.CreatePhysicalNode("ReadGroup", &ReadGroupPhysSpec{
+		ReadRangePhysSpec: *src.Copy().(*ReadRangePhysSpec),
+		GroupMode:         grp.GroupMode,
+		GroupKeys:         grp.GroupKeys,
+	}), true, nil
 }
 
 // PushDownRangeRule pushes down a range filter to storage

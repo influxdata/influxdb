@@ -89,6 +89,10 @@ export const setupAdmin = (params: ISetupParams) => async (
       ...defaultTemplates.gettingStartedWithFluxTemplate(),
       orgID,
     })
+    await client.templates.create({
+      ...defaultTemplates.localMetricsTemplate(),
+      orgID,
+    })
 
     dispatch(notify(SetupSuccess))
     dispatch(setStepStatus(1, StepStatus.Complete))

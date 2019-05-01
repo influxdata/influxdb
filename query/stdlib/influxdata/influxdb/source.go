@@ -16,6 +16,7 @@ import (
 
 func init() {
 	execute.RegisterSource(ReadRangePhysKind, createReadFilterSource)
+	execute.RegisterSource(ReadGroupPhysKind, createReadGroupSource)
 	execute.RegisterSource(ReadTagKeysPhysKind, createReadTagKeysSource)
 	execute.RegisterSource(ReadTagValuesPhysKind, createReadTagValuesSource)
 }
@@ -116,7 +117,7 @@ func (s *readFilterSource) run(ctx context.Context) error {
 }
 
 func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	span, ctx := tracing.StartSpanFromContext(a.Context())
 	defer span.Finish()
 
 	spec := s.(*ReadRangePhysSpec)
@@ -156,8 +157,86 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 	), nil
 }
 
+type readGroupSource struct {
+	Source
+	reader   Reader
+	readSpec ReadGroupSpec
+}
+
+func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, alloc *memory.Allocator) execute.Source {
+	src := new(readGroupSource)
+
+	src.id = id
+	src.alloc = alloc
+
+	src.reader = r
+	src.readSpec = readSpec
+
+	src.runner = src
+	return src
+}
+
+func (s *readGroupSource) run(ctx context.Context) error {
+	stop := s.readSpec.Bounds.Stop
+	tables, err := s.reader.ReadGroup(
+		ctx,
+		s.readSpec,
+		s.alloc,
+	)
+	if err != nil {
+		return err
+	}
+	return s.processTables(ctx, tables, stop)
+}
+
+func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+	span, ctx := tracing.StartSpanFromContext(a.Context())
+	defer span.Finish()
+
+	spec := s.(*ReadGroupPhysSpec)
+
+	bounds := a.StreamContext().Bounds()
+	if bounds == nil {
+		return nil, errors.New("nil bounds passed to from")
+	}
+
+	deps := a.Dependencies()[FromKind].(Dependencies)
+
+	req := query.RequestFromContext(a.Context())
+	if req == nil {
+		return nil, errors.New("missing request on context")
+	}
+
+	orgID := req.OrganizationID
+	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
+	if err != nil {
+		return nil, err
+	}
+
+	var filter *semantic.FunctionExpression
+	if spec.FilterSet {
+		filter = spec.Filter
+	}
+	return ReadGroupSource(
+		id,
+		deps.Reader,
+		ReadGroupSpec{
+			ReadFilterSpec: ReadFilterSpec{
+				OrganizationID: orgID,
+				BucketID:       bucketID,
+				Bounds:         *bounds,
+				Predicate:      filter,
+			},
+			GroupMode:       ToGroupMode(spec.GroupMode),
+			GroupKeys:       spec.GroupKeys,
+			AggregateMethod: spec.AggregateMethod,
+		},
+		a.Allocator(),
+	), nil
+}
+
 func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	span, ctx := tracing.StartSpanFromContext(a.Context())
 	defer span.Finish()
 
 	spec := prSpec.(*ReadTagKeysPhysSpec)
@@ -221,7 +300,7 @@ func (s *readTagKeysSource) run(ctx context.Context) error {
 }
 
 func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	span, ctx := tracing.StartSpanFromContext(a.Context())
 	defer span.Finish()
 
 	spec := prSpec.(*ReadTagValuesPhysSpec)

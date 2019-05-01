@@ -3,7 +3,6 @@ package readservice
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -44,22 +43,10 @@ func (s *store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 		cur = ic
 	}
 
-	return reads.NewResultSetFromFilter(ctx, req, cur), nil
+	return reads.NewFilteredResultSet(ctx, req, cur), nil
 }
 
-func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
-	if len(req.GroupKeys) > 0 {
-		panic("Read: len(Grouping) > 0")
-	}
-
-	if req.Hints.NoPoints() {
-		req.PointsLimit = -1
-	}
-
-	if req.PointsLimit == 0 {
-		req.PointsLimit = math.MaxInt64
-	}
-
+func (s *store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
 	if req.ReadSource == nil {
 		return nil, errors.New("missing read source")
 	}
@@ -67,60 +54,6 @@ func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 	source, err := getReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
-	}
-
-	if req.TimestampRange.Start == 0 {
-		req.TimestampRange.Start = math.MaxInt64
-	}
-
-	if req.TimestampRange.End == 0 {
-		req.TimestampRange.End = math.MaxInt64
-	}
-
-	var cur reads.SeriesCursor
-	if ic, err := newIndexSeriesCursor(ctx, &source, req.Predicate, s.engine); err != nil {
-		return nil, err
-	} else if ic == nil {
-		return nil, nil
-	} else {
-		cur = ic
-	}
-
-	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
-		cur = reads.NewLimitSeriesCursor(ctx, cur, req.SeriesLimit, req.SeriesOffset)
-	}
-
-	return reads.NewResultSet(ctx, req, cur), nil
-}
-
-func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (reads.GroupResultSet, error) {
-	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
-		return nil, errors.New("groupRead: SeriesLimit and SeriesOffset not supported when Grouping")
-	}
-
-	if req.Hints.NoPoints() {
-		req.PointsLimit = -1
-	}
-
-	if req.PointsLimit == 0 {
-		req.PointsLimit = math.MaxInt64
-	}
-
-	if req.ReadSource == nil {
-		return nil, errors.New("missing read source")
-	}
-
-	source, err := getReadSource(*req.ReadSource)
-	if err != nil {
-		return nil, err
-	}
-
-	if req.TimestampRange.Start <= 0 {
-		req.TimestampRange.Start = math.MinInt64
-	}
-
-	if req.TimestampRange.End <= 0 {
-		req.TimestampRange.End = math.MaxInt64
 	}
 
 	newCursor := func() (reads.SeriesCursor, error) {
@@ -132,6 +65,10 @@ func (s *store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 	}
 
 	return reads.NewGroupResultSet(ctx, req, newCursor), nil
+}
+
+func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
+	return nil, nil
 }
 
 func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {

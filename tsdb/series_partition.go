@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/rhh"
@@ -191,6 +193,9 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 		return ErrSeriesPartitionClosed
 	}
 
+	span, ctx := tracing.StartSpanFromContext(context.TODO())
+	defer span.Finish()
+
 	writeRequired := 0
 	for iter := collection.Iterator(); iter.Next(); {
 		index := iter.Index()
@@ -302,7 +307,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 	// Check if we've crossed the compaction threshold.
 	if p.compactionsEnabled() && !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
 		p.compacting = true
-		log, logEnd := logger.NewOperation(p.Logger, "Series partition compaction", "series_partition_compaction", zap.String("path", p.path))
+		log, logEnd := logger.NewOperation(ctx, p.Logger, "Series partition compaction", "series_partition_compaction", zap.String("path", p.path))
 
 		p.wg.Add(1)
 		p.tracker.IncCompactionsActive()

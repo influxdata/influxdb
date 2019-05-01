@@ -1,5 +1,9 @@
-## v2.0.0-alpha.9 [unreleased]
+## v2.0.0-alpha.10 [unreleased]
+### Features
+### Bug Fixes
+### UI Improvements
 
+## v2.0.0-alpha.9 [2019-05-01]
 
 **NOTE: This will remove all tasks from your InfluxDB v2.0 instance.**
 
@@ -7,16 +11,22 @@
 1. [13423](https://github.com/influxdata/influxdb/pull/13423): Set autorefresh of dashboard to pause if absolute time range is selected
 1. [13473](https://github.com/influxdata/influxdb/pull/13473): Switch task back end to a more modular and flexible system
 1. [13493](https://github.com/influxdata/influxdb/pull/13493): Add org profile tab with ability to edit organization name
-1. [13510](https://github.com/influxdata/influxdb/pull/13510): Add org name to dahboard page title 
+1. [13510](https://github.com/influxdata/influxdb/pull/13510): Add org name to dahboard page title
 1. [13520](https://github.com/influxdata/influxdb/pull/13520): Add cautioning to bucket renaming
 1. [13560](https://github.com/influxdata/influxdb/pull/13560): Add option to generate all access token in tokens tab
 1. [13601](https://github.com/influxdata/influxdb/pull/13601): Add option to generate read/write token in tokens tab
+1. [13715](https://github.com/influxdata/influxdb/pull/13715): Added a new Local Metrics Dashboard template that is created during Quick Start
 
 ### Bug Fixes
 1. [13584](https://github.com/influxdata/influxdb/pull/13584): Fixed scroll clipping found in label editing flow
 1. [13585](https://github.com/influxdata/influxdb/pull/13585): Prevent overlapping text and dot in time range dropdown
 1. [13602](https://github.com/influxdata/influxdb/pull/13602): Updated link in notes cell to a more useful site
 1. [13618](https://github.com/influxdata/influxdb/pull/13618): Show error message when adding line protocol
+1. [13657](https://github.com/influxdata/influxdb/pull/13657): Update UI Flux function documentation
+1. [13718](https://github.com/influxdata/influxdb/pull/13718): Updated System template to support math with floats
+1. [13732](https://github.com/influxdata/influxdb/pull/13732): Fixed the window function documentation
+1. [13738](https://github.com/influxdata/influxdb/pull/13738): Fixed typo in the `range` Flux function example
+1. [13742](https://github.com/influxdata/influxdb/pull/13742): Updated the `systemTime` function to use `system.time`
 
 ### UI Improvements
 1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay

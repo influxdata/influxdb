@@ -13,6 +13,8 @@ import (
 	"github.com/influxdata/influxdb/task/options"
 )
 
+// RunController wraps the scheduler and exposes only canceling
+// of runs.
 type RunController interface {
 	CancelRun(ctx context.Context, taskID, runID platform.ID) error
 	//TODO: add retry run to this.
@@ -133,8 +135,9 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 		return nil, err
 	}
 
-	opts, err := options.FromScript(t.Flux)
-	if err != nil {
+	// validate options before creating the task by parsing and checking
+	// every/cron/etc.
+	if _, err := options.FromScript(t.Flux); err != nil {
 		return nil, err
 	}
 
@@ -165,42 +168,29 @@ func (p pAdapter) CreateTask(ctx context.Context, t platform.TaskCreate) (*platf
 	if err != nil {
 		return nil, err
 	}
-	task := &platform.Task{
-		ID:              id,
-		Flux:            t.Flux,
-		Cron:            opts.Cron,
-		Name:            opts.Name,
-		OrganizationID:  org.ID,
-		Organization:    org.Name,
-		Status:          t.Status,
-		AuthorizationID: req.AuthorizationID,
-	}
-
-	if !opts.Every.IsZero() {
-		task.Every = opts.Every.String()
-	}
-	if opts.Offset != nil && !(*opts.Offset).IsZero() {
-		task.Offset = opts.Offset.String()
-	}
 
 	mapping := &platform.UserResourceMapping{
 		UserID:       auth.GetUserID(),
 		UserType:     platform.Owner,
 		ResourceType: platform.TasksResourceType,
-		ResourceID:   task.ID,
+		ResourceID:   id,
 	}
 
 	if err := p.urm.CreateUserResourceMapping(ctx, mapping); err != nil {
 		// clean up the task if we fail to map the user and resource
 		// TODO(lh): Multi step creates could benefit from a service wide transactional request
-		if derr := p.DeleteTask(ctx, task.ID); derr != nil {
+		if derr := p.DeleteTask(ctx, id); derr != nil {
 			err = fmt.Errorf("%s: failed to clean up task: %s", err.Error(), derr.Error())
 		}
 
 		return nil, err
 	}
 
-	return task, nil
+	backendTask, meta, err := p.s.FindTaskByIDWithMeta(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return p.toPlatformTask(ctx, *backendTask, meta)
 }
 
 func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
