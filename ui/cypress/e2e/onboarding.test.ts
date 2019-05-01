@@ -31,7 +31,7 @@ describe('Onboarding', () => {
     cy.getByTestID('credits').contains('InfluxData')
 
     //Continue
-    cy.getByTestID('button').click()
+    cy.getByTestID('onboarding-get-started').click()
 
     cy.location('pathname').should('include', 'onboarding/1')
 
@@ -44,7 +44,7 @@ describe('Onboarding', () => {
     cy.getByTestID('credits').contains('InfluxData')
 
     //Continue
-    cy.getByTestID('button').click()
+    cy.getByTestID('onboarding-get-started').click()
 
     //Check onboarding page - nav bar
     cy.getByTestID('nav-step--welcome').contains('Welcome')
@@ -78,9 +78,11 @@ describe('Onboarding', () => {
     //Check onboarding page headers and controls
     cy.getByTestID('admin-step--head-main').contains('Setup Initial User')
 
-    cy.getByTestID('button')
+    cy.getByTestID('next').should('be.disabled')
+
+    cy.getByTestID('next')
+      .children('.button--label')
       .contains('Continue')
-      .should('be.disabled')
 
     //Check tooltips
     cy.getByTestID('form-elem--orgname')
@@ -110,8 +112,11 @@ describe('Onboarding', () => {
     cy.getByTestID('input-field--orgname').type(user.org)
     cy.getByTestID('input-field--bucketname').type(user.bucket)
 
-    cy.getByTestID('button')
+    cy.getByTestID('next')
+      .children('.button--label')
       .contains('Continue')
+
+    cy.getByTestID('next')
       .should('be.enabled')
       .click()
 
@@ -182,7 +187,7 @@ describe('Onboarding', () => {
     cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
-    cy.getByTestID('button').click()
+    cy.getByTestID('onboarding-get-started').click()
     cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
@@ -192,7 +197,7 @@ describe('Onboarding', () => {
     cy.getByTestID('input-field--orgname').type(user.org)
     cy.getByTestID('input-field--bucketname').type(user.bucket)
 
-    cy.getByTestID('button').click()
+    cy.getByTestID('next').click()
 
     cy.wait('@orgSetup')
 
@@ -221,7 +226,7 @@ describe('Onboarding', () => {
     cy.location('pathname').should('include', 'onboarding/0')
 
     //Continue
-    cy.getByTestID('button').click()
+    cy.getByTestID('onboarding-get-started').click()
     cy.location('pathname').should('include', 'onboarding/1')
 
     //Input fields
@@ -231,7 +236,7 @@ describe('Onboarding', () => {
     cy.getByTestID('input-field--orgname').type(user.org)
     cy.getByTestID('input-field--bucketname').type(user.bucket)
 
-    cy.getByTestID('button').click()
+    cy.getByTestID('next').click()
 
     cy.wait('@orgSetup')
 
@@ -250,19 +255,21 @@ describe('Onboarding', () => {
 
   it('respects field requirements', () => {
     //Continue
-    cy.getByTestID('button').click()
+    cy.getByTestID('onboarding-get-started').click()
 
     cy.getByTestID('input-field--username').type(user.username)
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.disabled')
+      .children('.button--label')
+      .contains('Continue')
 
     cy.getByTestID('input-field--password').type(user.password)
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.disabled')
+      .children('.button--label')
+      .contains('Continue')
 
     cy.getByTestID('input-field--password-chk').type('drowssap')
 
@@ -277,9 +284,10 @@ describe('Onboarding', () => {
     cy.getByTestID('input-field--orgname').type(user.org)
     cy.getByTestID('input-field--bucketname').type(user.bucket)
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.disabled')
+      .children('.button--label')
+      .contains('Continue')
 
     cy.getByTestID('input-field--password-chk')
       .clear()
@@ -287,22 +295,25 @@ describe('Onboarding', () => {
 
     cy.getByTestID('input-error').should('not.exist')
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.enabled')
+      .children('.button--label')
+      .contains('Continue')
 
     //check cleared username
     cy.getByTestID('input-field--username').clear()
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.disabled')
+      .children('.button--label')
+      .contains('Continue')
 
     cy.getByTestID('input-field--username').type(user.username)
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.enabled')
+      .children('.button--label')
+      .contains('Continue')
 
     //check cleared password
     cy.getByTestID('input-field--password').clear()
@@ -312,40 +323,46 @@ describe('Onboarding', () => {
       'Passwords do not match'
     )
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.disabled')
+      .children('.button--label')
+      .contains('Continue')
 
     cy.getByTestID('input-field--password').type(user.password)
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.enabled')
+      .children('.button--label')
+      .contains('Continue')
 
     //check cleared org name
     cy.getByTestID('input-field--orgname').clear()
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.disabled')
+      .children('.button--label')
+      .contains('Continue')
 
     cy.getByTestID('input-field--orgname').type(user.org)
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.enabled')
+      .children('.button--label')
+      .contains('Continue')
 
     //check cleared bucket name
     cy.getByTestID('input-field--bucketname').clear()
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.disabled')
+      .children('.button--label')
+      .contains('Continue')
 
     cy.getByTestID('input-field--bucketname').type(user.bucket)
 
-    cy.getByTestID('button')
-      .contains('Continue')
+    cy.getByTestID('next')
       .should('be.enabled')
+      .children('.button--label')
+      .contains('Continue')
   })
 })
