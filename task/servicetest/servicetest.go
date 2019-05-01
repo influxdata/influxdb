@@ -90,6 +90,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...s
 					t.Parallel()
 					testUpdate(t, sys)
 				})
+
 				t.Run("Task Manual Run", func(t *testing.T) {
 					t.Parallel()
 					testManualRun(t, sys)
@@ -226,30 +227,23 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	found["FindTasks with User filter"] = f
 
+	want := &influxdb.Task{
+		ID:              tsk.ID,
+		CreatedAt:       tsk.CreatedAt,
+		LatestCompleted: tsk.LatestCompleted,
+		OrganizationID:  cr.OrgID,
+		Organization:    cr.Org,
+		AuthorizationID: authzID,
+		Name:            "task #0",
+		Cron:            "* * * * *",
+		Offset:          "5s",
+		Status:          string(backend.DefaultTaskStatus),
+		Flux:            fmt.Sprintf(scriptFmt, 0),
+	}
 	for fn, f := range found {
-		if f.OrganizationID != cr.OrgID {
-			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, cr.OrgID.String(), f.OrganizationID.String())
-		}
-		if f.Organization != cr.Org {
-			t.Fatalf("%s: wrong organization returned; want %q, got %q", fn, cr.Org, f.Organization)
-		}
-		if f.AuthorizationID != authzID {
-			t.Fatalf("%s: wrong authorization ID returned; want %s, got %s", fn, authzID.String(), f.AuthorizationID.String())
-		}
-		if f.Name != "task #0" {
-			t.Fatalf(`%s: wrong name returned; want "task #0", got %q`, fn, f.Name)
-		}
-		if f.Cron != "* * * * *" {
-			t.Fatalf(`%s: wrong cron returned; want "* * * * *", got %q`, fn, f.Cron)
-		}
-		if f.Offset != "5s" {
-			t.Fatalf(`%s: wrong offset returned; want "5s", got %q`, fn, f.Offset)
-		}
-		if f.Every != "" {
-			t.Fatalf(`%s: wrong every returned; want "", got %q`, fn, f.Every)
-		}
-		if f.Status != string(backend.DefaultTaskStatus) {
-			t.Fatalf(`%s: wrong default task status; want %q, got %q`, fn, backend.DefaultTaskStatus, f.Status)
+		if diff := cmp.Diff(f, want); diff != "" {
+			t.Logf("got: %+#v", f)
+			t.Fatalf("expected %s task to be consistant: -got/+want: %s", fn, diff)
 		}
 	}
 
@@ -272,6 +266,23 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	if len(tasks) > 1 {
 		t.Fatalf("failed to limit tasks: expected: 1, got : %d", len(tasks))
+	}
+
+	// Check after
+	first := tasks[0]
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, After: &first.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// because this test runs concurrently we can only guarantee we at least 2 tasks
+	// when using after we can check to make sure the after is not in the list
+	if len(tasks) == 0 {
+		t.Fatalf("expected at least 1 task: got 0")
+	}
+	for _, task := range tasks {
+		if first.ID == task.ID {
+			t.Fatalf("after task included in task list")
+		}
 	}
 
 	// Update task: script only.
@@ -1363,7 +1374,6 @@ func creds(t *testing.T, s *System) TestCreds {
 		if err := s.I.CreateAuthorization(context.Background(), &authz); err != nil {
 			t.Fatal(err)
 		}
-
 		return TestCreds{
 			OrgID:           o.ID,
 			Org:             o.Name,
