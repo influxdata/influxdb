@@ -359,22 +359,36 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 
 		// should return the last 2 tasks
-		newID2, err := s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 3)})
+		_, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 3)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 4)})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{After: id})
+		// get all the tasks
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(ts) != 2 {
-			t.Fatalf("expected 1 result, got %d", len(ts))
+		if len(ts) != 4 {
+			t.Fatalf("expected 4 result, got %d", len(ts))
 		}
-		for _, tsk := range ts {
-			if tsk.Task.ID != newID && tsk.Task.ID != newID2 {
-				t.Fatalf("got task ID %v, exp %v or %v", tsk.Task.ID, newID, newID2)
-			}
+
+		tsSubset, err := s.ListTasks(context.Background(), backend.TaskSearchParams{After: ts[1].Task.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tsSubset) != 2 {
+			t.Fatalf("expected 2 result, got %d", len(ts))
+		}
+		if ts[2].Task.ID != tsSubset[0].Task.ID {
+			t.Fatalf("got task ID %v, exp %v", ts[2].Task.ID, tsSubset[0].Task.ID)
+		}
+		if ts[3].Task.ID != tsSubset[1].Task.ID {
+			t.Fatalf("got task ID %v, exp %v", ts[3].Task.ID, tsSubset[1].Task.ID)
 		}
 	})
 
