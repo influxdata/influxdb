@@ -21,6 +21,7 @@
 1. [13657](https://github.com/influxdata/influxdb/pull/13657): Update UI Flux function documentation
 1. [13718](https://github.com/influxdata/influxdb/pull/13718): Updated System template to support math with floats
 1. [13732](https://github.com/influxdata/influxdb/pull/13732): Fixed the window function documentation
+1. [13738](https://github.com/influxdata/influxdb/pull/13738): Fixed typo in the `range` Flux function example
 
 ### UI Improvements
 1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay
