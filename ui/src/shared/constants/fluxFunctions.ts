@@ -2706,14 +2706,14 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/sum/',
   },
   {
-    name: 'systemTime',
+    name: 'system.time',
     args: [],
-    package: '',
+    package: 'system',
     desc: 'Returns the current system time.',
-    example: 'systemTime()',
+    example: 'system.time()',
     category: 'Miscellaneous',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/misc/systemtime/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/system/time/',
   },
   {
     name: 'testing.assertEmpty',
