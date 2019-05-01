@@ -141,7 +141,7 @@
   },
   "dependencies": {
     "@influxdata/clockface": "0.0.10",
-    "@influxdata/influx": "github:influxdata/influxdb2-js#dev",
+    "@influxdata/influx": "0.3.3",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "@influxdata/vis": "^0.2.3",
     "axios": "^0.18.0",
