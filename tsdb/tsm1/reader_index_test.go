@@ -157,8 +157,6 @@ func TestIndirectIndex_DeleteRange(t *testing.T) {
 	check(t, ind.MaybeContainsValue([]byte("cpu2"), 16), false)
 }
 
-// TODO(jeff): predicate tests
-
 func TestIndirectIndex_DeletePrefix(t *testing.T) {
 	check := func(t *testing.T, got, exp bool) {
 		t.Helper()

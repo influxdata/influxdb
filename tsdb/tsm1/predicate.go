@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
@@ -15,11 +14,15 @@ type Predicate interface {
 	Marshal() ([]byte, error)
 }
 
+const ( // Enumeration of all predicate versions we support unmarshalling.
+	predicateVersionZero = '\x00'
+)
+
 // UnmarshalPredicate takes stored predicate bytes from a Marshal call and returns a Predicate.
 func UnmarshalPredicate(data []byte) (Predicate, error) {
 	if len(data) == 0 {
 		return nil, nil
-	} else if data[0] != '\x00' {
+	} else if data[0] != predicateVersionZero {
 		return nil, fmt.Errorf("unknown tag byte: %x", data[0])
 	}
 
@@ -70,9 +73,10 @@ func NewProtobufPredicate(pred *datatypes.Predicate) (Predicate, error) {
 	locs := make(map[string]int)
 	walkPredicateNodes(pred.Root, func(node *datatypes.Node) {
 		if node.GetNodeType() == datatypes.NodeTypeTagRef {
-			locs[node.GetTagRefValue()] = len(locs)
-		} else if node.GetNodeType() == datatypes.NodeTypeFieldRef {
-			locs[models.FieldKeyTagKey] = len(locs)
+			switch value := node.GetValue().(type) {
+			case *datatypes.Node_TagRefValue:
+				locs[value.TagRefValue] = len(locs)
+			}
 		}
 	})
 
@@ -134,8 +138,9 @@ func (p *predicateMatcher) Matches(key []byte) bool {
 
 // Marshal returns a buffer representing the protobuf predicate.
 func (p *predicateMatcher) Marshal() ([]byte, error) {
-	// Prefix it with a zero byte so that we can change in the future if necessary
+	// Prefix it with the version byte so that we can change in the future if necessary
 	buf := make([]byte, 1+p.pred.Size())
+	buf[0] = predicateVersionZero
 	_, err := p.pred.MarshalTo(buf[1:])
 	return buf, err
 }
@@ -223,7 +228,7 @@ func buildPredicateNode(state *predicateState, node *datatypes.Node) (predicateN
 				return nil, fmt.Errorf("invalid comparison involving regex: %v", node)
 			}
 		} else {
-			if comp.comp != datatypes.ComparisonRegex && comp.comp != datatypes.ComparisonNotEqual {
+			if comp.comp != datatypes.ComparisonRegex && comp.comp != datatypes.ComparisonNotRegex {
 				return nil, fmt.Errorf("invalid comparison not against regex: %v", node)
 			}
 		}
@@ -404,7 +409,7 @@ type predicateNodeOr struct {
 }
 
 // Update checks if either the left and right nodes are true. If both nodes
-// are false, then the node is definitely asle. Otherwise, it needs more information.
+// are false, then the node is definitely fasle. Otherwise, it needs more information.
 func (p *predicateNodeOr) Update() predicateResponse {
 	if resp, ok := p.Cached(); ok {
 		return resp
@@ -457,7 +462,7 @@ func (p *predicateNodeComparison) Update() predicateResponse {
 	}
 
 	right := p.rightLiteral
-	if right == nil && p.rightReg != nil {
+	if right == nil && p.rightReg == nil {
 		right = p.state.values[p.rightIndex]
 		if right == nil {
 			return predicateResponse_needMore

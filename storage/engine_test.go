@@ -317,7 +317,7 @@ func TestEngine_DeleteBucket_Predicate(t *testing.T) {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
 
-	// Delete based on field.
+	// Delete based on field key.
 	pred, err = tsm1.NewProtobufPredicate(&datatypes.Predicate{
 		Root: &datatypes.Node{
 			NodeType: datatypes.NodeTypeComparisonExpression,

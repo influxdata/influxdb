@@ -84,9 +84,6 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 			return nil
 		}
 
-		if deleteKeys == nil {
-			deleteKeys = make([][]byte, 0, 10000)
-		}
 		deleteKeys = append(deleteKeys, k)
 
 		// we have to double check every key in the cache because maybe

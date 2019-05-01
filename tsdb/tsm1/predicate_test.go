@@ -2,12 +2,13 @@ package tsm1
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
-func TestPredicate(t *testing.T) {
+func TestPredicate_Matches(t *testing.T) {
 	cases := []struct {
 		Name      string
 		Predicate *datatypes.Predicate
@@ -17,8 +18,7 @@ func TestPredicate(t *testing.T) {
 		{
 			Name: "Basic Matching",
 			Predicate: predicate(
-				comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")),
-			),
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3"))),
 			Key:     "bucketorg,tag3=val3",
 			Matches: true,
 		},
@@ -26,8 +26,7 @@ func TestPredicate(t *testing.T) {
 		{
 			Name: "Basic Unmatching",
 			Predicate: predicate(
-				comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")),
-			),
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3"))),
 			Key:     "bucketorg,tag3=val2",
 			Matches: false,
 		},
@@ -38,11 +37,8 @@ func TestPredicate(t *testing.T) {
 				orNode(
 					andNode(
 						comparisonNode(datatypes.ComparisonEqual, tagNode("foo"), stringNode("bar")),
-						comparisonNode(datatypes.ComparisonEqual, tagNode("baz"), stringNode("no")),
-					),
-					comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")),
-				),
-			),
+						comparisonNode(datatypes.ComparisonEqual, tagNode("baz"), stringNode("no"))),
+					comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")))),
 			Key:     "bucketorg,foo=bar,baz=bif,tag3=val3",
 			Matches: true,
 		},
@@ -53,13 +49,152 @@ func TestPredicate(t *testing.T) {
 				orNode(
 					andNode(
 						comparisonNode(datatypes.ComparisonEqual, tagNode("foo"), stringNode("bar")),
-						comparisonNode(datatypes.ComparisonEqual, tagNode("baz"), stringNode("no")),
-					),
-					comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")),
-				),
-			),
+						comparisonNode(datatypes.ComparisonEqual, tagNode("baz"), stringNode("no"))),
+					comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")))),
 			Key:     "bucketorg,foo=bar,baz=bif,tag3=val2",
 			Matches: false,
+		},
+
+		{
+			Name: "Logical Or Short Circuit",
+			Predicate: predicate(
+				orNode(
+					comparisonNode(datatypes.ComparisonEqual, tagNode("foo"), stringNode("bar")),
+					comparisonNode(datatypes.ComparisonEqual, tagNode("baz"), stringNode("no")))),
+			Key:     "bucketorg,baz=bif,foo=bar,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Logical And Short Circuit",
+			Predicate: predicate(
+				andNode(
+					comparisonNode(datatypes.ComparisonEqual, tagNode("foo"), stringNode("no")),
+					comparisonNode(datatypes.ComparisonEqual, tagNode("baz"), stringNode("bif")))),
+			Key:     "bucketorg,baz=bif,foo=bar,tag3=val3",
+			Matches: false,
+		},
+
+		{
+			Name: "Logical And Matching",
+			Predicate: predicate(
+				andNode(
+					comparisonNode(datatypes.ComparisonEqual, tagNode("foo"), stringNode("bar")),
+					comparisonNode(datatypes.ComparisonEqual, tagNode("baz"), stringNode("bif")))),
+			Key:     "bucketorg,baz=bif,foo=bar,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Regex Matching",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonRegex, tagNode("tag3"), regexNode("...3"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "NotRegex Matching",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonNotRegex, tagNode("tag3"), regexNode("...4"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Regex Unmatching",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonRegex, tagNode("tag3"), regexNode("...4"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: false,
+		},
+
+		{
+			Name: "NotRegex Unmatching",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonNotRegex, tagNode("tag3"), regexNode("...3"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: false,
+		},
+
+		{
+			Name: "Basic Matching Reversed",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, stringNode("val3"), tagNode("tag3"))),
+			Key:     "bucketorg,tag2=val2,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Tag Matching Tag",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag4"), tagNode("tag3"))),
+			Key:     "bucketorg,tag3=val3,tag4=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "No Tag",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag4"), stringNode("val4"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: false,
+		},
+
+		{
+			Name: "Not Equal",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonNotEqual, tagNode("tag3"), stringNode("val4"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Starts With",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonStartsWith, tagNode("tag3"), stringNode("va"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Less",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonLess, tagNode("tag3"), stringNode("val4"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Less Equal",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonLessEqual, tagNode("tag3"), stringNode("val4"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Greater",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonGreater, tagNode("tag3"), stringNode("u"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Greater Equal;",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonGreaterEqual, tagNode("tag3"), stringNode("u"))),
+			Key:     "bucketorg,tag3=val3",
+			Matches: true,
+		},
+
+		{
+			Name: "Escaping Matching",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3"))),
+			Key:     `bucketorg,tag1=\,foo,tag2=\ bar,tag2\=more=val2\,\ \=hello,tag3=val3`,
+			Matches: true,
 		},
 	}
 
@@ -72,6 +207,198 @@ func TestPredicate(t *testing.T) {
 
 			if got, exp := pred.Matches([]byte(test.Key)), test.Matches; got != exp {
 				t.Fatal("match failure:", "got", got, "!=", "exp", exp)
+			}
+		})
+	}
+}
+
+func TestPredicate_Unmarshal(t *testing.T) {
+	protoPred := predicate(
+		orNode(
+			andNode(
+				comparisonNode(datatypes.ComparisonEqual, tagNode("foo"), stringNode("bar")),
+				comparisonNode(datatypes.ComparisonEqual, tagNode("baz"), stringNode("no"))),
+			comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3"))))
+
+	pred1, err := NewProtobufPredicate(protoPred)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	predData, err := pred1.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pred2, err := UnmarshalPredicate(predData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(pred1, pred2) {
+		t.Fatal("mismatch on unmarshal")
+	}
+}
+
+func TestPredicate_Unmarshal_InvalidTag(t *testing.T) {
+	_, err := UnmarshalPredicate([]byte("\xff"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPredicate_Unmarshal_InvalidProtobuf(t *testing.T) {
+	_, err := UnmarshalPredicate([]byte("\x00\xff"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPredicate_Unmarshal_Empty(t *testing.T) {
+	pred, err := UnmarshalPredicate(nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if pred != nil {
+		t.Fatal("expected no predicate")
+	}
+}
+
+func TestPredicate_Invalid_Protobuf(t *testing.T) {
+	cases := []struct {
+		Name      string
+		Predicate *datatypes.Predicate
+	}{
+		{
+			Name: "Invalid Comparison Num Children",
+			Predicate: predicate(&datatypes.Node{
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				Children: []*datatypes.Node{{}, {}, {}},
+			}),
+		},
+
+		{
+			Name: "Mismatching Left Tag Type",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, &datatypes.Node{
+					NodeType: datatypes.NodeTypeTagRef,
+					Value:    &datatypes.Node_IntegerValue{IntegerValue: 2},
+				}, tagNode("tag"))),
+		},
+
+		{
+			Name: "Mismatching Left Literal Type",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, &datatypes.Node{
+					NodeType: datatypes.NodeTypeLiteral,
+					Value:    &datatypes.Node_IntegerValue{IntegerValue: 2},
+				}, tagNode("tag"))),
+		},
+
+		{
+			Name: "Invalid Left Node Type",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, &datatypes.Node{
+					NodeType: datatypes.NodeTypeComparisonExpression,
+					Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				}, tagNode("tag"))),
+		},
+
+		{
+			Name: "Mismatching Right Tag Type",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag"), &datatypes.Node{
+					NodeType: datatypes.NodeTypeTagRef,
+					Value:    &datatypes.Node_IntegerValue{IntegerValue: 2},
+				})),
+		},
+
+		{
+			Name: "Invalid Regex",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonRegex, tagNode("tag3"), regexNode("("))),
+		},
+
+		{
+			Name: "Mismatching Right Literal Type",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag"), &datatypes.Node{
+					NodeType: datatypes.NodeTypeLiteral,
+					Value:    &datatypes.Node_IntegerValue{IntegerValue: 2},
+				})),
+		},
+
+		{
+			Name: "Invalid Right Node Type",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag"), &datatypes.Node{
+					NodeType: datatypes.NodeTypeComparisonExpression,
+					Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				})),
+		},
+
+		{
+			Name: "Invalid Comparison Without Regex",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonRegex, tagNode("tag3"), stringNode("val3"))),
+		},
+
+		{
+			Name: "Invalid Comparison With Regex",
+			Predicate: predicate(
+				comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), regexNode("."))),
+		},
+
+		{
+			Name: "Invalid Logical Operation Children",
+			Predicate: predicate(&datatypes.Node{
+				NodeType: datatypes.NodeTypeLogicalExpression,
+				Value:    &datatypes.Node_Logical_{Logical: datatypes.LogicalAnd},
+				Children: []*datatypes.Node{{}, {}, {}},
+			}),
+		},
+
+		{
+			Name: "Invalid Left Logical Expression",
+			Predicate: predicate(
+				andNode(
+					tagNode("tag"),
+					comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")),
+				)),
+		},
+
+		{
+			Name: "Invalid Right Logical Expression",
+			Predicate: predicate(
+				andNode(
+					comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")),
+					tagNode("tag"),
+				)),
+		},
+
+		{
+			Name: "Invalid Logical Value",
+			Predicate: predicate(&datatypes.Node{
+				NodeType: datatypes.NodeTypeLogicalExpression,
+				Value:    &datatypes.Node_Logical_{Logical: 9999},
+				Children: []*datatypes.Node{
+					comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")),
+					comparisonNode(datatypes.ComparisonEqual, tagNode("tag3"), stringNode("val3")),
+				},
+			}),
+		},
+
+		{
+			Name:      "Invalid Root Node",
+			Predicate: predicate(tagNode("tag3")),
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.Name, func(t *testing.T) {
+			_, err := NewProtobufPredicate(test.Predicate)
+			if err == nil {
+				t.Fatal("expected compile failure")
 			}
 		})
 	}
@@ -133,6 +460,13 @@ func stringNode(s string) *datatypes.Node {
 	return &datatypes.Node{
 		NodeType: datatypes.NodeTypeLiteral,
 		Value:    &datatypes.Node_StringValue{StringValue: s},
+	}
+}
+
+func regexNode(s string) *datatypes.Node {
+	return &datatypes.Node{
+		NodeType: datatypes.NodeTypeLiteral,
+		Value:    &datatypes.Node_RegexValue{RegexValue: s},
 	}
 }
 

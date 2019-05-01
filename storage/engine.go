@@ -535,7 +535,8 @@ func (e *Engine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) 
 	return e.deleteBucketRangeLocked(orgID, bucketID, min, max, nil)
 }
 
-// DeleteBucketRangePredicate deletes an entire bucket from the storage engine.
+// DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
+// deleted must be in [min, max], and the key must match the predicate if provided.
 func (e *Engine) DeleteBucketRangePredicate(orgID, bucketID platform.ID,
 	min, max int64, pred tsm1.Predicate) error {
 
