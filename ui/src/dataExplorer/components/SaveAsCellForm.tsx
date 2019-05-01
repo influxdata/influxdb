@@ -1,9 +1,10 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Utils
-import _ from 'lodash'
+import {getSaveableView} from 'src/timeMachine/selectors'
 
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
@@ -234,11 +235,10 @@ const mstp = (state: AppState): StateProps => {
   const {
     dashboards: {list: dashboards},
     orgs: {org},
-    timeMachines: {
-      timeMachines: {de},
-    },
   } = state
-  const {view} = de
+
+  const view = getSaveableView(state)
+
   return {dashboards, view, orgID: _.get(org, 'id', '')}
 }
 
