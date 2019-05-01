@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -391,10 +392,16 @@ func (t *transpilerState) transpileShowTagValues(ctx context.Context, stmt *infl
 }
 
 func (t *transpilerState) transpileShowDatabases(ctx context.Context, stmt *influxql.ShowDatabasesStatement) (ast.Expression, error) {
+	v1 := t.requireImport("influxdata/influxdb/v1")
 	return &ast.PipeExpression{
 		Argument: &ast.PipeExpression{
 			Argument: &ast.CallExpression{
-				Callee: &ast.Identifier{Name: "databases"},
+				Callee: &ast.MemberExpression{
+					Object: v1,
+					Property: &ast.Identifier{
+						Name: "databases",
+					},
+				},
 			},
 			Call: &ast.CallExpression{
 				Callee: &ast.Identifier{
@@ -450,14 +457,18 @@ func (t *transpilerState) transpileShowDatabases(ctx context.Context, stmt *infl
 }
 
 func (t *transpilerState) transpileShowRetentionPolicies(ctx context.Context, stmt *influxql.ShowRetentionPoliciesStatement) (ast.Expression, error) {
+	v1 := t.requireImport("influxdata/influxdb/v1")
 	return &ast.PipeExpression{
 		Argument: &ast.PipeExpression{
 			Argument: &ast.PipeExpression{
 				Argument: &ast.PipeExpression{
 					Argument: &ast.PipeExpression{
 						Argument: &ast.CallExpression{
-							Callee: &ast.Identifier{
-								Name: "databases",
+							Callee: &ast.MemberExpression{
+								Object: v1,
+								Property: &ast.Identifier{
+									Name: "databases",
+								},
 							},
 						},
 						Call: &ast.CallExpression{
@@ -704,4 +715,27 @@ func (t *transpilerState) assignment(expr ast.Expression) *ast.Identifier {
 			return ident
 		}
 	}
+}
+
+// requireImport will ensure the import is included in the file and return
+// the variable used to access the package.
+func (t *transpilerState) requireImport(pkgpath string) *ast.Identifier {
+	// Check to see if the import already exists.
+	for _, decl := range t.file.Imports {
+		if decl.Path.Value == pkgpath {
+			return decl.As
+		}
+	}
+
+	// Append the import to the file.
+	as := &ast.Identifier{
+		Name: filepath.Base(pkgpath),
+	}
+	t.file.Imports = append(t.file.Imports, &ast.ImportDeclaration{
+		Path: &ast.StringLiteral{
+			Value: pkgpath,
+		},
+		As: as,
+	})
+	return as
 }
