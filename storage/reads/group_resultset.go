@@ -244,7 +244,7 @@ func groupBySort(g *groupResultSet) (int, error) {
 			nr.SeriesTags = tagsBuf.copyTags(nr.SeriesTags)
 			nr.Tags = tagsBuf.copyTags(nr.Tags)
 
-			l := 0
+			l := len(g.keys) // for sort key separators
 			for i, k := range g.keys {
 				vals[i] = nr.Tags.Get(k)
 				if len(vals[i]) == 0 {
@@ -256,6 +256,7 @@ func groupBySort(g *groupResultSet) (int, error) {
 			nr.SortKey = make([]byte, 0, l)
 			for _, v := range vals {
 				nr.SortKey = append(nr.SortKey, v...)
+				nr.SortKey = append(nr.SortKey, ',')
 			}
 
 			rows = append(rows, &nr)
