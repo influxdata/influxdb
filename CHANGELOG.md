@@ -1,6 +1,9 @@
 ## v2.0.0-alpha.10 [unreleased]
 ### Features
+
 ### Bug Fixes
+1. [13753](https://github.com/influxdata/influxdb/pull/13753): Removed hardcoded bucket for Getting Started with Flux dashboard
+
 ### UI Improvements
 
 ## v2.0.0-alpha.9 [2019-05-01]

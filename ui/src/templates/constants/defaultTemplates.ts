@@ -2739,7 +2739,7 @@ export const gettingStartedWithFluxTemplate = () => ({
                 editMode: 'advanced',
                 name: '',
                 text:
-                  'from(bucket: "telegraf")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_user")\n  |> filter(fn: (r) => r.cpu == "cpu-total")',
+                  'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_user")\n  |> filter(fn: (r) => r.cpu == "cpu-total")',
               },
             ],
             shape: 'chronograf-v2',
