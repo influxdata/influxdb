@@ -20,7 +20,7 @@ export const extractDashboardLimits = (limits: LimitsState): LimitStatus => {
 }
 
 export const extractDashboardMax = (limits: LimitsState): number => {
-  return get(limits, 'dashboard.maxAllowed', Infinity)
+  return get(limits, 'dashboards.maxAllowed', Infinity)
 }
 
 export const extractTaskLimits = (limits: LimitsState): LimitStatus => {
@@ -28,5 +28,5 @@ export const extractTaskLimits = (limits: LimitsState): LimitStatus => {
 }
 
 export const extractTaskMax = (limits: LimitsState): number => {
-  return get(limits, 'task.maxAllowed', Infinity)
+  return get(limits, 'tasks.maxAllowed', Infinity)
 }
