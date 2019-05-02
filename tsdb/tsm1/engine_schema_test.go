@@ -238,6 +238,23 @@ memB,host=EB,os=macOS value=1.3 201`)
 			exp:      []string{"0B", "AB", "BB", "CB", "DB", "EB"},
 			expStats: cursors.CursorStats{ScannedValues: 3, ScannedBytes: 24},
 		},
+
+		// ***********************
+		// * other scenarios
+		// ***********************
+		{
+			// ensure StringIterator is never nil
+			name: "predicate/no candidate series",
+			args: args{
+				org:  1,
+				key:  "host",
+				min:  0,
+				max:  1000,
+				expr: `foo = 'bar'`,
+			},
+			exp:      nil,
+			expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -469,6 +486,22 @@ mem,mem1=v,mem2=v        f=1 201`)
 			},
 			exp:      []string{models.MeasurementTagKey, "cpu0", "cpu1", "cpu2", "cpu3", "cpu4", "cpu5", "mem0", "mem1", "mem2", models.FieldKeyTagKey},
 			expStats: cursors.CursorStats{ScannedValues: 2, ScannedBytes: 16},
+		},
+
+		// ***********************
+		// * other scenarios
+		// ***********************
+		{
+			// ensure StringIterator is never nil
+			name: "predicate/no candidate series",
+			args: args{
+				org:  0,
+				min:  0,
+				max:  300,
+				expr: "foo = 'bar'",
+			},
+			exp:      nil,
+			expStats: cursors.CursorStats{ScannedValues: 0, ScannedBytes: 0},
 		},
 	}
 	for _, tc := range tests {
