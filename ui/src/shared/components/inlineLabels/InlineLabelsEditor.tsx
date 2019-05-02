@@ -3,12 +3,7 @@ import React, {Component, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {
-  Button,
-  ButtonShape,
-  IconFont,
-  ComponentColor,
-} from '@influxdata/clockface'
+import {SquareButton, IconFont, ComponentColor} from '@influxdata/clockface'
 import InlineLabelPopover from 'src/shared/components/inlineLabels/InlineLabelPopover'
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 
@@ -66,11 +61,10 @@ class InlineLabelsEditor extends Component<Props, State> {
       <>
         <div className="inline-labels--editor">
           <div className="inline-labels--add">
-            <Button
+            <SquareButton
               color={ComponentColor.Secondary}
               titleText="Add labels"
               onClick={this.handleShowPopover}
-              shape={ButtonShape.Square}
               icon={IconFont.Plus}
               testID="inline-labels--add"
             />

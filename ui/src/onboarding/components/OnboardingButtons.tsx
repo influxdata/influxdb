@@ -30,22 +30,22 @@ class OnboardingButtons extends PureComponent<Props> {
     nextButtonText: 'Continue',
   }
 
-  private submitRef: RefObject<Button> = React.createRef()
+  private submitRef: RefObject<HTMLButtonElement> = React.createRef()
 
   public componentDidMount() {
     if (this.props.autoFocusNext) {
-      const buttonRef = this.submitRef.current.ref
+      const buttonRef = this.submitRef.current
       if (buttonRef) {
-        buttonRef.current.focus()
+        buttonRef.focus()
       }
     }
   }
 
   public componentDidUpdate() {
     if (this.props.autoFocusNext) {
-      const buttonRef = this.submitRef.current.ref
+      const buttonRef = this.submitRef.current
       if (buttonRef) {
-        buttonRef.current.focus()
+        buttonRef.focus()
       }
     }
   }
@@ -61,8 +61,8 @@ class OnboardingButtons extends PureComponent<Props> {
             text={nextButtonText}
             size={ComponentSize.Medium}
             type={ButtonType.Submit}
-            data-testid="next"
-            ref={this.submitRef}
+            testID="next"
+            refObject={this.submitRef}
             status={nextButtonStatus}
             tabIndex={0}
           />
@@ -89,7 +89,7 @@ class OnboardingButtons extends PureComponent<Props> {
         text={backButtonText}
         size={ComponentSize.Medium}
         onClick={onClickBack}
-        data-testid="back"
+        testID="back"
         tabIndex={1}
       />
     )
@@ -104,12 +104,12 @@ class OnboardingButtons extends PureComponent<Props> {
     return (
       <div className="wizard--skip-container">
         <Button
-          customClass="wizard--skip-button"
+          className="wizard--skip-button"
           size={ComponentSize.Medium}
           color={ComponentColor.Default}
           text={skipButtonText}
           onClick={onClickSkip}
-          data-testid="skip"
+          testID="skip"
         />
       </div>
     )

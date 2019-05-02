@@ -15,9 +15,8 @@ import TimeMachineQueryBuilder from 'src/timeMachine/components/QueryBuilder'
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
 import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import {
-  Button,
+  SquareButton,
   IconFont,
-  ButtonShape,
   ComponentSize,
   ComponentColor,
   ComponentSpacer,
@@ -73,9 +72,8 @@ class TimeMachineQueries extends PureComponent<Props> {
                 query={query}
               />
             ))}
-            <Button
-              customClass="time-machine-queries--new"
-              shape={ButtonShape.Square}
+            <SquareButton
+              className="time-machine-queries--new"
               icon={IconFont.PlusSkinny}
               size={ComponentSize.ExtraSmall}
               color={ComponentColor.Default}

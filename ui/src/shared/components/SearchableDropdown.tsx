@@ -43,7 +43,7 @@ export default class SearchableDropdown extends Component<Props> {
         menuColor={DropdownMenuColors.Onyx}
         menuHeader={
           <Input
-            customClass="searchable-dropdown--menu-input"
+            className="searchable-dropdown--menu-input"
             onChange={this.handleChange}
             value={searchTerm}
             placeholder={searchPlaceholder}

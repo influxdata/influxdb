@@ -144,7 +144,7 @@ export default class DraggableColumn extends Component<Props> {
             <div className="customizable-field--name">{internalName}</div>
           </div>
           <Input
-            customClass="customizable-field--input"
+            className="customizable-field--input"
             id="internalName"
             value={displayName}
             onChange={this.handleColumnRename}

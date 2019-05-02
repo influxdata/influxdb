@@ -37,7 +37,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
             titleText={buttonText}
             text={buttonText}
             onClick={onClick}
-            customClass="empty-graph-error--copy"
+            className="empty-graph-error--copy"
           />
         </CopyToClipboard>
         <FancyScrollbar

@@ -143,7 +143,7 @@ class TagSelector extends PureComponent<Props> {
           <Input
             value={valuesSearchTerm}
             placeholder={`Search ${selectedKey} tag values`}
-            customClass="tag-selector--search"
+            className="tag-selector--search"
             onChange={this.handleValuesSearch}
           />
         </BuilderCard.Menu>

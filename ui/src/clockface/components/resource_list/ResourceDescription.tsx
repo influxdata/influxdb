@@ -77,7 +77,7 @@ class ResourceDescription extends Component<Props, State> {
         onFocus={this.handleInputFocus}
         onChange={this.handleInputChange}
         onKeyDown={this.handleKeyDown}
-        customClass="resource-description--input"
+        className="resource-description--input"
         value={workingDescription}
       />
     )

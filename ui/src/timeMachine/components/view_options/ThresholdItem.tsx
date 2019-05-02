@@ -2,14 +2,13 @@
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
 // Components
-import {Input, Button} from '@influxdata/clockface'
+import {Input, SquareButton} from '@influxdata/clockface'
 
 // Types
 import {
   IconFont,
   InputType,
   ButtonType,
-  ButtonShape,
   ComponentSize,
   ComponentStatus,
 } from '@influxdata/clockface'
@@ -66,7 +65,7 @@ class Threshold extends PureComponent<Props, State> {
         {!isBase && (
           <Input
             value={workingValue.toString()}
-            customClass="threshold-item--input"
+            className="threshold-item--input"
             type={InputType.Number}
             onChange={this.handleChangeWorkingValue}
             onBlur={this.handleBlur}
@@ -83,9 +82,8 @@ class Threshold extends PureComponent<Props, State> {
           widthPixels={this.dropdownWidthPixels}
         />
         {isDeletable && !isBase && (
-          <Button
+          <SquareButton
             size={ComponentSize.Small}
-            shape={ButtonShape.Square}
             onClick={this.handleDelete}
             icon={IconFont.Remove}
             type={ButtonType.Button}
