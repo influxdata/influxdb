@@ -2,6 +2,7 @@ package influxdb_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -12,6 +13,12 @@ import (
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 )
+
+func fluxTime(t int64) flux.Time {
+	return flux.Time{
+		Absolute: time.Unix(0, t).UTC(),
+	}
+}
 
 func TestPushDownRangeRule(t *testing.T) {
 	fromSpec := influxdb.FromProcedureSpec{
@@ -110,6 +117,238 @@ func TestPushDownRangeRule(t *testing.T) {
 					{0, 2},
 				},
 			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			plantest.PhysicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
+func TestPushDownFilterRule(t *testing.T) {
+	var (
+		bounds = flux.Bounds{
+			Start: fluxTime(5),
+			Stop:  fluxTime(10),
+		}
+
+		pushableExpr1 = &semantic.BinaryExpression{
+			Operator: ast.EqualOperator,
+			Left: &semantic.MemberExpression{
+				Object:   &semantic.IdentifierExpression{Name: "r"},
+				Property: "_measurement",
+			},
+			Right: &semantic.StringLiteral{Value: "cpu"}}
+
+		pushableExpr2 = &semantic.BinaryExpression{
+			Operator: ast.EqualOperator,
+			Left: &semantic.MemberExpression{
+				Object:   &semantic.IdentifierExpression{Name: "r"},
+				Property: "_field",
+			},
+			Right: &semantic.StringLiteral{Value: "cpu"}}
+
+		unpushableExpr = &semantic.BinaryExpression{
+			Operator: ast.LessThanOperator,
+			Left:     &semantic.FloatLiteral{Value: 0.5},
+			Right: &semantic.MemberExpression{
+				Object:   &semantic.IdentifierExpression{Name: "r"},
+				Property: "_value"},
+		}
+
+		statementFn = &semantic.FunctionExpression{
+			Block: &semantic.FunctionBlock{
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{
+						{Key: &semantic.Identifier{Name: "r"}},
+					},
+				},
+				Body: &semantic.ReturnStatement{
+					Argument: &semantic.BooleanLiteral{Value: true},
+				},
+			},
+		}
+	)
+
+	makeFilterFn := func(exprs ...semantic.Expression) *semantic.FunctionExpression {
+		body := semantic.ExprsToConjunction(exprs...)
+		return &semantic.FunctionExpression{
+			Block: &semantic.FunctionBlock{
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{
+						{Key: &semantic.Identifier{Name: "r"}},
+					},
+				},
+				Body: body,
+			},
+		}
+	}
+
+	tests := []plantest.RuleTestCase{
+		{
+			Name: "simple",
+			// ReadRange -> filter  =>  ReadRange
+			Rules: []plan.Rule{influxdb.PushDownFilterRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
+						Bounds: bounds,
+					}),
+					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
+						Fn: makeFilterFn(pushableExpr1),
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
+						Bounds:    bounds,
+						FilterSet: true,
+						Filter:    makeFilterFn(pushableExpr1),
+					}),
+				},
+			},
+		},
+		{
+			Name: "two filters",
+			// ReadRange -> filter -> filter  =>  ReadRange    (rule applied twice)
+			Rules: []plan.Rule{influxdb.PushDownFilterRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
+						Bounds: bounds,
+					}),
+					plan.CreatePhysicalNode("filter1", &universe.FilterProcedureSpec{
+						Fn: makeFilterFn(pushableExpr1),
+					}),
+					plan.CreatePhysicalNode("filter2", &universe.FilterProcedureSpec{
+						Fn: makeFilterFn(pushableExpr2),
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("merged_ReadRange_filter1_filter2", &influxdb.ReadRangePhysSpec{
+						Bounds:    bounds,
+						FilterSet: true,
+						Filter:    makeFilterFn(pushableExpr1, pushableExpr2),
+					}),
+				},
+			},
+		},
+		{
+			Name: "partially pushable filter",
+			// ReadRange -> partially-pushable-filter  =>  ReadRange -> unpushable-filter
+			Rules: []plan.Rule{influxdb.PushDownFilterRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
+						Bounds: bounds,
+					}),
+					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
+						Fn: makeFilterFn(pushableExpr1, unpushableExpr),
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
+						Bounds:    bounds,
+						FilterSet: true,
+						Filter:    makeFilterFn(pushableExpr1),
+					}),
+					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
+						Fn: makeFilterFn(unpushableExpr),
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+		},
+		{
+			Name: "from range filter",
+			// from -> range -> filter  =>  ReadRange
+			Rules: []plan.Rule{
+				influxdb.PushDownRangeRule{},
+				influxdb.PushDownFilterRule{},
+			},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreateLogicalNode("from", &influxdb.FromProcedureSpec{}),
+					plan.CreatePhysicalNode("range", &universe.RangeProcedureSpec{
+						Bounds: bounds,
+					}),
+					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
+						Fn: makeFilterFn(pushableExpr1)},
+					),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
+						Bounds:    bounds,
+						FilterSet: true,
+						Filter:    makeFilterFn(pushableExpr1),
+					}),
+				},
+			},
+		},
+		{
+			Name: "unpushable filter",
+			// from -> filter  =>  from -> filter   (no change)
+			Rules: []plan.Rule{influxdb.PushDownFilterRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
+						Bounds: bounds,
+					}),
+					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
+						Fn: makeFilterFn(unpushableExpr),
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			NoChange: true,
+		},
+		{
+			Name: "statement filter",
+			// ReadRange -> filter(with statement function)  =>  ReadRange -> filter(with statement function)  (no change)
+			Rules: []plan.Rule{influxdb.PushDownFilterRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
+						Bounds: bounds,
+					}),
+					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
+						Fn: statementFn,
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			NoChange: true,
 		},
 	}
 
