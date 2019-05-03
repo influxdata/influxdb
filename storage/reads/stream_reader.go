@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -44,23 +45,28 @@ func (*emptyStatistics) Stats() cursors.CursorStats {
 	return cursors.CursorStats{}
 }
 
-// StorageReadClient adapts a Storage_ReadClient to implement cursors.Statistics
-// and read the statistics from the gRPC trailer.
+type StreamClient interface {
+	StreamReader
+	grpc.ClientStream
+}
+
+// StorageReadClient adapts a grpc client to implement the cursors.Statistics
+// interface and read the statistics from the gRPC trailer.
 type StorageReadClient struct {
-	c       datatypes.Storage_ReadClient
+	client  StreamClient
 	trailer metadata.MD
 }
 
 // NewStorageReadClient returns a new StorageReadClient which implements
 // StreamReader and reads the gRPC trailer to return CursorStats.
-func NewStorageReadClient(c datatypes.Storage_ReadClient) *StorageReadClient {
-	return &StorageReadClient{c: c}
+func NewStorageReadClient(client StreamClient) *StorageReadClient {
+	return &StorageReadClient{client: client}
 }
 
 func (rc *StorageReadClient) Recv() (res *datatypes.ReadResponse, err error) {
-	res, err = rc.c.Recv()
+	res, err = rc.client.Recv()
 	if err != nil {
-		rc.trailer = rc.c.Trailer()
+		rc.trailer = rc.client.Trailer()
 	}
 	return res, err
 }
