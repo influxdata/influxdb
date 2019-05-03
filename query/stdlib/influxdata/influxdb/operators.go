@@ -79,19 +79,6 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 	return ns
 }
 
-func (s *ReadRangePhysSpec) PostPhysicalValidate(id plan.NodeID) error {
-	if s.Bounds.Start.IsZero() && s.Bounds.Stop.IsZero() {
-		var bucket string
-		if len(s.Bucket) > 0 {
-			bucket = s.Bucket
-		} else {
-			bucket = s.BucketID
-		}
-		return fmt.Errorf(`%s: results from "%s" must be bounded`, id, bucket)
-	}
-	return nil
-}
-
 func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID influxdb.ID, buckets BucketLookup) (influxdb.ID, error) {
 	// Determine bucketID
 	switch {

@@ -121,6 +121,27 @@ func (s *FromProcedureSpec) Copy() plan.ProcedureSpec {
 	return ns
 }
 
+func (s *FromProcedureSpec) PostPhysicalValidate(id plan.NodeID) error {
+	// FromProcedureSpec is a logical operation representing any read
+	// from storage. However as a logical operation, it doesn't specify
+	// how data is to be read from storage. It is the query planner's
+	// job to determine the optimal read strategy and to convert this
+	// logical operation into the appropriate physical operation.
+	//
+	// Logical operations cannot be executed by the query engine. So if
+	// this operation is still around post physical planning, it means
+	// that a 'range' could not be pushed down to storage. Storage does
+	// not support unbounded reads, and so this query must not be
+	// validated.
+	var bucket string
+	if len(s.Bucket) > 0 {
+		bucket = s.Bucket
+	} else {
+		bucket = s.BucketID
+	}
+	return fmt.Errorf("cannot submit unbounded read to %q; try bounding 'from' with a call to 'range'", bucket)
+}
+
 func InjectFromDependencies(depsMap execute.Dependencies, deps Dependencies) error {
 	if err := deps.Validate(); err != nil {
 		return err
