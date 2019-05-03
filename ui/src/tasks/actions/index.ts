@@ -501,6 +501,8 @@ export const runTask = (taskID: string) => async dispatch => {
     await client.tasks.startRunByTaskID(taskID)
     dispatch(notify(taskRunSuccess()))
   } catch (error) {
+    const message = getErrorMessage(error)
+    dispatch(notify(copy.taskRunFailed(message)))
     console.error(error)
   }
 }
@@ -558,6 +560,9 @@ export const createTaskFromTemplate = (template: ITaskTemplate) => async (
 export const runDuration = (finishedAt: Date, startedAt: Date): string => {
   let timeTag = 'seconds'
 
+  if (isNaN(finishedAt.getTime()) || isNaN(startedAt.getTime())) {
+    return ''
+  }
   let diff = (finishedAt.getTime() - startedAt.getTime()) / 1000
 
   if (diff > 60) {
