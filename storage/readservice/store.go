@@ -67,10 +67,6 @@ func (s *store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 	return reads.NewGroupResultSet(ctx, req, newCursor), nil
 }
 
-func (s *store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
-	return nil, nil
-}
-
 func (s *store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
