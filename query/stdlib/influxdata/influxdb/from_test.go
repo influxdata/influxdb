@@ -7,6 +7,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/stdlib/universe"
 	platform "github.com/influxdata/influxdb"
@@ -152,5 +154,39 @@ func TestFromOpSpec_BucketsAccessed(t *testing.T) {
 			t.Parallel()
 			pquerytest.BucketsAccessedTestHelper(t, tc)
 		})
+	}
+}
+
+func TestFromValidation(t *testing.T) {
+	spec := plantest.PlanSpec{
+		// from |> group (cannot query an infinite time range)
+		Nodes: []plan.Node{
+			plan.CreateLogicalNode("from", &influxdb.FromProcedureSpec{
+				Bucket: "my-bucket",
+			}),
+			plan.CreatePhysicalNode("group", &universe.GroupProcedureSpec{
+				GroupMode: flux.GroupModeBy,
+				GroupKeys: []string{"_measurement", "_field"},
+			}),
+		},
+		Edges: [][2]int{
+			{0, 1},
+		},
+	}
+
+	ps := plantest.CreatePlanSpec(&spec)
+	pp := plan.NewPhysicalPlanner(plan.OnlyPhysicalRules(
+		influxdb.PushDownRangeRule{},
+		influxdb.PushDownFilterRule{},
+		influxdb.PushDownGroupRule{},
+	))
+	_, err := pp.Plan(ps)
+	if err == nil {
+		t.Error("Expected query with no call to range to fail physical planning")
+	}
+	want := `cannot submit unbounded read to "my-bucket"; try bounding 'from' with a call to 'range'`
+	got := err.Error()
+	if want != got {
+		t.Errorf("unexpected error; -want/+got\n- %s\n+ %s", want, got)
 	}
 }

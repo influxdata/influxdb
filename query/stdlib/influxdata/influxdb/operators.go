@@ -80,14 +80,31 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 }
 
 func (s *ReadRangePhysSpec) PostPhysicalValidate(id plan.NodeID) error {
-	if s.Bounds.Start.IsZero() && s.Bounds.Stop.IsZero() {
+	if s.Bounds.IsEmpty() {
+		// The only way this procedure spec can be instantiated
+		// is if a range was successfully pushed down to storage.
+		// If said range is empty, invalidate the query plan as
+		// as the planner has determined that no storage scan
+		// will take place.
 		var bucket string
 		if len(s.Bucket) > 0 {
 			bucket = s.Bucket
 		} else {
 			bucket = s.BucketID
 		}
-		return fmt.Errorf(`%s: results from "%s" must be bounded`, id, bucket)
+		beg, err := s.Bounds.Start.MarshalText()
+		if err != nil {
+			return err
+		}
+		end, err := s.Bounds.Stop.MarshalText()
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("empty time range queried from bucket %s; start: %s, stop: %s",
+			bucket,
+			beg,
+			end,
+		)
 	}
 	return nil
 }
