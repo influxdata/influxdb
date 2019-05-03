@@ -55,6 +55,10 @@ func TestSeriesIndex_Delete(t *testing.T) {
 	} else if idx.IsDeleted(tsdb.NewSeriesID(2)) {
 		t.Fatal("expected series to exist")
 	}
+
+	if exp, got := idx.Count(), uint64(1); exp != got {
+		t.Fatalf("Count()=%d, expected %d", exp, got)
+	}
 }
 
 func TestSeriesIndex_FindIDBySeriesKey(t *testing.T) {
