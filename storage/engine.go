@@ -251,7 +251,15 @@ func (e *Engine) replayWAL() error {
 			return err
 
 		case *wal.DeleteBucketRangeWALEntry:
-			return e.deleteBucketRangeLocked(en.OrgID, en.BucketID, en.Min, en.Max)
+			var pred tsm1.Predicate
+			if len(en.Predicate) > 0 {
+				pred, err = tsm1.UnmarshalPredicate(en.Predicate)
+				if err != nil {
+					return err
+				}
+			}
+
+			return e.deleteBucketRangeLocked(en.OrgID, en.BucketID, en.Min, en.Max, pred)
 		}
 
 		return nil
@@ -520,22 +528,49 @@ func (e *Engine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) 
 	}
 
 	// Add the delete to the WAL to be replayed if there is a crash or shutdown.
-	if _, err := e.wal.DeleteBucketRange(orgID, bucketID, min, max); err != nil {
+	if _, err := e.wal.DeleteBucketRange(orgID, bucketID, min, max, nil); err != nil {
 		return err
 	}
 
-	return e.deleteBucketRangeLocked(orgID, bucketID, min, max)
+	return e.deleteBucketRangeLocked(orgID, bucketID, min, max, nil)
+}
+
+// DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
+// deleted must be in [min, max], and the key must match the predicate if provided.
+func (e *Engine) DeleteBucketRangePredicate(orgID, bucketID platform.ID,
+	min, max int64, pred tsm1.Predicate) error {
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return ErrEngineClosed
+	}
+
+	// Marshal the predicate to add it to the WAL.
+	predData, err := pred.Marshal()
+	if err != nil {
+		return err
+	}
+
+	// Add the delete to the WAL to be replayed if there is a crash or shutdown.
+	if _, err := e.wal.DeleteBucketRange(orgID, bucketID, min, max, predData); err != nil {
+		return err
+	}
+
+	return e.deleteBucketRangeLocked(orgID, bucketID, min, max, pred)
 }
 
 // deleteBucketRangeLocked does the work of deleting a bucket range and must be called under
 // some sort of lock.
-func (e *Engine) deleteBucketRangeLocked(orgID, bucketID platform.ID, min, max int64) error {
+func (e *Engine) deleteBucketRangeLocked(orgID, bucketID platform.ID,
+	min, max int64, pred tsm1.Predicate) error {
+
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	encoded := tsdb.EncodeName(orgID, bucketID)
 	name := models.EscapeMeasurement(encoded[:])
 
-	return e.engine.DeleteBucketRange(name, min, max)
+	return e.engine.DeletePrefixRange(name, min, max, pred)
 }
 
 // SeriesCardinality returns the number of series in the engine.

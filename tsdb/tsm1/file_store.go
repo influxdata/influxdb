@@ -117,7 +117,7 @@ type TSMFile interface {
 
 	// DeletePrefix removes the values for keys beginning with prefix. It calls dead with
 	// any keys that became dead as a result of this call.
-	DeletePrefix(prefix []byte, min, max int64, dead func([]byte)) error
+	DeletePrefix(prefix []byte, min, max int64, pred Predicate, dead func([]byte)) error
 
 	// HasTombstones returns true if file contains values that have been deleted.
 	HasTombstones() bool
